@@ -1,0 +1,55 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/composer/emoji_picker.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="picker_bg"]
+bg_color = Color(0.184, 0.192, 0.212, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="search_bg"]
+bg_color = Color(0.118, 0.125, 0.141, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+
+[node name="EmojiPicker" type="PanelContainer"]
+visible = false
+custom_minimum_size = Vector2(352, 360)
+theme_override_styles/panel = SubResource("picker_bg")
+script = ExtResource("1")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CategoryBar" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SearchInput" type="LineEdit" parent="VBox"]
+layout_mode = 2
+theme_override_styles/normal = SubResource("search_bg")
+placeholder_text = "Search emoji..."
+
+[node name="Scroll" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="EmojiGrid" type="GridContainer" parent="VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 8
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 2

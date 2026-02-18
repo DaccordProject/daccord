@@ -1,0 +1,78 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/composer/composer.gd" id="1"]
+[ext_resource type="Texture2D" path="res://theme/icons/plus.svg" id="2"]
+[ext_resource type="Texture2D" path="res://theme/icons/smile.svg" id="3"]
+[ext_resource type="Texture2D" path="res://theme/icons/send.svg" id="4"]
+
+[sub_resource type="StyleBoxFlat" id="composer_bg"]
+bg_color = Color(0.25, 0.26, 0.28, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+
+[node name="Composer" type="PanelContainer"]
+custom_minimum_size = Vector2(0, 44)
+offset_right = 500.0
+offset_bottom = 44.0
+theme_override_styles/panel = SubResource("composer_bg")
+script = ExtResource("1")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ReplyBar" type="HBoxContainer" parent="VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ReplyLabel" type="Label" parent="VBox/ReplyBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Replying to ..."
+
+[node name="CancelReplyButton" type="Button" parent="VBox/ReplyBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 44)
+flat = true
+text = "x"
+tooltip_text = "Cancel Reply"
+
+[node name="HBox" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="UploadButton" type="Button" parent="VBox/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 44)
+flat = true
+icon = ExtResource("2")
+tooltip_text = "Upload"
+
+[node name="TextInput" type="TextEdit" parent="VBox/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 44)
+placeholder_text = "Message #channel"
+wrap_mode = 1
+scroll_fit_content_height = true
+
+[node name="EmojiButton" type="Button" parent="VBox/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 44)
+flat = true
+icon = ExtResource("3")
+tooltip_text = "Emoji"
+
+[node name="SendButton" type="Button" parent="VBox/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 44)
+flat = true
+icon = ExtResource("4")
+tooltip_text = "Send"

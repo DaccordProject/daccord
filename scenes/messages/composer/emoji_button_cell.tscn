@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/composer/emoji_button_cell.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="hover_bg"]
+bg_color = Color(0.25, 0.26, 0.28, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="EmojiButtonCell" type="Button"]
+custom_minimum_size = Vector2(36, 36)
+flat = true
+theme_override_styles/hover = SubResource("hover_bg")
+icon_alignment = 1
+expand_icon = true
+script = ExtResource("1")

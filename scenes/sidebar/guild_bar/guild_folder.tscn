@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/guild_bar/guild_folder.gd" id="1"]
+
+[node name="GuildFolder" type="VBoxContainer"]
+custom_minimum_size = Vector2(68, 0)
+offset_right = 68.0
+script = ExtResource("1")
+
+[node name="FolderButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(48, 48)
+size_flags_horizontal = 4
+flat = true
+
+[node name="MiniGrid" type="GridContainer" parent="FolderButton"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 40.0
+offset_bottom = 40.0
+mouse_filter = 2
+columns = 2
+
+[node name="GuildList" type="VBoxContainer" parent="."]
+visible = false
+layout_mode = 2
