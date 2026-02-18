@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/guild_bar/dm_button.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/pill.tscn" id="2"]
+
+[node name="DMButton" type="HBoxContainer"]
+custom_minimum_size = Vector2(68, 48)
+offset_right = 68.0
+offset_bottom = 48.0
+alignment = 1
+script = ExtResource("1")
+
+[node name="PillContainer" type="CenterContainer" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(4, 48)
+
+[node name="Pill" parent="PillContainer" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="IconButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(48, 48)
+size_flags_horizontal = 4
+flat = true
+text = "DM"
+icon_alignment = 1

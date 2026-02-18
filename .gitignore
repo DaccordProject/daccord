@@ -1,0 +1,14 @@
+# Godot 4+ specific ignores
+.godot/
+
+# Godot-specific ignores
+*.translation
+
+# Imported resources
+.import/
+addons/gut
+
+# Database files
+*.db
+*.db-shm
+*.db-wal

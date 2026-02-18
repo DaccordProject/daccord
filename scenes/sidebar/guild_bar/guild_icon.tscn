@@ -1,0 +1,53 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/guild_bar/guild_icon.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/pill.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/mention_badge.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="4"]
+
+[node name="GuildIcon" type="HBoxContainer"]
+custom_minimum_size = Vector2(68, 48)
+offset_right = 68.0
+offset_bottom = 48.0
+alignment = 1
+script = ExtResource("1")
+
+[node name="PillContainer" type="CenterContainer" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(4, 48)
+
+[node name="Pill" parent="PillContainer" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="ButtonContainer" type="Control" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(48, 48)
+size_flags_horizontal = 4
+
+[node name="IconButton" type="Button" parent="ButtonContainer"]
+layout_mode = 0
+offset_right = 48.0
+offset_bottom = 48.0
+flat = true
+icon_alignment = 1
+
+[node name="AvatarRect" parent="ButtonContainer/IconButton" instance=ExtResource("4")]
+layout_mode = 0
+offset_right = 48.0
+offset_bottom = 48.0
+mouse_filter = 2
+avatar_size = 48
+show_letter = true
+letter_font_size = 20
+
+[node name="BadgeAnchor" type="Control" parent="ButtonContainer"]
+layout_mode = 0
+offset_left = 32.0
+offset_top = 28.0
+offset_right = 32.0
+offset_bottom = 28.0
+
+[node name="MentionBadge" parent="ButtonContainer/BadgeAnchor" instance=ExtResource("3")]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0

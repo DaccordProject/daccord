@@ -1,0 +1,51 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
+[application]
+
+config/name="daccord"
+run/main_scene="res://scenes/main/main_window.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+run/low_processor_mode=true
+config/icon="res://icon.svg"
+
+[autoload]
+
+AppState="*res://scripts/autoload/app_state.gd"
+Config="*res://scripts/autoload/config.gd"
+Client="*res://scripts/autoload/client.gd"
+
+[display]
+
+window/size/viewport_width=800
+window/size/viewport_height=600
+window/size/min_width=320
+window/size/min_height=480
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/accordkit/plugin.cfg", "res://addons/gut/plugin.cfg")
+
+[gui]
+
+theme/custom="res://theme/discord_dark.tres"
+
+[physics]
+
+common/physics_ticks_per_second=1
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

@@ -1,0 +1,170 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/admin/role_management_dialog.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+bg_color = Color(0.184, 0.192, 0.212, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_left = 8
+corner_radius_bottom_right = 8
+content_margin_left = 24.0
+content_margin_top = 20.0
+content_margin_right = 24.0
+content_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxFlat" id="save_btn_normal"]
+bg_color = Color(0.345, 0.396, 0.949, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[sub_resource type="StyleBoxFlat" id="delete_btn_normal"]
+bg_color = Color(0.85, 0.24, 0.24, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[node name="RoleManagementDialog" type="ColorRect"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(640, 480)
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Manage Roles"
+theme_override_font_sizes/font_size = 20
+
+[node name="NewRoleButton" type="Button" parent="CenterContainer/Panel/VBox/Header"]
+layout_mode = 2
+text = "+ New Role"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+
+[node name="CloseButton" type="Button" parent="CenterContainer/Panel/VBox/Header"]
+layout_mode = 2
+text = "✕"
+flat = true
+
+[node name="Content" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="RoleScroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+size_flags_horizontal = 0
+
+[node name="RoleList" type="VBoxContainer" parent="CenterContainer/Panel/VBox/Content/RoleScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="EditorScroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Editor" type="VBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+text = "ROLE NAME"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+
+[node name="ColorRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+
+[node name="ColorLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/ColorRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Color"
+
+[node name="ColorPicker" type="ColorPickerButton" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/ColorRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(48, 32)
+
+[node name="HoistCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+text = "Display separately in member list"
+
+[node name="MentionableCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+text = "Allow anyone to mention this role"
+
+[node name="PermLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+text = "PERMISSIONS"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="PermList" type="VBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="EditorButtons" type="HBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 8
+
+[node name="DeleteButton" type="Button" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/EditorButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 36)
+text = "Delete"
+theme_override_styles/normal = SubResource("delete_btn_normal")
+
+[node name="SaveButton" type="Button" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/EditorButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 36)
+text = "Save"
+theme_override_styles/normal = SubResource("save_btn_normal")
+
+[node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+autowrap_mode = 2

@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/guild_bar/pill.gd" id="1"]
+
+[node name="Pill" type="ColorRect"]
+custom_minimum_size = Vector2(3, 0)
+offset_right = 3.0
+offset_bottom = 0.0
+color = Color(1, 1, 1, 1)
+script = ExtResource("1")

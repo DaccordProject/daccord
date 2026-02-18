@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/collapsed_message.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/messages/message_content.tscn" id="2"]
+
+[node name="CollapsedMessage" type="HBoxContainer"]
+offset_right = 600.0
+theme_override_constants/separation = 12
+script = ExtResource("1")
+
+[node name="TimestampSpacer" type="Control" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(42, 0)
+
+[node name="TimestampLabel" type="Label" parent="TimestampSpacer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_alignment = 1
+vertical_alignment = 0
+
+[node name="MessageContent" parent="." instance=ExtResource("2")]
+layout_mode = 2
+size_flags_horizontal = 3

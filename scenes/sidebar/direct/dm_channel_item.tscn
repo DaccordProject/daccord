@@ -1,0 +1,44 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/direct/dm_channel_item.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="2"]
+
+[node name="DMChannelItem" type="Button"]
+custom_minimum_size = Vector2(0, 44)
+offset_right = 220.0
+offset_bottom = 44.0
+flat = true
+alignment = 0
+script = ExtResource("1")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Avatar" parent="HBox" instance=ExtResource("2")]
+layout_mode = 2
+size_flags_vertical = 4
+avatar_size = 32
+
+[node name="Info" type="VBoxContainer" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="Username" type="Label" parent="HBox/Info"]
+layout_mode = 2
+
+[node name="LastMessage" type="Label" parent="HBox/Info"]
+layout_mode = 2
+
+[node name="UnreadDot" type="ColorRect" parent="HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(8, 8)
+size_flags_vertical = 4
+color = Color(1, 1, 1, 1)
