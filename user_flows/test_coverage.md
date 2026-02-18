@@ -48,7 +48,15 @@ cleanup() ──► kill server + rm accord_test.db
 | `tests/unit/test_markdown.gd` | Unit tests for markdown-to-BBCode renderer (11 tests) |
 | `tests/unit/test_auth_dialog.gd` | Unit tests for auth dialog UI (12 tests) |
 | `tests/unit/test_add_server_dialog.gd` | Unit tests for add-server dialog + URL parser (15 tests) |
-| `tests/unit/test_security.gd` | Security tests — BBCode injection, malicious URLs, state integrity (23 tests) |
+| `tests/unit/test_security.gd` | Security tests — BBCode sanitization, URL scheme blocking, state integrity (23 tests) |
+| `tests/unit/test_client_models.gd` | Unit tests for ClientModels *_to_dict() conversions + helpers (~60 tests) |
+| `tests/unit/test_message_content.gd` | Unit tests for message content rendering + edit mode (11 tests) |
+| `tests/unit/test_cozy_message.gd` | Unit tests for cozy message layout + context menu (8 tests) |
+| `tests/unit/test_collapsed_message.gd` | Unit tests for collapsed message layout + timestamp (6 tests) |
+| `tests/unit/test_composer.gd` | Unit tests for composer UI elements + reply bar (8 tests) |
+| `tests/unit/test_typing_indicator.gd` | Unit tests for typing indicator show/hide + animation (6 tests) |
+| `tests/unit/test_reaction_pill.gd` | Unit tests for reaction pill setup + optimistic update (7 tests) |
+| `tests/unit/test_dm_channel_item.gd` | Unit tests for DM channel item setup + active state (9 tests) |
 | `tests/accordkit/helpers/test_base.gd` | AccordTestBase — seeds server, creates clients per test |
 | `tests/accordkit/helpers/seed_client.gd` | SeedClient — POSTs to `/test/seed` for test data |
 | `tests/accordkit/unit/test_snowflake.gd` | AccordSnowflake encode/decode (8 tests) |
@@ -127,7 +135,23 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 **test_add_server_dialog.gd** — 15 tests for the add-server dialog and URL parser. Tests UI elements, validation (empty/whitespace), URL parsing (bare host, port, protocol, fragment `#guild`, query `?token=`, `?invite=`, full URL, whitespace stripping), signal existence, and dialog close.
 
-**test_security.gd** — 23 tests documenting security properties. BBCode injection tests (8) verify that raw `[url]`, `[img]`, `[color]`, `[font_size]`, `[table]` tags pass through unsanitized (documenting current vulnerable behavior), while code blocks contain injections. Malicious URL scheme tests (4) document that `javascript:`, `data:`, `file:`, `vbscript:` schemes get converted to clickable `[url]` tags. Input boundary tests (5) verify no crash on empty, very long (100K chars), whitespace, null bytes, and RTL override characters. Regex abuse tests (3) verify no hang on deeply nested markdown, overlapping delimiters, and unclosed delimiters. State integrity tests (5) verify signals emit even with empty/whitespace inputs.
+**test_security.gd** — 23 tests verifying security properties. BBCode sanitization tests (8) verify that raw BBCode tags injected via user content are escaped with `[lb]` (unknown tags) or allowed through (converter-produced tags like `[color=`, `[url=`), while code blocks preserve raw tags. Malicious URL scheme tests (4) verify that `javascript:`, `data:`, `file:`, `vbscript:` schemes in markdown links are replaced with `#blocked`. Input boundary tests (5) verify no crash on empty, very long (100K chars), whitespace, null bytes, and RTL override characters. Regex abuse tests (3) verify no hang on deeply nested markdown, overlapping delimiters, and unclosed delimiters. State integrity tests (5) verify signals emit even with empty/whitespace inputs.
+
+**test_client_models.gd** — ~60 tests for `ClientModels` static conversion functions. Covers `_color_from_id` (determinism, uniqueness), `_status_string_to_enum` / `_status_enum_to_string` (roundtrip for all statuses), `_channel_type_to_enum` (all channel types + unknown default), `_format_timestamp` (empty, no-T, AM/PM, midnight, noon), `user_to_dict` (basic fields, display_name fallback, avatar URL, null avatar, color, status), `space_to_guild_dict` (basic fields, null description, public from features, icon URL), `channel_to_dict` (basic fields, type mapping, null parent_id, guild_id from space_id, position, nsfw), `message_to_dict` (basic fields, author from cache, unknown author, edited flag, reactions, reply_to, system type), `member_to_dict` (from cache, unknown user, nickname override, joined_at), `dm_channel_to_dict` (single recipient, group, no recipients, last_message_id), `role_to_dict` (all fields, defaults), `invite_to_dict` (full, nulls), `emoji_to_dict` (full, null id), `sound_to_dict` (full, null id), `voice_state_to_dict` (from cache, unknown user, all flags).
+
+**test_message_content.gd** — 11 tests for the message content component. Covers plain text rendering, edited indicator (present/absent), system message italic styling, `_format_file_size` static method (bytes/KB/MB), edit mode (hides text content, `is_editing` state).
+
+**test_cozy_message.gd** — 8 tests for the cozy (full) message layout. Covers author name, timestamp, avatar initialization, author color override, reply reference visibility, context menu items (4 items: Reply/Edit/Delete/Add Reaction), and message data storage.
+
+**test_collapsed_message.gd** — 6 tests for the collapsed (follow-up) message layout. Covers content setup, timestamp extraction from "Today at 10:31 AM" -> "10:31", context menu (4 items), timestamp initially hidden, and message data storage.
+
+**test_composer.gd** — 8 tests for the message composer. Covers UI element existence (text_input, send_button, emoji_button, upload_button), initial state (reply_bar hidden, error_label hidden), `set_channel_name` placeholder update, and reply cancel behavior.
+
+**test_typing_indicator.gd** — 6 tests for the typing indicator component. Covers initial processing state (off), `show_typing` (visible, text, processing enabled, anim_time reset), and `hide_typing` (hidden, processing disabled).
+
+**test_reaction_pill.gd** — 7 tests for the reaction pill button. Covers `setup` (emoji_key, count label, active true/false, channel/message IDs, zero count), and optimistic toggle count increment.
+
+**test_dm_channel_item.gd** — 9 tests for the DM channel list item. Covers `setup` (dm_id, username, last_message, unread dot visible/hidden), `set_active` (applies/removes style), and signal existence (dm_pressed, dm_closed).
 
 ### AccordKit Unit Tests (`tests/accordkit/unit/`)
 
@@ -182,13 +206,13 @@ Two jobs on push/PR to `master`:
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 6 | 107 | No |
+| Unit (`tests/unit/`) | 14 | ~222 | No |
 | AccordKit unit (`tests/accordkit/unit/`) | 11 | 135 | No |
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 44 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
 | AccordKit e2e (`tests/accordkit/e2e/`) | 1 | 1 | Yes |
 | AccordStream (`tests/accordstream/integration/`) | 5 | 146 | No |
-| **Total** | **31** | **437** | |
+| **Total** | **39** | **~552** | |
 
 ## Implementation Status
 
@@ -205,7 +229,15 @@ Two jobs on push/PR to `master`:
 - [x] Unit tests for markdown rendering (11 tests)
 - [x] Unit tests for auth dialog (12 tests)
 - [x] Unit tests for add-server dialog + URL parser (15 tests)
-- [x] Security tests for BBCode injection and state integrity (23 tests)
+- [x] Security tests — BBCode sanitization, URL scheme blocking, state integrity (23 tests)
+- [x] Unit tests for ClientModels conversions (~60 tests)
+- [x] Unit tests for message content rendering (11 tests)
+- [x] Unit tests for cozy message layout (8 tests)
+- [x] Unit tests for collapsed message layout (6 tests)
+- [x] Unit tests for composer UI (8 tests)
+- [x] Unit tests for typing indicator (6 tests)
+- [x] Unit tests for reaction pill (7 tests)
+- [x] Unit tests for DM channel item (9 tests)
 - [x] AccordKit model serialization tests (84 tests across 4 files)
 - [x] AccordKit utility tests — snowflake, REST result, intents, CDN, permissions, multipart (51 tests)
 - [x] AccordKit REST integration tests — users, spaces, channels, messages, members (23 tests)
@@ -227,20 +259,20 @@ Two jobs on push/PR to `master`:
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | No tests for `Client` autoload | High | `scripts/autoload/client.gd` — the central data/connection manager — has no unit tests. Tests would need mocking for `AccordClient` and gateway events. |
-| No tests for `ClientModels` beyond markdown | High | `scripts/autoload/client_models.gd` converts AccordKit models to UI dictionaries; only `markdown_to_bbcode()` is tested. The `from_accord_*()` conversion methods have zero coverage. |
+| ~~No tests for `ClientModels` beyond markdown~~ | ~~High~~ | **Fixed.** `test_client_models.gd` covers all `*_to_dict()` conversions and helper functions (~60 tests). |
 | No tests for `ClientGateway` | High | `scripts/autoload/client_gateway.gd` handles all gateway event-to-signal routing. No tests verify event dispatch logic. |
 | No tests for `ClientFetch` | High | `scripts/autoload/client_fetch.gd` handles REST data fetching. No unit tests. |
 | No tests for `ClientAdmin` | Medium | `scripts/autoload/client_admin.gd` handles admin operations. No unit tests. |
-| No tests for message_view / message rendering | High | `scenes/messages/message_view.gd`, `cozy_message.gd`, `collapsed_message.gd`, `message_content.gd` — the entire message display pipeline has no unit tests. |
+| ~~No tests for message_view / message rendering~~ | ~~High~~ | **Partially fixed.** `test_cozy_message.gd` (8 tests), `test_collapsed_message.gd` (6 tests), `test_message_content.gd` (11 tests) now cover message component rendering. `message_view.gd` (the scroll container / message list manager) still untested due to heavy `Client` dependency. |
 | No tests for sidebar / channel_list / guild_bar | Medium | `scenes/sidebar/sidebar.gd`, `channel_list.gd`, `guild_bar.gd` — navigation components have no tests. |
-| No tests for composer | Medium | `scenes/messages/composer/composer.gd` — message input, reply bar, send logic untested. |
+| ~~No tests for composer~~ | ~~Medium~~ | **Fixed.** `test_composer.gd` covers UI elements, initial state, placeholder, and reply bar (8 tests). Send logic and typing throttle require `Client` mock. |
 | No tests for member_list | Low | `scenes/members/member_list.gd` — member panel display untested. |
 | No tests for admin dialogs | Medium | 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. |
 | No tests for emoji_picker | Low | `scenes/messages/composer/emoji_picker.gd` — emoji search, category filtering, insertion untested. |
 | No tests for search_panel | Low | `scenes/search/search_panel.gd` — search UI untested. |
-| No tests for DM components | Medium | `scenes/sidebar/direct/dm_list.gd`, `dm_channel_item.gd` — DM navigation untested. |
-| BBCode injection is documented but unfixed | Medium | `test_security.gd` documents that raw BBCode tags pass through `markdown_to_bbcode()` unsanitized (e.g., `[url]`, `[img]`, `[color]`). Tests assert current vulnerable behavior rather than desired behavior. See `tests/unit/test_security.gd` lines 17-55. |
-| Malicious URL schemes not blocked | Medium | `javascript:`, `data:`, `file:`, `vbscript:` URIs become clickable `[url]` tags. See `tests/unit/test_security.gd` lines 60-85. |
+| ~~No tests for DM components~~ | ~~Medium~~ | **Partially fixed.** `test_dm_channel_item.gd` covers `dm_channel_item.gd` (9 tests). `dm_list.gd` still untested due to `Client` dependency. |
+| ~~BBCode injection is documented but unfixed~~ | ~~Medium~~ | **Fixed.** `_sanitize_bbcode_tags()` post-processor escapes raw BBCode tags not produced by the converter. Unknown tags get `[lb]` escape. Code blocks are left untouched. Security tests updated to assert fixed behavior. |
+| ~~Malicious URL schemes not blocked~~ | ~~Medium~~ | **Fixed.** `markdown_to_bbcode()` now checks link URLs against blocked schemes (`javascript:`, `data:`, `file:`, `vbscript:`) and replaces them with `#blocked`. Security tests updated to assert scheme blocking. |
 | `/test/seed` fails after first test file | High | AccordTestBase's `before_all()` calls `/test/seed`, which returns 500 after the first test file runs. All subsequent integration/gateway/e2e test files fail. Server-side fix needed in `accordserver/src/routes/test_seed.rs`. |
 | Integration tests not run in CI | High | `.github/workflows/ci.yml` (line 67) only runs `res://tests/unit`. AccordKit integration, gateway, and e2e tests are never run in CI because no server is started. |
 | AccordStream tests skip in headless CI | Medium | Tests guard with `pass_test("No X available — skipping")` when no hardware is detected. Most tests will be skipped in headless environments. |
@@ -248,5 +280,5 @@ Two jobs on push/PR to `master`:
 | `test_disconnect_clean_state` is a smoke test | Low | `tests/accordkit/gateway/test_gateway_connect.gd` — the disconnect test just asserts `true` after logout; does not verify internal connection state. |
 | No mock/stub/double usage | Medium | All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree. |
 | No tests for responsive layout behavior | Low | Layout mode breakpoints are tested in `test_app_state.gd`, but the actual UI response (sidebar drawer, hamburger button, panel visibility) in `main_window.gd` is untested. |
-| No tests for reaction_bar / reaction_pill | Low | `scenes/messages/reaction_bar.gd`, `reaction_pill.gd` — reaction UI components untested. |
-| No tests for typing_indicator | Low | `scenes/messages/typing_indicator.gd` — typing display logic untested. |
+| ~~No tests for reaction_bar / reaction_pill~~ | ~~Low~~ | **Partially fixed.** `test_reaction_pill.gd` covers `reaction_pill.gd` (7 tests). `reaction_bar.gd` (container that creates pills) still untested. |
+| ~~No tests for typing_indicator~~ | ~~Low~~ | **Fixed.** `test_typing_indicator.gd` covers show/hide, processing state, and animation reset (6 tests). |
