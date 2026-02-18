@@ -23,6 +23,28 @@ script = ExtResource("1")
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="ConnectionBanner" type="PanelContainer" parent="VBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+
+[node name="HBox" type="HBoxContainer" parent="VBox/ConnectionBanner"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="StatusLabel" type="Label" parent="VBox/ConnectionBanner/HBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="RetryButton" type="Button" parent="VBox/ConnectionBanner/HBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Reconnect"
+theme_override_font_sizes/font_size = 12
+
 [node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -39,6 +61,38 @@ text = "Show older messages"
 flat = true
 theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
 theme_override_font_sizes/font_size = 12
+
+[node name="EmptyState" type="VBoxContainer" parent="VBox/ScrollContainer/MessageList"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="VBox/ScrollContainer/MessageList/EmptyState"]
+layout_mode = 2
+text = "Welcome to #channel"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="Description" type="Label" parent="VBox/ScrollContainer/MessageList/EmptyState"]
+layout_mode = 2
+text = "This is the beginning of this channel."
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+
+[node name="LoadingLabel" type="Label" parent="VBox/ScrollContainer/MessageList"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+text = "Loading messages..."
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
 
 [node name="TypingIndicator" parent="VBox" instance=ExtResource("2")]
 layout_mode = 2

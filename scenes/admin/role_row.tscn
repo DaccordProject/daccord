@@ -1,0 +1,24 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/admin/role_row.gd" id="1"]
+
+[node name="RoleRow" type="HBoxContainer"]
+theme_override_constants/separation = 2
+script = ExtResource("1")
+
+[node name="UpButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 0)
+flat = true
+
+[node name="DownButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 0)
+flat = true
+
+[node name="RoleButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(110, 32)
+size_flags_horizontal = 3
+flat = true
+alignment = 0

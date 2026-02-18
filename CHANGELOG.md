@@ -1,0 +1,18 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Initial client application with multi-server support
+- Real-time messaging via WebSocket gateway
+- Channel and DM navigation
+- Message compose, edit, delete, and reply
+- Emoji picker with custom and Unicode emoji
+- Server administration (channels, roles, bans, invites, emoji)
+- Responsive layout with compact/medium/full modes
+- Custom dark theme

@@ -1,0 +1,47 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/admin/channel_row.gd" id="1"]
+
+[node name="ChannelRow" type="HBoxContainer"]
+script = ExtResource("1")
+
+[node name="CheckBox" type="CheckBox" parent="."]
+layout_mode = 2
+
+[node name="UpButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 0)
+flat = true
+
+[node name="DownButton" type="Button" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 0)
+flat = true
+
+[node name="TypeLabel" type="Label" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(20, 0)
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+
+[node name="NameLabel" type="Label" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+text_overrun_behavior = 3
+
+[node name="PermsButton" type="Button" parent="."]
+layout_mode = 2
+text = "Perms"
+flat = true
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+
+[node name="EditButton" type="Button" parent="."]
+layout_mode = 2
+text = "Edit"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+
+[node name="DeleteButton" type="Button" parent="."]
+layout_mode = 2
+text = "Del"
+flat = true
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)

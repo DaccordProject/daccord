@@ -1,10 +1,21 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/channels/channel_list.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/channels/banner.tscn" id="2"]
 
 [sub_resource type="StyleBoxFlat" id="channel_panel_bg"]
 bg_color = Color(0.184, 0.192, 0.212, 1)
+
+[sub_resource type="StyleBoxFlat" id="empty_create_btn_style"]
+bg_color = Color(0.345, 0.396, 0.949, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
 
 [node name="ChannelList" type="PanelContainer"]
 custom_minimum_size = Vector2(240, 0)
@@ -30,3 +41,33 @@ horizontal_scroll_mode = 0
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
+
+[node name="EmptyState" type="VBoxContainer" parent="VBox/ScrollContainer/ChannelVBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="EmptyTitle" type="Label" parent="VBox/ScrollContainer/ChannelVBox/EmptyState"]
+layout_mode = 2
+text = "No channels yet"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+
+[node name="EmptyDesc" type="Label" parent="VBox/ScrollContainer/ChannelVBox/EmptyState"]
+layout_mode = 2
+text = "Create your first channel to get started."
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+
+[node name="EmptyCreateBtn" type="Button" parent="VBox/ScrollContainer/ChannelVBox/EmptyState"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+custom_minimum_size = Vector2(0, 32)
+text = "Create Channel"
+theme_override_styles/normal = SubResource("empty_create_btn_style")

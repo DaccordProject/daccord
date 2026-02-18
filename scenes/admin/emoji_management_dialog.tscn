@@ -64,6 +64,11 @@ layout_mode = 2
 text = "✕"
 flat = true
 
+[node name="SearchInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+placeholder_text = "Search..."
+
 [node name="Scroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 240)

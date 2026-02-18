@@ -1,0 +1,232 @@
+# Emoji Picker
+
+## Overview
+
+The emoji picker allows users to browse and insert emoji into their messages as `:name:` shortcodes. It provides a categorized catalog of 160 Twemoji SVGs across 8 categories, a search bar for filtering by name, and category tabs for quick navigation. Selected emoji are inserted as `:name:` shortcodes at the cursor position in the composer, and rendered inline as images by `markdown_to_bbcode()`. Emoji are also used in message reactions via a shared `EmojiData` catalog. The picker supports custom server emoji loaded from the CDN, displayed in a dedicated "Custom" category tab.
+
+Custom emoji are stored on the server as image files (uploaded as base64 data URIs via `POST /spaces/{id}/emojis`). The server assigns each emoji a snowflake ID, stores the image to disk, and serves it via CDN at `/emojis/{emoji_id}.{png|gif}`. Emoji CRUD operations broadcast gateway events (`emoji.create`, `emoji.update`, `emoji.delete`) to all members of the space.
+
+## User Steps
+
+### Insert Emoji via Picker
+
+1. User clicks the smiley-face emoji button in the composer toolbar
+2. Emoji picker panel appears above the button (352x360px, dark background with rounded corners)
+3. Category bar at the top shows tabs; if a guild is selected, the first tab is "Custom" (star icon), followed by the 8 built-in category tabs. "Smileys & Emotion" is selected by default
+4. User browses the 8x-column grid of emoji for the current category (20 emoji per built-in category)
+5. Optionally, user types in the search bar to filter emoji by name across all categories (including cached custom emoji)
+6. User clicks an emoji cell
+7. The emoji's `:name:` shortcode is inserted at the caret position in the composer TextEdit (both built-in and custom emoji use the same shortcode format)
+8. Picker closes automatically after selection
+9. Composer TextEdit regains focus
+
+### Custom Emoji Tab
+
+1. User clicks the "Custom" tab (star icon, first tab when a guild is selected)
+2. Picker fetches the current guild's custom emoji via `Client.get_emojis(guild_id)`
+3. Emoji textures are loaded from the CDN using HTTPRequest and cached
+4. Custom emoji appear in the grid with their loaded textures
+5. Clicking a custom emoji inserts `:name:` into the composer, or adds it as a reaction
+
+### Dismiss Picker Without Selecting
+
+1. User clicks the emoji button again (toggles off), or
+2. User presses Escape, or
+3. User clicks anywhere outside the picker panel
+
+### Emoji in Reactions
+
+1. Message reactions display emoji textures from the same `EmojiData.TEXTURES` dictionary
+2. `reaction_pill.gd` looks up emoji by name key to set its texture
+3. Toggling a reaction calls `Client.add_reaction()` or `Client.remove_reaction()` (optimistic local update, gateway events are source of truth)
+4. Gateway events (`reaction.add`, `reaction.remove`, `reaction.clear`, `reaction.clear_emoji`) update the message cache and trigger re-render
+
+### Add Reaction via Context Menu
+
+1. User right-clicks a message (cozy or collapsed) or long-presses on touch
+2. Context menu shows "Reply", "Edit", "Delete", and "Add Reaction"
+3. User clicks "Add Reaction"
+4. Emoji picker opens near the context menu position
+5. User selects an emoji (built-in or custom)
+6. `Client.add_reaction()` is called with the channel ID, message ID, and emoji name
+7. Picker closes automatically
+
+## Signal Flow
+
+```
+User clicks EmojiButton (composer.tscn)
+    -> composer._on_emoji_button() (line 68)
+        -> Instantiates EmojiPickerScene (lazy, first click only)
+        -> Adds to scene tree root
+        -> emoji_picker.emoji_picked.connect(composer._on_emoji_picked)
+        -> _position_picker() positions above button, right-aligned
+        -> emoji_picker.visible = true
+
+User clicks emoji cell in grid
+    -> emoji_button_cell._on_pressed()
+        -> emoji_selected signal(emoji_name)
+    -> emoji_picker._on_emoji_selected(emoji_name)
+        -> emoji_picked signal(emoji_name)
+    -> composer._on_emoji_picked(emoji_name) (line 93)
+        -> For built-in: EmojiData.get_by_name(emoji_name) validates name exists
+           -> Inserts ":emoji_name:" shortcode at caret position (line 106)
+        -> For custom (prefix "custom:"): Extracts name, inserts ":name:" (line 99)
+        -> text_input.grab_focus()
+        -> emoji_picker.visible = false
+
+User clicks custom emoji cell
+    -> Lambda closure emits emoji_picked("custom:name:id")
+    -> composer._on_emoji_picked() detects "custom:" prefix
+        -> Inserts ":name:" shortcode at caret position
+
+Message rendering (shortcode -> inline image):
+    -> message_content.setup() calls ClientModels.markdown_to_bbcode(raw_text) (line 17)
+        -> Regex matches :emoji_name: patterns (client_models.gd line 372)
+        -> Replaces with [img=20x20]res://theme/emoji/CODEPOINT.svg[/img] (line 380)
+
+Reaction flow (context menu):
+    -> cozy_message/collapsed_message._on_context_menu_id_pressed(3) (line 86/81)
+        -> _open_reaction_picker() instantiates EmojiPickerScene (line 97/92)
+        -> emoji_picked.connect(_on_reaction_emoji_picked)
+    -> _on_reaction_emoji_picked(emoji_name) (line 112/107)
+        -> For custom: strips "custom:" prefix (line 119/114)
+        -> Client.add_reaction(channel_id, message_id, reaction_key) (line 120/115)
+        -> Picker freed (line 121-123/116-118)
+
+Reaction flow (pill toggle):
+    -> reaction_pill._on_toggled(toggled_on) (line 29)
+        -> Optimistic local count update (lines 31-35)
+        -> Client.add_reaction() or Client.remove_reaction() (lines 39-42)
+
+Gateway reaction events:
+    -> AccordClient.reaction_add/remove/clear/clear_emoji signals
+        -> client_gateway.on_reaction_add/remove/clear/clear_emoji()
+            -> Updates message cache reactions array
+            -> AppState.messages_updated.emit(channel_id)
+```
+
+## Key Files
+
+| File | Role |
+|------|------|
+| `scenes/messages/composer/composer.gd` | Hosts emoji button, instantiates picker, handles `emoji_picked` signal, inserts `:name:` shortcode into TextEdit |
+| `scenes/messages/composer/composer.tscn` | Composer layout with EmojiButton (smile.svg icon, 44x44px) |
+| `scenes/messages/composer/emoji_picker.gd` | Picker panel: category bar (with Custom tab), search, grid population, custom emoji CDN loading, dismiss logic |
+| `scenes/messages/composer/emoji_picker.tscn` | Picker layout: 352x360px PanelContainer, CategoryBar, SearchInput, 8-column EmojiGrid in ScrollContainer |
+| `scenes/messages/composer/emoji_button_cell.gd` | Individual emoji button: displays texture, emits `emoji_selected` on click |
+| `scenes/messages/composer/emoji_button_cell.tscn` | Cell layout: 36x36px flat Button with hover highlight, centered icon |
+| `scripts/emoji_data.gd` | Static catalog: `Category` enum, `CATALOG` (8 categories x 20 entries), `TEXTURES` (160 preloaded SVGs), lookup helpers with dictionary-based `get_by_name()` |
+| `scripts/autoload/client_models.gd` | `markdown_to_bbcode()` renders `:name:` shortcodes as inline `[img]` BBCode tags; `emoji_to_dict()` converts `AccordEmoji` models |
+| `scenes/messages/message_content.gd` | Calls `markdown_to_bbcode()` for emoji rendering, passes `channel_id` and `message_id` to reaction bar |
+| `scenes/messages/reaction_pill.gd` | Reaction display: looks up emoji textures, calls `Client.add_reaction()`/`Client.remove_reaction()` on toggle |
+| `scenes/messages/reaction_bar.gd` | Creates reaction pills, passes `channel_id` and `message_id` through to pills |
+| `scenes/messages/cozy_message.gd` | Context menu with "Add Reaction" option, opens emoji picker for reaction selection |
+| `scenes/messages/collapsed_message.gd` | Same context menu with "Add Reaction" as cozy_message |
+| `scripts/autoload/client.gd` | `add_reaction()` (line 403) and `remove_reaction()` (line 413) mutation methods, gateway signal connections (lines 244-248) |
+| `scripts/autoload/client_gateway.gd` | Gateway handlers: `on_reaction_add` (line 290), `on_reaction_remove` (line 320), `on_reaction_clear` (line 344), `on_reaction_clear_emoji` (line 356) |
+| `scripts/autoload/app_state.gd` | `emojis_updated` (line 36) and `reactions_updated` (line 38) signals |
+| `theme/emoji/*.svg` | 160 Twemoji SVG files referenced by hex codepoint filename |
+| `theme/icons/smile.svg` | Emoji button icon in composer toolbar |
+
+## Implementation Details
+
+### EmojiData Catalog (emoji_data.gd)
+
+- `Category` enum (line 7): `SMILEYS`, `PEOPLE`, `NATURE`, `FOOD`, `ACTIVITIES`, `TRAVEL`, `OBJECTS`, `SYMBOLS`
+- `CATEGORY_NAMES` (lines 9-18): Human-readable names for tooltip text (e.g., "Smileys & Emotion", "People & Body")
+- `CATEGORY_ICONS` (lines 20-29): Maps each category to its representative codepoint (used as the tab icon)
+- `CATALOG` (lines 31-208): Dictionary mapping each `Category` to an array of 20 `{name, codepoint}` entries. Names use snake_case (e.g., `"grinning_face"`, `"thumbs_up"`). Codepoints are hex strings referencing Twemoji filenames (e.g., `"1f600"`)
+- `TEXTURES` (lines 210-379): Dictionary mapping emoji name to `preload()`ed SVG textures from `theme/emoji/`. All 160 emoji are preloaded at class load time
+- `_name_lookup` (static var): Lazily-built dictionary mapping emoji name to `{name, codepoint}` entry for O(1) lookup
+- `get_all_for_category(category)` (line 390): Returns the 20-entry array for a category
+- `get_by_name(emoji_name)` (line 393): Dictionary lookup via `_name_lookup` (lazy-initialized on first call)
+- `codepoint_to_char(hex_codepoint)` (line 397): Converts hex string to Unicode character via `char(hex_codepoint.hex_to_int())`. Not used for composer insertion (shortcodes are used instead); exists for potential direct Unicode rendering
+
+### Emoji Picker Panel (emoji_picker.gd)
+
+- Extends `PanelContainer`, starts hidden (`visible = false` in .tscn)
+- **Custom tab**: If `AppState.current_guild_id` is set (line 28), a "Custom" tab (star icon) is prepended to the category bar. Clicking it loads custom emoji from the server via `Client.get_emojis()` (line 92) and renders them with CDN-loaded textures. Textures are cached in `_custom_emoji_cache` (line 11) to avoid re-fetching
+- **Category bar**: `_build_category_bar()` (line 26) creates a flat `Button` (36x36px) per category with the category's representative emoji as icon and category name as tooltip. Active category highlighted white, inactive dimmed to `Color(0.58, 0.608, 0.643)` (line 64)
+- **Search**: `_on_search_changed(query)` (line 145) clears grid, then searches both built-in emoji and cached custom emoji by name. Empty query reloads the current category
+- **Grid population**: `_load_category(cat)` (line 81) clears grid, then calls `_add_emoji_cell()` for each entry
+- **Custom emoji cells**: `_add_custom_emoji_cell(emoji)` (line 99) creates a cell, loads the texture from CDN via HTTPRequest (with PNG loading), and emits `emoji_picked` with `custom:name:id` format on click (line 140)
+- **Dismiss**: `_input(event)` (line 185) handles Escape key and clicks outside the picker's global rect, setting `visible = false`
+- **Signal**: `emoji_picked(emoji_name: String)` (line 3) emitted when a cell is clicked. For custom emoji, the format is `custom:name:id`
+
+### Emoji Button Cell (emoji_button_cell.gd)
+
+- Extends `Button` (36x36px, flat, centered icon, expand_icon enabled)
+- `setup(data)`: Stores `data.name` as `_emoji_name`, sets `icon` from `EmojiData.TEXTURES`, sets tooltip to name with underscores replaced by spaces
+- `_on_pressed()`: Emits `emoji_selected(_emoji_name)`
+- Hover style: light gray background (`Color(0.25, 0.26, 0.28)`) with 4px corner radius (defined in .tscn)
+
+### Composer Integration (composer.gd)
+
+- `EmojiPickerScene` preloaded (line 3)
+- **Lazy instantiation**: `_on_emoji_button()` (line 68) toggles visibility if picker exists; otherwise instantiates, adds to scene tree root, and connects `emoji_picked` signal (line 75)
+- **Positioning**: `_position_picker()` (line 79) places the picker above the emoji button, right-aligned. Clamped to viewport bounds with 4px margin (lines 89-90)
+- **Insertion**: `_on_emoji_picked(emoji_name)` (line 93) inserts `:name:` shortcodes for both built-in and custom emoji:
+  - Custom emoji (`custom:name:id` prefix): extracts name from parts, inserts `:name:` (lines 95-101)
+  - Built-in emoji: validates name via `EmojiData.get_by_name()`, inserts `:emoji_name:` (lines 103-106)
+  - Text is spliced at the current caret position (lines 107-112)
+- **Cleanup**: `_exit_tree()` (line 116) calls `queue_free()` on the picker instance if it exists
+
+### Emoji Rendering in Messages (client_models.gd)
+
+- `markdown_to_bbcode()` (line 324) converts `:emoji_name:` shortcodes to inline images
+- Regex pattern `:([a-z0-9_]+):` matches shortcodes (line 372)
+- Matches are processed in reverse order to maintain string indices (line 374)
+- Each match is looked up via `EmojiData.get_by_name()` (line 377); if found, replaced with `[img=20x20]res://theme/emoji/CODEPOINT.svg[/img]` (line 380)
+- Custom emoji shortcodes (`:custom_name:`) are not rendered inline — they appear as plain text unless the name happens to match a built-in emoji
+
+### Reactions API Integration
+
+- **Client methods**: `Client.add_reaction(channel_id, message_id, emoji_name)` (line 403) calls `AccordClient.reactions.add()`, `Client.remove_reaction()` (line 413) calls `reactions.remove_own()`
+- **Reaction pill**: `reaction_pill.gd` receives `channel_id` and `message_id` via `setup()` (line 16). On toggle (line 29), performs optimistic local count update (lines 31-35) then calls `Client.add_reaction()` or `Client.remove_reaction()` (lines 39-42). Active state uses a blue-tinted StyleBoxFlat (line 44)
+- **Reaction bar**: `reaction_bar.gd` accepts `channel_id` and `message_id` in `setup()` (line 5) and forwards them to each pill (lines 17-18)
+- **Message content**: `message_content.gd` extracts `channel_id` and `id` from message data (lines 23-24) and passes them to `reaction_bar.setup()` (line 25)
+- **Context menu**: Both `cozy_message.gd` (line 94) and `collapsed_message.gd` (line 89) have "Add Reaction" (ID 3) in their context menus. This opens an emoji picker (line 97/92) and routes the selection to `Client.add_reaction()` (line 120/115). Custom emoji have the `custom:` prefix stripped before the API call (line 119/114)
+- **Gateway handlers**: `client_gateway.gd` handles `reaction_add` (line 290), `reaction_remove` (line 320), `reaction_clear` (line 344), and `reaction_clear_emoji` (line 356) events by updating the message cache and emitting `AppState.messages_updated`
+
+### Visual Style
+
+- Picker background: `Color(0.184, 0.192, 0.212)`, 8px corner radius, 8px padding
+- Search input background: `Color(0.118, 0.125, 0.141)`, 4px corner radius
+- Grid: 8 columns, 2px horizontal and vertical separation
+- Cell hover: `Color(0.25, 0.26, 0.28)` with 4px corner radius
+- Reaction pill active state: `Color(0.345, 0.396, 0.949, 0.3)` background with 1px `Color(0.345, 0.396, 0.949)` border, 8px corner radius
+
+## Implementation Status
+
+- [x] Emoji button in composer toolbar (smile.svg icon)
+- [x] Emoji picker panel with dark theme styling
+- [x] 8 category tabs with icon buttons and active highlighting
+- [x] 160 Twemoji SVGs across 8 categories (20 per category)
+- [x] Search-by-name filtering across all categories
+- [x] Shortcode insertion at caret position (`:name:` format)
+- [x] Shortcode rendering as inline images via `markdown_to_bbcode()`
+- [x] Picker auto-closes after selection
+- [x] Dismiss via Escape key or click-outside
+- [x] Lazy instantiation (picker created on first use)
+- [x] Viewport-clamped positioning
+- [x] Shared `EmojiData.TEXTURES` used by both picker and reaction pills
+- [x] Picker cleanup on composer exit
+- [x] Reactions call server API (`Client.add_reaction()` / `Client.remove_reaction()`)
+- [x] Optimistic local reaction count updates
+- [x] Gateway reaction event handlers (add, remove, clear, clear_emoji)
+- [x] "Add Reaction" context menu on messages (cozy and collapsed)
+- [x] Custom server emoji tab in picker (CDN loading with caching)
+- [x] `get_by_name()` optimized with dictionary lookup
+
+## Gaps / TODO
+
+| Gap | Severity | Notes |
+|-----|----------|-------|
+| `emoji.create` and `emoji.delete` gateway events not handled | High | The server broadcasts `emoji.create`, `emoji.update`, and `emoji.delete` gateway events, but `gateway_socket.gd` only handles `emoji.update`. Create and delete events are silently ignored, so other clients don't see new/removed emoji until they reload |
+| `reactions_updated` signal declared but unused | Medium | `AppState.reactions_updated` (line 38) is declared but never emitted or connected; gateway handlers emit `messages_updated` instead, causing full message list re-renders for reaction changes |
+| Custom emoji shortcodes not rendered inline | Medium | Custom emoji inserted as `:name:` appear as plain text in messages; `markdown_to_bbcode()` only resolves built-in emoji from `EmojiData` — no CDN image lookup for custom shortcodes |
+| `AccordEmoji` model missing `image_url` field | Medium | The server returns `image_url` (CDN URL) in emoji responses, but the `AccordEmoji` model does not store it; the client constructs CDN URLs manually via `AccordCDN.emoji()` |
+| No recently-used emoji section | Low | Picker always opens to "Smileys & Emotion"; no tracking of frequently or recently used emoji |
+| No skin tone variants | Low | All emoji are default yellow; no skin tone modifier support |
+| Multi-codepoint emoji not supported | Low | `EmojiData` only handles single-codepoint emoji; flags (regional indicators), ZWJ sequences (family, profession emoji), and other multi-codepoint sequences are absent from the catalog |
+| Upload button not connected | Low | `composer.tscn` has an UploadButton (plus.svg icon) but it has no `pressed` connection in `composer.gd` |

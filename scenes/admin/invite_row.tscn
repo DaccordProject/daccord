@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/admin/invite_row.gd" id="1"]
+
+[node name="InviteRow" type="HBoxContainer"]
+theme_override_constants/separation = 8
+script = ExtResource("1")
+
+[node name="CheckBox" type="CheckBox" parent="."]
+layout_mode = 2
+
+[node name="CodeLabel" type="Label" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="UsesLabel" type="Label" parent="."]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+
+[node name="CopyButton" type="Button" parent="."]
+layout_mode = 2
+text = "Copy"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+
+[node name="RevokeButton" type="Button" parent="."]
+layout_mode = 2
+text = "Revoke"
+flat = true
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)

@@ -52,6 +52,9 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_role_start_index = -1
 	var idx: int = 0
 
+	_context_menu.add_item("Message", idx)
+	idx += 1
+
 	if Client.has_permission(guild_id, AccordPermission.KICK_MEMBERS):
 		_context_menu.add_item("Kick", idx)
 		idx += 1
@@ -95,6 +98,8 @@ func _on_context_menu_id_pressed(id: int) -> void:
 
 	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
 	match label:
+		"Message":
+			Client.create_dm(user_id)
 		"Kick":
 			var dialog := ConfirmDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
@@ -105,7 +110,7 @@ func _on_context_menu_id_pressed(id: int) -> void:
 				true
 			)
 			dialog.confirmed.connect(func():
-				Client.kick_member(guild_id, user_id)
+				Client.admin.kick_member(guild_id, user_id)
 			)
 		"Ban":
 			var dialog := BanDialogScene.instantiate()
@@ -125,7 +130,29 @@ func _toggle_role(guild_id: String, user_id: String, id: int) -> void:
 	var role: Dictionary = assignable_roles[role_idx]
 	var role_id: String = role.get("id", "")
 	var member_roles: Array = _member_data.get("roles", [])
+
+	# Disable the menu item during the API call
+	var item_index := _context_menu.get_item_index(id)
+	_context_menu.set_item_disabled(item_index, true)
+
+	var result: RestResult
 	if role_id in member_roles:
-		Client.remove_member_role(guild_id, user_id, role_id)
+		result = await Client.admin.remove_member_role(guild_id, user_id, role_id)
 	else:
-		Client.add_member_role(guild_id, user_id, role_id)
+		result = await Client.admin.add_member_role(guild_id, user_id, role_id)
+
+	_context_menu.set_item_disabled(item_index, false)
+
+	# Visual feedback flash
+	if result != null and result.ok:
+		_flash_feedback(Color(0.231, 0.647, 0.365, 0.3))
+	else:
+		_flash_feedback(Color(0.929, 0.259, 0.271, 0.3))
+		# Revert checkbox on failure
+		_context_menu.set_item_checked(item_index, role_id in member_roles)
+
+func _flash_feedback(color: Color) -> void:
+	var original_modulate := modulate
+	var tween := create_tween()
+	tween.tween_property(self, "modulate", color + Color(0.7, 0.7, 0.7, 0.7), 0.15)
+	tween.tween_property(self, "modulate", original_modulate, 0.3)

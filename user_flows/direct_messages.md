@@ -58,30 +58,50 @@ DM List (dm_list.gd):
 - Search: LineEdit connected to `_on_search_text_changed()`
 - `_populate_dms()`: Clears children, iterates `Client.dm_channels`, instantiates DMChannelItemScene
 - Each item connected via lambda: `dm_pressed -> _set_active_dm(id), dm_selected.emit(id)`
+- Close button: Each item's `dm_closed` signal calls `Client.close_dm(id)`
 - `_set_active_dm(dm_id)`: Deactivates previous, activates new via `set_active()`
 - Listens to `AppState.dm_channels_updated` to repopulate
-- Search filter (line 46-58): Compares query against display_name and username (case-insensitive contains)
+- Search filter: Compares query against display_name and username (case-insensitive contains)
 
 DM Channel Item (dm_channel_item.gd):
 - Avatar: ColorRect with circle shader (`theme/avatar_circle.gdshader`, radius 0.5)
-- Username label from `data.user.display_name`
+- Username label from `data.user.display_name` (group DMs show comma-separated names)
 - Last message label from `data.last_message` with ellipsis overflow (`OVERRUN_TRIM_ELLIPSIS`)
 - Unread dot: ColorRect visible when `data.unread == true`
+- Close button: Flat "X" button, visible on hover, emits `dm_closed(dm_id)`
 - `set_active(bool)`: Dark background StyleBoxFlat + white text (same pattern as channel_item)
 
-DM Channel Data (client_models.gd:205-228):
-- `dm_channel_to_dict()`: Extracts first recipient from `channel.recipients`
-- Returns: `{id, user: {id, display_name, username, color, status, avatar}, last_message: "", unread: false}`
-- `last_message` always empty string (line 226)
-- `unread` always false (line 227)
+DM Channel Data (client_models.gd):
+- `dm_channel_to_dict()`: Extracts all recipients from `channel.recipients`
+- Group DMs (`recipients.size() > 1`): Builds comma-separated display name, sets `is_group: true`
+- Returns: `{id, user, recipients, is_group, last_message, last_message_id, unread}`
+- `last_message` populated asynchronously after initial fetch via `_fetch_dm_previews()`
+- `unread` preserved across re-fetches
 - Falls back to channel name or "DM" if no recipients
 
-Client DM Fetching (client.gd:454-483):
-- `fetch_dm_channels()`: Uses first connected client
-- Calls `client.users.list_channels()` (GET /users/@me/channels)
+Client DM Fetching (client_fetch.gd):
+- `fetch_dm_channels()`: Iterates all connected servers (multi-server support)
+- Calls `client.users.list_channels()` (GET /users/@me/channels) per server
 - Caches recipients in `_user_cache` with OFFLINE status
 - Stores converted dicts in `_dm_channel_cache`
+- Tracks connection routing in `_dm_to_conn` for correct API routing
+- Preserves unread state and existing last_message previews across re-fetches
 - Emits `AppState.dm_channels_updated`
+- Calls `_fetch_dm_previews()` to asynchronously fetch last message content
+
+DM Creation (client.gd):
+- `create_dm(user_id)`: Called from member context menu "Message" action
+- Uses `UsersApi.create_dm({"recipient_id": user_id})`
+- Caches result, enters DM mode, selects the channel
+
+DM Close (client.gd):
+- `close_dm(channel_id)`: Called from DM item close button
+- Uses `ChannelsApi.delete()` (closes DM, does not permanently delete)
+- Removes from cache and emits `dm_channels_updated`
+
+DM Channel Routing (client.gd):
+- `_client_for_channel()` and `_cdn_for_channel()` fall back to `_dm_to_conn` routing map for DM channels, then to first connected client/CDN
+- Enables message fetching, sending, and typing in DM channels
 
 ## Implementation Status
 
@@ -95,14 +115,21 @@ Client DM Fetching (client.gd:454-483):
 - [x] Message loading for DM channels
 - [x] Gateway real-time updates (channel_create/update/delete for DM type)
 - [x] Tab creation for DM channels
+- [x] DM channel routing (message fetch/send/typing works)
+- [x] Create DM from member context menu ("Message" action)
+- [x] Last message preview on initial load
+- [x] Unread state preserved across re-fetches
+- [x] Multi-server DM fetching
+- [x] DM close button (X on hover)
+- [x] Group DM display (comma-separated names)
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No UI to start a new DM | High | No button or dialog to create a DM with a user. `UsersApi.create_dm()` exists in AccordKit but is unused in UI |
-| last_message always empty | Medium | `dm_channel_to_dict()` hardcodes `last_message: ""` (line 226). The last message preview in each DM item is always blank |
-| unread always false | Medium | `dm_channel_to_dict()` hardcodes `unread: false` (line 227). Unread dots never appear |
-| No multi-server DM | Low | `fetch_dm_channels()` uses `_first_connected_client()` only. DMs from other servers are not fetched |
-| No DM close/leave | Low | No way to close or leave a DM conversation from the UI |
-| No group DM support in UI | Low | `dm_channel_to_dict()` only extracts first recipient; group DMs would show only one participant |
+| Gap | Status | Notes |
+|-----|--------|-------|
+| ~~No UI to start a new DM~~ | Done | Right-click member -> "Message" creates/opens DM via `Client.create_dm()` |
+| ~~last_message always empty~~ | Done | `_fetch_dm_previews()` fetches last message content asynchronously after initial load |
+| ~~unread always false~~ | Done | Unread state preserved across re-fetches; `mark_channel_unread()` works for DM channels |
+| ~~No multi-server DM~~ | Done | `fetch_dm_channels()` iterates all connected servers; `_dm_to_conn` routes API calls |
+| ~~No DM close/leave~~ | Done | Close button (X) on hover in DM items, calls `Client.close_dm()` |
+| ~~No group DM support in UI~~ | Done | `dm_channel_to_dict()` extracts all recipients; group DMs show comma-separated names |

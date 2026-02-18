@@ -4,6 +4,7 @@ const EmojiPickerScene := preload("res://scenes/messages/composer/emoji_picker.t
 
 var _last_typing_time: int = 0
 var _emoji_picker: PanelContainer = null
+var _saved_placeholder: String = ""
 
 @onready var upload_button: Button = $VBox/HBox/UploadButton
 @onready var text_input: TextEdit = $VBox/HBox/TextInput
@@ -12,6 +13,7 @@ var _emoji_picker: PanelContainer = null
 @onready var reply_bar: HBoxContainer = $VBox/ReplyBar
 @onready var reply_label: Label = $VBox/ReplyBar/ReplyLabel
 @onready var cancel_reply_button: Button = $VBox/ReplyBar/CancelReplyButton
+@onready var error_label: Label = $VBox/ErrorLabel
 
 func _ready() -> void:
 	send_button.pressed.connect(_on_send)
@@ -21,10 +23,10 @@ func _ready() -> void:
 	cancel_reply_button.pressed.connect(_on_cancel_reply)
 	AppState.reply_initiated.connect(_on_reply_initiated)
 	AppState.reply_cancelled.connect(_on_reply_cancelled)
-	# Remove default bg from text input to blend with composer
-	var empty_style := StyleBoxEmpty.new()
-	text_input.add_theme_stylebox_override("normal", empty_style)
-	text_input.add_theme_stylebox_override("focus", empty_style)
+	AppState.message_send_failed.connect(_on_message_send_failed)
+	AppState.server_disconnected.connect(func(_gid, _c, _r): update_enabled_state())
+	AppState.server_reconnected.connect(func(_gid): update_enabled_state())
+	AppState.server_connection_failed.connect(func(_gid, _r): update_enabled_state())
 	# Style reply bar
 	reply_label.add_theme_font_size_override("font_size", 12)
 	reply_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
@@ -46,6 +48,9 @@ func _on_text_input(event: InputEvent) -> void:
 		if event.keycode == KEY_ENTER and not event.shift_pressed:
 			_on_send()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_UP and text_input.text.strip_edges().is_empty():
+			_edit_last_own_message()
+			get_viewport().set_input_as_handled()
 
 func _on_reply_initiated(message_id: String) -> void:
 	var msg := Client.get_message_by_id(message_id)
@@ -65,6 +70,19 @@ func _on_text_changed() -> void:
 	if now - _last_typing_time > 8000:
 		_last_typing_time = now
 		Client.send_typing(AppState.current_channel_id)
+
+func _edit_last_own_message() -> void:
+	var my_id: String = Client.current_user.get("id", "")
+	if my_id.is_empty():
+		return
+	var messages := Client.get_messages_for_channel(AppState.current_channel_id)
+	for i in range(messages.size() - 1, -1, -1):
+		var msg: Dictionary = messages[i]
+		var author: Dictionary = msg.get("author", {})
+		if author.get("id", "") == my_id:
+			AppState.start_editing(msg.get("id", ""))
+			AppState.edit_requested.emit(msg.get("id", ""))
+			return
 
 func _on_cancel_reply() -> void:
 	AppState.cancel_reply()
@@ -95,18 +113,52 @@ func _position_picker() -> void:
 	_emoji_picker.position = Vector2(x, y)
 
 func _on_emoji_picked(emoji_name: String) -> void:
-	var entry := EmojiData.get_by_name(emoji_name)
-	if entry.is_empty():
-		return
-	var unicode_char := EmojiData.codepoint_to_char(entry["codepoint"])
+	var insert_text: String
+	if emoji_name.begins_with("custom:"):
+		# Custom emoji format: "custom:name:id" -> insert ":name:"
+		var parts := emoji_name.split(":")
+		if parts.size() >= 3:
+			insert_text = ":" + parts[1] + ":"
+		else:
+			return
+	else:
+		var entry := EmojiData.get_by_name(emoji_name)
+		if entry.is_empty():
+			return
+		insert_text = ":" + emoji_name + ":"
 	var col := text_input.get_caret_column()
 	var line := text_input.get_caret_line()
 	var line_text := text_input.get_line(line)
-	var new_text := line_text.substr(0, col) + unicode_char + line_text.substr(col)
+	var new_text := line_text.substr(0, col) + insert_text + line_text.substr(col)
 	text_input.set_line(line, new_text)
-	text_input.set_caret_column(col + unicode_char.length())
+	text_input.set_caret_column(col + insert_text.length())
 	text_input.grab_focus()
 	_emoji_picker.visible = false
+
+func _on_message_send_failed(channel_id: String, content: String, error: String) -> void:
+	if channel_id != AppState.current_channel_id:
+		return
+	# Restore the failed message text so the user can retry
+	if text_input.text.strip_edges().is_empty():
+		text_input.text = content
+	error_label.text = "Failed to send: %s" % error
+	error_label.visible = true
+
+func update_enabled_state() -> void:
+	var guild_id: String = Client._channel_to_guild.get(AppState.current_channel_id, "")
+	var connected := Client.is_guild_connected(guild_id) if not guild_id.is_empty() else true
+	text_input.editable = connected
+	send_button.disabled = not connected
+	upload_button.disabled = not connected
+	emoji_button.disabled = not connected
+	if connected:
+		if not _saved_placeholder.is_empty():
+			text_input.placeholder_text = _saved_placeholder
+			_saved_placeholder = ""
+		error_label.visible = false
+	else:
+		_saved_placeholder = text_input.placeholder_text
+		text_input.placeholder_text = "Cannot send messages \u2014 disconnected"
 
 func _exit_tree() -> void:
 	if _emoji_picker and is_instance_valid(_emoji_picker):

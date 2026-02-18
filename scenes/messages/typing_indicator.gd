@@ -2,6 +2,7 @@ extends HBoxContainer
 
 var dots: Array[Label]
 var anim_time: float = 0.0
+var _timeout_timer: Timer
 
 @onready var dot1: Label = $Dots/Dot1
 @onready var dot2: Label = $Dots/Dot2
@@ -14,6 +15,11 @@ func _ready() -> void:
 	text_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 	for d in dots:
 		d.add_theme_font_size_override("font_size", 16)
+	_timeout_timer = Timer.new()
+	_timeout_timer.wait_time = 10.0
+	_timeout_timer.one_shot = true
+	_timeout_timer.timeout.connect(hide_typing)
+	add_child(_timeout_timer)
 	set_process(false)
 
 func _process(delta: float) -> void:
@@ -29,7 +35,9 @@ func show_typing(username: String) -> void:
 	visible = true
 	anim_time = 0.0
 	set_process(true)
+	_timeout_timer.start()
 
 func hide_typing() -> void:
 	visible = false
 	set_process(false)
+	_timeout_timer.stop()

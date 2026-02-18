@@ -1,0 +1,57 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/screen_picker_dialog.gd" id="1"]
+
+[node name="ScreenPickerDialog" type="ColorRect"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.5)
+script = ExtResource("1")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(400, 300)
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Share Your Screen"
+theme_override_font_sizes/font_size = 16
+
+[node name="CloseButton" type="Button" parent="CenterContainer/Panel/VBox/Header"]
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "✕"
+
+[node name="TabBar" type="TabBar" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+tab_count = 2
+tab_0/title = "Screens"
+tab_1/title = "Windows"
+
+[node name="Scroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SourceList" type="VBoxContainer" parent="CenterContainer/Panel/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4

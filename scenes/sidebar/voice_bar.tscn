@@ -1,0 +1,85 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/voice_bar.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="voice_bar_bg"]
+bg_color = Color(0.145, 0.153, 0.173, 1)
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+
+[node name="VoiceBar" type="PanelContainer"]
+visible = false
+custom_minimum_size = Vector2(240, 0)
+offset_right = 240.0
+offset_bottom = 64.0
+theme_override_styles/panel = SubResource("voice_bar_bg")
+script = ExtResource("1")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="StatusRow" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="StatusDot" type="ColorRect" parent="VBox/StatusRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(8, 8)
+size_flags_vertical = 4
+color = Color(0.231, 0.647, 0.365, 1)
+
+[node name="ChannelLabel" type="Label" parent="VBox/StatusRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Voice Connected"
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.231, 0.647, 0.365, 1)
+
+[node name="ButtonRow" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="MuteBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 32)
+text = "Mic"
+theme_override_font_sizes/font_size = 11
+
+[node name="DeafenBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 32)
+text = "Deaf"
+theme_override_font_sizes/font_size = 11
+
+[node name="VideoBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 32)
+text = "Cam"
+theme_override_font_sizes/font_size = 11
+
+[node name="ShareBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 32)
+text = "Share"
+theme_override_font_sizes/font_size = 11
+
+[node name="SettingsBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(36, 32)
+text = "⚙"
+tooltip_text = "Voice Settings"
+theme_override_font_sizes/font_size = 14
+
+[node name="DisconnectBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(48, 32)
+text = "✕"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.929, 0.259, 0.271, 1)

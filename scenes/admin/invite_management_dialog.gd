@@ -1,25 +1,37 @@
 extends ColorRect
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const InviteRowScene := preload("res://scenes/admin/invite_row.tscn")
 
 var _guild_id: String = ""
+var _all_invites: Array = []
+var _selected_codes: Array = []
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
+@onready var _search_input: LineEdit = $CenterContainer/Panel/VBox/SearchInput
 @onready var _invite_list: VBoxContainer = $CenterContainer/Panel/VBox/Scroll/InviteList
 @onready var _empty_label: Label = $CenterContainer/Panel/VBox/EmptyLabel
 @onready var _create_toggle: Button = $CenterContainer/Panel/VBox/CreateToggle
 @onready var _create_form: VBoxContainer = $CenterContainer/Panel/VBox/CreateForm
 @onready var _max_age_option: OptionButton = $CenterContainer/Panel/VBox/CreateForm/MaxAgeOption
 @onready var _max_uses_spin: SpinBox = $CenterContainer/Panel/VBox/CreateForm/MaxUsesRow/MaxUsesSpin
-@onready var _temporary_check: CheckBox = $CenterContainer/Panel/VBox/CreateForm/TemporaryCheck
+@onready var _temporary_check: CheckBox = \
+	$CenterContainer/Panel/VBox/CreateForm/TemporaryRow/TemporaryCheck
 @onready var _create_btn: Button = $CenterContainer/Panel/VBox/CreateForm/CreateButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
+
+@onready var _bulk_bar: HBoxContainer = $CenterContainer/Panel/VBox/BulkBar
+@onready var _select_all_check: CheckBox = $CenterContainer/Panel/VBox/BulkBar/SelectAllCheck
+@onready var _bulk_revoke_btn: Button = $CenterContainer/Panel/VBox/BulkBar/BulkRevokeBtn
 
 func _ready() -> void:
 	_close_btn.pressed.connect(_close)
 	_create_toggle.pressed.connect(_toggle_create)
 	_create_btn.pressed.connect(_on_create)
 	_create_form.visible = false
+	_search_input.text_changed.connect(_on_search_changed)
+	_select_all_check.toggled.connect(_on_select_all)
+	_bulk_revoke_btn.pressed.connect(_on_bulk_revoke)
 
 	_max_age_option.add_item("30 minutes", 0)
 	_max_age_option.add_item("1 hour", 1)
@@ -45,8 +57,11 @@ func _load_invites() -> void:
 		child.queue_free()
 	_empty_label.visible = false
 	_error_label.visible = false
+	_all_invites.clear()
+	_selected_codes.clear()
+	_update_bulk_ui()
 
-	var result: RestResult = await Client.get_invites(_guild_id)
+	var result: RestResult = await Client.admin.get_invites(_guild_id)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load invites"
 		if result != null and result.error:
@@ -68,47 +83,79 @@ func _load_invites() -> void:
 			invite_dict = invite
 		else:
 			continue
-		var row := _create_invite_row(invite_dict)
+		_all_invites.append(invite_dict)
+
+	_rebuild_list(_all_invites)
+	_bulk_bar.visible = _all_invites.size() > 0
+
+func _rebuild_list(invites: Array) -> void:
+	for child in _invite_list.get_children():
+		child.queue_free()
+
+	if invites.is_empty():
+		_empty_label.visible = _all_invites.is_empty()
+		return
+	_empty_label.visible = false
+
+	for invite_dict in invites:
+		var row := InviteRowScene.instantiate()
 		_invite_list.add_child(row)
+		row.setup(invite_dict, invite_dict.get("code", "") in _selected_codes)
+		row.toggled.connect(_on_row_toggled)
+		row.revoke_requested.connect(_on_revoke)
 
-func _create_invite_row(invite: Dictionary) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+func _on_search_changed(text: String) -> void:
+	var query := text.strip_edges().to_lower()
+	if query.is_empty():
+		_rebuild_list(_all_invites)
+		return
+	var filtered: Array = []
+	for invite in _all_invites:
+		if invite.get("code", "").to_lower().contains(query):
+			filtered.append(invite)
+	_rebuild_list(filtered)
 
-	var code: String = invite.get("code", "")
+func _on_row_toggled(pressed: bool, code: String) -> void:
+	if pressed and code not in _selected_codes:
+		_selected_codes.append(code)
+	elif not pressed:
+		_selected_codes.erase(code)
+	_update_bulk_ui()
 
-	var code_label := Label.new()
-	code_label.text = code
-	code_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(code_label)
+func _on_select_all(pressed: bool) -> void:
+	_selected_codes.clear()
+	if pressed:
+		for invite in _all_invites:
+			_selected_codes.append(invite.get("code", ""))
+	for row in _invite_list.get_children():
+		var cb := row.get_child(0)
+		if cb is CheckBox:
+			cb.set_pressed_no_signal(pressed)
+	_update_bulk_ui()
 
-	var uses: int = invite.get("uses", 0)
-	var max_uses: int = invite.get("max_uses", 0)
-	var uses_label := Label.new()
-	if max_uses > 0:
-		uses_label.text = "%d/%d uses" % [uses, max_uses]
-	else:
-		uses_label.text = "%d uses" % uses
-	uses_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
-	row.add_child(uses_label)
+func _update_bulk_ui() -> void:
+	_bulk_revoke_btn.visible = _selected_codes.size() > 0
+	if _selected_codes.size() > 0:
+		_bulk_revoke_btn.text = "Revoke Selected (%d)" % _selected_codes.size()
 
-	var copy_btn := Button.new()
-	copy_btn.text = "Copy"
-	copy_btn.flat = true
-	copy_btn.add_theme_color_override("font_color", Color(0.345, 0.396, 0.949))
-	copy_btn.pressed.connect(func():
-		DisplayServer.clipboard_set(code)
+func _on_bulk_revoke() -> void:
+	var count := _selected_codes.size()
+	if count == 0:
+		return
+	var dialog := ConfirmDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(
+		"Bulk Revoke",
+		"Are you sure you want to revoke %d invite(s)?" % count,
+		"Revoke All",
+		true
 	)
-	row.add_child(copy_btn)
-
-	var revoke_btn := Button.new()
-	revoke_btn.text = "Revoke"
-	revoke_btn.flat = true
-	revoke_btn.add_theme_color_override("font_color", Color(0.95, 0.3, 0.3))
-	revoke_btn.pressed.connect(_on_revoke.bind(code))
-	row.add_child(revoke_btn)
-
-	return row
+	dialog.confirmed.connect(func():
+		for code in _selected_codes.duplicate():
+			await Client.admin.delete_invite(code, _guild_id)
+		_selected_codes.clear()
+		_update_bulk_ui()
+	)
 
 func _toggle_create() -> void:
 	_create_form.visible = not _create_form.visible
@@ -126,7 +173,7 @@ func _on_create() -> void:
 		"temporary": _temporary_check.button_pressed,
 	}
 
-	var result: RestResult = await Client.create_invite(_guild_id, data)
+	var result: RestResult = await Client.admin.create_invite(_guild_id, data)
 	_create_btn.disabled = false
 	_create_btn.text = "Create"
 
@@ -151,7 +198,7 @@ func _on_revoke(code: String) -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		Client.delete_invite(code, _guild_id)
+		Client.admin.delete_invite(code, _guild_id)
 	)
 
 func _on_invites_updated(guild_id: String) -> void:

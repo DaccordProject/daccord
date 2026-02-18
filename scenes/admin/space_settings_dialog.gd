@@ -3,6 +3,7 @@ extends ColorRect
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 
 var _guild_id: String = ""
+var _dirty: bool = false
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _name_input: LineEdit = $CenterContainer/Panel/VBox/NameInput
@@ -11,9 +12,10 @@ var _guild_id: String = ""
 	$CenterContainer/Panel/VBox/VerificationRow/VerificationOption
 @onready var _notifications_btn: OptionButton = \
 	$CenterContainer/Panel/VBox/NotificationsRow/NotificationsOption
-@onready var _public_check: CheckBox = $CenterContainer/Panel/VBox/PublicCheck
-@onready var _save_btn: Button = $CenterContainer/Panel/VBox/Buttons/SaveButton
-@onready var _delete_btn: Button = $CenterContainer/Panel/VBox/Buttons/DeleteButton
+@onready var _public_check: CheckBox = $CenterContainer/Panel/VBox/PublicRow/PublicCheck
+@onready var _save_btn: Button = $CenterContainer/Panel/VBox/SaveRow/SaveButton
+@onready var _delete_btn: Button = $CenterContainer/Panel/VBox/DangerZone/DeleteButton
+@onready var _danger_zone: VBoxContainer = $CenterContainer/Panel/VBox/DangerZone
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
@@ -26,6 +28,13 @@ func _ready() -> void:
 	_verification_btn.add_item("High", 3)
 	_notifications_btn.add_item("All Messages", 0)
 	_notifications_btn.add_item("Mentions Only", 1)
+
+	# Track dirty state
+	_name_input.text_changed.connect(func(_t: String): _dirty = true)
+	_desc_input.text_changed.connect(func(): _dirty = true)
+	_verification_btn.item_selected.connect(func(_i: int): _dirty = true)
+	_notifications_btn.item_selected.connect(func(_i: int): _dirty = true)
+	_public_check.toggled.connect(func(_b: bool): _dirty = true)
 
 func setup(guild_id: String) -> void:
 	_guild_id = guild_id
@@ -51,8 +60,9 @@ func setup(guild_id: String) -> void:
 
 	_public_check.button_pressed = guild.get("public", false)
 
-	# Only the owner can delete the space
-	_delete_btn.visible = Client.is_space_owner(guild_id)
+	# Only the owner can see the danger zone
+	_danger_zone.visible = Client.is_space_owner(guild_id)
+	_dirty = false
 
 func _on_save() -> void:
 	_save_btn.disabled = true
@@ -76,7 +86,7 @@ func _on_save() -> void:
 	else:
 		data["features"] = []
 
-	var result: RestResult = await Client.update_space(_guild_id, data)
+	var result: RestResult = await Client.admin.update_space(_guild_id, data)
 	_save_btn.disabled = false
 	_save_btn.text = "Save"
 
@@ -87,7 +97,8 @@ func _on_save() -> void:
 		_error_label.text = err_msg
 		_error_label.visible = true
 	else:
-		_close()
+		_dirty = false
+		queue_free()
 
 func _on_delete() -> void:
 	var guild: Dictionary = Client.get_guild_by_id(_guild_id)
@@ -100,19 +111,37 @@ func _on_delete() -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		var result: RestResult = await Client.delete_space(_guild_id)
+		var result: RestResult = await Client.admin.delete_space(_guild_id)
 		if result != null and result.ok:
-			_close()
+			_dirty = false
+			queue_free()
 	)
 
+func _try_close() -> void:
+	if _dirty:
+		var dialog := ConfirmDialogScene.instantiate()
+		get_tree().root.add_child(dialog)
+		dialog.setup(
+			"Unsaved Changes",
+			"You have unsaved changes. Discard?",
+			"Discard",
+			true
+		)
+		dialog.confirmed.connect(func():
+			_dirty = false
+			queue_free()
+		)
+	else:
+		queue_free()
+
 func _close() -> void:
-	queue_free()
+	_try_close()
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		_close()
+		_try_close()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		_close()
+		_try_close()
 		get_viewport().set_input_as_handled()

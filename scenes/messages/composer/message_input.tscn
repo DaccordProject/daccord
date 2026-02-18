@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/composer/message_input.gd" id="1"]
+
+[node name="MessageInput" type="TextEdit"]
+custom_minimum_size = Vector2(0, 44)
+placeholder_text = "Message #channel"
+wrap_mode = 1
+scroll_fit_content_height = true
+script = ExtResource("1")

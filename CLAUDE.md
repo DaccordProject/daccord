@@ -52,6 +52,17 @@ See user_flows/README.md. If a user flow is out of date, update it.
 
 **Theme:** `theme/discord_dark.tres` is the global theme. Icons are SVGs in `theme/icons/`. Avatar rendering uses a custom shader (`theme/avatar_circle.gdshader`) with a `radius` parameter that animates between 0.5 (circle) and 0.3 (rounded square) on hover.
 
+## GDScript Type Inference Pitfalls
+
+GDScript's `:=` operator infers the type from the right-hand side. This **fails at compile time** when the right-hand side returns a `Variant` (untyped value). Common cases:
+
+1. **Dictionary access:** `var x := dict["key"]` -- Dictionaries return `Variant`. Use `var x: String = dict["key"]` instead.
+2. **Comparison with Dictionary values:** `var match := dict["a"] == other` -- The `==` on a `Variant` produces a `Variant`. Use `var match: bool = dict["a"] == other`.
+3. **Methods on a `Node`/`Variant`-typed variable:** If a variable is typed as `Node` (e.g., `var _c: Node`), calls like `var client := _c.some_method()` return `Variant` because the compiler doesn't know the concrete type. Use an explicit type: `var client: AccordClient = _c.some_method()`.
+4. **`await` expressions:** `var result := await some_async()` can fail if the return type isn't statically known. Use `var result: RestResult = await some_async()`.
+
+**Rule of thumb:** If the value comes from a Dictionary, a `Variant`-typed variable, or an `await` on a loosely-typed call, always use explicit type annotations (`var x: Type = ...`) instead of `:=`.
+
 ## Conventions
 
 - Each scene (`.tscn`) has a corresponding `.gd` script in the same directory.
@@ -60,7 +71,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
 - Scene references use `preload()` constants at class level, not dynamic `load()`.
 - Dictionary shapes (users, guilds, channels, messages) serve as the data contract between components. `ClientModels` converts AccordKit typed models into these shapes so the UI layer doesn't depend on AccordKit types directly.
 - UI components should read data through `Client` to stay decoupled from the network layer.
-- License: GPL-3.0.
+- License: MIT.
 
 ## Testing
 

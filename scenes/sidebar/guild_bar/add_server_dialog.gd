@@ -81,27 +81,92 @@ func _on_add_pressed() -> void:
 
 	_error_label.visible = false
 
+	# Check if this server + guild is already configured
+	var servers := Config.get_servers()
+	for i in servers.size():
+		var server: Dictionary = servers[i]
+		var urls_match: bool = server["base_url"] == url
+		if not urls_match:
+			# Also check HTTP vs HTTPS variant
+			var alt_url := url
+			if alt_url.begins_with("https://"):
+				alt_url = alt_url.replace("https://", "http://")
+			elif alt_url.begins_with("http://"):
+				alt_url = alt_url.replace("http://", "https://")
+			urls_match = server["base_url"] == alt_url
+		if urls_match and server["guild_name"] == guild_name:
+			# If the server is in config but its connection failed, remove the
+			# stale entry and let the user re-add it with fresh credentials.
+			if Client.is_server_connected(i):
+				_show_error("This server is already added.")
+				return
+			Config.remove_server(i)
+			break
+
+	# Probe the server to verify it's reachable before proceeding
+	_add_btn.disabled = true
+	_add_btn.text = "Checking..."
+	var reachable := await _probe_server(url)
+	if not reachable:
+		_add_btn.disabled = false
+		_add_btn.text = "Add"
+		return
+
+	_add_btn.disabled = false
+	_add_btn.text = "Add"
+
 	if token.is_empty():
 		# No token -- show auth dialog to register or sign in
 		var auth_dialog := AuthDialogScene.instantiate()
 		auth_dialog.setup(url)
 		auth_dialog.auth_completed.connect(
-			func(resolved_url: String, t: String):
-				_connect_with_token(resolved_url, guild_name, t, invite_code)
+			func(resolved_url: String, t: String, u: String, p: String):
+				_connect_with_token(resolved_url, guild_name, t, invite_code, u, p)
 		)
 		get_parent().add_child(auth_dialog)
 	else:
 		_connect_with_token(url, guild_name, token, invite_code)
 
 
+## Makes a lightweight request to verify the server is reachable.
+## Tries HTTPS first, then falls back to HTTP. Returns true if the server
+## responded (any HTTP status is fine -- we just need a connection).
+func _probe_server(url: String) -> bool:
+	var api_url := url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	add_child(rest)
+
+	# Try a GET to /auth/login -- doesn't need auth, will return 405 or similar
+	# but any HTTP response means the server is there.
+	var result := await rest.make_request("GET", "/auth/login")
+
+	if not result.ok and result.status_code == 0 and url.begins_with("https://"):
+		# Connection-level failure with HTTPS -- retry with HTTP (local dev servers)
+		var http_url := url.replace("https://", "http://")
+		rest.base_url = http_url + AccordConfig.API_BASE_PATH
+		result = await rest.make_request("GET", "/auth/login")
+
+	rest.queue_free()
+
+	# status_code > 0 means we got an HTTP response (server is reachable)
+	if result.status_code > 0:
+		return true
+
+	# Connection-level failure -- show the error from AccordRest
+	var msg: String = result.error.message if result.error else "Could not reach server"
+	_show_error(msg)
+	return false
+
+
 func _connect_with_token(
 	url: String, guild_name: String,
 	token: String, invite_code: String,
+	username: String = "", password: String = "",
 ) -> void:
 	_add_btn.disabled = true
 	_add_btn.text = "Connecting..."
 
-	Config.add_server(url, token, guild_name)
+	Config.add_server(url, token, guild_name, username, password)
 
 	var result: Dictionary = await Client.connect_server(Config.get_servers().size() - 1, invite_code)
 	_add_btn.disabled = false

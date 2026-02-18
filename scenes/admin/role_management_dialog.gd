@@ -1,17 +1,20 @@
 extends ColorRect
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const RoleRowScene := preload("res://scenes/admin/role_row.tscn")
 
 var _guild_id: String = ""
 var _selected_role: Dictionary = {}
 var _perm_checks: Dictionary = {} # perm_string -> CheckBox
+var _all_roles: Array = []
+var _dirty: bool = false
 
 @onready var _close_btn: Button = \
 	$CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _new_role_btn: Button = \
 	$CenterContainer/Panel/VBox/Header/NewRoleButton
-@onready var _content: HBoxContainer = \
-	$CenterContainer/Panel/VBox/Content
+@onready var _search_input: LineEdit = \
+	$CenterContainer/Panel/VBox/SearchInput
 @onready var _role_list: VBoxContainer = \
 	$CenterContainer/Panel/VBox/Content/RoleScroll/RoleList
 @onready var _editor: VBoxContainer = \
@@ -21,9 +24,9 @@ var _perm_checks: Dictionary = {} # perm_string -> CheckBox
 @onready var _color_picker: ColorPickerButton = \
 	$CenterContainer/Panel/VBox/Content/EditorScroll/Editor/ColorRow/ColorPicker
 @onready var _hoist_check: CheckBox = \
-	$CenterContainer/Panel/VBox/Content/EditorScroll/Editor/HoistCheck
+	$CenterContainer/Panel/VBox/Content/EditorScroll/Editor/HoistRow/HoistCheck
 @onready var _mentionable_check: CheckBox = \
-	$CenterContainer/Panel/VBox/Content/EditorScroll/Editor/MentionableCheck
+	$CenterContainer/Panel/VBox/Content/EditorScroll/Editor/MentionableRow/MentionableCheck
 @onready var _perm_list: VBoxContainer = \
 	$CenterContainer/Panel/VBox/Content/EditorScroll/Editor/PermList
 @onready var _save_btn: Button = \
@@ -38,9 +41,16 @@ func _ready() -> void:
 	_new_role_btn.pressed.connect(_on_new_role)
 	_save_btn.pressed.connect(_on_save)
 	_delete_btn.pressed.connect(_on_delete)
+	_search_input.text_changed.connect(_on_search_changed)
 	_editor.visible = false
 	_build_perm_checkboxes()
 	AppState.roles_updated.connect(_on_roles_updated)
+
+	# Track dirty state
+	_name_input.text_changed.connect(func(_t: String): _dirty = true)
+	_color_picker.color_changed.connect(func(_c: Color): _dirty = true)
+	_hoist_check.toggled.connect(func(_b: bool): _dirty = true)
+	_mentionable_check.toggled.connect(func(_b: bool): _dirty = true)
 
 func setup(guild_id: String) -> void:
 	_guild_id = guild_id
@@ -50,6 +60,7 @@ func _build_perm_checkboxes() -> void:
 	for perm in AccordPermission.all():
 		var cb := CheckBox.new()
 		cb.text = _format_perm_name(perm)
+		cb.toggled.connect(func(_b: bool): _dirty = true)
 		_perm_list.add_child(cb)
 		_perm_checks[perm] = cb
 
@@ -60,31 +71,74 @@ func _rebuild_role_list() -> void:
 	for child in _role_list.get_children():
 		child.queue_free()
 
-	var roles: Array = Client.get_roles_for_guild(_guild_id)
-	roles.sort_custom(func(a: Dictionary, b: Dictionary):
+	_all_roles = Client.get_roles_for_guild(_guild_id)
+	_all_roles.sort_custom(func(a: Dictionary, b: Dictionary):
 		return a.get("position", 0) > b.get("position", 0)
 	)
 
-	for role in roles:
-		var btn := Button.new()
-		btn.flat = true
-		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		btn.custom_minimum_size = Vector2(160, 32)
+	_build_role_buttons(_all_roles)
 
-		var role_color: int = role.get("color", 0)
-		var display_color := Color.WHITE
-		if role_color > 0:
-			display_color = Color.hex(role_color)
+func _build_role_buttons(roles: Array) -> void:
+	for child in _role_list.get_children():
+		child.queue_free()
 
-		btn.text = role.get("name", "")
-		btn.add_theme_color_override("font_color", display_color)
-		btn.pressed.connect(_select_role.bind(role))
-		_role_list.add_child(btn)
+	for i in roles.size():
+		var role: Dictionary = roles[i]
+		var row := RoleRowScene.instantiate()
+		_role_list.add_child(row)
+		row.setup(role, i, roles.size())
+		row.move_requested.connect(_on_move_role)
+		row.selected.connect(_select_role)
+
+func _get_role_index(role: Dictionary) -> int:
+	for i in _all_roles.size():
+		if _all_roles[i].get("id", "") == role.get("id", ""):
+			return i
+	return -1
+
+func _on_search_changed(text: String) -> void:
+	var query := text.strip_edges().to_lower()
+	if query.is_empty():
+		_build_role_buttons(_all_roles)
+		return
+	var filtered: Array = []
+	for role in _all_roles:
+		if role.get("name", "").to_lower().contains(query):
+			filtered.append(role)
+	_build_role_buttons(filtered)
+
+func _on_move_role(role: Dictionary, direction: int) -> void:
+	var idx := _get_role_index(role)
+	if idx == -1:
+		return
+	var swap_idx := idx + direction
+	if swap_idx < 0 or swap_idx >= _all_roles.size():
+		return
+	# Don't swap with @everyone
+	if _all_roles[swap_idx].get("position", 0) == 0:
+		return
+
+	# Build reorder data: swap positions
+	var pos_a: int = _all_roles[idx].get("position", 0)
+	var pos_b: int = _all_roles[swap_idx].get("position", 0)
+	var data: Array = [
+		{"id": _all_roles[idx].get("id", ""), "position": pos_b},
+		{"id": _all_roles[swap_idx].get("id", ""), "position": pos_a},
+	]
+
+	var result: RestResult = await Client.admin.reorder_roles(_guild_id, data)
+	if result == null or not result.ok:
+		var err_msg: String = "Failed to reorder roles"
+		if result != null and result.error:
+			err_msg = result.error.message
+		_error_label.text = err_msg
+		_error_label.visible = true
 
 func _select_role(role: Dictionary) -> void:
 	_selected_role = role
 	_editor.visible = true
 	_error_label.visible = false
+	_dirty = false
 
 	_name_input.text = role.get("name", "")
 
@@ -103,11 +157,12 @@ func _select_role(role: Dictionary) -> void:
 
 	# Don't allow deleting @everyone
 	_delete_btn.visible = role.get("position", 0) != 0
+	_dirty = false
 
 func _on_new_role() -> void:
 	_new_role_btn.disabled = true
 	_error_label.visible = false
-	var result: RestResult = await Client.create_role(_guild_id, {"name": "New Role"})
+	var result: RestResult = await Client.admin.create_role(_guild_id, {"name": "New Role"})
 	_new_role_btn.disabled = false
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to create role"
@@ -137,7 +192,7 @@ func _on_save() -> void:
 		"permissions": perms,
 	}
 
-	var result: RestResult = await Client.update_role(
+	var result: RestResult = await Client.admin.update_role(
 		_guild_id, _selected_role.get("id", ""), data
 	)
 	_save_btn.disabled = false
@@ -149,6 +204,8 @@ func _on_save() -> void:
 			err_msg = result.error.message
 		_error_label.text = err_msg
 		_error_label.visible = true
+	else:
+		_dirty = false
 
 func _on_delete() -> void:
 	if _selected_role.is_empty():
@@ -163,26 +220,44 @@ func _on_delete() -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		var result: RestResult = await Client.delete_role(
+		var result: RestResult = await Client.admin.delete_role(
 			_guild_id, _selected_role.get("id", "")
 		)
 		if result != null and result.ok:
 			_selected_role = {}
 			_editor.visible = false
+			_dirty = false
 	)
 
 func _on_roles_updated(guild_id: String) -> void:
 	if guild_id == _guild_id:
 		_rebuild_role_list()
 
+func _try_close() -> void:
+	if _dirty:
+		var dialog := ConfirmDialogScene.instantiate()
+		get_tree().root.add_child(dialog)
+		dialog.setup(
+			"Unsaved Changes",
+			"You have unsaved changes. Discard?",
+			"Discard",
+			true
+		)
+		dialog.confirmed.connect(func():
+			_dirty = false
+			queue_free()
+		)
+	else:
+		queue_free()
+
 func _close() -> void:
-	queue_free()
+	_try_close()
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		_close()
+		_try_close()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		_close()
+		_try_close()
 		get_viewport().set_input_as_handled()

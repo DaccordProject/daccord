@@ -37,6 +37,14 @@ layout_mode = 2
 [node name="LastMessage" type="Label" parent="HBox/Info"]
 layout_mode = 2
 
+[node name="CloseBtn" type="Button" parent="HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 24)
+size_flags_vertical = 4
+flat = true
+text = "X"
+tooltip_text = "Close DM"
+
 [node name="UnreadDot" type="ColorRect" parent="HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(8, 8)

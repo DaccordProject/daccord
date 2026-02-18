@@ -10,32 +10,27 @@ const CHANNEL_PANEL_WIDTH := 240
 const GUILD_BAR_WIDTH := 68
 const MESSAGE_CAP := 50
 const TOUCH_TARGET_MIN := 44
+const USER_CACHE_CAP := 500
 
 var mode: Mode = Mode.CONNECTING
 var current_user: Dictionary = {}
+var fetch: ClientFetch
+var admin: ClientAdmin
+var voice: ClientVoice
+var mutations: ClientMutations
 
 # --- Data access API (properties) ---
 
 var guilds: Array:
-	get:
-		return _guild_cache.values()
+	get: return _guild_cache.values()
 
 var channels: Array:
-	get:
-		return _channel_cache.values()
+	get: return _channel_cache.values()
 
 var dm_channels: Array:
-	get:
-		return _dm_channel_cache.values()
+	get: return _dm_channel_cache.values()
 
 # Per-server connection state
-# Each entry: {
-#   "config": Dictionary,         # { base_url, token, guild_name }
-#   "client": AccordClient,       # the AccordClient instance
-#   "guild_id": String,           # resolved guild ID (from guild_name)
-#   "cdn_url": String,            # base_url + "/cdn"
-#   "status": String,             # "connecting", "connected", "error"
-# }
 var _connections: Array = []
 
 # Caches (keyed by ID)
@@ -43,25 +38,70 @@ var _user_cache: Dictionary = {}
 var _guild_cache: Dictionary = {}
 var _channel_cache: Dictionary = {}
 var _dm_channel_cache: Dictionary = {}
-var _message_cache: Dictionary = {} # channel_id -> Array of message dicts
-var _member_cache: Dictionary = {} # guild_id -> Array of user dicts
-var _role_cache: Dictionary = {} # guild_id -> Array of role dicts
+var _message_cache: Dictionary = {}
+var _member_cache: Dictionary = {}
+var _role_cache: Dictionary = {}
+var _voice_state_cache: Dictionary = {} # channel_id -> Array of voice state dicts
+var _voice_server_info: Dictionary = {} # stored for Phase 4
 
-# Maps guild_id -> connection index for routing
+# Unread / mention tracking
+var _unread_channels: Dictionary = {}       # channel_id -> true
+var _channel_mention_counts: Dictionary = {} # channel_id -> int
+
+# Message ID -> channel_id index for O(1) lookup
+var _message_id_index: Dictionary = {}
+
+# Routing maps
 var _guild_to_conn: Dictionary = {}
-# Maps channel_id -> guild_id for routing
 var _channel_to_guild: Dictionary = {}
+var _dm_to_conn: Dictionary = {}  # dm_channel_id -> conn index
+
+# Tracks whether auto-reconnect (with re-auth) has been attempted
+# per connection index, to prevent infinite loops.
+var _auto_reconnect_attempted: Dictionary = {}
 
 var _gw: ClientGateway
+var _voice_session: AccordVoiceSession
+var _camera_track: AccordMediaTrack
+var _screen_track: AccordMediaTrack
 
 func _ready() -> void:
 	_gw = ClientGateway.new(self)
+	fetch = ClientFetch.new(self)
+	admin = ClientAdmin.new(self)
+	voice = ClientVoice.new(self)
+	mutations = ClientMutations.new(self)
+	_voice_session = AccordVoiceSession.new()
+	add_child(_voice_session)
+	set_meta("_voice_session", _voice_session)
+	_voice_session.session_state_changed.connect(
+		voice.on_session_state_changed
+	)
+	_voice_session.peer_joined.connect(
+		voice.on_peer_joined
+	)
+	_voice_session.peer_left.connect(
+		voice.on_peer_left
+	)
+	_voice_session.signal_outgoing.connect(
+		voice.on_signal_outgoing
+	)
+	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
 	if Config.has_servers():
 		for i in Config.get_servers().size():
 			connect_server(i)
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		for conn in _connections:
+			if conn != null and conn["client"] != null:
+				conn["client"].logout()
+		get_tree().quit()
+
 func _derive_gateway_url(base_url: String) -> String:
-	var gw := base_url.replace("https://", "wss://").replace("http://", "ws://")
+	var gw := base_url.replace(
+		"https://", "wss://"
+	).replace("http://", "ws://")
 	return gw + "/ws"
 
 func _derive_cdn_url(base_url: String) -> String:
@@ -69,101 +109,115 @@ func _derive_cdn_url(base_url: String) -> String:
 
 # --- Multi-server connection ---
 
-func connect_server(index: int, invite_code: String = "") -> Dictionary:
+func connect_server(
+	index: int, invite_code: String = ""
+) -> Dictionary:
 	var servers := Config.get_servers()
 	if index < 0 or index >= servers.size():
 		return {"error": "Invalid server index"}
 
-	var server_config: Dictionary = servers[index]
-	var base_url: String = server_config["base_url"]
-	var token: String = server_config["token"]
-	var guild_name: String = server_config["guild_name"]
-	var gateway_url := _derive_gateway_url(base_url)
+	var cfg: Dictionary = servers[index]
+	var base_url: String = cfg["base_url"]
+	var token: String = cfg["token"]
+	var guild_name: String = cfg["guild_name"]
+	var gw_url := _derive_gateway_url(base_url)
 	var cdn_url := _derive_cdn_url(base_url)
 
 	var conn := {
-		"config": server_config,
-		"client": null,
-		"guild_id": "",
-		"cdn_url": cdn_url,
+		"config": cfg, "client": null,
+		"guild_id": "", "cdn_url": cdn_url,
 		"status": "connecting",
 	}
-
-	# Ensure the array is big enough
 	while _connections.size() <= index:
 		_connections.append(null)
 	_connections[index] = conn
 
 	print("[Client] Connecting to server: ", base_url)
 
-	var client := AccordClient.new()
-	client.token = token
-	client.token_type = "Bearer"
-	client.base_url = base_url
-	client.gateway_url = gateway_url
-	client.cdn_url = cdn_url
-	client.intents = GatewayIntents.default() + [
-		GatewayIntents.MESSAGE_TYPING,
-		GatewayIntents.DIRECT_MESSAGES,
-		GatewayIntents.DM_TYPING,
-		GatewayIntents.MEMBERS,
-		GatewayIntents.PRESENCES,
-	]
-	add_child(client)
+	var client := _make_client(
+		token, base_url, gw_url, cdn_url
+	)
 	conn["client"] = client
 
 	# Fetch current user
 	var me_result := await client.users.get_me()
 	if not me_result.ok and base_url.begins_with("https://"):
-		# HTTPS failed -- retry with HTTP (common for local dev servers)
-		print("[Client] HTTPS failed for ", base_url, ", falling back to HTTP")
+		print(
+			"[Client] HTTPS failed for ", base_url,
+			", falling back to HTTP"
+		)
 		client.queue_free()
 		base_url = base_url.replace("https://", "http://")
-		gateway_url = _derive_gateway_url(base_url)
+		gw_url = _derive_gateway_url(base_url)
 		cdn_url = _derive_cdn_url(base_url)
 		conn["cdn_url"] = cdn_url
-		client = AccordClient.new()
-		client.token = token
-		client.token_type = "Bearer"
-		client.base_url = base_url
-		client.gateway_url = gateway_url
-		client.cdn_url = cdn_url
-		client.intents = GatewayIntents.default() + [
-			GatewayIntents.MESSAGE_TYPING,
-			GatewayIntents.DIRECT_MESSAGES,
-			GatewayIntents.DM_TYPING,
-			GatewayIntents.MEMBERS,
-			GatewayIntents.PRESENCES,
-		]
-		add_child(client)
+		client = _make_client(
+			token, base_url, gw_url, cdn_url
+		)
 		conn["client"] = client
 		me_result = await client.users.get_me()
+
+	# Token expired/invalid -- try re-auth with stored credentials
 	if not me_result.ok:
-		var err_msg: String = me_result.error.message if me_result.error else "Failed to authenticate"
-		push_error("[Client] Auth failed for ", base_url, ": ", err_msg)
+		var new_token := await _try_reauth(
+			base_url, cfg.get("username", ""),
+			cfg.get("password", ""),
+		)
+		if not new_token.is_empty():
+			print("[Client] Re-authenticated on ", base_url)
+			token = new_token
+			Config.update_server_token(index, new_token)
+			client.queue_free()
+			client = _make_client(
+				token, base_url, gw_url, cdn_url
+			)
+			conn["client"] = client
+			me_result = await client.users.get_me()
+
+	if not me_result.ok:
+		var err_msg: String = (
+			me_result.error.message
+			if me_result.error
+			else "Failed to authenticate"
+		)
+		push_error(
+			"[Client] Auth failed for ", base_url,
+			": ", err_msg
+		)
 		conn["status"] = "error"
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
 
-	# If we fell back to HTTP, update the saved config so future startups use it directly
-	if base_url != server_config["base_url"]:
+	if base_url != cfg["base_url"]:
 		Config.update_server_url(index, base_url)
 
 	var me_user: AccordUser = me_result.data
-	var me_dict := ClientModels.user_to_dict(me_user, ClientModels.UserStatus.ONLINE, cdn_url)
+	var me_dict := ClientModels.user_to_dict(
+		me_user, ClientModels.UserStatus.ONLINE, cdn_url
+	)
 	_user_cache[me_user.id] = me_dict
 	if current_user.is_empty():
 		current_user = me_dict
 
-	print("[Client] Logged in as: ", me_dict["display_name"], " on ", base_url)
+	var dn: String = me_dict["display_name"]
+	print(
+		"[Client] Logged in as: ", dn,
+		" on ", base_url,
+		" is_admin=", me_user.is_admin
+	)
 
-	# Accept invite if provided (non-fatal -- user may already be a member)
+	# Accept invite if provided (non-fatal)
 	if not invite_code.is_empty():
-		var invite_result := await client.invites.accept(invite_code)
-		if not invite_result.ok:
-			var inv_err: String = invite_result.error.message if invite_result.error else "unknown"
-			push_warning("[Client] Invite accept failed (non-fatal): ", inv_err)
+		var inv := await client.invites.accept(invite_code)
+		if not inv.ok:
+			var inv_err: String = (
+				inv.error.message
+				if inv.error else "unknown"
+			)
+			push_warning(
+				"[Client] Invite accept failed: ", inv_err
+			)
 
 	# Find the guild matching guild_name
 	var spaces_result := await client.users.list_spaces()
@@ -173,7 +227,10 @@ func connect_server(index: int, invite_code: String = "") -> Dictionary:
 			if spaces_result.error
 			else "Failed to list guilds"
 		)
-		push_error("[Client] Failed to list guilds on ", base_url, ": ", err_msg)
+		push_error(
+			"[Client] Failed to list guilds on ",
+			base_url, ": ", err_msg
+		)
 		conn["status"] = "error"
 		client.queue_free()
 		conn["client"] = null
@@ -181,56 +238,130 @@ func connect_server(index: int, invite_code: String = "") -> Dictionary:
 
 	var found_guild_id := ""
 	for space in spaces_result.data:
-		var space_obj: AccordSpace = space
-		if space_obj.slug == guild_name:
-			found_guild_id = space_obj.id
-			var d := ClientModels.space_to_guild_dict(space_obj)
-			_guild_cache[d["id"]] = d
+		var s: AccordSpace = space
+		if s.slug == guild_name:
+			found_guild_id = s.id
 			break
 
 	if found_guild_id.is_empty():
-		var err_msg := "Guild '%s' not found on %s" % [guild_name, base_url]
+		var err_msg := "Guild '%s' not found on %s" % [
+			guild_name, base_url
+		]
 		push_error("[Client] ", err_msg)
 		conn["status"] = "error"
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
 
+	var sp := await client.spaces.fetch(found_guild_id)
+	if sp.ok:
+		var d := ClientModels.space_to_guild_dict(
+			sp.data, cdn_url
+		)
+		_guild_cache[d["id"]] = d
+	else:
+		for space in spaces_result.data:
+			var s: AccordSpace = space
+			if s.id == found_guild_id:
+				var d := ClientModels.space_to_guild_dict(
+					s, cdn_url
+				)
+				_guild_cache[d["id"]] = d
+				break
+
 	conn["guild_id"] = found_guild_id
 	_guild_to_conn[found_guild_id] = index
-
-	# Connect gateway signals (scoped to this connection via bind)
-	client.ready_received.connect(_gw.on_gateway_ready.bind(index))
-	client.message_create.connect(_gw.on_message_create.bind(index))
-	client.message_update.connect(_gw.on_message_update.bind(index))
-	client.message_delete.connect(_gw.on_message_delete)
-	client.typing_start.connect(_gw.on_typing_start)
-	client.presence_update.connect(_gw.on_presence_update.bind(index))
-	client.member_join.connect(_gw.on_member_join.bind(index))
-	client.member_leave.connect(_gw.on_member_leave.bind(index))
-	client.member_update.connect(_gw.on_member_update.bind(index))
-	client.space_create.connect(_gw.on_space_create.bind(index))
-	client.space_update.connect(_gw.on_space_update)
-	client.space_delete.connect(_gw.on_space_delete)
-	client.channel_create.connect(_gw.on_channel_create.bind(index))
-	client.channel_update.connect(_gw.on_channel_update.bind(index))
-	client.channel_delete.connect(_gw.on_channel_delete)
-	client.role_create.connect(_gw.on_role_create.bind(index))
-	client.role_update.connect(_gw.on_role_update.bind(index))
-	client.role_delete.connect(_gw.on_role_delete.bind(index))
-	client.ban_create.connect(_gw.on_ban_create.bind(index))
-	client.ban_delete.connect(_gw.on_ban_delete.bind(index))
-	client.invite_create.connect(_gw.on_invite_create.bind(index))
-	client.invite_delete.connect(_gw.on_invite_delete.bind(index))
-	client.emoji_update.connect(_gw.on_emoji_update.bind(index))
-
+	_connect_gateway_signals(client, index)
 	client.login()
 
 	conn["status"] = "connected"
+	_auto_reconnect_attempted.erase(index)
 	mode = Mode.LIVE
 	AppState.guilds_updated.emit()
-
 	return {"guild_id": found_guild_id}
+
+func _make_client(
+	token: String, base_url: String,
+	gw_url: String, cdn_url: String
+) -> AccordClient:
+	var c := AccordClient.new()
+	c.token = token
+	c.token_type = "Bearer"
+	c.base_url = base_url
+	c.gateway_url = gw_url
+	c.cdn_url = cdn_url
+	c.intents = GatewayIntents.all()
+	add_child(c)
+	return c
+
+func _connect_gateway_signals(
+	client: AccordClient, idx: int
+) -> void:
+	var g := _gw
+	client.ready_received.connect(
+		g.on_gateway_ready.bind(idx))
+	client.message_create.connect(
+		g.on_message_create.bind(idx))
+	client.message_update.connect(
+		g.on_message_update.bind(idx))
+	client.message_delete.connect(g.on_message_delete)
+	client.typing_start.connect(g.on_typing_start)
+	client.presence_update.connect(
+		g.on_presence_update.bind(idx))
+	client.member_join.connect(
+		g.on_member_join.bind(idx))
+	client.member_leave.connect(
+		g.on_member_leave.bind(idx))
+	client.member_update.connect(
+		g.on_member_update.bind(idx))
+	client.space_create.connect(
+		g.on_space_create.bind(idx))
+	client.space_update.connect(g.on_space_update)
+	client.space_delete.connect(g.on_space_delete)
+	client.channel_create.connect(
+		g.on_channel_create.bind(idx))
+	client.channel_update.connect(
+		g.on_channel_update.bind(idx))
+	client.channel_delete.connect(g.on_channel_delete)
+	client.role_create.connect(
+		g.on_role_create.bind(idx))
+	client.role_update.connect(
+		g.on_role_update.bind(idx))
+	client.role_delete.connect(
+		g.on_role_delete.bind(idx))
+	client.ban_create.connect(g.on_ban_create.bind(idx))
+	client.ban_delete.connect(g.on_ban_delete.bind(idx))
+	client.invite_create.connect(
+		g.on_invite_create.bind(idx))
+	client.invite_delete.connect(
+		g.on_invite_delete.bind(idx))
+	client.emoji_update.connect(
+		g.on_emoji_update.bind(idx))
+	client.soundboard_create.connect(
+		g.on_soundboard_create.bind(idx))
+	client.soundboard_update.connect(
+		g.on_soundboard_update.bind(idx))
+	client.soundboard_delete.connect(
+		g.on_soundboard_delete.bind(idx))
+	client.soundboard_play.connect(
+		g.on_soundboard_play.bind(idx))
+	client.reaction_add.connect(g.on_reaction_add)
+	client.reaction_remove.connect(g.on_reaction_remove)
+	client.reaction_clear.connect(g.on_reaction_clear)
+	client.reaction_clear_emoji.connect(
+		g.on_reaction_clear_emoji)
+	client.voice_state_update.connect(
+		g.on_voice_state_update.bind(idx))
+	client.voice_server_update.connect(
+		g.on_voice_server_update.bind(idx))
+	client.voice_signal.connect(
+		g.on_voice_signal.bind(idx))
+	client.disconnected.connect(
+		g.on_gateway_disconnected.bind(idx))
+	client.reconnecting.connect(
+		g.on_gateway_reconnecting.bind(idx))
+	client.resumed.connect(
+		g.on_gateway_reconnected.bind(idx))
 
 # --- Client routing ---
 
@@ -240,25 +371,50 @@ func _conn_for_guild(guild_id: String):
 		return null
 	return _connections[idx]
 
-func _client_for_guild(guild_id: String) -> AccordClient:
-	var conn = _conn_for_guild(guild_id)
-	if conn == null:
-		return null
+func _client_for_guild(gid: String) -> AccordClient:
+	var conn = _conn_for_guild(gid)
+	if conn == null: return null
 	return conn["client"]
 
-func _client_for_channel(channel_id: String) -> AccordClient:
-	var guild_id: String = _channel_to_guild.get(channel_id, "")
-	return _client_for_guild(guild_id)
+func _client_for_channel(cid: String) -> AccordClient:
+	var gid: String = _channel_to_guild.get(cid, "")
+	if not gid.is_empty():
+		return _client_for_guild(gid)
+	# DM channels aren't in _channel_to_guild — route via
+	# _dm_to_conn if available, else first connected client
+	if _dm_channel_cache.has(cid):
+		var conn_idx: int = _dm_to_conn.get(cid, -1)
+		if conn_idx != -1 and conn_idx < _connections.size():
+			var conn = _connections[conn_idx]
+			if conn != null and conn["client"] != null:
+				return conn["client"]
+		return _first_connected_client()
+	return null
 
 func _cdn_for_guild(guild_id: String) -> String:
 	var conn = _conn_for_guild(guild_id)
-	if conn == null:
-		return ""
+	if conn == null: return ""
 	return conn["cdn_url"]
 
 func _cdn_for_channel(channel_id: String) -> String:
-	var guild_id: String = _channel_to_guild.get(channel_id, "")
-	return _cdn_for_guild(guild_id)
+	var gid: String = _channel_to_guild.get(channel_id, "")
+	if not gid.is_empty():
+		return _cdn_for_guild(gid)
+	# DM channels — route via _dm_to_conn or first connected CDN
+	if _dm_channel_cache.has(channel_id):
+		var conn_idx: int = _dm_to_conn.get(channel_id, -1)
+		if conn_idx != -1 and conn_idx < _connections.size():
+			var conn = _connections[conn_idx]
+			if conn != null:
+				return conn["cdn_url"]
+		return _first_connected_cdn()
+	return ""
+
+func is_server_connected(index: int) -> bool:
+	if index < 0 or index >= _connections.size():
+		return false
+	var conn = _connections[index]
+	return conn != null and conn["status"] == "connected"
 
 func _all_failed() -> bool:
 	for c in _connections:
@@ -268,7 +424,9 @@ func _all_failed() -> bool:
 
 func _first_connected_client() -> AccordClient:
 	for conn in _connections:
-		if conn != null and conn["status"] == "connected" and conn["client"] != null:
+		if conn != null \
+				and conn["status"] == "connected" \
+				and conn["client"] != null:
 			return conn["client"]
 	return null
 
@@ -280,466 +438,238 @@ func _first_connected_cdn() -> String:
 
 # --- Data access API ---
 
-func get_channels_for_guild(guild_id: String) -> Array:
+func get_channels_for_guild(gid: String) -> Array:
 	var result: Array = []
 	for ch in _channel_cache.values():
-		if ch.get("guild_id", "") == guild_id:
+		if ch.get("guild_id", "") == gid:
 			result.append(ch)
 	return result
 
-func get_messages_for_channel(channel_id: String) -> Array:
-	return _message_cache.get(channel_id, [])
+func get_messages_for_channel(cid: String) -> Array:
+	return _message_cache.get(cid, [])
 
-func get_user_by_id(user_id: String) -> Dictionary:
-	return _user_cache.get(user_id, {})
+func get_user_by_id(uid: String) -> Dictionary:
+	return _user_cache.get(uid, {})
 
-func get_guild_by_id(guild_id: String) -> Dictionary:
-	return _guild_cache.get(guild_id, {})
+func get_guild_by_id(gid: String) -> Dictionary:
+	return _guild_cache.get(gid, {})
 
-func get_members_for_guild(guild_id: String) -> Array:
-	return _member_cache.get(guild_id, [])
+func get_members_for_guild(gid: String) -> Array:
+	return _member_cache.get(gid, [])
 
-func get_roles_for_guild(guild_id: String) -> Array:
-	return _role_cache.get(guild_id, [])
+func get_roles_for_guild(gid: String) -> Array:
+	return _role_cache.get(gid, [])
 
-func get_message_by_id(message_id: String) -> Dictionary:
-	for ch_messages in _message_cache.values():
-		for msg in ch_messages:
-			if msg.get("id", "") == message_id:
+func get_message_by_id(mid: String) -> Dictionary:
+	var cid: String = _message_id_index.get(mid, "")
+	if not cid.is_empty() and _message_cache.has(cid):
+		for msg in _message_cache[cid]:
+			if msg.get("id", "") == mid:
+				return msg
+	# Fallback: linear search (index may be stale)
+	for ch_msgs in _message_cache.values():
+		for msg in ch_msgs:
+			if msg.get("id", "") == mid:
 				return msg
 	return {}
 
-# --- Mutation API ---
+# --- Voice data access (delegates to ClientVoice) ---
 
-func send_message_to_channel(channel_id: String, content: String, reply_to: String = "") -> void:
-	var client := _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection found for channel: ", channel_id)
-		return
-	var data := {"content": content}
-	if not reply_to.is_empty():
-		data["reply_to"] = reply_to
-	var result := await client.messages.create(channel_id, data)
-	if not result.ok:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to send message: ",
-			err_msg
-		)
+func get_voice_users(ch_id: String) -> Array:
+	return voice.get_voice_users(ch_id)
 
-func update_message_content(message_id: String, new_content: String) -> void:
-	var channel_id := _find_channel_for_message(message_id)
-	if channel_id.is_empty():
-		push_error("[Client] Cannot find channel for message: ", message_id)
-		return
-	var client := _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection found for channel: ", channel_id)
-		return
-	var result := await client.messages.edit(
-		channel_id, message_id, {"content": new_content}
+func get_voice_user_count(ch_id: String) -> int:
+	return voice.get_voice_user_count(ch_id)
+
+# --- Search (delegates to ClientMutations) ---
+
+func search_messages(
+	gid: String, q: String, filters: Dictionary = {},
+) -> Dictionary:
+	return await mutations.search_messages(
+		gid, q, filters
 	)
-	if not result.ok:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to edit message: ",
-			err_msg
-		)
 
-func remove_message(message_id: String) -> void:
-	var channel_id := _find_channel_for_message(message_id)
-	if channel_id.is_empty():
-		push_error("[Client] Cannot find channel for message: ", message_id)
-		return
-	var client := _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection found for channel: ", channel_id)
-		return
-	var result := await client.messages.delete(
-		channel_id, message_id
+# --- Mutation API (delegates to ClientMutations) ---
+
+func send_message_to_channel(
+	cid: String, content: String, reply_to: String = ""
+) -> bool:
+	return await mutations.send_message_to_channel(
+		cid, content, reply_to
 	)
-	if not result.ok:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to delete message: ",
-			err_msg
-		)
 
-func send_typing(channel_id: String) -> void:
-	var client := _client_for_channel(channel_id)
-	if client != null:
-		client.messages.typing(channel_id)
+func update_message_content(
+	mid: String, new_content: String
+) -> bool:
+	return await mutations.update_message_content(
+		mid, new_content
+	)
 
-# --- Fetch methods ---
+func remove_message(mid: String) -> bool:
+	return await mutations.remove_message(mid)
 
-func fetch_guilds() -> void:
-	for conn in _connections:
-		if conn == null or conn["status"] != "connected" or conn["client"] == null:
-			continue
-		var result = await conn["client"].users.list_spaces()
-		if result.ok:
-			for space in result.data:
-				var space_obj: AccordSpace = space
-				if space_obj.id == conn["guild_id"]:
-					var d := ClientModels.space_to_guild_dict(space_obj)
-					_guild_cache[d["id"]] = d
-	AppState.guilds_updated.emit()
+func add_reaction(
+	cid: String, mid: String, emoji: String
+) -> void:
+	await mutations.add_reaction(cid, mid, emoji)
 
-func fetch_channels(guild_id: String) -> void:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		return
-	var result := await client.spaces.list_channels(guild_id)
-	if result.ok:
-		# Remove old channels for this guild
-		var to_remove: Array = []
-		for ch_id in _channel_cache:
-			if _channel_cache[ch_id].get("guild_id", "") == guild_id:
-				to_remove.append(ch_id)
-		for ch_id in to_remove:
-			_channel_cache.erase(ch_id)
-			_channel_to_guild.erase(ch_id)
-		# Add new channels
-		for channel in result.data:
-			var d := ClientModels.channel_to_dict(channel)
-			_channel_cache[d["id"]] = d
-			_channel_to_guild[d["id"]] = guild_id
-		AppState.channels_updated.emit(guild_id)
-	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to fetch channels: ",
-			err_msg
-		)
+func remove_reaction(
+	cid: String, mid: String, emoji: String
+) -> void:
+	await mutations.remove_reaction(cid, mid, emoji)
 
-func fetch_dm_channels() -> void:
-	var client := _first_connected_client()
-	if client == null:
-		return
-	var cdn_url := _first_connected_cdn()
-	var result := await client.users.list_channels()
-	if result.ok:
-		_dm_channel_cache.clear()
-		for channel in result.data:
-			if channel.recipients != null and channel.recipients is Array:
-				for recipient in channel.recipients:
-					if not _user_cache.has(recipient.id):
-						_user_cache[recipient.id] = ClientModels.user_to_dict(
-							recipient,
-							ClientModels.UserStatus.OFFLINE,
-							cdn_url
-						)
-			var d := ClientModels.dm_channel_to_dict(channel, _user_cache)
-			_dm_channel_cache[d["id"]] = d
-		AppState.dm_channels_updated.emit()
-	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to fetch DM channels: ",
-			err_msg
-		)
+func update_presence(status: int) -> void:
+	mutations.update_presence(status)
 
-func fetch_messages(channel_id: String) -> void:
-	var client := _client_for_channel(channel_id)
-	if client == null:
-		return
-	var cdn_url := _cdn_for_channel(channel_id)
-	var result := await client.messages.list(channel_id, {"limit": MESSAGE_CAP})
-	if result.ok:
-		var msgs: Array = []
-		for msg in result.data:
-			var accord_msg: AccordMessage = msg
-			if not _user_cache.has(accord_msg.author_id):
-				var user_result := await client.users.fetch(accord_msg.author_id)
-				if user_result.ok:
-					_user_cache[accord_msg.author_id] = ClientModels.user_to_dict(
-						user_result.data,
-						ClientModels.UserStatus.OFFLINE,
-						cdn_url
-					)
-			msgs.append(ClientModels.message_to_dict(accord_msg, _user_cache))
-		_message_cache[channel_id] = msgs
-		AppState.messages_updated.emit(channel_id)
-	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to fetch messages: ",
-			err_msg
-		)
+func send_typing(cid: String) -> void:
+	mutations.send_typing(cid)
 
-func fetch_members(guild_id: String) -> void:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		return
-	var cdn_url := _cdn_for_guild(guild_id)
-	var result := await client.members.list(guild_id, {"limit": 1000})
-	if result.ok:
-		var members: Array = []
-		for member in result.data:
-			var accord_member: AccordMember = member
-			if not _user_cache.has(accord_member.user_id):
-				var user_result := await client.users.fetch(accord_member.user_id)
-				if user_result.ok:
-					_user_cache[accord_member.user_id] = ClientModels.user_to_dict(
-						user_result.data,
-						ClientModels.UserStatus.OFFLINE,
-						cdn_url
-					)
-			members.append(ClientModels.member_to_dict(accord_member, _user_cache))
-		_member_cache[guild_id] = members
-		AppState.members_updated.emit(guild_id)
-	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error("[Client] Failed to fetch members: ", err_msg)
+# --- Voice API (delegates to ClientVoice) ---
 
-func fetch_roles(guild_id: String) -> void:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		return
-	var result := await client.roles.list(guild_id)
-	if result.ok:
-		var roles: Array = []
-		for role in result.data:
-			roles.append(ClientModels.role_to_dict(role))
-		_role_cache[guild_id] = roles
-		AppState.roles_updated.emit(guild_id)
-	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error("[Client] Failed to fetch roles: ", err_msg)
+func join_voice_channel(ch_id: String) -> bool:
+	return await voice.join_voice_channel(ch_id)
+
+func leave_voice_channel() -> bool:
+	return await voice.leave_voice_channel()
+
+func set_voice_muted(muted: bool) -> void:
+	voice.set_voice_muted(muted)
+
+func set_voice_deafened(deafened: bool) -> void:
+	voice.set_voice_deafened(deafened)
+
+func toggle_video() -> void:
+	voice.toggle_video()
+
+func start_screen_share(
+	source_type: String, source_id: int,
+) -> void:
+	voice.start_screen_share(source_type, source_id)
+
+func stop_screen_share() -> void:
+	voice.stop_screen_share()
+
+func create_dm(user_id: String) -> void:
+	await mutations.create_dm(user_id)
+
+func close_dm(channel_id: String) -> void:
+	await mutations.close_dm(channel_id)
 
 # --- Permission helpers ---
 
-func has_permission(guild_id: String, perm: String) -> bool:
+func has_permission(gid: String, perm: String) -> bool:
 	var my_id: String = current_user.get("id", "")
-	# Space owner has all permissions
-	var guild: Dictionary = _guild_cache.get(guild_id, {})
+	if current_user.get("is_admin", false):
+		return true
+	var guild: Dictionary = _guild_cache.get(gid, {})
 	if guild.get("owner_id", "") == my_id:
 		return true
-	# Find current user's role IDs from member cache
-	var members: Array = _member_cache.get(guild_id, [])
+	var members: Array = _member_cache.get(gid, [])
 	var my_roles: Array = []
 	for m in members:
 		if m.get("id", "") == my_id:
 			my_roles = m.get("roles", [])
 			break
-	# Collect permissions from @everyone (position 0) + assigned roles
-	var roles: Array = _role_cache.get(guild_id, [])
+	var roles: Array = _role_cache.get(gid, [])
 	var all_perms: Array = []
 	for role in roles:
-		if role.get("position", 0) == 0 or role.get("id", "") in my_roles:
+		var in_role: bool = role.get("id", "") in my_roles
+		if role.get("position", 0) == 0 or in_role:
 			for p in role.get("permissions", []):
 				if p not in all_perms:
 					all_perms.append(p)
 	return AccordPermission.has(all_perms, perm)
 
-func is_space_owner(guild_id: String) -> bool:
-	var guild: Dictionary = _guild_cache.get(guild_id, {})
-	return guild.get("owner_id", "") == current_user.get("id", "")
+func is_space_owner(gid: String) -> bool:
+	var guild: Dictionary = _guild_cache.get(gid, {})
+	return guild.get("owner_id", "") == current_user.get(
+		"id", ""
+	)
 
-# --- Admin API wrappers ---
+# --- Unread / mention tracking ---
 
-func update_space(guild_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.spaces.update(guild_id, data)
+func _on_channel_selected_clear_unread(cid: String) -> void:
+	if not _unread_channels.has(cid):
+		return
+	_unread_channels.erase(cid)
+	_channel_mention_counts.erase(cid)
+	# Update the cached channel dict
+	if _channel_cache.has(cid):
+		_channel_cache[cid]["unread"] = false
+		var gid: String = _channel_cache[cid].get("guild_id", "")
+		_update_guild_unread(gid)
+		AppState.channels_updated.emit(gid)
+	elif _dm_channel_cache.has(cid):
+		_dm_channel_cache[cid]["unread"] = false
+		AppState.dm_channels_updated.emit()
 
-func delete_space(guild_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.spaces.delete(guild_id)
+func mark_channel_unread(
+	cid: String, is_mention: bool = false,
+) -> void:
+	_unread_channels[cid] = true
+	if is_mention:
+		var cur: int = _channel_mention_counts.get(cid, 0)
+		_channel_mention_counts[cid] = cur + 1
+	# Update channel dict
+	if _channel_cache.has(cid):
+		_channel_cache[cid]["unread"] = true
+		var gid: String = _channel_cache[cid].get("guild_id", "")
+		_update_guild_unread(gid)
+		AppState.channels_updated.emit(gid)
+		AppState.guilds_updated.emit()
+	elif _dm_channel_cache.has(cid):
+		_dm_channel_cache[cid]["unread"] = true
+		AppState.dm_channels_updated.emit()
 
-func create_channel(guild_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.spaces.create_channel(guild_id, data)
+func _update_guild_unread(gid: String) -> void:
+	if gid.is_empty() or not _guild_cache.has(gid):
+		return
+	var has_unread := false
+	var total_mentions := 0
+	for ch_id in _channel_cache:
+		var ch: Dictionary = _channel_cache[ch_id]
+		if ch.get("guild_id", "") != gid:
+			continue
+		if _unread_channels.has(ch_id):
+			has_unread = true
+		total_mentions += _channel_mention_counts.get(ch_id, 0)
+	_guild_cache[gid]["unread"] = has_unread
+	_guild_cache[gid]["mentions"] = total_mentions
 
-func update_channel(channel_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection for channel: ", channel_id)
-		return null
-	return await client.channels.update(channel_id, data)
-
-func delete_channel(channel_id: String) -> RestResult:
-	var client := _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection for channel: ", channel_id)
-		return null
-	return await client.channels.delete(channel_id)
-
-func create_role(guild_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.roles.create(guild_id, data)
-
-func update_role(guild_id: String, role_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.roles.update(guild_id, role_id, data)
-
-func delete_role(guild_id: String, role_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.roles.delete(guild_id, role_id)
-
-func kick_member(guild_id: String, user_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.members.kick(guild_id, user_id)
-
-func ban_member(guild_id: String, user_id: String, data: Dictionary = {}) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.bans.create(guild_id, user_id, data)
-
-func unban_member(guild_id: String, user_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.bans.remove(guild_id, user_id)
-
-func add_member_role(guild_id: String, user_id: String, role_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.members.add_role(guild_id, user_id, role_id)
-
-func remove_member_role(guild_id: String, user_id: String, role_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.members.remove_role(guild_id, user_id, role_id)
-
-func get_bans(guild_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.bans.list(guild_id)
-
-func get_invites(guild_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.invites.list_space(guild_id)
-
-func create_invite(guild_id: String, data: Dictionary = {}) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.invites.create_space(guild_id, data)
-
-func delete_invite(code: String, guild_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.invites.delete(code)
-
-func get_emojis(guild_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.emojis.list(guild_id)
-
-func create_emoji(guild_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.emojis.create(guild_id, data)
-
-func update_emoji(guild_id: String, emoji_id: String, data: Dictionary) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.emojis.update(guild_id, emoji_id, data)
-
-func delete_emoji(guild_id: String, emoji_id: String) -> RestResult:
-	var client := _client_for_guild(guild_id)
-	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
-		return null
-	return await client.emojis.delete(guild_id, emoji_id)
+# --- Server management ---
 
 func disconnect_server(guild_id: String) -> void:
 	var idx: int = _guild_to_conn.get(guild_id, -1)
 	if idx == -1:
 		return
+	# If user is in voice on this server, leave
+	if AppState.voice_guild_id == guild_id:
+		AppState.leave_voice()
 	var conn = _connections[idx]
 	if conn != null and conn["client"] != null:
+		conn["client"].logout()
 		conn["client"].queue_free()
-	# Clean caches
 	_guild_cache.erase(guild_id)
 	_role_cache.erase(guild_id)
 	_member_cache.erase(guild_id)
-	var channels_to_remove: Array = []
+	var to_remove: Array = []
 	for ch_id in _channel_cache:
 		if _channel_cache[ch_id].get("guild_id", "") == guild_id:
-			channels_to_remove.append(ch_id)
-	for ch_id in channels_to_remove:
+			to_remove.append(ch_id)
+	for ch_id in to_remove:
 		_channel_cache.erase(ch_id)
 		_channel_to_guild.erase(ch_id)
-		_message_cache.erase(ch_id)
+		_unread_channels.erase(ch_id)
+		_channel_mention_counts.erase(ch_id)
+		_voice_state_cache.erase(ch_id)
+		if _message_cache.has(ch_id):
+			for msg in _message_cache[ch_id]:
+				_message_id_index.erase(msg.get("id", ""))
+			_message_cache.erase(ch_id)
 	_guild_to_conn.erase(guild_id)
 	_connections[idx] = null
 	Config.remove_server(idx)
-	# Re-index connections after removal
 	_guild_to_conn.clear()
 	for i in _connections.size():
 		if _connections[i] != null:
@@ -748,11 +678,115 @@ func disconnect_server(guild_id: String) -> void:
 		mode = Mode.CONNECTING
 	AppState.guilds_updated.emit()
 
+# --- Connection status helpers ---
+
+func is_guild_connected(gid: String) -> bool:
+	var conn = _conn_for_guild(gid)
+	return conn != null and conn["status"] == "connected"
+
+func get_guild_connection_status(gid: String) -> String:
+	var conn = _conn_for_guild(gid)
+	if conn == null: return "none"
+	return conn.get("status", "none")
+
+func get_conn_index_for_guild(gid: String) -> int:
+	return _guild_to_conn.get(gid, -1)
+
+func reconnect_server(index: int) -> void:
+	if index < 0 or index >= _connections.size():
+		return
+	var conn = _connections[index]
+	if conn == null:
+		return
+	if conn["client"] != null:
+		conn["client"].logout()
+		conn["client"].queue_free()
+	conn["status"] = "connecting"
+	conn["client"] = null
+	connect_server(index)
+
+## Called (deferred) by ClientGateway when gateway reconnection
+## is exhausted or hits a fatal auth error.  Performs a full
+## reconnect_server() -- which includes _try_reauth() -- but
+## only once per disconnect cycle to avoid looping.
+func _handle_gateway_reconnect_failed(
+	conn_index: int,
+) -> void:
+	if _auto_reconnect_attempted.get(conn_index, false):
+		# Already tried once this cycle -- give up
+		if conn_index < _connections.size() \
+				and _connections[conn_index] != null:
+			var conn: Dictionary = _connections[conn_index]
+			conn["status"] = "error"
+			conn["_was_disconnected"] = false
+			var gid: String = conn.get("guild_id", "")
+			AppState.server_connection_failed.emit(
+				gid, "Reconnection failed"
+			)
+		return
+	_auto_reconnect_attempted[conn_index] = true
+	print(
+		"[Client] Gateway reconnect exhausted, "
+		+ "attempting full reconnect with re-auth"
+	)
+	reconnect_server(conn_index)
+
 # --- Helpers ---
 
-func _find_channel_for_message(message_id: String) -> String:
-	for channel_id in _message_cache:
-		for msg in _message_cache[channel_id]:
-			if msg.get("id", "") == message_id:
-				return channel_id
+func _find_channel_for_message(mid: String) -> String:
+	var cid: String = _message_id_index.get(mid, "")
+	if not cid.is_empty() and _message_cache.has(cid):
+		return cid
+	# Fallback: linear search
+	for ch_id in _message_cache:
+		for msg in _message_cache[ch_id]:
+			if msg.get("id", "") == mid:
+				return ch_id
 	return ""
+
+func _try_reauth(
+	base_url: String, username: String, password: String,
+) -> String:
+	if username.is_empty() or password.is_empty():
+		return ""
+	var api_url := base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	add_child(rest)
+	var auth := AuthApi.new(rest)
+	var result := await auth.login(
+		{"username": username, "password": password}
+	)
+	rest.queue_free()
+	if result.ok and result.data is Dictionary:
+		return result.data.get("token", "")
+	return ""
+
+## Trims the user cache if it exceeds USER_CACHE_CAP.
+## Preserves the current user and users referenced by current
+## guild members; evicts the rest.
+func trim_user_cache() -> void:
+	if _user_cache.size() <= USER_CACHE_CAP:
+		return
+	var keep: Dictionary = {}
+	var my_id: String = current_user.get("id", "")
+	if not my_id.is_empty():
+		keep[my_id] = true
+	# Keep users referenced by current guild's members
+	var gid := AppState.current_guild_id
+	if _member_cache.has(gid):
+		for m in _member_cache[gid]:
+			keep[m.get("id", "")] = true
+	# Keep users in current channel's messages
+	var cid := AppState.current_channel_id
+	if _message_cache.has(cid):
+		for msg in _message_cache[cid]:
+			var author: Dictionary = msg.get("author", {})
+			keep[author.get("id", "")] = true
+	var to_erase: Array = []
+	for uid in _user_cache:
+		if not keep.has(uid):
+			to_erase.append(uid)
+	for uid in to_erase:
+		_user_cache.erase(uid)

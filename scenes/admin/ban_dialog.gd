@@ -32,7 +32,7 @@ func _on_ban_pressed() -> void:
 	if not reason.is_empty():
 		data["reason"] = reason
 
-	var result: RestResult = await Client.ban_member(_guild_id, _user_id, data)
+	var result: RestResult = await Client.admin.ban_member(_guild_id, _user_id, data)
 	_ban_btn.disabled = false
 	_ban_btn.text = "Ban"
 
