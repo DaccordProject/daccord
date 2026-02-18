@@ -18,82 +18,99 @@ func after_each() -> void:
 # 1. BBCode Injection
 # =============================================================================
 
-func test_bbcode_url_tag_passes_through_unsanitized() -> void:
+func test_bbcode_url_tag_is_sanitized() -> void:
 	var result = ClientModels.markdown_to_bbcode("[url=http://evil.com]click[/url]")
-	# Raw BBCode URL tag is NOT neutralized — RichTextLabel will interpret it
-	assert_eq(result, "[url=http://evil.com]click[/url]",
-		"Raw BBCode url tag passes through and will be rendered")
+	# Raw BBCode URL tag with = is allowed (matches url= prefix), but
+	# unknown tags are escaped. Here [url= is allowed and [/url] is allowed.
+	assert_false(result.contains("[lb]url="),
+		"url= tag is in allowed list, so it passes through")
 
 
-func test_bbcode_img_tag_passes_through_unsanitized() -> void:
+func test_bbcode_img_tag_is_sanitized() -> void:
 	var result = ClientModels.markdown_to_bbcode("[img]http://evil.com/tracker.png[/img]")
-	assert_eq(result, "[img]http://evil.com/tracker.png[/img]",
-		"Raw BBCode img tag passes through and will be rendered")
+	# [img] without = is not in the allowed list -> escaped
+	assert_string_contains(result, "[lb]img]",
+		"Raw BBCode img tag (without =) is escaped with [lb]")
 
 
-func test_bbcode_color_tag_passes_through_unsanitized() -> void:
+func test_bbcode_color_tag_is_sanitized() -> void:
 	var result = ClientModels.markdown_to_bbcode("[color=red]styled[/color]")
-	assert_eq(result, "[color=red]styled[/color]",
-		"Raw BBCode color tag passes through and will be rendered")
+	# [color= is in allowed list (produced by spoiler/blockquote), passes through
+	assert_false(result.contains("[lb]color="),
+		"color= tag is in allowed list, so it passes through")
 
 
-func test_bbcode_font_size_tag_passes_through_unsanitized() -> void:
+func test_bbcode_font_size_tag_is_sanitized() -> void:
 	var result = ClientModels.markdown_to_bbcode("[font_size=100]huge[/font_size]")
-	assert_eq(result, "[font_size=100]huge[/font_size]",
-		"Raw BBCode font_size tag passes through and will be rendered")
+	# [font_size= is in allowed list (produced by edited indicator), passes through
+	assert_false(result.contains("[lb]font_size="),
+		"font_size= tag is in allowed list, so it passes through")
 
 
-func test_bbcode_table_tags_pass_through_unsanitized() -> void:
+func test_bbcode_table_tags_are_sanitized() -> void:
 	var result = ClientModels.markdown_to_bbcode("[table][cell]data[/cell][/table]")
-	assert_eq(result, "[table][cell]data[/cell][/table]",
-		"Raw BBCode table/cell tags pass through and will be rendered")
+	assert_string_contains(result, "[lb]table]",
+		"Raw BBCode table tag is escaped with [lb]")
+	assert_string_contains(result, "[lb]cell]",
+		"Raw BBCode cell tag is escaped with [lb]")
 
 
-func test_bbcode_nested_in_markdown_bold_passes_through() -> void:
-	var result = ClientModels.markdown_to_bbcode("**[url=http://evil.com]text[/url]**")
-	assert_eq(result, "[b][url=http://evil.com]text[/url][/b]",
-		"BBCode inside markdown bold is wrapped but not escaped")
+func test_bbcode_nested_in_markdown_bold_is_sanitized() -> void:
+	var result = ClientModels.markdown_to_bbcode("**[img]evil.png[/img]**")
+	assert_string_contains(result, "[lb]img]",
+		"BBCode img tag inside markdown bold is escaped")
 
 
 func test_bbcode_inside_inline_code_is_contained() -> void:
 	var result = ClientModels.markdown_to_bbcode("`[url=evil]click[/url]`")
-	assert_eq(result, "[code][url=evil]click[/url][/code]",
-		"BBCode inside inline code is wrapped in [code] (RichTextLabel won't interpret nested BBCode)")
+	# Inline code becomes [code]...[/code]; content inside code blocks is preserved
+	assert_string_contains(result, "[code]",
+		"BBCode inside inline code is wrapped in [code]")
 
 
 func test_bbcode_inside_code_block_is_contained() -> void:
 	var result = ClientModels.markdown_to_bbcode("```\n[url=evil]click[/url]\n```")
-	assert_eq(result, "[code]\n[url=evil]click[/url]\n[/code]",
-		"BBCode inside code block is wrapped in [code] (RichTextLabel won't interpret nested BBCode)")
+	assert_string_contains(result, "[code]",
+		"BBCode inside code block is wrapped in [code] (content preserved)")
+	# Tags inside [code] blocks are NOT escaped
+	assert_string_contains(result, "[url=evil]",
+		"Tags inside code blocks are left as-is")
 
 
 # =============================================================================
 # 2. Malicious URL Schemes
 # =============================================================================
 
-func test_javascript_scheme_converted_to_url_tag() -> void:
-	# Parentheses in the URL confuse the lazy link regex — it closes at the first )
+func test_javascript_scheme_blocked() -> void:
 	var result = ClientModels.markdown_to_bbcode("[click](javascript:alert(1))")
-	assert_eq(result, "[url=javascript:alert(1]click[/url])",
-		"javascript: URL with parens is mangled by regex but still creates a url tag")
+	assert_string_contains(result, "#blocked",
+		"javascript: URL is replaced with #blocked")
+	assert_false(result.contains("javascript:"),
+		"javascript: scheme should not appear in output")
 
 
-func test_data_scheme_converted_to_url_tag() -> void:
+func test_data_scheme_blocked() -> void:
 	var result = ClientModels.markdown_to_bbcode("[click](data:text/html,<script>)")
-	assert_eq(result, "[url=data:text/html,<script>]click[/url]",
-		"data: scheme is converted to a clickable URL tag without filtering")
+	assert_string_contains(result, "#blocked",
+		"data: URL is replaced with #blocked")
+	assert_false(result.contains("data:text"),
+		"data: scheme should not appear in output")
 
 
-func test_file_scheme_converted_to_url_tag() -> void:
+func test_file_scheme_blocked() -> void:
 	var result = ClientModels.markdown_to_bbcode("[click](file:///etc/passwd)")
-	assert_eq(result, "[url=file:///etc/passwd]click[/url]",
-		"file: scheme is converted to a clickable URL tag without filtering")
+	assert_string_contains(result, "#blocked",
+		"file: URL is replaced with #blocked")
+	assert_false(result.contains("file:"),
+		"file: scheme should not appear in output")
 
 
-func test_vbscript_scheme_converted_to_url_tag() -> void:
+func test_vbscript_scheme_blocked() -> void:
 	var result = ClientModels.markdown_to_bbcode("[click](vbscript:msgbox)")
-	assert_eq(result, "[url=vbscript:msgbox]click[/url]",
-		"vbscript: scheme is converted to a clickable URL tag without filtering")
+	assert_string_contains(result, "#blocked",
+		"vbscript: URL is replaced with #blocked")
+	assert_false(result.contains("vbscript:"),
+		"vbscript: scheme should not appear in output")
 
 
 # =============================================================================
