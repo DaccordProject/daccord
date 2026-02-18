@@ -40,7 +40,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: daccord-projects/accordkit
-          path: ../accordkit
+          path: .accordkit_repo
+
+      - name: Checkout accordstream
+        uses: actions/checkout@v4
+        with:
+          repository: daccord-projects/accordstream
+          path: .accordstream_repo
+
+      - name: Symlink addons
+        run: |
+          ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
+          ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
 
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
