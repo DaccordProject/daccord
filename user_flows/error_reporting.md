@@ -1,5 +1,7 @@
 # Error Reporting
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 This flow describes how daccord reports crashes, script errors, and diagnostic data to a self-hosted [GlitchTip](https://glitchtip.com/) instance using the [Sentry Godot SDK](https://github.com/getsentry/sentry-godot). GlitchTip is a Sentry-compatible open-source error tracking platform, so the SDK's DSN simply points at the GlitchTip server instead of Sentry's cloud. The goal is automatic, opt-in error reporting that gives developers visibility into real-world crashes without requiring users to manually file bug reports.

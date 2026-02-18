@@ -1,5 +1,7 @@
 # Messaging
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 The messaging flow covers sending, receiving, replying to, editing, and deleting messages. Messages appear in a scrollable view with two layout modes: cozy (full header with avatar, author, timestamp) and collapsed (compact, for consecutive same-author messages). The composer handles text input with Enter-to-send, Shift+Enter for newlines, and Up arrow to edit last own message. A floating action bar appears on message hover with React, Reply, Edit, and Delete buttons (Edit/Delete only for own messages). Right-click context menus and long-press (touch) also provide these actions. Markdown is converted to BBCode for rendering. Embeds, reactions (with server API integration and reaction picker), typing indicators, connection state banners, and error handling are also supported.

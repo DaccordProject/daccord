@@ -1,5 +1,7 @@
 # Test Coverage
 
+*Last touched: 2026-02-18 20:47*
+
 ## Overview
 
 daccord uses the GUT (Godot Unit Test) framework for automated testing. The test suite spans three tiers: unit tests for autoloads and UI components, AccordKit integration tests that hit a live accordserver, and AccordStream tests for WebRTC/voice APIs. A Bash runner (`test.sh`) orchestrates server lifecycle and suite selection, while GitHub Actions CI runs unit tests and lint on every push.

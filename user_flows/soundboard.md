@@ -1,5 +1,7 @@
 # Soundboard
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 A soundboard allows users to play short audio clips into a voice channel for all participants to hear. Users manage a server-wide collection of sounds and trigger them via a UI panel while connected to a voice channel. The server (accordserver) provides full REST API endpoints for soundboard CRUD and playback, a database table for sound metadata, audio file storage on disk, gateway events for real-time updates, and permission flags (`manage_soundboard`, `use_soundboard`). The AccordKit client library, daccord client UI, and AccordStream audio layer do not yet implement soundboard support.

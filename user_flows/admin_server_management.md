@@ -1,5 +1,7 @@
 # Admin Server Management
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Admins manage their space (server) through a set of privileged operations: editing space settings, creating/updating/deleting channels, managing roles and permissions, kicking/banning members, generating invites, and managing custom emojis. The server enforces a 37-permission model with role hierarchy and per-channel permission overwrites (Discord-style resolution), while the client exposes the full REST API through AccordKit. The client provides admin dialogs for all major management features, accessible via right-click context menus on guild icons, the channel list banner dropdown, and member items. All admin dialogs include search/filter, bulk operations (where applicable), reordering controls, unsaved changes warnings, and visual feedback for async actions. The `Client` autoload routes API calls, caches roles, handles gateway events for roles/bans/invites/emojis, and exposes permission checking via `has_permission()`.

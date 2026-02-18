@@ -1,5 +1,7 @@
 # Video Chat
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Video chat in daccord enables camera video, screen sharing, and window sharing within voice channels. The AccordStream GDExtension provides complete WebRTC infrastructure for enumerating capture devices, creating video tracks, and negotiating peer connections with SDP offer/answer exchange. The AccordVoiceState model tracks `self_video` and `self_stream` flags per user. Voice channels now have full join/leave/mute/deafen support via `client.gd`, with a dedicated `voice_channel_item` scene and `voice_bar` for controls. However, no UI exists for enabling video or screen sharing -- the video pipeline is backend-only with no user-facing camera/screen controls.

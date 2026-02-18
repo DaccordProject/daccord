@@ -1,5 +1,7 @@
 # Server Disconnects & Timeouts
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 This flow documents what happens when a server connection is lost during a live session -- covering WebSocket gateway disconnects, REST API timeouts, automatic reconnection, and how (or whether) the user is informed. The gateway layer has robust automatic reconnection with exponential backoff and session resume, but the UI layer currently provides no feedback for any of these events. All errors are logged to the console only, leaving users unaware of connection problems.

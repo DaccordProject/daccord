@@ -1,5 +1,7 @@
 # Channel Permission Management
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Channel permission management allows server admins to set per-role permission overwrites on individual channels. The admin opens the Channel Permissions dialog from the channel management list, selects a role, and toggles each permission to Allow, Deny, or Inherit. Overwrites are saved via the REST API using the server's dedicated overwrite endpoints (PUT/DELETE per role), and the server resolves effective channel permissions using a Discord-style algorithm (base role perms → @everyone overwrite → role overwrites → member overwrites).

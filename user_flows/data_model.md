@@ -1,5 +1,7 @@
 # Data Model
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 daccord uses a dictionary-based data model as the contract between the network layer (AccordKit) and the UI. `ClientModels` converts AccordKit typed models into dictionary shapes that UI components consume via their `setup(data: Dictionary)` methods. `Client` maintains seven in-memory caches (users, guilds, channels, DM channels, messages, members, roles) populated from REST fetches and kept current via gateway events. Unread and mention state is tracked separately and merged into cached dicts at runtime. A secondary `_message_id_index` provides O(1) message lookups. User cache is evicted when it exceeds `USER_CACHE_CAP` (500).

@@ -1,5 +1,7 @@
 # Reducing Build Size
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 This flow documents how to reduce daccord's exported build size by compiling custom Godot export templates with unused features stripped out. The stock Godot export templates include the full engine (3D, VR, advanced text shaping, Vulkan, etc.), most of which daccord doesn't use. By building minimal custom templates and applying post-processing tools, the final binary size can be cut by 70-80%.

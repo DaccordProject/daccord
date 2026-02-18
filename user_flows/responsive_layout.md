@@ -1,5 +1,7 @@
 # Responsive Layout
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 daccord adapts its layout to three viewport width breakpoints: COMPACT (<500px), MEDIUM (500-767px), and FULL (>=768px). In FULL and MEDIUM modes, the sidebar sits in the main layout and can be toggled via a sidebar toggle button. In COMPACT mode, the entire sidebar moves to a drawer overlay that slides in from the left with a 0.2s animation, toggled by a hamburger button. A member list panel and search panel appear in the content body in FULL/MEDIUM modes, with toggle buttons in the content header.
