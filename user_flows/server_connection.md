@@ -1,5 +1,7 @@
 # Server Connection
 
+*Last touched: 2026-02-18 00:22*
+
 ## Overview
 
 Users connect to accordserver instances by adding a server via the Add Server dialog. The URL is parsed into components (host, port, guild name, token). If a token is not provided in the URL, an auth dialog appears for sign-in or registration. Supports multiple concurrent server connections.

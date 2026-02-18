@@ -1,5 +1,7 @@
 # Guild & Channel Navigation
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 After connecting to a server, users navigate through guilds (spaces) and channels. The guild bar on the far left shows guild icons, guild folders, and a DM button. Selecting a guild loads its channel list in the channel panel. Channels are grouped into collapsible categories. Selecting a channel opens it in the message view and creates a tab in the tab bar.

@@ -1,5 +1,7 @@
 # In-App Notifications
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 daccord provides visual cues to notify users of new activity across guilds, channels, and DMs. The notification system has three layers: guild-level indicators (pills and mention badges on guild icons), channel-level indicators (unread dots and bold text on channel items), and message-level indicators (mention highlights on individual messages). Notification behavior is configurable at the space level (default notification setting) and per-role (mentionable toggle), and users can set their status to Do Not Disturb. There are no OS-level notifications (desktop toasts, system tray badges, or sounds), and no per-channel or per-user override settings.

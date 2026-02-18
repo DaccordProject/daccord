@@ -1,5 +1,7 @@
 # Voice Channels
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Voice channels allow users to join real-time audio conversations within a server. The client displays voice channels with a dedicated scene (`voice_channel_item`), shows connected participants with mute/deaf indicators, and provides a voice control bar with mute, deafen, and disconnect buttons. AccordKit provides the REST API (join, leave, status), VoiceManager for connection lifecycle, and gateway event handling. AccordStream is a GDExtension addon providing WebRTC peer connections and media track management. The `Client` autoload routes voice state through `AppState` signals and manages an `AccordVoiceSession` for the active voice connection.

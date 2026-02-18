@@ -1,5 +1,7 @@
 # UI Animations
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Daccord uses tween-based animations, shader-driven effects, per-frame `_process` loops, and signal-driven hover states to provide visual feedback across the UI. All tweens use 0.15–0.3s durations with cubic easing for a snappy feel. There are no `AnimationPlayer` nodes — every animation is code-driven.

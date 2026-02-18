@@ -1,5 +1,7 @@
 # Auto-Update
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 This flow describes how daccord checks for new versions, notifies the user, and guides them through updating. The goal is a non-intrusive, user-controlled experience: the app checks for updates on startup and periodically, shows a dismissible banner when an update is available, and lets the user choose when to download and install. Updates are sourced from GitHub Releases via the public API.

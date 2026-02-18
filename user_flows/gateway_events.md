@@ -1,5 +1,7 @@
 # Gateway Events
 
+*Last touched: 2026-02-18 00:22*
+
 ## Overview
 
 daccord maintains real-time sync with accordserver via WebSocket gateway connections. AccordKit's GatewaySocket handles the WebSocket lifecycle (connect, heartbeat, reconnection, session resume). Gateway events are dispatched as typed signals on AccordClient, which Client.gd listens to and translates into cache updates + AppState signal emissions. This creates a clean separation: AccordKit handles transport, Client handles state, AppState notifies the UI.

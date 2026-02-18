@@ -38,6 +38,8 @@ Every user flow document MUST follow this structure:
 ```markdown
 # [Flow Name]
 
+> Last touched: 2025-01-15 14:30 UTC
+
 ## Overview
 2-3 sentence description of the flow.
 
@@ -75,6 +77,7 @@ Before finishing, verify:
 2. Every signal name mentioned is declared in the referenced file (use Grep)
 3. Line number references are approximately correct (within +/- 5 lines)
 4. Every gap listed reflects actual missing code, not just missing documentation
+5. The "Last touched" blockquote is set to the current date and time in UTC (format: `YYYY-MM-DD HH:MM UTC`)
 
 ## Conventions
 

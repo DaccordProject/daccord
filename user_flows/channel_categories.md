@@ -1,5 +1,7 @@
 # Channel Categories
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 Channel categories are collapsible groups that organize channels within a guild's sidebar. Categories are a special channel type (`ChannelType.CATEGORY`) that act as containers — other channels reference a category via their `parent_id` field. Users with `MANAGE_CHANNELS` permission can create, rename, delete, and reorder categories, as well as create channels directly within them. Collapse state persists across sessions via `Config`.
 

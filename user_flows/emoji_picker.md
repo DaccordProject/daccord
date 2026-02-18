@@ -1,5 +1,7 @@
 # Emoji Picker
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 The emoji picker allows users to browse and insert emoji into their messages as `:name:` shortcodes. It provides a categorized catalog of 160 Twemoji SVGs across 8 categories, a search bar for filtering by name, and category tabs for quick navigation. Selected emoji are inserted as `:name:` shortcodes at the cursor position in the composer, and rendered inline as images by `markdown_to_bbcode()`. Emoji are also used in message reactions via a shared `EmojiData` catalog. The picker supports custom server emoji loaded from the CDN, displayed in a dedicated "Custom" category tab.

@@ -1,5 +1,7 @@
 # Message Reactions
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Users can add emoji reactions to any message. Reactions appear as clickable pills below the message content, showing the emoji and a count. Clicking an existing reaction pill toggles the current user's reaction on/off. Users can also add new reactions via the emoji picker, accessible from the message action bar or right-click context menu. All reaction changes propagate in real-time to other clients via WebSocket gateway events.

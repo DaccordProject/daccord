@@ -1,5 +1,7 @@
 # Direct Messages
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Users access direct messages by clicking the DM button in the guild bar. This switches the sidebar from the channel list to the DM list. DM channels show recipient avatar, display name, last message preview, and unread indicator. A search field filters DMs by username/display name. Selecting a DM channel loads its messages in the message view.

@@ -1,5 +1,7 @@
 # User Status
 
+*Last touched: 2026-02-18 00:22*
+
 ## Overview
 
 The user bar sits at the bottom of the sidebar's channel panel. It displays the current user's avatar, display name, username, and status indicator. A dropdown menu allows changing status (Online, Idle, Do Not Disturb, Invisible) and provides About and Quit options. Avatar rendering uses a custom circle shader with hover animation between circle and rounded square.

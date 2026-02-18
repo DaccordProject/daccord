@@ -1,5 +1,7 @@
 # Editing Messages
 
+*Last touched: 2026-02-18 20:21*
+
 ## Overview
 
 Message editing lets users modify the content of their own messages inline. Right-clicking (or long-pressing on touch) a message opens a context menu; selecting "Edit" replaces the rendered text with an editable TextEdit. Enter saves, Escape cancels. The edit is sent to the server via REST API, and the gateway broadcasts a `message.update` event that updates the local cache and re-renders the message list. Edited messages display an "(edited)" indicator. Users can also press Up arrow in an empty composer to edit their most recent message.
