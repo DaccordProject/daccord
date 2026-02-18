@@ -1,6 +1,6 @@
 # Guild & Channel Navigation
 
-*Last touched: 2026-02-18 20:21*
+*Last touched: 2026-02-18 22:14*
 
 ## Overview
 
@@ -37,6 +37,8 @@ User clicks guild icon
 User clicks channel
     -> channel_item.channel_pressed signal(channel_id)
     -> channel_list._on_channel_pressed(channel_id)
+        -> If VOICE channel: toggles join/leave via Client.join/leave_voice_channel()
+           and returns early (no channel_selected signal, no tab created)
         -> Deactivates previous channel (set_active(false))
         -> Activates new channel (set_active(true))
         -> channel_list.channel_selected emitted
@@ -157,6 +159,8 @@ User clicks channel
 - [x] NSFW channel indicator (red-tinted icon)
 - [x] Voice channel user count display (if voice_users > 0)
 - [x] Mention badge on guild icons
+- [x] Voice channel click toggles join/leave (no tab or message view)
+- [x] Drag-to-reorder channels and categories (calls Client.admin.reorder_channels())
 
 ## Gaps / TODO
 
@@ -166,5 +170,4 @@ User clicks channel
 | No actual guild icons (images) | Medium | Guild icons are colored squares with initials; `space_to_guild_dict()` returns `icon_color` but no `icon` URL, even though AccordSpace has an `icon` field |
 | Guild folder assignment not from server | Medium | `space_to_guild_dict()` hardcodes `folder: ""` (line 119); folders exist in UI but guilds are never assigned to them from server data |
 | Default tab hardcoded | Low | `main_window.gd:33` creates initial tab "general" with "chan_3" before server data loads |
-| No channel reordering | Low | Channels rendered in server-returned order; no drag-to-reorder |
 | Voice channel voice_users never populated | Medium | `channel_item.gd:43` reads `voice_users` from data dict but `channel_to_dict()` never sets it |
