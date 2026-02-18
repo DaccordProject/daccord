@@ -40,7 +40,7 @@ func test_markdown_code_block_with_language() -> void:
 
 func test_markdown_spoiler() -> void:
 	var result = ClientModels.markdown_to_bbcode("||spoiler text||")
-	assert_eq(result, "[bgcolor=#1e1f22][color=#1e1f22]spoiler text[/color][/bgcolor]")
+	assert_eq(result, "[url=spoiler][bgcolor=#1e1f22][color=#1e1f22]spoiler text[/color][/bgcolor][/url]")
 
 
 func test_markdown_link() -> void:

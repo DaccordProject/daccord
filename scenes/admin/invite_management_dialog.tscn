@@ -64,6 +64,11 @@ layout_mode = 2
 text = "✕"
 flat = true
 
+[node name="SearchInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+placeholder_text = "Search..."
+
 [node name="Scroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 200)
@@ -72,6 +77,26 @@ custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
+
+[node name="BulkBar" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SelectAllCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/BulkBar"]
+layout_mode = 2
+text = "Select All"
+
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/VBox/BulkBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BulkRevokeBtn" type="Button" parent="CenterContainer/Panel/VBox/BulkBar"]
+visible = false
+layout_mode = 2
+text = "Revoke Selected"
+flat = true
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
 
 [node name="EmptyLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
@@ -111,9 +136,20 @@ text = "Max uses (0 = unlimited)"
 layout_mode = 2
 custom_minimum_size = Vector2(80, 0)
 
-[node name="TemporaryCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/CreateForm"]
+[node name="TemporaryRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox/CreateForm"]
+layout_mode = 2
+
+[node name="TemporaryCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/CreateForm/TemporaryRow"]
 layout_mode = 2
 text = "Temporary membership"
+
+[node name="TemporaryInfo" type="Label" parent="CenterContainer/Panel/VBox/CreateForm/TemporaryRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "Members who join via this invite are kicked when they disconnect, unless they are assigned a role first."
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 14
 
 [node name="CreateButton" type="Button" parent="CenterContainer/Panel/VBox/CreateForm"]
 layout_mode = 2

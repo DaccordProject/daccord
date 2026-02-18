@@ -24,10 +24,10 @@ func _ready() -> void:
 	style.corner_radius_bottom_right = 16
 	folder_button.add_theme_stylebox_override("normal", style)
 
-func setup(name: String, guilds: Array, folder_color: Color = Color(0.212, 0.224, 0.247)) -> void:
-	folder_name = name
+func setup(p_name: String, guilds: Array, folder_color: Color = Color(0.212, 0.224, 0.247)) -> void:
+	folder_name = p_name
 	if folder_button:
-		folder_button.tooltip_text = name
+		folder_button.tooltip_text = p_name
 		# Apply folder color (darkened)
 		var style: StyleBoxFlat = folder_button.get_theme_stylebox("normal").duplicate()
 		style.bg_color = folder_color.darkened(0.6)
@@ -37,11 +37,11 @@ func setup(name: String, guilds: Array, folder_color: Color = Color(0.212, 0.224
 	for child in mini_grid.get_children():
 		child.queue_free()
 	for i in min(guilds.size(), 4):
-		var mini := ColorRect.new()
-		mini.custom_minimum_size = Vector2(14, 14)
-		mini.color = guilds[i].get("icon_color", Color.GRAY)
-		mini.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mini_grid.add_child(mini)
+		var swatch := ColorRect.new()
+		swatch.custom_minimum_size = Vector2(14, 14)
+		swatch.color = guilds[i].get("icon_color", Color.GRAY)
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mini_grid.add_child(swatch)
 
 	# Create full guild icons for expanded view
 	for child in guild_list.get_children():

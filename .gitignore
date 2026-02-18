@@ -12,3 +12,7 @@ addons/gut
 *.db
 *.db-shm
 *.db-wal
+
+# Build output
+dist/build/
+dist

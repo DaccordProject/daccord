@@ -3,12 +3,16 @@ extends PanelContainer
 @onready var avatar: ColorRect = $HBox/Avatar
 @onready var display_name: Label = $HBox/Info/DisplayName
 @onready var username: Label = $HBox/Info/Username
+@onready var voice_indicator: Label = $HBox/VoiceIndicator
 @onready var status_icon: ColorRect = $HBox/StatusIcon
 @onready var menu_button: MenuButton = $HBox/MenuButton
 
 func _ready() -> void:
 	username.add_theme_font_size_override("font_size", 11)
 	username.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	voice_indicator.visible = false
+	AppState.voice_joined.connect(_on_voice_joined)
+	AppState.voice_left.connect(_on_voice_left)
 	# Setup menu
 	var popup := menu_button.get_popup()
 	popup.add_item("Online", 0)
@@ -24,6 +28,7 @@ func _ready() -> void:
 	setup(user)
 	# Refresh when a server connection completes (current_user is populated async)
 	AppState.guilds_updated.connect(_on_guilds_updated)
+	AppState.user_updated.connect(_on_user_updated)
 
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get("display_name", "User")
@@ -44,19 +49,27 @@ func setup(user: Dictionary) -> void:
 func _on_guilds_updated() -> void:
 	setup(Client.current_user)
 
+func _on_user_updated(user_id: String) -> void:
+	if user_id == Client.current_user.get("id", ""):
+		setup(Client.current_user)
+
+func _on_voice_joined(_channel_id: String) -> void:
+	voice_indicator.visible = true
+
+func _on_voice_left(_channel_id: String) -> void:
+	voice_indicator.visible = false
+
 func _on_menu_id_pressed(id: int) -> void:
 	match id:
 		0:
-			Client.current_user["status"] = ClientModels.UserStatus.ONLINE
-			setup(Client.current_user)
+			Client.update_presence(ClientModels.UserStatus.ONLINE)
 		1:
-			Client.current_user["status"] = ClientModels.UserStatus.IDLE
-			setup(Client.current_user)
+			Client.update_presence(ClientModels.UserStatus.IDLE)
 		2:
-			Client.current_user["status"] = ClientModels.UserStatus.DND
-			setup(Client.current_user)
+			Client.update_presence(ClientModels.UserStatus.DND)
 		3:
-			Client.current_user["status"] = ClientModels.UserStatus.OFFLINE
-			setup(Client.current_user)
+			Client.update_presence(ClientModels.UserStatus.OFFLINE)
 		11:
 			get_tree().quit()
+	if id >= 0 and id <= 3:
+		setup(Client.current_user)

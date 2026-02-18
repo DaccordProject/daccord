@@ -32,6 +32,9 @@ func _populate_dms() -> void:
 			_set_active_dm(id)
 			dm_selected.emit(id)
 		)
+		item.dm_closed.connect(func(id: String):
+			Client.close_dm(id)
+		)
 
 func _set_active_dm(dm_id: String) -> void:
 	if active_dm_id != "" and dm_item_nodes.has(active_dm_id):

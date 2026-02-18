@@ -95,11 +95,12 @@ User clicks channel
 
 ### Channel List (channel_list.gd)
 
-- `load_guild(guild_id)` (line 18): Fetches and renders channels
+- `load_guild(guild_id)` (line 20): Fetches and renders channels
 - Groups channels: first pass finds categories (type == CATEGORY), second pass assigns children via parent_id
 - Uncategorized channels rendered first, then categories with children
 - Tracks `channel_item_nodes` dict and `active_channel_id` for selection state
 - Listens to `AppState.channels_updated` to reload on gateway events
+- **Empty state**: When a guild has 0 non-category channels, shows a centered `EmptyState` VBoxContainer with title, description, and a prominent "Create Channel" button (for users with `MANAGE_CHANNELS` permission). Non-admins see "This space doesn't have any channels yet. Check back soon!" with no button. The `+ Create Channel` text link at the bottom only appears when channels already exist.
 
 ### Channel Item (channel_item.gd)
 
@@ -132,7 +133,9 @@ User clicks channel
 ### Banner (banner.gd)
 
 - Displays guild name (white, 16px) on darkened icon_color background
-- `setup(guild_data)`: Sets name and color from guild dict
+- `setup(guild_data)`: Sets name and color from guild dict, shows/hides dropdown icon based on admin permissions
+- **Clickable admin dropdown**: The entire banner is clickable (left-click) for users with any admin permission. Opens a `PopupMenu` with permission-gated items: Space Settings (`manage_space`), Channels (`manage_channels`), Roles (`manage_roles`), Bans (`ban_members`), Invites (`create_invites`), Emojis (`manage_emojis`). A small `▼` icon in the bottom-right corner indicates the dropdown is available. Cursor changes to pointing hand on hover.
+- This provides a discoverable alternative to the guild icon right-click context menu for accessing admin tools.
 
 ## Implementation Status
 
@@ -147,6 +150,8 @@ User clicks channel
 - [x] Tab creation on channel select
 - [x] Tab close with minimum-1-tab safety
 - [x] Guild banner with name and color
+- [x] Banner dropdown menu for admin settings (clickable, permission-gated)
+- [x] Channel list empty state (admin CTA vs non-admin message)
 - [x] NSFW channel indicator (red-tinted icon)
 - [x] Voice channel user count display (if voice_users > 0)
 - [x] Mention badge on guild icons

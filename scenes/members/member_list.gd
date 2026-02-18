@@ -2,6 +2,7 @@ extends PanelContainer
 
 const MEMBER_ITEM_SCENE := preload("res://scenes/members/member_item.tscn")
 const MEMBER_HEADER_SCENE := preload("res://scenes/members/member_header.tscn")
+const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const ROW_HEIGHT := 44
 
 var _guild_id: String = ""
@@ -11,6 +12,7 @@ var _header_pool: Array = []
 var _pool_size: int = 0
 
 @onready var header_label: Label = $VBox/HeaderLabel
+@onready var invite_btn: Button = $VBox/InviteButton
 @onready var scroll_container: ScrollContainer = $VBox/ScrollContainer
 @onready var virtual_content: Control = $VBox/ScrollContainer/VirtualContent
 
@@ -24,6 +26,8 @@ func _ready() -> void:
 	style.bg_color = Color(0.184, 0.192, 0.212)
 	add_theme_stylebox_override("panel", style)
 
+	invite_btn.pressed.connect(_on_invite_pressed)
+
 	AppState.guild_selected.connect(_on_guild_selected)
 	AppState.members_updated.connect(_on_members_updated)
 	scroll_container.get_v_scroll_bar().value_changed.connect(_on_scroll_changed)
@@ -34,6 +38,7 @@ func _on_guild_selected(guild_id: String) -> void:
 	_row_data.clear()
 	_update_virtual_height()
 	_hide_all_pool_nodes()
+	invite_btn.visible = Client.has_permission(guild_id, AccordPermission.CREATE_INVITES)
 	if not Client.get_members_for_guild(guild_id).is_empty():
 		_rebuild_row_data()
 
@@ -150,3 +155,8 @@ func _update_visible_items(scroll_value: float) -> void:
 				item.size = Vector2(virtual_content.size.x, ROW_HEIGHT)
 				item.visible = true
 				item_idx += 1
+
+func _on_invite_pressed() -> void:
+	var dialog := InviteMgmtScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(_guild_id)

@@ -16,11 +16,13 @@ var is_active: bool = false
 var _has_unread: bool = false
 
 var _context_menu: PopupMenu
+var _status_dot: ColorRect
 
 @onready var pill: ColorRect = $PillContainer/Pill
 @onready var icon_button: Button = $ButtonContainer/IconButton
 @onready var avatar_rect: ColorRect = $ButtonContainer/IconButton/AvatarRect
 @onready var mention_badge: PanelContainer = $ButtonContainer/BadgeAnchor/MentionBadge
+@onready var button_container: Control = $ButtonContainer
 
 func _ready() -> void:
 	icon_button.pressed.connect(_on_pressed)
@@ -34,6 +36,20 @@ func _ready() -> void:
 	add_child(_context_menu)
 	icon_button.gui_input.connect(_on_icon_gui_input)
 
+	# Status dot (bottom-right of icon)
+	_status_dot = ColorRect.new()
+	_status_dot.custom_minimum_size = Vector2(10, 10)
+	_status_dot.size = Vector2(10, 10)
+	_status_dot.position = Vector2(36, 36)
+	_status_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_dot.visible = false
+	button_container.add_child(_status_dot)
+
+	AppState.server_disconnected.connect(_on_connection_changed)
+	AppState.server_reconnecting.connect(_on_connection_changed_3)
+	AppState.server_reconnected.connect(_on_connection_changed_1)
+	AppState.server_connection_failed.connect(_on_connection_changed)
+
 func setup(data: Dictionary) -> void:
 	guild_id = data.get("id", "")
 	guild_name = data.get("name", "")
@@ -44,6 +60,10 @@ func setup(data: Dictionary) -> void:
 		avatar_rect.set_letter(guild_name[0].to_upper())
 	else:
 		avatar_rect.set_letter("")
+
+	var icon_url = data.get("icon", null)
+	if icon_url is String and not icon_url.is_empty():
+		avatar_rect.set_avatar_url(icon_url)
 
 	_has_unread = data.get("unread", false)
 	var mentions: int = data.get("mentions", 0)
@@ -116,6 +136,11 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Emojis", idx)
 		idx += 1
 
+	var status := Client.get_guild_connection_status(guild_id)
+	if status == "disconnected" or status == "error":
+		_context_menu.add_item("Reconnect", idx)
+		idx += 1
+
 	if idx > 0:
 		_context_menu.add_separator()
 		idx += 1
@@ -152,6 +177,11 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			var dialog := EmojiMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(guild_id)
+		"Reconnect":
+			var conn_idx := Client.get_conn_index_for_guild(guild_id)
+			if conn_idx >= 0:
+				Client._auto_reconnect_attempted.erase(conn_idx)
+				Client.reconnect_server(conn_idx)
 		"Remove Server":
 			var dialog := ConfirmDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
@@ -164,3 +194,29 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			dialog.confirmed.connect(func():
 				Client.disconnect_server(guild_id)
 			)
+
+# --- Connection Status Dot ---
+
+func _on_connection_changed(gid: String, _a = null, _b = null) -> void:
+	if gid == guild_id:
+		_update_status_dot()
+
+func _on_connection_changed_1(gid: String) -> void:
+	if gid == guild_id:
+		_update_status_dot()
+
+func _on_connection_changed_3(gid: String, _a: int, _b: int) -> void:
+	if gid == guild_id:
+		_update_status_dot()
+
+func _update_status_dot() -> void:
+	var status := Client.get_guild_connection_status(guild_id)
+	match status:
+		"disconnected", "reconnecting":
+			_status_dot.color = Color(0.9, 0.75, 0.1)
+			_status_dot.visible = true
+		"error":
+			_status_dot.color = Color(0.9, 0.3, 0.3)
+			_status_dot.visible = true
+		_:
+			_status_dot.visible = false

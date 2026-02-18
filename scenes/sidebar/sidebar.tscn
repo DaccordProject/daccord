@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/sidebar.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/guild_bar.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/channels/channel_list.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/direct/dm_list.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/voice_bar.tscn" id="5_voice"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/user_bar.tscn" id="5"]
 
 [node name="Sidebar" type="HBoxContainer"]
@@ -26,6 +27,9 @@ layout_mode = 2
 
 [node name="DMList" parent="ChannelPanel" instance=ExtResource("4")]
 visible = false
+layout_mode = 2
+
+[node name="VoiceBar" parent="ChannelPanel" instance=ExtResource("5_voice")]
 layout_mode = 2
 
 [node name="UserBar" parent="ChannelPanel" instance=ExtResource("5")]

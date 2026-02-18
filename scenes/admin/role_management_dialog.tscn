@@ -81,6 +81,11 @@ layout_mode = 2
 text = "✕"
 flat = true
 
+[node name="SearchInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+placeholder_text = "Search..."
+
 [node name="Content" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -128,13 +133,35 @@ text = "Color"
 layout_mode = 2
 custom_minimum_size = Vector2(48, 32)
 
-[node name="HoistCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+[node name="HoistRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+
+[node name="HoistCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/HoistRow"]
 layout_mode = 2
 text = "Display separately in member list"
 
-[node name="MentionableCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+[node name="HoistInfo" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/HoistRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "Members with this role are shown in their own section in the member list."
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 14
+
+[node name="MentionableRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
+layout_mode = 2
+
+[node name="MentionableCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/MentionableRow"]
 layout_mode = 2
 text = "Allow anyone to mention this role"
+
+[node name="MentionableInfo" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor/MentionableRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "Anyone can @mention this role to notify all members who have it."
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 14
 
 [node name="PermLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
 layout_mode = 2

@@ -1,10 +1,13 @@
 extends ColorRect
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const EmojiCellScene := preload("res://scenes/admin/emoji_cell.tscn")
 
 var _guild_id: String = ""
+var _all_emojis: Array = []
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
+@onready var _search_input: LineEdit = $CenterContainer/Panel/VBox/SearchInput
 @onready var _emoji_grid: GridContainer = $CenterContainer/Panel/VBox/Scroll/EmojiGrid
 @onready var _empty_label: Label = $CenterContainer/Panel/VBox/EmptyLabel
 @onready var _upload_btn: Button = $CenterContainer/Panel/VBox/UploadButton
@@ -17,6 +20,7 @@ func _ready() -> void:
 	_file_dialog.file_selected.connect(_on_file_selected)
 	_file_dialog.filters = PackedStringArray(["*.png ; PNG Images", "*.gif ; GIF Images"])
 	_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_search_input.text_changed.connect(_on_search_changed)
 	AppState.emojis_updated.connect(_on_emojis_updated)
 
 func setup(guild_id: String) -> void:
@@ -28,8 +32,9 @@ func _load_emojis() -> void:
 		child.queue_free()
 	_empty_label.visible = false
 	_error_label.visible = false
+	_all_emojis.clear()
 
-	var result: RestResult = await Client.get_emojis(_guild_id)
+	var result: RestResult = await Client.admin.get_emojis(_guild_id)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load emojis"
 		if result != null and result.error:
@@ -51,40 +56,35 @@ func _load_emojis() -> void:
 			emoji_dict = emoji
 		else:
 			continue
-		var cell := _create_emoji_cell(emoji_dict)
+		_all_emojis.append(emoji_dict)
+
+	_rebuild_grid(_all_emojis)
+
+func _rebuild_grid(emojis: Array) -> void:
+	for child in _emoji_grid.get_children():
+		child.queue_free()
+
+	if emojis.is_empty():
+		_empty_label.visible = _all_emojis.is_empty()
+		return
+	_empty_label.visible = false
+
+	for emoji_dict in emojis:
+		var cell := EmojiCellScene.instantiate()
 		_emoji_grid.add_child(cell)
+		cell.setup(emoji_dict, _guild_id)
+		cell.delete_requested.connect(_on_delete_emoji)
 
-func _create_emoji_cell(emoji: Dictionary) -> VBoxContainer:
-	var cell := VBoxContainer.new()
-	cell.custom_minimum_size = Vector2(80, 80)
-	cell.alignment = BoxContainer.ALIGNMENT_CENTER
-
-	# Colored placeholder for the emoji image
-	var placeholder := ColorRect.new()
-	placeholder.custom_minimum_size = Vector2(32, 32)
-	placeholder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	placeholder.color = Color.from_hsv(
-		fmod(emoji.get("name", "").hash() * 0.618, 1.0), 0.6, 0.8
-	)
-	cell.add_child(placeholder)
-
-	var name_label := Label.new()
-	name_label.text = ":%s:" % emoji.get("name", "")
-	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	cell.add_child(name_label)
-
-	var del_btn := Button.new()
-	del_btn.text = "X"
-	del_btn.flat = true
-	del_btn.add_theme_color_override("font_color", Color(0.95, 0.3, 0.3))
-	del_btn.add_theme_font_size_override("font_size", 11)
-	del_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	del_btn.pressed.connect(_on_delete_emoji.bind(emoji))
-	cell.add_child(del_btn)
-
-	return cell
+func _on_search_changed(text: String) -> void:
+	var query := text.strip_edges().to_lower()
+	if query.is_empty():
+		_rebuild_grid(_all_emojis)
+		return
+	var filtered: Array = []
+	for emoji in _all_emojis:
+		if emoji.get("name", "").to_lower().contains(query):
+			filtered.append(emoji)
+	_rebuild_grid(filtered)
 
 func _on_upload_pressed() -> void:
 	_file_dialog.popup_centered(Vector2i(600, 400))
@@ -108,6 +108,26 @@ func _on_file_selected(path: String) -> void:
 	var emoji_name: String = path.get_file().get_basename()
 	emoji_name = emoji_name.replace(" ", "_").replace("-", "_").to_lower()
 
+	# Validate emoji name
+	if emoji_name.is_empty():
+		_error_label.text = "Emoji name cannot be empty."
+		_error_label.visible = true
+		return
+
+	var valid_regex := RegEx.new()
+	valid_regex.compile("^[a-z0-9_]+$")
+	if not valid_regex.search(emoji_name):
+		_error_label.text = "Emoji name must contain only letters, numbers, and underscores."
+		_error_label.visible = true
+		return
+
+	# Check for duplicate names
+	for existing in _all_emojis:
+		if existing.get("name", "").to_lower() == emoji_name:
+			_error_label.text = "An emoji named ':%s:' already exists." % emoji_name
+			_error_label.visible = true
+			return
+
 	_upload_btn.disabled = true
 	_upload_btn.text = "Uploading..."
 	_error_label.visible = false
@@ -117,7 +137,7 @@ func _on_file_selected(path: String) -> void:
 		"image": data_uri,
 	}
 
-	var result: RestResult = await Client.create_emoji(_guild_id, data)
+	var result: RestResult = await Client.admin.create_emoji(_guild_id, data)
 	_upload_btn.disabled = false
 	_upload_btn.text = "Upload Emoji"
 
@@ -140,7 +160,7 @@ func _on_delete_emoji(emoji: Dictionary) -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		Client.delete_emoji(_guild_id, emoji.get("id", ""))
+		Client.admin.delete_emoji(_guild_id, emoji.get("id", ""))
 	)
 
 func _on_emojis_updated(guild_id: String) -> void:

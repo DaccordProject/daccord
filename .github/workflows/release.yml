@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  GODOT_VERSION: "4.6"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux
+            preset: Linux
+            artifact: daccord-linux-x86_64
+            extension: x86_64
+          - platform: windows
+            preset: Windows
+            artifact: daccord-windows-x86_64
+            extension: exe
+          - platform: macos
+            preset: macOS
+            artifact: daccord-macos
+            extension: zip
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Checkout accordkit
+        uses: actions/checkout@v4
+        with:
+          repository: daccord-projects/accordkit
+          path: ../accordkit
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import project
+        run: godot --headless --import . || true
+        timeout-minutes: 2
+
+      - name: Create build directory
+        run: mkdir -p dist/build/${{ matrix.platform }}
+
+      - name: Export ${{ matrix.preset }}
+        run: godot --headless --export-release "${{ matrix.preset }}"
+        timeout-minutes: 10
+
+      - name: Package Linux
+        if: matrix.platform == 'linux'
+        run: |
+          cd dist/build/linux
+          tar czf ../../../${{ matrix.artifact }}.tar.gz *
+
+      - name: Package Windows
+        if: matrix.platform == 'windows'
+        run: |
+          cd dist/build/windows
+          zip -r ../../../${{ matrix.artifact }}.zip *
+
+      - name: Package macOS
+        if: matrix.platform == 'macos'
+        run: |
+          cp dist/build/macos/daccord.zip ${{ matrix.artifact }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          # Extract the section for this version from CHANGELOG.md
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} /^## \[/{found=0} found" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release ${TAG}"
+          fi
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.notes }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: artifacts/*

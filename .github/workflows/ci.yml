@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  GODOT_VERSION: "4.6"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install gdtoolkit
+        run: pip install gdtoolkit
+
+      - name: Run gdlint
+        run: gdlint scripts/ scenes/
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Checkout accordkit
+        uses: actions/checkout@v4
+        with:
+          repository: daccord-projects/accordkit
+          path: ../accordkit
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: false
+
+      - name: Verify Godot
+        run: godot --version
+
+      - name: Import project
+        run: godot --headless --import . || true
+        timeout-minutes: 2
+
+      - name: Run unit tests
+        run: |
+          godot --headless -s addons/gut/gut_cmdln.gd \
+            -ginclude_subdirs=true \
+            -gprefix=test_ \
+            -gsuffix=.gd \
+            -glog=1 \
+            -gdir=res://tests/unit
+        timeout-minutes: 5

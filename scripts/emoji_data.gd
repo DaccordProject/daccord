@@ -378,15 +378,21 @@ const TEXTURES := {
 	"fire": preload("res://theme/emoji/1f525.svg"),
 }
 
+static var _name_lookup: Dictionary = {}
+
+static func _build_name_lookup() -> void:
+	if not _name_lookup.is_empty():
+		return
+	for cat_entries in CATALOG.values():
+		for entry in cat_entries:
+			_name_lookup[entry["name"]] = entry
+
 static func get_all_for_category(category: Category) -> Array:
 	return CATALOG.get(category, [])
 
 static func get_by_name(emoji_name: String) -> Dictionary:
-	for cat_entries in CATALOG.values():
-		for entry in cat_entries:
-			if entry["name"] == emoji_name:
-				return entry
-	return {}
+	_build_name_lookup()
+	return _name_lookup.get(emoji_name, {})
 
 static func codepoint_to_char(hex_codepoint: String) -> String:
 	return char(hex_codepoint.hex_to_int())

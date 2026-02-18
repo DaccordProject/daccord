@@ -53,6 +53,31 @@ layout_mode = 2
 text = "✕"
 flat = true
 
+[node name="SearchInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+placeholder_text = "Search..."
+
+[node name="BulkBar" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SelectAllCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/BulkBar"]
+layout_mode = 2
+text = "Select All"
+
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/VBox/BulkBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BulkUnbanBtn" type="Button" parent="CenterContainer/Panel/VBox/BulkBar"]
+visible = false
+layout_mode = 2
+text = "Unban Selected"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+
 [node name="Scroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 240)

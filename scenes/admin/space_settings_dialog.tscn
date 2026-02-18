@@ -105,6 +105,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Verification Level"
 
+[node name="VerificationInfo" type="Label" parent="CenterContainer/Panel/VBox/VerificationRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "Controls how strictly members are verified before they can interact. Higher levels require additional account verification."
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 14
+
 [node name="VerificationOption" type="OptionButton" parent="CenterContainer/Panel/VBox/VerificationRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(140, 0)
@@ -117,27 +125,38 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Default Notifications"
 
+[node name="NotificationsInfo" type="Label" parent="CenterContainer/Panel/VBox/NotificationsRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "The default notification setting applied to new members. They can override this individually."
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 14
+
 [node name="NotificationsOption" type="OptionButton" parent="CenterContainer/Panel/VBox/NotificationsRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(140, 0)
 
-[node name="PublicCheck" type="CheckBox" parent="CenterContainer/Panel/VBox"]
+[node name="PublicRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="PublicCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/PublicRow"]
 layout_mode = 2
 text = "Public server"
 
-[node name="Buttons" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+[node name="PublicInfo" type="Label" parent="CenterContainer/Panel/VBox/PublicRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "When enabled, this space appears in the public server directory and anyone can join."
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 14
+
+[node name="SaveRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 alignment = 2
-theme_override_constants/separation = 8
 
-[node name="DeleteButton" type="Button" parent="CenterContainer/Panel/VBox/Buttons"]
-visible = false
-layout_mode = 2
-custom_minimum_size = Vector2(80, 36)
-text = "Delete"
-theme_override_styles/normal = SubResource("delete_btn_normal")
-
-[node name="SaveButton" type="Button" parent="CenterContainer/Panel/VBox/Buttons"]
+[node name="SaveButton" type="Button" parent="CenterContainer/Panel/VBox/SaveRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(80, 36)
 text = "Save"
@@ -148,3 +167,24 @@ visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
 autowrap_mode = 2
+
+[node name="DangerZone" type="VBoxContainer" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Separator" type="HSeparator" parent="CenterContainer/Panel/VBox/DangerZone"]
+layout_mode = 2
+theme_override_colors/separator_color = Color(0.95, 0.3, 0.3, 0.4)
+
+[node name="DangerLabel" type="Label" parent="CenterContainer/Panel/VBox/DangerZone"]
+layout_mode = 2
+text = "DANGER ZONE"
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="DeleteButton" type="Button" parent="CenterContainer/Panel/VBox/DangerZone"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+text = "Delete Server"
+theme_override_styles/normal = SubResource("delete_btn_normal")

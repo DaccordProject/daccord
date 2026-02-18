@@ -3,9 +3,15 @@ extends PanelContainer
 signal emoji_picked(emoji_name: String)
 
 const EmojiButtonCellScene := preload("res://scenes/messages/composer/emoji_button_cell.tscn")
+const CUSTOM_CATEGORY_KEY := "custom"
 
-var _current_category: EmojiData.Category = EmojiData.Category.SMILEYS
+# Can be EmojiData.Category or CUSTOM_CATEGORY_KEY
+var _current_category = EmojiData.Category.SMILEYS
 var _category_buttons: Dictionary = {}
+var _custom_btn: Button = null
+var _custom_emoji_cache: Dictionary = {} # emoji_id -> { name, texture }
+var _custom_emojis: Array = []
+var _is_custom_selected: bool = false
 
 @onready var category_bar: HBoxContainer = $VBox/CategoryBar
 @onready var search_input: LineEdit = $VBox/SearchInput
@@ -19,6 +25,17 @@ func _ready() -> void:
 	_load_category(_current_category)
 
 func _build_category_bar() -> void:
+	# Add Custom tab first if a guild is selected
+	if not AppState.current_guild_id.is_empty():
+		_custom_btn = Button.new()
+		_custom_btn.flat = true
+		_custom_btn.custom_minimum_size = Vector2(36, 36)
+		_custom_btn.expand_icon = true
+		_custom_btn.icon = EmojiData.TEXTURES.get("star")
+		_custom_btn.tooltip_text = "Custom"
+		_custom_btn.pressed.connect(_on_custom_category_pressed)
+		category_bar.add_child(_custom_btn)
+
 	for cat in EmojiData.CATEGORY_ICONS:
 		var btn := Button.new()
 		btn.flat = true
@@ -42,15 +59,24 @@ func _build_category_bar() -> void:
 func _update_category_highlights() -> void:
 	for cat in _category_buttons:
 		var btn: Button = _category_buttons[cat]
-		if cat == _current_category:
+		if not _is_custom_selected and cat == _current_category:
 			btn.modulate = Color.WHITE
 		else:
 			btn.modulate = Color(0.58, 0.608, 0.643)
+	if _custom_btn:
+		_custom_btn.modulate = Color.WHITE if _is_custom_selected else Color(0.58, 0.608, 0.643)
 
 func _on_category_pressed(cat: EmojiData.Category) -> void:
 	_current_category = cat
+	_is_custom_selected = false
 	search_input.text = ""
 	_load_category(cat)
+	_update_category_highlights()
+
+func _on_custom_category_pressed() -> void:
+	_is_custom_selected = true
+	search_input.text = ""
+	_load_custom_category()
 	_update_category_highlights()
 
 func _load_category(cat: EmojiData.Category) -> void:
@@ -59,16 +85,93 @@ func _load_category(cat: EmojiData.Category) -> void:
 	for entry in entries:
 		_add_emoji_cell(entry)
 
+func _load_custom_category() -> void:
+	_clear_grid()
+	var guild_id := AppState.current_guild_id
+	if guild_id.is_empty():
+		return
+	var result: RestResult = await Client.admin.get_emojis(guild_id)
+	if result == null or not result.ok:
+		return
+	_custom_emojis = result.data if result.data is Array else []
+	for emoji in _custom_emojis:
+		_add_custom_emoji_cell(emoji)
+
+func _add_custom_emoji_cell(emoji) -> void:
+	var emoji_id: String = ""
+	var emoji_name: String = ""
+	if emoji is Dictionary:
+		emoji_id = str(emoji.get("id", ""))
+		emoji_name = str(emoji.get("name", ""))
+	elif emoji is AccordEmoji:
+		emoji_id = emoji.id
+		emoji_name = emoji.name
+
+	if emoji_id.is_empty():
+		return
+
+	var cell: Button = EmojiButtonCellScene.instantiate()
+	emoji_grid.add_child(cell)
+	cell.tooltip_text = emoji_name.replace("_", " ")
+
+	# Check cache first
+	if _custom_emoji_cache.has(emoji_id):
+		cell.icon = _custom_emoji_cache[emoji_id]["texture"]
+	else:
+		# Load from CDN
+		var url := Client.admin.get_emoji_url(AppState.current_guild_id, emoji_id)
+		var http := HTTPRequest.new()
+		cell.add_child(http)
+		http.request_completed.connect(func(
+			_result_code: int, response_code: int,
+			_headers: PackedStringArray,
+			body: PackedByteArray) -> void:
+			http.queue_free()
+			if response_code != 200:
+				return
+			var img := Image.new()
+			var err := img.load_png_from_buffer(body)
+			if err != OK:
+				return
+			var tex := ImageTexture.create_from_image(img)
+			_custom_emoji_cache[emoji_id] = {"name": emoji_name, "texture": tex}
+			if is_instance_valid(cell):
+				cell.icon = tex
+		)
+		http.request(url)
+
+	# Use custom:name:id format for custom emoji
+	var custom_key := "custom:" + emoji_name + ":" + emoji_id
+	cell.pressed.connect(func() -> void:
+		emoji_picked.emit(custom_key)
+	)
+
 func _on_search_changed(query: String) -> void:
 	_clear_grid()
 	var lower_query := query.strip_edges().to_lower()
 	if lower_query.is_empty():
-		_load_category(_current_category)
+		if _is_custom_selected:
+			_load_custom_category()
+		else:
+			_load_category(_current_category)
 		return
+	# Search built-in emoji
 	for cat in EmojiData.CATALOG:
 		for entry in EmojiData.CATALOG[cat]:
 			if entry["name"].to_lower().contains(lower_query):
 				_add_emoji_cell(entry)
+	# Also search cached custom emoji
+	for emoji_id in _custom_emoji_cache:
+		var cached: Dictionary = _custom_emoji_cache[emoji_id]
+		if cached["name"].to_lower().contains(lower_query):
+			var cell: Button = EmojiButtonCellScene.instantiate()
+			emoji_grid.add_child(cell)
+			cell.icon = cached["texture"]
+			cell.tooltip_text = cached["name"].replace("_", " ")
+			var custom_key: String = "custom:" + str(cached["name"]) + ":" + str(emoji_id)
+			cell.pressed.connect(func() -> void:
+				emoji_picked.emit(custom_key)
+			)
 
 func _add_emoji_cell(entry: Dictionary) -> void:
 	var cell: Button = EmojiButtonCellScene.instantiate()
