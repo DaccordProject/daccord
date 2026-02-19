@@ -1,6 +1,6 @@
 # Continuous Integration
 
-Last touched: 2026-02-19
+Last touched: 2026-02-20
 
 ## Overview
 
@@ -76,15 +76,19 @@ Push/PR to master
   │     │     ├─ Symlink addons/
   │     │     ├─ Install GUT (cached) + Sentry SDK (cached)
   │     │     ├─ Setup Godot 4.6.0 (chickensoft-games/setup-godot@v2)
-  │     │     ├─ Import project (godot --headless --import .)
-  │     │     └─ Run GUT on tests/unit/
+  │     │     ├─ Cache + import project (.godot/imported/)
+  │     │     ├─ Run GUT on tests/unit/ (-gexit for proper exit codes)
+  │     │     └─ Write test result summary to $GITHUB_STEP_SUMMARY
   │     └─> Integration Tests job (continue-on-error)
   │           ├─ Same addon setup as Unit Tests
   │           ├─ Checkout accordserver (GH_PAT)
-  │           ├─ Install Rust + build accordserver (cargo cached)
+  │           ├─ Install Rust + sccache (mozilla-actions/sccache-action)
+  │           ├─ Build accordserver (RUSTC_WRAPPER=sccache, cargo cached)
   │           ├─ Start server (ACCORD_TEST_MODE=true, SQLite)
   │           ├─ Wait for /health (30s timeout)
-  │           ├─ Run GUT on tests/accordkit/
+  │           ├─ Cache + import project (.godot/imported/)
+  │           ├─ Run GUT on tests/accordkit/ (-gexit for proper exit codes)
+  │           ├─ Write test result summary to $GITHUB_STEP_SUMMARY
   │           └─ Stop server, upload test_server.log on failure
   │
 Push v* tag
@@ -149,7 +153,9 @@ Triggered by `v*` tags. Builds four platform artifacts, creates a GitHub Release
 |-------|-----|------|---------|
 | GUT framework | `gut-9.5.0` | `addons/gut` | Skip 2s download |
 | Sentry SDK | `sentry-godot-1.3.2` | `addons/sentry` | Skip 5s download |
+| Godot import | `godot-import-{version}-{project+scenes hash}` | `.godot/imported` | Skip re-import (~10-30s) |
 | Rust cargo registry | `Linux-cargo-{Cargo.lock hash}` | `~/.cargo/registry`, `~/.cargo/git`, `.accordserver_repo/target` | Skip multi-minute server build |
+| sccache | GHA-managed | GHA cache backend | Incremental Rust compilation caching |
 
 ## Debugging CI Failures
 
@@ -225,13 +231,17 @@ gh run view <RUN_ID> --log-failed 2>&1 | grep "SCRIPT ERROR" | grep -v gut_loade
 - [x] Lint job passing
 - [x] AccordKit remote matches local (soundboard/voice/permissions/CDN/reactions/REST pushed at 14:08 UTC)
 - [x] Integration test seed isolation (seed route uses idempotent find-or-create patterns)
-- [x] `AccordChannel.get()` signature fixed (local test changes use property access; needs push)
-- [ ] Local daccord changes pushed (test fixes, performance improvements, error reporting)
-- [ ] Unit test job passing (needs push + CI run; should pass once AccordKit types resolve)
-- [ ] Integration test job passing (needs push + CI run; gateway timeouts may persist)
+- [x] `AccordChannel.get()` signature fixed (tests use typed property access)
+- [x] Local daccord changes pushed (test fixes, performance improvements, error reporting)
+- [x] GUT `-gexit` flag for proper exit codes (non-zero on test failure)
+- [x] Test result summary in `$GITHUB_STEP_SUMMARY`
+- [x] sccache for Rust builds (`mozilla-actions/sccache-action`)
+- [x] Godot import cache (`.godot/imported/`, hash-keyed)
+- [x] gdlintrc config file for lint job
+- [ ] Unit test job passing (needs CI run to verify after push)
+- [ ] Integration test job passing (gateway timeouts may persist)
 - [ ] AccordStream binary loads in CI (LFS config correct; may need PAT LFS scope)
 - [ ] Integration tests made blocking (remove `continue-on-error` once passing)
-- [ ] sccache for Rust builds
 - [ ] First release tagged (`v0.1.0`)
 
 ## Gaps / TODO
@@ -240,15 +250,17 @@ gh run view <RUN_ID> --log-failed 2>&1 | grep "SCRIPT ERROR" | grep -v gut_loade
 |-----|----------|--------|-------|
 | AccordKit remote out of date | ~~Critical~~ | **Resolved** | Pushed at 14:08 UTC on 2026-02-19 (soundboard, voice, multipart, auth, permissions, CDN, reactions, REST). Last CI run was at 13:24 UTC (44 min earlier), so the CI hasn't tested against the updated AccordKit yet. All "AccordSound not found" / "sound() not found" / "update_voice_state too many args" errors are from this timing gap. |
 | `/test/seed` returns 500 after first test file | ~~High~~ | **Resolved** | Seed route uses idempotent find-or-create patterns. `INSERT OR IGNORE` on members prevents duplicates. Token rotation is safe. |
-| `AccordChannel.get()` signature mismatch | ~~Medium~~ | **Resolved (local)** | Fixed in local working tree (`test_spaces_api.gd`, `test_users_api.gd`, `test_members_api.gd`, `test_full_lifecycle.gd`) to use property access on typed RefCounted objects. **Not yet pushed** -- must be committed and pushed for CI to pass. |
-| `Client.markdown_to_bbcode()` not found | ~~High~~ | **Resolved** | Was a cascading failure from AccordKit compilation errors. Will resolve once CI runs against updated AccordKit. |
-| Local daccord changes not pushed | High | Open | Test fixes, member index performance improvements, regex caching, error reporting refactoring all exist locally but haven't been committed/pushed. CI will fail until these are pushed alongside the AccordKit update. |
+| `AccordChannel.get()` signature mismatch | ~~Medium~~ | **Resolved** | Tests updated to use typed property access. Pushed. |
+| `Client.markdown_to_bbcode()` not found | ~~High~~ | **Resolved** | Was a cascading failure from AccordKit compilation errors. Resolves with updated AccordKit. |
+| Local daccord changes not pushed | ~~High~~ | **Resolved** | All changes committed and pushed (855245b). |
+| GUT exit codes not propagated | ~~Medium~~ | **Resolved** | Added `-gexit` flag to both CI jobs and `test.sh`. GUT now exits with code 1 on failure. |
+| No test result summary in CI | ~~Low~~ | **Resolved** | Added `$GITHUB_STEP_SUMMARY` step to both test jobs showing pass/fail counts. |
 | GUT 9.5.0 + Godot 4.6 compatibility | Low | Open | `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run), but indicates a compatibility issue with `ProjectSettings.get()` returning null for an unset `exclude_addons` property. Monitor for upstream fix. |
 | AccordStream binary invalid in CI | Medium | Open | LFS config is correct (`.gitattributes` tracks `.so/.dll/.dylib`, CI uses `lfs: true`). Local binary is a real 28MB ELF. Causes `set_output_device() not found in base GDScriptNativeClass` because the extension doesn't load. Check that `GH_PAT` has LFS read access, or that the accordstream repo's LFS storage quota isn't exceeded. |
 | Gateway tests time out | Medium | Open | `test_gateway_connect.gd` and `test_gateway_events.gd` fail because the bot never receives the `ready` signal within 10s. The WebSocket gateway connection + identify handshake may have server-side issues. Needs CI run to verify after AccordKit update. |
 | Integration tests non-blocking | Medium | Open | `continue-on-error: true` means integration failures don't fail the CI pipeline. Should be removed once integration tests pass reliably. |
-| Accordserver build time | Low | Open | Cold Rust build takes several minutes; cached ~1 minute. Could use `sccache` (`RUSTC_WRAPPER=sccache`) with GHA cache backend. |
-| Godot import not cached | Low | Open | `godot --headless --import .` re-imports every run. Caching `.godot/imported/` could save time but may cause stale import issues. |
+| Accordserver build time | ~~Low~~ | **Resolved** | Added `mozilla-actions/sccache-action` with `RUSTC_WRAPPER=sccache` and `SCCACHE_GHA_ENABLED=true`. |
+| Godot import not cached | ~~Low~~ | **Resolved** | Added `actions/cache` for `.godot/imported/` keyed on `project.godot` + scene/resource file hashes. |
 
 ## Key Files
 

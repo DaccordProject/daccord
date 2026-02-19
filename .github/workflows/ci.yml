@@ -103,6 +103,14 @@ jobs:
       - name: Verify Godot
         run: godot --version
 
+      - name: Cache Godot import
+        uses: actions/cache@v4
+        with:
+          path: .godot/imported
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-
+
       - name: Import project
         run: godot --headless --import . || true
         timeout-minutes: 2
@@ -110,12 +118,24 @@ jobs:
       - name: Run unit tests
         run: |
           godot --headless -s addons/gut/gut_cmdln.gd \
+            -gexit \
             -ginclude_subdirs=true \
             -gprefix=test_ \
             -gsuffix=.gd \
             -glog=1 \
-            -gdir=res://tests/unit
+            -gdir=res://tests/unit \
+            2>&1 | tee /tmp/gut_output.txt
         timeout-minutes: 5
+
+      - name: Test result summary
+        if: always()
+        run: |
+          if [ -f /tmp/gut_output.txt ]; then
+            echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -E "(Passed|Failed|Pending|Orphans|Totals)" /tmp/gut_output.txt | tail -10 >> $GITHUB_STEP_SUMMARY || echo "No summary found" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
   integration-test:
     name: Integration Tests
@@ -190,6 +210,9 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
       - name: Cache Rust build
         uses: actions/cache@v4
         with:
@@ -203,6 +226,9 @@ jobs:
 
       - name: Build accordserver
         run: cargo build --release --manifest-path .accordserver_repo/Cargo.toml
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
 
       - name: Start accordserver
         run: |
@@ -232,6 +258,14 @@ jobs:
           use-dotnet: false
           include-templates: false
 
+      - name: Cache Godot import
+        uses: actions/cache@v4
+        with:
+          path: .godot/imported
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-
+
       - name: Import project
         run: godot --headless --import . || true
         timeout-minutes: 2
@@ -239,12 +273,24 @@ jobs:
       - name: Run integration tests
         run: |
           godot --headless -s addons/gut/gut_cmdln.gd \
+            -gexit \
             -ginclude_subdirs=true \
             -gprefix=test_ \
             -gsuffix=.gd \
             -glog=1 \
-            -gdir=res://tests/accordkit
+            -gdir=res://tests/accordkit \
+            2>&1 | tee /tmp/gut_output.txt
         timeout-minutes: 10
+
+      - name: Test result summary
+        if: always()
+        run: |
+          if [ -f /tmp/gut_output.txt ]; then
+            echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -E "(Passed|Failed|Pending|Orphans|Totals)" /tmp/gut_output.txt | tail -10 >> $GITHUB_STEP_SUMMARY || echo "No summary found" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Stop accordserver
         if: always()
