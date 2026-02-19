@@ -164,6 +164,7 @@ trap cleanup EXIT INT TERM
 run_suite() {
     local dir="$1"
     local godot_cmd="godot --headless -s addons/gut/gut_cmdln.gd \
+        -gexit \
         -ginclude_subdirs=true \
         -gprefix=test_ \
         -gsuffix=.gd \

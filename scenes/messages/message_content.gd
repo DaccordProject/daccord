@@ -171,7 +171,9 @@ func _load_image_attachment(url: String, container: Control, max_w: int, max_h: 
 	_evict_att_cache()
 	_apply_image_texture(texture, container, max_w, max_h)
 
-func _apply_image_texture(texture: ImageTexture, container: Control, _max_w: int, _max_h: int) -> void:
+func _apply_image_texture(
+	texture: ImageTexture, container: Control, _max_w: int, _max_h: int
+) -> void:
 	var tex_rect := TextureRect.new()
 	tex_rect.texture = texture
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT

@@ -31,9 +31,7 @@ var _message_node_index: Dictionary = {} # message_id -> scene node
 
 var _banner_hide_timer: Timer
 var _loading_timeout_timer: Timer
-var _banner_style_warning: StyleBoxFlat
-var _banner_style_error: StyleBoxFlat
-var _banner_style_success: StyleBoxFlat
+var _banner: MessageViewBanner
 
 @onready var connection_banner: PanelContainer = $VBox/ConnectionBanner
 @onready var banner_status_label: Label = $VBox/ConnectionBanner/HBox/StatusLabel
@@ -58,32 +56,12 @@ func _ready() -> void:
 	AppState.typing_started.connect(_on_typing_started)
 	AppState.typing_stopped.connect(_on_typing_stopped)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
-	AppState.server_disconnected.connect(_on_server_disconnected)
-	AppState.server_reconnecting.connect(_on_server_reconnecting)
-	AppState.server_reconnected.connect(_on_server_reconnected)
-	AppState.server_connection_failed.connect(_on_server_connection_failed)
 	AppState.message_fetch_failed.connect(_on_message_fetch_failed)
 	scroll_container.get_v_scroll_bar().changed.connect(_on_scrollbar_changed)
 	scroll_container.get_v_scroll_bar().value_changed.connect(_on_scroll_value_changed)
 	older_btn.pressed.connect(_on_older_messages_pressed)
-	banner_retry_button.pressed.connect(_on_retry_pressed)
+	banner_retry_button.pressed.connect(func(): _banner.on_retry_pressed())
 	loading_label.gui_input.connect(_on_loading_label_input)
-
-	# Banner styles
-	_banner_style_warning = StyleBoxFlat.new()
-	_banner_style_warning.bg_color = Color(0.75, 0.55, 0.1, 0.9)
-	_banner_style_warning.set_content_margin_all(6)
-	_banner_style_warning.set_corner_radius_all(4)
-
-	_banner_style_error = StyleBoxFlat.new()
-	_banner_style_error.bg_color = Color(0.75, 0.2, 0.2, 0.9)
-	_banner_style_error.set_content_margin_all(6)
-	_banner_style_error.set_corner_radius_all(4)
-
-	_banner_style_success = StyleBoxFlat.new()
-	_banner_style_success.bg_color = Color(0.2, 0.65, 0.3, 0.9)
-	_banner_style_success.set_content_margin_all(6)
-	_banner_style_success.set_corner_radius_all(4)
 
 	# Banner auto-hide timer
 	_banner_hide_timer = Timer.new()
@@ -91,6 +69,21 @@ func _ready() -> void:
 	_banner_hide_timer.one_shot = true
 	_banner_hide_timer.timeout.connect(func(): connection_banner.visible = false)
 	add_child(_banner_hide_timer)
+
+	# Connection banner helper
+	_banner = MessageViewBanner.new(
+		connection_banner,
+		banner_status_label,
+		banner_retry_button,
+		_banner_hide_timer,
+		_guild_for_current_channel,
+	)
+	AppState.server_disconnected.connect(_banner.on_server_disconnected)
+	AppState.server_reconnecting.connect(_banner.on_server_reconnecting)
+	AppState.server_reconnected.connect(_banner.on_server_reconnected)
+	AppState.server_connection_failed.connect(
+		_banner.on_server_connection_failed
+	)
 
 	# Loading timeout timer
 	_loading_timeout_timer = Timer.new()
@@ -673,54 +666,6 @@ func _open_reaction_picker(msg_data: Dictionary) -> void:
 
 func _guild_for_current_channel() -> String:
 	return Client._channel_to_guild.get(current_channel_id, "")
-
-func _on_server_disconnected(guild_id: String, _code: int, _reason: String) -> void:
-	if guild_id != _guild_for_current_channel():
-		return
-	_banner_hide_timer.stop()
-	connection_banner.add_theme_stylebox_override("panel", _banner_style_warning)
-	banner_status_label.text = "Connection lost. Reconnecting..."
-	banner_retry_button.visible = false
-	connection_banner.visible = true
-
-func _on_server_reconnecting(guild_id: String, attempt: int, max_attempts: int) -> void:
-	if guild_id != _guild_for_current_channel():
-		return
-	_banner_hide_timer.stop()
-	connection_banner.add_theme_stylebox_override("panel", _banner_style_warning)
-	banner_status_label.text = "Reconnecting... (attempt %d/%d)" % [attempt, max_attempts]
-	banner_retry_button.visible = false
-	connection_banner.visible = true
-
-func _on_server_reconnected(guild_id: String) -> void:
-	if guild_id != _guild_for_current_channel():
-		return
-	connection_banner.add_theme_stylebox_override("panel", _banner_style_success)
-	banner_status_label.text = "Reconnected!"
-	banner_retry_button.visible = false
-	connection_banner.visible = true
-	_banner_hide_timer.start()
-
-func _on_server_connection_failed(guild_id: String, reason: String) -> void:
-	if guild_id != _guild_for_current_channel():
-		return
-	_banner_hide_timer.stop()
-	connection_banner.add_theme_stylebox_override("panel", _banner_style_error)
-	banner_status_label.text = "Connection failed: %s" % reason
-	banner_retry_button.visible = true
-	connection_banner.visible = true
-
-func _on_retry_pressed() -> void:
-	var guild_id := _guild_for_current_channel()
-	var idx := Client.get_conn_index_for_guild(guild_id)
-	if idx >= 0:
-		connection_banner.add_theme_stylebox_override("panel", _banner_style_warning)
-		banner_status_label.text = "Reconnecting..."
-		banner_retry_button.visible = false
-		# Clear the auto-reconnect guard so the full cycle can
-		# be attempted again after the user presses retry.
-		Client._auto_reconnect_attempted.erase(idx)
-		Client.reconnect_server(idx)
 
 # --- Fetch Failure & Loading Timeout ---
 
