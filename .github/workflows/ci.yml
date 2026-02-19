@@ -31,8 +31,22 @@ jobs:
       - name: Run gdlint
         run: gdlint scripts/ scenes/
 
+      - name: Code complexity analysis
+        if: always()
+        run: |
+          output=$(gdradon cc scripts/ scenes/ 2>&1 || true)
+          high=$(echo "$output" | grep -cE "^\s+F.*- [C-F] \(" || true)
+          if [ "$high" -gt 0 ]; then
+            echo "::warning::$high functions with high cyclomatic complexity (grade C-F)"
+            echo "## Code Complexity" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$output" | grep -E "^\s+F.*- [C-F] \(" | head -20 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
   test:
     name: Unit Tests
+    needs: lint
     runs-on: ubuntu-latest
     environment: default
     steps:
@@ -54,6 +68,11 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: .accordstream_repo
           lfs: true
+
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
 
       - name: Symlink addons
         run: |
@@ -117,6 +136,7 @@ jobs:
 
       - name: Run unit tests
         run: |
+          set -o pipefail
           godot --headless -s addons/gut/gut_cmdln.gd \
             -gexit \
             -ginclude_subdirs=true \
@@ -124,24 +144,40 @@ jobs:
             -gsuffix=.gd \
             -glog=1 \
             -gdir=res://tests/unit \
-            2>&1 | tee /tmp/gut_output.txt
+            2>&1 | tee /tmp/gut_unit.txt
+        timeout-minutes: 5
+
+      - name: Run AccordStream tests
+        run: |
+          set -o pipefail
+          godot --headless -s addons/gut/gut_cmdln.gd \
+            -gexit \
+            -ginclude_subdirs=true \
+            -gprefix=test_ \
+            -gsuffix=.gd \
+            -glog=1 \
+            -gdir=res://tests/accordstream \
+            2>&1 | tee /tmp/gut_accordstream.txt
         timeout-minutes: 5
 
       - name: Test result summary
         if: always()
         run: |
-          if [ -f /tmp/gut_output.txt ]; then
-            echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            grep -E "(Passed|Failed|Pending|Orphans|Totals)" /tmp/gut_output.txt | tail -10 >> $GITHUB_STEP_SUMMARY || echo "No summary found" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
+          for file in /tmp/gut_unit.txt /tmp/gut_accordstream.txt; do
+            if [ -f "$file" ]; then
+              suite=$(basename "$file" .txt | sed 's/gut_//')
+              echo "## ${suite} test results" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              grep -E "(Passed|Failed|Pending|Orphans|Totals)" "$file" | tail -10 >> $GITHUB_STEP_SUMMARY || echo "No summary found" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          done
 
   integration-test:
     name: Integration Tests
+    needs: lint
     runs-on: ubuntu-latest
     environment: default
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -168,6 +204,11 @@ jobs:
           repository: DaccordProject/accordserver
           token: ${{ secrets.GH_PAT }}
           path: .accordserver_repo
+
+      - name: Install audio libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
 
       - name: Symlink addons
         run: |
@@ -211,7 +252,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Set up sccache
+        id: sccache
         uses: mozilla-actions/sccache-action@v0.0.7
+        continue-on-error: true
 
       - name: Cache Rust build
         uses: actions/cache@v4
@@ -225,10 +268,15 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build accordserver
-        run: cargo build --release --manifest-path .accordserver_repo/Cargo.toml
+        run: |
+          if ! cargo build --release --manifest-path .accordserver_repo/Cargo.toml; then
+            echo "::warning::Build failed with sccache, retrying without it"
+            RUSTC_WRAPPER="" SCCACHE_GHA_ENABLED="false" \
+              cargo build --release --manifest-path .accordserver_repo/Cargo.toml
+          fi
         env:
-          RUSTC_WRAPPER: sccache
-          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: ${{ steps.sccache.outcome == 'success' && 'sccache' || '' }}
+          SCCACHE_GHA_ENABLED: ${{ steps.sccache.outcome == 'success' && 'true' || 'false' }}
 
       - name: Start accordserver
         run: |
@@ -272,6 +320,7 @@ jobs:
 
       - name: Run integration tests
         run: |
+          set -o pipefail
           godot --headless -s addons/gut/gut_cmdln.gd \
             -gexit \
             -ginclude_subdirs=true \
@@ -300,8 +349,9 @@ jobs:
           fi
 
       - name: Upload server log
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: accordserver-log
           path: test_server.log
+          if-no-files-found: ignore

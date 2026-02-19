@@ -123,24 +123,30 @@ func _ready() -> void:
 	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
-	_voice_session = AccordVoiceSession.new()
-	add_child(_voice_session)
-	set_meta("_voice_session", _voice_session)
-	_voice_session.session_state_changed.connect(
-		voice.on_session_state_changed
-	)
-	_voice_session.peer_joined.connect(
-		voice.on_peer_joined
-	)
-	_voice_session.peer_left.connect(
-		voice.on_peer_left
-	)
-	_voice_session.signal_outgoing.connect(
-		voice.on_signal_outgoing
-	)
-	if _voice_session.has_signal("track_received"):
-		_voice_session.track_received.connect(
-			voice.on_track_received
+	if ClassDB.class_exists(&"AccordVoiceSession"):
+		_voice_session = AccordVoiceSession.new()
+	if _voice_session != null:
+		add_child(_voice_session)
+		set_meta("_voice_session", _voice_session)
+		_voice_session.session_state_changed.connect(
+			voice.on_session_state_changed
+		)
+		_voice_session.peer_joined.connect(
+			voice.on_peer_joined
+		)
+		_voice_session.peer_left.connect(
+			voice.on_peer_left
+		)
+		_voice_session.signal_outgoing.connect(
+			voice.on_signal_outgoing
+		)
+		if _voice_session.has_signal("track_received"):
+			_voice_session.track_received.connect(
+				voice.on_track_received
+			)
+	else:
+		push_warning(
+			"AccordVoiceSession unavailable — voice disabled"
 		)
 	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
 	# Idle timer setup
