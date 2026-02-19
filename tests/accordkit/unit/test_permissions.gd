@@ -3,8 +3,8 @@ extends GutTest
 
 func test_all_returns_all_permissions() -> void:
 	var perms := AccordPermission.all()
-	# Should contain all 37 defined permissions
-	assert_eq(perms.size(), 37)
+	# Should contain all 39 defined permissions
+	assert_eq(perms.size(), 39)
 	assert_true(perms.has(AccordPermission.ADMINISTRATOR))
 	assert_true(perms.has(AccordPermission.SEND_MESSAGES))
 	assert_true(perms.has(AccordPermission.MODERATE_MEMBERS))
