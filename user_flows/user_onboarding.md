@@ -12,8 +12,9 @@ User onboarding covers the complete first-run experience: launching daccord with
 1. User opens daccord for the first time
 2. Config file is created (or is empty) -- `Config.has_servers()` returns `false`
 3. Client stays in `CONNECTING` mode; sidebar guild bar shows only the DM button and "+" Add Server button
-4. Channel panel, message view, and content area are blank (no empty-state guidance)
-5. User clicks "+" button in the guild bar
+4. **Welcome screen appears** in the content area: animated shader background (navy-to-purple gradient with bokeh particles and sparkle shimmer), floating CPUParticles2D rising upward, staggered entrance animations for branding and feature cards
+5. Welcome screen displays: "daccord" logo, tagline "Connect. Communicate. Collaborate.", three feature cards (Multi-Server, Real-Time Chat, Voice & Video), and a pulsing "Add a Server" CTA button
+6. User clicks the "Add a Server" CTA button (or the "+" button in the guild bar)
 6. Add Server dialog opens with a URL input field
 7. User enters a server URL (e.g. `example.com`, `example.com#my-space?token=abc123`)
 8. Dialog probes the server for reachability (HTTPS first, HTTP fallback)
@@ -50,9 +51,19 @@ Client._ready()
     Config.has_servers() == false
     -> stays Mode.CONNECTING  (no connect_server calls)
 
-UI is idle: empty guild bar ("+" only), blank channel panel, blank message view
+main_window._ready()
+    Config.has_servers() == false
+    -> _show_welcome_screen()
+        -> WelcomeScreenScene instantiated, added to content_area
+        -> content_body hidden
+        -> connects AppState.guilds_updated -> _on_first_server_added (ONE_SHOT)
+        -> welcome_screen._ready() -> _animate_entrance()
+            -> staggered fade-in: logo (0.0s), tagline (0.15s), features (0.3s), CTA (0.5s)
+            -> CTA pulse glow loop starts after entrance
 
-User clicks "+"
+UI shows: guild bar ("+" only), welcome screen with animated shader bg + particles
+
+User clicks CTA "Add a Server" (or "+" in guild bar)
     -> add_server_button.add_server_pressed
     -> guild_bar._on_add_server_pressed()            (line 87)
         -> AddServerDialog instantiated, added to root
@@ -73,6 +84,12 @@ User enters URL, clicks "Add"
             -> client.login() (WebSocket)             (line 275)
             -> mode = Mode.LIVE                       (line 279)
             -> AppState.guilds_updated.emit()         (line 280)
+
+        -> main_window._on_first_server_added()        (ONE_SHOT)
+            -> welcome_screen.dismiss()
+                -> fade out + slide up (0.3s)
+                -> dismissed.emit() -> content_body.visible = true
+                -> queue_free()
 
         -> sidebar._on_guilds_updated()               (line 22 of sidebar)
             -> _startup_selection_done = true          (line 27)
@@ -131,7 +148,10 @@ sidebar._on_guilds_updated()                           (line 22)
 | `scenes/sidebar/sidebar.gd` | Startup selection logic with `_startup_selection_done` guard (line 6), session restore (line 29) |
 | `scenes/sidebar/channels/channel_list.gd` | Empty state for no channels (lines 45-61), `pending_channel_id` (line 12) |
 | `scenes/messages/message_view.gd` | Empty state for no messages (line 141), loading state (line 116) |
-| `scenes/main/main_window.gd` | Root scene, no special empty-state handling for first run |
+| `scenes/main/welcome_screen.gd` | Welcome screen with animated background, entrance animations, CTA button, responsive layout |
+| `scenes/main/welcome_screen.tscn` | Welcome screen scene (shader bg, CPUParticles2D, feature cards, CTA button) |
+| `theme/welcome_bg.gdshader` | Animated gradient background shader (bokeh particles, sparkle shimmer) |
+| `scenes/main/main_window.gd` | Root scene; shows welcome screen when no servers configured, dismisses on first `guilds_updated` |
 
 ## Implementation Details
 
@@ -181,6 +201,21 @@ On first invocation with guilds available, it reads `Config.get_last_selection()
 
 After `Client.connect_server()` succeeds, the Add Server dialog emits `server_added(guild_id)` (line 179 of add_server_dialog). `guild_bar._on_server_added()` (line 92) receives this and calls `_on_guild_pressed(guild_id)` (line 94) to auto-select the newly added server, so the user immediately sees its channels.
 
+### Welcome screen (first-run)
+
+`main_window._ready()` checks `Config.has_servers()`. If false, it calls `_show_welcome_screen()` which instantiates the `WelcomeScreenScene`, adds it to `content_area`, hides `content_body`, and connects `AppState.guilds_updated` to `_on_first_server_added()` as a one-shot.
+
+The welcome screen (`welcome_screen.gd`) layers three visual elements:
+1. **Shader background** (`welcome_bg.gdshader`): Animated navy-to-purple gradient with 15 bokeh particles (soft glowing circles drifting upward using layered sine waves) and procedural hash-based sparkle shimmer. All GL Compatibility safe.
+2. **CPUParticles2D**: 30 particles with 8s lifetime, rising from the bottom with slight spread, blurple-tinted gradient fading to transparent. Chosen over GPUParticles2D for GL Compatibility reliability.
+3. **Content**: Logo, tagline, three feature cards (Multi-Server, Real-Time Chat, Voice & Video) with semi-transparent panel backgrounds, and a large blurple CTA button.
+
+**Entrance animation** (tween-based, ~1.2s total): All content starts at `modulate.a = 0` offset 30px down. Elements stagger in with EASE_OUT CUBIC: logo (0.0s), tagline (0.15s), features (0.3s), CTA (0.5s with scale bounce from 0.9 to 1.0 via TRANS_BACK). After entrance, the CTA gets a looping pulse glow (modulate oscillates between 1.0 and 1.1 brightness, 2s period).
+
+**Dismiss animation**: On `_on_first_server_added()`, calls `dismiss()` which fades the entire screen out over 0.3s, emits `dismissed`, and `queue_free()`s. The callback re-shows `content_body`.
+
+**Responsive**: Listens to `AppState.layout_mode_changed`. In COMPACT mode (<500px), feature cards switch from HBox to VBox layout. On wider viewports, they revert to horizontal.
+
 ### Empty states
 
 **Channel list empty state** (channel_list.gd, lines 45-61): When a guild has zero non-category channels, an `EmptyState` VBox appears. If the user has `MANAGE_CHANNELS` permission, it shows "No channels yet" / "Create your first channel to get started." with a "Create Channel" button. Otherwise: "No channels yet" / "This space doesn't have any channels yet. Check back soon!"
@@ -208,17 +243,17 @@ After `Client.connect_server()` succeeds, the Add Server dialog emits `server_ad
 - [x] Channel list empty state (with permission-aware create button)
 - [x] Message view empty/loading states
 - [x] Connection error rollback (removes config entry on failure)
-- [ ] Welcome screen / first-run tutorial
+- [x] Welcome screen with animated shader background, particle effects, staggered entrance animations, and CTA button
+- [x] Main window empty state when no servers are configured (welcome screen replaces blank content area)
 - [ ] Connection progress indicator during startup auto-connect
-- [ ] Main window empty state when no servers are configured
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No welcome screen on first launch | Medium | When no servers are configured, the user sees a completely blank UI with only the "+" button. No guidance text, illustration, or tooltip points the user toward the Add Server button. |
+| ~~No welcome screen on first launch~~ | ~~Medium~~ | **Resolved.** Welcome screen now shows animated shader background, floating particles, branding, feature cards, and "Add a Server" CTA. Dismissed automatically when first server connects. |
 | No connection progress during startup | Medium | `Client._ready()` calls `connect_server()` for each saved server but provides no visual feedback. The user sees a blank screen until `guilds_updated` fires. Message view shows "Loading messages..." only after a channel is selected. |
-| No main window empty state | Medium | `main_window.gd` has no special handling for `Mode.CONNECTING` with zero servers. The content area (message view, tab bar) is simply blank rather than showing a helpful prompt. |
+| ~~No main window empty state~~ | ~~Medium~~ | **Resolved.** Welcome screen fills the content area when no servers are configured. |
 | No onboarding tooltip or callout | Low | First-time users have no visual cue that the "+" button is how to get started. The button has a tooltip ("Add a Server") but no attention-drawing animation or highlight. |
 | No server removal UI | Medium | `Config.remove_server()` exists (line 49) but no UI button or dialog exposes it to the user. Once a server is added, the only way to remove it is to edit the config file. |
 | `_startup_selection_done` blocks multi-server restore | Low | The `_startup_selection_done` guard in `sidebar.gd` (line 6) means only the first `guilds_updated` event triggers session restore. If the saved guild belongs to a server that connects second, the fallback guild from the first server is selected instead. |

@@ -10,12 +10,14 @@ const SELECTED_BG := Color(0.25, 0.27, 0.3, 1.0)
 var _channel: Dictionary = {}
 var _guild_id: String = ""
 var _selected_role_id: String = ""
-# role_id -> { perm_name -> OverwriteState }
+# entity_id -> { perm_name -> OverwriteState }
 var _overwrite_data: Dictionary = {}
 var _perm_rows: Dictionary = {} # perm_name -> PermOverwriteRow
-var _role_buttons: Dictionary = {} # role_id -> Button
-# Role IDs that had overwrites when the dialog was opened
+var _role_buttons: Dictionary = {} # entity_id -> Button
+# IDs that had overwrites when the dialog was opened
 var _original_overwrite_ids: Array = []
+# entity_id -> "role" | "user"
+var _overwrite_types: Dictionary = {}
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _title: Label = $CenterContainer/Panel/VBox/Header/Title
@@ -42,14 +44,16 @@ func setup(channel: Dictionary, guild_id: String) -> void:
 func _load_overwrites() -> void:
 	_overwrite_data.clear()
 	_original_overwrite_ids.clear()
+	_overwrite_types.clear()
 	# Load existing overwrites from channel data
 	var overwrites: Array = _channel.get("permission_overwrites", [])
 	for ow in overwrites:
 		var ow_dict: Dictionary = ow if ow is Dictionary else {}
-		var role_id: String = ow_dict.get("id", "")
-		if role_id.is_empty():
+		var ow_id: String = ow_dict.get("id", "")
+		if ow_id.is_empty():
 			continue
-		_original_overwrite_ids.append(role_id)
+		_original_overwrite_ids.append(ow_id)
+		_overwrite_types[ow_id] = ow_dict.get("type", "role")
 		var data: Dictionary = {}
 		for perm in AccordPermission.all():
 			if perm in ow_dict.get("allow", []):
@@ -58,13 +62,14 @@ func _load_overwrites() -> void:
 				data[perm] = OverwriteState.DENY
 			else:
 				data[perm] = OverwriteState.INHERIT
-		_overwrite_data[role_id] = data
+		_overwrite_data[ow_id] = data
 
 func _rebuild_role_list() -> void:
 	for child in _role_list.get_children():
 		child.queue_free()
 	_role_buttons.clear()
 
+	# Role overwrites
 	var roles: Array = Client.get_roles_for_guild(_guild_id)
 	roles.sort_custom(func(a: Dictionary, b: Dictionary):
 		return a.get("position", 0) > b.get("position", 0)
@@ -84,11 +89,68 @@ func _rebuild_role_list() -> void:
 		var rid: String = role.get("id", "")
 		btn.text = role.get("name", "")
 		btn.add_theme_color_override("font_color", display_color)
-		btn.pressed.connect(_on_role_selected.bind(rid))
+		btn.pressed.connect(_on_entity_selected.bind(rid, "role"))
 		_role_list.add_child(btn)
 		_role_buttons[rid] = btn
+		if not _overwrite_types.has(rid):
+			_overwrite_types[rid] = "role"
+
+	# Separator before member overwrites
+	var user_ids: Array = []
+	for eid in _overwrite_types:
+		if _overwrite_types[eid] == "user":
+			user_ids.append(eid)
+
+	if user_ids.size() > 0 or true:
+		var sep := HSeparator.new()
+		_role_list.add_child(sep)
+
+		var member_label := Label.new()
+		member_label.text = "MEMBERS"
+		member_label.add_theme_color_override(
+			"font_color", Color(0.7, 0.7, 0.7, 1)
+		)
+		member_label.add_theme_font_size_override("font_size", 11)
+		_role_list.add_child(member_label)
+
+	# Existing user-type overwrites
+	for uid in user_ids:
+		_add_member_button(uid)
+
+	# "+ Add Member" button
+	var add_btn := Button.new()
+	add_btn.flat = true
+	add_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	add_btn.custom_minimum_size = Vector2(140, 28)
+	add_btn.text = "+ Add Member"
+	add_btn.add_theme_color_override(
+		"font_color", Color(0.345, 0.396, 0.949, 1)
+	)
+	add_btn.pressed.connect(_on_add_member_overwrite)
+	_role_list.add_child(add_btn)
 
 	_update_role_selection()
+
+func _add_member_button(user_id: String) -> void:
+	var btn := Button.new()
+	btn.flat = true
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.custom_minimum_size = Vector2(140, 28)
+
+	var members: Array = Client.get_members_for_guild(_guild_id)
+	var display_name: String = user_id
+	for m in members:
+		if m.get("id", "") == user_id:
+			display_name = m.get("display_name", user_id)
+			break
+
+	btn.text = display_name
+	btn.add_theme_color_override(
+		"font_color", Color(0.8, 0.8, 0.9, 1)
+	)
+	btn.pressed.connect(_on_entity_selected.bind(user_id, "user"))
+	_role_list.add_child(btn)
+	_role_buttons[user_id] = btn
 
 func _update_role_selection() -> void:
 	for rid in _role_buttons:
@@ -104,17 +166,79 @@ func _update_role_selection() -> void:
 		else:
 			btn.remove_theme_stylebox_override("normal")
 
-func _on_role_selected(role_id: String) -> void:
-	_selected_role_id = role_id
+func _on_entity_selected(
+	entity_id: String, entity_type: String
+) -> void:
+	_selected_role_id = entity_id
 	_error_label.visible = false
-	if not _overwrite_data.has(role_id):
-		# Initialize all perms to INHERIT
+	if not _overwrite_types.has(entity_id):
+		_overwrite_types[entity_id] = entity_type
+	if not _overwrite_data.has(entity_id):
 		var data: Dictionary = {}
 		for perm in AccordPermission.all():
 			data[perm] = OverwriteState.INHERIT
-		_overwrite_data[role_id] = data
+		_overwrite_data[entity_id] = data
 	_update_role_selection()
 	_rebuild_perm_list()
+
+func _on_add_member_overwrite() -> void:
+	# Create a popup with a search input for member selection
+	var popup := PopupPanel.new()
+	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(200, 200)
+
+	var search := LineEdit.new()
+	search.placeholder_text = "Search members..."
+	search.custom_minimum_size = Vector2(0, 32)
+	vbox.add_child(search)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+
+	var member_list := VBoxContainer.new()
+	member_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(member_list)
+
+	popup.add_child(vbox)
+	add_child(popup)
+
+	var members: Array = Client.get_members_for_guild(_guild_id)
+
+	var _build_list := func(query: String) -> void:
+		for child in member_list.get_children():
+			child.queue_free()
+		var q := query.strip_edges().to_lower()
+		for m in members:
+			var uid: String = m.get("id", "")
+			var dname: String = m.get("display_name", "")
+			if _overwrite_data.has(uid) \
+					and _overwrite_types.get(uid, "") == "user":
+				continue  # Already has overwrite
+			if not q.is_empty() and not dname.to_lower().contains(q):
+				continue
+			var btn := Button.new()
+			btn.flat = true
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			btn.text = dname
+			btn.pressed.connect(func():
+				_overwrite_types[uid] = "user"
+				var data: Dictionary = {}
+				for perm in AccordPermission.all():
+					data[perm] = OverwriteState.INHERIT
+				_overwrite_data[uid] = data
+				popup.queue_free()
+				_rebuild_role_list()
+				_on_entity_selected(uid, "user")
+			)
+			member_list.add_child(btn)
+
+	_build_list.call("")
+	search.text_changed.connect(func(text: String):
+		_build_list.call(text)
+	)
+
+	popup.popup_centered(Vector2i(220, 280))
 
 func _rebuild_perm_list() -> void:
 	for child in _perm_list.get_children():
@@ -146,7 +270,7 @@ func _toggle_perm(perm: String, new_state: int) -> void:
 func _on_reset() -> void:
 	if _selected_role_id.is_empty():
 		return
-	# Reset this role to all INHERIT
+	# Reset this entity to all INHERIT
 	var data: Dictionary = {}
 	for perm in AccordPermission.all():
 		data[perm] = OverwriteState.INHERIT
@@ -161,8 +285,8 @@ func _on_save() -> void:
 	# Build overwrites array and deleted IDs list
 	var overwrites: Array = []
 	var active_ids: Array = []
-	for role_id in _overwrite_data:
-		var data: Dictionary = _overwrite_data[role_id]
+	for entity_id in _overwrite_data:
+		var data: Dictionary = _overwrite_data[entity_id]
 		var allow_list: Array = []
 		var deny_list: Array = []
 		for perm in data:
@@ -173,10 +297,10 @@ func _on_save() -> void:
 					deny_list.append(perm)
 		# Only include if there are actual overrides
 		if allow_list.size() > 0 or deny_list.size() > 0:
-			active_ids.append(role_id)
+			active_ids.append(entity_id)
 			overwrites.append({
-				"id": role_id,
-				"type": "role",
+				"id": entity_id,
+				"type": _overwrite_types.get(entity_id, "role"),
 				"allow": allow_list,
 				"deny": deny_list,
 			})

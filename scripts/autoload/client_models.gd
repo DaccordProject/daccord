@@ -423,10 +423,19 @@ static func member_to_dict(member: AccordMember, user_cache: Dictionary) -> Dict
 			"status": ClientModels.UserStatus.OFFLINE,
 			"avatar": null,
 		}
+	var nick_str: String = ""
 	if member.nickname != null and not str(member.nickname).is_empty():
-		user_dict["display_name"] = str(member.nickname)
+		nick_str = str(member.nickname)
+		user_dict["display_name"] = nick_str
+	user_dict["nickname"] = nick_str
 	user_dict["roles"] = member.roles.duplicate()
 	user_dict["joined_at"] = member.joined_at
+	user_dict["mute"] = member.mute
+	user_dict["deaf"] = member.deaf
+	var timeout_str: String = ""
+	if member.timed_out_until != null:
+		timeout_str = str(member.timed_out_until)
+	user_dict["timed_out_until"] = timeout_str
 	return user_dict
 
 static func dm_channel_to_dict(channel: AccordChannel, user_cache: Dictionary) -> Dictionary:

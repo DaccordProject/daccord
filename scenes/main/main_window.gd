@@ -8,11 +8,15 @@ const SWIPE_THRESHOLD := 80.0
 const ProfileCardScene := preload(
 	"res://scenes/user/profile_card.tscn"
 )
+const WelcomeScreenScene := preload(
+	"res://scenes/main/welcome_screen.tscn"
+)
 
 var tabs: Array[Dictionary] = []
 var _drawer_tween: Tween
 var _sidebar_in_drawer: bool = false
 var _active_profile_card: PanelContainer = null
+var _welcome_screen: Control = null
 var _member_list_before_medium: bool = true
 var _edge_swipe_tracking: bool = false
 var _edge_swipe_start_x: float = 0.0
@@ -70,6 +74,10 @@ func _ready() -> void:
 		var last_id: String = SentrySDK.get_last_event_id()
 		if not last_id.is_empty():
 			call_deferred("_show_crash_toast")
+
+	# Welcome screen for first launch (no servers configured)
+	if not Config.has_servers():
+		_show_welcome_screen()
 
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:
@@ -361,6 +369,32 @@ func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
 	var x: float = clampf(pos.x, 0.0, vp_size.x - card_size.x)
 	var y: float = clampf(pos.y, 0.0, vp_size.y - card_size.y)
 	_active_profile_card.position = Vector2(x, y)
+
+func _show_welcome_screen() -> void:
+	_welcome_screen = WelcomeScreenScene.instantiate()
+	# Ensure it fills the VBoxContainer
+	_welcome_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_welcome_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_area.add_child(_welcome_screen)
+	# Move welcome screen above ContentBody (index 0 = ContentHeader, 1 = TopicBar, 2 = VideoGrid)
+	content_area.move_child(_welcome_screen, 3)
+	# Hide normal content
+	content_body.visible = false
+	# Listen for first server connection
+	AppState.guilds_updated.connect(
+		_on_first_server_added, CONNECT_ONE_SHOT
+	)
+
+func _on_first_server_added() -> void:
+	if _welcome_screen and is_instance_valid(_welcome_screen):
+		_welcome_screen.dismissed.connect(func() -> void:
+			content_body.visible = true
+			_welcome_screen = null
+		)
+		_welcome_screen.dismiss()
+	else:
+		content_body.visible = true
+		_welcome_screen = null
 
 func _show_consent_dialog() -> void:
 	# Mark consent as shown immediately so the dialog never reappears,

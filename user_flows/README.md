@@ -38,7 +38,7 @@ Ordered by natural user journey:
 | 30 | [Guild Folders](guild_folders.md) | Client-side guild grouping, folder assignment via context menu, collapsible mini-grid preview, folder persistence in Config, expand/collapse animation |
 | 31 | [User Management](user_management.md) | Authentication (sign-in/register), user data model, presence/status control, user bar, member list with admin actions, avatar rendering, user caching |
 | 32 | [Administrative User Management](admin_user_management.md) | Kick/ban/unban members, role assignment via context menu, role management dialog, ban list with bulk unban, permission gating, gateway sync |
-| 33 | [User Configuration](user_configuration.md) | Encrypted config file, server credentials, session restore, voice/sound/status preferences, emoji cache, notification settings, local data layout |
+| 33 | [User Configuration](user_configuration.md) | Per-profile encrypted config, profile registry, migration from legacy single-file, server credentials, session restore, voice/sound/status preferences, per-profile emoji cache, notification settings, export/import profiles, local data layout |
 | 34 | [Messages Performance](messages_performance.md) | Full re-render strategy, message/user/avatar caching, markdown regex cost, reaction update optimization, sequential author fetches, attachment loading |
 | 35 | [Member List Performance](memberlist_performance.md) | Virtual scrolling with object pooling, status grouping, gateway-driven cache updates, rebuild costs, fetch bottlenecks |
 | 36 | [Content Embedding](content_embedding.md) | Image/video URL previews, embed cards, inline image rendering, YouTube/oEmbed, link unfurling, attachment display |
@@ -47,3 +47,4 @@ Ordered by natural user journey:
 | 39 | [Continuous Integration](continuous_integration.md) | CI pipeline architecture, `gh` CLI monitoring/debugging guide, job step breakdowns, failure pattern diagnosis, current status and resolution checklist |
 | 40 | [Nightly Branch](nightly_branch.md) | Nightly build branch, automated pre-release CI, rolling `nightly` tag, update channel detection, stable/nightly update routing, Sentry channel tagging |
 | 41 | [Profiles](profiles.md) | Multi-profile support, profile switching with optional passwords, per-profile config and emoji cache, migration from single-config, export/import as profiles |
+| 42 | [Imposter Mode](imposter_mode.md) | Admin permission preview, "View As" role picker, impersonated permission resolution, channel visibility filtering, write-protection, imposter banner |

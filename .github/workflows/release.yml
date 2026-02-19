@@ -7,6 +7,8 @@ on:
 
 env:
   GODOT_VERSION: "4.6.0"
+  GUT_VERSION: "9.5.0"
+  SENTRY_VERSION: "1.3.2"
 
 permissions:
   contents: write
@@ -69,10 +71,49 @@ jobs:
           path: .accordstream_repo
           lfs: true
 
+      - name: Install audio libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
+
       - name: Symlink addons
         run: |
           ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
           ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+
+      - name: Cache GUT
+        uses: actions/cache@v4
+        with:
+          path: addons/gut
+          key: gut-${{ env.GUT_VERSION }}
+
+      - name: Install GUT
+        run: |
+          if [ ! -d addons/gut ]; then
+            curl -sL https://github.com/bitwes/Gut/archive/refs/tags/v${GUT_VERSION}.tar.gz -o /tmp/gut.tar.gz
+            tar xzf /tmp/gut.tar.gz -C /tmp
+            cp -r /tmp/Gut-${GUT_VERSION}/addons/gut addons/gut
+            rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
+          fi
+
+      - name: Cache Sentry SDK
+        uses: actions/cache@v4
+        with:
+          path: addons/sentry
+          key: sentry-godot-${{ env.SENTRY_VERSION }}
+
+      - name: Install Sentry SDK
+        run: |
+          if [ ! -d addons/sentry ]; then
+            gh release download $SENTRY_VERSION --repo getsentry/sentry-godot \
+              --pattern "*.zip" --dir /tmp/sentry_dl
+            unzip -o /tmp/sentry_dl/*.zip -d /tmp/sentry_extract
+            cp -r /tmp/sentry_extract/addons/sentry addons/sentry
+            rm -rf /tmp/sentry_dl /tmp/sentry_extract
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Download AccordStream platform binaries
         continue-on-error: true
@@ -99,6 +140,14 @@ jobs:
           use-dotnet: false
           include-templates: true
 
+      - name: Cache Godot import
+        uses: actions/cache@v4
+        with:
+          path: .godot/imported
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-
+
       - name: Import project
         run: godot --headless --import . || true
         timeout-minutes: 2
@@ -108,7 +157,8 @@ jobs:
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          sed -i 's|config/dsn="[^"]*"|config/dsn="'"$SENTRY_DSN"'"|' project.godot
+          sed -i.bak 's|config/dsn="[^"]*"|config/dsn="'"$SENTRY_DSN"'"|' project.godot
+          rm -f project.godot.bak
 
       - name: Clear missing custom templates
         run: |
@@ -119,10 +169,11 @@ jobs:
               TEMPLATE_PATH="${BASH_REMATCH[1]}"
               if [ -n "$TEMPLATE_PATH" ] && [ ! -f "$TEMPLATE_PATH" ]; then
                 echo "Custom template not found: $TEMPLATE_PATH — clearing for stock fallback"
-                sed -i "s|custom_template/release=\"res://$TEMPLATE_PATH\"|custom_template/release=\"\"|" export_presets.cfg
+                sed -i.bak "s|custom_template/release=\"res://$TEMPLATE_PATH\"|custom_template/release=\"\"|" export_presets.cfg
               fi
             fi
           done < export_presets.cfg
+          rm -f export_presets.cfg.bak
 
       - name: Create build directory
         run: mkdir -p dist/build/${{ matrix.platform }}

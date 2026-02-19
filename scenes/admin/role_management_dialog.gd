@@ -118,6 +118,15 @@ func _on_move_role(role: Dictionary, direction: int) -> void:
 	if _all_roles[swap_idx].get("position", 0) == 0:
 		return
 
+	# Role hierarchy enforcement
+	var my_highest: int = Client.get_my_highest_role_position(_guild_id)
+	if my_highest != 999999:
+		if role.get("position", 0) >= my_highest \
+				or _all_roles[swap_idx].get("position", 0) >= my_highest:
+			_error_label.text = "Cannot reorder roles at or above your own"
+			_error_label.visible = true
+			return
+
 	# Build reorder data: swap positions
 	var pos_a: int = _all_roles[idx].get("position", 0)
 	var pos_b: int = _all_roles[swap_idx].get("position", 0)
@@ -157,6 +166,24 @@ func _select_role(role: Dictionary) -> void:
 
 	# Don't allow deleting @everyone
 	_delete_btn.visible = role.get("position", 0) != 0
+
+	# Role hierarchy enforcement
+	var my_highest: int = Client.get_my_highest_role_position(_guild_id)
+	var above_me: bool = role.get("position", 0) >= my_highest \
+		and my_highest != 999999
+	_name_input.editable = not above_me
+	_color_picker.disabled = above_me
+	_hoist_check.disabled = above_me
+	_mentionable_check.disabled = above_me
+	_save_btn.disabled = above_me
+	if above_me:
+		_delete_btn.visible = false
+	for perm in _perm_checks:
+		_perm_checks[perm].disabled = above_me
+	if above_me:
+		_error_label.text = "You cannot edit roles at or above your own"
+		_error_label.visible = true
+
 	_dirty = false
 
 func _on_new_role() -> void:

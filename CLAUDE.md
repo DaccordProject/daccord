@@ -100,5 +100,4 @@ Server logs are written to `test_server.log` -- tail them with `tail -f test_ser
 **Server-dependent tests** (accordkit integration/gateway/e2e) require accordserver running on `127.0.0.1:39099` with `ACCORD_TEST_MODE=true`. The `test.sh` script handles this automatically. The test base class (`AccordTestBase`) calls `/test/seed` in `before_all()` to create a user, bot, space, and channels for each test file.
 
 **Known issues:**
-- `tests/unit/test_add_server_dialog.gd` -- Has `var r` type inference errors on lines 57, 64, 71, 78. GDScript cannot infer the type; add explicit type annotations.
-- AccordKit integration tests -- The `/test/seed` endpoint returns 500 after the first test file runs, causing cascading failures in subsequent test files. The server-side seed route (`accordserver/src/routes/test_seed.rs`) likely conflicts with data from prior seeds. Fix in the server: either reset the database between seeds or make seeding idempotent.
+- None at present. Previous issues (type inference in test_add_server_dialog.gd and seed cascade failures) have been fixed.

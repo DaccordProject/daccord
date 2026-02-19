@@ -467,6 +467,27 @@ func is_space_owner(gid: String) -> bool:
 		"id", ""
 	)
 
+func get_my_highest_role_position(gid: String) -> int:
+	if current_user.get("is_admin", false):
+		return 999999
+	if is_space_owner(gid):
+		return 999999
+	var my_id: String = current_user.get("id", "")
+	var mi: int = _member_index_for(gid, my_id)
+	if mi == -1:
+		return 0
+	var my_roles: Array = _member_cache.get(
+		gid, []
+	)[mi].get("roles", [])
+	var roles: Array = _role_cache.get(gid, [])
+	var highest: int = 0
+	for role in roles:
+		if role.get("id", "") in my_roles:
+			var pos: int = role.get("position", 0)
+			if pos > highest:
+				highest = pos
+	return highest
+
 # --- Unread / mention tracking ---
 
 func _on_channel_selected_clear_unread(cid: String) -> void:

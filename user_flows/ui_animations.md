@@ -71,7 +71,9 @@ User action
 | `scenes/sidebar/guild_bar/guild_icon.gd` | Hover/press/active avatar morphing (lines 92–104) |
 | `scenes/sidebar/guild_bar/pill.gd` | Animated pill height transitions (lines 29–40) |
 | `scenes/messages/typing_indicator.gd` | Sine wave dot alpha animation in `_process` (lines 25–31) |
-| `scenes/messages/message_view.gd` | Action bar hover state machine with debounce timer (lines 266–316) |
+| `scenes/messages/message_view.gd` | Scroll-to-bottom tween (lines 705–715), message/channel fade-in (lines 256–271), diff fade-in (lines 416–422), action bar hover state machine (lines 498–548) |
+| `scenes/messages/message_action_bar.gd` | Action bar fade-in/fade-out alpha tweens (lines 32–49) |
+| `scenes/messages/reaction_pill.gd` | Press bounce scale animation with TRANS_BACK (lines 50–57) |
 | `scenes/messages/cozy_message.gd` | `set_hovered()` / `_draw()` for hover highlight (lines 133–139) |
 | `scenes/messages/collapsed_message.gd` | `set_hovered()` / `_draw()` for hover highlight (lines 123–129) |
 | `scenes/members/member_item.gd` | `_flash_feedback()` modulate tween (lines 154–158) |
@@ -158,6 +160,62 @@ The action bar is suppressed in compact mode (line 267) and when a message is be
 2. Tween `modulate` back to the original value over 0.3s.
 
 Green (`Color(0.231, 0.647, 0.365, 0.3)`) for success, red (`Color(0.929, 0.259, 0.271, 0.3)`) for failure (lines 148–150).
+
+### Scroll-to-Bottom Animation (message_view.gd)
+
+`_scroll_to_bottom_animated()` (line 705) smoothly scrolls the message list to the bottom:
+
+- Calculates the target scroll position from `scroll_container.get_v_scroll_bar().max_value` (line 706).
+- **Short-circuit** (lines 708–710): If the distance is less than 50px, snaps instantly — tweening a tiny distance looks jittery.
+- Kills any existing scroll tween before creating a new one (lines 711–712).
+- Tweens `scroll_container.scroll_vertical` to the target over **0.2s** with `EASE_OUT` / `TRANS_CUBIC` (lines 714–715).
+
+Triggered in two places:
+1. **Channel load** (line 277): After `_load_messages()` populates the message list, called unconditionally (unless loading older messages).
+2. **New messages via diff** (line 427): After `_diff_messages()` appends new nodes, called only when `auto_scroll` is enabled and nodes were appended. Waits one `process_frame` to let layout settle.
+
+### Channel Transition Fade-In (message_view.gd)
+
+When switching channels, the entire `scroll_container` fades in (lines 264–271):
+
+- Sets `scroll_container.modulate.a = 0.0` (line 268).
+- Tweens `modulate:a` to `1.0` over **0.15s** with `EASE_OUT` / `TRANS_CUBIC` (lines 270–271).
+- Kills any existing `_channel_transition_tween` first (lines 266–267).
+
+The condition (line 264) ensures this only fires when:
+- NOT loading older messages (`not _is_loading_older`)
+- AND the message count changed by more than one (`old_count != new_count`), which excludes single new messages that get their own per-node fade.
+
+### Message Appear Fade-In (message_view.gd)
+
+New messages fade in individually at two code paths:
+
+**Single new message** (lines 256–263): When exactly one message is added to an existing list (`old_count > 0 and new_count == old_count + 1`), the last message child's `modulate.a` is set to `0.0` and tweened to `1.0` over **0.15s** with `EASE_OUT` / `TRANS_CUBIC`.
+
+**Diff-appended messages** (lines 416–422): When `_diff_messages()` appends new nodes, each appended node's `modulate.a` is set to `0.0` and tweened individually with the same parameters. The `old_count > 0` guard prevents the animation on initial channel load.
+
+Both paths use the same tween parameters for visual consistency: **0.15s**, `EASE_OUT`, `TRANS_CUBIC`.
+
+### Action Bar Fade-In/Fade-Out (message_action_bar.gd)
+
+The action bar uses alpha tweens for smooth appear/disappear:
+
+- **Fade-in** (`show_for_message`, lines 32–38): Sets `modulate.a = 0.0`, makes `visible = true`, then tweens `modulate:a` to `1.0` over **0.1s** with `EASE_OUT` / `TRANS_CUBIC`. Also configures edit/delete button visibility based on message ownership (lines 29–31).
+- **Fade-out** (`hide_bar`, lines 40–49): Tweens `modulate:a` to `0.0` over **0.1s** with `EASE_IN` / `TRANS_CUBIC`. A chained callback (lines 46–49) sets `visible = false` and resets `modulate.a = 1.0` so the next show starts clean.
+- Both paths kill any existing `_fade_tween` before creating a new one (lines 32–33, 41–42).
+
+The faster 0.1s duration (vs 0.15s for messages) keeps the bar snappy — it should feel like a tooltip, not a panel.
+
+### Reaction Pill Press Bounce (reaction_pill.gd)
+
+`_on_toggled()` (line 40) plays a bounce when the user clicks a reaction pill:
+
+- **Scale up** (line 54): Instantly sets `scale = Vector2(1.15, 1.15)` (15% larger).
+- **Bounce back** (lines 55–57): Tweens `scale` to `Vector2.ONE` over **0.15s** with `EASE_OUT` / `TRANS_BACK`. The `TRANS_BACK` transition overshoots slightly before settling, creating a spring-like feel.
+- **Pivot** (line 53): Sets `pivot_offset = size / 2` so the scale animation expands from the pill's center.
+- Kills any existing `_press_tween` first (lines 51–52).
+
+The bounce runs alongside optimistic count updates (lines 44–48) and the server API call (lines 60–64), so visual feedback is instantaneous.
 
 ### Instant Hover Effects (No Tween)
 

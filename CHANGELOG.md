@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-02-19
+
 ### Added
 - Initial client application with multi-server support
 - Real-time messaging via WebSocket gateway
