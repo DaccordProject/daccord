@@ -2,6 +2,11 @@ extends VBoxContainer
 
 const EmbedScene := preload("res://scenes/messages/embed.tscn")
 
+# Static LRU image cache for attachments
+const IMAGE_CACHE_CAP := 100
+static var _att_image_cache: Dictionary = {}
+static var _att_cache_order: Array[String] = []
+
 var _edit_input: TextEdit = null
 var _edit_hint_label: Label = null
 var _edit_error_label: Label = null
@@ -95,6 +100,20 @@ func setup(data: Dictionary) -> void:
 	var msg_id: String = data.get("id", "")
 	reaction_bar.setup(reactions, ch_id, msg_id)
 
+func update_content(data: Dictionary) -> void:
+	if is_editing():
+		return
+	var raw_text: String = data.get("content", "")
+	_is_system = data.get("system", false)
+	if _is_system:
+		text_content.text = "[i][color=#8a8e94]" + raw_text + "[/color][/i]"
+	else:
+		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
+		if data.get("edited", false):
+			bbcode += " [font_size=11][color=#8a8e94](edited)[/color][/font_size]"
+		_raw_bbcode = bbcode
+		text_content.text = bbcode
+
 func _on_meta_clicked(meta: Variant) -> void:
 	var meta_str := str(meta)
 	if meta_str == "spoiler":
@@ -107,6 +126,11 @@ func _on_meta_clicked(meta: Variant) -> void:
 		OS.shell_open(meta_str)
 
 func _load_image_attachment(url: String, container: Control, max_w: int, max_h: int) -> void:
+	# Check static cache first
+	if _att_image_cache.has(url):
+		_touch_att_cache(url)
+		_apply_image_texture(_att_image_cache[url], container, max_w, max_h)
+		return
 	var http := HTTPRequest.new()
 	add_child(http)
 	var err := http.request(url)
@@ -135,18 +159,39 @@ func _load_image_attachment(url: String, container: Control, max_w: int, max_h: 
 	if image.get_width() > max_w or image.get_height() > max_h:
 		var scale_x: float = float(max_w) / image.get_width()
 		var scale_y: float = float(max_h) / image.get_height()
-		var scale: float = minf(scale_x, scale_y)
+		var scale_factor: float = minf(scale_x, scale_y)
 		image.resize(
-			int(image.get_width() * scale),
-			int(image.get_height() * scale)
+			int(image.get_width() * scale_factor),
+			int(image.get_height() * scale_factor)
 		)
 	var texture := ImageTexture.create_from_image(image)
+	# Store in cache
+	_att_image_cache[url] = texture
+	_touch_att_cache(url)
+	_evict_att_cache()
+	_apply_image_texture(texture, container, max_w, max_h)
+
+func _apply_image_texture(texture: ImageTexture, container: Control, _max_w: int, _max_h: int) -> void:
 	var tex_rect := TextureRect.new()
 	tex_rect.texture = texture
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
 	tex_rect.mouse_filter = Control.MOUSE_FILTER_PASS
 	container.add_child(tex_rect)
-	container.custom_minimum_size = Vector2(image.get_width(), image.get_height())
+	var img_w: int = texture.get_width()
+	var img_h: int = texture.get_height()
+	container.custom_minimum_size = Vector2(img_w, img_h)
+
+static func _touch_att_cache(url: String) -> void:
+	var idx := _att_cache_order.find(url)
+	if idx != -1:
+		_att_cache_order.remove_at(idx)
+	_att_cache_order.append(url)
+
+static func _evict_att_cache() -> void:
+	while _att_image_cache.size() > IMAGE_CACHE_CAP and _att_cache_order.size() > 0:
+		var oldest: String = _att_cache_order[0]
+		_att_cache_order.remove_at(0)
+		_att_image_cache.erase(oldest)
 
 static func _format_file_size(bytes: int) -> String:
 	if bytes < 1024:
@@ -204,7 +249,7 @@ func _exit_edit_mode() -> void:
 
 func _on_edit_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_ENTER and not event.shift_pressed:
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and not event.shift_pressed:
 			var new_text := _edit_input.text.strip_edges()
 			if not new_text.is_empty():
 				# Optimistic update: show new content with "(saving...)" indicator

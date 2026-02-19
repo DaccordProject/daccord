@@ -44,6 +44,10 @@ func _populate_guilds() -> void:
 			processed_folders.append(folder_name)
 			_add_guild_folder(folder_name, folders[folder_name])
 
+	# Add pending (disconnected) servers
+	for pending in Client.pending_servers:
+		_add_guild_icon(pending)
+
 func _add_guild_icon(data: Dictionary) -> void:
 	var icon: HBoxContainer = GuildIconScene.instantiate()
 	guild_list.add_child(icon)

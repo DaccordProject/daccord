@@ -51,11 +51,6 @@ func _ready() -> void:
 	popup.add_item("Import Config", 19)
 	popup.add_separator()
 	popup.add_item("Report a Problem", 13)
-	popup.add_check_item("Send Error Reports", 14)
-	var er_idx: int = popup.get_item_index(14)
-	popup.set_item_checked(
-		er_idx, Config.get_error_reporting_enabled()
-	)
 	popup.add_separator()
 	popup.add_item("Check for Updates", 16)
 	popup.add_item("About", 10)
@@ -81,7 +76,9 @@ func setup(user: Dictionary) -> void:
 		avatar.set_letter(dn[0].to_upper())
 	else:
 		avatar.set_letter("")
-	avatar.set_avatar_url(user.get("avatar", ""))
+	var avatar_url = user.get("avatar", null)
+	if avatar_url is String and not avatar_url.is_empty():
+		avatar.set_avatar_url(avatar_url)
 
 	var status: int = user.get(
 		"status", ClientModels.UserStatus.OFFLINE
@@ -143,8 +140,6 @@ func _on_menu_id_pressed(id: int) -> void:
 			get_tree().quit()
 		13:
 			_show_feedback_dialog()
-		14:
-			_toggle_error_reporting()
 		15:
 			_toggle_suppress_everyone()
 		16:
@@ -338,18 +333,6 @@ func _toggle_suppress_everyone() -> void:
 	var popup := menu_button.get_popup()
 	var idx: int = popup.get_item_index(15)
 	popup.set_item_checked(idx, suppressed)
-
-func _toggle_error_reporting() -> void:
-	var enabled: bool = not Config.get_error_reporting_enabled()
-	Config.set_error_reporting_enabled(enabled)
-	if not Config.has_error_reporting_preference():
-		Config.set_error_reporting_consent_shown()
-	# Update menu checkbox
-	var popup := menu_button.get_popup()
-	var idx: int = popup.get_item_index(14)
-	popup.set_item_checked(idx, enabled)
-	if enabled:
-		ErrorReporting.init_sentry()
 
 func _check_for_updates() -> void:
 	_show_toast("Checking for updates is not yet available.")

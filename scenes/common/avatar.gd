@@ -30,11 +30,15 @@ func _ready() -> void:
 
 func set_avatar_color(c: Color) -> void:
 	color = c
+	if not letter_label:
+		return
 	var luminance: float = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
 	var font_color := Color.BLACK if luminance > 0.5 else Color.WHITE
 	letter_label.add_theme_color_override("font_color", font_color)
 
 func set_letter(text: String) -> void:
+	if not letter_label:
+		return
 	letter_label.text = text
 	letter_label.visible = show_letter and text != ""
 

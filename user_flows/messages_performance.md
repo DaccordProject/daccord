@@ -4,51 +4,63 @@ Last touched: 2026-02-19
 
 ## Overview
 
-This document covers the performance characteristics and optimization strategies for the messaging system. It covers how messages are cached, rendered, and updated — including the full re-render strategy, avatar image caching, markdown-to-BBCode conversion costs, user cache trimming, and the targeted reaction update path. The primary bottleneck is the full scene tree rebuild on every `messages_updated` signal; optimizations like the `_message_id_index`, avatar LRU cache, and targeted `reactions_updated` path mitigate some cost.
+This document covers the performance characteristics and optimization strategies for the messaging system. It covers how messages are cached, rendered, and updated — including incremental diff-based rendering, avatar image caching, cached markdown-to-BBCode conversion, parallel author fetching, user cache trimming, image attachment caching, the targeted reaction update path, and the shared context menu. The `_message_node_index` enables O(1) message node lookup, and diff-based rendering avoids full teardowns on most updates. Regex objects are compiled once and cached as static variables. Unknown authors are fetched in parallel. Image attachments use a static LRU cache (cap 100). A single shared PopupMenu replaces per-message PopupMenu allocations.
 
 ## User Steps
 
-1. User selects a channel — `Client.fetch.fetch_messages()` fetches up to 50 messages from the server.
+1. User selects a channel — `Client.fetch.fetch_messages()` fetches up to 50 messages from the server, with unknown authors fetched in parallel.
 2. Messages are converted from AccordKit models to dictionary shapes and stored in `_message_cache`.
-3. `message_view._load_messages()` clears all message nodes and instantiates new cozy/collapsed scenes for each message.
-4. User sends or receives messages — gateway fires `message.create`, cache is updated, `messages_updated` emits, full re-render occurs.
-5. User scrolls up and clicks "Show older messages" — `fetch_older_messages()` prepends to cache, full re-render occurs, scroll position is restored.
-6. A reaction is added/removed — `reactions_updated` fires, only the affected message's reaction bar is rebuilt (no full re-render).
+3. `message_view._load_messages()` clears all message nodes and instantiates new cozy/collapsed scenes, populating `_message_node_index`.
+4. User sends or receives messages — gateway fires `message.create`, cache is updated, `messages_updated` emits, diff-based update appends new node without re-rendering existing ones.
+5. User edits or deletes a message — diff-based update calls `update_data()` on existing node (edit) or removes the specific node (delete), fixing cozy/collapsed layout as needed.
+6. User scrolls up and clicks "Show older messages" — `fetch_older_messages()` prepends to cache (capped at 200), full re-render occurs, scroll position is restored.
+7. A reaction is added/removed — `reactions_updated` fires, O(1) index lookup finds the node, only that message's reaction bar is rebuilt.
 
 ## Signal Flow
 
 ```
-Channel selected:
+Channel selected (first load):
   _on_channel_selected()
+    -> _message_node_index.clear()
     -> Client.fetch.fetch_messages(channel_id)
       -> REST: GET /channels/{id}/messages?limit=50
-      -> For each unknown author: REST GET /users/{id} (sequential, blocking)
-      -> ClientModels.message_to_dict() per message (regex-heavy markdown conversion)
+      -> Unknown authors fetched in PARALLEL (all coroutines fired, then awaited)
+      -> ClientModels.message_to_dict() per message (cached regex markdown conversion)
       -> _message_cache[channel_id] = msgs
       -> _message_id_index updated
       -> trim_user_cache() called
     -> AppState.messages_updated.emit(channel_id)
     -> message_view._on_messages_updated()
-      -> _load_messages() [FULL RE-RENDER]
-        -> Save editing state
-        -> queue_free() all message children
+      -> _message_node_index empty -> _load_messages() [FULL RENDER]
         -> Instantiate N cozy/collapsed scenes
         -> Each scene.setup(data):
-          -> cozy_message: avatar.set_avatar_url() (HTTP fetch or LRU cache hit)
-          -> message_content: ClientModels.markdown_to_bbcode() (9+ regex passes)
-          -> reaction_bar: instantiate ReactionPillScene per reaction
-          -> image attachments: HTTPRequest per image (async)
-        -> Restore editing state
+          -> cozy_message: avatar (LRU cache hit or HTTP), reply ref (lazy-fetch if evicted)
+          -> message_content: ClientModels.markdown_to_bbcode() (cached static regex)
+          -> reaction_bar: instantiate ReactionPillScene (shared static StyleBoxFlat)
+          -> image attachments: LRU cache hit or HTTP fetch (cached in static _att_image_cache)
+        -> Populate _message_node_index
+        -> Connect context_menu_requested signal to shared PopupMenu
         -> Animated scroll to bottom
 
-Reaction update (optimized path):
+Incremental update (new message / edit / delete):
+  Gateway: message.create/update/delete
+    -> Cache updated, messages_updated emitted
+    -> message_view._on_messages_updated()
+      -> _diff_messages() [INCREMENTAL]
+        -> REMOVE: queue_free nodes not in cache, remove from index
+        -> UPDATE: call node.update_data(data) for changed content (skips if editing)
+        -> APPEND: instantiate only new nodes at the end
+        -> FIXUP: promote collapsed->cozy or vice versa if predecessor changed
+        -> Fade-in animation on appended nodes only
+
+Reaction update (O(1) path):
   Gateway: reaction_add/remove/clear
     -> client_gateway_reactions updates _message_cache in-place
     -> AppState.reactions_updated.emit(channel_id, message_id)
     -> message_view._on_reactions_updated()
-      -> Linear scan of message_list children to find matching message_id
+      -> O(1) lookup via _message_node_index[message_id]
       -> reaction_bar.setup() rebuilds only that message's pills
-      -> NO full re-render
+      -> NO re-render
 ```
 
 ## Key Files
@@ -79,33 +91,34 @@ Reaction update (optimized path):
 - **Message ID index**: `_message_id_index` maps message ID to channel ID for O(1) lookup (client.gd line 58). `get_message_by_id()` uses the index first, falls back to linear scan across all channels if the index is stale (lines 266-277).
 - **Index maintenance**: Old index entries are cleared before replacing a channel's cache (client_fetch.gd line 175-177). New entries are added for each message (line 180-181). Gateway events maintain the index on create (client_gateway.gd line 182) and delete (line 255).
 
-### Full Re-render Strategy (message_view.gd)
+### Incremental Rendering Strategy (message_view.gd)
 
-- **Trigger**: Every `messages_updated` signal causes `_load_messages()` to run (line 304-306). This includes new messages, edits, deletes, and older message loads — all trigger a complete teardown and rebuild of the message list.
-- **Teardown cost**: Iterates all children of `message_list`, calling `queue_free()` on each non-persistent node (lines 189-192). Persistent nodes (older_btn, empty_state, loading_label) are skipped.
-- **Rebuild cost**: For each of the up to 50+ messages, instantiates either a `CozyMessageScene` or `CollapsedMessageScene`, calls `setup()`, and connects hover signals (lines 205-227). Each `setup()` involves:
-  - **cozy_message**: avatar URL set (HTTP or cache), author label styling, reply reference lookup via `Client.get_message_by_id()` (linear scan), mention check scanning member list, context menu creation, `message_content.setup()`.
-  - **collapsed_message**: timestamp parsing, `message_content.setup()`, mention check.
-  - **message_content**: `ClientModels.markdown_to_bbcode()` (9+ regex passes), embed setup, attachment HTTP requests, reaction bar instantiation.
-- **Editing state preservation**: Before clearing, saves the editing message ID and text content by iterating children (lines 173-183). After rebuild, restores by scanning new children (lines 230-238). Two full scans of the child list per re-render when editing.
-- **Animation decisions**: Tracks `_old_message_count` to detect single-message appends vs channel transitions. Single new messages get a fade-in on the last child (lines 243-250). Channel transitions get a full container fade (lines 251-258).
-- **Frame yield**: `await get_tree().process_frame` before animated scroll (line 263) ensures layout is computed before scrolling.
+- **First load**: When `_message_node_index` is empty (channel switch), falls back to `_load_messages()` which does a full render and populates the index.
+- **Diff-based updates**: On subsequent `messages_updated` signals, `_diff_messages()` compares the cache against `_message_node_index`:
+  - **REMOVE**: Nodes for deleted messages are `queue_free()`'d and removed from the index.
+  - **UPDATE**: Existing nodes have `update_data(data)` called, which re-renders text content via `update_content()` without rebuilding avatar/author/timestamp. Skipped if the node is in edit mode.
+  - **APPEND**: New messages at the end are instantiated and added. Only the new nodes run `setup()`.
+  - **FIXUP**: After deletions, layout mismatches (collapsed message that should now be cozy due to predecessor change) are detected and nodes are replaced.
+  - **FALLBACK**: If order inconsistency is detected (middle insertion), falls back to `_load_messages()` for correctness.
+- **Node index**: `_message_node_index` maps message ID to scene node for O(1) lookup. Populated during `_load_messages()` and maintained by `_diff_messages()`.
+- **Editing state**: No longer needs save/restore since nodes survive incremental updates. `update_content()` skips if `is_editing()` returns true.
+- **Animation**: Only appended nodes get fade-in animation. No channel transition animation on incremental updates.
 
 ### Targeted Reaction Update (message_view.gd, client_gateway_reactions.gd)
 
-- **Optimized path**: `reactions_updated` signal (line 308) triggers `_on_reactions_updated()` which only rebuilds the affected message's reaction bar — no full re-render.
-- **Finding the message**: Linear scan of `message_list` children comparing `_message_data["id"]` (lines 312-321). For 50 messages, this is negligible.
-- **Own reaction skip**: `client_gateway_reactions.gd` skips emitting `reactions_updated` for the user's own reactions (lines 47-49, 73-75) because the pill already shows the optimistic state.
-- **Reaction bar rebuild**: `reaction_bar.setup()` calls `queue_free()` on all pill children and recreates them (reaction_bar.gd lines 6-7). Creates new `ReactionPillScene` instances for each reaction.
+- **O(1) path**: `reactions_updated` signal triggers `_on_reactions_updated()` which uses `_message_node_index` for O(1) node lookup — no linear scan needed.
+- **Fallback**: If the index misses, falls back to linear scan of `message_list` children.
+- **Own reaction skip**: `client_gateway_reactions.gd` skips emitting `reactions_updated` for the user's own reactions because the pill already shows the optimistic state.
+- **Reaction bar rebuild**: `reaction_bar.setup()` recreates pill children. Each pill uses shared static `StyleBoxFlat` instances (active/inactive) instead of allocating new ones.
 
-### Markdown-to-BBCode Conversion Cost (client_markdown.gd)
+### Markdown-to-BBCode Conversion (client_markdown.gd)
 
-- **Per-call cost**: Every `markdown_to_bbcode()` invocation compiles 9+ regex objects from scratch (lines 9-66). These are local variables, not cached between calls.
+- **Cached regex**: All 11 regex objects are compiled once on first call via `_ensure_compiled()` and stored as static class variables. Subsequent calls reuse the same compiled instances.
 - **Regex passes**: Code blocks, inline code, strikethrough, underline, bold, italic, spoilers, blockquotes, links (manual replacement loop), emoji shortcodes (manual replacement loop).
-- **Link processing**: Iterates matches in reverse and performs string concatenation for each (lines 43-55). O(n*m) where n = result string length, m = link count.
-- **Emoji processing**: Iterates emoji matches in reverse, does `EmojiData.get_by_name()` lookup and custom emoji path lookup per match (lines 67-79).
-- **BBCode sanitization**: Character-by-character scan of the non-code portions, checking each `[` against an allowed prefix list (lines 85-140). O(n*p) where p = number of allowed prefixes (18).
-- **Total per message load**: For 50 messages, `markdown_to_bbcode()` runs 50 times, compiling 450+ regex objects. These are not cached.
+- **Link processing**: Iterates matches in reverse and performs string concatenation for each. O(n*m) where n = result string length, m = link count.
+- **Emoji processing**: Iterates emoji matches in reverse, does `EmojiData.get_by_name()` lookup and custom emoji path lookup per match.
+- **BBCode sanitization**: Uses the cached `_code_splitter_regex` to split on code blocks, then character-by-character scan of non-code portions.
+- **Total per message load**: For 50 messages, `markdown_to_bbcode()` runs 50 times but with zero regex compilation overhead (all 11 cached).
 
 ### Avatar Image Caching (avatar.gd)
 
@@ -119,19 +132,18 @@ Reaction update (optimized path):
 
 - **User cache**: `_user_cache` maps user ID to user dictionary (line 43). Cap is 500 (line 13). Trimming runs after `fetch_messages()` (client_fetch.gd line 183).
 - **Trim strategy** (client_emoji.gd lines 59-80): Builds a `keep` set of the current user, current guild members, and current channel message authors. Erases all others. This is O(members + messages + cache_size).
-- **Sequential author fetches**: `fetch_messages()` fetches unknown authors one at a time with `await` (client_fetch.gd lines 157-168). If 10 messages have unknown authors, that's 10 sequential HTTP requests before the messages display. This is the most impactful performance bottleneck for initial channel loads.
+- **Parallel author fetches**: `_fetch_unknown_authors_parallel()` collects unique uncached author IDs, fires all fetch coroutines simultaneously, then awaits them all. 10 unknown authors load in ~1 round-trip instead of 10 sequential round-trips.
 
 ### Reply Reference Lookup (cozy_message.gd)
 
-- **Per-message cost**: If a message has `reply_to`, `Client.get_message_by_id()` is called (line 66). This uses the `_message_id_index` for O(1) lookup, falling back to linear scan across all channels if the index misses (client.gd lines 266-277).
-- **Index miss fallback**: Iterates all channels' message arrays. With 10 channels × 50 messages each = 500 iterations worst case.
-- **Missing reply**: If the referenced message isn't in cache (e.g., it was evicted or from before the user joined), the reply reference is simply not shown — no additional fetch is made.
+- **Per-message cost**: If a message has `reply_to`, `Client.get_message_by_id()` is called. This uses the `_message_id_index` for O(1) lookup, falling back to linear scan across all channels if the index misses.
+- **Lazy fetch for evicted messages**: If the replied-to message is not in cache, a "Loading reply..." placeholder is shown and `_fetch_reply_reference()` asynchronously fetches the message from the server. On success, the reply reference is updated in-place. On failure, "[original message unavailable]" is shown. Guarded with `is_instance_valid(self)` after awaits.
 
 ### Older Messages Loading (message_view.gd)
 
-- **Scroll position preservation**: Saves `scroll_vertical` and `max_value` before loading (lines 576-577). After re-render and a frame yield, computes the diff and restores position (lines 583-585). This prevents the view from jumping.
-- **Full re-render**: Loading older messages still triggers a full re-render via `messages_updated` (client_fetch.gd line 259). The `_is_loading_older` flag prevents auto-scroll and triggers the correct animation path (line 261).
-- **Cache growth**: Older messages prepend to the existing array (client_fetch.gd line 254-255). There's no cap on accumulated messages — repeated "Show older" presses grow the cache unboundedly. Only `MESSAGE_CAP` limits the tail via `pop_front()` on new messages.
+- **Scroll position preservation**: Saves `scroll_vertical` and `max_value` before loading. After re-render and a frame yield, computes the diff and restores position. This prevents the view from jumping.
+- **Full re-render**: Loading older messages still triggers a full re-render via `messages_updated`. The `_is_loading_older` flag prevents auto-scroll and triggers the correct animation path.
+- **Cache cap**: `MAX_CHANNEL_MESSAGES = 200`. After prepending older messages, the combined array is capped by evicting from the back (newest). When the user returns to the channel fresh, `fetch_messages()` re-fetches the latest 50.
 
 ### Action Bar Positioning (message_view.gd)
 
@@ -140,13 +152,35 @@ Reaction update (optimized path):
 
 ### Reaction Pill Style Allocation (reaction_pill.gd)
 
-- **New StyleBoxFlat per call**: `_update_active_style()` creates a brand new `StyleBoxFlat` with 12 property sets on every invocation (lines 77-99). Called during `setup()` and on every toggle. For a message with 5 reactions, that's 5 StyleBoxFlat allocations on render.
+- **Shared static StyleBoxFlat**: Two pre-allocated static `StyleBoxFlat` instances (`_style_active` and `_style_inactive`) are lazily initialized via `_ensure_styles()`. All pills share the same instances, eliminating per-pill allocation. Called during `setup()` and on every toggle.
 
 ### Image Attachment Loading (message_content.gd)
 
-- **Per-attachment HTTP fetch**: Each image attachment creates an `HTTPRequest`, fetches the image, tries PNG/JPG/WebP parsing, and creates an `ImageTexture` (lines 109-149). No caching — re-rendered messages re-fetch images.
-- **Image scaling**: Images larger than 400×300 are resized in-memory using `Image.resize()` (lines 135-142). This is a CPU-bound operation.
-- **HTTPRequest lifecycle**: The HTTPRequest node is added as a child, then freed after completion (lines 110-117). Multiple image attachments create multiple concurrent HTTP requests.
+- **Static LRU cache**: `_att_image_cache` maps URL to `ImageTexture`, shared across all message_content instances. Cap is 100 entries. `_att_cache_order` tracks access order for LRU eviction.
+- **Cache hit path**: If URL is in cache, immediately creates a TextureRect with the cached texture — no HTTP request.
+- **Cache miss path**: Creates an `HTTPRequest`, fetches the image, tries PNG/JPG/WebP parsing, stores in cache, applies texture.
+- **Image scaling**: Images larger than 400×300 are resized in-memory using `Image.resize()`. The scaled texture is cached, so re-renders use the pre-scaled version.
+
+### List Virtualization (not yet implemented)
+
+- **Problem**: `_load_messages()` instantiates a scene node for every message in the cache — up to 50 on initial load, and unbounded when the user clicks "Show older messages" repeatedly. Each node runs `setup()` which involves markdown regex conversion, avatar loading, embed instantiation, and PopupMenu/LongPressDetector allocation. Only ~10-15 messages are visible in the viewport at any time, so the vast majority of this work is wasted on off-screen nodes.
+- **Goal**: Only instantiate and keep alive the message nodes that are currently visible (plus a small buffer above and below the viewport). As the user scrolls, recycle or create/destroy nodes at the edges.
+- **Approach — ScrollContainer + virtual item management**:
+  1. Maintain a `total_content_height` estimate based on message count × average item height. Use a spacer Control at the top of `message_list` sized to represent the off-screen area above the visible window.
+  2. On scroll (`scroll_vertical` changed), calculate which message indices fall within the visible range (viewport top to viewport bottom, plus a buffer of ~5 messages in each direction).
+  3. Only instantiate scene nodes for messages in that range. Store a mapping of message index → node. When a message index scrolls out of the buffer, `queue_free()` its node. When a new index scrolls in, instantiate and `setup()` a new node.
+  4. Cozy vs collapsed layout decision still applies per-message based on the previous message's author/reply status — this can be computed from the cache array without needing the previous node to exist.
+- **Height estimation**: Messages have variable height (replies, embeds, images, multi-line content). Options:
+  - **Fixed estimate with correction**: Start with an average height (e.g., 60px cozy, 30px collapsed). After a node is instantiated and laid out, record its actual height. Use actual heights for measured messages, estimates for unmeasured ones. Update the top spacer accordingly.
+  - **Pre-measure pass**: Not practical — measuring requires instantiation, which defeats the purpose.
+- **Scroll position stability**: When recycling nodes or updating height estimates, adjust `scroll_vertical` to compensate so the user's view doesn't jump. This is the same problem already solved for "Show older messages" (lines 576-585) but needs to be generalized.
+- **Impact on existing features**:
+  - **Action bar hover**: Currently finds the hovered message by iterating `message_list` children. With virtualization, only visible children exist, so this still works — but the index in the child list no longer matches the index in the cache array.
+  - **Editing state preservation**: Currently scans all children to save/restore. With virtualization, editing state should be tracked by message ID in `message_view`, not by scanning nodes.
+  - **Reaction updates**: `_on_reactions_updated()` scans children for a matching message ID. With virtualization, if the target message is off-screen, no node exists — the cache is already updated, so the node will render correctly when it scrolls into view.
+  - **Animations**: Single-message fade-in only applies to the newest message. With virtualization, this only fires if the user is scrolled to the bottom (which is the common case).
+  - **Auto-scroll**: The "scroll to bottom on new message" behavior works the same — set `scroll_vertical` to max, which triggers the virtualization window to update.
+- **Expected gains**: For a channel with 50 cached messages where ~12 are visible, virtualization reduces instantiated nodes from 50 to ~22 (12 visible + 5 buffer each direction). That's 28 fewer `setup()` calls, 28 fewer markdown regex conversions, 28 fewer PopupMenu allocations, and 28 fewer avatar lookups per render. For channels where the user has loaded hundreds of older messages, the savings are proportionally larger.
 
 ### Typing Indicator Animation (typing_indicator.gd)
 
@@ -155,15 +189,16 @@ Reaction update (optimized path):
 
 ### Gateway Message Event Processing (client_gateway.gd)
 
-- **Message create** (lines 160-231): Potentially awaits a user fetch if author is unknown. Converts to dict, appends to cache, enforces cap via `pop_front()`, checks unread/mention status, plays notification sound, updates DM preview. Then emits `messages_updated` triggering full re-render.
-- **Message update** (lines 233-244): Linear scan to find the message in cache, replaces the dict in-place. Emits `messages_updated` triggering full re-render.
-- **Message delete** (lines 246-257): Linear scan, `remove_at()`, index cleanup. Emits `messages_updated` triggering full re-render.
-- **Bulk delete** (lines 259-275): Builds a set of IDs, reverse-iterates the cache array. Single `messages_updated` emit for all deletions.
+- **Message create**: Potentially awaits a user fetch if author is unknown. Converts to dict, appends to cache, enforces cap via `pop_front()`, checks unread/mention status, plays notification sound, updates DM preview. Then emits `messages_updated` — diff-based update appends one node.
+- **Message update**: Linear scan to find the message in cache, replaces the dict in-place. Emits `messages_updated` — diff-based update calls `update_data()` on the existing node.
+- **Message delete**: Linear scan, `remove_at()`, index cleanup. Emits `messages_updated` — diff-based update removes only the affected node and fixes layout.
+- **Bulk delete**: Builds a set of IDs, reverse-iterates the cache array. Single `messages_updated` emit for all deletions.
 
-### Context Menu / PopupMenu Creation (cozy_message.gd, collapsed_message.gd)
+### Shared Context Menu (message_view.gd)
 
-- **Per-message cost**: Each message node creates its own `PopupMenu` in `_ready()` with 5 items and a signal connection (cozy_message.gd lines 34-41, collapsed_message.gd lines 27-34). For 50 messages, that's 50 PopupMenus allocated.
-- **LongPressDetector**: Each message also creates a `LongPressDetector` instance (cozy_message.gd line 44, collapsed_message.gd line 37).
+- **Single PopupMenu**: A single `PopupMenu` is created in `message_view._ready()` and shared across all messages. Messages emit `context_menu_requested(pos, msg_data)` instead of managing their own PopupMenu.
+- **LongPressDetector**: Each message still creates its own `LongPressDetector` instance for touch support, but it emits the same `context_menu_requested` signal instead of showing a per-message menu.
+- **Reaction picker**: Moved to `message_view`, shared via `_open_reaction_picker(msg_data)`.
 
 ## Implementation Status
 
@@ -178,23 +213,20 @@ Reaction update (optimized path):
 - [x] Single-message fade-in animation (avoids channel transition animation)
 - [x] Emoji download deduplication
 - [x] Custom emoji disk caching
-- [ ] Incremental message rendering (diff-based updates instead of full re-render)
-- [ ] Regex caching for markdown-to-BBCode conversion
-- [ ] Image attachment caching
-- [ ] Batch/parallel user fetching for unknown authors
+- [x] Incremental message rendering (diff-based updates instead of full re-render)
+- [x] Regex caching for markdown-to-BBCode conversion
+- [x] Image attachment caching (LRU, cap 100)
+- [x] Batch/parallel user fetching for unknown authors
+- [x] StyleBoxFlat reuse for reaction pills (two shared static instances)
+- [x] Shared PopupMenu at message_view level (one for all messages)
+- [x] Older message cache cap (MAX_CHANNEL_MESSAGES = 200)
+- [x] Lazy-fetch reply references (placeholder + async fetch for evicted messages)
+- [ ] List virtualization (only render visible messages + buffer, recycle off-screen nodes)
 - [ ] Object pooling for message scenes
-- [ ] StyleBoxFlat reuse for reaction pills
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Full re-render on every update | High | `_load_messages()` clears and recreates all message nodes for every `messages_updated` signal (message_view.gd line 304). A single new message, edit, or delete destroys and rebuilds 50+ scene instances. Implement incremental insert/update/remove to avoid full teardown. |
-| Regex objects compiled per call | Medium | `markdown_to_bbcode()` creates 9+ `RegEx` objects as local variables on every invocation (client_markdown.gd lines 9-66). For 50 messages, that's 450+ regex compilations per channel load. Cache compiled regexes as static class variables. |
-| Sequential author fetches on channel load | High | `fetch_messages()` awaits each unknown author fetch one at a time (client_fetch.gd lines 157-168). 10 unknown authors = 10 sequential HTTP round-trips before messages display. Batch these into parallel requests or use a bulk user endpoint. |
-| No image attachment caching | Medium | Image attachments are re-fetched via HTTP on every full re-render (message_content.gd lines 109-149). Unlike avatars, there is no cache. Add an image cache similar to the avatar LRU cache. |
-| StyleBoxFlat allocated per pill per render | Low | `_update_active_style()` creates a new StyleBoxFlat with 12 property assignments every time (reaction_pill.gd lines 77-99). Use two pre-allocated static StyleBoxFlat instances (active/inactive) instead. |
-| PopupMenu created per message node | Low | Each cozy and collapsed message allocates its own PopupMenu and LongPressDetector in `_ready()` (cozy_message.gd lines 34-44, collapsed_message.gd lines 27-37). 50 messages = 50 PopupMenus. Share a single PopupMenu at the message_view level, similar to the shared action bar. |
-| Unbounded cache growth from older messages | Low | Repeated "Show older messages" prepends to the cache array without any cap (client_fetch.gd line 254). Only the tail is capped via `pop_front()` on new messages. A channel with long history could accumulate hundreds of cached messages. |
+| No list virtualization | High | All cached messages are instantiated as scene nodes regardless of viewport visibility (message_view.gd `_load_messages()`). With 50 messages cached and ~12 visible, 38 nodes are fully set up off-screen. Virtualize the list to only instantiate nodes within the visible range plus a small scroll buffer. |
 | Avatar LRU eviction uses O(n) remove_at(0) | Low | `_evict_cache()` calls `_cache_access_order.remove_at(0)` which is O(n) for an Array (avatar.gd line 125). With a cap of 200 this is negligible, but would matter at larger scales. |
-| Reply reference fetch for evicted messages | Low | If the replied-to message is not in cache, the reply reference is silently omitted (cozy_message.gd lines 64-76). No lazy fetch is attempted. For conversations with frequent replies to older messages, reply context is lost. |

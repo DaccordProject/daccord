@@ -43,7 +43,7 @@ func test_list_channels() -> void:
 
 	var names := []
 	for ch in result.data:
-		names.append(ch.get("name", ""))
+		names.append(ch.name if ch.name != null else "")
 	assert_true(names.has("general"), "Should have #general")
 	assert_true(names.has("testing"), "Should have #testing")
 

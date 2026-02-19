@@ -5,11 +5,16 @@ const MEMBER_HEADER_SCENE := preload("res://scenes/members/member_header.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const ROW_HEIGHT := 44
 
+const DEBOUNCE_MS := 100
+
 var _guild_id: String = ""
 var _row_data: Array = []
 var _item_pool: Array = []
 var _header_pool: Array = []
 var _pool_size: int = 0
+var _active_items: Array = []
+var _active_headers: Array = []
+var _debounce_timer: Timer
 
 @onready var header_label: Label = $VBox/HeaderLabel
 @onready var invite_btn: Button = $VBox/InviteButton
@@ -28,6 +33,12 @@ func _ready() -> void:
 
 	invite_btn.pressed.connect(_on_invite_pressed)
 
+	_debounce_timer = Timer.new()
+	_debounce_timer.one_shot = true
+	_debounce_timer.wait_time = DEBOUNCE_MS / 1000.0
+	_debounce_timer.timeout.connect(_rebuild_row_data)
+	add_child(_debounce_timer)
+
 	AppState.guild_selected.connect(_on_guild_selected)
 	AppState.members_updated.connect(_on_members_updated)
 	scroll_container.get_v_scroll_bar().value_changed.connect(_on_scroll_changed)
@@ -44,7 +55,7 @@ func _on_guild_selected(guild_id: String) -> void:
 
 func _on_members_updated(guild_id: String) -> void:
 	if guild_id == _guild_id:
-		_rebuild_row_data()
+		_debounce_timer.start()
 
 func _rebuild_row_data() -> void:
 	_row_data.clear()
@@ -110,10 +121,12 @@ func _ensure_pool_size() -> void:
 	_pool_size = needed
 
 func _hide_all_pool_nodes() -> void:
-	for node in _item_pool:
+	for node in _active_items:
 		node.visible = false
-	for node in _header_pool:
+	for node in _active_headers:
 		node.visible = false
+	_active_items.clear()
+	_active_headers.clear()
 
 func _on_scroll_changed(value: float) -> void:
 	_update_visible_items(value)
@@ -146,6 +159,7 @@ func _update_visible_items(scroll_value: float) -> void:
 				header.position = Vector2(0, y_pos)
 				header.size = Vector2(virtual_content.size.x, ROW_HEIGHT)
 				header.visible = true
+				_active_headers.append(header)
 				header_idx += 1
 		else:
 			if item_idx < _item_pool.size():
@@ -154,6 +168,7 @@ func _update_visible_items(scroll_value: float) -> void:
 				item.position = Vector2(0, y_pos)
 				item.size = Vector2(virtual_content.size.x, ROW_HEIGHT)
 				item.visible = true
+				_active_items.append(item)
 				item_idx += 1
 
 func _on_invite_pressed() -> void:

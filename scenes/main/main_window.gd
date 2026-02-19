@@ -372,7 +372,7 @@ func _show_consent_dialog() -> void:
 		"Help improve daccord by sending anonymous crash and "
 		+ "error reports?\n\n"
 		+ "No personal data is included. You can change this "
-		+ "in the user menu at any time."
+		+ "in Settings > Notifications at any time."
 	)
 	dialog.ok_button_text = "Enable"
 	dialog.cancel_button_text = "No thanks"

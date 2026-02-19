@@ -37,7 +37,7 @@ func test_list_spaces() -> void:
 	assert_true(result.data is Array)
 	var found := false
 	for s in result.data:
-		if str(s.get("id", "")) == space_id:
+		if s.id == space_id:
 			found = true
 			break
 	assert_true(found, "Seeded space should appear in user's spaces")

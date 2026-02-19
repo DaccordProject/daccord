@@ -70,4 +70,3 @@ config/attach_screenshot=false
 logger/enabled=true
 logger/event_mask=5
 logger/breadcrumb_mask=7
-logger/include_source=true

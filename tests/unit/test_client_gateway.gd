@@ -199,6 +199,7 @@ func test_on_presence_update_updates_user_cache() -> void:
 func test_on_presence_update_updates_member_cache() -> void:
 	client_node._user_cache["u_1"] = {"id": "u_1", "status": ClientModels.UserStatus.OFFLINE}
 	client_node._member_cache["g_1"] = [{"id": "u_1", "status": ClientModels.UserStatus.OFFLINE}]
+	client_node._rebuild_member_index("g_1")
 	var presence := AccordPresence.from_dict({
 		"user_id": "u_1", "status": "idle",
 	})

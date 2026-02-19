@@ -1,13 +1,11 @@
 extends HBoxContainer
 
-const ReactionPickerScene := preload("res://scenes/messages/reaction_picker.tscn")
+signal context_menu_requested(pos: Vector2i, msg_data: Dictionary)
 
+var is_collapsed: bool = false
 var _message_data: Dictionary = {}
-var _context_menu: PopupMenu
 var _long_press: LongPressDetector
-var _reaction_picker: Control = null
 var _is_hovered: bool = false
-var _delete_dialog: ConfirmationDialog
 
 @onready var avatar: ColorRect = $AvatarColumn/Avatar
 @onready var author_label: Label = $ContentColumn/Header/Author
@@ -30,18 +28,9 @@ func _ready() -> void:
 	reply_author.add_theme_font_size_override("font_size", 12)
 	reply_preview.add_theme_font_size_override("font_size", 12)
 	reply_preview.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
-	# Context menu
-	_context_menu = PopupMenu.new()
-	_context_menu.add_item("Reply", 0)
-	_context_menu.add_item("Edit", 1)
-	_context_menu.add_item("Delete", 2)
-	_context_menu.add_item("Add Reaction", 3)
-	_context_menu.add_item("Remove All Reactions", 4)
-	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
-	add_child(_context_menu)
 	gui_input.connect(_on_gui_input)
 	# Long-press for touch
-	_long_press = LongPressDetector.new(self, _show_context_menu)
+	_long_press = LongPressDetector.new(self, _emit_context_menu)
 
 func setup(data: Dictionary) -> void:
 	_message_data = data
@@ -65,13 +54,13 @@ func setup(data: Dictionary) -> void:
 		reply_ref.visible = true
 		var original := Client.get_message_by_id(reply_to)
 		if not original.is_empty():
-			var original_author: Dictionary = original.get("author", {})
-			reply_author.text = original_author.get("display_name", "")
-			reply_author.add_theme_color_override("font_color", original_author.get("color", Color.WHITE))
-			var preview: String = original.get("content", "")
-			if preview.length() > 50:
-				preview = preview.substr(0, 50) + "..."
-			reply_preview.text = preview
+			_apply_reply_reference(original)
+		else:
+			reply_author.text = ""
+			reply_preview.text = "Loading reply..."
+			reply_preview.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+			var channel_id: String = data.get("channel_id", "")
+			_fetch_reply_reference(reply_to, channel_id)
 	else:
 		reply_ref.visible = false
 
@@ -82,6 +71,44 @@ func setup(data: Dictionary) -> void:
 	var my_roles: Array = _get_current_user_roles()
 	if ClientModels.is_user_mentioned(data, my_id, my_roles):
 		modulate = Color(1.0, 0.95, 0.85)
+
+func _apply_reply_reference(original: Dictionary) -> void:
+	var original_author: Dictionary = original.get("author", {})
+	reply_author.text = original_author.get("display_name", "")
+	reply_author.add_theme_color_override("font_color", original_author.get("color", Color.WHITE))
+	var preview: String = original.get("content", "")
+	if preview.length() > 50:
+		preview = preview.substr(0, 50) + "..."
+	reply_preview.text = preview
+
+func _fetch_reply_reference(reply_to: String, channel_id: String) -> void:
+	var client: AccordClient = Client._client_for_channel(channel_id)
+	if client == null:
+		reply_preview.text = "[original message unavailable]"
+		return
+	var cdn_url: String = Client._cdn_for_channel(channel_id)
+	var result: RestResult = await client.messages.fetch(channel_id, reply_to)
+	if not is_instance_valid(self):
+		return
+	if result.ok:
+		var accord_msg: AccordMessage = result.data
+		# Cache the author if needed
+		if not Client._user_cache.has(accord_msg.author_id):
+			var user_result: RestResult = await client.users.fetch(accord_msg.author_id)
+			if not is_instance_valid(self):
+				return
+			if user_result.ok:
+				Client._user_cache[accord_msg.author_id] = ClientModels.user_to_dict(
+					user_result.data, ClientModels.UserStatus.OFFLINE, cdn_url
+				)
+		var msg_dict := ClientModels.message_to_dict(accord_msg, Client._user_cache, cdn_url)
+		_apply_reply_reference(msg_dict)
+	else:
+		reply_preview.text = "[original message unavailable]"
+
+func update_data(data: Dictionary) -> void:
+	_message_data = data
+	message_content.update_content(data)
 
 func _get_current_user_roles() -> Array:
 	var guild_id: String = Client._channel_to_guild.get(
@@ -99,10 +126,9 @@ func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			var pos := get_global_mouse_position()
-			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+			_emit_context_menu(Vector2i(int(pos.x), int(pos.y)))
 		elif event.button_index == MOUSE_BUTTON_LEFT:
 			# Check if click is on avatar or author label
-			var click_pos: Vector2 = event.position
 			var avatar_rect := avatar.get_global_rect()
 			var author_rect := author_label.get_global_rect()
 			var global_click := get_global_mouse_position()
@@ -112,59 +138,8 @@ func _on_gui_input(event: InputEvent) -> void:
 				if not uid.is_empty():
 					AppState.profile_card_requested.emit(uid, global_click)
 
-func _show_context_menu(pos: Vector2i) -> void:
-	var author: Dictionary = _message_data.get("author", {})
-	var is_own: bool = author.get("id", "") == Client.current_user.get("id", "")
-	_context_menu.set_item_disabled(1, not is_own)
-	_context_menu.set_item_disabled(2, not is_own)
-	# "Remove All Reactions" requires MANAGE_MESSAGES permission
-	var guild_id: String = Client._channel_to_guild.get(
-		_message_data.get("channel_id", ""), ""
-	)
-	var has_reactions: bool = _message_data.get("reactions", []).size() > 0
-	var can_manage: bool = Client.has_permission(guild_id, "MANAGE_MESSAGES")
-	_context_menu.set_item_disabled(4, not (can_manage and has_reactions))
-	_context_menu.position = pos
-	_context_menu.popup()
-
-func _on_context_menu_id_pressed(id: int) -> void:
-	match id:
-		0: # Reply
-			AppState.initiate_reply(_message_data.get("id", ""))
-		1: # Edit
-			AppState.start_editing(_message_data.get("id", ""))
-			message_content.enter_edit_mode(_message_data.get("id", ""), _message_data.get("content", ""))
-		2: # Delete
-			_confirm_delete()
-		3: # Add Reaction
-			_open_reaction_picker()
-		4: # Remove All Reactions
-			var cid: String = _message_data.get("channel_id", "")
-			var mid: String = _message_data.get("id", "")
-			Client.remove_all_reactions(cid, mid)
-
-func _confirm_delete() -> void:
-	if not _delete_dialog:
-		_delete_dialog = ConfirmationDialog.new()
-		_delete_dialog.dialog_text = "Are you sure you want to delete this message?"
-		_delete_dialog.confirmed.connect(func():
-			AppState.delete_message(_message_data.get("id", ""))
-		)
-		add_child(_delete_dialog)
-	_delete_dialog.popup_centered()
-
-func _open_reaction_picker() -> void:
-	if _reaction_picker and is_instance_valid(_reaction_picker):
-		_reaction_picker.queue_free()
-	_reaction_picker = ReactionPickerScene.instantiate()
-	get_tree().root.add_child(_reaction_picker)
-	var channel_id: String = _message_data.get("channel_id", "")
-	var msg_id: String = _message_data.get("id", "")
-	var pos := get_global_mouse_position()
-	_reaction_picker.open(channel_id, msg_id, pos)
-	_reaction_picker.closed.connect(func():
-		_reaction_picker = null
-	)
+func _emit_context_menu(pos: Vector2i) -> void:
+	context_menu_requested.emit(pos, _message_data)
 
 func set_hovered(hovered: bool) -> void:
 	_is_hovered = hovered
@@ -173,7 +148,3 @@ func set_hovered(hovered: bool) -> void:
 func _draw() -> void:
 	if _is_hovered:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.24, 0.25, 0.27, 0.3))
-
-func _exit_tree() -> void:
-	if _reaction_picker and is_instance_valid(_reaction_picker):
-		_reaction_picker.queue_free()

@@ -42,6 +42,9 @@ func _scrub_pii(event: SentryEvent) -> void:
 	var msg: String = event.message
 	if msg.is_empty():
 		return
+	event.message = scrub_pii_text(msg)
+
+func scrub_pii_text(msg: String) -> String:
 	var token_re := RegEx.new()
 	token_re.compile("Bearer\\s+[A-Za-z0-9._\\-]+")
 	msg = token_re.sub(msg, "Bearer [REDACTED]", true)
@@ -51,7 +54,7 @@ func _scrub_pii(event: SentryEvent) -> void:
 	var url_re := RegEx.new()
 	url_re.compile("https?://[^\\s\"']+:\\d{2,5}[^\\s\"']*")
 	msg = url_re.sub(msg, "[URL REDACTED]", true)
-	event.message = msg
+	return msg
 
 func _connect_breadcrumbs() -> void:
 	AppState.guild_selected.connect(_on_guild_selected)
@@ -104,10 +107,7 @@ func _add_breadcrumb(
 ) -> void:
 	if not _initialized:
 		return
-	var crumb: SentryBreadcrumb = SentryBreadcrumb.new()
-	if crumb == null:
-		return
-	crumb.message = message
+	var crumb := SentryBreadcrumb.create(message)
 	crumb.category = category
 	crumb.type = "default"
 	SentrySDK.add_breadcrumb(crumb)

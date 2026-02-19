@@ -44,3 +44,6 @@ Ordered by natural user journey:
 | 36 | [Content Embedding](content_embedding.md) | Image/video URL previews, embed cards, inline image rendering, YouTube/oEmbed, link unfurling, attachment display |
 | 37 | [Localization](localization.md) | i18n status, PO/POT translation approach, hardcoded string inventory, RTL text server gap, locale persistence |
 | 38 | [Accessibility](accessibility.md) | Tooltips, keyboard shortcuts, focus management, touch targets, animation behavior, missing screen reader/high-contrast/reduced-motion support |
+| 39 | [Continuous Integration](continuous_integration.md) | CI pipeline architecture, `gh` CLI monitoring/debugging guide, job step breakdowns, failure pattern diagnosis, current status and resolution checklist |
+| 40 | [Nightly Branch](nightly_branch.md) | Nightly build branch, automated pre-release CI, rolling `nightly` tag, update channel detection, stable/nightly update routing, Sentry channel tagging |
+| 41 | [Profiles](profiles.md) | Multi-profile support, profile switching with optional passwords, per-profile config and emoji cache, migration from single-config, export/import as profiles |

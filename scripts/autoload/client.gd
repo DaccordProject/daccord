@@ -9,6 +9,7 @@ const CHANNEL_ICON_SIZE := 32
 const CHANNEL_PANEL_WIDTH := 240
 const GUILD_BAR_WIDTH := 68
 const MESSAGE_CAP := 50
+const MAX_CHANNEL_MESSAGES := 200
 const TOUCH_TARGET_MIN := 44
 const USER_CACHE_CAP := 500
 
@@ -36,6 +37,38 @@ var channels: Array:
 var dm_channels: Array:
 	get: return _dm_channel_cache.values()
 
+var pending_servers: Array:
+	get:
+		var result: Array = []
+		var servers := Config.get_servers()
+		for i in servers.size():
+			if i < _connections.size() and _connections[i] != null:
+				var conn: Dictionary = _connections[i]
+				if conn["status"] == "connected":
+					continue
+				if conn["status"] == "error" \
+						or conn["status"] == "connecting":
+					result.append({
+						"id": "__pending_%d" % i,
+						"name": servers[i].get(
+							"guild_name", "Unknown"
+						),
+						"icon": "",
+						"disconnected": true,
+						"server_index": i,
+					})
+			else:
+				result.append({
+					"id": "__pending_%d" % i,
+					"name": servers[i].get(
+						"guild_name", "Unknown"
+					),
+					"icon": "",
+					"disconnected": true,
+					"server_index": i,
+				})
+		return result
+
 # Per-server connection state
 var _connections: Array = []
 
@@ -56,6 +89,9 @@ var _channel_mention_counts: Dictionary = {} # channel_id -> int
 
 # Message ID -> channel_id index for O(1) lookup
 var _message_id_index: Dictionary = {}
+
+# Member ID index: guild_id -> { user_id -> array_index }
+var _member_id_index: Dictionary = {}
 
 # Routing maps
 var _guild_to_conn: Dictionary = {}
@@ -400,12 +436,10 @@ func has_permission(gid: String, perm: String) -> bool:
 	var guild: Dictionary = _guild_cache.get(gid, {})
 	if guild.get("owner_id", "") == my_id:
 		return true
-	var members: Array = _member_cache.get(gid, [])
 	var my_roles: Array = []
-	for m in members:
-		if m.get("id", "") == my_id:
-			my_roles = m.get("roles", [])
-			break
+	var mi: int = _member_index_for(gid, my_id)
+	if mi != -1:
+		my_roles = _member_cache.get(gid, [])[mi].get("roles", [])
 	var roles: Array = _role_cache.get(gid, [])
 	var all_perms: Array = []
 	for role in roles:
@@ -496,6 +530,11 @@ func get_guild_connection_status(gid: String) -> String:
 func get_conn_index_for_guild(gid: String) -> int:
 	return _guild_to_conn.get(gid, -1)
 
+func pending_server_index(pending_id: String) -> int:
+	if not pending_id.begins_with("__pending_"):
+		return -1
+	return int(pending_id.trim_prefix("__pending_"))
+
 func reconnect_server(index: int) -> void:
 	connection.reconnect_server(index)
 
@@ -533,3 +572,16 @@ func register_custom_emoji_texture(
 
 func trim_user_cache() -> void:
 	emoji.trim_user_cache()
+
+# --- Member index helpers ---
+
+func _rebuild_member_index(guild_id: String) -> void:
+	var index: Dictionary = {}
+	var members: Array = _member_cache.get(guild_id, [])
+	for i in members.size():
+		index[members[i].get("id", "")] = i
+	_member_id_index[guild_id] = index
+
+func _member_index_for(guild_id: String, user_id: String) -> int:
+	var index: Dictionary = _member_id_index.get(guild_id, {})
+	return index.get(user_id, -1)

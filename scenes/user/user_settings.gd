@@ -159,6 +159,7 @@ func _build_account_page() -> VBoxContainer:
 	av.show_letter = true
 	av.letter_font_size = 28
 	av.custom_minimum_size = Vector2(80, 80)
+	vbox.add_child(av)
 	av.set_avatar_color(
 		user.get("color", Color(0.345, 0.396, 0.949))
 	)
@@ -168,7 +169,6 @@ func _build_account_page() -> VBoxContainer:
 	var avatar_url = user.get("avatar", null)
 	if avatar_url is String and not avatar_url.is_empty():
 		av.set_avatar_url(avatar_url)
-	vbox.add_child(av)
 
 	var created: String = user.get("created_at", "")
 	if not created.is_empty():
@@ -328,6 +328,20 @@ func _build_notifications_page() -> VBoxContainer:
 		Config.set_idle_timeout(idle_vals[idx])
 	)
 	vbox.add_child(_idle_dropdown)
+
+	# Error reporting
+	vbox.add_child(_section_label("ERROR REPORTING"))
+	var error_cb := CheckBox.new()
+	error_cb.text = "Send anonymous crash and error reports"
+	error_cb.button_pressed = Config.get_error_reporting_enabled()
+	error_cb.toggled.connect(func(pressed: bool) -> void:
+		Config.set_error_reporting_enabled(pressed)
+		if not Config.has_error_reporting_preference():
+			Config.set_error_reporting_consent_shown()
+		if pressed:
+			ErrorReporting.init_sentry()
+	)
+	vbox.add_child(error_cb)
 
 	# Per-server mute toggles
 	vbox.add_child(_section_label("SERVER MUTE"))
