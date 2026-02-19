@@ -8,6 +8,7 @@ on:
 
 env:
   GODOT_VERSION: "4.6"
+  GUT_VERSION: "9.5.0"
 
 jobs:
   lint:
@@ -32,6 +33,7 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    environment: default
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,19 +42,43 @@ jobs:
       - name: Checkout accordkit
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordkit
+          repository: DaccordProject/accordkit
+          token: ${{ secrets.GH_PAT }}
           path: .accordkit_repo
 
       - name: Checkout accordstream
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordstream
+          repository: DaccordProject/accordstream
+          token: ${{ secrets.GH_PAT }}
           path: .accordstream_repo
 
       - name: Symlink addons
         run: |
           ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
           ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+
+      - name: Cache GUT
+        uses: actions/cache@v4
+        with:
+          path: addons/gut
+          key: gut-${{ env.GUT_VERSION }}
+
+      - name: Install GUT
+        run: |
+          if [ ! -d addons/gut ]; then
+            wget -q https://github.com/bitwes/Gut/releases/download/v${GUT_VERSION}/Gut.${GUT_VERSION}.zip -O /tmp/gut.zip
+            unzip -o /tmp/gut.zip -d /tmp/gut_extract
+            # The zip may contain addons/gut/ directly or a top-level folder
+            if [ -d /tmp/gut_extract/addons/gut ]; then
+              cp -r /tmp/gut_extract/addons/gut addons/gut
+            else
+              # Find the gut directory wherever it is
+              GUT_DIR=$(find /tmp/gut_extract -type d -name "gut" | head -1)
+              cp -r "$GUT_DIR" addons/gut
+            fi
+            rm -rf /tmp/gut.zip /tmp/gut_extract
+          fi
 
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
@@ -81,6 +107,7 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
+    environment: default
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -90,25 +117,48 @@ jobs:
       - name: Checkout accordkit
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordkit
+          repository: DaccordProject/accordkit
+          token: ${{ secrets.GH_PAT }}
           path: .accordkit_repo
 
       - name: Checkout accordstream
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordstream
+          repository: DaccordProject/accordstream
+          token: ${{ secrets.GH_PAT }}
           path: .accordstream_repo
 
       - name: Checkout accordserver
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordserver
+          repository: DaccordProject/accordserver
+          token: ${{ secrets.GH_PAT }}
           path: .accordserver_repo
 
       - name: Symlink addons
         run: |
           ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
           ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+
+      - name: Cache GUT
+        uses: actions/cache@v4
+        with:
+          path: addons/gut
+          key: gut-${{ env.GUT_VERSION }}
+
+      - name: Install GUT
+        run: |
+          if [ ! -d addons/gut ]; then
+            wget -q https://github.com/bitwes/Gut/releases/download/v${GUT_VERSION}/Gut.${GUT_VERSION}.zip -O /tmp/gut.zip
+            unzip -o /tmp/gut.zip -d /tmp/gut_extract
+            if [ -d /tmp/gut_extract/addons/gut ]; then
+              cp -r /tmp/gut_extract/addons/gut addons/gut
+            else
+              GUT_DIR=$(find /tmp/gut_extract -type d -name "gut" | head -1)
+              cp -r "$GUT_DIR" addons/gut
+            fi
+            rm -rf /tmp/gut.zip /tmp/gut_extract
+          fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
