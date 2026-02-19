@@ -2,6 +2,8 @@ extends Control
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const BanDialogScene := preload("res://scenes/admin/ban_dialog.tscn")
+const ModerateMemberDialogScene := preload("res://scenes/admin/moderate_member_dialog.tscn")
+const NicknameDialogScene := preload("res://scenes/admin/nickname_dialog.tscn")
 
 var _member_data: Dictionary = {}
 var _context_menu: PopupMenu
@@ -69,9 +71,18 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Ban", idx)
 		idx += 1
 
+	if Client.has_permission(guild_id, AccordPermission.MODERATE_MEMBERS):
+		_context_menu.add_item("Moderate", idx)
+		idx += 1
+
+	if Client.has_permission(guild_id, AccordPermission.MANAGE_NICKNAMES):
+		_context_menu.add_item("Edit Nickname", idx)
+		idx += 1
+
 	if Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES):
 		var roles: Array = Client.get_roles_for_guild(guild_id)
 		var member_roles: Array = _member_data.get("roles", [])
+		var my_highest: int = Client.get_my_highest_role_position(guild_id)
 		if roles.size() > 0:
 			_context_menu.add_separator("Roles")
 			idx += 1
@@ -80,10 +91,17 @@ func _show_context_menu(pos: Vector2i) -> void:
 				if role.get("position", 0) == 0:
 					continue  # Skip @everyone
 				_context_menu.add_check_item(role.get("name", ""), idx)
+				var item_idx := _context_menu.get_item_index(idx)
 				_context_menu.set_item_checked(
-					_context_menu.get_item_index(idx),
+					item_idx,
 					role.get("id", "") in member_roles
 				)
+				if role.get("position", 0) >= my_highest:
+					_context_menu.set_item_disabled(item_idx, true)
+					_context_menu.set_item_tooltip(
+						item_idx,
+						"Role is above your highest role"
+					)
 				idx += 1
 
 	if _context_menu.item_count == 0:
@@ -122,6 +140,17 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			var dialog := BanDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(guild_id, user_id, dname)
+		"Moderate":
+			var dialog := ModerateMemberDialogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(guild_id, user_id, dname, _member_data)
+		"Edit Nickname":
+			var dialog := NicknameDialogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(
+				guild_id, user_id, dname,
+				_member_data.get("nickname", "")
+			)
 
 func _toggle_role(guild_id: String, user_id: String, id: int) -> void:
 	var roles: Array = Client.get_roles_for_guild(guild_id)

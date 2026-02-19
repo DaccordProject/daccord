@@ -1,0 +1,252 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scenes/main/welcome_screen.gd" id="1"]
+[ext_resource type="Shader" path="res://theme/welcome_bg.gdshader" id="2"]
+[ext_resource type="Texture2D" uid="uid://d12a4fhl6lojk" path="res://theme/icons/chat.svg" id="3"]
+[ext_resource type="Texture2D" path="res://theme/icons/send.svg" id="4"]
+[ext_resource type="Texture2D" path="res://theme/icons/voice_channel.svg" id="5"]
+
+[sub_resource type="ShaderMaterial" id="shader_mat"]
+shader = ExtResource("2")
+
+[sub_resource type="StyleBoxFlat" id="feature_card_style"]
+bg_color = Color(1, 1, 1, 0.05)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+
+[sub_resource type="StyleBoxFlat" id="cta_normal"]
+bg_color = Color(0.345, 0.396, 0.949, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 24.0
+content_margin_top = 8.0
+content_margin_right = 24.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="cta_hover"]
+bg_color = Color(0.443, 0.487, 0.957, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 24.0
+content_margin_top = 8.0
+content_margin_right = 24.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="cta_pressed"]
+bg_color = Color(0.311, 0.356, 0.854, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 24.0
+content_margin_top = 8.0
+content_margin_right = 24.0
+content_margin_bottom = 8.0
+
+[sub_resource type="Gradient" id="particle_gradient"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.345, 0.396, 0.949, 0.25, 0.345, 0.396, 0.949, 0)
+
+[node name="WelcomeScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1")
+
+[node name="ShaderBg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+material = SubResource("shader_mat")
+
+[node name="ParticlesLayer" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="FloatingParticles" type="CPUParticles2D" parent="ParticlesLayer"]
+position = Vector2(400, 600)
+emitting = true
+amount = 30
+lifetime = 8.0
+speed_scale = 0.8
+randomness = 0.5
+emission_shape = 3
+emission_rect_extents = Vector2(500, 10)
+direction = Vector2(0, -1)
+spread = 15.0
+gravity = Vector2(0, -20)
+initial_velocity_min = 10.0
+initial_velocity_max = 30.0
+scale_amount_min = 2.0
+scale_amount_max = 6.0
+color_ramp = SubResource("particle_gradient")
+
+[node name="ContentCenter" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ContentVBox" type="VBoxContainer" parent="ContentCenter"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 0)
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="LogoLabel" type="Label" parent="ContentCenter/ContentVBox"]
+layout_mode = 2
+text = "daccord"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+theme_override_font_sizes/font_size = 40
+
+[node name="TaglineLabel" type="Label" parent="ContentCenter/ContentVBox"]
+layout_mode = 2
+text = "Connect. Communicate. Collaborate."
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 16
+
+[node name="Spacer" type="Control" parent="ContentCenter/ContentVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+
+[node name="FeaturesHBox" type="HBoxContainer" parent="ContentCenter/ContentVBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 16
+
+[node name="Feature1" type="PanelContainer" parent="ContentCenter/ContentVBox/FeaturesHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+theme_override_styles/panel = SubResource("feature_card_style")
+
+[node name="VBox" type="VBoxContainer" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature1"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature1/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 24)
+texture = ExtResource("4")
+stretch_mode = 5
+size_flags_horizontal = 4
+
+[node name="Title" type="Label" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature1/VBox"]
+layout_mode = 2
+text = "Multi-Server"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="Desc" type="Label" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature1/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+text = "Connect to multiple servers at once"
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Feature2" type="PanelContainer" parent="ContentCenter/ContentVBox/FeaturesHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+theme_override_styles/panel = SubResource("feature_card_style")
+
+[node name="VBox" type="VBoxContainer" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature2"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature2/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 24)
+texture = ExtResource("3")
+stretch_mode = 5
+size_flags_horizontal = 4
+
+[node name="Title" type="Label" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature2/VBox"]
+layout_mode = 2
+text = "Real-Time Chat"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="Desc" type="Label" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature2/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+text = "Instant messaging with rich formatting"
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Feature3" type="PanelContainer" parent="ContentCenter/ContentVBox/FeaturesHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+theme_override_styles/panel = SubResource("feature_card_style")
+
+[node name="VBox" type="VBoxContainer" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature3"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Icon" type="TextureRect" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature3/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 24)
+texture = ExtResource("5")
+stretch_mode = 5
+size_flags_horizontal = 4
+
+[node name="Title" type="Label" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature3/VBox"]
+layout_mode = 2
+text = "Voice & Video"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="Desc" type="Label" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature3/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+text = "Crystal-clear voice and video calls"
+horizontal_alignment = 1
+autowrap_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Spacer2" type="Control" parent="ContentCenter/ContentVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+
+[node name="CTAButton" type="Button" parent="ContentCenter/ContentVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 48)
+size_flags_horizontal = 4
+text = "Add a Server"
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("cta_normal")
+theme_override_styles/hover = SubResource("cta_hover")
+theme_override_styles/pressed = SubResource("cta_pressed")

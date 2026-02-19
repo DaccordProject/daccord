@@ -3,15 +3,20 @@ extends ColorRect
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const BanRowScene := preload("res://scenes/admin/ban_row.tscn")
 
+const PAGE_SIZE := 25
+
 var _guild_id: String = ""
 var _all_bans: Array = []
 var _selected_user_ids: Array = []
+var _last_ban_id: String = ""
+var _has_more: bool = false
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _search_input: LineEdit = $CenterContainer/Panel/VBox/SearchInput
 @onready var _ban_list: VBoxContainer = $CenterContainer/Panel/VBox/Scroll/BanList
 @onready var _empty_label: Label = $CenterContainer/Panel/VBox/EmptyLabel
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
+@onready var _load_more_btn: Button = $CenterContainer/Panel/VBox/LoadMoreButton
 
 @onready var _bulk_bar: HBoxContainer = $CenterContainer/Panel/VBox/BulkBar
 @onready var _select_all_check: CheckBox = $CenterContainer/Panel/VBox/BulkBar/SelectAllCheck
@@ -22,6 +27,7 @@ func _ready() -> void:
 	_search_input.text_changed.connect(_on_search_changed)
 	_select_all_check.toggled.connect(_on_select_all)
 	_bulk_unban_btn.pressed.connect(_on_bulk_unban)
+	_load_more_btn.pressed.connect(_on_load_more)
 	AppState.bans_updated.connect(_on_bans_updated)
 
 func setup(guild_id: String) -> void:
@@ -35,9 +41,20 @@ func _load_bans() -> void:
 	_error_label.visible = false
 	_all_bans.clear()
 	_selected_user_ids.clear()
+	_last_ban_id = ""
+	_has_more = false
+	_load_more_btn.visible = false
 	_update_bulk_ui()
+	await _fetch_page()
 
-	var result: RestResult = await Client.admin.get_bans(_guild_id)
+func _fetch_page() -> void:
+	var query: Dictionary = {"limit": PAGE_SIZE}
+	if not _last_ban_id.is_empty():
+		query["after"] = _last_ban_id
+
+	var result: RestResult = await Client.admin.get_bans(
+		_guild_id, query
+	)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load bans"
 		if result != null and result.error:
@@ -47,14 +64,20 @@ func _load_bans() -> void:
 		return
 
 	var bans: Array = result.data if result.data is Array else []
-	if bans.is_empty():
+
+	if bans.is_empty() and _all_bans.is_empty():
 		_empty_label.visible = true
 		return
 
 	for ban in bans:
 		var ban_dict: Dictionary = ban if ban is Dictionary else {}
 		_all_bans.append(ban_dict)
+		var uid := _get_ban_user_id(ban_dict)
+		if not uid.is_empty():
+			_last_ban_id = uid
 
+	_has_more = bans.size() >= PAGE_SIZE
+	_load_more_btn.visible = _has_more
 	_rebuild_list(_all_bans)
 	_bulk_bar.visible = _all_bans.size() > 0
 
@@ -153,6 +176,13 @@ func _on_unban(user_id: String, username: String) -> void:
 	dialog.confirmed.connect(func():
 		Client.admin.unban_member(_guild_id, user_id)
 	)
+
+func _on_load_more() -> void:
+	_load_more_btn.disabled = true
+	_load_more_btn.text = "Loading..."
+	await _fetch_page()
+	_load_more_btn.disabled = false
+	_load_more_btn.text = "Load More"
 
 func _on_bans_updated(guild_id: String) -> void:
 	if guild_id == _guild_id:

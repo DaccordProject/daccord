@@ -1,6 +1,6 @@
 # Administrative User Management
 
-> Last touched: 2026-02-19
+> Last touched: 2026-02-19 (updated: role hierarchy, timeout/mute, nickname editing, ban confirmation, ban pagination, member permission overwrites)
 
 ## Overview
 
@@ -123,8 +123,8 @@ Role CRUD (role management dialog):
 
 | File | Role |
 |------|------|
-| `scripts/autoload/client_admin.gd` | Admin API delegation layer: `kick_member()` (line 116), `ban_member()` (line 128), `unban_member()` (line 144), `add_member_role()` (line 156), `remove_member_role()` (line 170), `get_bans()` (line 184), `create_role()` (line 78), `update_role()` (line 90), `delete_role()` (line 104), `reorder_roles()` (line 355) |
-| `scripts/autoload/client.gd` | `has_permission()` (line 513), `is_space_owner()` (line 541), `get_members_for_guild()`, `get_roles_for_guild()`, member/role caches |
+| `scripts/autoload/client_admin.gd` | Admin API delegation layer: `kick_member()`, `ban_member()`, `unban_member()`, `add_member_role()`, `remove_member_role()`, `update_member()`, `get_bans()` (with pagination query), `create_role()`, `update_role()`, `delete_role()`, `reorder_roles()` |
+| `scripts/autoload/client.gd` | `has_permission()`, `is_space_owner()`, `get_my_highest_role_position()`, `get_members_for_guild()`, `get_roles_for_guild()`, member/role caches |
 | `scripts/autoload/client_gateway.gd` | `on_member_join()` (line 333), `on_member_leave()` (line 355), `on_member_update()` (line 372), `on_role_create()` (line 475), `on_role_update()` (line 486), `on_role_delete()` (line 500), `on_ban_create()` (line 513), `on_ban_delete()` (line 519) |
 | `scripts/autoload/app_state.gd` | `members_updated` (line 30), `roles_updated` (line 32), `bans_updated` (line 34) signals |
 | `scenes/members/member_item.gd` | Member context menu with Kick/Ban/Role actions (lines 41-158) |
@@ -134,6 +134,8 @@ Role CRUD (role management dialog):
 | `scenes/admin/ban_row.gd` | Individual ban row with checkbox, username, reason, unban button (lines 1-37) |
 | `scenes/admin/role_management_dialog.gd` | Two-panel role editor with all 37 permissions, create/save/delete, search, reorder (lines 1-264) |
 | `scenes/admin/role_row.gd` | Role row with up/down reorder buttons and color display (lines 1-35) |
+| `scenes/admin/moderate_member_dialog.gd` | Timeout/mute/deafen dialog with duration picker (requires MODERATE_MEMBERS) |
+| `scenes/admin/nickname_dialog.gd` | Nickname editing dialog with reset (requires MANAGE_NICKNAMES) |
 | `scenes/admin/confirm_dialog.gd` | Reusable confirm dialog with `confirmed` signal, danger mode styling (lines 1-57) |
 | `scenes/sidebar/guild_bar/guild_icon.gd` | Guild icon right-click context menu: "Roles" (line 123), "Bans" (line 127) |
 | `scenes/sidebar/channels/banner.gd` | Channel banner admin dropdown: "Roles" (line 68), "Bans" (line 72) |
@@ -261,23 +263,18 @@ The member context menu role toggle (`_toggle_role()`, line 120 of `member_item.
 - [x] Gateway event handlers for ban create/delete
 - [x] Two entry points for admin dialogs (guild icon context menu, channel banner dropdown)
 - [x] Reusable ConfirmDialog with danger mode
-- [ ] Role hierarchy enforcement on client side (cannot assign roles at or above own highest)
-- [ ] Timeout/mute member (AccordPermission.MODERATE_MEMBERS exists but no UI)
-- [ ] Member nickname editing UI (MembersApi.update() exists, no UI)
+- [x] Role hierarchy enforcement on client side (cannot assign roles at or above own highest)
+- [x] Timeout/mute member via Moderate dialog (requires MODERATE_MEMBERS permission)
+- [x] Member nickname editing UI via Edit Nickname dialog (requires MANAGE_NICKNAMES permission)
 - [ ] Audit log for admin actions (AccordPermission.VIEW_AUDIT_LOG exists, no API/UI)
-- [ ] Ban reason display in ban creation confirmation
-- [ ] Member-specific permission overwrites (server supports, UI only supports role overwrites)
-- [ ] Pagination for ban list (server supports cursor-based, client loads all at once)
+- [x] Ban reason confirmation step (two-step ban with summary preview)
+- [x] Member-specific permission overwrites (user-type overwrites alongside role overwrites)
+- [x] Pagination for ban list (cursor-based, 25 per page with Load More)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No client-side role hierarchy enforcement | High | The server enforces hierarchy checks, but the client does not prevent assigning roles at or above the user's highest role. If the server rejects it, the user sees a red flash but no explanatory message. |
-| No timeout/mute member UI | Medium | `AccordPermission.MODERATE_MEMBERS` (line 44 of `permission.gd`) exists and is included in the default Moderator role, but no UI or API call for timing out or muting members is implemented. |
-| No member nickname editing | Medium | `MembersApi.update()` (line 53 of `members_api.gd`) supports updating nicknames, but no UI exposes this to admins. The member context menu only has Message, Kick, Ban, and Role options. |
 | Bulk unban is sequential | Low | `_on_bulk_unban()` (line 138 of `ban_list_dialog.gd`) loops through selected IDs with `await` for each API call. Could be parallelized or batched for large selections. |
-| Ban list doesn't paginate | Low | `Client.admin.get_bans()` (line 184 of `client_admin.gd`) loads all bans in a single request. The server `BansApi.list()` (line 16 of `bans_api.gd`) supports pagination via query parameters but the client doesn't use them. |
-| No ban reason preview before confirming | Low | The BanDialog shows a reason input but there's no summary step showing what will be submitted. The reason is sent directly on button press. |
 | Role editor doesn't show member count per role | Low | The role management dialog shows role names and permissions but doesn't indicate how many members hold each role. |
 | No audit log viewer | Low | `AccordPermission.VIEW_AUDIT_LOG` (line 13 of `permission.gd`) exists and the Admin default role includes it, but no audit log API endpoints or UI exist. |

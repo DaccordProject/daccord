@@ -181,12 +181,28 @@ func remove_member_role(
 		await _c.fetch.fetch_members(guild_id)
 	return result
 
-func get_bans(guild_id: String) -> RestResult:
+func update_member(
+	guild_id: String, user_id: String, data: Dictionary
+) -> RestResult:
 	var client: AccordClient = _c._client_for_guild(guild_id)
 	if client == null:
 		push_error("[Client] No connection for guild: ", guild_id)
 		return null
-	return await client.bans.list(guild_id)
+	var result: RestResult = await client.members.update(
+		guild_id, user_id, data
+	)
+	if result.ok:
+		await _c.fetch.fetch_members(guild_id)
+	return result
+
+func get_bans(
+	guild_id: String, query: Dictionary = {}
+) -> RestResult:
+	var client: AccordClient = _c._client_for_guild(guild_id)
+	if client == null:
+		push_error("[Client] No connection for guild: ", guild_id)
+		return null
+	return await client.bans.list(guild_id, query)
 
 func get_invites(guild_id: String) -> RestResult:
 	var client: AccordClient = _c._client_for_guild(guild_id)

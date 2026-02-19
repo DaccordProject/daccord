@@ -87,6 +87,13 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
+[node name="LoadMoreButton" type="Button" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+text = "Load More"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+
 [node name="EmptyLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
