@@ -15,5 +15,5 @@ addons/gut
 
 # Build output
 dist/build/
-dist
+dist/templates/
 addons/sentry

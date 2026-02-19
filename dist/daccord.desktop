@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=daccord
+Comment=Chat client for accordserver instances
+Exec=daccord
+Icon=daccord
+Terminal=false
+Type=Application
+Categories=Network;Chat;InstantMessaging;
+Keywords=chat;messaging;discord;
+StartupWMClass=daccord

@@ -31,16 +31,17 @@ jobs:
             artifact: daccord-linux-arm64
             extension: arm64
             os: ubuntu-latest
-          - platform: windows
-            preset: Windows
-            artifact: daccord-windows-x86_64
-            extension: exe
-            os: ubuntu-latest
-          - platform: macos
-            preset: macOS
-            artifact: daccord-macos
-            extension: zip
-            os: macos-latest
+          # TODO: Re-enable once platform binaries are available
+          # - platform: windows
+          #   preset: Windows
+          #   artifact: daccord-windows-x86_64
+          #   extension: exe
+          #   os: ubuntu-latest
+          # - platform: macos
+          #   preset: macOS
+          #   artifact: daccord-macos
+          #   extension: zip
+          #   os: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -132,6 +133,33 @@ jobs:
           fi
           rm -rf "$TMPDIR"
           echo "AccordStream binaries updated."
+
+      - name: Remove missing GDExtension libraries
+        run: |
+          # Godot crashes on macOS if a GDExtension references a missing dylib.
+          # Remove library entries for binaries that don't exist.
+          GDEXT="addons/accordstream/accordstream.gdextension"
+          if [ -f "$GDEXT" ]; then
+            changed=false
+            for lib in addons/accordstream/bin/*; do
+              true  # just checking bin dir exists
+            done
+            while IFS= read -r line; do
+              if [[ "$line" =~ ^[a-z].*=\ *\"res://(.+)\" ]]; then
+                LIB_PATH="${BASH_REMATCH[1]}"
+                if [ ! -f "$LIB_PATH" ]; then
+                  echo "GDExtension library not found: $LIB_PATH — removing entry"
+                  sed -i.bak "\|${LIB_PATH}|d" "$GDEXT"
+                  changed=true
+                fi
+              fi
+            done < "$GDEXT"
+            if [ "$changed" = true ]; then
+              rm -f "${GDEXT}.bak"
+              echo "Updated $GDEXT:"
+              cat "$GDEXT"
+            fi
+          fi
 
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
