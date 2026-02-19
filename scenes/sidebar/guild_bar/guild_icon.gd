@@ -76,6 +76,8 @@ func setup(data: Dictionary) -> void:
 	else:
 		pill.pill_state = pill.PillState.HIDDEN
 
+	_update_muted_visual()
+
 func set_active(active: bool) -> void:
 	is_active = active
 	if pill:
@@ -141,6 +143,22 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Reconnect", idx)
 		idx += 1
 
+	# Mute toggle
+	if Config.is_server_muted(guild_id):
+		_context_menu.add_item("Unmute Server", idx)
+	else:
+		_context_menu.add_item("Mute Server", idx)
+	idx += 1
+
+	# Folder management
+	var current_folder: String = Config.get_guild_folder(guild_id)
+	if current_folder.is_empty():
+		_context_menu.add_item("Move to Folder", idx)
+		idx += 1
+	else:
+		_context_menu.add_item("Remove from Folder", idx)
+		idx += 1
+
 	if idx > 0:
 		_context_menu.add_separator()
 		idx += 1
@@ -182,6 +200,17 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			if conn_idx >= 0:
 				Client._auto_reconnect_attempted.erase(conn_idx)
 				Client.reconnect_server(conn_idx)
+		"Mute Server":
+			Config.set_server_muted(guild_id, true)
+			_update_muted_visual()
+		"Unmute Server":
+			Config.set_server_muted(guild_id, false)
+			_update_muted_visual()
+		"Move to Folder":
+			_show_folder_dialog()
+		"Remove from Folder":
+			Config.set_guild_folder(guild_id, "")
+			Client.update_guild_folder(guild_id, "")
 		"Remove Server":
 			var dialog := ConfirmDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
@@ -194,6 +223,62 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			dialog.confirmed.connect(func():
 				Client.disconnect_server(guild_id)
 			)
+
+func _show_folder_dialog() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Move to Folder"
+	dialog.ok_button_text = "Move"
+
+	var vbox := VBoxContainer.new()
+
+	var existing_folders: Array = Config.get_all_folder_names()
+	var line_edit := LineEdit.new()
+	line_edit.placeholder_text = "Folder name"
+	line_edit.custom_minimum_size = Vector2(200, 0)
+
+	if existing_folders.size() > 0:
+		var label := Label.new()
+		label.text = "Existing folders:"
+		label.add_theme_font_size_override("font_size", 12)
+		label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		vbox.add_child(label)
+		for fname in existing_folders:
+			var btn := Button.new()
+			btn.text = fname
+			btn.flat = true
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			btn.pressed.connect(func(): line_edit.text = fname)
+			vbox.add_child(btn)
+		var sep := HSeparator.new()
+		vbox.add_child(sep)
+
+	var new_label := Label.new()
+	new_label.text = "Folder name:"
+	new_label.add_theme_font_size_override("font_size", 12)
+	vbox.add_child(new_label)
+	vbox.add_child(line_edit)
+
+	dialog.add_child(vbox)
+	dialog.confirmed.connect(func():
+		var folder_text: String = line_edit.text.strip_edges()
+		if not folder_text.is_empty():
+			Config.set_guild_folder(guild_id, folder_text)
+			Client.update_guild_folder(guild_id, folder_text)
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func():
+		dialog.queue_free()
+	)
+	get_tree().root.add_child(dialog)
+	dialog.popup_centered()
+
+func _update_muted_visual() -> void:
+	if Config.is_server_muted(guild_id):
+		icon_button.modulate = Color(0.5, 0.5, 0.5)
+		icon_button.tooltip_text = guild_name + " (Muted)"
+	else:
+		icon_button.modulate = Color(1, 1, 1)
+		icon_button.tooltip_text = guild_name
 
 # --- Connection Status Dot ---
 

@@ -2,6 +2,9 @@ extends PanelContainer
 
 const ScreenPickerDialog := preload("res://scenes/sidebar/screen_picker_dialog.tscn")
 const VoiceSettingsDialog := preload("res://scenes/sidebar/voice_settings_dialog.tscn")
+const SoundboardPanelScene := preload("res://scenes/soundboard/soundboard_panel.tscn")
+
+var _soundboard_panel: PanelContainer = null
 
 @onready var channel_label: Label = $VBox/StatusRow/ChannelLabel
 @onready var status_dot: ColorRect = $VBox/StatusRow/StatusDot
@@ -9,6 +12,7 @@ const VoiceSettingsDialog := preload("res://scenes/sidebar/voice_settings_dialog
 @onready var deafen_btn: Button = $VBox/ButtonRow/DeafenBtn
 @onready var video_btn: Button = $VBox/ButtonRow/VideoBtn
 @onready var share_btn: Button = $VBox/ButtonRow/ShareBtn
+@onready var sfx_btn: Button = $VBox/ButtonRow/SfxBtn
 @onready var settings_btn: Button = $VBox/ButtonRow/SettingsBtn
 @onready var disconnect_btn: Button = $VBox/ButtonRow/DisconnectBtn
 
@@ -18,6 +22,7 @@ func _ready() -> void:
 	deafen_btn.pressed.connect(_on_deafen_pressed)
 	video_btn.pressed.connect(_on_video_pressed)
 	share_btn.pressed.connect(_on_share_pressed)
+	sfx_btn.pressed.connect(_on_sfx_pressed)
 	settings_btn.pressed.connect(_on_settings_pressed)
 	disconnect_btn.pressed.connect(_on_disconnect_pressed)
 	AppState.voice_joined.connect(_on_voice_joined)
@@ -38,10 +43,15 @@ func _on_voice_joined(channel_id: String) -> void:
 			break
 	channel_label.text = ch_name
 	status_dot.color = Color(0.231, 0.647, 0.365)
+	sfx_btn.visible = Client.has_permission(
+		AppState.voice_guild_id,
+		AccordPermission.USE_SOUNDBOARD,
+	)
 	_update_button_visuals()
 
 func _on_voice_left(_channel_id: String) -> void:
 	visible = false
+	_close_soundboard_panel()
 
 func _on_mute_pressed() -> void:
 	Client.set_voice_muted(not AppState.is_voice_muted)
@@ -64,6 +74,28 @@ func _on_screen_source_selected(
 	source_type: String, source_id: int,
 ) -> void:
 	Client.start_screen_share(source_type, source_id)
+
+func _on_sfx_pressed() -> void:
+	if _soundboard_panel != null and is_instance_valid(_soundboard_panel):
+		_close_soundboard_panel()
+		return
+	_soundboard_panel = SoundboardPanelScene.instantiate()
+	add_child(_soundboard_panel)
+	_soundboard_panel.setup(AppState.voice_guild_id)
+	_soundboard_panel.tree_exited.connect(
+		func() -> void: _soundboard_panel = null
+	)
+	# Position above voice bar after layout settles
+	await get_tree().process_frame
+	if _soundboard_panel != null and is_instance_valid(_soundboard_panel):
+		_soundboard_panel.position = Vector2(
+			0, -_soundboard_panel.size.y - 4
+		)
+
+func _close_soundboard_panel() -> void:
+	if _soundboard_panel != null and is_instance_valid(_soundboard_panel):
+		_soundboard_panel.close()
+		_soundboard_panel = null
 
 func _on_settings_pressed() -> void:
 	var dialog := VoiceSettingsDialog.instantiate()

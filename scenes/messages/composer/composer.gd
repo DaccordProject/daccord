@@ -1,10 +1,13 @@
 extends PanelContainer
 
 const EmojiPickerScene := preload("res://scenes/messages/composer/emoji_picker.tscn")
+const MAX_FILE_SIZE := 25 * 1024 * 1024 # 25 MB
 
 var _last_typing_time: int = 0
 var _emoji_picker: PanelContainer = null
 var _saved_placeholder: String = ""
+var _pending_files: Array = [] # Array of {filename, content, content_type, size}
+var _file_dialog: FileDialog = null
 
 @onready var upload_button: Button = $VBox/HBox/UploadButton
 @onready var text_input: TextEdit = $VBox/HBox/TextInput
@@ -14,9 +17,11 @@ var _saved_placeholder: String = ""
 @onready var reply_label: Label = $VBox/ReplyBar/ReplyLabel
 @onready var cancel_reply_button: Button = $VBox/ReplyBar/CancelReplyButton
 @onready var error_label: Label = $VBox/ErrorLabel
+@onready var attachment_bar: HBoxContainer = $VBox/AttachmentBar
 
 func _ready() -> void:
 	send_button.pressed.connect(_on_send)
+	upload_button.pressed.connect(_on_upload_button)
 	emoji_button.pressed.connect(_on_emoji_button)
 	text_input.gui_input.connect(_on_text_input)
 	text_input.text_changed.connect(_on_text_changed)
@@ -36,8 +41,12 @@ func set_channel_name(channel_name: String) -> void:
 
 func _on_send() -> void:
 	var text := text_input.text.strip_edges()
-	if text.is_empty():
+	if text.is_empty() and _pending_files.is_empty():
 		return
+	# Transfer pending files to AppState before emitting signal
+	AppState.pending_attachments = _pending_files.duplicate()
+	_pending_files.clear()
+	_update_attachment_bar()
 	AppState.send_message(text)
 	text_input.text = ""
 	if AppState.replying_to_message_id != "":
@@ -70,6 +79,26 @@ func _on_text_changed() -> void:
 	if now - _last_typing_time > 8000:
 		_last_typing_time = now
 		Client.send_typing(AppState.current_channel_id)
+	# Warn if typing @everyone without permission
+	_check_everyone_permission()
+
+func _check_everyone_permission() -> void:
+	var text := text_input.text
+	if text.find("@everyone") == -1 and text.find("@here") == -1:
+		if error_label.text.begins_with("You don't have"):
+			error_label.visible = false
+		return
+	var guild_id: String = Client._channel_to_guild.get(
+		AppState.current_channel_id, ""
+	)
+	if guild_id.is_empty():
+		return
+	if not Client.has_permission(guild_id, AccordPermission.MENTION_EVERYONE):
+		error_label.text = "You don't have permission to mention @everyone"
+		error_label.visible = true
+	else:
+		if error_label.text.begins_with("You don't have"):
+			error_label.visible = false
 
 func _edit_last_own_message() -> void:
 	var my_id: String = Client.current_user.get("id", "")
@@ -86,6 +115,101 @@ func _edit_last_own_message() -> void:
 
 func _on_cancel_reply() -> void:
 	AppState.cancel_reply()
+
+# --- Upload ---
+
+func _on_upload_button() -> void:
+	if _file_dialog == null:
+		_file_dialog = FileDialog.new()
+		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
+		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_file_dialog.title = "Select files to attach"
+		_file_dialog.files_selected.connect(_on_files_selected)
+		add_child(_file_dialog)
+	_file_dialog.popup_centered(Vector2i(600, 400))
+
+func _on_files_selected(paths: PackedStringArray) -> void:
+	for path in paths:
+		_add_file_from_path(path)
+
+func _add_file_from_path(path: String) -> void:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("[Composer] Failed to open file: ", path)
+		return
+	var content := file.get_buffer(file.get_length())
+	file.close()
+
+	if content.size() > MAX_FILE_SIZE:
+		error_label.text = "File too large (max 25 MB): " + path.get_file()
+		error_label.visible = true
+		return
+
+	var filename := path.get_file()
+	var content_type := _guess_content_type(filename)
+	_pending_files.append({
+		"filename": filename,
+		"content": content,
+		"content_type": content_type,
+		"size": content.size(),
+	})
+	_update_attachment_bar()
+
+func _update_attachment_bar() -> void:
+	# Clear existing children
+	for child in attachment_bar.get_children():
+		child.queue_free()
+	attachment_bar.visible = not _pending_files.is_empty()
+	for i in _pending_files.size():
+		var file_info: Dictionary = _pending_files[i]
+		var label := Label.new()
+		label.text = file_info["filename"] + " (" + _format_file_size(file_info["size"]) + ")"
+		label.add_theme_font_size_override("font_size", 12)
+		label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		var remove_btn := Button.new()
+		remove_btn.text = "x"
+		remove_btn.flat = true
+		remove_btn.custom_minimum_size = Vector2(20, 20)
+		remove_btn.pressed.connect(_remove_pending_file.bind(i))
+		var hbox := HBoxContainer.new()
+		hbox.add_child(label)
+		hbox.add_child(remove_btn)
+		attachment_bar.add_child(hbox)
+
+func _remove_pending_file(index: int) -> void:
+	if index >= 0 and index < _pending_files.size():
+		_pending_files.remove_at(index)
+		_update_attachment_bar()
+
+static func _guess_content_type(filename: String) -> String:
+	var ext := filename.get_extension().to_lower()
+	match ext:
+		"png": return "image/png"
+		"jpg", "jpeg": return "image/jpeg"
+		"gif": return "image/gif"
+		"webp": return "image/webp"
+		"svg": return "image/svg+xml"
+		"bmp": return "image/bmp"
+		"mp4": return "video/mp4"
+		"webm": return "video/webm"
+		"mp3": return "audio/mpeg"
+		"ogg", "oga": return "audio/ogg"
+		"wav": return "audio/wav"
+		"pdf": return "application/pdf"
+		"zip": return "application/zip"
+		"txt": return "text/plain"
+		"json": return "application/json"
+		"md": return "text/markdown"
+		_: return "application/octet-stream"
+
+static func _format_file_size(bytes: int) -> String:
+	if bytes < 1024:
+		return str(bytes) + " B"
+	if bytes < 1024 * 1024:
+		return str(snappedi(bytes / 1024, 1)) + " KB"
+	return "%.1f MB" % (bytes / 1048576.0)
+
+# --- Emoji ---
 
 func _on_emoji_button() -> void:
 	if _emoji_picker and _emoji_picker.visible:
@@ -135,6 +259,8 @@ func _on_emoji_picked(emoji_name: String) -> void:
 	text_input.grab_focus()
 	_emoji_picker.visible = false
 
+# --- Error handling ---
+
 func _on_message_send_failed(channel_id: String, content: String, error: String) -> void:
 	if channel_id != AppState.current_channel_id:
 		return
@@ -143,6 +269,8 @@ func _on_message_send_failed(channel_id: String, content: String, error: String)
 		text_input.text = content
 	error_label.text = "Failed to send: %s" % error
 	error_label.visible = true
+
+# --- State ---
 
 func update_enabled_state() -> void:
 	var guild_id: String = Client._channel_to_guild.get(AppState.current_channel_id, "")

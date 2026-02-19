@@ -21,22 +21,28 @@ func setup(data: Dictionary) -> void:
 	_member_data = data
 	display_name.text = data.get("display_name", "Unknown")
 	avatar.set_avatar_color(data.get("color", Color(0.345, 0.396, 0.949)))
+	var dn: String = data.get("display_name", "")
+	if dn.length() > 0:
+		avatar.set_letter(dn[0].to_upper())
+	else:
+		avatar.set_letter("")
+	var avatar_url = data.get("avatar", null)
+	if avatar_url is String and not avatar_url.is_empty():
+		avatar.set_avatar_url(avatar_url)
 
 	var status: int = data.get("status", ClientModels.UserStatus.OFFLINE)
-	match status:
-		ClientModels.UserStatus.ONLINE:
-			status_dot.color = Color(0.231, 0.647, 0.365)
-		ClientModels.UserStatus.IDLE:
-			status_dot.color = Color(0.98, 0.659, 0.157)
-		ClientModels.UserStatus.DND:
-			status_dot.color = Color(0.929, 0.259, 0.271)
-		ClientModels.UserStatus.OFFLINE:
-			status_dot.color = Color(0.58, 0.608, 0.643)
+	status_dot.color = ClientModels.status_color(status)
 
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		var pos := get_global_mouse_position()
-		_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			var pos := get_global_mouse_position()
+			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			var uid: String = _member_data.get("id", "")
+			if not uid.is_empty():
+				var pos := get_global_mouse_position()
+				AppState.profile_card_requested.emit(uid, pos)
 
 func _show_context_menu(pos: Vector2i) -> void:
 	var user_id: String = _member_data.get("id", "")

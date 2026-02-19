@@ -3,7 +3,9 @@ extends ColorRect
 const AvatarShader := preload("res://theme/avatar_circle.gdshader")
 
 # Simple in-memory image cache shared across all avatars
+const AVATAR_CACHE_CAP := 200
 static var _image_cache: Dictionary = {}
+static var _cache_access_order: Array[String] = []
 
 @export var avatar_size: int = 32
 @export var show_letter: bool = false
@@ -43,6 +45,7 @@ func set_avatar_url(url: String) -> void:
 
 	# Check static cache first
 	if _image_cache.has(url):
+		_touch_cache(url)
 		_apply_texture(_image_cache[url])
 		return
 
@@ -71,6 +74,8 @@ func _on_image_loaded(
 		return
 	var tex := ImageTexture.create_from_image(image)
 	_image_cache[_current_url] = tex
+	_touch_cache(_current_url)
+	_evict_cache()
 	_apply_texture(tex)
 
 func _apply_texture(tex: ImageTexture) -> void:
@@ -107,3 +112,15 @@ func tween_radius(from: float, to: float, duration: float = 0.15) -> Tween:
 func _resize_letter_label() -> void:
 	letter_label.offset_right = avatar_size
 	letter_label.offset_bottom = avatar_size
+
+static func _touch_cache(url: String) -> void:
+	var idx := _cache_access_order.find(url)
+	if idx != -1:
+		_cache_access_order.remove_at(idx)
+	_cache_access_order.append(url)
+
+static func _evict_cache() -> void:
+	while _image_cache.size() > AVATAR_CACHE_CAP and _cache_access_order.size() > 0:
+		var oldest: String = _cache_access_order[0]
+		_cache_access_order.remove_at(0)
+		_image_cache.erase(oldest)

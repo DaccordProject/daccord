@@ -2,18 +2,54 @@ extends Node
 
 const CONFIG_PATH := "user://config.cfg"
 const _SALT := "daccord-config-v1"
+const _RECENT_EMOJI_MAX := 16
+const _BACKUP_THROTTLE_SEC := 60
 
 var _config := ConfigFile.new()
+var _load_ok: bool = false
+var _last_backup_time: int = 0
 
 func _ready() -> void:
 	var key := _derive_key()
 	var err := _config.load_encrypted_pass(CONFIG_PATH, key)
-	if err != OK:
-		# Fall back to plaintext (first run or migration from unencrypted)
-		var plain_err := _config.load(CONFIG_PATH)
-		if plain_err == OK:
-			# Re-save encrypted to migrate
-			_config.save_encrypted_pass(CONFIG_PATH, key)
+	if err == OK:
+		_load_ok = true
+		return
+	# Fall back to plaintext (first run or migration from unencrypted)
+	var plain_err := _config.load(CONFIG_PATH)
+	if plain_err == OK:
+		_load_ok = true
+		# Re-save encrypted to migrate
+		_config.save_encrypted_pass(CONFIG_PATH, key)
+		return
+	# Both loads failed -- check if file exists on disk
+	if FileAccess.file_exists(CONFIG_PATH):
+		_backup_corrupted_file()
+		push_warning(
+			"[Config] Config file unreadable, backed up and starting fresh"
+		)
+	_load_ok = true
+
+func _backup_corrupted_file() -> void:
+	var bak_path := CONFIG_PATH + ".bak"
+	if not FileAccess.file_exists(bak_path):
+		DirAccess.copy_absolute(
+			ProjectSettings.globalize_path(CONFIG_PATH),
+			ProjectSettings.globalize_path(bak_path)
+		)
+
+func _throttled_backup() -> void:
+	if not FileAccess.file_exists(CONFIG_PATH):
+		return
+	var now: int = int(Time.get_unix_time_from_system())
+	if now - _last_backup_time < _BACKUP_THROTTLE_SEC:
+		return
+	_last_backup_time = now
+	var bak_path := CONFIG_PATH + ".bak"
+	DirAccess.copy_absolute(
+		ProjectSettings.globalize_path(CONFIG_PATH),
+		ProjectSettings.globalize_path(bak_path)
+	)
 
 func _derive_key() -> String:
 	return _SALT + OS.get_user_data_dir()
@@ -86,6 +122,10 @@ func has_servers() -> bool:
 	return _config.get_value("servers", "count", 0) > 0
 
 func save() -> void:
+	if not _load_ok:
+		push_warning("[Config] save() blocked — config was not loaded successfully")
+		return
+	_throttled_backup()
 	_config.save_encrypted_pass(CONFIG_PATH, _derive_key())
 
 func set_last_selection(guild_id: String, channel_id: String) -> void:
@@ -115,6 +155,198 @@ func set_voice_input_device(device_id: String) -> void:
 	_config.set_value("voice", "input_device", device_id)
 	save()
 
+func get_voice_output_device() -> String:
+	return _config.get_value("voice", "output_device", "")
+
+func set_voice_output_device(device_id: String) -> void:
+	_config.set_value("voice", "output_device", device_id)
+	save()
+
+func get_voice_video_device() -> String:
+	return _config.get_value("voice", "video_device", "")
+
+func set_voice_video_device(device_id: String) -> void:
+	_config.set_value("voice", "video_device", device_id)
+	save()
+
+func get_video_resolution() -> int:
+	return _config.get_value("voice", "video_resolution", 0)
+
+func set_video_resolution(preset: int) -> void:
+	_config.set_value("voice", "video_resolution", preset)
+	save()
+
+func get_video_fps() -> int:
+	return _config.get_value("voice", "video_fps", 30)
+
+func set_video_fps(fps: int) -> void:
+	_config.set_value("voice", "video_fps", fps)
+	save()
+
+func get_user_status() -> int:
+	return _config.get_value("state", "user_status", 0)
+
+func set_user_status(status: int) -> void:
+	_config.set_value("state", "user_status", status)
+	save()
+
+func get_custom_status() -> String:
+	return _config.get_value("state", "custom_status", "")
+
+func set_custom_status(text: String) -> void:
+	_config.set_value("state", "custom_status", text)
+	save()
+
+func get_error_reporting_enabled() -> bool:
+	return _config.get_value("error_reporting", "enabled", false)
+
+func set_error_reporting_enabled(value: bool) -> void:
+	_config.set_value("error_reporting", "enabled", value)
+	save()
+
+func has_error_reporting_preference() -> bool:
+	return _config.has_section_key("error_reporting", "consent_shown")
+
+func set_error_reporting_consent_shown() -> void:
+	_config.set_value("error_reporting", "consent_shown", true)
+	save()
+
+func get_guild_folder(guild_id: String) -> String:
+	return _config.get_value("folders", guild_id, "")
+
+func set_guild_folder(guild_id: String, folder_name: String) -> void:
+	if folder_name.is_empty():
+		_config.set_value("folders", guild_id, null)
+	else:
+		_config.set_value("folders", guild_id, folder_name)
+	save()
+
+func get_guild_folder_color(guild_id: String) -> Color:
+	return _config.get_value("folder_colors", guild_id, Color(0.212, 0.224, 0.247))
+
+func set_guild_folder_color(guild_id: String, color: Color) -> void:
+	_config.set_value("folder_colors", guild_id, color)
+	save()
+
+func get_folder_color(fname: String) -> Color:
+	return _config.get_value("folder_name_colors", fname, Color(0.212, 0.224, 0.247))
+
+func set_folder_color(fname: String, color: Color) -> void:
+	_config.set_value("folder_name_colors", fname, color)
+	save()
+
+func rename_folder_color(old_name: String, new_name: String) -> void:
+	var color: Color = _config.get_value("folder_name_colors", old_name, Color(0.212, 0.224, 0.247))
+	_config.set_value("folder_name_colors", old_name, null)
+	_config.set_value("folder_name_colors", new_name, color)
+	save()
+
+func delete_folder_color(fname: String) -> void:
+	_config.set_value("folder_name_colors", fname, null)
+	save()
+
+func get_all_folder_names() -> Array:
+	var names: Array = []
+	if not _config.has_section("folders"):
+		return names
+	for key in _config.get_section_keys("folders"):
+		var folder_name: String = _config.get_value("folders", key, "")
+		if not folder_name.is_empty() and folder_name not in names:
+			names.append(folder_name)
+	return names
+
+## Idle timeout
+
+func get_idle_timeout() -> int:
+	return _config.get_value("idle", "timeout", 300)
+
+func set_idle_timeout(seconds: int) -> void:
+	_config.set_value("idle", "timeout", seconds)
+	save()
+
+## Sound preferences
+
+func get_sfx_volume() -> float:
+	return _config.get_value("sounds", "volume", 1.0)
+
+func set_sfx_volume(vol: float) -> void:
+	_config.set_value("sounds", "volume", clampf(vol, 0.0, 1.0))
+	save()
+
+func is_sound_enabled(sound_name: String) -> bool:
+	# message_sent defaults to off, everything else defaults to on
+	var default: bool = sound_name != "message_sent"
+	return _config.get_value("sounds", sound_name, default)
+
+func set_sound_enabled(sound_name: String, enabled: bool) -> void:
+	_config.set_value("sounds", sound_name, enabled)
+	save()
+
+## Notification preferences
+
+func get_suppress_everyone() -> bool:
+	return _config.get_value("notifications", "suppress_everyone", false)
+
+func set_suppress_everyone(value: bool) -> void:
+	_config.set_value("notifications", "suppress_everyone", value)
+	save()
+
+func is_server_muted(guild_id: String) -> bool:
+	return _config.get_value("muted_servers", guild_id, false)
+
+func set_server_muted(guild_id: String, muted: bool) -> void:
+	if muted:
+		_config.set_value("muted_servers", guild_id, true)
+	else:
+		# Remove the key entirely when unmuting
+		_config.set_value("muted_servers", guild_id, null)
+	save()
+
+## Recently used emoji
+
+func get_recent_emoji() -> Array:
+	return _config.get_value("emoji", "recent", [])
+
+func add_recent_emoji(emoji_name: String) -> void:
+	var recent: Array = get_recent_emoji()
+	# Remove duplicate if already present
+	var idx := recent.find(emoji_name)
+	if idx != -1:
+		recent.remove_at(idx)
+	# Insert at front (most recent first)
+	recent.insert(0, emoji_name)
+	# Trim to max
+	if recent.size() > _RECENT_EMOJI_MAX:
+		recent.resize(_RECENT_EMOJI_MAX)
+	_config.set_value("emoji", "recent", recent)
+	save()
+
+## Update preferences
+
+func get_auto_update_check() -> bool:
+	return _config.get_value("updates", "auto_check", true)
+
+func set_auto_update_check(enabled: bool) -> void:
+	_config.set_value("updates", "auto_check", enabled)
+	save()
+
+func get_skipped_version() -> String:
+	return _config.get_value("updates", "skipped_version", "")
+
+func set_skipped_version(version: String) -> void:
+	if version.is_empty():
+		_config.set_value("updates", "skipped_version", null)
+	else:
+		_config.set_value("updates", "skipped_version", version)
+	save()
+
+func get_last_update_check() -> int:
+	return _config.get_value("updates", "last_check_timestamp", 0)
+
+func set_last_update_check(timestamp: int) -> void:
+	_config.set_value("updates", "last_check_timestamp", timestamp)
+	save()
+
 func clear() -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	for i in count:
@@ -123,3 +355,39 @@ func clear() -> void:
 			_config.erase_section(section)
 	_config.set_value("servers", "count", 0)
 	save()
+
+func update_server_credentials(
+	index: int, username: String, password: String
+) -> void:
+	var count: int = _config.get_value("servers", "count", 0)
+	if index < 0 or index >= count:
+		return
+	var section := "server_%d" % index
+	_config.set_value(section, "username", username)
+	_config.set_value(section, "password", password)
+	save()
+
+## Config export/import
+
+func export_config(path: String) -> Error:
+	if not _load_ok:
+		push_warning("[Config] export blocked — config was not loaded")
+		return ERR_INVALID_DATA
+	return _config.save(path)
+
+func import_config(path: String) -> Error:
+	var new_cfg := ConfigFile.new()
+	var err := new_cfg.load(path)
+	if err != OK:
+		return err
+	# Back up current config before replacing
+	if FileAccess.file_exists(CONFIG_PATH):
+		var pre_import := CONFIG_PATH + ".pre-import.bak"
+		DirAccess.copy_absolute(
+			ProjectSettings.globalize_path(CONFIG_PATH),
+			ProjectSettings.globalize_path(pre_import)
+		)
+	_config = new_cfg
+	_load_ok = true
+	save()
+	return OK

@@ -29,6 +29,7 @@ alignment = 1
 layout_mode = 2
 size_flags_vertical = 4
 avatar_size = 32
+show_letter = true
 
 [node name="DisplayName" type="Label" parent="HBox"]
 layout_mode = 2

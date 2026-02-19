@@ -1,6 +1,6 @@
 # Emoji Picker
 
-*Last touched: 2026-02-18 20:21*
+Last touched: 2026-02-19
 
 ## Overview
 
@@ -179,7 +179,7 @@ Gateway reaction events:
 - Regex pattern `:([a-z0-9_]+):` matches shortcodes (line 372)
 - Matches are processed in reverse order to maintain string indices (line 374)
 - Each match is looked up via `EmojiData.get_by_name()` (line 377); if found, replaced with `[img=20x20]res://theme/emoji/CODEPOINT.svg[/img]` (line 380)
-- Custom emoji shortcodes (`:custom_name:`) are not rendered inline — they appear as plain text unless the name happens to match a built-in emoji
+- Custom emoji shortcodes (`:custom_name:`) are resolved via `ClientModels.custom_emoji_paths` — if the name is found in the custom emoji cache, it renders as `[img=20x20]{cached_path}[/img]`
 
 ### Reactions API Integration
 
@@ -219,16 +219,18 @@ Gateway reaction events:
 - [x] "Add Reaction" context menu on messages (cozy and collapsed)
 - [x] Custom server emoji tab in picker (CDN loading with caching)
 - [x] `get_by_name()` optimized with dictionary lookup
+- [x] `emoji.create` and `emoji.delete` gateway events handled (real-time sync)
+- [x] Custom emoji rendered inline in messages via `markdown_to_bbcode()` (cached to `user://emoji_cache/`)
+- [x] Custom emoji displayed on reaction pills (fallback to `ClientModels.custom_emoji_textures`)
+- [x] Recently used emoji section (persisted in config, shown as first tab with watch icon)
+- [x] Reaction cache double-mutation fixed (gateway events are sole source of truth)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| `emoji.create` and `emoji.delete` gateway events not handled | High | The server broadcasts `emoji.create`, `emoji.update`, and `emoji.delete` gateway events, but `gateway_socket.gd` only handles `emoji.update`. Create and delete events are silently ignored, so other clients don't see new/removed emoji until they reload |
 | `reactions_updated` signal declared but unused | Medium | `AppState.reactions_updated` (line 38) is declared but never emitted or connected; gateway handlers emit `messages_updated` instead, causing full message list re-renders for reaction changes |
-| Custom emoji shortcodes not rendered inline | Medium | Custom emoji inserted as `:name:` appear as plain text in messages; `markdown_to_bbcode()` only resolves built-in emoji from `EmojiData` — no CDN image lookup for custom shortcodes |
 | `AccordEmoji` model missing `image_url` field | Medium | The server returns `image_url` (CDN URL) in emoji responses, but the `AccordEmoji` model does not store it; the client constructs CDN URLs manually via `AccordCDN.emoji()` |
-| No recently-used emoji section | Low | Picker always opens to "Smileys & Emotion"; no tracking of frequently or recently used emoji |
 | No skin tone variants | Low | All emoji are default yellow; no skin tone modifier support |
 | Multi-codepoint emoji not supported | Low | `EmojiData` only handles single-codepoint emoji; flags (regional indicators), ZWJ sequences (family, profession emoji), and other multi-codepoint sequences are absent from the catalog |
 | Upload button not connected | Low | `composer.tscn` has an UploadButton (plus.svg icon) but it has no `pressed` connection in `composer.gd` |

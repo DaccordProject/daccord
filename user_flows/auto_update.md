@@ -1,6 +1,5 @@
 # Auto-Update
 
-*Last touched: 2026-02-18 20:21*
 
 ## Overview
 
@@ -94,10 +93,12 @@ Download:
 |------|------|
 | `scripts/autoload/app_state.gd` | Would add `update_available`, `update_download_started`, `update_download_progress`, `update_download_complete`, `update_download_failed`, `update_check_complete`, `update_check_failed` signals |
 | `scripts/autoload/config.gd` | Would persist `skipped_version`, `dismissed_version`, `auto_update_enabled` preference, `last_update_check` timestamp |
-| `scripts/autoload/client.gd` | Would hold `APP_VERSION` constant and trigger update check after connections are established |
-| `scenes/sidebar/user_bar.gd` | Would add "Check for Updates" menu item (id 12) and "About" handler (id 10, currently unhandled) |
+| `scripts/autoload/updater.gd` | Semver parsing and comparison utilities (`parse_semver`, `compare_semver`, `is_newer`). Will eventually handle GitHub Releases API checks. |
+| `scripts/autoload/client.gd` | Holds `APP_VERSION` (reads from `project.godot`). Will trigger update check after connections are established. |
+| `scenes/sidebar/user_bar.gd` | Has "Check for Updates" menu item (id 16), "About" dialog with version/license/GitHub link (id 10). |
 | `scenes/main/main_window.gd` | Would host the update banner in content area and update download dialog |
-| `project.godot` | Would set `application/config/version` for the canonical version string |
+| `project.godot` | Sets `application/config/version` (currently `"0.1.0"`) |
+| `tests/unit/test_updater.gd` | Unit tests for semver parsing, comparison, and `is_newer` |
 
 ## Implementation Details
 
@@ -162,13 +163,13 @@ New keys in `user://config.cfg` under an `[updates]` section:
 
 ## Implementation Status
 
-- [ ] `APP_VERSION` constant defined anywhere in the codebase
-- [ ] Version displayed in window title or About dialog
-- [ ] "About" menu item handler in user_bar.gd (id 10 has no match case)
-- [ ] "Check for Updates" menu item in user bar
-- [ ] Updater autoload or class
+- [x] `APP_VERSION` var in `client.gd` (reads from `project.godot`)
+- [x] Version displayed in About dialog with license and GitHub link
+- [x] "About" menu item handler in user_bar.gd (id 10)
+- [x] "Check for Updates" menu item in user bar (id 16, stub handler)
+- [x] Updater script with semver utilities (`scripts/autoload/updater.gd`)
 - [ ] GitHub Releases API integration
-- [ ] Semver comparison logic
+- [x] Semver comparison logic (with unit tests)
 - [ ] Startup update check (after connection or delay)
 - [ ] Periodic re-check (hourly)
 - [ ] Update available banner in content area
@@ -178,7 +179,8 @@ New keys in `user://config.cfg` under an `[updates]` section:
 - [ ] In-place binary replacement
 - [ ] "Restart Now" / "Later" flow
 - [ ] Draft message preservation on restart
-- [ ] Config persistence for update preferences
+- [x] Config persistence for update preferences (`auto_check`, `skipped_version`, `last_check_timestamp`)
+- [x] Update signals in AppState (`update_available`, `update_check_complete`, `update_check_failed`, `update_download_progress`, `update_download_complete`, `update_download_failed`)
 - [ ] "Update ready" indicator after download
 - [ ] Platform-specific update strategies (Windows/macOS/Linux)
 
@@ -186,9 +188,9 @@ New keys in `user://config.cfg` under an `[updates]` section:
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No version constant | High | No `APP_VERSION` or `application/config/version` in `project.godot`. Cannot compare versions without one. This is the prerequisite for everything else. |
-| "About" menu item does nothing | Medium | `user_bar.gd` adds "About" (id 10, line 19) but the `_on_menu_id_pressed` match block (line 52) has no case for id 10. Users click "About" and nothing happens. |
-| No update check mechanism | High | No code checks for new versions. Users must manually visit GitHub to discover updates. |
+| ~~No version constant~~ | ~~High~~ | Done. `Client.APP_VERSION` reads from `project.godot`'s `config/version`. |
+| ~~"About" menu item does nothing~~ | ~~Medium~~ | Done. About dialog shows version, license, and GitHub link. |
+| No update check mechanism | High | No code checks for new versions. Users must manually visit GitHub to discover updates. The "Check for Updates" menu item is present (id 16) but the handler is a stub. Next step: implement GitHub Releases API call in `updater.gd`. |
 | No download/install flow | Medium | Even once an update is detected, there's no in-app way to download or apply it. The MVP could simply open the release page in the browser via `OS.shell_open()`. |
-| No update preferences in config | Low | `config.gd` has no `[updates]` section. Users cannot disable auto-check or skip versions. |
+| ~~No update preferences in config~~ | ~~Low~~ | Done. `config.gd` has `[updates]` section with `auto_check`, `skipped_version`, `last_check_timestamp`. |
 | Cross-platform update complexity | Medium | In-place binary replacement is platform-specific and error-prone. The pragmatic first step is browser-based download (`OS.shell_open(release_url)`), upgrading to in-app download later. |

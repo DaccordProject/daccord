@@ -8,10 +8,12 @@ const CUSTOM_CATEGORY_KEY := "custom"
 # Can be EmojiData.Category or CUSTOM_CATEGORY_KEY
 var _current_category = EmojiData.Category.SMILEYS
 var _category_buttons: Dictionary = {}
+var _recent_btn: Button = null
 var _custom_btn: Button = null
 var _custom_emoji_cache: Dictionary = {} # emoji_id -> { name, texture }
 var _custom_emojis: Array = []
 var _is_custom_selected: bool = false
+var _is_recent_selected: bool = false
 
 @onready var category_bar: HBoxContainer = $VBox/CategoryBar
 @onready var search_input: LineEdit = $VBox/SearchInput
@@ -22,10 +24,26 @@ func _ready() -> void:
 	_build_category_bar()
 	search_input.text_changed.connect(_on_search_changed)
 	search_input.placeholder_text = "Search emoji..."
-	_load_category(_current_category)
+	# Default to recently used if any exist
+	if Config.get_recent_emoji().size() > 0:
+		_is_recent_selected = true
+		_load_recent_category()
+		_update_category_highlights()
+	else:
+		_load_category(_current_category)
 
 func _build_category_bar() -> void:
-	# Add Custom tab first if a guild is selected
+	# Add Recently Used tab
+	_recent_btn = Button.new()
+	_recent_btn.flat = true
+	_recent_btn.custom_minimum_size = Vector2(36, 36)
+	_recent_btn.expand_icon = true
+	_recent_btn.icon = EmojiData.TEXTURES.get("watch")
+	_recent_btn.tooltip_text = "Recently Used"
+	_recent_btn.pressed.connect(_on_recent_category_pressed)
+	category_bar.add_child(_recent_btn)
+
+	# Add Custom tab if a guild is selected
 	if not AppState.current_guild_id.is_empty():
 		_custom_btn = Button.new()
 		_custom_btn.flat = true
@@ -57,26 +75,38 @@ func _build_category_bar() -> void:
 	_update_category_highlights()
 
 func _update_category_highlights() -> void:
+	var inactive := Color(0.58, 0.608, 0.643)
 	for cat in _category_buttons:
 		var btn: Button = _category_buttons[cat]
-		if not _is_custom_selected and cat == _current_category:
+		if not _is_custom_selected and not _is_recent_selected and cat == _current_category:
 			btn.modulate = Color.WHITE
 		else:
-			btn.modulate = Color(0.58, 0.608, 0.643)
+			btn.modulate = inactive
 	if _custom_btn:
-		_custom_btn.modulate = Color.WHITE if _is_custom_selected else Color(0.58, 0.608, 0.643)
+		_custom_btn.modulate = Color.WHITE if _is_custom_selected else inactive
+	if _recent_btn:
+		_recent_btn.modulate = Color.WHITE if _is_recent_selected else inactive
 
 func _on_category_pressed(cat: EmojiData.Category) -> void:
 	_current_category = cat
 	_is_custom_selected = false
+	_is_recent_selected = false
 	search_input.text = ""
 	_load_category(cat)
 	_update_category_highlights()
 
 func _on_custom_category_pressed() -> void:
 	_is_custom_selected = true
+	_is_recent_selected = false
 	search_input.text = ""
 	_load_custom_category()
+	_update_category_highlights()
+
+func _on_recent_category_pressed() -> void:
+	_is_recent_selected = true
+	_is_custom_selected = false
+	search_input.text = ""
+	_load_recent_category()
 	_update_category_highlights()
 
 func _load_category(cat: EmojiData.Category) -> void:
@@ -96,6 +126,26 @@ func _load_custom_category() -> void:
 	_custom_emojis = result.data if result.data is Array else []
 	for emoji in _custom_emojis:
 		_add_custom_emoji_cell(emoji)
+
+func _load_recent_category() -> void:
+	_clear_grid()
+	var recent: Array = Config.get_recent_emoji()
+	for emoji_name in recent:
+		# Check built-in emoji first
+		var entry := EmojiData.get_by_name(emoji_name)
+		if not entry.is_empty():
+			_add_emoji_cell(entry)
+			continue
+		# Check custom emoji cache
+		if ClientModels.custom_emoji_textures.has(emoji_name):
+			var cell: Button = EmojiButtonCellScene.instantiate()
+			emoji_grid.add_child(cell)
+			cell.icon = ClientModels.custom_emoji_textures[emoji_name]
+			cell.tooltip_text = emoji_name.replace("_", " ")
+			var custom_key: String = "custom:" + emoji_name + ":"
+			cell.pressed.connect(func() -> void:
+				emoji_picked.emit(custom_key)
+			)
 
 func _add_custom_emoji_cell(emoji) -> void:
 	var emoji_id: String = ""
@@ -135,6 +185,8 @@ func _add_custom_emoji_cell(emoji) -> void:
 				return
 			var tex := ImageTexture.create_from_image(img)
 			_custom_emoji_cache[emoji_id] = {"name": emoji_name, "texture": tex}
+			Client.register_custom_emoji(AppState.current_guild_id, emoji_id, emoji_name)
+			Client.register_custom_emoji_texture(emoji_name, tex)
 			if is_instance_valid(cell):
 				cell.icon = tex
 		)
@@ -143,6 +195,7 @@ func _add_custom_emoji_cell(emoji) -> void:
 	# Use custom:name:id format for custom emoji
 	var custom_key := "custom:" + emoji_name + ":" + emoji_id
 	cell.pressed.connect(func() -> void:
+		Config.add_recent_emoji(emoji_name)
 		emoji_picked.emit(custom_key)
 	)
 
@@ -150,7 +203,9 @@ func _on_search_changed(query: String) -> void:
 	_clear_grid()
 	var lower_query := query.strip_edges().to_lower()
 	if lower_query.is_empty():
-		if _is_custom_selected:
+		if _is_recent_selected:
+			_load_recent_category()
+		elif _is_custom_selected:
 			_load_custom_category()
 		else:
 			_load_category(_current_category)
@@ -169,7 +224,9 @@ func _on_search_changed(query: String) -> void:
 			cell.icon = cached["texture"]
 			cell.tooltip_text = cached["name"].replace("_", " ")
 			var custom_key: String = "custom:" + str(cached["name"]) + ":" + str(emoji_id)
+			var cached_name: String = str(cached["name"])
 			cell.pressed.connect(func() -> void:
+				Config.add_recent_emoji(cached_name)
 				emoji_picked.emit(custom_key)
 			)
 
@@ -180,6 +237,7 @@ func _add_emoji_cell(entry: Dictionary) -> void:
 	cell.emoji_selected.connect(_on_emoji_selected)
 
 func _on_emoji_selected(emoji_name: String) -> void:
+	Config.add_recent_emoji(emoji_name)
 	emoji_picked.emit(emoji_name)
 
 func _clear_grid() -> void:

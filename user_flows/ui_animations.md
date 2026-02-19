@@ -1,6 +1,5 @@
 # UI Animations
 
-*Last touched: 2026-02-18 20:21*
 
 ## Overview
 
@@ -174,7 +173,11 @@ Several components use instant show/hide on `mouse_entered` / `mouse_exited`:
 
 ### Guild Folder Expand/Collapse (guild_folder.gd)
 
-Toggling a guild folder (`_toggle_expanded`, line 56) instantly swaps between a mini-grid preview of up to 4 color swatches and the full guild list. No animation — pure visibility toggle (lines 58–59).
+Toggling a guild folder (`_toggle_expanded`) swaps between a mini-grid preview and the full guild list with a fade animation. The mini-grid swap stays instant (it's the collapsed preview), but the guild list fades in/out:
+
+- **Expand:** Makes `guild_list` visible, sets `modulate.a = 0`, tweens to 1.0 over 0.15s with `EASE_OUT` / `TRANS_CUBIC`.
+- **Collapse:** Tweens `modulate.a` to 0.0 over 0.15s with `EASE_IN` / `TRANS_CUBIC`, then hides via tween callback.
+- Any running tween is killed before starting a new one.
 
 ## Implementation Status
 
@@ -189,22 +192,16 @@ Toggling a guild folder (`_toggle_expanded`, line 56) instantly swaps between a 
 - [x] Role assignment flash feedback
 - [x] Instant hover effects for secondary UI elements (gear, plus, close, timestamp)
 - [x] Search result hover highlight
-- [ ] Guild folder expand/collapse animation (currently instant)
-- [ ] Scroll-to-bottom animation (currently instant jump)
-- [ ] Channel selection transition (no cross-fade or slide)
-- [ ] Message appear/disappear animation (messages pop in instantly)
-- [ ] Action bar fade-in/fade-out (appears/disappears instantly)
-- [ ] Reaction pill press animation (no scale/bounce feedback)
+- [x] Guild folder expand/collapse fade animation
+- [x] Scroll-to-bottom smooth tween animation
+- [x] Channel selection transition fade-in
+- [x] Message appear fade-in animation (single new messages)
+- [x] Action bar fade-in/fade-out animation
+- [x] Reaction pill press bounce animation
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Guild folder expand/collapse has no animation | Low | `guild_folder.gd:56` — just toggles `visible` on mini_grid and guild_list. A height tween would be smoother. |
-| Scroll-to-bottom is instant | Low | `message_view.gd:230` — calls `_scroll_to_bottom()` directly. Could use `scroll_container.ensure_control_visible()` with a tween for smooth scrolling. |
-| No message enter/exit animation | Medium | Messages appear instantly when added to `message_list`. A fade-in or slide-up would improve perceived polish. |
-| Action bar appears/disappears instantly | Low | `message_view.gd:289,312` — `show_for_message()` and `hide_bar()` have no opacity tween. A quick fade (0.1s) would feel less jarring. |
-| No channel transition animation | Low | Switching channels replaces the message list instantly. A brief cross-fade or slide could smooth the transition. |
-| Reaction pill has no press animation | Low | `reaction_pill.gd:64` — `_update_active_style()` swaps StyleBoxes instantly. A subtle scale bounce would add tactile feedback. |
-| Drawer tween not reused for edge swipe | Low | `main_window.gd` supports edge swipe detection (lines 5–6) but the swipe doesn't drive the drawer position interactively — it triggers the same tween. A gesture-driven animation would feel more native on touch. |
+| Drawer tween not reused for edge swipe | Low | `main_window.gd` supports edge swipe detection but the swipe doesn't drive the drawer position interactively — it triggers the same tween. A gesture-driven animation would feel more native on touch. |
 | No loading skeleton/shimmer animation | Medium | While messages load, `loading_label` shows static text. A shimmer or skeleton placeholder animation would improve perceived performance. |

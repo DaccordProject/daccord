@@ -1,6 +1,5 @@
 # Voice Channels
 
-*Last touched: 2026-02-18 20:21*
 
 ## Overview
 
@@ -301,9 +300,16 @@ Methods (lines 183-203):
 - [x] AccordStream device enumeration and media track creation
 - [x] AccordStream WebRTC peer connections
 - [x] AccordStream voice session integration tests
+- [x] Speaker (output device) enumeration via `AccordStream.get_speakers()`
+- [x] Output device selection via `AccordStream.set_output_device()` / `get_output_device()`
+- [x] Playout device selection in WebRTCContext (routes to ADM `SetPlayoutDevice()`)
+- [x] Deafen silences incoming audio (disables received audio tracks in CustomSFUBackend)
+- [x] Received audio tracks tracked and cleaned up on disconnect
+- [x] Output device persistence in Config (`voice.output_device`)
+- [x] Voice settings dialog speaker dropdown
+- [x] Output device applied on voice connect in ClientVoice
+- [x] Speaker enumeration and output device integration tests
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No audio output/playback | High | `AccordVoiceSession` manages connections but there is no code to render received audio from other participants to speakers (requires GDExtension C++ changes) |
+No known gaps.

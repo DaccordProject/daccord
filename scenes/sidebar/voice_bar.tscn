@@ -70,6 +70,14 @@ custom_minimum_size = Vector2(0, 32)
 text = "Share"
 theme_override_font_sizes/font_size = 11
 
+[node name="SfxBtn" type="Button" parent="VBox/ButtonRow"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(36, 32)
+text = "SFX"
+tooltip_text = "Soundboard"
+theme_override_font_sizes/font_size = 11
+
 [node name="SettingsBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(36, 32)

@@ -109,6 +109,85 @@ func test_microphone_names_are_nonempty():
 		assert_gt(mic["name"].length(), 0, "Microphone name should not be empty")
 
 
+# --- get_speakers ---
+
+func test_get_speakers_returns_array():
+	var speakers = AccordStream.get_speakers()
+	assert_typeof(speakers, TYPE_ARRAY, "get_speakers() should return an Array")
+
+func test_get_speakers_is_idempotent():
+	var first = AccordStream.get_speakers()
+	var second = AccordStream.get_speakers()
+	assert_eq(first.size(), second.size(),
+			  "Repeated get_speakers() calls should return same count")
+
+func test_speaker_dict_has_required_keys():
+	var speakers = AccordStream.get_speakers()
+	if speakers.size() == 0:
+		pass_test("No speakers available — skipping")
+		return
+	var spk = speakers[0]
+	assert_has(spk, "id", "Speaker dict should have 'id'")
+	assert_has(spk, "name", "Speaker dict should have 'name'")
+
+func test_speaker_dict_value_types():
+	var speakers = AccordStream.get_speakers()
+	if speakers.size() == 0:
+		pass_test("No speakers available — skipping")
+		return
+	var spk = speakers[0]
+	assert_typeof(spk["id"], TYPE_STRING, "Speaker id should be a String")
+	assert_typeof(spk["name"], TYPE_STRING, "Speaker name should be a String")
+
+func test_speaker_names_are_nonempty():
+	var speakers = AccordStream.get_speakers()
+	if speakers.size() == 0:
+		pass_test("No speakers available — skipping")
+		return
+	for spk in speakers:
+		assert_gt(spk["name"].length(), 0, "Speaker name should not be empty")
+
+func test_speaker_ids_are_unique():
+	var speakers = AccordStream.get_speakers()
+	if speakers.size() < 2:
+		pass_test("Need ≥2 speakers for uniqueness test — skipping")
+		return
+	var ids := {}
+	for spk in speakers:
+		assert_false(ids.has(spk["id"]), "Speaker id '%s' appears more than once" % spk["id"])
+		ids[spk["id"]] = true
+
+
+# --- set_output_device / get_output_device ---
+
+func test_get_output_device_returns_string():
+	var device = AccordStream.get_output_device()
+	assert_typeof(device, TYPE_STRING, "get_output_device() should return a String")
+
+func test_set_output_device_invalid_returns_false():
+	var result = AccordStream.set_output_device("nonexistent_device_id_xyz")
+	assert_false(result, "set_output_device() with invalid ID should return false")
+
+func test_set_output_device_valid_returns_true():
+	var speakers = AccordStream.get_speakers()
+	if speakers.size() == 0:
+		pass_test("No speakers available — skipping")
+		return
+	var spk_id: String = speakers[0]["id"]
+	var result = AccordStream.set_output_device(spk_id)
+	assert_true(result, "set_output_device() with valid ID should return true")
+
+func test_set_output_device_roundtrips():
+	var speakers = AccordStream.get_speakers()
+	if speakers.size() == 0:
+		pass_test("No speakers available — skipping")
+		return
+	var spk_id: String = speakers[0]["id"]
+	AccordStream.set_output_device(spk_id)
+	var got: String = AccordStream.get_output_device()
+	assert_eq(got, spk_id, "get_output_device() should return the ID that was set")
+
+
 # --- get_screens ---
 
 func test_get_screens_returns_array():
@@ -180,25 +259,28 @@ func test_window_dict_value_types():
 	assert_typeof(window["title"], TYPE_STRING, "Window title should be a String")
 
 
-# --- Cross-enumeration: all four calls succeed without crashing ---
+# --- Cross-enumeration: all five calls succeed without crashing ---
 
 func test_enumerate_all_device_types_sequentially():
 	var cameras = AccordStream.get_cameras()
 	var mics = AccordStream.get_microphones()
+	var speakers = AccordStream.get_speakers()
 	var screens = AccordStream.get_screens()
 	var windows = AccordStream.get_windows()
 
 	assert_typeof(cameras, TYPE_ARRAY)
 	assert_typeof(mics, TYPE_ARRAY)
+	assert_typeof(speakers, TYPE_ARRAY)
 	assert_typeof(screens, TYPE_ARRAY)
 	assert_typeof(windows, TYPE_ARRAY)
-	pass_test("All four enumeration methods completed without crashing")
+	pass_test("All five enumeration methods completed without crashing")
 
 func test_enumerate_all_device_types_repeated():
 	# Verifies the WebRTC context doesn't break on repeated init/enum cycles
 	for i in range(5):
 		AccordStream.get_cameras()
 		AccordStream.get_microphones()
+		AccordStream.get_speakers()
 		AccordStream.get_screens()
 		AccordStream.get_windows()
 	pass_test("Enumeration × 5 completed without crashing")

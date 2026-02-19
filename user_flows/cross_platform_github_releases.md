@@ -1,10 +1,10 @@
 # Cross-Platform GitHub Releases
 
-*Last touched: 2026-02-18 21:30*
+Last touched: 2026-02-19
 
 ## Overview
 
-This flow documents how daccord builds cross-platform release artifacts (Linux, Windows, macOS) via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.0`) is pushed, a CI pipeline exports the Godot project for all three platforms in parallel, packages each artifact, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`.
+This flow documents how daccord builds cross-platform release artifacts (Linux x86_64, Linux ARM64, Windows, macOS) via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.0`) is pushed, a CI pipeline validates the tag against `project.godot`, exports the Godot project for all four platforms in parallel, optionally injects a production Sentry DSN, downloads AccordStream native binaries, packages each artifact (with `.desktop` file for Linux), optionally signs/notarizes (when secrets are configured), and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`.
 
 ## User Steps
 
@@ -18,26 +18,35 @@ This flow documents how daccord builds cross-platform release artifacts (Linux, 
 
 ### What Happens in CI
 
-6. Three parallel build jobs start — one per platform (Linux, Windows, macOS).
-7. Each build job checks out the main repo with LFS, then checks out `accordkit` and `accordstream` addons into `.accordkit_repo/` and `.accordstream_repo/` respectively, and symlinks them into `addons/`.
-8. Godot 4.6 is installed via `chickensoft-games/setup-godot@v2` with export templates included.
-9. The project is imported headlessly (`godot --headless --import .`), then exported with `godot --headless --export-release "<Preset>"`.
-10. Platform-specific packaging runs: `tar.gz` for Linux, `zip` for Windows, and the macOS export's built-in `.zip` is copied directly.
-11. Packaged artifacts are uploaded via `actions/upload-artifact@v4`.
+6. Four parallel build jobs start — one per platform (Linux x86_64, Linux ARM64, Windows, macOS). Linux and Windows jobs run on `ubuntu-latest`; macOS runs on `macos-latest`.
+7. Each build job validates that the git tag matches the version in `project.godot`. If they differ, the build fails immediately.
+8. Each build job checks out the main repo with LFS, then checks out `accordkit` and `accordstream` addons (with LFS for accordstream) into `.accordkit_repo/` and `.accordstream_repo/` respectively, and symlinks them into `addons/`.
+9. AccordStream platform binaries are downloaded from the latest `accordstream` GitHub release and merged into the addon directory. This step uses `continue-on-error` so builds succeed even if no release exists yet.
+10. Godot 4.6 is installed via `chickensoft-games/setup-godot@v2` with export templates included.
+11. The project is imported headlessly (`godot --headless --import .`).
+12. If the `SENTRY_DSN` secret is configured, the Sentry DSN in `project.godot` is replaced with the production value.
+13. Custom template paths in `export_presets.cfg` are checked — if a referenced template file doesn't exist, the path is cleared so Godot falls back to stock templates.
+14. The build output directory is created, then the project is exported with `godot --headless --export-release "<Preset>"`.
+15. Platform-specific packaging runs:
+    - **Linux (x86_64 and ARM64):** `tar.gz` archive including the `.desktop` file and icon.
+    - **Windows:** `zip` archive. If `WINDOWS_CERT_BASE64` secret is set, the `.exe` is signed with `osslsigncode`.
+    - **macOS:** `.zip` from Godot's export. If `APPLE_CERTIFICATE_BASE64` is set, the app bundle is code-signed. If `APPLE_ID` is set, the app is notarized and stapled.
+16. Packaged artifacts are uploaded via `actions/upload-artifact@v4`.
 
 ### Release Creation
 
-12. After all three builds succeed, the release job downloads all artifacts.
-13. The job extracts changelog notes for the tagged version from `CHANGELOG.md` using `awk`.
-14. If no matching changelog section is found, the release body falls back to `"Release <tag>"`.
-15. A GitHub Release is created via `softprops/action-gh-release@v2` with the tag name as the release title, changelog as the body, and all three platform artifacts attached.
-16. If the tag contains a hyphen (e.g., `v0.2.0-beta`), the release is automatically marked as a prerelease (line 130).
+17. After all four builds succeed, the release job downloads all artifacts.
+18. The job extracts changelog notes for the tagged version from `CHANGELOG.md` using `awk`.
+19. If no matching changelog section is found, the release body falls back to `"Release <tag>"`.
+20. A GitHub Release is created via `softprops/action-gh-release@v2` with the tag name as the release title, changelog as the body, and all four platform artifacts attached.
+21. If the tag contains a hyphen (e.g., `v0.2.0-beta`), the release is automatically marked as a prerelease.
 
 ### Downloading a Release (End User)
 
-17. End user visits the GitHub Releases page.
-18. User downloads the artifact matching their platform:
-    - **Linux:** `daccord-linux-x86_64.tar.gz` — extract and run `daccord.x86_64`.
+22. End user visits the GitHub Releases page.
+23. User downloads the artifact matching their platform:
+    - **Linux x86_64:** `daccord-linux-x86_64.tar.gz` — extract and run `daccord.x86_64`. Includes `daccord.desktop` and `daccord.png` for desktop integration.
+    - **Linux ARM64:** `daccord-linux-arm64.tar.gz` — extract and run `daccord.arm64`. Includes `daccord.desktop` and `daccord.png` for desktop integration.
     - **Windows:** `daccord-windows-x86_64.zip` — extract and run `daccord.exe`.
     - **macOS:** `daccord-macos.zip` — extract and open `daccord.app`.
 
@@ -47,22 +56,42 @@ This flow documents how daccord builds cross-platform release artifacts (Linux, 
 Developer pushes tag v*
   -> GitHub Actions triggers .github/workflows/release.yml
 
-build job (matrix: linux, windows, macos) — runs in parallel:
+build job (matrix: linux, linux-arm64, windows, macos) — runs in parallel:
   -> actions/checkout@v4 (main repo + LFS)
+  -> Validate version matches tag
+       strips "v" prefix from tag, compares to project.godot config/version
+       fails build on mismatch
   -> actions/checkout@v4 (accordkit -> .accordkit_repo/)
-  -> actions/checkout@v4 (accordstream -> .accordstream_repo/)
+  -> actions/checkout@v4 (accordstream -> .accordstream_repo/, with LFS)
   -> ln -sf symlinks into addons/
+  -> Download AccordStream platform binaries (continue-on-error)
+       gh release download from daccord-projects/accordstream
+       extracts missing .dll/.dylib/.so into addons/accordstream/bin/
   -> chickensoft-games/setup-godot@v2 (Godot 4.6 + export templates)
   -> godot --headless --import .
+  -> [conditional] Inject Sentry DSN
+       if SENTRY_DSN secret is set:
+         sed replaces config/dsn in project.godot with production DSN
+  -> Clear missing custom templates
+       scans export_presets.cfg for custom_template/release paths
+       clears any paths where the file doesn't exist (stock fallback)
+  -> mkdir -p dist/build/<platform>
   -> godot --headless --export-release "<Preset>"
-     reads export_presets.cfg:
-       preset.0 "Linux"   -> dist/build/linux/daccord.x86_64
-       preset.1 "Windows" -> dist/build/windows/daccord.exe
-       preset.2 "macOS"   -> dist/build/macos/daccord.zip
+     reads export_presets.cfg (uses custom templates from dist/templates/ if present):
+       preset.0 "Linux"       -> dist/build/linux/daccord.x86_64
+       preset.1 "Windows"     -> dist/build/windows/daccord.exe
+       preset.2 "macOS"       -> dist/build/macos/daccord.zip
+       preset.3 "Linux ARM64" -> dist/build/linux-arm64/daccord.arm64
   -> Platform packaging:
-       linux:   tar czf daccord-linux-x86_64.tar.gz
+       linux*:  copy .desktop + icon, tar czf daccord-linux-*.tar.gz
        windows: zip -r daccord-windows-x86_64.zip
        macos:   cp daccord.zip daccord-macos.zip
+  -> [conditional] Windows code signing (if WINDOWS_CERT_BASE64 secret)
+       osslsigncode signs daccord.exe, re-packages zip
+  -> [conditional] macOS code signing (if APPLE_CERTIFICATE_BASE64 secret)
+       imports .p12 into temp keychain, codesign --deep --force --options runtime
+  -> [conditional] macOS notarization (if APPLE_ID secret)
+       xcrun notarytool submit + xcrun stapler staple
   -> actions/upload-artifact@v4
 
 release job (needs: build):
@@ -80,14 +109,17 @@ release job (needs: build):
 
 | File | Role |
 |------|------|
-| `.github/workflows/release.yml` | Release CI pipeline. Builds all three platforms in parallel, packages artifacts, creates GitHub Release. |
-| `.github/workflows/ci.yml` | CI pipeline (lint + unit tests). Runs on push/PR to `master`. Does not produce release artifacts but shares the same addon checkout and Godot setup pattern. |
-| `export_presets.cfg` | Godot export presets for Linux (preset.0), Windows (preset.1), macOS (preset.2). Defines output paths, architectures, and platform-specific options. |
-| `project.godot` | Project config. Declares version (`config/version="0.1.0"`, line 18), renderer (GL Compatibility, line 51), and autoloads. |
+| `.github/workflows/release.yml` | Release CI pipeline. Validates version tag, downloads AccordStream binaries, builds all four platforms in parallel (macOS on native runner), clears missing custom templates, packages with .desktop files, optionally signs/notarizes, creates GitHub Release. |
+| `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests). Runs on push/PR to `master`. Integration test job builds and starts accordserver, runs AccordKit test suite. |
+| `export_presets.cfg` | Godot export presets for Linux x86_64 (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3). Defines output paths, architectures, custom templates, and platform-specific options. |
+| `project.godot` | Project config. Declares version (`config/version="0.1.0"`, line 18), Sentry DSN (`sentry/config/dsn`, line 62), renderer (GL Compatibility, line 57), and autoloads. |
 | `CHANGELOG.md` | Keep a Changelog format. The release job extracts notes for the tagged version from this file. |
-| `dist/icons/daccord.ico` | Windows application icon referenced by the Windows export preset (line 71 of `export_presets.cfg`). |
-| `dist/icons/icon_512x512.png` | macOS application icon referenced by the macOS export preset (line 137 of `export_presets.cfg`). |
-| `dist/daccord.desktop` | Linux desktop entry file. Not currently included in the Linux export artifact. |
+| `dist/icons/daccord.ico` | Windows application icon referenced by the Windows export preset. |
+| `dist/icons/icon_512x512.png` | macOS application icon referenced by the macOS export preset. |
+| `dist/icons/icon_128x128.png` | Linux icon bundled into release artifacts as `daccord.png`. |
+| `dist/templates/` | Custom export templates for reduced binary size. The workflow clears missing template paths at build time so Godot falls back to stock templates. See [Reducing Build Size](reducing_build_size.md). |
+| `dist/daccord.desktop` | Linux desktop entry file. Included in both Linux x86_64 and ARM64 release artifacts. |
+| `scripts/autoload/error_reporting.gd` | Sentry SDK integration. Reads `sentry/config/dsn` from ProjectSettings — the value injected by the release workflow. |
 
 ## Implementation Details
 
@@ -97,101 +129,152 @@ release job (needs: build):
 
 **Environment:** `GODOT_VERSION: "4.6"` (line 9) — used by the `setup-godot` action.
 
-**Build matrix** (lines 19-32): Three entries defining platform, preset name, artifact name, and file extension:
+**Build matrix**: Four entries defining platform, preset name, artifact name, file extension, and runner OS:
 
-| Platform | Preset | Artifact | Extension |
-|----------|--------|----------|-----------|
-| `linux` | `Linux` | `daccord-linux-x86_64` | `x86_64` |
-| `windows` | `Windows` | `daccord-windows-x86_64` | `exe` |
-| `macos` | `macOS` | `daccord-macos` | `zip` |
+| Platform | Preset | Artifact | Extension | Runner |
+|----------|--------|----------|-----------|--------|
+| `linux` | `Linux` | `daccord-linux-x86_64` | `x86_64` | `ubuntu-latest` |
+| `linux-arm64` | `Linux ARM64` | `daccord-linux-arm64` | `arm64` | `ubuntu-latest` |
+| `windows` | `Windows` | `daccord-windows-x86_64` | `exe` | `ubuntu-latest` |
+| `macos` | `macOS` | `daccord-macos` | `zip` | `macos-latest` |
 
-All three jobs run on `ubuntu-latest` (line 16). Windows and macOS builds are cross-compiled from Linux using Godot's export templates.
+The macOS build runs on `macos-latest` to enable native code signing and notarization. Linux and Windows builds cross-compile from `ubuntu-latest`.
 
-**Addon checkout** (lines 39-54): The `accordkit` and `accordstream` addons live in separate repositories (`daccord-projects/accordkit`, `daccord-projects/accordstream`). They are checked out into `.accordkit_repo/` and `.accordstream_repo/` within the workspace, then symlinked into `addons/` so Godot can find them. The symlinks use `$GITHUB_WORKSPACE` as the base path (lines 53-54).
+**Version validation**: Strips the `v` prefix from the git tag and compares it against `config/version` in `project.godot`. If they differ, the step emits a `::error::` annotation and exits with code 1, failing the build before any export work begins.
 
-**Godot setup** (lines 56-61): Uses `chickensoft-games/setup-godot@v2` with `include-templates: true`. This downloads the stock Godot export templates for all platforms. The `use-dotnet: false` flag skips the .NET/C# variant.
+**Addon checkout**: The `accordkit` and `accordstream` addons live in separate repositories. They are checked out into `.accordkit_repo/` and `.accordstream_repo/` within the workspace. The accordstream checkout uses `lfs: true` to pull native binary files. Both are symlinked into `addons/`.
 
-**Import step** (line 64): `godot --headless --import . || true` — the `|| true` prevents the workflow from failing if the import produces warnings (common with headless Godot imports). 2-minute timeout.
+**AccordStream binary download**: After symlinking, a `continue-on-error` step uses `gh release download` to fetch the latest `accordstream-addon.zip` from the `daccord-projects/accordstream` repository. Missing native binaries (`.dll`, `.dylib`, `.so`) are extracted into `addons/accordstream/bin/`. This ensures release builds include voice/audio support. The step is a no-op if no accordstream release exists yet.
 
-**Export step** (line 71): `godot --headless --export-release "${{ matrix.preset }}"` runs the export. The output path comes from `export_presets.cfg` (e.g., `dist/build/linux/daccord.x86_64`). 10-minute timeout.
+**Custom template fallback**: Before export, a step scans `export_presets.cfg` for `custom_template/release` paths and checks if each referenced file exists. If a template is missing (e.g., the Windows or macOS custom templates haven't been built yet), the path is cleared via `sed` so Godot falls back to stock export templates. This prevents export failures from missing template files.
 
-**Packaging** (lines 74-89):
-- **Linux** (lines 74-78): `tar czf` from inside `dist/build/linux/`, producing `daccord-linux-x86_64.tar.gz` in the workspace root.
-- **Windows** (lines 80-84): `zip -r` from inside `dist/build/windows/`, producing `daccord-windows-x86_64.zip`.
-- **macOS** (lines 86-89): Godot's macOS export already produces a `.zip` (containing the `.app` bundle). This is simply copied to `daccord-macos.zip`.
+**Godot setup**: Uses `chickensoft-games/setup-godot@v2` with `include-templates: true`. This downloads the stock Godot export templates for all platforms. The `use-dotnet: false` flag skips the .NET/C# variant.
 
-**Artifact upload** (lines 91-95): Each build uploads its packaged archive. The `path` glob `${{ matrix.artifact }}.*` matches the `.tar.gz` or `.zip` file.
+**Import step**: `godot --headless --import . || true` — the `|| true` prevents the workflow from failing if the import produces warnings. 2-minute timeout.
 
-### Release Job (lines 97-131)
+**Sentry DSN injection**: Conditionally replaces the `config/dsn` value in `project.godot` with the production Sentry DSN from the `SENTRY_DSN` GitHub secret. Only runs if the secret is non-empty.
 
-**Artifact download** (lines 104-108): `merge-multiple: true` merges all three platform artifacts into a single `artifacts/` directory.
+**Export step**: `godot --headless --export-release "${{ matrix.preset }}"` runs the export. The output path comes from `export_presets.cfg`. 10-minute timeout.
 
-**Changelog extraction** (lines 110-122): Uses `awk` to extract the section between `## [<version>]` and the next `## [` heading. The version is derived from the tag by stripping the `v` prefix. Falls back to `"Release <tag>"` if no matching section exists.
+**Packaging**:
+- **Linux** (both x86_64 and ARM64): Copies `dist/daccord.desktop` and `dist/icons/icon_128x128.png` (as `daccord.png`) into the build directory, then creates a `tar.gz` archive.
+- **Windows**: Creates a `zip` archive. If the `WINDOWS_CERT_BASE64` secret is configured, a subsequent step installs `osslsigncode`, extracts the zip, signs `daccord.exe` with the PFX certificate, and re-packages.
+- **macOS**: Godot's macOS export produces a `.zip` containing the `.app` bundle. If `APPLE_CERTIFICATE_BASE64` is configured, the app is unzipped, code-signed with `codesign --deep --force --options runtime`, and re-zipped. If `APPLE_ID` is configured, the app is submitted for notarization via `xcrun notarytool`, then stapled with `xcrun stapler`.
 
-**Release creation** (lines 124-131): Uses `softprops/action-gh-release@v2`:
+**Artifact upload**: Each build uploads its packaged archive. The `path` glob `${{ matrix.artifact }}.*` matches the `.tar.gz` or `.zip` file.
+
+### Release Job
+
+**Artifact download**: `merge-multiple: true` merges all four platform artifacts into a single `artifacts/` directory.
+
+**Changelog extraction**: Uses `awk` to extract the section between `## [<version>]` and the next `## [` heading. Falls back to `"Release <tag>"` if no matching section exists.
+
+**Release creation**: Uses `softprops/action-gh-release@v2`:
 - `name`: The tag ref name (e.g., `v0.2.0`).
 - `body`: Extracted changelog notes.
 - `draft: false`: Released immediately.
-- `prerelease`: `true` if the tag contains a hyphen (line 130), supporting tags like `v0.2.0-beta`.
+- `prerelease`: `true` if the tag contains a hyphen, supporting tags like `v0.2.0-beta`.
 - `files: artifacts/*`: Attaches all downloaded artifacts.
 
 ### Export Presets (`export_presets.cfg`)
 
-**Linux** (preset.0, lines 1-37):
-- Output: `dist/build/linux/daccord.x86_64` (line 11).
-- Architecture: `x86_64` (line 25).
-- PCK embedding disabled (`embed_pck=false`, line 22) — the `.pck` file ships alongside the binary.
-- Texture format: S3TC/BPTC only (line 23), ETC2/ASTC disabled (line 24) — desktop-only textures.
+All presets reference custom export templates from `dist/templates/` for reduced binary size. The release workflow clears missing template paths at build time so Godot falls back to stock templates. See [Reducing Build Size](reducing_build_size.md) for the template build process.
 
-**Windows** (preset.1, lines 39-100):
-- Output: `dist/build/windows/daccord.exe` (line 49).
-- Architecture: `x86_64` (line 63).
-- Application metadata set: icon (`dist/icons/daccord.ico`, line 71), company name (`daccord-projects`, line 76), product name (`daccord`, line 77), description (line 78), copyright (line 79).
-- Code signing disabled (`codesign/enable=false`, line 64).
-- D3D12 Agility SDK multiarch enabled (line 81).
+**Linux x86_64** (preset.0):
+- Output: `dist/build/linux/daccord.x86_64`.
+- Custom template: `res://dist/templates/godot.linuxbsd.template_release.x86_64`.
+- Architecture: `x86_64`.
+- PCK embedding disabled — the `.pck` file ships alongside the binary.
+- Texture format: S3TC/BPTC only, ETC2/ASTC disabled — desktop-only textures.
 
-**macOS** (preset.2, lines 102-157):
-- Output: `dist/build/macos/daccord.zip` (line 112) — Godot exports macOS as a `.zip` containing the `.app` bundle.
-- Architecture: `universal` (line 124) — fat binary with both x86_64 and ARM64.
-- Code signing: ad-hoc (`codesign/codesign=1`, line 127) — signed but not with a developer identity.
-- Notarization disabled (`notarization/notarization=0`, line 136).
-- Bundle identifier: `com.daccord-projects.daccord` (line 138).
-- Category: `public.app-category.social-networking` (line 140).
-- Minimum macOS version: `10.15` (line 144).
-- High-DPI enabled (`display/high_res=true`, line 145).
-- OpenXR disabled (line 146).
+**Windows** (preset.1):
+- Output: `dist/build/windows/daccord.exe`.
+- Custom template: `res://dist/templates/godot.windows.template_release.x86_64.exe`.
+- Architecture: `x86_64`.
+- Application metadata set: icon (`dist/icons/daccord.ico`), company name (`daccord-projects`), product name (`daccord`), description, copyright.
+- Code signing disabled in preset (`codesign/enable=false`) — signing handled by the workflow when secrets are available.
+- D3D12 Agility SDK multiarch enabled.
+
+**macOS** (preset.2):
+- Output: `dist/build/macos/daccord.zip` — Godot exports macOS as a `.zip` containing the `.app` bundle.
+- Custom template: `res://dist/templates/godot.macos.template_release.universal`.
+- Architecture: `universal` — fat binary with both x86_64 and ARM64.
+- Code signing: ad-hoc in preset (`codesign/codesign=1`) — proper signing handled by the workflow when secrets are available.
+- Notarization disabled in preset (`notarization/notarization=0`) — handled by the workflow when secrets are available.
+- Bundle identifier: `com.daccord-projects.daccord`.
+- Category: `public.app-category.social-networking`.
+- Minimum macOS version: `10.15`.
+- High-DPI enabled.
+- OpenXR disabled.
+
+**Linux ARM64** (preset.3):
+- Output: `dist/build/linux-arm64/daccord.arm64`.
+- Custom template: `res://dist/templates/godot.linuxbsd.template_release.arm64`.
+- Architecture: `arm64`.
+- PCK embedding disabled.
+- Texture format: ETC2/ASTC only, S3TC/BPTC disabled — ARM-appropriate textures.
 
 ### CI Workflow (`.github/workflows/ci.yml`)
 
-The CI workflow shares the same addon checkout and Godot setup pattern but does not export or create releases:
-- Triggered on push/PR to `master` (lines 4-6).
-- **Lint job** (lines 13-30): Installs `gdtoolkit` via pip, runs `gdlint scripts/ scenes/`.
-- **Test job** (lines 32-79): Checks out addons, sets up Godot (without templates: `include-templates: false`, line 62), runs GUT unit tests from `tests/unit/`.
+The CI workflow runs on push/PR to `master` with three jobs:
+
+- **Lint job**: Installs `gdtoolkit` via pip, runs `gdlint scripts/ scenes/`.
+- **Unit test job**: Checks out addons, sets up Godot (without templates), runs GUT unit tests from `tests/unit/`.
+- **Integration test job** (`continue-on-error: true`): Checks out all repos including `accordserver`, installs Rust via `dtolnay/rust-toolchain@stable`, builds accordserver, starts it in the background with `ACCORD_TEST_MODE=true` and a SQLite database, waits for readiness (polling `/health` for 30 seconds), sets up Godot, imports the project, and runs the `tests/accordkit` test suite. Server logs are uploaded as an artifact on failure. The job uses `continue-on-error` because the `/test/seed` endpoint has a known bug causing 500 errors after the first test file (see [Test Coverage](test_coverage.md)).
 
 ### Changelog Format (`CHANGELOG.md`)
 
-Uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format with Semantic Versioning. Currently has only an `[Unreleased]` section (line 8). When cutting a release, the developer should:
+Uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format with Semantic Versioning. When cutting a release, the developer should:
 1. Rename `[Unreleased]` to `[0.x.0]` with a date.
 2. Add a new empty `[Unreleased]` section above it.
-3. The `awk` command in the release job expects headers like `## [0.2.0]` (without a date suffix in the regex match, but dates are harmless as they follow the version bracket).
+3. The `awk` command in the release job expects headers like `## [0.2.0]`.
 
 ### Platform Distribution Assets
 
 The `dist/` directory contains platform-specific distribution files:
 - `dist/icons/` — App icons at multiple resolutions (16x16 through 512x512 PNG, plus `.ico` for Windows).
-- `dist/daccord.desktop` — Linux FreeDesktop entry file for application menus.
+- `dist/templates/` — Custom export templates for reduced binary size. Missing templates are automatically cleared at build time for stock fallback.
+- `dist/daccord.desktop` — Linux FreeDesktop entry file. Included in both Linux x86_64 and ARM64 release artifacts.
 
 ### Version Management
 
-The project version is set in `project.godot` at `config/version="0.1.0"` (line 18). This is the only source of truth for the version number. However:
-- The version in `project.godot` is not automatically synced with git tags.
+The project version is set in `project.godot` at `config/version="0.1.0"` (line 18). This is the only source of truth for the version number. The release workflow validates that the git tag matches this version, failing the build on mismatch.
+
 - There is no `APP_VERSION` constant in client code — `client.gd` and `config.gd` have no version references.
-- The release workflow does not validate that the tag matches `project.godot`'s version.
+- `error_reporting.gd` reads the version from ProjectSettings at runtime and sets it as a Sentry tag.
+
+### Sentry DSN Injection
+
+The release workflow conditionally injects a production Sentry DSN into release builds:
+
+1. `project.godot` contains a development DSN under `[sentry]` / `config/dsn` pointing to a local GlitchTip instance.
+2. During CI, if the `SENTRY_DSN` GitHub secret is configured, the "Inject Sentry DSN" step uses `sed` to replace the DSN value in `project.godot` before export.
+3. At runtime, `error_reporting.gd` reads the DSN via `ProjectSettings.get_setting("sentry/config/dsn", "")` and passes it to `SentrySDK.init()`.
+4. This ensures development builds report to the local instance while release builds report to production.
+
+### Code Signing and Notarization
+
+Signing and notarization are conditional on GitHub secrets being configured. Without secrets, builds proceed unsigned (no-op).
+
+**Windows code signing** (requires `WINDOWS_CERT_BASE64` and `WINDOWS_CERT_PASSWORD` secrets):
+- Uses `osslsigncode` on the Linux runner to sign `daccord.exe` with a PFX certificate.
+- Timestamps via DigiCert's timestamp server.
+- Eliminates SmartScreen/Defender warnings for end users.
+
+**macOS code signing** (requires `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_IDENTITY` secrets):
+- Imports a `.p12` certificate into a temporary keychain on the `macos-latest` runner.
+- Signs with `codesign --deep --force --options runtime` for hardened runtime support.
+- The temporary keychain is deleted after signing.
+
+**macOS notarization** (requires `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` secrets):
+- Submits the signed `.zip` to Apple's notary service via `xcrun notarytool`.
+- Waits for notarization to complete, then staples the ticket to the app bundle.
+- Eliminates Gatekeeper warnings for end users.
 
 ## Implementation Status
 
 - [x] Release workflow triggered by `v*` tag push
-- [x] Parallel cross-platform build matrix (Linux, Windows, macOS)
+- [x] Parallel cross-platform build matrix (Linux x86_64, Linux ARM64, Windows, macOS)
 - [x] Addon checkout and symlinking for accordkit and accordstream
 - [x] Godot 4.6 setup with export templates
 - [x] Headless project import before export
@@ -201,31 +284,30 @@ The project version is set in `project.godot` at `config/version="0.1.0"` (line 
 - [x] Automatic prerelease detection from tag hyphens
 - [x] GitHub Release creation with artifacts and notes
 - [x] CI pipeline (lint + unit tests) on push/PR
-- [x] Export presets configured for all three platforms
+- [x] Export presets configured for all four platforms
 - [x] macOS universal binary (x86_64 + ARM64)
 - [x] Windows application metadata (icon, company, description)
-- [x] Linux export preset
-- [ ] Code signing for Windows (disabled, `codesign/enable=false`)
-- [ ] macOS notarization (disabled, `notarization/notarization=0`)
-- [ ] macOS developer identity signing (ad-hoc only)
-- [ ] Custom export templates for reduced build size (stock templates used)
-- [ ] Version tag validation against `project.godot`
-- [ ] Linux `.desktop` file included in release artifact
-- [ ] AccordStream native binaries included in export
-- [ ] ARM64 Linux build
-- [ ] Integration/e2e tests in CI (only unit tests run)
+- [x] Linux x86_64 and ARM64 export presets
+- [x] Version tag validation against `project.godot`
+- [x] Sentry DSN injection for production error reporting
+- [x] Custom export template configured for Linux (missing templates auto-cleared for stock fallback)
+- [x] Windows code signing (conditional on `WINDOWS_CERT_BASE64` secret)
+- [x] macOS code signing (conditional on `APPLE_CERTIFICATE_BASE64` secret)
+- [x] macOS notarization (conditional on `APPLE_ID` secret)
+- [x] Linux `.desktop` file and icon included in release artifacts
+- [x] AccordStream native binaries downloaded from releases (continue-on-error)
+- [x] ARM64 Linux build in matrix
+- [x] Integration tests in CI (continue-on-error until seed bug is fixed)
+- [x] macOS build runs on native `macos-latest` runner
+- [ ] Custom export templates for Windows and macOS (referenced in presets but not yet built — stock fallback used)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No Windows code signing | High | `export_presets.cfg` has `codesign/enable=false` (line 64). Users will see SmartScreen/Defender warnings when running the unsigned `.exe`. Requires a code signing certificate. |
-| No macOS notarization | High | `notarization/notarization=0` (line 136) and ad-hoc signing only (`codesign/codesign=1`, line 127). macOS Gatekeeper will block the app for most users. Requires an Apple Developer account ($99/year) and notarization workflow. |
-| No version tag-to-project validation | Medium | The release workflow does not check that the pushed tag (e.g., `v0.2.0`) matches `config/version` in `project.godot` (currently `"0.1.0"`, line 18). A mismatch means the running app would report a different version than the release. Could add a CI step to validate. |
-| Changelog only has `[Unreleased]` | Medium | `CHANGELOG.md` has no versioned sections yet (line 8). The first `v*` tag push will produce a release with the fallback body `"Release v0.1.0"` instead of real notes. |
-| Linux `.desktop` file not in artifact | Low | `dist/daccord.desktop` exists but is not included in the `daccord-linux-x86_64.tar.gz` package. The `tar` command packages only `dist/build/linux/*` (line 78), which doesn't include the desktop entry or icons. |
-| AccordStream addon may be missing | Medium | The `accordstream` addon is symlinked for the build, but no `.gdextension` file was found in the repo. If the native binary (`.so`/`.dll`/`.dylib`) is not present in the symlinked addon at export time, voice/audio features will be missing from release builds. |
-| Stock export templates inflate binary size | Medium | All presets use empty `custom_template/release` (lines 19, 58, 121), meaning stock Godot templates with full 3D, Vulkan, and OpenXR. See [Reducing Build Size](reducing_build_size.md) for optimization plan. |
-| No ARM64 Linux build | Low | Only `x86_64` Linux architecture is exported (line 25). ARM64 Linux users (e.g., Raspberry Pi, some Chromebooks) cannot run the release. Would require adding a matrix entry. |
-| Only unit tests in CI | Low | The CI workflow (`ci.yml`) runs only `tests/unit` (line 78). Integration and e2e tests are not part of the gate before release. A failing integration test would not block a release tag. |
-| Cross-compilation from `ubuntu-latest` | Low | All three platforms build on `ubuntu-latest` (line 16). Godot's cross-compilation is generally reliable, but macOS-specific issues (e.g., universal binary linking, entitlements) may not surface until a user runs the artifact on real hardware. Consider using `macos-latest` runner for the macOS build. |
+| Windows code signing not yet active | Medium | Workflow step exists but requires `WINDOWS_CERT_BASE64` and `WINDOWS_CERT_PASSWORD` secrets. Users will see SmartScreen/Defender warnings until a certificate is purchased and configured. |
+| macOS signing/notarization not yet active | Medium | Workflow steps exist but require Apple Developer account secrets (`APPLE_CERTIFICATE_BASE64`, `APPLE_ID`, etc.). Gatekeeper will block the app until secrets are configured. |
+| Missing Windows and macOS custom templates | Medium | `export_presets.cfg` references custom templates that don't exist yet. The workflow auto-clears missing paths so Godot falls back to stock templates, inflating those binaries. See [Reducing Build Size](reducing_build_size.md). |
+| Changelog only has `[Unreleased]` | Medium | `CHANGELOG.md` has no versioned sections yet. The first `v*` tag push will produce a release with the fallback body `"Release v0.1.0"` instead of real notes. |
+| Integration tests are continue-on-error | Low | The `/test/seed` endpoint returns 500 after the first test file runs, causing cascading failures. Integration test job won't block PRs until the seed bug is fixed server-side. |
+| ARM64 Linux cross-compilation | Low | ARM64 builds cross-compile from `ubuntu-latest` (x86_64). Godot handles this via export templates, but edge cases may surface. No ARM64 custom template exists yet. |

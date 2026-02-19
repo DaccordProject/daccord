@@ -25,7 +25,13 @@ config/icon="res://icon.svg"
 
 AppState="*res://scripts/autoload/app_state.gd"
 Config="*res://scripts/autoload/config.gd"
+ErrorReporting="*res://scripts/autoload/error_reporting.gd"
 Client="*res://scripts/autoload/client.gd"
+SoundManager="*res://scripts/autoload/sound_manager.gd"
+
+[debug]
+
+settings/gdscript/always_track_call_stacks=true
 
 [display]
 
@@ -50,3 +56,18 @@ common/physics_ticks_per_second=1
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+[sentry]
+
+config/dsn="http://d4fe8b2c21184ae6aed88a521956241c@192.168.1.144:8070/1"
+config/auto_init=false
+config/debug=false
+config/sample_rate=1.0
+config/max_breadcrumbs=100
+config/send_default_pii=false
+config/attach_log=true
+config/attach_screenshot=false
+logger/enabled=true
+logger/event_mask=5
+logger/breadcrumb_mask=7
+logger/include_source=true

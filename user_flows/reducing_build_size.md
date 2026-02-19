@@ -1,6 +1,5 @@
 # Reducing Build Size
 
-*Last touched: 2026-02-18 20:21*
 
 ## Overview
 
@@ -8,7 +7,7 @@ This flow documents how to reduce daccord's exported build size by compiling cus
 
 Reference: [How to Minify Godot's Build Size](https://popcar.bearblog.dev/how-to-minify-godots-build-size/) by Popcar.
 
-None of this is implemented yet. daccord currently exports with stock Godot templates. This document serves as a build optimization specification.
+Custom export templates are built from [DaccordProject/godot4apps](https://github.com/DaccordProject/godot4apps) (private), a repo containing the build configuration and a build script that compiles minimal Godot 4.5.1-stable export templates. Compiled templates are stored in `dist/templates/` and tracked with git-lfs.
 
 ## Current State
 
@@ -20,20 +19,40 @@ daccord exports to three platforms via the release CI pipeline (`.github/workflo
 | Windows | `Windows` | `daccord-windows-x86_64.zip` |
 | macOS | `macOS` | `daccord-macos.zip` |
 
-All three use stock Godot 4.6 export templates (`custom_template/release=""` in `export_presets.cfg`). The project uses the GL Compatibility renderer (`project.godot` line 20), meaning Vulkan is unused.
+`export_presets.cfg` points to custom templates in `dist/templates/` (tracked with git-lfs). The project uses the GL Compatibility renderer (`project.godot` line 20), meaning Vulkan is unused.
 
-## User Steps
+## Architecture
 
-### 1. Set Up the Build Environment
+### Repository Layout
 
-1. Clone the Godot source for the version matching the project (4.6).
-2. Install SCons and a C++ compiler (see [Godot docs: Compiling](https://docs.godotengine.org/en/stable/contributing/development/compiling/)).
-3. Create a `custom.py` file in the Godot source root with the build flags below.
+The build configuration lives in a separate repo:
 
-### 2. Create the Custom Build Profile (`custom.py`)
+```
+DaccordProject/godot4apps (private)
+├── custom.py        # SCons build flags for minimal export templates
+├── build.sh         # Clones Godot 4.5.1-stable source and compiles templates
+├── .gitignore       # Ignores godot/ source clone and build artifacts
+├── .gitattributes   # git-lfs tracking for compiled template binaries
+└── godot/           # (gitignored) Godot source, cloned by build.sh
+    └── bin/         # Compiled template output
+```
+
+Compiled templates are copied into the daccord repo:
+
+```
+daccord/
+└── dist/
+    └── templates/                                          # git-lfs tracked
+        ├── godot.linuxbsd.template_release.x86_64          # Linux template
+        ├── godot.windows.template_release.x86_64.exe       # Windows template
+        └── godot.macos.template_release.universal           # macOS template
+```
+
+### Build Flags (`custom.py`)
 
 ```python
 # custom.py — daccord minimal export template build flags
+# Godot 4.5.1-stable
 
 # Size optimization
 optimize = "size"          # -Os compiler flag (smaller binary)
@@ -55,31 +74,57 @@ minizip = "no"             # No ZIP archive support needed
 # NOTE: If daccord ever needs RTL language support, keep the advanced text server.
 module_text_server_adv_enabled = "no"
 module_text_server_fb_enabled = "yes"
-```
 
-### 3. Selective Module Compilation (Optional, Aggressive)
-
-For maximum size reduction, disable all modules by default and enable only what daccord uses:
-
-```python
-# Append to custom.py for aggressive stripping
+# Aggressive stripping: disable all modules by default, enable only what daccord uses
 modules_enabled_by_default = "no"
 
 # Modules daccord actually needs
 module_gdscript_enabled = "yes"          # Scripting language
 module_text_server_fb_enabled = "yes"    # Text rendering
 module_freetype_enabled = "yes"          # Font rendering
-module_svg_enabled = "yes"              # SVG icon support (theme/icons/)
-module_webp_enabled = "yes"             # WebP image support
-module_godot_physics_2d_enabled = "yes" # 2D physics (if used)
-module_websocket_enabled = "yes"        # WebSocket gateway
-module_mbedtls_enabled = "yes"          # TLS for HTTPS/WSS
-module_regex_enabled = "yes"            # Regex (used in markdown parsing)
+module_svg_enabled = "yes"               # SVG icon support (theme/icons/)
+module_webp_enabled = "yes"              # WebP image support
+module_godot_physics_2d_enabled = "yes"  # 2D physics (if used)
+module_websocket_enabled = "yes"         # WebSocket gateway
+module_mbedtls_enabled = "yes"           # TLS for HTTPS/WSS
+module_regex_enabled = "yes"             # Regex (used in markdown parsing)
 ```
 
 **Do NOT disable `disable_advanced_gui`** — daccord relies heavily on `RichTextLabel` (message rendering, markdown-to-BBCode), `TextEdit` (composer), and other advanced GUI nodes.
 
-### 4. Generate a Build Profile File (Optional)
+## User Steps
+
+### Building Templates Locally
+
+```bash
+# Clone the build repo
+git clone https://github.com/DaccordProject/godot4apps.git
+cd godot4apps
+
+# Build all platforms
+./build.sh
+
+# Or build a single platform
+./build.sh linux
+./build.sh windows
+./build.sh macos
+```
+
+`build.sh` handles cloning the Godot 4.5.1-stable source, copying `custom.py` in, and compiling. Output goes to `godot/bin/`.
+
+### Updating daccord Templates
+
+After building, copy the compiled templates into the daccord repo:
+
+```bash
+cp godot/bin/godot.linuxbsd.template_release.x86_64 ../daccord/dist/templates/
+cp godot/bin/godot.windows.template_release.x86_64.exe ../daccord/dist/templates/
+cp godot/bin/godot.macos.template_release.universal ../daccord/dist/templates/
+```
+
+These are tracked with git-lfs, so commit and push as usual.
+
+### Generate a Build Profile File (Optional)
 
 Use Godot's Engine Compilation Configuration Editor to strip unused node types:
 
@@ -89,39 +134,7 @@ Use Godot's Engine Compilation Configuration Editor to strip unused node types:
 4. Save as `custom.build` in the project root.
 5. Add `build_profile = "custom.build"` to the SCons command.
 
-### 5. Compile Custom Export Templates
-
-```bash
-# Linux template
-scons platform=linuxbsd target=template_release profile=custom.py arch=x86_64
-
-# Windows template (cross-compile from Linux)
-scons platform=windows target=template_release profile=custom.py arch=x86_64
-
-# macOS template
-scons platform=macos target=template_release profile=custom.py arch=universal
-```
-
-Each build takes 15-30 minutes with `lto="full"`. The output binaries go into `bin/`.
-
-### 6. Configure Export Presets to Use Custom Templates
-
-Update `export_presets.cfg` to point to the custom templates:
-
-```ini
-# Linux preset
-custom_template/release="res://dist/templates/godot.linuxbsd.template_release.x86_64"
-
-# Windows preset
-custom_template/release="res://dist/templates/godot.windows.template_release.x86_64.exe"
-
-# macOS preset
-custom_template/release="res://dist/templates/godot.macos.template_release.universal"
-```
-
-Store the compiled templates in `dist/templates/` (gitignored) or as CI artifacts.
-
-### 7. Post-Processing: UPX (Windows/Linux)
+### Post-Processing: UPX (Windows/Linux)
 
 Apply [UPX](https://upx.github.io/) compression to the final executable:
 
@@ -132,7 +145,7 @@ upx --best daccord.x86_64    # Linux
 
 **Trade-offs:** UPX reduces on-disk size by ~60% but increases RAM usage by ~20MB (the compressed binary is decompressed into memory at launch). Some antivirus software flags UPX-packed executables as suspicious — consider skipping UPX for release builds distributed to end users, or signing the executable.
 
-### 8. Post-Processing: wasm-opt (Web, Future)
+### Post-Processing: wasm-opt (Web, Future)
 
 If daccord adds a web export in the future:
 
@@ -148,26 +161,34 @@ Provides 1-2MB savings on the uncompressed WASM binary.
 CI Release Pipeline (release.yml):
   push tag v*
     -> build job (per platform)
-      -> checkout Godot source
-      -> scons platform=<platform> target=template_release profile=custom.py
+      -> checkout daccord (with lfs: true to pull dist/templates/*)
       -> godot --headless --export-release "<Preset>"
-         (uses custom_template/release from export_presets.cfg)
+         (uses custom_template/release from export_presets.cfg,
+          pointing to res://dist/templates/<template binary>)
       -> Post-process (UPX for Windows/Linux, optional)
       -> Package artifact
     -> release job
       -> Create GitHub Release with artifacts
+
+Template Rebuild (when Godot version or custom.py changes):
+  developer workstation (or dedicated CI workflow in godot4apps)
+    -> git clone DaccordProject/godot4apps
+    -> ./build.sh
+    -> copy bin/* to daccord/dist/templates/
+    -> git add, commit, push (git-lfs handles the large binaries)
 ```
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `export_presets.cfg` | Export presets for Linux, Windows, macOS. `custom_template/release` fields point to custom templates (currently empty = stock templates). |
-| `.github/workflows/release.yml` | CI release pipeline. Would need a "compile custom template" step before the export step. |
-| `project.godot` | Declares GL Compatibility renderer and enabled features. Input for the build profile. |
-| `custom.py` | SCons build flags for custom export templates. Does not exist yet. |
-| `custom.build` | Godot build profile listing enabled/disabled node types. Does not exist yet. |
-| `dist/templates/` | Directory for compiled custom export templates. Does not exist yet. |
+| `export_presets.cfg` | Export presets for Linux, Windows, macOS. `custom_template/release` fields point to custom templates in `dist/templates/`. |
+| `.github/workflows/release.yml` | CI release pipeline. Uses custom templates pulled via git-lfs during checkout. |
+| `.gitattributes` | git-lfs tracking for `dist/templates/*` (and fonts, images). |
+| `project.godot` | Declares GL Compatibility renderer and enabled features. |
+| `dist/templates/` | Compiled custom export templates, tracked with git-lfs. |
+| [godot4apps](https://github.com/DaccordProject/godot4apps) `custom.py` | SCons build flags for custom export templates. |
+| [godot4apps](https://github.com/DaccordProject/godot4apps) `build.sh` | Build script that clones Godot source and compiles templates. |
 
 ## Implementation Details
 
@@ -197,38 +218,43 @@ daccord is a 2D chat client using GL Compatibility. The following engine feature
 
 ### CI Integration
 
-The release workflow currently uses `chickensoft-games/setup-godot` to install Godot with stock templates. To use custom templates:
+The release workflow uses `chickensoft-games/setup-godot` to install the Godot editor binary. Custom templates are stored in `dist/templates/` (git-lfs) and pulled during the `actions/checkout` step with `lfs: true`. The Godot export picks them up via the `custom_template/release` paths in `export_presets.cfg`.
 
-**Option A: Build templates in CI** — Add a job that clones Godot source, compiles custom templates with `custom.py`, and passes them as artifacts to the export job. Adds ~30 minutes per platform to CI.
+Template binaries only need to be rebuilt when:
+- The Godot version changes
+- `custom.py` build flags change
+- New modules are added or removed
 
-**Option B: Pre-built template cache** — Compile templates locally or in a separate CI workflow, upload to a GitHub Release (e.g., `daccord-templates-v4.6`), and download them in the release workflow. Faster CI runs but requires manual template updates when Godot version changes.
+Rebuilding is done locally (or via a future CI workflow in godot4apps) and the resulting binaries are committed to daccord's `dist/templates/` via git-lfs.
 
-**Option C: GitHub Actions cache** — Build templates once and cache them keyed by Godot version + `custom.py` hash. Subsequent runs use the cache. Best balance of automation and speed.
+### Measured Results
 
-### Expected Results
+Linux export with custom template (Godot 4.5.1-stable):
 
-Based on the reference article's measurements for a 2D Godot 4.5 project:
+| File | Size |
+|------|------|
+| `daccord.x86_64` (custom template) | 30MB |
+| `daccord.pck` (game data) | 13MB |
+| `libaccordstream.so` (GDExtension) | 28MB |
+| `libsentry.linux.release.x86_64.so` | 3.9MB |
+| `crashpad_handler` | 903KB |
+| **Total** | **~75MB** |
 
-| Platform | Stock Template | Custom Template | With UPX |
-|----------|---------------|-----------------|----------|
-| Windows | ~93MB | ~17MB | ~5-6MB |
-| Linux | ~85MB | ~16MB | ~5-6MB |
-| macOS | ~90MB | ~18MB | N/A (UPX unreliable on macOS) |
-
-Actual results will vary based on which modules are kept.
+Stock template comparison (~85MB for Linux), so the custom template provides a ~65% reduction on the engine binary.
 
 ## Implementation Status
 
-- [ ] `custom.py` build flags file created
+- [x] `custom.py` build flags file created (in [godot4apps](https://github.com/DaccordProject/godot4apps))
+- [x] `build.sh` build script created (in [godot4apps](https://github.com/DaccordProject/godot4apps))
 - [ ] `custom.build` profile generated via Godot's Engine Compilation Configuration Editor
-- [ ] Custom export templates compiled for Linux
+- [x] Custom export templates compiled for Linux
 - [ ] Custom export templates compiled for Windows
 - [ ] Custom export templates compiled for macOS
-- [ ] `export_presets.cfg` updated to reference custom templates
-- [ ] `dist/templates/` directory created and gitignored
-- [ ] CI release workflow updated to use custom templates
+- [x] `export_presets.cfg` updated to reference custom templates
+- [x] `dist/templates/` directory created and git-lfs tracked
+- [ ] CI release workflow updated (Godot version `4.6` -> `4.5.1`)
 - [ ] UPX post-processing added to CI for Windows/Linux
-- [ ] Build size measured before and after optimizations
+- [x] Build size measured (Linux: 30MB template, 75MB total export)
 - [ ] `disable_advanced_gui` confirmed as unsafe (RichTextLabel dependency)
 - [ ] Selective module list validated against actual imports
 
@@ -236,10 +262,9 @@ Actual results will vary based on which modules are kept.
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No custom export templates | High | All exports use stock Godot templates with full engine. This is the single biggest size win (~70% reduction). |
-| No `custom.py` or build profile | High | Build flags need to be defined and tested. Start with the safe flags (`disable_3d`, `vulkan="no"`, `openxr="no"`) before aggressive module stripping. |
-| CI doesn't compile templates | Medium | The release workflow downloads pre-built stock templates. Needs a template compilation step or a pre-built template cache. |
+| Windows/macOS templates not yet compiled | High | `build.sh` supports these platforms but they haven't been built yet. Requires cross-compilation toolchains or native builds. |
+| CI Godot version mismatch | Medium | `release.yml` still references `GODOT_VERSION: "4.6"` — needs updating to `"4.5.1"`. |
+| Module list not validated | Medium | The selective module list is a best guess. Need to export with `modules_enabled_by_default="no"` and test that the app runs correctly, adding back any missing modules. |
 | No post-export compression | Low | UPX could further reduce Windows/Linux binaries but has trade-offs (RAM, antivirus). Consider for optional/advanced builds. |
-| Module list not validated | Medium | The selective module list above is a best guess. Need to export with `modules_enabled_by_default="no"` and test that the app runs correctly, adding back any missing modules. |
 | No web export | Low | Web-specific optimizations (wasm-opt, Brotli) are documented for future reference but not actionable today. |
-| AccordStream native binary | Medium | `addons/accordstream/` includes a GDExtension native binary (`.so`/`.dll`/`.dylib`) that ships alongside the Godot export. Its size is separate from the export template and may need its own optimization (strip symbols, LTO in Rust/C++ build). |
+| AccordStream native binary | Medium | `addons/accordstream/` includes a GDExtension native binary (`.so`/`.dll`/`.dylib`) at 28MB that ships alongside the Godot export. Its size is separate from the export template and may need its own optimization (strip symbols, LTO in Rust/C++ build). |

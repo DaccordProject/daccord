@@ -18,6 +18,11 @@ var _delete_dialog: ConfirmationDialog
 var _pending_delete_id: String = ""
 var _is_loading_older: bool = false
 
+var _scroll_tween: Tween
+var _channel_transition_tween: Tween
+var _old_message_count: int = 0
+var _pending_edit_content: Dictionary = {}
+
 var _banner_hide_timer: Timer
 var _loading_timeout_timer: Timer
 var _banner_style_warning: StyleBoxFlat
@@ -39,8 +44,10 @@ func _ready() -> void:
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.message_sent.connect(_on_message_sent)
 	AppState.message_edited.connect(_on_message_edited)
+	AppState.message_edit_failed.connect(_on_message_edit_failed)
 	AppState.message_deleted.connect(_on_message_deleted)
 	AppState.messages_updated.connect(_on_messages_updated)
+	AppState.reactions_updated.connect(_on_reactions_updated)
 	AppState.edit_requested.connect(_on_edit_requested)
 	AppState.typing_started.connect(_on_typing_started)
 	AppState.typing_stopped.connect(_on_typing_stopped)
@@ -114,6 +121,7 @@ func _on_channel_selected(channel_id: String) -> void:
 	current_channel_id = channel_id
 	_current_channel_name = "channel"
 	_is_loading = true
+	_old_message_count = 0
 	_hide_action_bar()
 	_update_empty_state([])
 	# Reset loading label style
@@ -174,6 +182,9 @@ func _load_messages(channel_id: String) -> void:
 				editing_text = mc.get_edit_text()
 				break
 
+	# Track message count before clearing for animation decisions
+	var old_count := _old_message_count
+
 	# Clear existing messages (skip persistent nodes)
 	for child in message_list.get_children():
 		if child == older_btn or child == empty_state or child == loading_label:
@@ -183,6 +194,9 @@ func _load_messages(channel_id: String) -> void:
 	var messages := Client.get_messages_for_channel(channel_id)
 	_is_loading = false
 	_update_empty_state(messages)
+
+	var new_count := messages.size()
+	_old_message_count = new_count
 
 	# Only show "older messages" button if we hit the message cap (more may exist)
 	older_btn.visible = messages.size() >= Client.MESSAGE_CAP
@@ -223,18 +237,56 @@ func _load_messages(channel_id: String) -> void:
 					mc.enter_edit_mode(editing_id, editing_text)
 				break
 
+	# Determine which animation to play
+	var is_single_new_message: bool = old_count > 0 and new_count == old_count + 1
+
+	if is_single_new_message and not _is_loading_older:
+		# Fade in the last message child
+		var last_msg := _get_last_message_child()
+		if last_msg:
+			last_msg.modulate.a = 0.0
+			var msg_tween := create_tween()
+			msg_tween.tween_property(last_msg, "modulate:a", 1.0, 0.15) \
+				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	elif not _is_loading_older and old_count != new_count:
+		# Channel transition fade-in (not for single new messages or older-message loads)
+		if _channel_transition_tween and _channel_transition_tween.is_valid():
+			_channel_transition_tween.kill()
+		scroll_container.modulate.a = 0.0
+		_channel_transition_tween = create_tween()
+		_channel_transition_tween.tween_property(scroll_container, "modulate:a", 1.0, 0.15) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
 	# Scroll to bottom (skip when loading older messages to preserve position)
 	if not _is_loading_older:
 		auto_scroll = true
 		await get_tree().process_frame
-		_scroll_to_bottom()
+		_scroll_to_bottom_animated()
 
 func _on_message_sent(text: String) -> void:
 	var reply_to: String = AppState.replying_to_message_id
-	Client.send_message_to_channel(current_channel_id, text, reply_to)
+	var attachments: Array = AppState.pending_attachments.duplicate()
+	AppState.pending_attachments.clear()
+	Client.send_message_to_channel(current_channel_id, text, reply_to, attachments)
 
 func _on_message_edited(message_id: String, new_content: String) -> void:
+	_pending_edit_content[message_id] = new_content
 	Client.update_message_content(message_id, new_content)
+
+func _on_message_edit_failed(message_id: String, error: String) -> void:
+	var failed_content: String = _pending_edit_content.get(message_id, "")
+	_pending_edit_content.erase(message_id)
+	# Re-enter edit mode on the failed message with the content that failed to save
+	AppState.start_editing(message_id)
+	for child in message_list.get_children():
+		if child == older_btn or child == empty_state or child == loading_label:
+			continue
+		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
+			var mc = child.get("message_content")
+			if mc:
+				mc.enter_edit_mode(message_id, failed_content)
+				mc.show_edit_error("Edit failed: %s" % error)
+			break
 
 func _on_message_deleted(message_id: String) -> void:
 	Client.remove_message(message_id)
@@ -252,6 +304,21 @@ func _on_edit_requested(message_id: String) -> void:
 func _on_messages_updated(channel_id: String) -> void:
 	if channel_id == current_channel_id:
 		_load_messages(channel_id)
+
+func _on_reactions_updated(channel_id: String, message_id: String) -> void:
+	if channel_id != current_channel_id:
+		return
+	# Targeted update: only rebuild the affected message's reaction bar
+	for child in message_list.get_children():
+		if child == older_btn or child == empty_state or child == loading_label:
+			continue
+		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
+			var mc = child.get("message_content")
+			if mc:
+				var msg := Client.get_message_by_id(message_id)
+				var reactions: Array = msg.get("reactions", [])
+				mc.reaction_bar.setup(reactions, channel_id, message_id)
+			break
 
 func _on_typing_started(channel_id: String, username: String) -> void:
 	if channel_id == current_channel_id:
@@ -464,6 +531,26 @@ func _on_loading_label_input(event: InputEvent) -> void:
 
 func _scroll_to_bottom() -> void:
 	scroll_container.scroll_vertical = int(scroll_container.get_v_scroll_bar().max_value)
+
+func _scroll_to_bottom_animated() -> void:
+	var target := int(scroll_container.get_v_scroll_bar().max_value)
+	var distance := absi(target - scroll_container.scroll_vertical)
+	if distance < 50:
+		scroll_container.scroll_vertical = target
+		return
+	if _scroll_tween and _scroll_tween.is_valid():
+		_scroll_tween.kill()
+	_scroll_tween = create_tween()
+	_scroll_tween.tween_property(scroll_container, "scroll_vertical", target, 0.2) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
+func _get_last_message_child() -> Control:
+	var children := message_list.get_children()
+	for i in range(children.size() - 1, -1, -1):
+		var child: Node = children[i]
+		if child != older_btn and child != empty_state and child != loading_label:
+			return child as Control
+	return null
 
 func _on_scrollbar_changed() -> void:
 	if auto_scroll:

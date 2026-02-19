@@ -77,3 +77,108 @@ jobs:
             -glog=1 \
             -gdir=res://tests/unit
         timeout-minutes: 5
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Checkout accordkit
+        uses: actions/checkout@v4
+        with:
+          repository: daccord-projects/accordkit
+          path: .accordkit_repo
+
+      - name: Checkout accordstream
+        uses: actions/checkout@v4
+        with:
+          repository: daccord-projects/accordstream
+          path: .accordstream_repo
+
+      - name: Checkout accordserver
+        uses: actions/checkout@v4
+        with:
+          repository: daccord-projects/accordserver
+          path: .accordserver_repo
+
+      - name: Symlink addons
+        run: |
+          ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
+          ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .accordserver_repo/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('.accordserver_repo/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build accordserver
+        run: cargo build --release --manifest-path .accordserver_repo/Cargo.toml
+
+      - name: Start accordserver
+        run: |
+          ACCORD_TEST_MODE=true \
+          DATABASE_URL="sqlite:accord_ci_test.db?mode=rwc" \
+          .accordserver_repo/target/release/accordserver > test_server.log 2>&1 &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for server readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:39099/health > /dev/null 2>&1; then
+              echo "Server is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Server failed to start within 30 seconds"
+          cat test_server.log
+          exit 1
+        timeout-minutes: 1
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: false
+
+      - name: Import project
+        run: godot --headless --import . || true
+        timeout-minutes: 2
+
+      - name: Run integration tests
+        run: |
+          godot --headless -s addons/gut/gut_cmdln.gd \
+            -ginclude_subdirs=true \
+            -gprefix=test_ \
+            -gsuffix=.gd \
+            -glog=1 \
+            -gdir=res://tests/accordkit
+        timeout-minutes: 10
+
+      - name: Stop accordserver
+        if: always()
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            kill "$SERVER_PID" 2>/dev/null || true
+          fi
+
+      - name: Upload server log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accordserver-log
+          path: test_server.log
