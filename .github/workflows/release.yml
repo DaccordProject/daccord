@@ -15,6 +15,7 @@ jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    environment: default
     strategy:
       matrix:
         include:
@@ -56,13 +57,15 @@ jobs:
       - name: Checkout accordkit
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordkit
+          repository: DaccordProject/accordkit
+          token: ${{ secrets.GH_PAT }}
           path: .accordkit_repo
 
       - name: Checkout accordstream
         uses: actions/checkout@v4
         with:
-          repository: daccord-projects/accordstream
+          repository: DaccordProject/accordstream
+          token: ${{ secrets.GH_PAT }}
           path: .accordstream_repo
           lfs: true
 
@@ -74,11 +77,11 @@ jobs:
       - name: Download AccordStream platform binaries
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           echo "Downloading AccordStream platform binaries..."
           TMPDIR=$(mktemp -d)
-          gh release download --repo daccord-projects/accordstream \
+          gh release download --repo DaccordProject/accordstream \
             --pattern "accordstream-addon.zip" --dir "$TMPDIR" || exit 0
           unzip -o "$TMPDIR/accordstream-addon.zip" -d "$TMPDIR/extracted"
           # Copy any missing native binaries into the addon
