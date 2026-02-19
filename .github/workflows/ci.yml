@@ -67,17 +67,10 @@ jobs:
       - name: Install GUT
         run: |
           if [ ! -d addons/gut ]; then
-            wget -q https://github.com/bitwes/Gut/releases/download/v${GUT_VERSION}/Gut.${GUT_VERSION}.zip -O /tmp/gut.zip
-            unzip -o /tmp/gut.zip -d /tmp/gut_extract
-            # The zip may contain addons/gut/ directly or a top-level folder
-            if [ -d /tmp/gut_extract/addons/gut ]; then
-              cp -r /tmp/gut_extract/addons/gut addons/gut
-            else
-              # Find the gut directory wherever it is
-              GUT_DIR=$(find /tmp/gut_extract -type d -name "gut" | head -1)
-              cp -r "$GUT_DIR" addons/gut
-            fi
-            rm -rf /tmp/gut.zip /tmp/gut_extract
+            wget -q https://github.com/bitwes/Gut/archive/refs/tags/v${GUT_VERSION}.tar.gz -O /tmp/gut.tar.gz
+            tar xzf /tmp/gut.tar.gz -C /tmp
+            cp -r /tmp/Gut-${GUT_VERSION}/addons/gut addons/gut
+            rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
           fi
 
       - name: Set up Godot
