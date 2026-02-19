@@ -54,8 +54,11 @@ func _on_send() -> void:
 
 func _on_text_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_ENTER and not event.shift_pressed:
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and not event.shift_pressed:
 			_on_send()
+			get_viewport().set_input_as_handled()
+		elif event.keycode in [KEY_ENTER, KEY_KP_ENTER] and event.shift_pressed:
+			text_input.insert_text_at_caret("\n")
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_UP and text_input.text.strip_edges().is_empty():
 			_edit_last_own_message()

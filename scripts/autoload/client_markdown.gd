@@ -3,44 +3,68 @@ class_name ClientMarkdown
 ## Markdown-to-BBCode conversion and BBCode sanitization.
 ## Extracted from ClientModels to keep that file focused on model conversion.
 
+# Cached compiled regex objects (lazy-initialized)
+static var _code_block_regex: RegEx
+static var _inline_code_regex: RegEx
+static var _strike_regex: RegEx
+static var _underline_regex: RegEx
+static var _bold_regex: RegEx
+static var _italic_regex: RegEx
+static var _spoiler_regex: RegEx
+static var _link_regex: RegEx
+static var _blockquote_regex: RegEx
+static var _emoji_regex: RegEx
+static var _code_splitter_regex: RegEx
+
+static func _ensure_compiled() -> void:
+	if _code_block_regex != null:
+		return
+	_code_block_regex = RegEx.new()
+	_code_block_regex.compile("```(?:\\w+\\n)?([\\s\\S]*?)```")
+	_inline_code_regex = RegEx.new()
+	_inline_code_regex.compile("`([^`]+)`")
+	_strike_regex = RegEx.new()
+	_strike_regex.compile("~~(.+?)~~")
+	_underline_regex = RegEx.new()
+	_underline_regex.compile("__(.+?)__")
+	_bold_regex = RegEx.new()
+	_bold_regex.compile("\\*\\*(.+?)\\*\\*")
+	_italic_regex = RegEx.new()
+	_italic_regex.compile("\\*(.+?)\\*")
+	_spoiler_regex = RegEx.new()
+	_spoiler_regex.compile("\\|\\|(.+?)\\|\\|")
+	_link_regex = RegEx.new()
+	_link_regex.compile("\\[(.+?)\\]\\((.+?)\\)")
+	_blockquote_regex = RegEx.new()
+	_blockquote_regex.compile("(?m)^> (.+)$")
+	_emoji_regex = RegEx.new()
+	_emoji_regex.compile(":([a-z0-9_]+):")
+	_code_splitter_regex = RegEx.new()
+	_code_splitter_regex.compile("(?s)(\\[code\\].*?\\[/code\\])")
+
 static func markdown_to_bbcode(text: String) -> String:
+	_ensure_compiled()
 	var result := text
 	# Code blocks (``` ```)
-	var code_block_regex := RegEx.new()
-	code_block_regex.compile("```(?:\\w+\\n)?([\\s\\S]*?)```")
-	result = code_block_regex.sub(result, "[code]$1[/code]", true)
+	result = _code_block_regex.sub(result, "[code]$1[/code]", true)
 	# Inline code
-	var inline_code_regex := RegEx.new()
-	inline_code_regex.compile("`([^`]+)`")
-	result = inline_code_regex.sub(result, "[code]$1[/code]", true)
+	result = _inline_code_regex.sub(result, "[code]$1[/code]", true)
 	# Strikethrough ~~text~~
-	var strike_regex := RegEx.new()
-	strike_regex.compile("~~(.+?)~~")
-	result = strike_regex.sub(result, "[s]$1[/s]", true)
+	result = _strike_regex.sub(result, "[s]$1[/s]", true)
 	# Underline __text__ (must come before bold to avoid conflict)
-	var underline_regex := RegEx.new()
-	underline_regex.compile("__(.+?)__")
-	result = underline_regex.sub(result, "[u]$1[/u]", true)
+	result = _underline_regex.sub(result, "[u]$1[/u]", true)
 	# Bold
-	var bold_regex := RegEx.new()
-	bold_regex.compile("\\*\\*(.+?)\\*\\*")
-	result = bold_regex.sub(result, "[b]$1[/b]", true)
+	result = _bold_regex.sub(result, "[b]$1[/b]", true)
 	# Italic
-	var italic_regex := RegEx.new()
-	italic_regex.compile("\\*(.+?)\\*")
-	result = italic_regex.sub(result, "[i]$1[/i]", true)
+	result = _italic_regex.sub(result, "[i]$1[/i]", true)
 	# Spoilers ||text||
-	var spoiler_regex := RegEx.new()
-	spoiler_regex.compile("\\|\\|(.+?)\\|\\|")
-	result = spoiler_regex.sub(
+	result = _spoiler_regex.sub(
 		result,
 		"[url=spoiler][bgcolor=#1e1f22][color=#1e1f22]$1[/color][/bgcolor][/url]",
 		true,
 	)
 	# Links — block dangerous URL schemes before converting
-	var link_regex := RegEx.new()
-	link_regex.compile("\\[(.+?)\\]\\((.+?)\\)")
-	var link_matches := link_regex.search_all(result)
+	var link_matches := _link_regex.search_all(result)
 	for i in range(link_matches.size() - 1, -1, -1):
 		var lm := link_matches[i]
 		var link_text := lm.get_string(1)
@@ -54,17 +78,13 @@ static func markdown_to_bbcode(text: String) -> String:
 		var replacement := "[url=%s]%s[/url]" % [link_url, link_text]
 		result = result.substr(0, lm.get_start()) + replacement + result.substr(lm.get_end())
 	# Blockquotes (line-level: > text)
-	var blockquote_regex := RegEx.new()
-	blockquote_regex.compile("(?m)^> (.+)$")
-	result = blockquote_regex.sub(
+	result = _blockquote_regex.sub(
 		result,
 		"[indent][color=#8a8e94]$1[/color][/indent]",
 		true,
 	)
 	# Emoji shortcodes :name: -> inline image
-	var emoji_regex := RegEx.new()
-	emoji_regex.compile(":([a-z0-9_]+):")
-	var emoji_matches := emoji_regex.search_all(result)
+	var emoji_matches := _emoji_regex.search_all(result)
 	for i in range(emoji_matches.size() - 1, -1, -1):
 		var m := emoji_matches[i]
 		var ename := m.get_string(1)
@@ -83,6 +103,7 @@ static func markdown_to_bbcode(text: String) -> String:
 	return result
 
 static func _sanitize_bbcode_tags(text: String) -> String:
+	_ensure_compiled()
 	# Allowed tag prefixes produced by the markdown converter above.
 	var allowed_prefixes: Array[String] = [
 		"b]", "/b]",
@@ -100,11 +121,9 @@ static func _sanitize_bbcode_tags(text: String) -> String:
 	]
 
 	# Split on [code]...[/code] blocks so we don't touch their content.
-	var code_splitter := RegEx.new()
-	code_splitter.compile("(?s)(\\[code\\].*?\\[/code\\])")
 	var parts: Array[String] = []
 	var last_end: int = 0
-	for cm in code_splitter.search_all(text):
+	for cm in _code_splitter_regex.search_all(text):
 		if cm.get_start() > last_end:
 			parts.append(text.substr(last_end, cm.get_start() - last_end))
 		parts.append(cm.get_string(0))

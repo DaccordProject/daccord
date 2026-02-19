@@ -44,12 +44,12 @@ func test_full_lifecycle() -> void:
 
 	var first_channel_id: String = ""
 	for ch in channels_result.data:
-		if ch.get("name", "") == "general":
-			first_channel_id = str(ch["id"])
+		if ch.name == "general":
+			first_channel_id = ch.id
 			break
 
 	if first_channel_id.is_empty() and channels_result.data.size() > 0:
-		first_channel_id = str(channels_result.data[0]["id"])
+		first_channel_id = channels_result.data[0].id
 
 	assert_false(first_channel_id.is_empty(), "Should find a channel")
 

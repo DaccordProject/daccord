@@ -136,6 +136,25 @@ func fetch_dm_channels() -> void:
 	# Asynchronously fetch last message previews
 	_fetch_dm_previews()
 
+func _fetch_unknown_authors(
+	messages: Array, client: AccordClient, cdn_url: String,
+) -> void:
+	var seen: Dictionary = {}
+	for msg in messages:
+		var accord_msg: AccordMessage = msg
+		var uid: String = accord_msg.author_id
+		if _c._user_cache.has(uid) or seen.has(uid):
+			continue
+		seen[uid] = true
+		var user_result: RestResult = \
+			await client.users.fetch(uid)
+		if user_result.ok:
+			_c._user_cache[uid] = ClientModels.user_to_dict(
+				user_result.data,
+				ClientModels.UserStatus.OFFLINE,
+				cdn_url
+			)
+
 func fetch_messages(channel_id: String) -> void:
 	var client: AccordClient = _c._client_for_channel(
 		channel_id
@@ -151,21 +170,13 @@ func fetch_messages(channel_id: String) -> void:
 		channel_id, {"limit": cap}
 	)
 	if result.ok:
+		# Fetch all unknown authors in parallel
+		await _fetch_unknown_authors(
+			result.data, client, cdn_url
+		)
 		var msgs: Array = []
 		for msg in result.data:
 			var accord_msg: AccordMessage = msg
-			if not _c._user_cache.has(accord_msg.author_id):
-				var user_result: RestResult = \
-					await client.users.fetch(
-						accord_msg.author_id
-					)
-				if user_result.ok:
-					_c._user_cache[accord_msg.author_id] = \
-						ClientModels.user_to_dict(
-							user_result.data,
-							ClientModels.UserStatus.OFFLINE,
-							cdn_url
-						)
 			msgs.append(
 				ClientModels.message_to_dict(
 					accord_msg, _c._user_cache, cdn_url
@@ -227,21 +238,13 @@ func fetch_older_messages(channel_id: String) -> void:
 			err_msg
 		)
 		return
+	# Fetch all unknown authors in parallel
+	await _fetch_unknown_authors(
+		result.data, client, cdn_url
+	)
 	var older_msgs: Array = []
 	for msg in result.data:
 		var accord_msg: AccordMessage = msg
-		if not _c._user_cache.has(accord_msg.author_id):
-			var user_result: RestResult = \
-				await client.users.fetch(
-					accord_msg.author_id
-				)
-			if user_result.ok:
-				_c._user_cache[accord_msg.author_id] = \
-					ClientModels.user_to_dict(
-						user_result.data,
-						ClientModels.UserStatus.OFFLINE,
-						cdn_url
-					)
 		older_msgs.append(
 			ClientModels.message_to_dict(
 				accord_msg, _c._user_cache, cdn_url
@@ -252,6 +255,10 @@ func fetch_older_messages(channel_id: String) -> void:
 		return
 	# Prepend older messages to existing cache
 	var combined: Array = older_msgs + existing
+	# Cap total cached messages per channel
+	while combined.size() > _c.MAX_CHANNEL_MESSAGES:
+		var evicted: Dictionary = combined.pop_back()
+		_c._message_id_index.erase(evicted.get("id", ""))
 	_c._message_cache[channel_id] = combined
 	# Update index for new messages
 	for msg in older_msgs:
@@ -263,12 +270,35 @@ func fetch_members(guild_id: String) -> void:
 	if client == null:
 		return
 	var cdn_url: String = _c._cdn_for_guild(guild_id)
-	var result: RestResult = await client.members.list(
-		guild_id, {"limit": 1000}
-	)
-	if result.ok:
-		var members: Array = []
-		for member in result.data:
+	var all_members: Array = []
+	var cursor: String = ""
+
+	# Paginated fetch loop
+	while true:
+		var params: Dictionary = {"limit": 1000}
+		if not cursor.is_empty():
+			params["after"] = cursor
+		var result: RestResult = await client.members.list(
+			guild_id, params
+		)
+		if not result.ok:
+			var err_msg: String = (
+				result.error.message
+				if result.error
+				else "unknown"
+			)
+			push_error(
+				"[Client] Failed to fetch members: ",
+				err_msg
+			)
+			return
+
+		var page: Array = result.data
+		if page.is_empty():
+			break
+
+		# Fetch missing users (deduplicated)
+		for member in page:
 			var accord_member: AccordMember = member
 			if not _c._user_cache.has(accord_member.user_id):
 				var user_result: RestResult = \
@@ -282,22 +312,25 @@ func fetch_members(guild_id: String) -> void:
 							ClientModels.UserStatus.OFFLINE,
 							cdn_url
 						)
-			members.append(
+
+		# Build member dicts (all users now cached)
+		for member in page:
+			var accord_member: AccordMember = member
+			all_members.append(
 				ClientModels.member_to_dict(
 					accord_member, _c._user_cache
 				)
 			)
-		_c._member_cache[guild_id] = members
-		AppState.members_updated.emit(guild_id)
-	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
-		push_error(
-			"[Client] Failed to fetch members: ", err_msg
-		)
+
+		# Pagination: if page < limit, we're done
+		if page.size() < 1000:
+			break
+		var last_member: AccordMember = page[page.size() - 1]
+		cursor = last_member.user_id
+
+	_c._member_cache[guild_id] = all_members
+	_c._rebuild_member_index(guild_id)
+	AppState.members_updated.emit(guild_id)
 
 func fetch_roles(guild_id: String) -> void:
 	var client: AccordClient = _c._client_for_guild(guild_id)

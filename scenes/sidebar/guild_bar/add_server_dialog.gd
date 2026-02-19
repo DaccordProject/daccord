@@ -95,13 +95,27 @@ func _on_add_pressed() -> void:
 				alt_url = alt_url.replace("http://", "https://")
 			urls_match = server["base_url"] == alt_url
 		if urls_match and server["guild_name"] == guild_name:
-			# If the server is in config but its connection failed, remove the
-			# stale entry and let the user re-add it with fresh credentials.
 			if Client.is_server_connected(i):
 				_show_error("This server is already added.")
 				return
-			Config.remove_server(i)
-			break
+			# Server is in config but disconnected — update token
+			# if a new one was provided, then reconnect in place.
+			if not token.is_empty():
+				Config.update_server_token(i, token)
+			_add_btn.disabled = true
+			_add_btn.text = "Reconnecting..."
+			Client._auto_reconnect_attempted.erase(i)
+			var result: Dictionary = await Client.connect_server(i)
+			_add_btn.disabled = false
+			_add_btn.text = "Add"
+			if result.has("error"):
+				_show_error(result["error"])
+			else:
+				server_added.emit(
+					result.get("guild_id", "")
+				)
+				_close()
+			return
 
 	# Probe the server to verify it's reachable before proceeding
 	_add_btn.disabled = true
@@ -173,7 +187,6 @@ func _connect_with_token(
 	_add_btn.text = "Add"
 
 	if result.has("error"):
-		Config.remove_server(Config.get_servers().size() - 1)
 		_show_error(result["error"])
 	else:
 		server_added.emit(result.get("guild_id", ""))

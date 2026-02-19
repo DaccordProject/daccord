@@ -233,6 +233,7 @@ func test_has_permission_owner_bypass() -> void:
 func test_has_permission_role_based_grant() -> void:
 	client._guild_cache["g1"] = {"id": "g1", "owner_id": "other"}
 	client._member_cache["g1"] = [{"id": "me_1", "roles": ["r1"]}]
+	client._rebuild_member_index("g1")
 	client._role_cache["g1"] = [
 		{"id": "r1", "position": 1, "permissions": [AccordPermission.MANAGE_CHANNELS]},
 	]
@@ -242,6 +243,7 @@ func test_has_permission_role_based_grant() -> void:
 func test_has_permission_role_based_deny() -> void:
 	client._guild_cache["g1"] = {"id": "g1", "owner_id": "other"}
 	client._member_cache["g1"] = [{"id": "me_1", "roles": ["r1"]}]
+	client._rebuild_member_index("g1")
 	client._role_cache["g1"] = [
 		{"id": "r1", "position": 1, "permissions": [AccordPermission.SEND_MESSAGES]},
 	]

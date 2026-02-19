@@ -13,12 +13,7 @@ func test_get_member() -> void:
 	var result: RestResult = await bot_client.members.fetch(space_id, user_id)
 	assert_true(result.ok, "get member should succeed")
 	# The member data should reference the user
-	var member_user_id: String = ""
-	if result.data.has("user_id"):
-		member_user_id = str(result.data["user_id"])
-	elif result.data.has("user") and result.data["user"] is Dictionary:
-		member_user_id = str(result.data["user"]["id"])
-	assert_eq(member_user_id, user_id)
+	assert_eq(result.data.user_id, user_id)
 
 
 func test_get_bot_member() -> void:

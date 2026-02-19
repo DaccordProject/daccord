@@ -65,18 +65,15 @@ func test_timestamp_extraction() -> void:
 	assert_eq(component.timestamp_label.text, "10:31")
 
 
-func test_context_menu_has_five_items() -> void:
-	component.setup(_msg_data())
-	assert_eq(component._context_menu.item_count, 5)
+func test_has_context_menu_requested_signal() -> void:
+	assert_true(component.has_signal("context_menu_requested"))
 
 
-func test_context_menu_item_names() -> void:
+func test_context_menu_signal_emits_on_right_click() -> void:
 	component.setup(_msg_data())
-	assert_eq(component._context_menu.get_item_text(0), "Reply")
-	assert_eq(component._context_menu.get_item_text(1), "Edit")
-	assert_eq(component._context_menu.get_item_text(2), "Delete")
-	assert_eq(component._context_menu.get_item_text(3), "Add Reaction")
-	assert_eq(component._context_menu.get_item_text(4), "Remove All Reactions")
+	watch_signals(component)
+	component._emit_context_menu(Vector2i(100, 200))
+	assert_signal_emitted(component, "context_menu_requested")
 
 
 func test_timestamp_hidden_initially() -> void:

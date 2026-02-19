@@ -14,6 +14,8 @@ var guild_id: String = ""
 var guild_name: String = ""
 var is_active: bool = false
 var _has_unread: bool = false
+var _is_disconnected: bool = false
+var _server_index: int = -1
 
 var _context_menu: PopupMenu
 var _status_dot: ColorRect
@@ -76,7 +78,13 @@ func setup(data: Dictionary) -> void:
 	else:
 		pill.pill_state = pill.PillState.HIDDEN
 
-	_update_muted_visual()
+	_is_disconnected = data.get("disconnected", false)
+	_server_index = data.get("server_index", -1)
+	if _is_disconnected:
+		icon_button.modulate = Color(0.4, 0.4, 0.4)
+		icon_button.tooltip_text = guild_name + " (Disconnected)"
+	else:
+		_update_muted_visual()
 
 func set_active(active: bool) -> void:
 	is_active = active
@@ -89,6 +97,13 @@ func set_active(active: bool) -> void:
 			pill.set_state_animated(pill.PillState.HIDDEN)
 
 func _on_pressed() -> void:
+	if _is_disconnected:
+		if _server_index >= 0:
+			Client._auto_reconnect_attempted.erase(
+				_server_index
+			)
+			Client.reconnect_server(_server_index)
+		return
 	guild_pressed.emit(guild_id)
 
 func _on_hover_enter() -> void:
@@ -113,6 +128,14 @@ func _on_icon_gui_input(event: InputEvent) -> void:
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
 	var idx: int = 0
+
+	if _is_disconnected:
+		_context_menu.add_item("Reconnect", 0)
+		_context_menu.add_separator()
+		_context_menu.add_item("Remove Server", 2)
+		_context_menu.position = pos
+		_context_menu.popup()
+		return
 
 	if Client.has_permission(guild_id, AccordPermission.MANAGE_SPACE):
 		_context_menu.add_item("Space Settings", idx)
@@ -196,7 +219,9 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			get_tree().root.add_child(dialog)
 			dialog.setup(guild_id)
 		"Reconnect":
-			var conn_idx := Client.get_conn_index_for_guild(guild_id)
+			var conn_idx: int = _server_index \
+				if _is_disconnected \
+				else Client.get_conn_index_for_guild(guild_id)
 			if conn_idx >= 0:
 				Client._auto_reconnect_attempted.erase(conn_idx)
 				Client.reconnect_server(conn_idx)
@@ -221,7 +246,11 @@ func _on_context_menu_id_pressed(id: int) -> void:
 				true
 			)
 			dialog.confirmed.connect(func():
-				Client.disconnect_server(guild_id)
+				if _is_disconnected and _server_index >= 0:
+					Config.remove_server(_server_index)
+					AppState.guilds_updated.emit()
+				else:
+					Client.disconnect_server(guild_id)
 			)
 
 func _show_folder_dialog() -> void:

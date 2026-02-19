@@ -3,6 +3,7 @@ extends PanelContainer
 const CozyMessageScene := preload("res://scenes/messages/cozy_message.tscn")
 const CollapsedMessageScene := preload("res://scenes/messages/collapsed_message.tscn")
 const MessageActionBarScene := preload("res://scenes/messages/message_action_bar.tscn")
+const ReactionPickerScene := preload("res://scenes/messages/reaction_picker.tscn")
 
 var auto_scroll: bool = true
 var current_channel_id: String = ""
@@ -18,10 +19,15 @@ var _delete_dialog: ConfirmationDialog
 var _pending_delete_id: String = ""
 var _is_loading_older: bool = false
 
+var _context_menu: PopupMenu
+var _context_menu_data: Dictionary = {}
+var _reaction_picker: Control = null
+
 var _scroll_tween: Tween
 var _channel_transition_tween: Tween
 var _old_message_count: int = 0
 var _pending_edit_content: Dictionary = {}
+var _message_node_index: Dictionary = {} # message_id -> scene node
 
 var _banner_hide_timer: Timer
 var _loading_timeout_timer: Timer
@@ -102,6 +108,16 @@ func _ready() -> void:
 	_action_bar.action_delete.connect(_on_bar_delete)
 	_action_bar.mouse_exited.connect(_on_action_bar_unhovered)
 
+	# Shared context menu
+	_context_menu = PopupMenu.new()
+	_context_menu.add_item("Reply", 0)
+	_context_menu.add_item("Edit", 1)
+	_context_menu.add_item("Delete", 2)
+	_context_menu.add_item("Add Reaction", 3)
+	_context_menu.add_item("Remove All Reactions", 4)
+	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+	add_child(_context_menu)
+
 	# Hover debounce timer
 	_hover_timer = Timer.new()
 	_hover_timer.wait_time = 0.1
@@ -122,6 +138,7 @@ func _on_channel_selected(channel_id: String) -> void:
 	_current_channel_name = "channel"
 	_is_loading = true
 	_old_message_count = 0
+	_message_node_index.clear()
 	_hide_action_bar()
 	_update_empty_state([])
 	# Reset loading label style
@@ -186,6 +203,7 @@ func _load_messages(channel_id: String) -> void:
 	var old_count := _old_message_count
 
 	# Clear existing messages (skip persistent nodes)
+	_message_node_index.clear()
 	for child in message_list.get_children():
 		if child == older_btn or child == empty_state or child == loading_label:
 			continue
@@ -211,18 +229,20 @@ func _load_messages(channel_id: String) -> void:
 		# Use collapsed style if same author and no reply
 		var use_collapsed: bool = (author_id == prev_author_id) and not has_reply and i > 0
 
+		var node: HBoxContainer
 		if use_collapsed:
-			var collapsed: HBoxContainer = CollapsedMessageScene.instantiate()
-			message_list.add_child(collapsed)
-			collapsed.setup(msg)
-			collapsed.mouse_entered.connect(_on_msg_hovered.bind(collapsed))
-			collapsed.mouse_exited.connect(_on_msg_unhovered.bind(collapsed))
+			node = CollapsedMessageScene.instantiate()
+			message_list.add_child(node)
+			node.setup(msg)
 		else:
-			var cozy: HBoxContainer = CozyMessageScene.instantiate()
-			message_list.add_child(cozy)
-			cozy.setup(msg)
-			cozy.mouse_entered.connect(_on_msg_hovered.bind(cozy))
-			cozy.mouse_exited.connect(_on_msg_unhovered.bind(cozy))
+			node = CozyMessageScene.instantiate()
+			message_list.add_child(node)
+			node.setup(msg)
+		node.mouse_entered.connect(_on_msg_hovered.bind(node))
+		node.mouse_exited.connect(_on_msg_unhovered.bind(node))
+		if node.has_signal("context_menu_requested"):
+			node.context_menu_requested.connect(_on_context_menu_requested)
+		_message_node_index[msg.get("id", "")] = node
 
 		prev_author_id = author_id
 
@@ -278,37 +298,189 @@ func _on_message_edit_failed(message_id: String, error: String) -> void:
 	_pending_edit_content.erase(message_id)
 	# Re-enter edit mode on the failed message with the content that failed to save
 	AppState.start_editing(message_id)
-	for child in message_list.get_children():
-		if child == older_btn or child == empty_state or child == loading_label:
-			continue
-		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
-			var mc = child.get("message_content")
-			if mc:
-				mc.enter_edit_mode(message_id, failed_content)
-				mc.show_edit_error("Edit failed: %s" % error)
-			break
+	var node: Control = _find_message_node(message_id)
+	if node:
+		var mc = node.get("message_content")
+		if mc:
+			mc.enter_edit_mode(message_id, failed_content)
+			mc.show_edit_error("Edit failed: %s" % error)
 
 func _on_message_deleted(message_id: String) -> void:
 	Client.remove_message(message_id)
 
 func _on_edit_requested(message_id: String) -> void:
+	var node: Control = _find_message_node(message_id)
+	if node:
+		var mc = node.get("message_content")
+		if mc:
+			mc.enter_edit_mode(message_id, node._message_data.get("content", ""))
+
+func _on_messages_updated(channel_id: String) -> void:
+	if channel_id != current_channel_id:
+		return
+	# First load or older-messages load: fall back to full re-render
+	if _message_node_index.is_empty() or _is_loading_older:
+		_load_messages(channel_id)
+		return
+	_diff_messages(channel_id)
+
+func _diff_messages(channel_id: String) -> void:
+	_loading_timeout_timer.stop()
+	var messages := Client.get_messages_for_channel(channel_id)
+	_is_loading = false
+	_update_empty_state(messages)
+
+	# Build set of current message IDs from cache
+	var cache_ids: Dictionary = {}
+	for msg in messages:
+		cache_ids[msg.get("id", "")] = true
+
+	# REMOVE: nodes for messages no longer in cache
+	var removed_ids: Array = []
+	for mid in _message_node_index:
+		if not cache_ids.has(mid):
+			removed_ids.append(mid)
+	for mid in removed_ids:
+		var node: Control = _message_node_index[mid]
+		if is_instance_valid(node):
+			node.queue_free()
+		_message_node_index.erase(mid)
+
+	# UPDATE: existing nodes with fresh data
+	for msg in messages:
+		var mid: String = msg.get("id", "")
+		if _message_node_index.has(mid):
+			var node: Control = _message_node_index[mid]
+			if is_instance_valid(node) and node.has_method("update_data"):
+				node.update_data(msg)
+
+	# APPEND: new messages at the end that aren't in the index
+	var appended_nodes: Array = []
+	for i in range(messages.size() - 1, -1, -1):
+		var msg: Dictionary = messages[i]
+		var mid: String = msg.get("id", "")
+		if _message_node_index.has(mid):
+			break  # Hit an existing message, stop looking
+		# Determine cozy vs collapsed
+		var author: Dictionary = msg.get("author", {})
+		var author_id: String = author.get("id", "")
+		var has_reply: bool = msg.get("reply_to", "") != ""
+		var prev_author_id: String = ""
+		if i > 0:
+			prev_author_id = messages[i - 1].get("author", {}).get("id", "")
+		var use_collapsed: bool = (author_id == prev_author_id) and not has_reply and i > 0
+		var node: HBoxContainer
+		if use_collapsed:
+			node = CollapsedMessageScene.instantiate()
+		else:
+			node = CozyMessageScene.instantiate()
+		appended_nodes.append({"node": node, "msg": msg, "id": mid})
+
+	# Add appended nodes in correct order (we iterated in reverse)
+	appended_nodes.reverse()
+	for entry in appended_nodes:
+		var node: HBoxContainer = entry["node"]
+		var msg: Dictionary = entry["msg"]
+		message_list.add_child(node)
+		node.setup(msg)
+		node.mouse_entered.connect(_on_msg_hovered.bind(node))
+		node.mouse_exited.connect(_on_msg_unhovered.bind(node))
+		if node.has_signal("context_menu_requested"):
+			node.context_menu_requested.connect(_on_context_menu_requested)
+		_message_node_index[entry["id"]] = node
+
+	# Handle layout fixup after deletion: if first message became collapsed
+	# but now has no predecessor with same author, promote to cozy
+	if not removed_ids.is_empty():
+		_fixup_layouts_after_delete(messages)
+
+	# If messages were inserted in the middle (not just appended), fall back
+	var node_order_valid := true
+	var msg_children: Array = []
 	for child in message_list.get_children():
 		if child == older_btn or child == empty_state or child == loading_label:
 			continue
-		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
-			var mc = child.get("message_content")
-			if mc:
-				mc.enter_edit_mode(message_id, child._message_data.get("content", ""))
-			break
-
-func _on_messages_updated(channel_id: String) -> void:
-	if channel_id == current_channel_id:
+		msg_children.append(child)
+	if msg_children.size() != messages.size():
+		node_order_valid = false
+	else:
+		for i in messages.size():
+			var mid: String = messages[i].get("id", "")
+			var child_data: Dictionary = msg_children[i].get("_message_data")
+			if child_data == null or child_data.get("id", "") != mid:
+				node_order_valid = false
+				break
+	if not node_order_valid:
 		_load_messages(channel_id)
+		return
+
+	var new_count := messages.size()
+	var old_count := _old_message_count
+	_old_message_count = new_count
+	older_btn.visible = messages.size() >= Client.MESSAGE_CAP
+
+	# Animate new appended messages
+	if appended_nodes.size() > 0 and old_count > 0:
+		for entry in appended_nodes:
+			var node: Control = entry["node"]
+			node.modulate.a = 0.0
+			var msg_tween := create_tween()
+			msg_tween.tween_property(node, "modulate:a", 1.0, 0.15) \
+				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
+	# Auto-scroll for new messages
+	if auto_scroll and appended_nodes.size() > 0:
+		await get_tree().process_frame
+		_scroll_to_bottom_animated()
+
+func _fixup_layouts_after_delete(messages: Array) -> void:
+	for i in messages.size():
+		var msg: Dictionary = messages[i]
+		var mid: String = msg.get("id", "")
+		if not _message_node_index.has(mid):
+			continue
+		var node: Control = _message_node_index[mid]
+		if not is_instance_valid(node):
+			continue
+		var author_id: String = msg.get("author", {}).get("id", "")
+		var has_reply: bool = msg.get("reply_to", "") != ""
+		var prev_author_id: String = ""
+		if i > 0:
+			prev_author_id = messages[i - 1].get("author", {}).get("id", "")
+		var should_be_collapsed: bool = (author_id == prev_author_id) and not has_reply and i > 0
+		var is_currently_collapsed: bool = node.get("is_collapsed") == true
+		if should_be_collapsed != is_currently_collapsed:
+			# Layout mismatch — replace node
+			var idx := node.get_index()
+			node.queue_free()
+			var new_node: HBoxContainer
+			if should_be_collapsed:
+				new_node = CollapsedMessageScene.instantiate()
+			else:
+				new_node = CozyMessageScene.instantiate()
+			message_list.add_child(new_node)
+			message_list.move_child(new_node, idx)
+			new_node.setup(msg)
+			new_node.mouse_entered.connect(_on_msg_hovered.bind(new_node))
+			new_node.mouse_exited.connect(_on_msg_unhovered.bind(new_node))
+			if new_node.has_signal("context_menu_requested"):
+				new_node.context_menu_requested.connect(_on_context_menu_requested)
+			_message_node_index[mid] = new_node
 
 func _on_reactions_updated(channel_id: String, message_id: String) -> void:
 	if channel_id != current_channel_id:
 		return
-	# Targeted update: only rebuild the affected message's reaction bar
+	# Targeted update: use index for O(1) lookup
+	if _message_node_index.has(message_id):
+		var node: Control = _message_node_index[message_id]
+		if is_instance_valid(node):
+			var mc = node.get("message_content")
+			if mc:
+				var msg := Client.get_message_by_id(message_id)
+				var reactions: Array = msg.get("reactions", [])
+				mc.reaction_bar.setup(reactions, channel_id, message_id)
+		return
+	# Fallback: linear scan if index misses
 	for child in message_list.get_children():
 		if child == older_btn or child == empty_state or child == loading_label:
 			continue
@@ -418,15 +590,11 @@ func _on_bar_reply(msg_data: Dictionary) -> void:
 func _on_bar_edit(msg_data: Dictionary) -> void:
 	var msg_id: String = msg_data.get("id", "")
 	AppState.start_editing(msg_id)
-	# Find the message node and enter edit mode
-	for child in message_list.get_children():
-		if child == older_btn or child == empty_state or child == loading_label:
-			continue
-		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == msg_id:
-			var mc = child.get("message_content")
-			if mc:
-				mc.enter_edit_mode(msg_id, msg_data.get("content", ""))
-			break
+	var node: Control = _find_message_node(msg_id)
+	if node:
+		var mc = node.get("message_content")
+		if mc:
+			mc.enter_edit_mode(msg_id, msg_data.get("content", ""))
 	_hide_action_bar()
 
 func _on_bar_delete(msg_data: Dictionary) -> void:
@@ -443,6 +611,63 @@ func _on_delete_confirmed() -> void:
 	if not _pending_delete_id.is_empty():
 		AppState.delete_message(_pending_delete_id)
 		_pending_delete_id = ""
+
+# --- Shared Context Menu ---
+
+func _on_context_menu_requested(pos: Vector2i, msg_data: Dictionary) -> void:
+	_context_menu_data = msg_data
+	var author: Dictionary = msg_data.get("author", {})
+	var is_own: bool = author.get("id", "") == Client.current_user.get("id", "")
+	_context_menu.set_item_disabled(1, not is_own)
+	_context_menu.set_item_disabled(2, not is_own)
+	var guild_id: String = Client._channel_to_guild.get(
+		msg_data.get("channel_id", ""), ""
+	)
+	var has_reactions: bool = msg_data.get("reactions", []).size() > 0
+	var can_manage: bool = Client.has_permission(guild_id, "MANAGE_MESSAGES")
+	_context_menu.set_item_disabled(4, not (can_manage and has_reactions))
+	_context_menu.position = pos
+	_context_menu.popup()
+
+func _on_context_menu_id_pressed(id: int) -> void:
+	match id:
+		0: # Reply
+			AppState.initiate_reply(_context_menu_data.get("id", ""))
+		1: # Edit
+			var msg_id: String = _context_menu_data.get("id", "")
+			AppState.start_editing(msg_id)
+			var node: Control = _find_message_node(msg_id)
+			if node:
+				var mc = node.get("message_content")
+				if mc:
+					mc.enter_edit_mode(msg_id, _context_menu_data.get("content", ""))
+		2: # Delete
+			_pending_delete_id = _context_menu_data.get("id", "")
+			if not _delete_dialog:
+				_delete_dialog = ConfirmationDialog.new()
+				_delete_dialog.dialog_text = "Are you sure you want to delete this message?"
+				_delete_dialog.confirmed.connect(_on_delete_confirmed)
+				add_child(_delete_dialog)
+			_delete_dialog.popup_centered()
+		3: # Add Reaction
+			_open_reaction_picker(_context_menu_data)
+		4: # Remove All Reactions
+			var cid: String = _context_menu_data.get("channel_id", "")
+			var mid: String = _context_menu_data.get("id", "")
+			Client.remove_all_reactions(cid, mid)
+
+func _open_reaction_picker(msg_data: Dictionary) -> void:
+	if _reaction_picker and is_instance_valid(_reaction_picker):
+		_reaction_picker.queue_free()
+	_reaction_picker = ReactionPickerScene.instantiate()
+	get_tree().root.add_child(_reaction_picker)
+	var channel_id: String = msg_data.get("channel_id", "")
+	var msg_id: String = msg_data.get("id", "")
+	var pos := get_global_mouse_position()
+	_reaction_picker.open(channel_id, msg_id, pos)
+	_reaction_picker.closed.connect(func():
+		_reaction_picker = null
+	)
 
 # --- Connection Banner ---
 
@@ -593,3 +818,18 @@ func _on_older_messages_pressed() -> void:
 	older_btn.text = "Show older messages"
 	older_btn.disabled = false
 	_is_loading_older = false
+
+# --- Helpers ---
+
+func _find_message_node(message_id: String) -> Control:
+	if _message_node_index.has(message_id):
+		var node: Control = _message_node_index[message_id]
+		if is_instance_valid(node):
+			return node
+	# Fallback: linear scan
+	for child in message_list.get_children():
+		if child == older_btn or child == empty_state or child == loading_label:
+			continue
+		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
+			return child as Control
+	return null

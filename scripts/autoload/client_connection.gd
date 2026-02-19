@@ -224,6 +224,7 @@ func disconnect_server(guild_id: String) -> void:
 	_c._guild_cache.erase(guild_id)
 	_c._role_cache.erase(guild_id)
 	_c._member_cache.erase(guild_id)
+	_c._member_id_index.erase(guild_id)
 	var to_remove: Array = []
 	for ch_id in _c._channel_cache:
 		if _c._channel_cache[ch_id].get("guild_id", "") == guild_id:
@@ -250,16 +251,17 @@ func disconnect_server(guild_id: String) -> void:
 	AppState.guilds_updated.emit()
 
 func reconnect_server(index: int) -> void:
-	if index < 0 or index >= _c._connections.size():
+	var servers := Config.get_servers()
+	if index < 0 or index >= servers.size():
 		return
-	var conn = _c._connections[index]
-	if conn == null:
-		return
-	if conn["client"] != null:
-		conn["client"].logout()
-		conn["client"].queue_free()
-	conn["status"] = "connecting"
-	conn["client"] = null
+	if index < _c._connections.size():
+		var conn = _c._connections[index]
+		if conn != null:
+			if conn["client"] != null:
+				conn["client"].logout()
+				conn["client"].queue_free()
+			conn["status"] = "connecting"
+			conn["client"] = null
 	connect_server(index)
 
 ## Called (deferred) by ClientGateway when gateway reconnection

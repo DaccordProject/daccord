@@ -1,5 +1,8 @@
 extends Button
 
+static var _style_active: StyleBoxFlat
+static var _style_inactive: StyleBoxFlat
+
 var emoji_key: String = ""
 var reaction_count: int = 0
 var channel_id: String = ""
@@ -74,25 +77,37 @@ func _on_reaction_failed(ch_id: String, msg_id: String, emoji_name: String, _err
 	_update_active_style()
 	_in_setup = false
 
+static func _ensure_styles() -> void:
+	if _style_active != null:
+		return
+	_style_active = StyleBoxFlat.new()
+	_style_active.set_corner_radius_all(8)
+	_style_active.content_margin_left = 6.0
+	_style_active.content_margin_top = 4.0
+	_style_active.content_margin_right = 6.0
+	_style_active.content_margin_bottom = 4.0
+	_style_active.border_width_left = 1
+	_style_active.border_width_top = 1
+	_style_active.border_width_right = 1
+	_style_active.border_width_bottom = 1
+	_style_active.bg_color = Color(0.345, 0.396, 0.949, 0.3)
+	_style_active.border_color = Color(0.345, 0.396, 0.949)
+
+	_style_inactive = StyleBoxFlat.new()
+	_style_inactive.set_corner_radius_all(8)
+	_style_inactive.content_margin_left = 6.0
+	_style_inactive.content_margin_top = 4.0
+	_style_inactive.content_margin_right = 6.0
+	_style_inactive.content_margin_bottom = 4.0
+	_style_inactive.border_width_left = 1
+	_style_inactive.border_width_top = 1
+	_style_inactive.border_width_right = 1
+	_style_inactive.border_width_bottom = 1
+	_style_inactive.bg_color = Color(0.184, 0.192, 0.212, 1)
+	_style_inactive.border_color = Color(0.25, 0.26, 0.28, 1)
+
 func _update_active_style() -> void:
-	var style := StyleBoxFlat.new()
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	style.content_margin_left = 6.0
-	style.content_margin_top = 4.0
-	style.content_margin_right = 6.0
-	style.content_margin_bottom = 4.0
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	if button_pressed:
-		style.bg_color = Color(0.345, 0.396, 0.949, 0.3)
-		style.border_color = Color(0.345, 0.396, 0.949)
-	else:
-		style.bg_color = Color(0.184, 0.192, 0.212, 1)
-		style.border_color = Color(0.25, 0.26, 0.28, 1)
+	_ensure_styles()
+	var style: StyleBoxFlat = _style_active if button_pressed else _style_inactive
 	add_theme_stylebox_override("normal", style)
 	add_theme_stylebox_override("pressed", style)

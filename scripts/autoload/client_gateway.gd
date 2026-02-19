@@ -310,11 +310,9 @@ func on_presence_update(presence: AccordPresence, conn_index: int) -> void:
 		AppState.user_updated.emit(presence.user_id)
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
 		var guild_id: String = _c._connections[conn_index]["guild_id"]
-		if _c._member_cache.has(guild_id):
-			for member_dict in _c._member_cache[guild_id]:
-				if member_dict.get("id", "") == presence.user_id:
-					member_dict["status"] = ClientModels._status_string_to_enum(presence.status)
-					break
+		var idx: int = _c._member_index_for(guild_id, presence.user_id)
+		if idx != -1:
+			_c._member_cache[guild_id][idx]["status"] = ClientModels._status_string_to_enum(presence.status)
 			AppState.members_updated.emit(guild_id)
 
 func on_user_update(user: AccordUser, conn_index: int) -> void:
@@ -357,6 +355,7 @@ func on_member_chunk(data: Dictionary, conn_index: int) -> void:
 		else:
 			existing.append(member_dict)
 			existing_ids[member.user_id] = existing.size() - 1
+	_c._member_id_index[guild_id] = existing_ids
 	AppState.members_updated.emit(guild_id)
 
 func on_channel_pins_update(data: Dictionary) -> void:
@@ -387,6 +386,9 @@ func on_member_join(member: AccordMember, conn_index: int) -> void:
 	if not _c._member_cache.has(guild_id):
 		_c._member_cache[guild_id] = []
 	_c._member_cache[guild_id].append(member_dict)
+	if not _c._member_id_index.has(guild_id):
+		_c._member_id_index[guild_id] = {}
+	_c._member_id_index[guild_id][member.user_id] = _c._member_cache[guild_id].size() - 1
 	AppState.members_updated.emit(guild_id)
 
 func on_member_leave(data: Dictionary, conn_index: int) -> void:
@@ -399,11 +401,10 @@ func on_member_leave(data: Dictionary, conn_index: int) -> void:
 		if user_data is Dictionary:
 			user_id = str(user_data.get("id", ""))
 	if _c._member_cache.has(guild_id):
-		var members: Array = _c._member_cache[guild_id]
-		for i in members.size():
-			if members[i].get("id", "") == user_id:
-				members.remove_at(i)
-				break
+		var idx: int = _c._member_index_for(guild_id, user_id)
+		if idx != -1:
+			_c._member_cache[guild_id].remove_at(idx)
+			_c._rebuild_member_index(guild_id)
 		AppState.members_updated.emit(guild_id)
 
 func on_member_update(member: AccordMember, conn_index: int) -> void:
@@ -412,15 +413,14 @@ func on_member_update(member: AccordMember, conn_index: int) -> void:
 	var guild_id: String = _c._connections[conn_index]["guild_id"]
 	if _c._member_cache.has(guild_id):
 		var member_dict := ClientModels.member_to_dict(member, _c._user_cache)
-		var members: Array = _c._member_cache[guild_id]
-		var found := false
-		for i in members.size():
-			if members[i].get("id", "") == member.user_id:
-				members[i] = member_dict
-				found = true
-				break
-		if not found:
-			members.append(member_dict)
+		var idx: int = _c._member_index_for(guild_id, member.user_id)
+		if idx != -1:
+			_c._member_cache[guild_id][idx] = member_dict
+		else:
+			_c._member_cache[guild_id].append(member_dict)
+			if not _c._member_id_index.has(guild_id):
+				_c._member_id_index[guild_id] = {}
+			_c._member_id_index[guild_id][member.user_id] = _c._member_cache[guild_id].size() - 1
 		AppState.members_updated.emit(guild_id)
 
 func on_space_create(space: AccordSpace, conn_index: int) -> void:
@@ -551,11 +551,11 @@ func _has_role_mention(mention_roles: Array, guild_id: String) -> bool:
 	if mention_roles.is_empty() or guild_id.is_empty():
 		return false
 	var my_id: String = _c.current_user.get("id", "")
-	for member in _c.get_members_for_guild(guild_id):
-		if member.get("id", "") == my_id:
-			var my_roles: Array = member.get("roles", [])
-			for role_id in mention_roles:
-				if role_id in my_roles:
-					return true
-			return false
+	var idx: int = _c._member_index_for(guild_id, my_id)
+	if idx == -1:
+		return false
+	var my_roles: Array = _c._member_cache.get(guild_id, [])[idx].get("roles", [])
+	for role_id in mention_roles:
+		if role_id in my_roles:
+			return true
 	return false
