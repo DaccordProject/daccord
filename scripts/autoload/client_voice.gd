@@ -62,6 +62,9 @@ func join_voice_channel(channel_id: String) -> bool:
 func _connect_voice_backend(
 	info: AccordVoiceServerUpdate,
 ) -> void:
+	if _c._voice_session == null:
+		push_warning("Voice session unavailable")
+		return
 	var backend: String = info.backend
 	if (backend == "livekit"
 			and info.livekit_url != null
@@ -100,7 +103,8 @@ func leave_voice_channel() -> bool:
 		if rt != null:
 			rt.stop()
 	_c._remote_tracks.clear()
-	_c._voice_session.disconnect_voice()
+	if _c._voice_session != null:
+		_c._voice_session.disconnect_voice()
 	var client: AccordClient = _c._client_for_channel(channel_id)
 	if client == null:
 		AppState.leave_voice()
@@ -132,11 +136,13 @@ func leave_voice_channel() -> bool:
 	return result.ok
 
 func set_voice_muted(muted: bool) -> void:
-	_c._voice_session.set_muted(muted)
+	if _c._voice_session != null:
+		_c._voice_session.set_muted(muted)
 	AppState.set_voice_muted(muted)
 
 func set_voice_deafened(deafened: bool) -> void:
-	_c._voice_session.set_deafened(deafened)
+	if _c._voice_session != null:
+		_c._voice_session.set_deafened(deafened)
 	AppState.set_voice_deafened(deafened)
 
 # --- Video track management ---
