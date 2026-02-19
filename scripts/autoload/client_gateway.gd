@@ -6,9 +6,96 @@ extends RefCounted
 ## access caches, routing helpers, and fetch methods.
 
 var _c: Node # Client autoload
+var _typing_timers: Dictionary = {} # channel_id -> Timer node
+var _reactions: ClientGatewayReactions
+var _events: ClientGatewayEvents
 
 func _init(client_node: Node) -> void:
 	_c = client_node
+	_reactions = ClientGatewayReactions.new(client_node)
+	_events = ClientGatewayEvents.new(client_node)
+
+func connect_signals(
+	client: AccordClient, idx: int
+) -> void:
+	client.ready_received.connect(
+		on_gateway_ready.bind(idx))
+	client.message_create.connect(
+		on_message_create.bind(idx))
+	client.message_update.connect(
+		on_message_update.bind(idx))
+	client.message_delete.connect(on_message_delete)
+	client.message_delete_bulk.connect(
+		on_message_delete_bulk)
+	client.typing_start.connect(on_typing_start)
+	client.presence_update.connect(
+		on_presence_update.bind(idx))
+	client.member_join.connect(
+		on_member_join.bind(idx))
+	client.member_leave.connect(
+		on_member_leave.bind(idx))
+	client.member_update.connect(
+		on_member_update.bind(idx))
+	client.member_chunk.connect(
+		on_member_chunk.bind(idx))
+	client.user_update.connect(
+		on_user_update.bind(idx))
+	client.space_create.connect(
+		on_space_create.bind(idx))
+	client.space_update.connect(on_space_update)
+	client.space_delete.connect(on_space_delete)
+	client.channel_create.connect(
+		on_channel_create.bind(idx))
+	client.channel_update.connect(
+		on_channel_update.bind(idx))
+	client.channel_delete.connect(on_channel_delete)
+	client.channel_pins_update.connect(
+		on_channel_pins_update)
+	client.role_create.connect(
+		on_role_create.bind(idx))
+	client.role_update.connect(
+		on_role_update.bind(idx))
+	client.role_delete.connect(
+		on_role_delete.bind(idx))
+	client.ban_create.connect(_events.on_ban_create.bind(idx))
+	client.ban_delete.connect(_events.on_ban_delete.bind(idx))
+	client.invite_create.connect(
+		_events.on_invite_create.bind(idx))
+	client.invite_delete.connect(
+		_events.on_invite_delete.bind(idx))
+	client.emoji_create.connect(
+		_events.on_emoji_create.bind(idx))
+	client.emoji_update.connect(
+		_events.on_emoji_update.bind(idx))
+	client.emoji_delete.connect(
+		_events.on_emoji_delete.bind(idx))
+	client.interaction_create.connect(
+		_events.on_interaction_create.bind(idx))
+	client.soundboard_create.connect(
+		_events.on_soundboard_create.bind(idx))
+	client.soundboard_update.connect(
+		_events.on_soundboard_update.bind(idx))
+	client.soundboard_delete.connect(
+		_events.on_soundboard_delete.bind(idx))
+	client.soundboard_play.connect(
+		_events.on_soundboard_play.bind(idx))
+	client.reaction_add.connect(_reactions.on_reaction_add)
+	client.reaction_remove.connect(_reactions.on_reaction_remove)
+	client.reaction_clear.connect(_reactions.on_reaction_clear)
+	client.reaction_clear_emoji.connect(
+		_reactions.on_reaction_clear_emoji)
+	client.voice_state_update.connect(
+		_events.on_voice_state_update.bind(idx))
+	client.voice_server_update.connect(
+		_events.on_voice_server_update.bind(idx))
+	client.voice_signal.connect(
+		_events.on_voice_signal.bind(idx))
+	client.disconnected.connect(
+		on_gateway_disconnected.bind(idx))
+	client.reconnecting.connect(
+		on_gateway_reconnecting.bind(idx))
+	client.resumed.connect(
+		on_gateway_reconnected.bind(idx))
 
 func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
@@ -101,8 +188,37 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 	# Track unread + mentions for channels not currently viewed
 	var my_id: String = _c.current_user.get("id", "")
 	if message.channel_id != AppState.current_channel_id and message.author_id != my_id:
-		var is_mention: bool = my_id in message.mentions or message.mention_everyone
-		_c.mark_channel_unread(message.channel_id, is_mention)
+		# DND suppresses all notification indicators
+		var user_status: int = _c.current_user.get("status", 0)
+		if user_status == ClientModels.UserStatus.DND:
+			pass # Skip all notification tracking in DND mode
+		else:
+			# Check server mute
+			var guild_id: String = _c._channel_to_guild.get(message.channel_id, "")
+			if Config.is_server_muted(guild_id):
+				pass # Server is muted — skip unread tracking
+			else:
+				# Determine if this is a mention
+				var is_mention: bool = my_id in message.mentions
+				if message.mention_everyone and not Config.get_suppress_everyone():
+					is_mention = true
+				if not is_mention:
+					is_mention = _has_role_mention(message.mention_roles, guild_id)
+
+				# Enforce default_notifications setting
+				var guild: Dictionary = _c._guild_cache.get(guild_id, {})
+				var notif_level: String = guild.get("default_notifications", "all")
+				if notif_level == "mentions" and not is_mention:
+					pass # Not a mention in mentions-only mode — skip
+				else:
+					_c.mark_channel_unread(message.channel_id, is_mention)
+
+	# Play notification sound (guard for headless mode)
+	if SoundManager != null:
+		SoundManager.play_for_message(
+			message.channel_id, message.author_id,
+			message.mentions, message.mention_everyone
+		)
 
 	# Update DM channel last_message preview
 	if _c._dm_channel_cache.has(message.channel_id):
@@ -140,6 +256,24 @@ func on_message_delete(data: Dictionary) -> void:
 			break
 	AppState.messages_updated.emit(channel_id)
 
+func on_message_delete_bulk(data: Dictionary) -> void:
+	var channel_id: String = str(data.get("channel_id", ""))
+	var ids: Array = data.get("ids", [])
+	if channel_id.is_empty() or not _c._message_cache.has(channel_id):
+		return
+	var msgs: Array = _c._message_cache[channel_id]
+	var id_set: Dictionary = {}
+	for mid in ids:
+		id_set[str(mid)] = true
+	var i := msgs.size() - 1
+	while i >= 0:
+		var mid: String = msgs[i].get("id", "")
+		if id_set.has(mid):
+			msgs.remove_at(i)
+			_c._message_id_index.erase(mid)
+		i -= 1
+	AppState.messages_updated.emit(channel_id)
+
 func on_typing_start(data: Dictionary) -> void:
 	var user_id: String = data.get("user_id", "")
 	var channel_id: String = data.get("channel_id", "")
@@ -148,10 +282,31 @@ func on_typing_start(data: Dictionary) -> void:
 	var user_dict: Dictionary = _c.get_user_by_id(user_id)
 	var username: String = user_dict.get("display_name", "Someone")
 	AppState.typing_started.emit(channel_id, username)
+	# Reset/create timeout to emit typing_stopped
+	if _typing_timers.has(channel_id) and is_instance_valid(_typing_timers[channel_id]):
+		_typing_timers[channel_id].queue_free()
+	var timer := Timer.new()
+	timer.wait_time = 10.0
+	timer.one_shot = true
+	timer.timeout.connect(func():
+		AppState.typing_stopped.emit(channel_id)
+		_typing_timers.erase(channel_id)
+		timer.queue_free()
+	)
+	_c.add_child(timer)
+	timer.start()
+	_typing_timers[channel_id] = timer
 
 func on_presence_update(presence: AccordPresence, conn_index: int) -> void:
 	if _c._user_cache.has(presence.user_id):
 		_c._user_cache[presence.user_id]["status"] = ClientModels._status_string_to_enum(presence.status)
+		# Store per-device status and activities
+		_c._user_cache[presence.user_id]["client_status"] = presence.client_status
+		var act_arr: Array = []
+		for a in presence.activities:
+			if a is AccordActivity:
+				act_arr.append(a.to_dict())
+		_c._user_cache[presence.user_id]["activities"] = act_arr
 		AppState.user_updated.emit(presence.user_id)
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
 		var guild_id: String = _c._connections[conn_index]["guild_id"]
@@ -161,6 +316,56 @@ func on_presence_update(presence: AccordPresence, conn_index: int) -> void:
 					member_dict["status"] = ClientModels._status_string_to_enum(presence.status)
 					break
 			AppState.members_updated.emit(guild_id)
+
+func on_user_update(user: AccordUser, conn_index: int) -> void:
+	var cdn_url := ""
+	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
+		cdn_url = _c._connections[conn_index]["cdn_url"]
+	var existing: Dictionary = _c._user_cache.get(user.id, {})
+	var status: int = existing.get("status", ClientModels.UserStatus.OFFLINE)
+	_c._user_cache[user.id] = ClientModels.user_to_dict(user, status, cdn_url)
+	if _c.current_user.get("id", "") == user.id:
+		_c.current_user = _c._user_cache[user.id]
+	AppState.user_updated.emit(user.id)
+
+func on_member_chunk(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var guild_id: String = _c._connections[conn_index]["guild_id"]
+	var cdn_url: String = _c._connections[conn_index]["cdn_url"]
+	var members_data: Array = data.get("members", [])
+	if not _c._member_cache.has(guild_id):
+		_c._member_cache[guild_id] = []
+	var existing: Array = _c._member_cache[guild_id]
+	var existing_ids: Dictionary = {}
+	for i in existing.size():
+		existing_ids[existing[i].get("id", "")] = i
+	for raw in members_data:
+		if raw is Dictionary:
+			var raw_user = raw.get("user", null)
+			if raw_user is Dictionary:
+				var uid: String = str(raw_user.get("id", ""))
+				if not uid.is_empty() and not _c._user_cache.has(uid):
+					var parsed_user: AccordUser = AccordUser.from_dict(raw_user)
+					_c._user_cache[uid] = ClientModels.user_to_dict(
+						parsed_user, ClientModels.UserStatus.OFFLINE, cdn_url
+					)
+		var member: AccordMember = AccordMember.from_dict(raw)
+		var member_dict := ClientModels.member_to_dict(member, _c._user_cache)
+		if existing_ids.has(member.user_id):
+			existing[existing_ids[member.user_id]] = member_dict
+		else:
+			existing.append(member_dict)
+			existing_ids[member.user_id] = existing.size() - 1
+	AppState.members_updated.emit(guild_id)
+
+func on_channel_pins_update(data: Dictionary) -> void:
+	var channel_id: String = str(data.get("channel_id", ""))
+	if not channel_id.is_empty():
+		AppState.messages_updated.emit(channel_id)
+
+func on_interaction_create(_interaction: AccordInteraction, _conn_index: int) -> void:
+	pass # No interaction UI; wired to prevent silent drop
 
 func on_member_join(member: AccordMember, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
@@ -223,13 +428,20 @@ func on_space_create(space: AccordSpace, conn_index: int) -> void:
 		var conn: Dictionary = _c._connections[conn_index]
 		if space.id == conn["guild_id"]:
 			var cdn_url: String = conn.get("cdn_url", "")
-			_c._guild_cache[space.id] = ClientModels.space_to_guild_dict(space, cdn_url)
+			var new_guild: Dictionary = ClientModels.space_to_guild_dict(space, cdn_url)
+			new_guild["folder"] = Config.get_guild_folder(space.id)
+			_c._guild_cache[space.id] = new_guild
 			AppState.guilds_updated.emit()
 
 func on_space_update(space: AccordSpace) -> void:
 	if _c._guild_cache.has(space.id):
+		var old_guild: Dictionary = _c._guild_cache[space.id]
 		var cdn_url: String = _c._cdn_for_guild(space.id)
-		_c._guild_cache[space.id] = ClientModels.space_to_guild_dict(space, cdn_url)
+		var new_guild: Dictionary = ClientModels.space_to_guild_dict(space, cdn_url)
+		new_guild["unread"] = old_guild.get("unread", false)
+		new_guild["mentions"] = old_guild.get("mentions", 0)
+		new_guild["folder"] = old_guild.get("folder", "")
+		_c._guild_cache[space.id] = new_guild
 		AppState.guilds_updated.emit()
 
 func on_space_delete(data: Dictionary) -> void:
@@ -272,10 +484,17 @@ func on_channel_update(channel: AccordChannel, conn_index: int) -> void:
 						ClientModels.UserStatus.OFFLINE,
 						cdn_url
 					)
-		_c._dm_channel_cache[channel.id] = ClientModels.dm_channel_to_dict(channel, _c._user_cache)
+		var old_dm: Dictionary = _c._dm_channel_cache.get(channel.id, {})
+		var new_dm: Dictionary = ClientModels.dm_channel_to_dict(channel, _c._user_cache)
+		new_dm["unread"] = old_dm.get("unread", false)
+		_c._dm_channel_cache[channel.id] = new_dm
 		AppState.dm_channels_updated.emit()
 	else:
-		_c._channel_cache[channel.id] = ClientModels.channel_to_dict(channel)
+		var old_ch: Dictionary = _c._channel_cache.get(channel.id, {})
+		var new_ch: Dictionary = ClientModels.channel_to_dict(channel)
+		new_ch["unread"] = old_ch.get("unread", false)
+		new_ch["voice_users"] = old_ch.get("voice_users", 0)
+		_c._channel_cache[channel.id] = new_ch
 		var guild_id: String = str(channel.space_id) if channel.space_id != null else ""
 		_c._channel_to_guild[channel.id] = guild_id
 		AppState.channels_updated.emit(guild_id)
@@ -328,196 +547,15 @@ func on_role_delete(data: Dictionary, conn_index: int) -> void:
 				break
 	AppState.roles_updated.emit(guild_id)
 
-func on_ban_create(_data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.bans_updated.emit(guild_id)
-
-func on_ban_delete(_data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.bans_updated.emit(guild_id)
-
-func on_invite_create(_invite: AccordInvite, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.invites_updated.emit(guild_id)
-
-func on_invite_delete(_data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.invites_updated.emit(guild_id)
-
-func on_soundboard_create(_sound: AccordSound, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.soundboard_updated.emit(guild_id)
-
-func on_soundboard_update(_sound: AccordSound, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.soundboard_updated.emit(guild_id)
-
-func on_soundboard_delete(_data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.soundboard_updated.emit(guild_id)
-
-func on_soundboard_play(data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	var sound_id: String = str(data.get("sound_id", data.get("id", "")))
-	var user_id: String = str(data.get("user_id", ""))
-	AppState.soundboard_played.emit(guild_id, sound_id, user_id)
-
-func on_emoji_update(_data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.emojis_updated.emit(guild_id)
-
-func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var state_dict := ClientModels.voice_state_to_dict(state, _c._user_cache)
-	var new_channel: String = state_dict["channel_id"]
-	var user_id: String = state.user_id
-
-	# Remove user from any previous channel in the cache
-	for cid in _c._voice_state_cache:
-		var states: Array = _c._voice_state_cache[cid]
-		for i in states.size():
-			if states[i].get("user_id", "") == user_id:
-				states.remove_at(i)
-				# Update voice_users count in channel cache
-				if _c._channel_cache.has(cid):
-					_c._channel_cache[cid]["voice_users"] = states.size()
-				if cid != new_channel:
-					AppState.voice_state_updated.emit(cid)
-				break
-
-	# Add user to new channel (if not null/empty)
-	if not new_channel.is_empty():
-		if not _c._voice_state_cache.has(new_channel):
-			_c._voice_state_cache[new_channel] = []
-		_c._voice_state_cache[new_channel].append(state_dict)
-		if _c._channel_cache.has(new_channel):
-			_c._channel_cache[new_channel]["voice_users"] = _c._voice_state_cache[new_channel].size()
-		AppState.voice_state_updated.emit(new_channel)
-
-	# Detect force-disconnect: if our user's channel_id becomes empty
+func _has_role_mention(mention_roles: Array, guild_id: String) -> bool:
+	if mention_roles.is_empty() or guild_id.is_empty():
+		return false
 	var my_id: String = _c.current_user.get("id", "")
-	if user_id == my_id and new_channel.is_empty() and not AppState.voice_channel_id.is_empty():
-		AppState.leave_voice()
-
-func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	_c._voice_server_info = info.to_dict()
-
-func on_voice_signal(data: Dictionary, _conn_index: int) -> void:
-	# Forward to AccordVoiceSession if it exists (Phase 4)
-	if _c.has_meta("_voice_session"):
-		var session: AccordVoiceSession = _c.get_meta("_voice_session")
-		var user_id: String = str(data.get("user_id", ""))
-		var signal_type: String = str(data.get("type", ""))
-		var payload: Dictionary = data.get("payload", data)
-		session.handle_voice_signal(user_id, signal_type, payload)
-
-func _parse_emoji_name(data: Dictionary) -> String:
-	var raw = data.get("emoji", "")
-	if raw is Dictionary:
-		return raw.get("name", "")
-	if raw is String:
-		return raw
-	return ""
-
-func on_reaction_add(data: Dictionary) -> void:
-	var channel_id: String = str(data.get("channel_id", ""))
-	var message_id: String = str(data.get("message_id", ""))
-	var user_id: String = str(data.get("user_id", ""))
-	var emoji_name: String = _parse_emoji_name(data)
-	if channel_id.is_empty() or message_id.is_empty() or not _c._message_cache.has(channel_id):
-		return
-	var msgs: Array = _c._message_cache[channel_id]
-	for msg in msgs:
-		if msg.get("id", "") == message_id:
-			var reactions: Array = msg.get("reactions", [])
-			var found := false
-			for r in reactions:
-				if r.get("emoji", "") == emoji_name:
-					r["count"] = r.get("count", 0) + 1
-					if user_id == _c.current_user.get("id", ""):
-						r["active"] = true
-					found = true
-					break
-			if not found:
-				reactions.append({
-					"emoji": emoji_name,
-					"count": 1,
-					"active": user_id == _c.current_user.get("id", ""),
-				})
-			msg["reactions"] = reactions
-			break
-	AppState.messages_updated.emit(channel_id)
-
-func on_reaction_remove(data: Dictionary) -> void:
-	var channel_id: String = str(data.get("channel_id", ""))
-	var message_id: String = str(data.get("message_id", ""))
-	var user_id: String = str(data.get("user_id", ""))
-	var emoji_name: String = _parse_emoji_name(data)
-	if channel_id.is_empty() or message_id.is_empty() or not _c._message_cache.has(channel_id):
-		return
-	var msgs: Array = _c._message_cache[channel_id]
-	for msg in msgs:
-		if msg.get("id", "") == message_id:
-			var reactions: Array = msg.get("reactions", [])
-			for i in reactions.size():
-				if reactions[i].get("emoji", "") == emoji_name:
-					reactions[i]["count"] = max(0, reactions[i].get("count", 0) - 1)
-					if user_id == _c.current_user.get("id", ""):
-						reactions[i]["active"] = false
-					if reactions[i]["count"] <= 0:
-						reactions.remove_at(i)
-					break
-			msg["reactions"] = reactions
-			break
-	AppState.messages_updated.emit(channel_id)
-
-func on_reaction_clear(data: Dictionary) -> void:
-	var channel_id: String = str(data.get("channel_id", ""))
-	var message_id: String = str(data.get("message_id", ""))
-	if channel_id.is_empty() or message_id.is_empty() or not _c._message_cache.has(channel_id):
-		return
-	var msgs: Array = _c._message_cache[channel_id]
-	for msg in msgs:
-		if msg.get("id", "") == message_id:
-			msg["reactions"] = []
-			break
-	AppState.messages_updated.emit(channel_id)
-
-func on_reaction_clear_emoji(data: Dictionary) -> void:
-	var channel_id: String = str(data.get("channel_id", ""))
-	var message_id: String = str(data.get("message_id", ""))
-	var emoji_name: String = _parse_emoji_name(data)
-	if channel_id.is_empty() or message_id.is_empty() or not _c._message_cache.has(channel_id):
-		return
-	var msgs: Array = _c._message_cache[channel_id]
-	for msg in msgs:
-		if msg.get("id", "") == message_id:
-			var reactions: Array = msg.get("reactions", [])
-			for i in reactions.size():
-				if reactions[i].get("emoji", "") == emoji_name:
-					reactions.remove_at(i)
-					break
-			msg["reactions"] = reactions
-			break
-	AppState.messages_updated.emit(channel_id)
+	for member in _c.get_members_for_guild(guild_id):
+		if member.get("id", "") == my_id:
+			var my_roles: Array = member.get("roles", [])
+			for role_id in mention_roles:
+				if role_id in my_roles:
+					return true
+			return false
+	return false

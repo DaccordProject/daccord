@@ -5,9 +5,14 @@ const MIN_BACKDROP_TAP_TARGET := 48
 const EDGE_SWIPE_ZONE := 20.0
 const SWIPE_THRESHOLD := 80.0
 
+const ProfileCardScene := preload(
+	"res://scenes/user/profile_card.tscn"
+)
+
 var tabs: Array[Dictionary] = []
 var _drawer_tween: Tween
 var _sidebar_in_drawer: bool = false
+var _active_profile_card: PanelContainer = null
 var _member_list_before_medium: bool = true
 var _edge_swipe_tracking: bool = false
 var _edge_swipe_start_x: float = 0.0
@@ -43,8 +48,10 @@ func _ready() -> void:
 	AppState.search_toggled.connect(_on_search_toggled)
 	AppState.dm_mode_entered.connect(_on_dm_mode_entered)
 	AppState.guild_selected.connect(_on_guild_selected)
+	AppState.reauth_needed.connect(_on_reauth_needed)
 	drawer_backdrop.gui_input.connect(_on_backdrop_input)
 	get_viewport().size_changed.connect(_on_viewport_resized)
+	AppState.profile_card_requested.connect(_on_profile_card_requested)
 	# Style topic bar
 	topic_bar.add_theme_font_size_override("font_size", 12)
 	topic_bar.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
@@ -53,6 +60,16 @@ func _ready() -> void:
 
 	# Apply initial layout
 	_on_viewport_resized()
+
+	# Error reporting consent (first launch only)
+	if not Config.has_error_reporting_preference():
+		call_deferred("_show_consent_dialog")
+
+	# Crash recovery toast
+	if Config.get_error_reporting_enabled() and ErrorReporting._initialized:
+		var last_id: String = SentrySDK.get_last_event_id()
+		if not last_id.is_empty():
+			call_deferred("_show_crash_toast")
 
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:
@@ -324,3 +341,102 @@ func _hide_drawer_nodes() -> void:
 	drawer_backdrop.visible = false
 	drawer_container.visible = false
 	AppState.sidebar_drawer_open = false
+
+func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
+	if _active_profile_card and is_instance_valid(_active_profile_card):
+		_active_profile_card.queue_free()
+	var user_data: Dictionary = Client.get_user_by_id(user_id)
+	if user_data.is_empty():
+		return
+	_active_profile_card = ProfileCardScene.instantiate()
+	add_child(_active_profile_card)
+	var guild_id: String = ""
+	if not AppState.is_dm_mode:
+		guild_id = AppState.current_guild_id
+	_active_profile_card.setup(user_data, guild_id)
+	# Position near click, clamped to viewport
+	await get_tree().process_frame
+	var vp_size := get_viewport().get_visible_rect().size
+	var card_size := _active_profile_card.size
+	var x: float = clampf(pos.x, 0.0, vp_size.x - card_size.x)
+	var y: float = clampf(pos.y, 0.0, vp_size.y - card_size.y)
+	_active_profile_card.position = Vector2(x, y)
+
+func _show_consent_dialog() -> void:
+	# Mark consent as shown immediately so the dialog never reappears,
+	# regardless of how it is dismissed. Default is disabled (safe).
+	Config.set_error_reporting_consent_shown()
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Error Reporting"
+	dialog.dialog_text = (
+		"Help improve daccord by sending anonymous crash and "
+		+ "error reports?\n\n"
+		+ "No personal data is included. You can change this "
+		+ "in the user menu at any time."
+	)
+	dialog.ok_button_text = "Enable"
+	dialog.cancel_button_text = "No thanks"
+	dialog.confirmed.connect(func() -> void:
+		Config.set_error_reporting_enabled(true)
+		ErrorReporting.init_sentry()
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func() -> void:
+		Config.set_error_reporting_enabled(false)
+		dialog.queue_free()
+	)
+	add_child(dialog)
+	dialog.popup_centered()
+
+func _show_crash_toast() -> void:
+	var toast := Label.new()
+	toast.text = "An error report from your last session was sent."
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_font_size_override("font_size", 13)
+	toast.add_theme_color_override(
+		"font_color", Color(0.75, 0.75, 0.75)
+	)
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.18, 0.19, 0.21, 0.95)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	style.content_margin_left = 16.0
+	style.content_margin_right = 16.0
+	style.content_margin_top = 10.0
+	style.content_margin_bottom = 10.0
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(toast)
+	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.anchor_bottom = 1.0
+	panel.anchor_top = 1.0
+	panel.offset_top = -60.0
+	panel.offset_bottom = -20.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	add_child(panel)
+	var tween := create_tween()
+	tween.tween_interval(4.0)
+	tween.tween_property(panel, "modulate:a", 0.0, 1.0)
+	tween.tween_callback(panel.queue_free)
+
+func _on_reauth_needed(
+	server_index: int, base_url: String,
+) -> void:
+	var AuthDialog: PackedScene = load(
+		"res://scenes/sidebar/guild_bar/auth_dialog.tscn"
+	)
+	var dlg: ColorRect = AuthDialog.instantiate()
+	dlg.setup(base_url)
+	dlg.auth_completed.connect(func(
+		_url: String, token: String,
+		username: String, password: String,
+	) -> void:
+		Config.update_server_token(server_index, token)
+		Config.update_server_credentials(
+			server_index, username, password,
+		)
+		Client.reconnect_server(server_index)
+	)
+	get_tree().root.add_child(dlg)

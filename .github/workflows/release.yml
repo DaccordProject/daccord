@@ -14,7 +14,7 @@ permissions:
 jobs:
   build:
     name: Build ${{ matrix.platform }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
@@ -22,19 +22,36 @@ jobs:
             preset: Linux
             artifact: daccord-linux-x86_64
             extension: x86_64
+            os: ubuntu-latest
+          - platform: linux-arm64
+            preset: "Linux ARM64"
+            artifact: daccord-linux-arm64
+            extension: arm64
+            os: ubuntu-latest
           - platform: windows
             preset: Windows
             artifact: daccord-windows-x86_64
             extension: exe
+            os: ubuntu-latest
           - platform: macos
             preset: macOS
             artifact: daccord-macos
             extension: zip
+            os: macos-latest
 
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Validate version matches tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PROJECT_VER=$(grep 'config/version=' project.godot | sed 's/.*="//' | sed 's/"//')
+          if [ "$TAG" != "$PROJECT_VER" ]; then
+            echo "::error::Tag v$TAG does not match project.godot version $PROJECT_VER"
+            exit 1
+          fi
 
       - name: Checkout accordkit
         uses: actions/checkout@v4
@@ -47,11 +64,30 @@ jobs:
         with:
           repository: daccord-projects/accordstream
           path: .accordstream_repo
+          lfs: true
 
       - name: Symlink addons
         run: |
           ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
           ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+
+      - name: Download AccordStream platform binaries
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Downloading AccordStream platform binaries..."
+          TMPDIR=$(mktemp -d)
+          gh release download --repo daccord-projects/accordstream \
+            --pattern "accordstream-addon.zip" --dir "$TMPDIR" || exit 0
+          unzip -o "$TMPDIR/accordstream-addon.zip" -d "$TMPDIR/extracted"
+          # Copy any missing native binaries into the addon
+          if [ -d "$TMPDIR/extracted/addons/accordstream/bin" ]; then
+            cp -n "$TMPDIR/extracted/addons/accordstream/bin/"* \
+              addons/accordstream/bin/ 2>/dev/null || true
+          fi
+          rm -rf "$TMPDIR"
+          echo "AccordStream binaries updated."
 
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
@@ -64,6 +100,27 @@ jobs:
         run: godot --headless --import . || true
         timeout-minutes: 2
 
+      - name: Inject Sentry DSN
+        if: env.SENTRY_DSN != ''
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          sed -i 's|config/dsn="[^"]*"|config/dsn="'"$SENTRY_DSN"'"|' project.godot
+
+      - name: Clear missing custom templates
+        run: |
+          # If a custom template path is set but the file doesn't exist,
+          # clear it so Godot falls back to stock templates.
+          while IFS= read -r line; do
+            if [[ "$line" =~ custom_template/release=\"res://(.+)\" ]]; then
+              TEMPLATE_PATH="${BASH_REMATCH[1]}"
+              if [ -n "$TEMPLATE_PATH" ] && [ ! -f "$TEMPLATE_PATH" ]; then
+                echo "Custom template not found: $TEMPLATE_PATH — clearing for stock fallback"
+                sed -i "s|custom_template/release=\"res://$TEMPLATE_PATH\"|custom_template/release=\"\"|" export_presets.cfg
+              fi
+            fi
+          done < export_presets.cfg
+
       - name: Create build directory
         run: mkdir -p dist/build/${{ matrix.platform }}
 
@@ -72,9 +129,12 @@ jobs:
         timeout-minutes: 10
 
       - name: Package Linux
-        if: matrix.platform == 'linux'
+        if: startsWith(matrix.platform, 'linux')
         run: |
-          cd dist/build/linux
+          cd dist/build/${{ matrix.platform }}
+          # Include .desktop file and icon for Linux packages
+          cp ../../../dist/daccord.desktop . 2>/dev/null || true
+          cp ../../../dist/icons/icon_128x128.png daccord.png 2>/dev/null || true
           tar czf ../../../${{ matrix.artifact }}.tar.gz *
 
       - name: Package Windows
@@ -83,10 +143,94 @@ jobs:
           cd dist/build/windows
           zip -r ../../../${{ matrix.artifact }}.zip *
 
+      - name: Sign Windows executable
+        if: matrix.platform == 'windows' && env.WINDOWS_CERT_BASE64 != ''
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          sudo apt-get install -y osslsigncode
+          echo "$WINDOWS_CERT_BASE64" | base64 -d > cert.pfx
+          # Re-extract, sign, re-package
+          mkdir -p signed_windows
+          cd signed_windows
+          unzip ../daccord-windows-x86_64.zip
+          osslsigncode sign \
+            -pkcs12 ../cert.pfx \
+            -pass "$WINDOWS_CERT_PASSWORD" \
+            -n "daccord" \
+            -t http://timestamp.digicert.com \
+            -in daccord.exe \
+            -out daccord_signed.exe
+          mv daccord_signed.exe daccord.exe
+          zip -r ../daccord-windows-x86_64.zip *
+          cd ..
+          rm -f cert.pfx
+          rm -rf signed_windows
+
       - name: Package macOS
         if: matrix.platform == 'macos'
         run: |
           cp dist/build/macos/daccord.zip ${{ matrix.artifact }}.zip
+
+      - name: Sign macOS app bundle
+        if: matrix.platform == 'macos' && env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+        run: |
+          # Import certificate into a temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 -d > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Unzip, sign, re-zip
+          mkdir -p $RUNNER_TEMP/macos_app
+          unzip -o ${{ matrix.artifact }}.zip -d $RUNNER_TEMP/macos_app
+          codesign --deep --force --options runtime \
+            --sign "$APPLE_IDENTITY" \
+            $RUNNER_TEMP/macos_app/daccord.app
+          cd $RUNNER_TEMP/macos_app
+          zip -r $GITHUB_WORKSPACE/${{ matrix.artifact }}.zip daccord.app
+          cd $GITHUB_WORKSPACE
+
+          # Cleanup
+          rm -f $RUNNER_TEMP/cert.p12
+          security delete-keychain "$KEYCHAIN_PATH"
+
+      - name: Notarize macOS app
+        if: matrix.platform == 'macos' && env.APPLE_ID != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit ${{ matrix.artifact }}.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket
+          mkdir -p $RUNNER_TEMP/macos_staple
+          unzip -o ${{ matrix.artifact }}.zip -d $RUNNER_TEMP/macos_staple
+          xcrun stapler staple $RUNNER_TEMP/macos_staple/daccord.app
+          cd $RUNNER_TEMP/macos_staple
+          zip -r $GITHUB_WORKSPACE/${{ matrix.artifact }}.zip daccord.app
+          cd $GITHUB_WORKSPACE
+          rm -rf $RUNNER_TEMP/macos_staple
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -9,6 +9,29 @@ enum ChannelType { TEXT, VOICE, ANNOUNCEMENT, FORUM, CATEGORY }
 # User statuses
 enum UserStatus { ONLINE, IDLE, DND, OFFLINE }
 
+## Known user flag bits and their labels.
+const USER_FLAGS := {
+	1: "Staff",
+	2: "Partner",
+	4: "HypeSquad Events",
+	8: "Bug Hunter Level 1",
+	64: "HypeSquad Bravery",
+	128: "HypeSquad Brilliance",
+	256: "HypeSquad Balance",
+	512: "Early Supporter",
+	16384: "Bug Hunter Level 2",
+	65536: "Verified Bot",
+	131072: "Early Verified Bot Developer",
+	262144: "Certified Moderator",
+	1048576: "Active Developer",
+}
+
+# Custom emoji caches — populated by Client when custom emoji are fetched.
+# Maps emoji_name -> local cache path (user://emoji_cache/{id}.png)
+static var custom_emoji_paths: Dictionary = {}
+# Maps emoji_name -> Texture2D (in-memory for reaction pills)
+static var custom_emoji_textures: Dictionary = {}
+
 static var _hsv_colors := [
 	Color.from_hsv(0.0, 0.7, 0.9),
 	Color.from_hsv(0.08, 0.7, 0.9),
@@ -49,6 +72,28 @@ static func _status_enum_to_string(status: int) -> String:
 			return "dnd"
 		_:
 			return "offline"
+
+static func status_color(status: int) -> Color:
+	match status:
+		UserStatus.ONLINE:
+			return Color(0.231, 0.647, 0.365)
+		UserStatus.IDLE:
+			return Color(0.98, 0.659, 0.157)
+		UserStatus.DND:
+			return Color(0.929, 0.259, 0.271)
+		_:
+			return Color(0.58, 0.608, 0.643)
+
+static func status_label(status: int) -> String:
+	match status:
+		UserStatus.ONLINE:
+			return "Online"
+		UserStatus.IDLE:
+			return "Idle"
+		UserStatus.DND:
+			return "Do Not Disturb"
+		_:
+			return "Offline"
 
 static func _channel_type_to_enum(type_str: String) -> int:
 	match type_str:
@@ -146,6 +191,20 @@ static func user_to_dict(
 	if user.avatar != null and not str(user.avatar).is_empty():
 		avatar_url = AccordCDN.avatar(user.id, str(user.avatar), "png", cdn_url)
 
+	var bio_str: String = ""
+	if user.bio != null:
+		bio_str = str(user.bio)
+
+	var banner_url = null
+	if user.banner != null and not str(user.banner).is_empty():
+		banner_url = AccordCDN.space_banner(
+			user.id, str(user.banner), "png", cdn_url
+		)
+
+	var accent: int = 0
+	if user.accent_color != null:
+		accent = int(user.accent_color)
+
 	return {
 		"id": user.id,
 		"display_name": dname,
@@ -154,6 +213,15 @@ static func user_to_dict(
 		"status": status,
 		"avatar": avatar_url,
 		"is_admin": user.is_admin,
+		"bio": bio_str,
+		"banner": banner_url,
+		"accent_color": accent,
+		"flags": user.flags,
+		"public_flags": user.public_flags,
+		"created_at": user.created_at,
+		"bot": user.bot,
+		"client_status": {},
+		"activities": [],
 	}
 
 static func space_to_guild_dict(
@@ -300,6 +368,13 @@ static func message_to_dict(
 
 	var is_system: bool = msg.type != "default" and msg.type != "reply"
 
+	var mentions_arr: Array = []
+	if msg.mentions is Array:
+		mentions_arr = msg.mentions
+	var mention_roles_arr: Array = []
+	if msg.mention_roles is Array:
+		mention_roles_arr = msg.mention_roles
+
 	return {
 		"id": msg.id,
 		"channel_id": msg.channel_id,
@@ -313,7 +388,27 @@ static func message_to_dict(
 		"embeds": embeds_arr,
 		"attachments": attachments_arr,
 		"system": is_system,
+		"mentions": mentions_arr,
+		"mention_everyone": msg.mention_everyone,
+		"mention_roles": mention_roles_arr,
 	}
+
+static func is_user_mentioned(
+	data: Dictionary, user_id: String, user_roles: Array,
+) -> bool:
+	if user_id.is_empty():
+		return false
+	var mentions: Array = data.get("mentions", [])
+	if user_id in mentions:
+		return true
+	if data.get("mention_everyone", false):
+		if not Config.get_suppress_everyone():
+			return true
+	var mention_roles: Array = data.get("mention_roles", [])
+	for role_id in mention_roles:
+		if role_id in user_roles:
+			return true
+	return false
 
 static func member_to_dict(member: AccordMember, user_cache: Dictionary) -> Dictionary:
 	var user_dict: Dictionary = {}
@@ -494,134 +589,11 @@ static func voice_state_to_dict(
 	}
 
 static func markdown_to_bbcode(text: String) -> String:
-	var result := text
-	# Code blocks (``` ```)
-	var code_block_regex := RegEx.new()
-	code_block_regex.compile("```(?:\\w+\\n)?([\\s\\S]*?)```")
-	result = code_block_regex.sub(result, "[code]$1[/code]", true)
-	# Inline code
-	var inline_code_regex := RegEx.new()
-	inline_code_regex.compile("`([^`]+)`")
-	result = inline_code_regex.sub(result, "[code]$1[/code]", true)
-	# Strikethrough ~~text~~
-	var strike_regex := RegEx.new()
-	strike_regex.compile("~~(.+?)~~")
-	result = strike_regex.sub(result, "[s]$1[/s]", true)
-	# Underline __text__ (must come before bold to avoid conflict)
-	var underline_regex := RegEx.new()
-	underline_regex.compile("__(.+?)__")
-	result = underline_regex.sub(result, "[u]$1[/u]", true)
-	# Bold
-	var bold_regex := RegEx.new()
-	bold_regex.compile("\\*\\*(.+?)\\*\\*")
-	result = bold_regex.sub(result, "[b]$1[/b]", true)
-	# Italic
-	var italic_regex := RegEx.new()
-	italic_regex.compile("\\*(.+?)\\*")
-	result = italic_regex.sub(result, "[i]$1[/i]", true)
-	# Spoilers ||text||
-	var spoiler_regex := RegEx.new()
-	spoiler_regex.compile("\\|\\|(.+?)\\|\\|")
-	result = spoiler_regex.sub(
-		result,
-		"[url=spoiler][bgcolor=#1e1f22][color=#1e1f22]$1[/color][/bgcolor][/url]",
-		true,
-	)
-	# Links — block dangerous URL schemes before converting
-	var link_regex := RegEx.new()
-	link_regex.compile("\\[(.+?)\\]\\((.+?)\\)")
-	var link_matches := link_regex.search_all(result)
-	for i in range(link_matches.size() - 1, -1, -1):
-		var lm := link_matches[i]
-		var link_text := lm.get_string(1)
-		var link_url := lm.get_string(2)
-		var lower_url := link_url.strip_edges().to_lower()
-		if lower_url.begins_with("javascript:") \
-				or lower_url.begins_with("data:") \
-				or lower_url.begins_with("file:") \
-				or lower_url.begins_with("vbscript:"):
-			link_url = "#blocked"
-		var replacement := "[url=%s]%s[/url]" % [link_url, link_text]
-		result = result.substr(0, lm.get_start()) + replacement + result.substr(lm.get_end())
-	# Blockquotes (line-level: > text)
-	var blockquote_regex := RegEx.new()
-	blockquote_regex.compile("(?m)^> (.+)$")
-	result = blockquote_regex.sub(
-		result,
-		"[indent][color=#8a8e94]$1[/color][/indent]",
-		true,
-	)
-	# Emoji shortcodes :name: -> inline image
-	var emoji_regex := RegEx.new()
-	emoji_regex.compile(":([a-z0-9_]+):")
-	var emoji_matches := emoji_regex.search_all(result)
-	for i in range(emoji_matches.size() - 1, -1, -1):
-		var m := emoji_matches[i]
-		var ename := m.get_string(1)
-		var entry := EmojiData.get_by_name(ename)
-		if not entry.is_empty():
-			var cp: String = entry["codepoint"]
-			var img_tag := "[img=20x20]res://theme/emoji/" + cp + ".svg[/img]"
-			result = result.substr(0, m.get_start()) + img_tag + result.substr(m.get_end())
-	# Sanitize raw BBCode tags that were NOT produced by the converter.
-	# Tags inside [code]...[/code] are left alone (RichTextLabel ignores them).
-	result = _sanitize_bbcode_tags(result)
-	return result
+	return ClientMarkdown.markdown_to_bbcode(text)
 
-
-static func _sanitize_bbcode_tags(text: String) -> String:
-	# Allowed tag prefixes produced by the markdown converter above.
-	var allowed_prefixes: Array[String] = [
-		"b]", "/b]",
-		"i]", "/i]",
-		"s]", "/s]",
-		"u]", "/u]",
-		"code]", "/code]",
-		"url=", "url]", "/url]",
-		"bgcolor=", "/bgcolor]",
-		"color=", "/color]",
-		"indent]", "/indent]",
-		"img=", "/img]",
-		"font_size=", "/font_size]",
-		"lb]",
-	]
-
-	# Split on [code]...[/code] blocks so we don't touch their content.
-	var code_splitter := RegEx.new()
-	code_splitter.compile("(?s)(\\[code\\].*?\\[/code\\])")
-	var parts: Array[String] = []
-	var last_end: int = 0
-	for cm in code_splitter.search_all(text):
-		if cm.get_start() > last_end:
-			parts.append(text.substr(last_end, cm.get_start() - last_end))
-		parts.append(cm.get_string(0))
-		last_end = cm.get_end()
-	if last_end < text.length():
-		parts.append(text.substr(last_end))
-
-	var output := ""
-	for idx in parts.size():
-		var part: String = parts[idx]
-		if part.begins_with("[code]"):
-			output += part
-			continue
-		# Escape any [ that doesn't start an allowed tag
-		var sanitized := ""
-		var pos: int = 0
-		while pos < part.length():
-			if part[pos] == "[":
-				var after := part.substr(pos + 1)
-				var is_allowed := false
-				for prefix in allowed_prefixes:
-					if after.begins_with(prefix):
-						is_allowed = true
-						break
-				if is_allowed:
-					sanitized += "["
-				else:
-					sanitized += "[lb]"
-			else:
-				sanitized += part[pos]
-			pos += 1
-		output += sanitized
-	return output
+static func get_user_badges(flags: int) -> Array:
+	var badges: Array = []
+	for bit in USER_FLAGS:
+		if flags & bit:
+			badges.append(USER_FLAGS[bit])
+	return badges

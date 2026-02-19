@@ -4,7 +4,7 @@
 
 [node name="VoiceSettingsDialog" type="AcceptDialog"]
 title = "Voice Settings"
-size = Vector2i(320, 160)
+size = Vector2i(320, 460)
 ok_button_text = "Apply"
 script = ExtResource("1")
 
@@ -12,7 +12,7 @@ script = ExtResource("1")
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 312.0
-offset_bottom = 112.0
+offset_bottom = 412.0
 theme_override_constants/separation = 8
 
 [node name="MicLabel" type="Label" parent="VBox"]
@@ -20,5 +20,37 @@ layout_mode = 2
 text = "Input Device"
 
 [node name="MicOption" type="OptionButton" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+
+[node name="SpeakerLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Output Device"
+
+[node name="SpeakerOption" type="OptionButton" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+
+[node name="CamLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Camera"
+
+[node name="CamOption" type="OptionButton" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+
+[node name="ResLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Video Resolution"
+
+[node name="ResOption" type="OptionButton" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+
+[node name="FpsLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Frame Rate"
+
+[node name="FpsOption" type="OptionButton" parent="VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 32)

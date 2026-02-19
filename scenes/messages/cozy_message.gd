@@ -36,6 +36,7 @@ func _ready() -> void:
 	_context_menu.add_item("Edit", 1)
 	_context_menu.add_item("Delete", 2)
 	_context_menu.add_item("Add Reaction", 3)
+	_context_menu.add_item("Remove All Reactions", 4)
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
 	add_child(_context_menu)
 	gui_input.connect(_on_gui_input)
@@ -77,21 +78,52 @@ func setup(data: Dictionary) -> void:
 	message_content.setup(data)
 
 	# Mention highlight
-	var content: String = data.get("content", "")
-	var current_user_name: String = Client.current_user.get("display_name", "")
-	if content.contains("@" + current_user_name):
+	var my_id: String = Client.current_user.get("id", "")
+	var my_roles: Array = _get_current_user_roles()
+	if ClientModels.is_user_mentioned(data, my_id, my_roles):
 		modulate = Color(1.0, 0.95, 0.85)
 
+func _get_current_user_roles() -> Array:
+	var guild_id: String = Client._channel_to_guild.get(
+		AppState.current_channel_id, ""
+	)
+	if guild_id.is_empty():
+		return []
+	var my_id: String = Client.current_user.get("id", "")
+	for member in Client.get_members_for_guild(guild_id):
+		if member.get("id", "") == my_id:
+			return member.get("roles", [])
+	return []
+
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		var pos := get_global_mouse_position()
-		_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			var pos := get_global_mouse_position()
+			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			# Check if click is on avatar or author label
+			var click_pos: Vector2 = event.position
+			var avatar_rect := avatar.get_global_rect()
+			var author_rect := author_label.get_global_rect()
+			var global_click := get_global_mouse_position()
+			if avatar_rect.has_point(global_click) or author_rect.has_point(global_click):
+				var user: Dictionary = _message_data.get("author", {})
+				var uid: String = user.get("id", "")
+				if not uid.is_empty():
+					AppState.profile_card_requested.emit(uid, global_click)
 
 func _show_context_menu(pos: Vector2i) -> void:
 	var author: Dictionary = _message_data.get("author", {})
 	var is_own: bool = author.get("id", "") == Client.current_user.get("id", "")
 	_context_menu.set_item_disabled(1, not is_own)
 	_context_menu.set_item_disabled(2, not is_own)
+	# "Remove All Reactions" requires MANAGE_MESSAGES permission
+	var guild_id: String = Client._channel_to_guild.get(
+		_message_data.get("channel_id", ""), ""
+	)
+	var has_reactions: bool = _message_data.get("reactions", []).size() > 0
+	var can_manage: bool = Client.has_permission(guild_id, "MANAGE_MESSAGES")
+	_context_menu.set_item_disabled(4, not (can_manage and has_reactions))
 	_context_menu.position = pos
 	_context_menu.popup()
 
@@ -106,6 +138,10 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			_confirm_delete()
 		3: # Add Reaction
 			_open_reaction_picker()
+		4: # Remove All Reactions
+			var cid: String = _message_data.get("channel_id", "")
+			var mid: String = _message_data.get("id", "")
+			Client.remove_all_reactions(cid, mid)
 
 func _confirm_delete() -> void:
 	if not _delete_dialog:

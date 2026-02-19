@@ -1,6 +1,6 @@
 # Editing Messages
 
-*Last touched: 2026-02-18 20:21*
+Last touched: 2026-02-19
 
 ## Overview
 
@@ -236,13 +236,11 @@ The `editing_message_id` and `replying_to_message_id` are mutually exclusive -- 
 - [x] `AppState.start_editing()` called during edit flow (from context menu and Up arrow)
 - [x] Keyboard shortcut to edit last message (Up arrow in empty composer)
 - [x] Edit mode preserved across re-renders
-- [ ] Visual feedback during save (loading/pending state)
+- [x] Visual feedback during save (optimistic "(saving...)" indicator)
+- [x] Error feedback on edit failure (re-enters edit mode with error message)
+- [x] Empty edit feedback ("Empty message not saved" hint)
+- [x] Keyboard hints below edit TextEdit (Enter/Escape/Shift+Enter)
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No error feedback to user | Medium | `Client.update_message_content()` logs errors via `push_error()` (line 375) but never surfaces failures to the UI. If the edit fails (network error, permissions), the user sees the message revert on re-render with no explanation |
-| No save-in-progress indicator | Low | After pressing Enter, the edit exits immediately and the old text shows until the gateway event arrives with the updated content. There's a brief flash of the old content |
-| Empty edit silently discarded | Low | If the user clears the content and presses Enter, the edit is skipped (line 63 in message_content.gd). No feedback is given. Could offer to delete the message instead |
-| Shift+Enter doesn't insert newline in edit | Low | The `_on_edit_input` handler (line 61) only checks for Enter without Shift to save. Shift+Enter falls through to default TextEdit behavior, which does work, but there's no visual hint that multiline editing is supported |
+No known gaps.

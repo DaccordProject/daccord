@@ -75,6 +75,9 @@ func _connect_voice_backend(
 			var mics: Array = AccordStream.get_microphones()
 			if mics.size() > 0:
 				mic_id = mics[0]["id"]
+		var output_id := Config.get_voice_output_device()
+		if not output_id.is_empty():
+			AccordStream.set_output_device(output_id)
 		var ice_config := {}
 		_c._voice_session.connect_custom_sfu(
 			str(info.sfu_endpoint), ice_config, mic_id
@@ -91,6 +94,12 @@ func leave_voice_channel() -> bool:
 	if _c._screen_track != null:
 		_c._screen_track.stop()
 		_c._screen_track = null
+	# Clean up remote tracks
+	for uid in _c._remote_tracks:
+		var rt: AccordMediaTrack = _c._remote_tracks[uid]
+		if rt != null:
+			rt.stop()
+	_c._remote_tracks.clear()
 	_c._voice_session.disconnect_voice()
 	var client: AccordClient = _c._client_for_channel(channel_id)
 	if client == null:
@@ -144,9 +153,23 @@ func toggle_video() -> void:
 		if cameras.is_empty():
 			AppState.voice_error.emit("No camera found")
 			return
-		var cam_id: String = cameras[0]["id"]
+		var cam_id: String = Config.get_voice_video_device()
+		# Fall back to first camera if saved device is gone
+		if cam_id.is_empty() or not _has_camera(cameras, cam_id):
+			cam_id = cameras[0]["id"]
+		var res_preset: int = Config.get_video_resolution()
+		var width := 640
+		var height := 480
+		match res_preset:
+			1:
+				width = 1280
+				height = 720
+			2:
+				width = 640
+				height = 360
+		var fps: int = Config.get_video_fps()
 		_c._camera_track = AccordStream.create_camera_track(
-			cam_id, 640, 480, 30
+			cam_id, width, height, fps
 		)
 		AppState.set_video_enabled(true)
 	_send_voice_state_update()
@@ -229,8 +252,32 @@ func on_peer_left(user_id: String) -> void:
 			_c._channel_cache[cid]["voice_users"] = (
 				states.size()
 			)
+	# Clean up remote track for this peer
+	if _c._remote_tracks.has(user_id):
+		var rt: AccordMediaTrack = _c._remote_tracks[user_id]
+		if rt != null:
+			rt.stop()
+		_c._remote_tracks.erase(user_id)
+		AppState.remote_track_removed.emit(user_id)
 	AppState.voice_state_updated.emit(cid)
 	print("[Client] Voice peer left: ", user_id)
+
+func on_track_received(
+	user_id: String, track: AccordMediaTrack,
+) -> void:
+	if track == null:
+		return
+	# Only handle video tracks for rendering
+	if track.get_kind() != "video":
+		return
+	# Stop any previous track for this peer
+	if _c._remote_tracks.has(user_id):
+		var old: AccordMediaTrack = _c._remote_tracks[user_id]
+		if old != null:
+			old.stop()
+	_c._remote_tracks[user_id] = track
+	AppState.remote_track_received.emit(user_id, track)
+	print("[Client] Remote video track received: ", user_id)
 
 func on_signal_outgoing(
 	signal_type: String, payload_json: String,
@@ -246,3 +293,9 @@ func on_signal_outgoing(
 	client.send_voice_signal(
 		gid, cid, signal_type, payload
 	)
+
+func _has_camera(cameras: Array, device_id: String) -> bool:
+	for cam in cameras:
+		if cam.get("id", "") == device_id:
+			return true
+	return false

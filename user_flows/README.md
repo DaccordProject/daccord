@@ -35,3 +35,12 @@ Ordered by natural user journey:
 | 27 | [User Onboarding](user_onboarding.md) | First-run experience, empty states, Add Server + auth flow, startup auto-connect, session restore, subsequent launches |
 | 28 | [Group DMs](group_dms.md) | Group DM detection via recipient count, comma-separated names, channel-ID avatar, gateway handling, creation/management gaps |
 | 29 | [File Sharing](file_sharing.md) | File attachments, image/file upload via composer, clipboard paste (images & large text), multipart form infrastructure, attachment rendering (inline images & download links), CDN URLs |
+| 30 | [Guild Folders](guild_folders.md) | Client-side guild grouping, folder assignment via context menu, collapsible mini-grid preview, folder persistence in Config, expand/collapse animation |
+| 31 | [User Management](user_management.md) | Authentication (sign-in/register), user data model, presence/status control, user bar, member list with admin actions, avatar rendering, user caching |
+| 32 | [Administrative User Management](admin_user_management.md) | Kick/ban/unban members, role assignment via context menu, role management dialog, ban list with bulk unban, permission gating, gateway sync |
+| 33 | [User Configuration](user_configuration.md) | Encrypted config file, server credentials, session restore, voice/sound/status preferences, emoji cache, notification settings, local data layout |
+| 34 | [Messages Performance](messages_performance.md) | Full re-render strategy, message/user/avatar caching, markdown regex cost, reaction update optimization, sequential author fetches, attachment loading |
+| 35 | [Member List Performance](memberlist_performance.md) | Virtual scrolling with object pooling, status grouping, gateway-driven cache updates, rebuild costs, fetch bottlenecks |
+| 36 | [Content Embedding](content_embedding.md) | Image/video URL previews, embed cards, inline image rendering, YouTube/oEmbed, link unfurling, attachment display |
+| 37 | [Localization](localization.md) | i18n status, PO/POT translation approach, hardcoded string inventory, RTL text server gap, locale persistence |
+| 38 | [Accessibility](accessibility.md) | Tooltips, keyboard shortcuts, focus management, touch targets, animation behavior, missing screen reader/high-contrast/reduced-motion support |

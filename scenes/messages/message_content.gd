@@ -3,6 +3,9 @@ extends VBoxContainer
 const EmbedScene := preload("res://scenes/messages/embed.tscn")
 
 var _edit_input: TextEdit = null
+var _edit_hint_label: Label = null
+var _edit_error_label: Label = null
+var _edit_error_timer: Timer = null
 var _editing_message_id: String = ""
 var _spoilers_revealed: bool = false
 var _raw_bbcode: String = ""
@@ -164,6 +167,15 @@ func enter_edit_mode(message_id: String, content: String) -> void:
 	_edit_input.gui_input.connect(_on_edit_input)
 	add_child(_edit_input)
 	move_child(_edit_input, 0)
+
+	# Keyboard hint label below the TextEdit
+	_edit_hint_label = Label.new()
+	_edit_hint_label.text = "Enter to save \u00b7 Escape to cancel \u00b7 Shift+Enter for newline"
+	_edit_hint_label.add_theme_font_size_override("font_size", 11)
+	_edit_hint_label.add_theme_color_override("font_color", Color(0.541, 0.557, 0.580))
+	add_child(_edit_hint_label)
+	move_child(_edit_hint_label, 1)
+
 	_edit_input.grab_focus()
 
 func is_editing() -> bool:
@@ -178,6 +190,15 @@ func _exit_edit_mode() -> void:
 	if _edit_input:
 		_edit_input.queue_free()
 		_edit_input = null
+	if _edit_hint_label:
+		_edit_hint_label.queue_free()
+		_edit_hint_label = null
+	if _edit_error_label:
+		_edit_error_label.queue_free()
+		_edit_error_label = null
+	if _edit_error_timer:
+		_edit_error_timer.queue_free()
+		_edit_error_timer = null
 	text_content.visible = true
 	_editing_message_id = ""
 
@@ -186,9 +207,54 @@ func _on_edit_input(event: InputEvent) -> void:
 		if event.keycode == KEY_ENTER and not event.shift_pressed:
 			var new_text := _edit_input.text.strip_edges()
 			if not new_text.is_empty():
+				# Optimistic update: show new content with "(saving...)" indicator
+				var bbcode := ClientModels.markdown_to_bbcode(new_text)
+				bbcode += " [font_size=11][color=#8a8e94](saving...)[/color][/font_size]"
+				text_content.text = bbcode
 				AppState.edit_message(_editing_message_id, new_text)
+			else:
+				show_edit_error("Empty message not saved")
 			_exit_edit_mode()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE:
 			_exit_edit_mode()
 			get_viewport().set_input_as_handled()
+
+func show_edit_error(error: String) -> void:
+	# Remove previous error label if any
+	if _edit_error_label and is_instance_valid(_edit_error_label):
+		_edit_error_label.queue_free()
+	if _edit_error_timer and is_instance_valid(_edit_error_timer):
+		_edit_error_timer.queue_free()
+
+	_edit_error_label = Label.new()
+	_edit_error_label.text = error
+	_edit_error_label.add_theme_font_size_override("font_size", 11)
+	_edit_error_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	add_child(_edit_error_label)
+	# Place after TextEdit and hint if editing, otherwise at the top
+	if _edit_input:
+		var idx: int = (
+			_edit_hint_label.get_index() + 1
+			if _edit_hint_label
+			else _edit_input.get_index() + 1
+		)
+		move_child(_edit_error_label, idx)
+	else:
+		move_child(_edit_error_label, 0)
+
+	# Auto-hide after 5 seconds
+	_edit_error_timer = Timer.new()
+	_edit_error_timer.wait_time = 5.0
+	_edit_error_timer.one_shot = true
+	_edit_error_timer.timeout.connect(_on_edit_error_timeout)
+	add_child(_edit_error_timer)
+	_edit_error_timer.start()
+
+func _on_edit_error_timeout() -> void:
+	if _edit_error_label and is_instance_valid(_edit_error_label):
+		_edit_error_label.queue_free()
+		_edit_error_label = null
+	if _edit_error_timer and is_instance_valid(_edit_error_timer):
+		_edit_error_timer.queue_free()
+		_edit_error_timer = null

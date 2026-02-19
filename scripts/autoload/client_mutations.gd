@@ -60,7 +60,8 @@ func search_messages(
 # --- Message mutations ---
 
 func send_message_to_channel(
-	cid: String, content: String, reply_to: String = ""
+	cid: String, content: String, reply_to: String = "",
+	attachments: Array = []
 ) -> bool:
 	var client: AccordClient = _c._client_for_channel(cid)
 	if client == null:
@@ -74,7 +75,13 @@ func send_message_to_channel(
 	var data := {"content": content}
 	if not reply_to.is_empty():
 		data["reply_to"] = reply_to
-	var result := await client.messages.create(cid, data)
+	var result: RestResult
+	if attachments.is_empty():
+		result = await client.messages.create(cid, data)
+	else:
+		result = await client.messages.create_with_attachments(
+			cid, data, attachments
+		)
 	if not result.ok:
 		var err: String = (
 			result.error.message
@@ -187,8 +194,6 @@ func add_reaction(
 		AppState.reaction_failed.emit(
 			cid, mid, emoji, err
 		)
-		return
-	_update_reaction_cache_add(cid, mid, emoji)
 
 func _update_reaction_cache_add(
 	cid: String, mid: String, emoji: String,
@@ -242,8 +247,28 @@ func remove_reaction(
 		AppState.reaction_failed.emit(
 			cid, mid, emoji, err
 		)
+
+func remove_all_reactions(
+	cid: String, mid: String,
+) -> void:
+	var client: AccordClient = _c._client_for_channel(cid)
+	if client == null:
+		push_error(
+			"[Client] No connection for channel: ", cid
+		)
 		return
-	_update_reaction_cache_remove(cid, mid, emoji)
+	var result := await client.reactions.remove_all(
+		cid, mid
+	)
+	if not result.ok:
+		var err: String = (
+			result.error.message
+			if result.error else "unknown"
+		)
+		push_error(
+			"[Client] Failed to remove all reactions: ",
+			err
+		)
 
 func _update_reaction_cache_remove(
 	cid: String, mid: String, emoji: String,
@@ -270,17 +295,20 @@ func _update_reaction_cache_remove(
 
 # --- Presence & typing ---
 
-func update_presence(status: int) -> void:
+func update_presence(
+	status: int, activity: Dictionary = {},
+) -> void:
 	_c.current_user["status"] = status
 	var my_id: String = _c.current_user.get("id", "")
 	if _c._user_cache.has(my_id):
 		_c._user_cache[my_id]["status"] = status
+	Config.set_user_status(status)
 	var s := ClientModels._status_enum_to_string(status)
 	for conn in _c._connections:
 		if conn != null \
 				and conn["status"] == "connected" \
 				and conn["client"] != null:
-			conn["client"].update_presence(s)
+			conn["client"].update_presence(s, activity)
 	AppState.user_updated.emit(my_id)
 	for gid in _c._member_cache:
 		for md in _c._member_cache[gid]:
@@ -293,6 +321,73 @@ func send_typing(cid: String) -> void:
 	var client: AccordClient = _c._client_for_channel(cid)
 	if client != null:
 		client.messages.typing(cid)
+
+# --- Profile management ---
+
+func update_profile(data: Dictionary) -> bool:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected client for update_profile")
+		return false
+	var cdn_url: String = _c._first_connected_cdn()
+	var result: RestResult = await client.users.update_me(data)
+	if not result.ok:
+		var err: String = (
+			result.error.message
+			if result.error else "unknown"
+		)
+		push_error("[Client] Failed to update profile: ", err)
+		return false
+	var user: AccordUser = result.data
+	var status: int = _c.current_user.get(
+		"status", ClientModels.UserStatus.ONLINE
+	)
+	var user_dict := ClientModels.user_to_dict(
+		user, status, cdn_url
+	)
+	# Preserve presence details
+	var old: Dictionary = _c._user_cache.get(user.id, {})
+	user_dict["client_status"] = old.get("client_status", {})
+	user_dict["activities"] = old.get("activities", [])
+	_c._user_cache[user.id] = user_dict
+	_c.current_user = user_dict
+	AppState.user_updated.emit(user.id)
+	return true
+
+# --- Password & account management ---
+
+func change_password(
+	current_pw: String, new_pw: String,
+) -> Dictionary:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		return {"ok": false, "error": "Not connected"}
+	var result: RestResult = await client.auth.change_password({
+		"current_password": current_pw,
+		"new_password": new_pw,
+	})
+	if not result.ok:
+		var err: String = (
+			result.error.message
+			if result.error else "unknown"
+		)
+		return {"ok": false, "error": err}
+	return {"ok": true}
+
+func delete_account(password: String) -> Dictionary:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		return {"ok": false, "error": "Not connected"}
+	var result: RestResult = await client.users.delete_me(
+		{"password": password}
+	)
+	if not result.ok:
+		var err: String = (
+			result.error.message
+			if result.error else "unknown"
+		)
+		return {"ok": false, "error": err}
+	return {"ok": true}
 
 # --- DM management ---
 
@@ -359,3 +454,22 @@ func close_dm(channel_id: String) -> void:
 	if AppState.current_channel_id == channel_id:
 		AppState.current_channel_id = ""
 	AppState.dm_channels_updated.emit()
+
+func try_reauth(
+	base_url: String, username: String, password: String,
+) -> String:
+	if username.is_empty() or password.is_empty():
+		return ""
+	var api_url := base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	_c.add_child(rest)
+	var auth := AuthApi.new(rest)
+	var result := await auth.login(
+		{"username": username, "password": password}
+	)
+	rest.queue_free()
+	if result.ok and result.data is Dictionary:
+		return result.data.get("token", "")
+	return ""

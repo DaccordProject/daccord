@@ -1,5 +1,15 @@
 extends PanelContainer
 
+const SoundSettingsDialog := preload(
+	"res://scenes/sidebar/sound_settings_dialog.tscn"
+)
+const NotificationSettingsDialog := preload(
+	"res://scenes/sidebar/notification_settings_dialog.tscn"
+)
+const ProfileEditDialog := preload(
+	"res://scenes/user/profile_edit_dialog.tscn"
+)
+
 @onready var avatar: ColorRect = $HBox/Avatar
 @onready var display_name: Label = $HBox/Info/DisplayName
 @onready var username: Label = $HBox/Info/Username
@@ -9,42 +19,78 @@ extends PanelContainer
 
 func _ready() -> void:
 	username.add_theme_font_size_override("font_size", 11)
-	username.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	username.add_theme_color_override(
+		"font_color", Color(0.58, 0.608, 0.643)
+	)
 	voice_indicator.visible = false
 	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
+	# Avatar hover animation
+	avatar.mouse_entered.connect(_on_avatar_hover_enter)
+	avatar.mouse_exited.connect(_on_avatar_hover_exit)
 	# Setup menu
 	var popup := menu_button.get_popup()
 	popup.add_item("Online", 0)
 	popup.add_item("Idle", 1)
 	popup.add_item("Do Not Disturb", 2)
 	popup.add_item("Invisible", 3)
+	popup.add_item("Set Custom Status", 4)
+	popup.add_item("Edit Profile", 5)
 	popup.add_separator()
+	popup.add_item("Settings", 6)
+	popup.add_separator()
+	popup.add_item("Sound Settings", 12)
+	popup.add_item("Notification Settings", 17)
+	popup.add_check_item("Suppress @everyone", 15)
+	var se_idx: int = popup.get_item_index(15)
+	popup.set_item_checked(
+		se_idx, Config.get_suppress_everyone()
+	)
+	popup.add_separator()
+	popup.add_item("Export Config", 18)
+	popup.add_item("Import Config", 19)
+	popup.add_separator()
+	popup.add_item("Report a Problem", 13)
+	popup.add_check_item("Send Error Reports", 14)
+	var er_idx: int = popup.get_item_index(14)
+	popup.set_item_checked(
+		er_idx, Config.get_error_reporting_enabled()
+	)
+	popup.add_separator()
+	popup.add_item("Check for Updates", 16)
 	popup.add_item("About", 10)
 	popup.add_item("Quit", 11)
 	popup.id_pressed.connect(_on_menu_id_pressed)
 	# Load current user
 	var user: Dictionary = Client.current_user
 	setup(user)
-	# Refresh when a server connection completes (current_user is populated async)
+	# Refresh when a server connection completes
 	AppState.guilds_updated.connect(_on_guilds_updated)
 	AppState.user_updated.connect(_on_user_updated)
 
 func setup(user: Dictionary) -> void:
-	display_name.text = user.get("display_name", "User")
+	display_name.text = user.get(
+		"display_name", "User"
+	)
 	username.text = user.get("username", "user")
-	avatar.set_avatar_color(user.get("color", Color(0.345, 0.396, 0.949)))
+	avatar.set_avatar_color(
+		user.get("color", Color(0.345, 0.396, 0.949))
+	)
+	var dn: String = user.get("display_name", "")
+	if dn.length() > 0:
+		avatar.set_letter(dn[0].to_upper())
+	else:
+		avatar.set_letter("")
+	avatar.set_avatar_url(user.get("avatar", ""))
 
-	var status: int = user.get("status", ClientModels.UserStatus.OFFLINE)
-	match status:
-		ClientModels.UserStatus.ONLINE:
-			status_icon.color = Color(0.231, 0.647, 0.365)
-		ClientModels.UserStatus.IDLE:
-			status_icon.color = Color(0.98, 0.659, 0.157)
-		ClientModels.UserStatus.DND:
-			status_icon.color = Color(0.929, 0.259, 0.271)
-		ClientModels.UserStatus.OFFLINE:
-			status_icon.color = Color(0.58, 0.608, 0.643)
+	var status: int = user.get(
+		"status", ClientModels.UserStatus.OFFLINE
+	)
+	status_icon.color = ClientModels.status_color(status)
+
+	# Show custom status as tooltip
+	var custom: String = Config.get_custom_status()
+	tooltip_text = custom if not custom.is_empty() else ""
 
 func _on_guilds_updated() -> void:
 	setup(Client.current_user)
@@ -59,17 +105,304 @@ func _on_voice_joined(_channel_id: String) -> void:
 func _on_voice_left(_channel_id: String) -> void:
 	voice_indicator.visible = false
 
+func _on_avatar_hover_enter() -> void:
+	avatar.tween_radius(0.5, 0.3)
+
+func _on_avatar_hover_exit() -> void:
+	avatar.tween_radius(0.3, 0.5)
+
 func _on_menu_id_pressed(id: int) -> void:
 	match id:
 		0:
-			Client.update_presence(ClientModels.UserStatus.ONLINE)
+			Client.update_presence(
+				ClientModels.UserStatus.ONLINE
+			)
 		1:
-			Client.update_presence(ClientModels.UserStatus.IDLE)
+			Client.update_presence(
+				ClientModels.UserStatus.IDLE
+			)
 		2:
-			Client.update_presence(ClientModels.UserStatus.DND)
+			Client.update_presence(
+				ClientModels.UserStatus.DND
+			)
 		3:
-			Client.update_presence(ClientModels.UserStatus.OFFLINE)
+			Client.update_presence(
+				ClientModels.UserStatus.OFFLINE
+			)
+		4:
+			_show_custom_status_dialog()
+		5:
+			_show_profile_edit_dialog()
+		6:
+			_show_user_settings()
+		10:
+			_show_about_dialog()
+		12:
+			_show_sound_settings()
 		11:
 			get_tree().quit()
+		13:
+			_show_feedback_dialog()
+		14:
+			_toggle_error_reporting()
+		15:
+			_toggle_suppress_everyone()
+		16:
+			_check_for_updates()
+		17:
+			_show_notification_settings()
+		18:
+			_show_export_dialog()
+		19:
+			_show_import_dialog()
 	if id >= 0 and id <= 3:
 		setup(Client.current_user)
+
+func _show_profile_edit_dialog() -> void:
+	var dlg: ColorRect = ProfileEditDialog.instantiate()
+	get_tree().root.add_child(dlg)
+
+func _show_user_settings() -> void:
+	var UserSettingsScene: PackedScene = load(
+		"res://scenes/user/user_settings.tscn"
+	)
+	if UserSettingsScene:
+		var settings: ColorRect = UserSettingsScene.instantiate()
+		get_tree().root.add_child(settings)
+
+func _show_sound_settings() -> void:
+	var dlg: AcceptDialog = SoundSettingsDialog.instantiate()
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+
+func _show_about_dialog() -> void:
+	var version: String = Client.app_version
+	var dlg := AcceptDialog.new()
+	dlg.title = "About daccord"
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+
+	var title_label := Label.new()
+	title_label.text = "daccord v%s" % version
+	title_label.add_theme_font_size_override("font_size", 18)
+	vbox.add_child(title_label)
+
+	var desc_label := Label.new()
+	desc_label.text = "A chat client for accordserver instances."
+	desc_label.add_theme_font_size_override("font_size", 13)
+	vbox.add_child(desc_label)
+
+	var license_label := Label.new()
+	license_label.text = "License: MIT"
+	license_label.add_theme_font_size_override("font_size", 12)
+	license_label.add_theme_color_override(
+		"font_color", Color(0.58, 0.608, 0.643)
+	)
+	vbox.add_child(license_label)
+
+	var link := LinkButton.new()
+	link.text = "github.com/daccord-projects/daccord"
+	link.uri = "https://github.com/daccord-projects/daccord"
+	link.add_theme_font_size_override("font_size", 12)
+	vbox.add_child(link)
+
+	dlg.add_child(vbox)
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered(Vector2i(340, 160))
+
+func _show_custom_status_dialog() -> void:
+	var dlg := AcceptDialog.new()
+	dlg.title = "Set Custom Status"
+	dlg.ok_button_text = "Save"
+
+	var vbox := VBoxContainer.new()
+	var line_edit := LineEdit.new()
+	line_edit.placeholder_text = "What's on your mind?"
+	line_edit.text = Config.get_custom_status()
+	vbox.add_child(line_edit)
+
+	var clear_btn := Button.new()
+	clear_btn.text = "Clear Status"
+	clear_btn.pressed.connect(func() -> void:
+		line_edit.text = ""
+	)
+	vbox.add_child(clear_btn)
+
+	dlg.add_child(vbox)
+	dlg.confirmed.connect(func() -> void:
+		var text: String = line_edit.text.strip_edges()
+		Config.set_custom_status(text)
+		var activity: Dictionary = {}
+		if not text.is_empty():
+			activity = {"name": text}
+		var status: int = Client.current_user.get(
+			"status", ClientModels.UserStatus.ONLINE
+		)
+		Client.update_presence(status, activity)
+		setup(Client.current_user)
+		dlg.queue_free()
+	)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered(Vector2i(300, 120))
+
+func _show_feedback_dialog() -> void:
+	var dlg := AcceptDialog.new()
+	dlg.title = "Report a Problem"
+	dlg.ok_button_text = "Send Report"
+
+	var vbox := VBoxContainer.new()
+	var label := Label.new()
+	label.text = "Describe what happened (optional):"
+	label.add_theme_font_size_override("font_size", 13)
+	vbox.add_child(label)
+
+	var text_edit := TextEdit.new()
+	text_edit.custom_minimum_size = Vector2(350, 120)
+	text_edit.placeholder_text = (
+		"Steps to reproduce, what you expected..."
+	)
+	vbox.add_child(text_edit)
+
+	var info := Label.new()
+	info.text = (
+		"No messages, usernames, or personal info is sent."
+	)
+	info.add_theme_font_size_override("font_size", 11)
+	info.add_theme_color_override(
+		"font_color", Color(0.58, 0.608, 0.643)
+	)
+	vbox.add_child(info)
+
+	dlg.add_child(vbox)
+	dlg.confirmed.connect(func() -> void:
+		var desc: String = text_edit.text.strip_edges()
+		if desc.is_empty():
+			desc = "User-initiated report (no description)"
+		ErrorReporting.report_problem(desc)
+		_show_report_sent_toast()
+		dlg.queue_free()
+	)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+
+func _show_report_sent_toast() -> void:
+	_show_toast("Report sent. Thank you!")
+
+func _show_toast(text: String) -> void:
+	var toast := Label.new()
+	toast.text = text
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_font_size_override("font_size", 13)
+	toast.add_theme_color_override(
+		"font_color", Color(0.75, 0.75, 0.75)
+	)
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.18, 0.19, 0.21, 0.95)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	style.content_margin_left = 16.0
+	style.content_margin_right = 16.0
+	style.content_margin_top = 10.0
+	style.content_margin_bottom = 10.0
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(toast)
+	# Position at bottom center of the main window
+	var main_win: Control = get_tree().root.get_child(
+		get_tree().root.get_child_count() - 1
+	)
+	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.anchor_bottom = 1.0
+	panel.anchor_top = 1.0
+	panel.offset_top = -60.0
+	panel.offset_bottom = -20.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	main_win.add_child(panel)
+	var tween := main_win.create_tween()
+	tween.tween_interval(3.0)
+	tween.tween_property(panel, "modulate:a", 0.0, 1.0)
+	tween.tween_callback(panel.queue_free)
+
+func _toggle_suppress_everyone() -> void:
+	var suppressed: bool = not Config.get_suppress_everyone()
+	Config.set_suppress_everyone(suppressed)
+	var popup := menu_button.get_popup()
+	var idx: int = popup.get_item_index(15)
+	popup.set_item_checked(idx, suppressed)
+
+func _toggle_error_reporting() -> void:
+	var enabled: bool = not Config.get_error_reporting_enabled()
+	Config.set_error_reporting_enabled(enabled)
+	if not Config.has_error_reporting_preference():
+		Config.set_error_reporting_consent_shown()
+	# Update menu checkbox
+	var popup := menu_button.get_popup()
+	var idx: int = popup.get_item_index(14)
+	popup.set_item_checked(idx, enabled)
+	if enabled:
+		ErrorReporting.init_sentry()
+
+func _check_for_updates() -> void:
+	_show_toast("Checking for updates is not yet available.")
+
+func _show_notification_settings() -> void:
+	var dlg: AcceptDialog = NotificationSettingsDialog.instantiate()
+	dlg.confirmed.connect(func() -> void:
+		# Sync the menu checkbox with the dialog's value
+		var popup := menu_button.get_popup()
+		var idx: int = popup.get_item_index(15)
+		popup.set_item_checked(
+			idx, Config.get_suppress_everyone()
+		)
+		dlg.queue_free()
+	)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+
+func _show_export_dialog() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.title = "Export Config"
+	fd.add_filter("*.cfg", "Config Files")
+	fd.file_selected.connect(func(path: String) -> void:
+		var err := Config.export_config(path)
+		if err == OK:
+			_show_toast("Config exported successfully.")
+		else:
+			_show_toast("Export failed (error %d)." % err)
+		fd.queue_free()
+	)
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(600, 400))
+
+func _show_import_dialog() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.title = "Import Config"
+	fd.add_filter("*.cfg", "Config Files")
+	fd.file_selected.connect(func(path: String) -> void:
+		var err := Config.import_config(path)
+		if err == OK:
+			_show_toast(
+				"Config imported. Restart to apply."
+			)
+		else:
+			_show_toast("Import failed (error %d)." % err)
+		fd.queue_free()
+	)
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(600, 400))

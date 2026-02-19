@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" path="res://theme/icons/search.svg" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/search/search_panel.tscn" id="8"]
 [ext_resource type="Texture2D" path="res://theme/icons/sidebar_toggle.svg" id="9"]
+[ext_resource type="PackedScene" path="res://scenes/video/video_grid.tscn" id="10"]
 
 [node name="MainWindow" type="Control"]
 layout_mode = 3
@@ -82,6 +83,9 @@ visible = false
 custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 vertical_alignment = 1
+
+[node name="VideoGrid" parent="LayoutHBox/ContentArea" instance=ExtResource("10")]
+layout_mode = 2
 
 [node name="ContentBody" type="HBoxContainer" parent="LayoutHBox/ContentArea"]
 layout_mode = 2

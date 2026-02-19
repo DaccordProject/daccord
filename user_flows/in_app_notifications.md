@@ -1,56 +1,69 @@
 # In-App Notifications
 
-*Last touched: 2026-02-18 20:21*
 
 ## Overview
 
-daccord provides visual cues to notify users of new activity across guilds, channels, and DMs. The notification system has three layers: guild-level indicators (pills and mention badges on guild icons), channel-level indicators (unread dots and bold text on channel items), and message-level indicators (mention highlights on individual messages). Notification behavior is configurable at the space level (default notification setting) and per-role (mentionable toggle), and users can set their status to Do Not Disturb. There are no OS-level notifications (desktop toasts, system tray badges, or sounds), and no per-channel or per-user override settings.
+daccord provides visual cues to notify users of new activity across guilds, channels, and DMs. The notification system has three layers: guild-level indicators (pills and mention badges on guild icons), channel-level indicators (unread dots and bold text on channel items), and message-level indicators (mention highlights on individual messages). Notification behavior is configurable at the space level (default notification setting) and per-role (mentionable toggle). Users can set their status to Do Not Disturb to suppress all notification indicators, mute individual servers via context menu, and suppress @everyone mentions via a user preference toggle. There are no OS-level notifications (desktop toasts, system tray badges) and no per-channel override settings.
 
 ## User Steps
 
 1. User receives a message in a channel they are not currently viewing.
-2. The guild icon's pill transitions from hidden to the UNREAD state (small dot).
-3. If the message contains an `@mention` of the user, the guild icon's red mention badge appears showing the count.
-4. In the channel list, the channel item's unread dot becomes visible and the channel name turns white (bold).
-5. User clicks the guild icon, then clicks the channel with the unread indicator.
-6. The message view loads; any message containing `@<display_name>` is tinted with a warm highlight color.
-7. (Not yet implemented) Unread state clears when the user views the channel.
+2. The gateway handler checks DND status, server mute, `default_notifications` setting, and suppress @everyone before marking unread.
+3. If notifications are not suppressed, the guild icon's pill transitions from hidden to the UNREAD state (small dot).
+4. If the message mentions the user (by ID, @everyone, or role), the guild icon's red mention badge increments.
+5. In the channel list, the channel item's unread dot becomes visible and the channel name turns white (bold).
+6. User clicks the guild icon, then clicks the channel with the unread indicator.
+7. The message view loads; any message that mentions the user (via structured `mentions` array, `mention_everyone`, or `mention_roles`) is tinted with a warm highlight color.
+8. Unread state clears when the user views the channel (via `_on_channel_selected_clear_unread`).
 
 ## Signal Flow
 
 ```
 Gateway MESSAGE_CREATE
   └─> client_gateway.on_message_create()
-        └─> Appends to _message_cache
+        └─> Appends to _message_cache (message dict includes mentions, mention_everyone, mention_roles)
+        └─> Checks DND status → if DND, skips unread tracking
+        └─> Checks Config.is_server_muted() → if muted, skips unread tracking
+        └─> Determines is_mention (user ID in mentions, mention_everyone + suppress check, role mentions)
+        └─> Checks guild default_notifications → if "mentions" and not a mention, skips
+        └─> Calls Client.mark_channel_unread(channel_id, is_mention)
+              └─> Updates _unread_channels, _channel_mention_counts
+              └─> Updates _channel_cache[cid]["unread"] = true
+              └─> Calls _update_guild_unread() to aggregate guild-level unread/mention counts
+              └─> Emits channels_updated + guilds_updated
+        └─> SoundManager.play_for_message() (also checks DND)
         └─> AppState.messages_updated.emit(channel_id)
-              └─> message_view._on_messages_updated()     // Renders messages if current channel
-              └─> (No automatic unread tracking)
+              └─> message_view renders messages; ClientModels.is_user_mentioned() drives highlight tint
 
-Note: Unread/mention state is NOT currently computed from gateway events.
-      The "unread" and "mentions" fields in guild/channel dicts are
-      hardcoded to false/0 by ClientModels and never updated at runtime.
+Channel selected
+  └─> Client._on_channel_selected_clear_unread()
+        └─> Erases from _unread_channels and _channel_mention_counts
+        └─> Updates channel/DM dict unread = false
+        └─> Recalculates guild unread/mentions
 ```
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `scenes/sidebar/guild_bar/guild_icon.gd` | Reads `unread`/`mentions` from guild dict, drives pill state and mention badge |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Reads `unread`/`mentions` from guild dict, drives pill state and mention badge; "Mute Server"/"Unmute Server" context menu; dimmed visual when muted |
 | `scenes/sidebar/guild_bar/pill.gd` | Three-state indicator (HIDDEN/UNREAD/ACTIVE) with animated transitions |
 | `scenes/sidebar/guild_bar/mention_badge.gd` | Red circular badge showing mention count, auto-hides when count is 0 |
 | `scenes/sidebar/guild_bar/mention_badge.tscn` | Badge scene with red `StyleBoxFlat` (Color 0.929, 0.259, 0.271) |
 | `scenes/sidebar/channels/channel_item.gd` | Reads `unread` from channel dict, shows/hides unread dot and bolds name |
 | `scenes/sidebar/direct/dm_channel_item.gd` | Reads `unread` from DM dict, shows/hides unread dot |
-| `scripts/autoload/client_models.gd` | Converts AccordKit models to UI dicts; hardcodes `unread: false`, `mentions: 0` |
-| `scripts/autoload/client_gateway.gd` | Handles MESSAGE_CREATE and other gateway events; no unread tracking logic |
-| `scenes/messages/cozy_message.gd` | Applies mention highlight tint (line 71) |
-| `scenes/messages/collapsed_message.gd` | Applies mention highlight tint (line 49) |
+| `scripts/autoload/client_models.gd` | Converts AccordKit models to UI dicts; `message_to_dict()` includes `mentions`, `mention_everyone`, `mention_roles`; `is_user_mentioned()` helper for structured mention checks |
+| `scripts/autoload/client_gateway.gd` | Handles MESSAGE_CREATE; enforces DND suppression, server mute, `default_notifications`, suppress @everyone, and role mention checks before marking channels unread |
+| `scripts/autoload/client.gd` | Manages `_unread_channels` and `_channel_mention_counts` dicts; `mark_channel_unread()` updates channel/guild caches and emits signals; `_on_channel_selected_clear_unread()` clears read state |
+| `scenes/messages/cozy_message.gd` | Uses `ClientModels.is_user_mentioned()` for structured mention highlight tint |
+| `scenes/messages/collapsed_message.gd` | Uses `ClientModels.is_user_mentioned()` for structured mention highlight tint |
+| `scenes/messages/composer/composer.gd` | Warns when user types `@everyone` without `MENTION_EVERYONE` permission |
 | `addons/accordkit/models/message.gd` | Parses `mention_everyone`, `mentions`, `mention_roles` from server data |
 | `addons/accordkit/models/space.gd` | Has `default_notifications` field ("all" or "mentions") |
 | `scenes/admin/space_settings_dialog.gd` | UI for configuring default notification level per space |
 | `scenes/admin/role_management_dialog.gd` | UI for toggling role mentionable flag |
-| `scenes/sidebar/user_bar.gd` | User status menu including Do Not Disturb option |
-| `scripts/autoload/config.gd` | Persists server configs; no notification preferences stored |
+| `scenes/sidebar/user_bar.gd` | User status menu including Do Not Disturb; "Suppress @everyone" toggle |
+| `scripts/autoload/config.gd` | Persists server configs, sound preferences, notification preferences (`suppress_everyone`, `muted_servers`) |
 | `addons/accordkit/models/role.gd` | Parses `mentionable` flag from server |
 | `addons/accordkit/models/permission.gd` | Defines `MENTION_EVERYONE` permission constant |
 
@@ -90,16 +103,16 @@ Note: Unread/mention state is NOT currently computed from gateway events.
 
 ### Message-Level Mention Highlights
 
-Both `cozy_message.gd` (lines 68-72) and `collapsed_message.gd` (lines 46-50) apply a tint when the message content contains `@<display_name>`:
+Both `cozy_message.gd` and `collapsed_message.gd` use `ClientModels.is_user_mentioned()` for structured mention detection:
 
 ```gdscript
-var content: String = data.get("content", "")
-var current_user_name: String = Client.current_user.get("display_name", "")
-if content.contains("@" + current_user_name):
+var my_id: String = Client.current_user.get("id", "")
+var my_roles: Array = _get_current_user_roles()
+if ClientModels.is_user_mentioned(data, my_id, my_roles):
     modulate = Color(1.0, 0.95, 0.85)
 ```
 
-This is a simple string match -- it does not use the structured `mentions` array from AccordKit.
+`is_user_mentioned()` checks: (1) user ID in the `mentions` array, (2) `mention_everyone` flag (respecting the suppress @everyone preference), and (3) whether any of the user's roles are in the `mention_roles` array.
 
 ### Server-Side Mention Data (AccordKit)
 
@@ -109,25 +122,19 @@ This is a simple string match -- it does not use the structured `mentions` array
 - `mentions: Array` -- array of user IDs who were mentioned
 - `mention_roles: Array` -- array of role IDs that were mentioned
 
-These are available in the AccordKit model but are **not** passed through to the UI dictionary by `ClientModels.message_to_dict()` (lines 226-237). The UI dict omits `mentions`, `mention_everyone`, and `mention_roles`.
+These are passed through to the UI dictionary by `ClientModels.message_to_dict()` as `"mentions"`, `"mention_everyone"`, and `"mention_roles"` fields.
 
 ### Default Notification Setting
 
 `AccordSpace` has a `default_notifications` field (line 16) with values `"all"` or `"mentions"`. This is:
 
-- Stored in the guild dict by `ClientModels.space_to_guild_dict()` (line 141)
-- Editable via `space_settings_dialog.gd` (lines 29-30, 55-59, 79) with an OptionButton offering "All Messages" and "Mentions Only"
-- **Not consumed** by any client-side notification logic -- the setting is saved to the server but never checked when determining whether to show unread/mention indicators
+- Stored in the guild dict by `ClientModels.space_to_guild_dict()`
+- Editable via `space_settings_dialog.gd` with an OptionButton offering "All Messages" and "Mentions Only"
+- **Enforced** by `client_gateway.gd` in `on_message_create()`: when a guild's `default_notifications` is `"mentions"`, non-mention messages do not trigger unread indicators
 
-### Hardcoded Unread/Mention Values
+### Unread/Mention Tracking
 
-`ClientModels` hardcodes notification state in all conversion functions:
-
-- `space_to_guild_dict()`: `"unread": false, "mentions": 0` (lines 136-137)
-- `channel_to_dict()`: `"unread": false` (line 164)
-- `dm_channel_to_dict()`: `"unread": false` (line 280)
-
-These values are never updated after initial creation, even when new messages arrive via the gateway.
+`ClientModels` initializes notification state to defaults (`"unread": false`, `"mentions": 0`) in all conversion functions. At runtime, `Client.mark_channel_unread()` updates these values in the channel/guild caches when new messages arrive via the gateway. `_on_channel_selected_clear_unread()` resets the state when a channel is viewed.
 
 ## Notification Options
 
@@ -159,29 +166,30 @@ The `MENTION_EVERYONE` permission (`permission.gd:23`) controls whether a user i
 
 - Defined as `const MENTION_EVERYONE := "mention_everyone"` in `AccordPermission`
 - Included in the full permission list (`permission.gd:64`) and exposed in the role editor's permission checkboxes
-- **Effect:** Server-side only. The client does not gate `@everyone` usage in the composer, nor does it check this permission when highlighting mentions.
+- **Client-side:** The composer shows a warning label when the user types `@everyone` without the `MENTION_EVERYONE` permission. The send is not blocked (the server enforces the permission), but the warning prevents user confusion.
+- **Server-side:** The server blocks unauthorized `@everyone` mentions.
 
 ### User Status: Do Not Disturb
 
 Users can set their status to Do Not Disturb via the user bar menu (`user_bar.gd`):
 
-- **UI:** `MenuButton` popup with four status options: Online, Idle, Do Not Disturb, Invisible (lines 14-17)
-- **Selection:** Calls `Client.update_presence(ClientModels.UserStatus.DND)` (line 59), which broadcasts the status to all connected servers
-- **Visual:** Status icon turns red (`Color(0.929, 0.259, 0.271)`) when DND (line 41)
-- **Model:** `ClientModels.UserStatus.DND` enum value (value 2) maps to/from the `"dnd"` string sent over the wire (lines 37-38, 48-49 of `client_models.gd`)
-- **Effect:** DND status is purely cosmetic. The client does **not** suppress notifications, sounds, or visual indicators when the user is in DND mode. Other users see the red status dot, but the local notification behavior is unchanged.
+- **UI:** `MenuButton` popup with four status options: Online, Idle, Do Not Disturb, Invisible
+- **Selection:** Calls `Client.update_presence(ClientModels.UserStatus.DND)`, which broadcasts the status to all connected servers
+- **Visual:** Status icon turns red (`Color(0.929, 0.259, 0.271)`) when DND
+- **Model:** `ClientModels.UserStatus.DND` enum value (value 2) maps to/from the `"dnd"` string sent over the wire
+- **Effect:** DND suppresses all notification indicators. `client_gateway.gd` skips unread tracking entirely when the user is in DND mode. `SoundManager` also suppresses notification sounds in DND mode.
 
 ### Local Notification Preferences (Config)
 
-`Config` (`config.gd`) persists server connection data to `user://config.cfg` but stores **no notification preferences**:
+`Config` (`config.gd`) persists server connection data to `user://config.cfg`. It stores **sound preferences** in the `[sounds]` section and **notification preferences** in the `[notifications]` and `[muted_servers]` sections:
 
-- No per-server mute/unmute setting
-- No per-channel notification override
-- No "suppress @everyone" toggle
-- No desktop notification enable/disable flag
-- No notification sound preferences
+- [x] SFX volume and per-event sound toggles (`get_sfx_volume()`, `is_sound_enabled()`, etc.)
+- [x] Per-server mute/unmute setting (`is_server_muted()`, `set_server_muted()` in `[muted_servers]` section)
+- [x] "Suppress @everyone" toggle (`get_suppress_everyone()`, `set_suppress_everyone()` in `[notifications]` section)
+- [ ] Per-channel notification override
+- [ ] Desktop notification enable/disable flag
 
-All notification configuration exists only server-side (space default, role mentionable). There is no local persistence layer for user notification preferences.
+Sound preferences are managed via the Sound Settings dialog (accessible from the user bar menu). See [Application Sound Effects](application_sound_effects.md). The "Suppress @everyone" toggle is accessible from the user bar menu.
 
 ## Implementation Status
 
@@ -190,15 +198,15 @@ All notification configuration exists only server-side (space default, role ment
 - [x] Guild mention badge (red pill with count, auto-hide at 0)
 - [x] Channel unread dot (visibility + bold text)
 - [x] DM unread dot (visibility toggle)
-- [x] Message mention highlight (warm tint for `@display_name`)
+- [x] Message mention highlight (warm tint via structured `is_user_mentioned()` check)
 - [x] AccordKit parses `mentions`, `mention_everyone`, `mention_roles` from server
-- [ ] Client-side unread tracking (all `unread` fields hardcoded to `false`)
-- [ ] Client-side mention counting (all `mentions` fields hardcoded to `0`)
-- [ ] Passing mention data through `message_to_dict()` to UI layer
-- [ ] Using structured `mentions` array instead of string matching for highlights
-- [ ] Marking channels as read when viewed
-- [ ] `@everyone` / `@here` highlight support
-- [ ] Role mention highlight support
+- [x] Client-side unread tracking (`Client.mark_channel_unread()` updates channel/guild caches)
+- [x] Client-side mention counting (`_channel_mention_counts` aggregated to guild level)
+- [x] Passing mention data through `message_to_dict()` to UI layer
+- [x] Using structured `mentions` array instead of string matching for highlights
+- [x] Marking channels as read when viewed (`_on_channel_selected_clear_unread()`)
+- [x] `@everyone` / `@here` highlight support (via `mention_everyone` field)
+- [x] Role mention highlight support (via `mention_roles` + user role lookup)
 
 ### Notification Options
 - [x] Space default notification level UI ("All Messages" / "Mentions Only" in Space Settings)
@@ -209,31 +217,24 @@ All notification configuration exists only server-side (space default, role ment
 - [x] Do Not Disturb status option in user bar menu
 - [x] DND status broadcast to all connected servers
 - [x] DND visual indicator (red status dot)
-- [ ] Client-side enforcement of `default_notifications` setting
-- [ ] DND suppresses notification indicators locally
+- [x] Client-side enforcement of `default_notifications` setting (gateway checks before marking unread)
+- [x] DND suppresses notification indicators locally (gateway skips unread tracking; SoundManager skips sounds)
 - [ ] Per-channel notification overrides (mute, all, mentions only)
-- [ ] Per-server mute/unmute in local config
-- [ ] "Suppress @everyone" user preference
-- [ ] Local notification preferences in `Config` (persisted to disk)
+- [x] Per-server mute/unmute in local config (`Config.is_server_muted()` + guild icon context menu)
+- [x] "Suppress @everyone" user preference (`Config.get_suppress_everyone()` + user bar menu toggle)
+- [x] Sound preferences in `Config` (volume, per-event toggles, persisted to disk)
+- [ ] Per-channel notification preferences in `Config`
 - [ ] OS-level desktop notifications (toasts)
-- [ ] Notification sounds
-- [ ] Composer-side gating of `@everyone` based on `MENTION_EVERYONE` permission
+- [x] Notification sounds (see [Application Sound Effects](application_sound_effects.md))
+- [x] Composer-side warning for `@everyone` without `MENTION_EVERYONE` permission
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Unread state never set to `true` | High | `ClientModels` hardcodes `"unread": false` (lines 136, 164, 280). No gateway handler increments unread counts. The pill, dot, and badge UI all work but receive no live data. |
-| Mention count never incremented | High | `ClientModels` hardcodes `"mentions": 0` (line 137). `on_message_create()` in `client_gateway.gd` (line 65) does not check `msg.mentions` or update guild mention counts. |
-| `default_notifications` setting is write-only | High | Space Settings lets admins set "All Messages" or "Mentions Only" (`space_settings_dialog.gd:79`), but the client never reads this value to filter which messages trigger unread/mention indicators. The tooltip promises per-user overrides (`space_settings_dialog.tscn:131`) but no override mechanism exists. |
-| `message_to_dict()` drops mention fields | Medium | The UI dictionary (`client_models.gd:226-237`) does not include `mentions`, `mention_everyone`, or `mention_roles` from AccordKit. Mention highlighting relies on naive string matching (`@display_name`) instead. |
-| String-based mention detection is fragile | Medium | `cozy_message.gd:71` and `collapsed_message.gd:49` use `content.contains("@" + name)` which can false-positive on substrings (e.g., user "Al" matches "@Alice") and misses mentions by username vs display name. |
-| DND status does not suppress notifications | Medium | Setting status to DND (`user_bar.gd:59`) broadcasts the status to other users but has no effect on local notification behavior. Unread dots, mention badges, and highlights appear identically regardless of DND state. |
-| No read-state tracking | Medium | No mechanism to mark a channel as "read" when the user views it. There is no `read_state` cache, no `ack` API call, and no last-read message ID tracking. |
-| Role mentionable flag unused client-side | Medium | The mentionable toggle (`role_management_dialog.gd:191`) is saved to the server, but the client does not check `role.mentionable` when rendering mention highlights or determining if a role mention should notify the user. |
-| No local notification preferences | Medium | `Config` (`config.gd`) stores no notification settings. Users cannot persist per-server mute state, suppress @everyone preference, or desktop notification toggles locally. |
-| No `@everyone`/`@here` support | Low | `AccordMessage.mention_everyone` is parsed (`message.gd:16`) but never used in the UI. Messages with `@everyone` receive no special highlighting. |
-| No role mention support | Low | `AccordMessage.mention_roles` is parsed (`message.gd:18`) but the UI does not check if the current user has a mentioned role. |
-| `MENTION_EVERYONE` not enforced in composer | Low | The `MENTION_EVERYONE` permission (`permission.gd:23`) is only used server-side. The composer does not prevent users without this permission from typing `@everyone`. |
-| No OS-level notifications | Low | No calls to OS notification APIs, no system tray integration, no notification sounds. The app provides no alerts when the window is not focused. |
-| No per-channel notification overrides | Low | Only a space-wide `default_notifications` setting exists. Users cannot mute individual channels or set per-channel notification levels. |
+| No per-channel notification overrides | Medium | Only a space-wide `default_notifications` setting exists. Users cannot mute individual channels or set per-channel notification levels. Requires new UI (per-channel settings dialog). |
+| No per-user notification overrides per space | Medium | The tooltip in Space Settings promises per-user overrides (`space_settings_dialog.tscn:131`) but no override mechanism exists. Currently only the space-wide default is enforced. |
+| No OS-level notifications | Low | No calls to OS notification APIs, no system tray integration. Notification sounds exist (see [Application Sound Effects](application_sound_effects.md)) but there are no desktop toasts or system tray badges. |
+| No server-side read-state ack | Low | Unread state is tracked client-side only. There is no `ack` API call or server-side last-read message ID. Unread state resets on app restart. |
+
+*Last touched: 2026-02-19*

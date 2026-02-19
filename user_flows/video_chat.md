@@ -1,10 +1,10 @@
 # Video Chat
 
-*Last touched: 2026-02-18 20:21*
+Last touched: 2026-02-19 (Phase 6: remote video rendering pipeline)
 
 ## Overview
 
-Video chat in daccord enables camera video, screen sharing, and window sharing within voice channels. The AccordStream GDExtension provides complete WebRTC infrastructure for enumerating capture devices, creating video tracks, and negotiating peer connections with SDP offer/answer exchange. The AccordVoiceState model tracks `self_video` and `self_stream` flags per user. Voice channels now have full join/leave/mute/deafen support via `client.gd`, with a dedicated `voice_channel_item` scene and `voice_bar` for controls. However, no UI exists for enabling video or screen sharing -- the video pipeline is backend-only with no user-facing camera/screen controls.
+Video chat in daccord enables camera video, screen sharing, and window sharing within voice channels. The AccordStream GDExtension provides complete WebRTC infrastructure for enumerating capture devices, creating video tracks, and negotiating peer connections with SDP offer/answer exchange. The AccordVoiceState model tracks `self_video` and `self_stream` flags per user. Voice channels now have full join/leave/mute/deafen support via `client.gd`, with a dedicated `voice_channel_item` scene and `voice_bar` for controls. The full pipeline is implemented: voice bar has Cam/Share buttons, the video grid renders local camera and screen share tiles live, and the remote rendering pipeline (track cache, signal wiring, grid integration) is complete. Remote video tiles activate automatically when the AccordStream GDExtension exposes `track_received` on `AccordVoiceSession`; until then, remote peers show placeholder tiles with name/initials.
 
 ## User Steps
 
@@ -13,13 +13,13 @@ Video chat in daccord enables camera video, screen sharing, and window sharing w
 3. User sees the voice bar with Mic/Deaf/Cam/Share/Disconnect buttons
 4. User clicks "Cam" to toggle camera on/off (creates/stops camera track via `Client.toggle_video()`)
 5. User clicks "Share" to open screen/window picker dialog, selects a source to start sharing
-6. User would see other participants' video feeds (no rendering exists -- requires GDExtension changes)
+6. User sees other participants' video feeds when GDExtension `track_received` is available (placeholder tiles with initials otherwise)
 7. User clicks "Sharing" to stop screen share, or "Cam On" to stop camera
 
 ## Signal Flow
 
 ```
-  (No video UI layer exists -- this is the intended flow)
+  (GDScript pipeline fully wired -- activates when GDExtension exposes track_received)
 
   User clicks "Enable Camera"        AccordStream                AccordVoiceSession
        |                                  |                              |
@@ -69,8 +69,8 @@ Video chat in daccord enables camera video, screen sharing, and window sharing w
 | `addons/accordkit/voice/voice_manager.gd` | Voice connection lifecycle: join, leave, state tracking |
 | `addons/accordkit/gateway/gateway_socket.gd` | Gateway voice events: `voice_state_update` (line 52), `voice_server_update` (line 53), `voice_signal` (line 54) |
 | `addons/accordkit/core/accord_client.gd` | Re-emits voice signals (lines 212-214), exposes `voice` API (line 105) and `voice_manager` (line 106) |
-| `scripts/autoload/app_state.gd` | Voice signals: `voice_state_updated`, `voice_joined`, `voice_left`, `voice_error`, `voice_mute_changed`, `voice_deafen_changed`, `video_enabled_changed`, `screen_share_changed`; state vars including `is_video_enabled`, `is_screen_sharing` |
-| `scripts/autoload/client.gd` | Voice session, join/leave/mute/deafen API, video track management (`toggle_video()`, `start_screen_share()`, `stop_screen_share()`), gateway signal connections, voice state cache and data access, session callbacks |
+| `scripts/autoload/app_state.gd` | Voice signals: `voice_state_updated`, `voice_joined`, `voice_left`, `voice_error`, `voice_mute_changed`, `voice_deafen_changed`, `video_enabled_changed`, `screen_share_changed`, `remote_track_received`, `remote_track_removed`; state vars including `is_video_enabled`, `is_screen_sharing` |
+| `scripts/autoload/client.gd` | Voice session, join/leave/mute/deafen API, video track management (`toggle_video()`, `start_screen_share()`, `stop_screen_share()`), remote track cache (`_remote_tracks`), `get_remote_track()` accessor, runtime `track_received` signal connection, gateway signal connections, voice state cache and data access, session callbacks |
 | `scripts/autoload/client_gateway.gd` | Voice gateway handlers: `on_voice_state_update` (line 387), `on_voice_server_update` (line 421), `on_voice_signal` (line 426) |
 | `scripts/autoload/client_fetch.gd` | `fetch_voice_states()` (line 323): REST voice status -> cache -> signal |
 | `scripts/autoload/client_models.gd` | `voice_state_to_dict()` includes `self_video`/`self_stream`, `channel_to_dict()` includes `voice_users` |
@@ -88,6 +88,10 @@ Video chat in daccord enables camera video, screen sharing, and window sharing w
 | `tests/accordstream/integration/test_peer_connection.gd` | Peer connection tests: video media in SDP (lines 394-414), track management, ICE, state enums |
 | `tests/accordstream/integration/test_device_enumeration.gd` | Device enumeration tests: cameras (lines 18-70), screens (lines 114-144), windows (lines 149-180) |
 | `tests/accordstream/integration/test_voice_session.gd` | Voice session tests: state machine, mute/deafen, peer tracking, custom SFU connection |
+| `scenes/video/video_tile.gd` | Video frame rendering component: local live feed via AccordMediaTrack polling, or placeholder with initials |
+| `scenes/video/video_tile.tscn` | Video tile scene: PanelContainer with TextureRect, InitialsLabel, NameBar |
+| `scenes/video/video_grid.gd` | Self-managing video grid: rebuilds tiles from AppState signals, responsive column layout, renders remote tracks live when available via `Client.get_remote_track()` |
+| `scenes/video/video_grid.tscn` | Video grid scene: PanelContainer > ScrollContainer > GridContainer |
 
 ## Implementation Details
 
@@ -253,7 +257,88 @@ Both forward to `_voice_session.set_muted()` / `set_deafened()` and `AppState`.
 - `_on_voice_session_state_changed(state)` (line 1079) -- emits `voice_error` on `FAILED` state
 - `_on_voice_peer_joined(user_id)` (line 1087) -- refreshes voice states via `fetch.fetch_voice_states()`
 - `_on_voice_peer_left(user_id)` (line 1095) -- removes from local cache, updates `voice_users` count, emits `voice_state_updated`
-- `_on_voice_signal_outgoing(signal_type, payload_json)` (line 1110) -- logs outgoing signal; gateway `_send` is private so outgoing WebRTC signaling is logged but not yet forwarded
+- `_on_voice_signal_outgoing(signal_type, payload_json)` (line 1110) -- forwards outgoing signal via `client.send_voice_signal()` through the gateway
+
+### Video Settings Persistence (Config)
+
+**Config** (`config.gd`) stores video preferences in the `[voice]` section:
+- `get_voice_video_device()` / `set_voice_video_device(device_id)` -- saved camera device ID
+- `get_video_resolution()` / `set_video_resolution(preset)` -- resolution presets: 0=480p (640x480), 1=720p (1280x720), 2=360p (640x360)
+- `get_video_fps()` / `set_video_fps(fps)` -- frame rate, default 30
+
+**Voice settings dialog** (`voice_settings_dialog.gd`, `voice_settings_dialog.tscn`) expanded with:
+- Camera `OptionButton` populated from `AccordStream.get_cameras()`
+- Resolution `OptionButton` with 480p/720p/360p presets
+- Frame Rate `OptionButton` with 15/30 fps options
+
+**ClientVoice.toggle_video()** reads `Config.get_voice_video_device()`, `Config.get_video_resolution()`, and `Config.get_video_fps()` instead of hardcoded values. Falls back to first camera if saved device is not found.
+
+### Video Tile (video_tile.gd / video_tile.tscn)
+
+`PanelContainer` with dark background, `TextureRect` for video frames, initials label for placeholders, and a name bar.
+
+Two setup modes:
+- `setup_local(track, user)` -- attaches video sink, polls `has_video_frame()` / `get_video_frame()` each `_process()` frame, renders into `ImageTexture`
+- `setup_placeholder(user, voice_state)` -- shows user initials and name, mute indicator, no live video
+
+Calls `attach_video_sink()` / `detach_video_sink()` if available on the track.
+
+### Video Grid (video_grid.gd / video_grid.tscn)
+
+Self-managing `PanelContainer` > `ScrollContainer` > `GridContainer` placed in `main_window.tscn` between `TopicBar` and `ContentBody`.
+
+- Listens to `video_enabled_changed`, `screen_share_changed`, `voice_state_updated`, `voice_left`
+- Rebuilds tiles on any change: local camera tile, local screen share tile, remote peer placeholder tiles
+- Grid columns adapt to layout mode: 1 for COMPACT, 2 for MEDIUM/FULL
+- Self-hides when no tiles exist, self-shows when tiles are added
+- Remote peers with `self_video` or `self_stream` flags get placeholder tiles (actual rendering blocked on GDExtension)
+
+**Public track accessors** on `Client`:
+- `get_camera_track() -> AccordMediaTrack`
+- `get_screen_track() -> AccordMediaTrack`
+
+### Remote Video Rendering Pipeline (Phase 6 -- Implemented)
+
+The full GDScript pipeline for rendering remote video tracks is in place. It activates automatically when the AccordStream GDExtension exposes a `track_received(user_id: String, track: AccordMediaTrack)` signal on `AccordVoiceSession`.
+
+**AppState signals** (`app_state.gd`):
+- `remote_track_received(user_id: String, track: AccordMediaTrack)` -- emitted when a remote peer's video track arrives
+- `remote_track_removed(user_id: String)` -- emitted when a remote peer's track is cleaned up (peer left or voice disconnected)
+
+**Client remote track cache** (`client.gd`):
+- `_remote_tracks: Dictionary = {}` -- keyed by user_id, values are `AccordMediaTrack` instances
+- `get_remote_track(user_id) -> AccordMediaTrack` -- public accessor for the grid to query
+- Runtime signal check in `_ready()`: `if _voice_session.has_signal("track_received")` connects to `voice.on_track_received`
+
+**ClientVoice track handling** (`client_voice.gd`):
+- `on_track_received(user_id, track)` -- filters to video tracks only (`get_kind() == "video"`), stops any previous track for the same peer, stores in `_remote_tracks`, emits `remote_track_received`
+- `on_peer_left()` -- stops and erases remote track for the departing peer, emits `remote_track_removed`
+- `leave_voice_channel()` -- stops all remote tracks and clears `_remote_tracks` before disconnecting the session
+
+**VideoGrid integration** (`video_grid.gd`):
+- Connects to `remote_track_received` and `remote_track_removed` signals to trigger rebuild
+- During `_rebuild()`, for each remote peer with `self_video` or `self_stream`, calls `Client.get_remote_track(uid)`
+- If a remote track exists, creates a live tile via `tile.setup_local(remote_track, user)` (same rendering path as local camera/screen tiles)
+- Falls back to `tile.setup_placeholder(user, state)` when no track is available (GDExtension not yet exposing the signal)
+
+**Data flow:**
+```
+AccordVoiceSession.track_received(user_id, track)
+    |
+    v
+ClientVoice.on_track_received()
+    |-- filters to kind=="video"
+    |-- stores in Client._remote_tracks[user_id]
+    |-- emits AppState.remote_track_received
+         |
+         v
+    VideoGrid._on_remote_track_received() -> _rebuild()
+         |-- Client.get_remote_track(uid) -> AccordMediaTrack
+         |-- tile.setup_local(track, user)
+              |-- attach_video_sink()
+              |-- _process() polls has_video_frame() / get_video_frame()
+              |-- renders into ImageTexture -> TextureRect
+```
 
 ### AccordStream Device Enumeration
 
@@ -382,23 +467,20 @@ Two-peer handshake is tested in `test_two_peer_connections_offer_answer()` (line
 - [x] Screen sharing UI (Share button + screen/window picker dialog)
 - [x] Video/stream indicators in voice channel participant rows (green V, blue S)
 - [x] Track cleanup on voice disconnect
-- [ ] Video preview (local camera feed display -- requires AccordMediaTrack frame access)
-- [ ] Remote video rendering (TextureRect or SubViewport for peer video -- requires AccordMediaTrack frame access)
-- [ ] Video participant grid/layout
-- [ ] Camera/screen device selection settings UI
-- [ ] Video quality settings (resolution, frame rate)
+- [x] Local video preview via `VideoTile` (`video_tile.gd`) polling `AccordMediaTrack.has_video_frame()` / `get_video_frame()`
+- [x] Video participant grid layout (`video_grid.gd`) with responsive column count
+- [x] Camera device selection in voice settings dialog
+- [x] Video quality settings (resolution presets + frame rate) persisted via `Config`
+- [x] Outgoing voice signals forwarded via `client_voice.gd:on_signal_outgoing()` -> `client.send_voice_signal()`
+- [x] Public track accessors (`Client.get_camera_track()`, `Client.get_screen_track()`)
+- [x] Remote video rendering pipeline (track cache, signal wiring, grid integration -- activates when GDExtension exposes `track_received`)
 - [ ] Bandwidth adaptation for video streams
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No remote video rendering | Critical | `track_received` signal on AccordPeerConnection delivers remote video tracks, but nothing renders them. Requires AccordMediaTrack `get_frame()`/`to_texture()` GDExtension changes to bridge to Godot's rendering system |
-| No video preview | Critical | Local camera feed should be shown to the user. AccordMediaTrack exists but has no bridge to Godot's rendering system (Texture2D / ImageTexture). Blocked on GDExtension changes |
+| Remote video rendering blocked on GDExtension | High | GDScript pipeline is complete (`_remote_tracks` cache, `track_received` signal wiring, `VideoGrid` live tile rendering). Activates automatically when AccordStream GDExtension exposes `track_received(user_id, track)` on `AccordVoiceSession`. Until then, remote peers with `self_video`/`self_stream` get placeholder tiles with name/initials |
 | LiveKit backend is a stub | High | `AccordVoiceSession.connect_livekit()` does not actually connect -- remains in DISCONNECTED state. Only custom SFU works |
-| Outgoing voice signals not forwarded | Medium | `_on_voice_signal_outgoing` in `client.gd` logs but does not send signals via gateway. The SFU handles its own signaling for custom backends, but LiveKit backend would need this |
-| No video participant layout | Medium | No grid/gallery view for multiple video feeds. Needs dynamic layout that adapts to participant count. Blocked on video rendering |
-| No camera/screen device picker | Medium | Uses first camera automatically. A settings UI could let the user choose which camera to use |
-| No video quality controls | Medium | Camera track creation uses fixed 640x480@30fps. Nothing lets the user configure resolution or frame rate |
 | No bandwidth adaptation | Low | Fixed video parameters with no dynamic quality adjustment based on network conditions |
 | No video track hot-swap | Low | Switching cameras requires stopping the old track and creating a new one. No seamless hot-swap mechanism |

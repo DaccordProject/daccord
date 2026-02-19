@@ -58,6 +58,12 @@ signal voice_deafen_changed(is_deafened: bool)
 signal video_enabled_changed(is_enabled: bool)
 @warning_ignore("unused_signal")
 signal screen_share_changed(is_sharing: bool)
+@warning_ignore("unused_signal")
+signal remote_track_received(user_id: String, track: AccordMediaTrack)
+@warning_ignore("unused_signal")
+signal remote_track_removed(user_id: String)
+@warning_ignore("unused_signal")
+signal profile_card_requested(user_id: String, position: Vector2)
 signal member_list_toggled(is_visible: bool)
 signal channel_panel_toggled(is_visible: bool)
 signal orientation_changed(is_landscape: bool)
@@ -81,6 +87,24 @@ signal message_fetch_failed(channel_id: String, error: String)
 @warning_ignore("unused_signal")
 signal reaction_failed(channel_id: String, message_id: String, emoji: String, error: String)
 
+# Auto-update signals
+@warning_ignore("unused_signal")
+signal update_available(version_info: Dictionary)
+@warning_ignore("unused_signal")
+signal update_check_complete(version_info: Variant)
+@warning_ignore("unused_signal")
+signal update_check_failed(error: String)
+@warning_ignore("unused_signal")
+signal update_download_progress(percent: float)
+@warning_ignore("unused_signal")
+signal update_download_complete(path: String)
+@warning_ignore("unused_signal")
+signal update_download_failed(error: String)
+
+# Re-authentication needed (token-only connection with expired token)
+@warning_ignore("unused_signal")
+signal reauth_needed(server_index: int, base_url: String)
+
 enum LayoutMode { COMPACT, MEDIUM, FULL }
 
 const COMPACT_BREAKPOINT: float = 500.0
@@ -103,6 +127,7 @@ var is_voice_muted: bool = false
 var is_voice_deafened: bool = false
 var is_video_enabled: bool = false
 var is_screen_sharing: bool = false
+var pending_attachments: Array = []
 
 func select_guild(guild_id: String) -> void:
 	current_guild_id = guild_id

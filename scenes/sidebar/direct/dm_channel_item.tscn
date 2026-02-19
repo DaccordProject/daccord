@@ -25,6 +25,7 @@ theme_override_constants/separation = 8
 layout_mode = 2
 size_flags_vertical = 4
 avatar_size = 32
+show_letter = true
 
 [node name="Info" type="VBoxContainer" parent="HBox"]
 layout_mode = 2

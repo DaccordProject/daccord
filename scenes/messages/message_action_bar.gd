@@ -9,6 +9,7 @@ const ReactionPickerScene := preload("res://scenes/messages/reaction_picker.tscn
 var _message_data: Dictionary = {}
 var _message_node: Control = null
 var _reaction_picker: Control = null
+var _fade_tween: Tween
 
 @onready var react_btn: Button = $HBox/ReactButton
 @onready var reply_btn: Button = $HBox/ReplyButton
@@ -28,10 +29,24 @@ func show_for_message(msg_node: Control, msg_data: Dictionary) -> void:
 	var is_own: bool = author.get("id", "") == Client.current_user.get("id", "")
 	edit_btn.visible = is_own
 	delete_btn.visible = is_own
+	if _fade_tween and _fade_tween.is_valid():
+		_fade_tween.kill()
+	modulate.a = 0.0
 	visible = true
+	_fade_tween = create_tween()
+	_fade_tween.tween_property(self, "modulate:a", 1.0, 0.1) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 func hide_bar() -> void:
-	visible = false
+	if _fade_tween and _fade_tween.is_valid():
+		_fade_tween.kill()
+	_fade_tween = create_tween()
+	_fade_tween.tween_property(self, "modulate:a", 0.0, 0.1) \
+		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+	_fade_tween.tween_callback(func():
+		visible = false
+		modulate.a = 1.0
+	)
 	_message_node = null
 	# Keep message data while reaction picker is open so the callback
 	# can still read channel_id / msg_id after the bar auto-hides.

@@ -27,6 +27,14 @@ func setup(data: Dictionary) -> void:
 	last_message_label.text = data.get("last_message", "")
 	last_message_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	avatar.set_avatar_color(user.get("color", Color(0.345, 0.396, 0.949)))
+	var dn: String = user.get("display_name", "")
+	if dn.length() > 0:
+		avatar.set_letter(dn[0].to_upper())
+	else:
+		avatar.set_letter("")
+	var avatar_url = user.get("avatar", null)
+	if avatar_url is String and not avatar_url.is_empty():
+		avatar.set_avatar_url(avatar_url)
 	unread_dot.visible = data.get("unread", false)
 
 func _on_close_pressed() -> void:

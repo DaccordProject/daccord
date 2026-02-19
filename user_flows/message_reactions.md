@@ -1,6 +1,5 @@
 # Message Reactions
 
-*Last touched: 2026-02-18 20:21*
 
 ## Overview
 
@@ -26,6 +25,12 @@ Users can add emoji reactions to any message. Reactions appear as clickable pill
 2. If the pill was inactive (grey), it becomes active (blue border) and the count increments.
 3. If the pill was active (blue), it becomes inactive and the count decrements.
 4. If the count reaches 0, the pill is removed on the next UI rebuild.
+
+### Removing all reactions (admin)
+1. Right-click a message that has reactions.
+2. Select "Remove All Reactions" (requires MANAGE_MESSAGES permission; disabled otherwise).
+3. All reaction pills are removed from the message.
+4. The server broadcasts a `reaction.clear` gateway event to other clients.
 
 ### Receiving a reaction from another user
 1. Another user adds or removes a reaction on a message in the current channel.
@@ -85,10 +90,14 @@ ClientGateway.on_reaction_add(data)
     │
     ├──▶  Updates Client._message_cache[channel_id]
     │
-    └──▶  AppState.messages_updated.emit(channel_id)
+    └──▶  (other user)  AppState.reactions_updated.emit(channel_id, message_id)
+         (own user)    Signal skipped — pill already shows optimistic state
                 │
                 ▼
-            message_view._load_messages()  ──▶  Full UI rebuild
+            message_view._on_reactions_updated()
+                │
+                ▼
+            Targeted reaction_bar.setup() on affected message only
 ```
 
 ### Toggling an existing pill
@@ -116,8 +125,8 @@ reaction_pill._on_toggled(toggled_on)
 | `scenes/messages/reaction_picker.gd` | Wrapper that opens the emoji picker and calls `Client.add_reaction()` |
 | `scenes/messages/message_content.gd` | Passes reactions array to `reaction_bar.setup()` (line 56) |
 | `scenes/messages/message_action_bar.gd` | Action bar with React button; opens reaction picker (line 47) |
-| `scenes/messages/cozy_message.gd` | Context menu "Add Reaction" entry; opens reaction picker (line 108) |
-| `scenes/messages/collapsed_message.gd` | Context menu "Add Reaction" entry; opens reaction picker (line 98) |
+| `scenes/messages/cozy_message.gd` | Context menu "Add Reaction" and "Remove All Reactions" (admin) entries |
+| `scenes/messages/collapsed_message.gd` | Context menu "Add Reaction" and "Remove All Reactions" (admin) entries |
 | `scenes/messages/message_view.gd` | Listens to `messages_updated`; rebuilds message list (line 251) |
 | `scenes/messages/composer/emoji_picker.gd` | Grid of emoji with search; emits `emoji_picked` signal |
 | `scripts/autoload/client.gd` | `add_reaction()` / `remove_reaction()` methods (lines 562-644) |
@@ -164,25 +173,27 @@ Reactions are stored in the message cache as an array of dictionaries:
 
 ### Optimistic Updates
 
-Reactions use a two-layer optimistic update:
+Reactions use an optimistic update with rollback:
 
-1. **Pill-level** (`reaction_pill.gd`, line 32): When the user toggles a pill, the count and style update immediately in `_on_toggled()` before the API call fires. This provides instant visual feedback.
+1. **Pill-level** (`reaction_pill.gd`): When the user toggles a pill, the count and style update immediately in `_on_toggled()` before the API call fires. This provides instant visual feedback.
 
-2. **Client-level** (`client.gd`, lines 583-603): After the REST call succeeds, the message cache is updated and `messages_updated` is emitted, triggering a full UI rebuild.
+2. **Gateway deduplication**: When the gateway event for the user's own reaction arrives, `ClientGateway` updates the cache silently without emitting a signal, since the pill already shows the correct state.
+
+3. **Rollback on failure**: If the REST call fails, `reaction_failed` is emitted and `reaction_pill._on_reaction_failed()` reverts the optimistic update (toggles the pressed state back and adjusts the count).
 
 ### Gateway Event Handling
 
-`ClientGateway` handles four reaction event types:
+`ClientGateway` handles four reaction event types, all emitting the targeted `reactions_updated(channel_id, message_id)` signal instead of the broader `messages_updated`:
 
-- **`on_reaction_add`** (line 395): Parses `channel_id`, `message_id`, `user_id`, and `emoji` from the event data. Finds the message in cache, increments or creates the reaction entry. Sets `active = true` if `user_id` matches the current user. Emits `messages_updated`.
+- **`on_reaction_add`**: Parses `channel_id`, `message_id`, `user_id`, and `emoji` from the event data. Finds the message in cache, increments or creates the reaction entry. Sets `active = true` if `user_id` matches the current user. Skips emitting the signal for the current user's own reactions (the pill already shows the correct optimistic state).
 
-- **`on_reaction_remove`** (line 424): Decrements the count, sets `active = false` if the current user removed their reaction, and removes the entry if count reaches 0.
+- **`on_reaction_remove`**: Decrements the count, sets `active = false` if the current user removed their reaction, and removes the entry if count reaches 0. Also skips signaling for own reactions.
 
-- **`on_reaction_clear`** (line 447): Sets the message's `reactions` array to `[]`.
+- **`on_reaction_clear`**: Sets the message's `reactions` array to `[]`. Always emits `reactions_updated`.
 
-- **`on_reaction_clear_emoji`** (line 459): Removes all reactions for a specific emoji from the message.
+- **`on_reaction_clear_emoji`**: Removes all reactions for a specific emoji from the message.
 
-The `_parse_emoji_name()` helper (line 387) normalizes the emoji field, which may be a string or a `{"name": "..."}` dictionary from the server.
+The `_parse_emoji_name()` helper normalizes the emoji field, which may be a string or a `{"name": "..."}` dictionary from the server.
 
 ### Reaction Picker
 
@@ -196,7 +207,7 @@ Custom emoji keys arrive from the picker in `"custom:name:id"` format. The react
 
 `reaction_pill.gd` extends `Button` with `toggle_mode`. In `setup()` (line 17), it sets the emoji texture from `EmojiData.TEXTURES`, the count label, and the pressed state from the `active` flag. The `_in_setup` guard (line 7) prevents `_on_toggled` from firing during setup.
 
-Active pills are styled with a blue `StyleBoxFlat` (line 49): `bg_color = Color(0.345, 0.396, 0.949, 0.3)` with a 1px border in `Color(0.345, 0.396, 0.949)` and 8px corner radius.
+Both active and inactive pill styles are explicitly set in `_update_active_style()`. Active pills use a blue `StyleBoxFlat`: `bg_color = Color(0.345, 0.396, 0.949, 0.3)` with a blue border. Inactive pills use a dark `StyleBoxFlat`: `bg_color = Color(0.184, 0.192, 0.212, 1)` with a subtle border. Both use 8px corner radius and 1px borders. The pill also shows a tooltip with the emoji name (e.g. `":thumbsup:"`).
 
 ### Context Menu Integration
 
@@ -206,9 +217,9 @@ Both `cozy_message.gd` (line 38) and `collapsed_message.gd` (line 31) add an "Ad
 
 `message_action_bar.gd` (line 13) has a React button. When pressed (line 47), `_open_reaction_picker()` (line 59) instantiates the picker at the button's position. The picker is added to the scene tree root so it renders above all other UI. The bar keeps `_message_data` alive while the picker is open (line 38) so the callback can still read `channel_id` and `message_id` after the bar auto-hides.
 
-### Full Message List Rebuild
+### Targeted Reaction Bar Update
 
-When `AppState.messages_updated` fires, `message_view._on_messages_updated()` (line 251) calls `_load_messages()` which destroys all message nodes and recreates them from cache. This means every reaction change rebuilds the entire visible message list, not just the affected message.
+When `AppState.reactions_updated(channel_id, message_id)` fires, `message_view._on_reactions_updated()` finds only the affected message node and rebuilds its reaction bar from cache. This avoids destroying and recreating all message nodes for a single reaction change. The `messages_updated` signal is still used for message-level changes (create, update, delete).
 
 ## Implementation Status
 
@@ -224,20 +235,15 @@ When `AppState.messages_updated` fires, `message_view._on_messages_updated()` (l
 - [x] Active state tracking (blue highlight for current user's reactions)
 - [x] Custom emoji support in reaction picker
 - [x] Error signal (`reaction_failed`) on API failure
-- [ ] Dedicated `reactions_updated` signal (declared but unused)
-- [ ] Reaction tooltip showing who reacted
-- [ ] "Remove all reactions" UI (admin-only; API exists)
-- [ ] Rollback optimistic update on API failure
-- [ ] Prevent duplicate API calls (gateway event + optimistic update both mutate cache)
+- [x] Dedicated `reactions_updated` signal for targeted updates
+- [x] Reaction tooltip showing emoji name
+- [x] "Remove all reactions" UI (admin-only context menu, requires MANAGE_MESSAGES)
+- [x] Rollback optimistic update on API failure
+- [x] Prevent duplicate cache mutations (own reactions skip signal emission)
+- [x] Explicit inactive pill style (dark background with border)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Double cache mutation on own reactions | Medium | When the current user adds a reaction, both `reaction_pill._on_toggled()` (optimistic, line 36) and `Client.add_reaction()` (post-REST, line 583) update the cache and emit `messages_updated`. Then the gateway event in `ClientGateway.on_reaction_add()` (line 395) does it a third time. The message list rebuilds 2-3 times for a single click. |
-| `reactions_updated` signal declared but unused | Low | `AppState` declares `reactions_updated(channel_id, message_id)` (line 44) but no code emits or connects to it. All reaction updates go through the broader `messages_updated` signal, which triggers a full message list rebuild. |
-| No rollback on API failure | Medium | If `Client.add_reaction()` fails (line 575), `reaction_failed` is emitted but the optimistic update from `reaction_pill._on_toggled()` (line 36) is not reverted. The pill shows the wrong count until the next `messages_updated` rebuild. |
-| No reaction tooltip | Low | Hovering a reaction pill does not show which users reacted. The `ReactionsApi.list_users()` endpoint exists but is not called anywhere in the client. |
-| Inactive pill style not explicitly set | Low | `_update_active_style()` (line 49) only sets the style when `button_pressed` is `true`. When inactive, it relies on the default Button style from the theme, which works but means inactive pills don't have an explicit dark background style. |
-| Full message list rebuild per reaction | Medium | Every reaction change (own or remote) triggers `_load_messages()` which destroys and recreates all message nodes. Using the dedicated `reactions_updated` signal to surgically update just the affected message's reaction bar would be more efficient. |
-| Custom emoji not rendered on pills | Medium | `reaction_pill.setup()` (line 25) only checks `EmojiData.TEXTURES` for built-in emoji. Custom emoji (which are loaded from CDN in the emoji picker) won't have entries in `EmojiData.TEXTURES`, so custom reaction pills show no icon -- only the count. |
+| Reaction tooltip only shows emoji name | Low | The pill tooltip shows `":emoji_name:"` but does not list which users reacted. The `ReactionsApi.list_users()` endpoint exists and could be called on hover, but this is deferred to avoid per-hover network calls. |

@@ -1,22 +1,20 @@
 # Soundboard
 
-*Last touched: 2026-02-18 20:21*
+Last touched: 2026-02-19
 
 ## Overview
 
-A soundboard allows users to play short audio clips into a voice channel for all participants to hear. Users manage a server-wide collection of sounds and trigger them via a UI panel while connected to a voice channel. The server (accordserver) provides full REST API endpoints for soundboard CRUD and playback, a database table for sound metadata, audio file storage on disk, gateway events for real-time updates, and permission flags (`manage_soundboard`, `use_soundboard`). The AccordKit client library, daccord client UI, and AccordStream audio layer do not yet implement soundboard support.
+A soundboard allows users to play short audio clips into a voice channel for all participants to hear. Users manage a server-wide collection of sounds and trigger them via a UI panel while connected to a voice channel. The server (accordserver) provides full REST API endpoints for soundboard CRUD and playback, a database table for sound metadata, audio file storage on disk, gateway events for real-time updates, and permission flags (`manage_soundboard`, `use_soundboard`). The daccord client provides a management dialog for admins, an in-voice trigger panel, and client-side audio playback via `SoundManager`.
 
 ## User Steps
 
-Planned flow:
-
-1. User joins a voice channel (requires voice join/leave UI -- see `voice_channels.md`)
-2. User opens the soundboard panel (e.g., a button in the voice controls area or a slash command)
-3. User browses available sounds (fetched via `GET /spaces/{id}/soundboard`)
+1. User joins a voice channel
+2. User clicks the "SFX" button in the voice bar (visible if user has `use_soundboard` permission)
+3. Soundboard panel opens with a searchable list of sounds (fetched via `GET /spaces/{id}/soundboard`)
 4. User clicks a sound to play it (triggers `POST /spaces/{id}/soundboard/{sound_id}/play`)
-5. Server broadcasts `soundboard.play` gateway event with user_id to voice channel participants
-6. All participants hear the sound (via client-side audio playback or server-side mixing -- TBD)
-7. Optionally, users with `manage_soundboard` permission can upload new sounds, rename them, adjust volume, or delete them
+5. Server broadcasts `soundboard.play` gateway event with user_id to space members
+6. All participants in voice hear the sound (client-side playback via `SoundManager`)
+7. Users with `manage_soundboard` permission can upload, rename, adjust volume, or delete sounds via the management dialog (banner menu → Soundboard)
 
 ### Sound Management (Admin)
 
@@ -30,23 +28,20 @@ Planned flow:
 ## Signal Flow
 
 ```
-(AccordKit / Client / UI layers not yet implemented)
-
-soundboard_panel.gd          AppState              Client              AccordKit
+soundboard_panel.gd          Client              AccordKit         SoundManager
      |                           |                    |                    |
-     |-- sound_play_requested -->|                    |                    |
-     |                           |-- play_sound() --->|                    |
-     |                           |                    |-- POST /spaces/   |
-     |                           |                    |   {id}/soundboard/ |
-     |                           |                    |   {sound_id}/play  |
+     |-- play_sound(gid, sid) -->|                    |                    |
+     |                           |-- POST /spaces/   |                    |
+     |                           |   {id}/soundboard/ |                    |
+     |                           |   {sound_id}/play  |                    |
      |                           |                    |                    |
-     |                           |                    |<-- gateway event --|
-     |                           |                    |   soundboard.play  |
-     |                           |<-- sound_played ---|                    |
-     |<-- update UI (playing) ---|                    |                    |
+     |                           |<-- gateway event --|                    |
+     |                           |   soundboard.play  |                    |
      |                           |                    |                    |
-     |   AccordStream mixes audio clip into outgoing  |                    |
-     |   voice stream, or server-side mixing occurs   |                    |
+     |              AppState.soundboard_played(gid, sid, uid) ----------->|
+     |                           |                    |   download audio   |
+     |                           |                    |   decode & cache   |
+     |                           |                    |   play via SFX bus |
 
 soundboard_mgmt.gd           Client              AccordKit
      |                           |                    |
@@ -76,6 +71,8 @@ soundboard_mgmt.gd           Client              AccordKit
 | `addons/accordkit/utils/cdn.gd` | `AccordCDN.sound()` URL helper |
 | `scenes/admin/soundboard_management_dialog.gd/.tscn` | Soundboard management dialog (upload, rename, volume, delete, search) |
 | `scenes/admin/sound_row.gd/.tscn` | Sound row component with play, rename, volume, delete controls |
+| `scenes/soundboard/soundboard_panel.gd/.tscn` | In-voice soundboard panel (sound trigger buttons, search) |
+| `scenes/sidebar/voice_bar.gd/.tscn` | Voice bar with SFX button that toggles soundboard panel |
 | `scenes/sidebar/channels/banner.gd` | Banner dropdown with "Soundboard" menu item |
 | `scripts/autoload/app_state.gd` | `soundboard_updated`, `soundboard_played` signals |
 | `scripts/autoload/client.gd` | Routes soundboard API calls, wires gateway signals |
@@ -87,13 +84,13 @@ soundboard_mgmt.gd           Client              AccordKit
 
 ### Current State
 
-The server provides a complete soundboard API. AccordKit and the daccord client now support the full soundboard CRUD and management pipeline. Audio delivery to voice participants is out of scope (depends on voice UI + AccordStream work not yet done).
+The server provides a complete soundboard API. AccordKit and the daccord client support the full soundboard pipeline: CRUD management, in-voice trigger panel, and client-side audio playback. When a `soundboard.play` gateway event arrives, `SoundManager` downloads the audio file, decodes it (OGG/MP3/WAV), caches it, and plays it locally via a dedicated `AudioStreamPlayer` on the SFX bus.
 
 - **accordserver** -- Full REST API with CRUD endpoints, play trigger, audio file storage, gateway events, and permission checks. Database table `soundboard_sounds` stores metadata (id, space_id, name, audio_path, audio_content_type, audio_size, volume, creator_id, timestamps)
 - **AccordKit** -- `AccordSound` model, `SoundboardApi` REST class (list/fetch/create/update/delete/play), gateway event handling for `soundboard.*` events, `AccordCDN.sound()` URL helper, permission constants (`MANAGE_SOUNDBOARD`, `USE_SOUNDBOARD`)
 - **daccord client** -- Soundboard management dialog (upload, rename, volume, delete, search/filter), sound row component, AppState signals (`soundboard_updated`, `soundboard_played`), Client/ClientAdmin/ClientGateway/ClientModels integration, banner menu entry for users with soundboard permissions
-- **AccordStream** -- Provides microphone capture and WebRTC peer connections but has no audio file playback or mixing capabilities. The `AccordVoiceSession` class manages voice chat connections but cannot inject arbitrary audio
-- **Voice join/leave UI** -- Does not exist yet (see `voice_channels.md`). Soundboard depends on being connected to a voice channel for audio delivery
+- **AccordStream** -- Provides microphone capture and WebRTC peer connections. Audio file playback for soundboard is handled client-side by `SoundManager`, not via AccordStream
+- **Voice join/leave UI** -- Fully implemented (see `voice_channels.md`). Users can join/leave voice channels and the soundboard panel appears in the voice bar
 
 ### Server API (accordserver -- implemented)
 
@@ -181,19 +178,17 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 - [x] AccordKit soundboard API class (`SoundboardApi`)
 - [x] AccordKit gateway event handling for `soundboard.*`
 - [x] AccordKit CDN helper for sound URLs
-- [ ] AccordStream audio file playback / mixing
-- [ ] Client soundboard panel UI (in-voice playback panel -- separate from admin dialog)
+- [x] Client-side audio playback via SoundManager (downloads, decodes, caches, plays on `soundboard_played` gateway event)
+- [x] Client soundboard panel UI (in-voice playback panel -- separate from admin dialog)
 - [x] Client sound management dialog (admin)
 - [x] Client AppState signals for soundboard
 - [x] Client.gd / ClientAdmin soundboard API routing and gateway handling
 - [x] ClientModels `sound_to_dict()` converter
-- [ ] Voice join/leave UI (prerequisite -- see `voice_channels.md`)
+- [x] Voice join/leave UI (implemented -- see `voice_channels.md`)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Voice join/leave UI missing | Critical | Soundboard requires being in a voice channel, but voice join/leave is not yet implemented (see `voice_channels.md`) |
-| No audio mixing | High | Neither server-side (SFU) nor client-side (AccordStream) audio mixing is implemented; the play trigger exists but audio delivery to participants is unresolved |
-| No in-voice soundboard panel | Medium | The management dialog exists but a lightweight panel for triggering sounds while in voice is not yet built |
+| No server-side audio mixing | Low | Audio is played client-side when receiving the `soundboard.play` gateway event; server-side SFU mixing is not implemented and may not be needed |
 | No personal soundboard | Low | Design only covers server-wide sounds; personal/user-level soundboards are not planned |

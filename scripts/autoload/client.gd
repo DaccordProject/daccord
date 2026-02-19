@@ -12,12 +12,18 @@ const MESSAGE_CAP := 50
 const TOUCH_TARGET_MIN := 44
 const USER_CACHE_CAP := 500
 
+var app_version: String = ProjectSettings.get_setting(
+	"application/config/version", "0.0.0"
+)
+
 var mode: Mode = Mode.CONNECTING
 var current_user: Dictionary = {}
 var fetch: ClientFetch
 var admin: ClientAdmin
 var voice: ClientVoice
 var mutations: ClientMutations
+var emoji # ClientEmoji (typed reference causes circular dep)
+var connection: ClientConnection
 
 # --- Data access API (properties) ---
 
@@ -60,10 +66,17 @@ var _dm_to_conn: Dictionary = {}  # dm_channel_id -> conn index
 # per connection index, to prevent infinite loops.
 var _auto_reconnect_attempted: Dictionary = {}
 
+# Custom emoji download queue to avoid duplicate requests
+var _emoji_download_pending: Dictionary = {} # emoji_id -> true
+
 var _gw: ClientGateway
 var _voice_session: AccordVoiceSession
+var _idle_timer: Timer
+var _is_auto_idle: bool = false
+var _last_input_time: float = 0.0
 var _camera_track: AccordMediaTrack
 var _screen_track: AccordMediaTrack
+var _remote_tracks: Dictionary = {} # user_id -> AccordMediaTrack
 
 func _ready() -> void:
 	_gw = ClientGateway.new(self)
@@ -71,6 +84,9 @@ func _ready() -> void:
 	admin = ClientAdmin.new(self)
 	voice = ClientVoice.new(self)
 	mutations = ClientMutations.new(self)
+	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
+	emoji = ClientEmojiClass.new(self)
+	connection = ClientConnection.new(self)
 	_voice_session = AccordVoiceSession.new()
 	add_child(_voice_session)
 	set_meta("_voice_session", _voice_session)
@@ -86,10 +102,46 @@ func _ready() -> void:
 	_voice_session.signal_outgoing.connect(
 		voice.on_signal_outgoing
 	)
+	if _voice_session.has_signal("track_received"):
+		_voice_session.track_received.connect(
+			voice.on_track_received
+		)
 	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
+	# Idle timer setup
+	_last_input_time = Time.get_ticks_msec() / 1000.0
+	_idle_timer = Timer.new()
+	_idle_timer.wait_time = 10.0
+	_idle_timer.timeout.connect(_check_idle)
+	add_child(_idle_timer)
+	_idle_timer.start()
 	if Config.has_servers():
 		for i in Config.get_servers().size():
 			connect_server(i)
+
+func _input(_event: InputEvent) -> void:
+	_last_input_time = Time.get_ticks_msec() / 1000.0
+	if _is_auto_idle:
+		_is_auto_idle = false
+		var saved_status: int = Config.get_user_status()
+		if saved_status == ClientModels.UserStatus.IDLE:
+			saved_status = ClientModels.UserStatus.ONLINE
+		update_presence(saved_status)
+
+func _check_idle() -> void:
+	var timeout: int = Config.get_idle_timeout()
+	if timeout <= 0:
+		return
+	if _is_auto_idle:
+		return
+	var status: int = current_user.get(
+		"status", ClientModels.UserStatus.OFFLINE
+	)
+	if status != ClientModels.UserStatus.ONLINE:
+		return
+	var now: float = Time.get_ticks_msec() / 1000.0
+	if now - _last_input_time >= timeout:
+		_is_auto_idle = true
+		update_presence(ClientModels.UserStatus.IDLE)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -112,256 +164,7 @@ func _derive_cdn_url(base_url: String) -> String:
 func connect_server(
 	index: int, invite_code: String = ""
 ) -> Dictionary:
-	var servers := Config.get_servers()
-	if index < 0 or index >= servers.size():
-		return {"error": "Invalid server index"}
-
-	var cfg: Dictionary = servers[index]
-	var base_url: String = cfg["base_url"]
-	var token: String = cfg["token"]
-	var guild_name: String = cfg["guild_name"]
-	var gw_url := _derive_gateway_url(base_url)
-	var cdn_url := _derive_cdn_url(base_url)
-
-	var conn := {
-		"config": cfg, "client": null,
-		"guild_id": "", "cdn_url": cdn_url,
-		"status": "connecting",
-	}
-	while _connections.size() <= index:
-		_connections.append(null)
-	_connections[index] = conn
-
-	print("[Client] Connecting to server: ", base_url)
-
-	var client := _make_client(
-		token, base_url, gw_url, cdn_url
-	)
-	conn["client"] = client
-
-	# Fetch current user
-	var me_result := await client.users.get_me()
-	if not me_result.ok and base_url.begins_with("https://"):
-		print(
-			"[Client] HTTPS failed for ", base_url,
-			", falling back to HTTP"
-		)
-		client.queue_free()
-		base_url = base_url.replace("https://", "http://")
-		gw_url = _derive_gateway_url(base_url)
-		cdn_url = _derive_cdn_url(base_url)
-		conn["cdn_url"] = cdn_url
-		client = _make_client(
-			token, base_url, gw_url, cdn_url
-		)
-		conn["client"] = client
-		me_result = await client.users.get_me()
-
-	# Token expired/invalid -- try re-auth with stored credentials
-	if not me_result.ok:
-		var new_token := await _try_reauth(
-			base_url, cfg.get("username", ""),
-			cfg.get("password", ""),
-		)
-		if not new_token.is_empty():
-			print("[Client] Re-authenticated on ", base_url)
-			token = new_token
-			Config.update_server_token(index, new_token)
-			client.queue_free()
-			client = _make_client(
-				token, base_url, gw_url, cdn_url
-			)
-			conn["client"] = client
-			me_result = await client.users.get_me()
-
-	if not me_result.ok:
-		var err_msg: String = (
-			me_result.error.message
-			if me_result.error
-			else "Failed to authenticate"
-		)
-		push_error(
-			"[Client] Auth failed for ", base_url,
-			": ", err_msg
-		)
-		conn["status"] = "error"
-		client.queue_free()
-		conn["client"] = null
-		return {"error": err_msg}
-
-	if base_url != cfg["base_url"]:
-		Config.update_server_url(index, base_url)
-
-	var me_user: AccordUser = me_result.data
-	var me_dict := ClientModels.user_to_dict(
-		me_user, ClientModels.UserStatus.ONLINE, cdn_url
-	)
-	_user_cache[me_user.id] = me_dict
-	if current_user.is_empty():
-		current_user = me_dict
-
-	var dn: String = me_dict["display_name"]
-	print(
-		"[Client] Logged in as: ", dn,
-		" on ", base_url,
-		" is_admin=", me_user.is_admin
-	)
-
-	# Accept invite if provided (non-fatal)
-	if not invite_code.is_empty():
-		var inv := await client.invites.accept(invite_code)
-		if not inv.ok:
-			var inv_err: String = (
-				inv.error.message
-				if inv.error else "unknown"
-			)
-			push_warning(
-				"[Client] Invite accept failed: ", inv_err
-			)
-
-	# Find the guild matching guild_name
-	var spaces_result := await client.users.list_spaces()
-	if not spaces_result.ok:
-		var err_msg: String = (
-			spaces_result.error.message
-			if spaces_result.error
-			else "Failed to list guilds"
-		)
-		push_error(
-			"[Client] Failed to list guilds on ",
-			base_url, ": ", err_msg
-		)
-		conn["status"] = "error"
-		client.queue_free()
-		conn["client"] = null
-		return {"error": err_msg}
-
-	var found_guild_id := ""
-	for space in spaces_result.data:
-		var s: AccordSpace = space
-		if s.slug == guild_name:
-			found_guild_id = s.id
-			break
-
-	if found_guild_id.is_empty():
-		var err_msg := "Guild '%s' not found on %s" % [
-			guild_name, base_url
-		]
-		push_error("[Client] ", err_msg)
-		conn["status"] = "error"
-		client.queue_free()
-		conn["client"] = null
-		return {"error": err_msg}
-
-	var sp := await client.spaces.fetch(found_guild_id)
-	if sp.ok:
-		var d := ClientModels.space_to_guild_dict(
-			sp.data, cdn_url
-		)
-		_guild_cache[d["id"]] = d
-	else:
-		for space in spaces_result.data:
-			var s: AccordSpace = space
-			if s.id == found_guild_id:
-				var d := ClientModels.space_to_guild_dict(
-					s, cdn_url
-				)
-				_guild_cache[d["id"]] = d
-				break
-
-	conn["guild_id"] = found_guild_id
-	_guild_to_conn[found_guild_id] = index
-	_connect_gateway_signals(client, index)
-	client.login()
-
-	conn["status"] = "connected"
-	_auto_reconnect_attempted.erase(index)
-	mode = Mode.LIVE
-	AppState.guilds_updated.emit()
-	return {"guild_id": found_guild_id}
-
-func _make_client(
-	token: String, base_url: String,
-	gw_url: String, cdn_url: String
-) -> AccordClient:
-	var c := AccordClient.new()
-	c.token = token
-	c.token_type = "Bearer"
-	c.base_url = base_url
-	c.gateway_url = gw_url
-	c.cdn_url = cdn_url
-	c.intents = GatewayIntents.all()
-	add_child(c)
-	return c
-
-func _connect_gateway_signals(
-	client: AccordClient, idx: int
-) -> void:
-	var g := _gw
-	client.ready_received.connect(
-		g.on_gateway_ready.bind(idx))
-	client.message_create.connect(
-		g.on_message_create.bind(idx))
-	client.message_update.connect(
-		g.on_message_update.bind(idx))
-	client.message_delete.connect(g.on_message_delete)
-	client.typing_start.connect(g.on_typing_start)
-	client.presence_update.connect(
-		g.on_presence_update.bind(idx))
-	client.member_join.connect(
-		g.on_member_join.bind(idx))
-	client.member_leave.connect(
-		g.on_member_leave.bind(idx))
-	client.member_update.connect(
-		g.on_member_update.bind(idx))
-	client.space_create.connect(
-		g.on_space_create.bind(idx))
-	client.space_update.connect(g.on_space_update)
-	client.space_delete.connect(g.on_space_delete)
-	client.channel_create.connect(
-		g.on_channel_create.bind(idx))
-	client.channel_update.connect(
-		g.on_channel_update.bind(idx))
-	client.channel_delete.connect(g.on_channel_delete)
-	client.role_create.connect(
-		g.on_role_create.bind(idx))
-	client.role_update.connect(
-		g.on_role_update.bind(idx))
-	client.role_delete.connect(
-		g.on_role_delete.bind(idx))
-	client.ban_create.connect(g.on_ban_create.bind(idx))
-	client.ban_delete.connect(g.on_ban_delete.bind(idx))
-	client.invite_create.connect(
-		g.on_invite_create.bind(idx))
-	client.invite_delete.connect(
-		g.on_invite_delete.bind(idx))
-	client.emoji_update.connect(
-		g.on_emoji_update.bind(idx))
-	client.soundboard_create.connect(
-		g.on_soundboard_create.bind(idx))
-	client.soundboard_update.connect(
-		g.on_soundboard_update.bind(idx))
-	client.soundboard_delete.connect(
-		g.on_soundboard_delete.bind(idx))
-	client.soundboard_play.connect(
-		g.on_soundboard_play.bind(idx))
-	client.reaction_add.connect(g.on_reaction_add)
-	client.reaction_remove.connect(g.on_reaction_remove)
-	client.reaction_clear.connect(g.on_reaction_clear)
-	client.reaction_clear_emoji.connect(
-		g.on_reaction_clear_emoji)
-	client.voice_state_update.connect(
-		g.on_voice_state_update.bind(idx))
-	client.voice_server_update.connect(
-		g.on_voice_server_update.bind(idx))
-	client.voice_signal.connect(
-		g.on_voice_signal.bind(idx))
-	client.disconnected.connect(
-		g.on_gateway_disconnected.bind(idx))
-	client.reconnecting.connect(
-		g.on_gateway_reconnecting.bind(idx))
-	client.resumed.connect(
-		g.on_gateway_reconnected.bind(idx))
+	return await connection.connect_server(index, invite_code)
 
 # --- Client routing ---
 
@@ -493,10 +296,11 @@ func search_messages(
 # --- Mutation API (delegates to ClientMutations) ---
 
 func send_message_to_channel(
-	cid: String, content: String, reply_to: String = ""
+	cid: String, content: String, reply_to: String = "",
+	attachments: Array = []
 ) -> bool:
 	return await mutations.send_message_to_channel(
-		cid, content, reply_to
+		cid, content, reply_to, attachments
 	)
 
 func update_message_content(
@@ -519,8 +323,15 @@ func remove_reaction(
 ) -> void:
 	await mutations.remove_reaction(cid, mid, emoji)
 
-func update_presence(status: int) -> void:
-	mutations.update_presence(status)
+func remove_all_reactions(
+	cid: String, mid: String,
+) -> void:
+	await mutations.remove_all_reactions(cid, mid)
+
+func update_presence(
+	status: int, activity: Dictionary = {},
+) -> void:
+	mutations.update_presence(status, activity)
 
 func send_typing(cid: String) -> void:
 	mutations.send_typing(cid)
@@ -549,6 +360,30 @@ func start_screen_share(
 
 func stop_screen_share() -> void:
 	voice.stop_screen_share()
+
+func get_camera_track() -> AccordMediaTrack:
+	return _camera_track
+
+func get_screen_track() -> AccordMediaTrack:
+	return _screen_track
+
+func get_remote_track(
+	user_id: String,
+) -> AccordMediaTrack:
+	return _remote_tracks.get(user_id)
+
+func update_profile(data: Dictionary) -> bool:
+	return await mutations.update_profile(data)
+
+func change_password(
+	current_pw: String, new_pw: String,
+) -> Dictionary:
+	return await mutations.change_password(
+		current_pw, new_pw
+	)
+
+func delete_account(password: String) -> Dictionary:
+	return await mutations.delete_account(password)
 
 func create_dm(user_id: String) -> void:
 	await mutations.create_dm(user_id)
@@ -580,6 +415,11 @@ func has_permission(gid: String, perm: String) -> bool:
 				if p not in all_perms:
 					all_perms.append(p)
 	return AccordPermission.has(all_perms, perm)
+
+func update_guild_folder(gid: String, folder_name: String) -> void:
+	if _guild_cache.has(gid):
+		_guild_cache[gid]["folder"] = folder_name
+		AppState.guilds_updated.emit()
 
 func is_space_owner(gid: String) -> bool:
 	var guild: Dictionary = _guild_cache.get(gid, {})
@@ -640,43 +480,7 @@ func _update_guild_unread(gid: String) -> void:
 # --- Server management ---
 
 func disconnect_server(guild_id: String) -> void:
-	var idx: int = _guild_to_conn.get(guild_id, -1)
-	if idx == -1:
-		return
-	# If user is in voice on this server, leave
-	if AppState.voice_guild_id == guild_id:
-		AppState.leave_voice()
-	var conn = _connections[idx]
-	if conn != null and conn["client"] != null:
-		conn["client"].logout()
-		conn["client"].queue_free()
-	_guild_cache.erase(guild_id)
-	_role_cache.erase(guild_id)
-	_member_cache.erase(guild_id)
-	var to_remove: Array = []
-	for ch_id in _channel_cache:
-		if _channel_cache[ch_id].get("guild_id", "") == guild_id:
-			to_remove.append(ch_id)
-	for ch_id in to_remove:
-		_channel_cache.erase(ch_id)
-		_channel_to_guild.erase(ch_id)
-		_unread_channels.erase(ch_id)
-		_channel_mention_counts.erase(ch_id)
-		_voice_state_cache.erase(ch_id)
-		if _message_cache.has(ch_id):
-			for msg in _message_cache[ch_id]:
-				_message_id_index.erase(msg.get("id", ""))
-			_message_cache.erase(ch_id)
-	_guild_to_conn.erase(guild_id)
-	_connections[idx] = null
-	Config.remove_server(idx)
-	_guild_to_conn.clear()
-	for i in _connections.size():
-		if _connections[i] != null:
-			_guild_to_conn[_connections[i]["guild_id"]] = i
-	if _all_failed() or _connections.is_empty():
-		mode = Mode.CONNECTING
-	AppState.guilds_updated.emit()
+	connection.disconnect_server(guild_id)
 
 # --- Connection status helpers ---
 
@@ -693,43 +497,13 @@ func get_conn_index_for_guild(gid: String) -> int:
 	return _guild_to_conn.get(gid, -1)
 
 func reconnect_server(index: int) -> void:
-	if index < 0 or index >= _connections.size():
-		return
-	var conn = _connections[index]
-	if conn == null:
-		return
-	if conn["client"] != null:
-		conn["client"].logout()
-		conn["client"].queue_free()
-	conn["status"] = "connecting"
-	conn["client"] = null
-	connect_server(index)
+	connection.reconnect_server(index)
 
-## Called (deferred) by ClientGateway when gateway reconnection
-## is exhausted or hits a fatal auth error.  Performs a full
-## reconnect_server() -- which includes _try_reauth() -- but
-## only once per disconnect cycle to avoid looping.
+## Forwarding method for deferred calls from ClientGateway.
 func _handle_gateway_reconnect_failed(
 	conn_index: int,
 ) -> void:
-	if _auto_reconnect_attempted.get(conn_index, false):
-		# Already tried once this cycle -- give up
-		if conn_index < _connections.size() \
-				and _connections[conn_index] != null:
-			var conn: Dictionary = _connections[conn_index]
-			conn["status"] = "error"
-			conn["_was_disconnected"] = false
-			var gid: String = conn.get("guild_id", "")
-			AppState.server_connection_failed.emit(
-				gid, "Reconnection failed"
-			)
-		return
-	_auto_reconnect_attempted[conn_index] = true
-	print(
-		"[Client] Gateway reconnect exhausted, "
-		+ "attempting full reconnect with re-auth"
-	)
-	reconnect_server(conn_index)
+	connection.handle_gateway_reconnect_failed(conn_index)
 
 # --- Helpers ---
 
@@ -744,49 +518,18 @@ func _find_channel_for_message(mid: String) -> String:
 				return ch_id
 	return ""
 
-func _try_reauth(
-	base_url: String, username: String, password: String,
-) -> String:
-	if username.is_empty() or password.is_empty():
-		return ""
-	var api_url := base_url + AccordConfig.API_BASE_PATH
-	var rest := AccordRest.new(api_url)
-	rest.token = ""
-	rest.token_type = "Bearer"
-	add_child(rest)
-	var auth := AuthApi.new(rest)
-	var result := await auth.login(
-		{"username": username, "password": password}
-	)
-	rest.queue_free()
-	if result.ok and result.data is Dictionary:
-		return result.data.get("token", "")
-	return ""
+# --- Custom emoji caching (delegates to ClientEmoji) ---
 
-## Trims the user cache if it exceeds USER_CACHE_CAP.
-## Preserves the current user and users referenced by current
-## guild members; evicts the rest.
+func register_custom_emoji(
+	guild_id: String, emoji_id: String,
+	emoji_name: String,
+) -> void:
+	emoji.register(guild_id, emoji_id, emoji_name)
+
+func register_custom_emoji_texture(
+	emoji_name: String, texture: Texture2D,
+) -> void:
+	emoji.register_texture(emoji_name, texture)
+
 func trim_user_cache() -> void:
-	if _user_cache.size() <= USER_CACHE_CAP:
-		return
-	var keep: Dictionary = {}
-	var my_id: String = current_user.get("id", "")
-	if not my_id.is_empty():
-		keep[my_id] = true
-	# Keep users referenced by current guild's members
-	var gid := AppState.current_guild_id
-	if _member_cache.has(gid):
-		for m in _member_cache[gid]:
-			keep[m.get("id", "")] = true
-	# Keep users in current channel's messages
-	var cid := AppState.current_channel_id
-	if _message_cache.has(cid):
-		for msg in _message_cache[cid]:
-			var author: Dictionary = msg.get("author", {})
-			keep[author.get("id", "")] = true
-	var to_erase: Array = []
-	for uid in _user_cache:
-		if not keep.has(uid):
-			to_erase.append(uid)
-	for uid in to_erase:
-		_user_cache.erase(uid)
+	emoji.trim_user_cache()
