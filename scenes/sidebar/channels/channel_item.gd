@@ -83,6 +83,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.visible = false
 		_gear_btn.custom_minimum_size = Vector2(20, 20)
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		_gear_btn.add_theme_font_size_override("font_size", 14)
 		_gear_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 		_gear_btn.tooltip_text = "Edit Channel"
@@ -162,11 +163,12 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 		_clear_drop_indicator()
 		return false
 	var source: Control = data.get("source_node")
-	if source == self:
+	if source == self or source == null:
 		_clear_drop_indicator()
 		return false
-	# Only accept drops from the same parent container
-	if source == null or source.get_parent() != get_parent():
+	# Accept drops from any channel in the same guild
+	var source_data: Dictionary = data.get("channel_data", {})
+	if source_data.get("guild_id", "") != guild_id:
 		_clear_drop_indicator()
 		return false
 	_drop_above = at_position.y < size.y / 2.0
@@ -177,19 +179,27 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	_clear_drop_indicator()
 	var source: Control = data.get("source_node")
-	if source == null or source.get_parent() != get_parent():
+	if source == null:
 		return
+	var source_data: Dictionary = data.get("channel_data", {})
+	var same_parent: bool = source.get_parent() == get_parent()
+	if not same_parent:
+		# Cross-category move: update parent_id to match this channel's parent
+		var target_parent_id: String = _channel_data.get("parent_id", "")
+		var source_id: String = source_data.get("id", "")
+		if source_id != "":
+			Client.admin.update_channel(source_id, {"parent_id": target_parent_id})
+		return
+	# Same parent: reorder within the container
 	var container := get_parent()
 	var target_idx: int = get_index()
 	if not _drop_above:
 		target_idx += 1
-	# Move source node to new position
 	container.move_child(source, target_idx)
-	# Build position update array from new visual order
 	var positions: Array = []
 	var pos: int = 0
 	for child in container.get_children():
-		if child is Button and child.has_method("setup") and "channel_id" in child:
+		if child.has_method("setup") and "channel_id" in child:
 			positions.append({"id": child.channel_id, "position": pos})
 			pos += 1
 	if positions.size() > 0:

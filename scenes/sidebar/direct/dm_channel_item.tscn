@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/direct/dm_channel_item.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/common/group_avatar.tscn" id="3"]
 
 [node name="DMChannelItem" type="Button"]
 custom_minimum_size = Vector2(0, 44)
@@ -27,6 +28,12 @@ size_flags_vertical = 4
 avatar_size = 32
 show_letter = true
 
+[node name="GroupAvatar" parent="HBox" instance=ExtResource("3")]
+layout_mode = 2
+size_flags_vertical = 4
+visible = false
+avatar_size = 32
+
 [node name="Info" type="VBoxContainer" parent="HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -37,6 +44,13 @@ layout_mode = 2
 
 [node name="LastMessage" type="Label" parent="HBox/Info"]
 layout_mode = 2
+
+[node name="MemberCount" type="Label" parent="HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+visible = false
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 11
 
 [node name="CloseBtn" type="Button" parent="HBox"]
 layout_mode = 2

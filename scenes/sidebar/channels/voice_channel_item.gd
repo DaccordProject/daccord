@@ -4,10 +4,17 @@ signal channel_pressed(channel_id: String)
 
 const VOICE_ICON := preload("res://theme/icons/voice_channel.svg")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
+const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 
 var channel_id: String = ""
 var guild_id: String = ""
 var _channel_data: Dictionary = {}
+var _gear_btn: Button
+var _context_menu: PopupMenu
+var _gear_just_pressed: bool = false
+var _drop_above: bool = false
+var _drop_hovered: bool = false
 
 @onready var channel_button: Button = $ChannelButton
 @onready var type_icon: TextureRect = $ChannelButton/HBox/TypeIcon
@@ -16,10 +23,23 @@ var _channel_data: Dictionary = {}
 @onready var participant_container: VBoxContainer = $ParticipantContainer
 
 func _ready() -> void:
-	channel_button.pressed.connect(func(): channel_pressed.emit(channel_id))
+	channel_button.pressed.connect(func():
+		if _gear_just_pressed:
+			_gear_just_pressed = false
+			return
+		channel_pressed.emit(channel_id)
+	)
 	AppState.voice_state_updated.connect(_on_voice_state_updated)
 	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
+
+	_context_menu = PopupMenu.new()
+	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+	add_child(_context_menu)
+
+	channel_button.gui_input.connect(_on_gui_input)
+	channel_button.mouse_entered.connect(_on_mouse_entered)
+	channel_button.mouse_exited.connect(_on_mouse_exited)
 
 func setup(data: Dictionary) -> void:
 	channel_id = data.get("id", "")
@@ -28,6 +48,22 @@ func setup(data: Dictionary) -> void:
 	channel_name.text = data.get("name", "")
 	channel_button.tooltip_text = data.get("name", "")
 	type_icon.texture = VOICE_ICON
+
+	# Gear button for edit (only if user has permission)
+	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		_gear_btn = Button.new()
+		_gear_btn.text = "\u2699"
+		_gear_btn.flat = true
+		_gear_btn.visible = false
+		_gear_btn.custom_minimum_size = Vector2(20, 20)
+		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
+		_gear_btn.add_theme_font_size_override("font_size", 14)
+		_gear_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		_gear_btn.tooltip_text = "Edit Channel"
+		_gear_btn.pressed.connect(_on_edit_channel)
+		$ChannelButton/HBox.add_child(_gear_btn)
+
 	_refresh_participants()
 
 func set_active(_active: bool) -> void:
@@ -146,3 +182,124 @@ func _refresh_participants() -> void:
 			row.add_child(stream_label)
 
 		participant_container.add_child(row)
+
+func _on_mouse_entered() -> void:
+	if _gear_btn:
+		_gear_btn.visible = true
+
+func _on_mouse_exited() -> void:
+	if _gear_btn:
+		_gear_btn.visible = false
+
+func _on_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+			var pos := get_global_mouse_position()
+			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+
+func _show_context_menu(pos: Vector2i) -> void:
+	_context_menu.clear()
+	_context_menu.add_item("Edit Channel", 0)
+	_context_menu.add_item("Delete Channel", 1)
+	_context_menu.position = pos
+	_context_menu.popup()
+
+func _on_context_menu_id_pressed(id: int) -> void:
+	match id:
+		0: _on_edit_channel()
+		1: _on_delete_channel()
+
+func _on_edit_channel() -> void:
+	_gear_just_pressed = true
+	var dialog := ChannelEditScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(_channel_data)
+
+func _on_delete_channel() -> void:
+	var dialog := ConfirmDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(
+		"Delete Channel",
+		"Are you sure you want to delete #%s? This cannot be undone." % _channel_data.get("name", ""),
+		"Delete",
+		true
+	)
+	dialog.confirmed.connect(func():
+		Client.admin.delete_channel(channel_id)
+	)
+
+# --- Drag-and-drop reordering ---
+
+func _get_drag_data(_at_position: Vector2) -> Variant:
+	if guild_id == "" or not Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		return null
+	var preview := Label.new()
+	preview.text = "# " + _channel_data.get("name", "")
+	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	set_drag_preview(preview)
+	return {"type": "channel", "channel_data": _channel_data, "source_node": self}
+
+func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
+	if not data is Dictionary or data.get("type", "") != "channel":
+		_clear_drop_indicator()
+		return false
+	var source: Control = data.get("source_node")
+	if source == self or source == null:
+		_clear_drop_indicator()
+		return false
+	# Accept drops from any channel in the same guild
+	var source_data: Dictionary = data.get("channel_data", {})
+	if source_data.get("guild_id", "") != guild_id:
+		_clear_drop_indicator()
+		return false
+	_drop_above = at_position.y < size.y / 2.0
+	_drop_hovered = true
+	queue_redraw()
+	return true
+
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
+	_clear_drop_indicator()
+	var source: Control = data.get("source_node")
+	if source == null:
+		return
+	var source_data: Dictionary = data.get("channel_data", {})
+	var same_parent: bool = source.get_parent() == get_parent()
+	if not same_parent:
+		# Cross-category move: update parent_id to match this channel's parent
+		var target_parent_id: String = _channel_data.get("parent_id", "")
+		var source_id: String = source_data.get("id", "")
+		if source_id != "":
+			Client.admin.update_channel(source_id, {"parent_id": target_parent_id})
+		return
+	# Same parent: reorder within the container
+	var container := get_parent()
+	var target_idx: int = get_index()
+	if not _drop_above:
+		target_idx += 1
+	container.move_child(source, target_idx)
+	var positions: Array = []
+	var pos: int = 0
+	for child in container.get_children():
+		if child.has_method("setup") and "channel_id" in child:
+			positions.append({"id": child.channel_id, "position": pos})
+			pos += 1
+	if positions.size() > 0:
+		Client.admin.reorder_channels(guild_id, positions)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		_clear_drop_indicator()
+
+func _clear_drop_indicator() -> void:
+	if _drop_hovered:
+		_drop_hovered = false
+		queue_redraw()
+
+func _draw() -> void:
+	if not _drop_hovered:
+		return
+	var line_color := Color(0.34, 0.52, 0.89)
+	if _drop_above:
+		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
+	else:
+		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)

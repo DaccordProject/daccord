@@ -59,6 +59,7 @@ flat = true
 layout_mode = 2
 size_flags_horizontal = 3
 tab_close_display_policy = 1
+drag_to_rearrange_enabled = true
 
 [node name="HeaderSpacer" type="Control" parent="LayoutHBox/ContentArea/ContentHeader"]
 layout_mode = 2
@@ -96,6 +97,7 @@ theme_override_constants/separation = 0
 layout_mode = 2
 
 [node name="MemberList" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("5")]
+layout_mode = 2
 
 [node name="SearchPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("8")]
 visible = false

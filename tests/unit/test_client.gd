@@ -19,6 +19,8 @@ func before_each() -> void:
 	client.admin = ClientAdmin.new(client)
 	client.mutations = ClientMutations.new(client)
 	client.emoji = ClientEmoji.new(client)
+	var PermClass = load("res://scripts/autoload/client_permissions.gd")
+	client.permissions = PermClass.new(client)
 	client.current_user = {"id": "me_1", "display_name": "Me", "is_admin": false}
 	client._user_cache["me_1"] = client.current_user
 

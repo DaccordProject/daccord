@@ -12,13 +12,14 @@ var _edit_hint_label: Label = null
 var _edit_error_label: Label = null
 var _edit_error_timer: Timer = null
 var _editing_message_id: String = ""
+var _original_edit_content: String = ""
 var _spoilers_revealed: bool = false
 var _raw_bbcode: String = ""
 var _is_system: bool = false
 
 @onready var text_content: RichTextLabel = $TextContent
 @onready var embed: PanelContainer = $Embed
-@onready var reaction_bar: FlowContainer = $ReactionBar
+@onready var reaction_bar: HBoxContainer = $ReactionBar
 
 func _ready() -> void:
 	# Allow mouse events to pass through to the parent message node
@@ -409,9 +410,10 @@ func _create_audio_player(
 				return
 			# Try to load as OGG (most common for web)
 			var stream: AudioStream = null
-			if AudioStreamOggVorbis.has_method("load_from_buffer"):
-				stream = AudioStreamOggVorbis.load_from_buffer(body)
-			if stream == null and AudioStreamMP3.has_method("new"):
+			var ogg_stream = AudioStreamOggVorbis.load_from_buffer(body)
+			if ogg_stream != null:
+				stream = ogg_stream
+			if stream == null:
 				var mp3 := AudioStreamMP3.new()
 				mp3.data = body
 				stream = mp3
@@ -439,6 +441,7 @@ func _create_audio_player(
 
 func enter_edit_mode(message_id: String, content: String) -> void:
 	_editing_message_id = message_id
+	_original_edit_content = content
 	text_content.visible = false
 	_edit_input = TextEdit.new()
 	_edit_input.text = content
@@ -483,20 +486,28 @@ func _exit_edit_mode() -> void:
 		_edit_error_timer = null
 	text_content.visible = true
 	_editing_message_id = ""
+	_original_edit_content = ""
 
 func _on_edit_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and not event.shift_pressed:
 			var new_text := _edit_input.text.strip_edges()
-			if not new_text.is_empty():
+			if new_text == _original_edit_content:
+				# No change — just exit edit mode
+				_exit_edit_mode()
+			elif not new_text.is_empty():
 				# Optimistic update: show new content with "(saving...)" indicator
 				var bbcode := ClientModels.markdown_to_bbcode(new_text)
 				bbcode += " [font_size=11][color=#8a8e94](saving...)[/color][/font_size]"
 				text_content.text = bbcode
 				AppState.edit_message(_editing_message_id, new_text)
+				_exit_edit_mode()
 			else:
 				show_edit_error("Empty message not saved")
-			_exit_edit_mode()
+				_exit_edit_mode()
+			get_viewport().set_input_as_handled()
+		elif event.keycode in [KEY_ENTER, KEY_KP_ENTER] and event.shift_pressed:
+			_edit_input.insert_text_at_caret("\n")
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE:
 			_exit_edit_mode()

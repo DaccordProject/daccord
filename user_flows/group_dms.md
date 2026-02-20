@@ -12,12 +12,14 @@ Group DMs are direct message channels with more than one recipient. The client d
 3. User selects 2+ recipients via checkboxes, clicks "Create Group DM"
 4. Client sends `POST /users/@me/channels` with `{"recipients": [id1, id2, ...]}` to the server
 5. Server creates the group DM channel and broadcasts `channel_create` via gateway
-6. Group DM appears in the DM list with a "G" avatar and comma-separated names (or custom name)
+6. Group DM appears in the DM list with a stacked 2x2 mini-avatar grid and comma-separated names (or custom name)
 7. User clicks the group DM item — messages load in message view, tab created
 8. Sending, replying, editing, deleting messages works identically to 1:1 DMs
 9. Member list sidebar shows "PARTICIPANTS" header with all members and "(Owner)" indicator
-10. Right-click on group DM item shows context menu: "Rename Group" (owner only), "Leave Group"
-11. User can close (hide) the group DM via the X button on hover
+10. Group DM items show a participant count badge (e.g., "3") next to the name
+11. Right-click on group DM item shows context menu: "Add Member" (owner only), "Rename Group" (owner only), "Leave Group"
+12. User can close (hide) the group DM via the X button on hover
+13. Member list sidebar auto-refreshes when participants are added/removed via gateway events
 
 ## Signal Flow
 
@@ -59,7 +61,7 @@ dm_channels_updated signal
             -> item.setup(dm)
                 -> If is_group and custom name set: show custom name
                 -> Else: show dm.user.display_name (comma-separated)
-                -> Group avatar: "G" letter with channel-ID-based color
+                -> Group avatar: 2x2 mini-avatar grid via GroupAvatar
                 -> 1:1 avatar: first letter of display_name or avatar URL
 
 User clicks group DM item
@@ -84,12 +86,22 @@ User right-clicks group DM item
     -> dm_channel_item._on_gui_input(event)
         -> Detects right-click on group DM
         -> _show_group_context_menu(pos)
-            -> Shows "Rename Group" (owner only) + "Leave Group"
+            -> Shows "Add Member" (owner only) + "Rename Group" (owner only) + "Leave Group"
+    -> "Add Member" -> _add_member()
+        -> Instantiates AddMemberDialog on root
+        -> dialog.setup(dm_id, recipients) — filters out existing members, self, bots
+        -> User selects a user, clicks "Add Member"
+        -> Client.add_dm_member(channel_id, selected_id)
     -> "Rename Group" -> _rename_group()
         -> AcceptDialog with LineEdit
         -> Client.rename_group_dm(dm_id, new_name)
     -> "Leave Group" -> _leave_group()
         -> Client.remove_dm_member(dm_id, my_id)
+
+dm_channels_updated signal (gateway: recipient added/removed)
+    -> member_list._on_dm_channels_updated()
+        -> If currently viewing a group DM, calls _build_dm_participants(dm)
+        -> Participant list refreshes with updated recipients
 
 Typing in group DM
     -> Gateway delivers typing_start with user_id
@@ -112,9 +124,13 @@ Typing in group DM
 | `scripts/autoload/app_state.gd` | `dm_mode_entered`, `dm_channels_updated` signals, `is_dm_mode` state |
 | `scenes/sidebar/direct/dm_list.gd` | Populates DM list, "+" button for new group DM, improved search filtering, dm_selected signal |
 | `scenes/sidebar/direct/dm_list.tscn` | DM list scene with HeaderRow containing HeaderLabel and NewGroupBtn |
-| `scenes/sidebar/direct/dm_channel_item.gd` | Renders each DM item — group avatar ("G"), custom name, context menu (rename/leave) |
+| `scenes/sidebar/direct/dm_channel_item.gd` | Renders each DM item — stacked group avatar, custom name, member count badge, context menu (add member/rename/leave) |
 | `scenes/sidebar/direct/create_group_dm_dialog.gd` | Multi-select user picker dialog for creating group DMs |
 | `scenes/sidebar/direct/create_group_dm_dialog.tscn` | Dialog scene — ColorRect overlay, centered Panel, search, checklist, create button |
+| `scenes/sidebar/direct/add_member_dialog.gd` | Single-select user picker dialog for adding a member to an existing group DM |
+| `scenes/sidebar/direct/add_member_dialog.tscn` | Add member dialog scene — ColorRect overlay, centered Panel, search, user list, add button |
+| `scenes/common/group_avatar.gd` | 2x2 grid of mini-avatars for group DM items, `setup_recipients(recipients)` |
+| `scenes/common/group_avatar.tscn` | GroupAvatar scene — ColorRect with GridContainer and circle shader clipping |
 | `scenes/main/main_window.gd` | Window title and tab name from dm.user.display_name; member list visibility for group DMs |
 | `scenes/members/member_list.gd` | `_build_dm_participants()` — shows group DM participants with owner indicator |
 | `scenes/members/member_item.gd` | Displays "(Owner)" suffix for group DM owner |
@@ -213,13 +229,14 @@ The `on_gateway_ready()` handler (line 28) calls `fetch_dm_channels()` which fet
 
 ### DM Channel Item UI (dm_channel_item.gd)
 
-- `setup()` (lines 26–65): Detects `is_group` flag
-  - Groups: Shows custom name if set (lines 34–36), otherwise comma-separated display_name. Avatar uses "G" letter with channel color (lines 47–52)
-  - 1:1: Shows recipient's display_name, first letter avatar or loaded avatar URL (lines 53–64)
-- Right-click context menu (lines 70–101): Only for group DMs. Shows "Rename Group" (owner only, line 89–90) and "Leave Group" (line 91)
-- `_rename_group()` (lines 103–119): AcceptDialog with LineEdit, calls `Client.rename_group_dm()`
-- `_leave_group()` (lines 121–123): Calls `Client.remove_dm_member(dm_id, my_id)`
-- `set_active()` (lines 125–137): Highlight styling is the same for both types
+- `setup()`: Detects `is_group` flag
+  - Groups: Shows custom name if set, otherwise comma-separated display_name. Shows stacked 2x2 mini-avatar grid via `GroupAvatar.setup_recipients()`. Shows participant count badge.
+  - 1:1: Shows recipient's display_name, first letter avatar or loaded avatar URL. Hides group avatar and count badge.
+- Right-click context menu: Only for group DMs. Shows "Add Member" (owner only), "Rename Group" (owner only), and "Leave Group"
+- `_add_member()`: Instantiates `AddMemberDialog`, calls `setup(dm_id, recipients)` to filter out existing members
+- `_rename_group()`: AcceptDialog with LineEdit, calls `Client.rename_group_dm()`
+- `_leave_group()`: Calls `Client.remove_dm_member(dm_id, my_id)`
+- `set_active()`: Highlight styling is the same for both types
 
 ### Group DM Participant List (member_list.gd + member_item.gd)
 
@@ -284,7 +301,7 @@ The `AccordChannel` model has fields relevant to group DMs:
 - [x] Add member to existing group DM (API wrapper)
 - [x] Remove member from existing group DM (API wrapper + self-leave cache cleanup)
 - [x] Rename group DM (owner-only via context menu)
-- [x] Group DM avatar ("G" letter with channel-ID color)
+- [x] Group DM stacked 2x2 mini-avatar grid (replaced "G" letter)
 - [x] Group DM member list / participant sidebar with "PARTICIPANTS" header
 - [x] Owner indicator ("(Owner)" suffix in member list)
 - [x] Custom group name display (shows custom name when set)
@@ -299,12 +316,10 @@ The `AccordChannel` model has fields relevant to group DMs:
 - [x] Server: Gateway targeting by user IDs for DM broadcasts
 - [x] Server: DM rename restricted to owner only
 - [x] Server: DM delete semantics (leave vs delete, ownership transfer)
+- [x] "Add Member" UI in group DM context menu (owner-only, single-select user picker)
+- [x] Participant count badge on group DM list items
+- [x] Member list auto-updates on recipient changes via `dm_channels_updated` signal
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No stacked/composite group avatar | Low | Group DMs show a "G" letter instead of stacked overlapping recipient avatars. Could show 2-4 mini-avatars in a grid layout. |
-| No "Add Member" UI in context menu | Low | `add_dm_member()` API wrapper exists but there's no user picker UI in the group DM context menu to add new members. Owner must use other means. |
-| No participant count badge on DM list items | Low | Group DM items in the list don't show how many participants are in the group. |
-| Member list doesn't update on recipient changes | Low | `_build_dm_participants()` is called on channel select but doesn't refresh when participants are added/removed via gateway events. |
+No known gaps — all group DM features are fully implemented.

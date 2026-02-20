@@ -37,7 +37,7 @@ func test_setup_stores_emoji_key() -> void:
 
 func test_setup_sets_count_label() -> void:
 	component.setup(_pill_data({"count": 7}))
-	assert_eq(component.count_label.text, "7")
+	assert_eq(component.text, "7")
 
 
 func test_setup_active_true() -> void:
@@ -58,7 +58,7 @@ func test_setup_stores_ids() -> void:
 
 func test_setup_with_zero_count() -> void:
 	component.setup(_pill_data({"count": 0}))
-	assert_eq(component.count_label.text, "0")
+	assert_eq(component.text, "0")
 	assert_eq(component.reaction_count, 0)
 
 
@@ -70,5 +70,5 @@ func test_optimistic_toggle_increments_count() -> void:
 	component._in_setup = false
 	# Manually trigger the toggle logic
 	component.reaction_count += 1
-	component.count_label.text = str(component.reaction_count)
-	assert_eq(component.count_label.text, "4")
+	component.text = str(component.reaction_count)
+	assert_eq(component.text, "4")

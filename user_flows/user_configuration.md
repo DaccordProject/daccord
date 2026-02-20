@@ -205,8 +205,7 @@ Client._on_profile_switched()
 | `scripts/autoload/client.gd` | Reads server configs on startup, restores saved status. `disconnect_all()` and `_on_profile_switched()` for profile switches |
 | `scripts/autoload/client_mutations.gd` | Saves user status to Config on presence change |
 | `scenes/sidebar/user_bar.gd` | User menu: status, custom status, sound settings, error reporting, export/import profile |
-| `scenes/sidebar/voice_settings_dialog.gd` | Voice/video device and resolution preferences |
-| `scenes/sidebar/sound_settings_dialog.gd` | SFX volume and per-event sound toggles |
+| `scenes/user/user_settings.gd` | User Settings panel -- Voice & Video (page 2), Sound (page 3), and Notifications (page 4) preferences |
 | `scenes/sidebar/sidebar.gd` | Reads/writes last guild+channel selection |
 | `scenes/sidebar/channels/category_item.gd` | Reads/writes category collapsed state |
 | `scenes/sidebar/guild_bar/guild_icon.gd` | Reads/writes guild folder assignment |
@@ -256,11 +255,11 @@ Sections and keys within each profile's `config.cfg`:
 | `state` | `last_guild_id`, `last_channel_id` | String | `""` | `sidebar.gd` on guild/channel selection |
 | `state` | `user_status` | int | `0` (ONLINE) | `client_mutations.gd` on presence change |
 | `state` | `custom_status` | String | `""` | `user_bar.gd` custom status dialog |
-| `voice` | `input_device`, `output_device`, `video_device` | String | `""` | `voice_settings_dialog.gd` |
-| `voice` | `video_resolution` | int | `0` (480p) | `voice_settings_dialog.gd` |
-| `voice` | `video_fps` | int | `30` | `voice_settings_dialog.gd` |
-| `sounds` | `volume` | float | `1.0` | `sound_settings_dialog.gd` |
-| `sounds` | `<event_name>` | bool | `true` (except `message_sent` = `false`) | `sound_settings_dialog.gd` |
+| `voice` | `input_device`, `output_device`, `video_device` | String | `""` | `user_settings.gd` (Voice & Video page) |
+| `voice` | `video_resolution` | int | `0` (480p) | `user_settings.gd` (Voice & Video page) |
+| `voice` | `video_fps` | int | `30` | `user_settings.gd` (Voice & Video page) |
+| `sounds` | `volume` | float | `1.0` | `user_settings.gd` (Sound page) |
+| `sounds` | `<event_name>` | bool | `true` (except `message_sent` = `false`) | `user_settings.gd` (Sound page) |
 | `notifications` | `suppress_everyone` | bool | `false` | Settings > Notifications |
 | `muted_servers` | `<guild_id>` | bool | `false` | Settings > Notifications |
 | `error_reporting` | `enabled` | bool | `false` | `user_bar.gd`, `main_window.gd` consent dialog |
@@ -330,9 +329,9 @@ The Voice & Video settings page enumerates available devices via Godot's `AudioS
 
 Video resolution offers three hardcoded presets: 480p (index 0), 720p (index 1), 1080p (index 2). FPS choices are 15, 30, and 60.
 
-### Sound settings (sound_settings_dialog.gd)
+### Sound settings (user_settings.gd -- Sound page)
 
-The dialog lists sound events with per-event checkboxes. Volume is a slider from 0.0 to 1.0 with 0.05 step. All values are read from Config on dialog open and written back on "Apply".
+The Sound page (page 3) in User Settings lists sound events with per-event checkboxes. Volume is a slider with percentage display. All values are read from Config on page load and written back on change.
 
 ### Recently used emoji
 

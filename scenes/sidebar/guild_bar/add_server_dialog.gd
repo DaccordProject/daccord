@@ -141,8 +141,8 @@ func _on_add_pressed() -> void:
 		var auth_dialog := AuthDialogScene.instantiate()
 		auth_dialog.setup(url)
 		auth_dialog.auth_completed.connect(
-			func(resolved_url: String, t: String, u: String, p: String):
-				_connect_with_token(resolved_url, guild_name, t, invite_code, u, p)
+			func(resolved_url: String, t: String, u: String, p: String, dn: String):
+				_connect_with_token(resolved_url, guild_name, t, invite_code, u, p, dn)
 		)
 		get_parent().add_child(auth_dialog)
 	else:
@@ -183,6 +183,7 @@ func _connect_with_token(
 	url: String, guild_name: String,
 	token: String, invite_code: String,
 	username: String = "", password: String = "",
+	display_name: String = "",
 ) -> void:
 	_add_btn.disabled = true
 	_add_btn.text = "Connecting..."
@@ -191,7 +192,7 @@ func _connect_with_token(
 	var step_cb := func(step: String): _status_label.text = step
 	AppState.connection_step.connect(step_cb)
 
-	Config.add_server(url, token, guild_name, username, password)
+	Config.add_server(url, token, guild_name, username, password, display_name)
 
 	var result: Dictionary = await Client.connect_server(Config.get_servers().size() - 1, invite_code)
 	AppState.connection_step.disconnect(step_cb)

@@ -104,9 +104,11 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	print("[Client] Gateway ready for: ", conn["config"]["base_url"])
 	_c._auto_reconnect_attempted.erase(conn_index)
 	# Emit reconnected if this was a reconnect after disconnect
-	if conn.get("_was_disconnected", false):
-		conn["_was_disconnected"] = false
-		conn["status"] = "connected"
+	var was_down: bool = conn.get("_was_disconnected", false) \
+		or conn["status"] != "connected"
+	conn["_was_disconnected"] = false
+	conn["status"] = "connected"
+	if was_down and not conn["guild_id"].is_empty():
 		AppState.server_reconnected.emit(conn["guild_id"])
 	if not conn["guild_id"].is_empty():
 		_c.fetch.fetch_channels(conn["guild_id"])
@@ -115,6 +117,8 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	_c.fetch.fetch_dm_channels()
 
 func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void:
+	if _c.is_shutting_down:
+		return
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var conn: Dictionary = _c._connections[conn_index]
@@ -125,6 +129,7 @@ func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void
 		# giving up immediately. _handle_gateway_reconnect_failed
 		# will go to "error" if it has already been tried once.
 		conn["_was_disconnected"] = true
+		AppState.server_disconnected.emit(guild_id, code, reason)
 		_c.call_deferred(
 			"_handle_gateway_reconnect_failed", conn_index
 		)
@@ -134,6 +139,8 @@ func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void
 		AppState.server_disconnected.emit(guild_id, code, reason)
 
 func on_gateway_reconnecting(attempt: int, max_attempts: int, conn_index: int) -> void:
+	if _c.is_shutting_down:
+		return
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var conn: Dictionary = _c._connections[conn_index]
@@ -176,6 +183,9 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 				)
 
 	var msg_dict := ClientModels.message_to_dict(message, _c._user_cache, cdn_url)
+	# Skip if already in cache (e.g. from a parallel gateway connection)
+	if _c._message_id_index.has(message.id):
+		return
 	if not _c._message_cache.has(message.channel_id):
 		_c._message_cache[message.channel_id] = []
 	_c._message_cache[message.channel_id].append(msg_dict)

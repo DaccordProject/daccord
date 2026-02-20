@@ -1,8 +1,12 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://ojnpomk7seg8"]
 
-[ext_resource type="Script" path="res://scenes/messages/reaction_pill.gd" id="1"]
+[ext_resource type="Script" uid="uid://ctcj6w3kugarg" path="res://scenes/messages/reaction_pill.gd" id="1"]
 
 [sub_resource type="StyleBoxFlat" id="reaction_style"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
 bg_color = Color(0.184, 0.192, 0.212, 1)
 border_width_left = 1
 border_width_top = 1
@@ -13,37 +17,9 @@ corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
-content_margin_left = 6.0
-content_margin_top = 4.0
-content_margin_right = 6.0
-content_margin_bottom = 4.0
 
 [node name="ReactionPill" type="Button"]
-custom_minimum_size = Vector2(0, 40)
-offset_right = 52.0
-offset_bottom = 40.0
-toggle_mode = true
+theme_override_constants/icon_max_width = 18
 theme_override_styles/normal = SubResource("reaction_style")
+toggle_mode = true
 script = ExtResource("1")
-
-[node name="HBox" type="HBoxContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-theme_override_constants/separation = 4
-alignment = 1
-
-[node name="Emoji" type="TextureRect" parent="HBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(32, 32)
-size_flags_vertical = 4
-expand_mode = 3
-stretch_mode = 5
-
-[node name="Count" type="Label" parent="HBox"]
-layout_mode = 2
-vertical_alignment = 1

@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scenes/messages/message_view.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/messages/typing_indicator.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/messages/composer/composer.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/admin/imposter_banner.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/messages/update_banner.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/messages/loading_skeleton.tscn" id="6"]
 
 [sub_resource type="StyleBoxFlat" id="message_area_bg"]
 bg_color = Color(0.212, 0.224, 0.247, 1)
@@ -91,6 +92,9 @@ horizontal_alignment = 1
 autowrap_mode = 2
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+
+[node name="LoadingSkeleton" parent="VBox/ScrollContainer/MessageList" instance=ExtResource("6")]
+layout_mode = 2
 
 [node name="LoadingLabel" type="Label" parent="VBox/ScrollContainer/MessageList"]
 visible = false

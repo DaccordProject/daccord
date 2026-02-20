@@ -90,6 +90,32 @@ func on_server_connection_failed(
 	connection_banner.visible = true
 
 
+func sync_to_connection() -> void:
+	_hide_timer.stop()
+	var guild_id: String = _get_guild_for_channel.call()
+	if guild_id.is_empty():
+		connection_banner.visible = false
+		return
+	var status: String = Client.get_guild_connection_status(guild_id)
+	match status:
+		"connected", "none":
+			connection_banner.visible = false
+		"disconnected", "reconnecting", "connecting":
+			connection_banner.add_theme_stylebox_override(
+				"panel", _style_warning
+			)
+			status_label.text = "Reconnecting..."
+			retry_button.visible = false
+			connection_banner.visible = true
+		"error":
+			connection_banner.add_theme_stylebox_override(
+				"panel", _style_error
+			)
+			status_label.text = "Connection failed"
+			retry_button.visible = true
+			connection_banner.visible = true
+
+
 func on_retry_pressed() -> void:
 	var guild_id: String = _get_guild_for_channel.call()
 	var idx := Client.get_conn_index_for_guild(guild_id)

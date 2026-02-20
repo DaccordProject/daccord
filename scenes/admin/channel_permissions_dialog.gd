@@ -4,8 +4,24 @@ extends ColorRect
 enum OverwriteState { INHERIT, ALLOW, DENY }
 
 const PermOverwriteRowScene := preload("res://scenes/admin/perm_overwrite_row.tscn")
+const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 
 const SELECTED_BG := Color(0.25, 0.27, 0.3, 1.0)
+
+# Permissions only relevant to voice channels
+const VOICE_ONLY_PERMS := [
+	"connect", "speak", "mute_members", "deafen_members",
+	"move_members", "use_vad", "priority_speaker", "stream",
+]
+
+# Permissions only relevant to text channels
+const TEXT_ONLY_PERMS := [
+	"send_messages", "send_tts", "manage_messages",
+	"embed_links", "attach_files", "read_history",
+	"mention_everyone", "use_external_emojis",
+	"manage_threads", "create_threads",
+	"use_external_stickers", "send_in_threads",
+]
 
 var _channel: Dictionary = {}
 var _guild_id: String = ""
@@ -18,6 +34,9 @@ var _role_buttons: Dictionary = {} # entity_id -> Button
 var _original_overwrite_ids: Array = []
 # entity_id -> "role" | "user"
 var _overwrite_types: Dictionary = {}
+# Snapshot of loaded overwrites for dirty tracking
+var _original_overwrite_data: Dictionary = {}
+var _original_overwrite_types: Dictionary = {}
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _title: Label = $CenterContainer/Panel/VBox/Header/Title
@@ -30,7 +49,7 @@ var _overwrite_types: Dictionary = {}
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
-	_close_btn.pressed.connect(_close)
+	_close_btn.pressed.connect(_try_close)
 	_save_btn.pressed.connect(_on_save)
 	_reset_btn.pressed.connect(_on_reset)
 
@@ -39,6 +58,9 @@ func setup(channel: Dictionary, guild_id: String) -> void:
 	_guild_id = guild_id
 	_title.text = "Permissions: #%s" % channel.get("name", "")
 	_load_overwrites()
+	# Snapshot for dirty tracking
+	_original_overwrite_data = _overwrite_data.duplicate(true)
+	_original_overwrite_types = _overwrite_types.duplicate(true)
 	_rebuild_role_list()
 
 func _load_overwrites() -> void:
@@ -205,7 +227,7 @@ func _on_add_member_overwrite() -> void:
 
 	var members: Array = Client.get_members_for_guild(_guild_id)
 
-	var _build_list := func(query: String) -> void:
+	var build_list := func(query: String) -> void:
 		for child in member_list.get_children():
 			child.queue_free()
 		var q := query.strip_edges().to_lower()
@@ -233,12 +255,29 @@ func _on_add_member_overwrite() -> void:
 			)
 			member_list.add_child(btn)
 
-	_build_list.call("")
+	build_list.call("")
 	search.text_changed.connect(func(text: String):
-		_build_list.call(text)
+		build_list.call(text)
 	)
 
 	popup.popup_centered(Vector2i(220, 280))
+
+func _perms_for_channel_type() -> Array:
+	var ch_type: int = _channel.get("type", 0)
+	var all_perms: Array = AccordPermission.all()
+	match ch_type:
+		ClientModels.ChannelType.VOICE:
+			return all_perms.filter(func(p: String):
+				return p not in TEXT_ONLY_PERMS
+			)
+		ClientModels.ChannelType.TEXT, \
+		ClientModels.ChannelType.ANNOUNCEMENT, \
+		ClientModels.ChannelType.FORUM:
+			return all_perms.filter(func(p: String):
+				return p not in VOICE_ONLY_PERMS
+			)
+		_:
+			return all_perms
 
 func _rebuild_perm_list() -> void:
 	for child in _perm_list.get_children():
@@ -250,7 +289,7 @@ func _rebuild_perm_list() -> void:
 
 	var data: Dictionary = _overwrite_data.get(_selected_role_id, {})
 
-	for perm in AccordPermission.all():
+	for perm in _perms_for_channel_type():
 		var state: int = data.get(perm, OverwriteState.INHERIT)
 		var row := PermOverwriteRowScene.instantiate()
 		_perm_list.add_child(row)
@@ -326,16 +365,48 @@ func _on_save() -> void:
 		_error_label.text = err_msg
 		_error_label.visible = true
 	else:
-		_close()
+		queue_free()
 
-func _close() -> void:
-	queue_free()
+func _is_dirty() -> bool:
+	# Check if overwrite data differs from the original snapshot
+	if _overwrite_data.size() != _original_overwrite_data.size():
+		return true
+	if _overwrite_types.size() != _original_overwrite_types.size():
+		return true
+	for eid in _overwrite_data:
+		if not _original_overwrite_data.has(eid):
+			return true
+		var cur: Dictionary = _overwrite_data[eid]
+		var orig: Dictionary = _original_overwrite_data[eid]
+		if cur != orig:
+			return true
+	for eid in _overwrite_types:
+		if _overwrite_types[eid] != _original_overwrite_types.get(
+			eid, ""
+		):
+			return true
+	return false
+
+func _try_close() -> void:
+	if _is_dirty():
+		var dialog := ConfirmDialogScene.instantiate()
+		get_tree().root.add_child(dialog)
+		dialog.setup(
+			"Unsaved Changes",
+			"You have unsaved permission changes. "
+			+ "Discard them?",
+			"Discard",
+			true,
+		)
+		dialog.confirmed.connect(func(): queue_free())
+	else:
+		queue_free()
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		_close()
+		_try_close()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		_close()
+		_try_close()
 		get_viewport().set_input_as_handled()

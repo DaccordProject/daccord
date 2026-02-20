@@ -1,7 +1,7 @@
 extends PanelContainer
 
 const ScreenPickerDialog := preload("res://scenes/sidebar/screen_picker_dialog.tscn")
-const VoiceSettingsDialog := preload("res://scenes/sidebar/voice_settings_dialog.tscn")
+const UserSettingsScene := preload("res://scenes/user/user_settings.tscn")
 const SoundboardPanelScene := preload("res://scenes/soundboard/soundboard_panel.tscn")
 
 var _soundboard_panel: PanelContainer = null
@@ -98,9 +98,9 @@ func _close_soundboard_panel() -> void:
 		_soundboard_panel = null
 
 func _on_settings_pressed() -> void:
-	var dialog := VoiceSettingsDialog.instantiate()
-	get_tree().root.add_child(dialog)
-	dialog.popup_centered()
+	var settings: ColorRect = UserSettingsScene.instantiate()
+	settings.initial_page = 2
+	get_tree().root.add_child(settings)
 
 func _on_disconnect_pressed() -> void:
 	Client.leave_voice_channel()

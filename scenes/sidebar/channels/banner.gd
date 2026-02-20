@@ -94,7 +94,10 @@ func _show_admin_menu() -> void:
 		_admin_menu.add_item("Soundboard", idx)
 		idx += 1
 
-	if not AppState.is_imposter_mode and Client.has_permission(_guild_id, AccordPermission.MANAGE_ROLES):
+	var can_manage: bool = Client.has_permission(
+		_guild_id, AccordPermission.MANAGE_ROLES
+	)
+	if not AppState.is_imposter_mode and can_manage:
 		_admin_menu.add_item("View As...", idx)
 		idx += 1
 

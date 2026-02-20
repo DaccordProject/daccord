@@ -1,14 +1,10 @@
 extends PanelContainer
 
-const SoundSettingsDialog := preload(
-	"res://scenes/sidebar/sound_settings_dialog.tscn"
-)
-const NotificationSettingsDialog := preload(
-	"res://scenes/sidebar/notification_settings_dialog.tscn"
-)
 const ProfileEditDialog := preload(
 	"res://scenes/user/profile_edit_dialog.tscn"
 )
+
+var _update_ready_label: Label = null
 
 @onready var avatar: ColorRect = $HBox/Avatar
 @onready var display_name: Label = $HBox/Info/DisplayName
@@ -16,8 +12,6 @@ const ProfileEditDialog := preload(
 @onready var voice_indicator: Label = $HBox/VoiceIndicator
 @onready var status_icon: ColorRect = $HBox/StatusIcon
 @onready var menu_button: MenuButton = $HBox/MenuButton
-
-var _update_ready_label: Label = null
 
 func _ready() -> void:
 	username.add_theme_font_size_override("font_size", 11)
@@ -41,8 +35,6 @@ func _ready() -> void:
 	popup.add_separator()
 	popup.add_item("Settings", 6)
 	popup.add_separator()
-	popup.add_item("Sound Settings", 12)
-	popup.add_item("Notification Settings", 17)
 	popup.add_check_item("Suppress @everyone", 15)
 	var se_idx: int = popup.get_item_index(15)
 	popup.set_item_checked(
@@ -137,8 +129,6 @@ func _on_menu_id_pressed(id: int) -> void:
 			_show_user_settings()
 		10:
 			_show_about_dialog()
-		12:
-			_show_sound_settings()
 		11:
 			get_tree().quit()
 		13:
@@ -150,8 +140,6 @@ func _on_menu_id_pressed(id: int) -> void:
 				Updater.apply_update_and_restart()
 			else:
 				_check_for_updates()
-		17:
-			_show_notification_settings()
 		18:
 			_show_export_dialog()
 		19:
@@ -170,13 +158,6 @@ func _show_user_settings() -> void:
 	if UserSettingsScene:
 		var settings: ColorRect = UserSettingsScene.instantiate()
 		get_tree().root.add_child(settings)
-
-func _show_sound_settings() -> void:
-	var dlg: AcceptDialog = SoundSettingsDialog.instantiate()
-	dlg.confirmed.connect(dlg.queue_free)
-	dlg.canceled.connect(dlg.queue_free)
-	add_child(dlg)
-	dlg.popup_centered()
 
 func _show_about_dialog() -> void:
 	var version: String = Client.app_version
@@ -401,21 +382,6 @@ func _on_update_ready(_path: String) -> void:
 		var info_vbox: VBoxContainer = $HBox/Info
 		info_vbox.add_child(_update_ready_label)
 
-func _show_notification_settings() -> void:
-	var dlg: AcceptDialog = NotificationSettingsDialog.instantiate()
-	dlg.confirmed.connect(func() -> void:
-		# Sync the menu checkbox with the dialog's value
-		var popup := menu_button.get_popup()
-		var idx: int = popup.get_item_index(15)
-		popup.set_item_checked(
-			idx, Config.get_suppress_everyone()
-		)
-		dlg.queue_free()
-	)
-	dlg.canceled.connect(dlg.queue_free)
-	add_child(dlg)
-	dlg.popup_centered()
-
 func _show_export_dialog() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
@@ -464,7 +430,7 @@ func _show_import_name_dialog(
 		var pname := line.text.strip_edges()
 		if pname.is_empty():
 			pname = "Imported"
-		var slug: String = Config.create_profile(pname)
+		var slug: String = Config.profiles.create(pname)
 		var new_cfg := ConfigFile.new()
 		var err := new_cfg.load(import_path)
 		if err == OK:

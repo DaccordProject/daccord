@@ -1,5 +1,23 @@
 extends HBoxContainer
 
+const _ACTION_ICONS := {
+	"member_kick": "🚪",
+	"member_ban_add": "🔨",
+	"member_ban_remove": "🔓",
+	"member_update": "👤",
+	"member_role_update": "👤",
+	"role_create": "🏷",
+	"role_update": "🏷",
+	"role_delete": "🗑",
+	"channel_create": "📝",
+	"channel_update": "📝",
+	"channel_delete": "🗑",
+	"space_update": "⚙",
+	"invite_create": "📨",
+	"invite_delete": "📨",
+	"message_delete": "💬",
+}
+
 @onready var _icon_label: Label = $IconLabel
 @onready var _user_label: Label = $UserLabel
 @onready var _action_label: Label = $ActionLabel
@@ -17,37 +35,7 @@ func setup(entry: Dictionary) -> void:
 
 
 func _action_icon(action: String) -> String:
-	match action:
-		"member_kick":
-			return "🚪"
-		"member_ban_add":
-			return "🔨"
-		"member_ban_remove":
-			return "🔓"
-		"member_update", "member_role_update":
-			return "👤"
-		"role_create":
-			return "🏷"
-		"role_update":
-			return "🏷"
-		"role_delete":
-			return "🗑"
-		"channel_create":
-			return "📝"
-		"channel_update":
-			return "📝"
-		"channel_delete":
-			return "🗑"
-		"space_update":
-			return "⚙"
-		"invite_create":
-			return "📨"
-		"invite_delete":
-			return "📨"
-		"message_delete":
-			return "💬"
-		_:
-			return "📋"
+	return _ACTION_ICONS.get(action, "📋")
 
 
 func _format_action(action: String) -> String:
@@ -85,23 +73,23 @@ func _format_target(entry: Dictionary) -> String:
 func _relative_time(timestamp: String) -> String:
 	if timestamp.is_empty():
 		return ""
-	# Parse ISO-8601 timestamp to relative string
-	var dt := Time.get_datetime_dict_from_datetime_string(timestamp, false)
+	var dt := Time.get_datetime_dict_from_datetime_string(
+		timestamp, false
+	)
 	if dt.is_empty():
 		return timestamp
 	var unix: int = Time.get_unix_time_from_datetime_dict(dt)
 	var now: int = int(Time.get_unix_time_from_system())
 	var diff: int = now - unix
-	if diff < 60:
-		return "just now"
-	elif diff < 3600:
-		var mins: int = diff / 60
-		return "%dm ago" % mins
-	elif diff < 86400:
-		var hours: int = diff / 3600
-		return "%dh ago" % hours
-	elif diff < 604800:
-		var days: int = diff / 86400
-		return "%dd ago" % days
-	else:
-		return timestamp.left(10)
+	var thresholds := [
+		[60, "just now", 1],
+		[3600, "%dm ago", 60],
+		[86400, "%dh ago", 3600],
+		[604800, "%dd ago", 86400],
+	]
+	for t in thresholds:
+		if diff < t[0]:
+			if t[2] == 1:
+				return t[1]
+			return t[1] % (diff / t[2])
+	return timestamp.left(10)

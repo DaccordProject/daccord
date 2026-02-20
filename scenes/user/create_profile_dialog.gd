@@ -52,7 +52,7 @@ func _on_create() -> void:
 			return
 
 	var copy: bool = _copy_radio.button_pressed
-	var slug: String = Config.create_profile(pname, pw, copy)
+	var slug: String = Config.profiles.create(pname, pw, copy)
 	profile_created.emit(slug)
 	queue_free()
 

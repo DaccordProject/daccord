@@ -28,6 +28,7 @@ var _incremental_handled: bool = false
 @onready var virtual_content: Control = $VBox/ScrollContainer/VirtualContent
 
 func _ready() -> void:
+	set_process(false)
 	header_label.add_theme_font_size_override("font_size", 11)
 	header_label.add_theme_color_override(
 		"font_color", Color(0.58, 0.608, 0.643)
@@ -57,6 +58,9 @@ func _ready() -> void:
 	AppState.guild_selected.connect(_on_guild_selected)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.members_updated.connect(_on_members_updated)
+	AppState.dm_channels_updated.connect(
+		_on_dm_channels_updated
+	)
 	AppState.member_joined.connect(_on_member_joined)
 	AppState.member_left.connect(_on_member_left)
 	AppState.member_status_changed.connect(
@@ -67,6 +71,13 @@ func _ready() -> void:
 		_on_scroll_changed
 	)
 	scroll_container.resized.connect(_on_scroll_resized)
+
+func _process(_delta: float) -> void:
+	set_process(false)
+	_adjust_pool_size()
+	_update_visible_items(
+		scroll_container.get_v_scroll_bar().value
+	)
 
 func _on_guild_selected(guild_id: String) -> void:
 	_guild_id = guild_id
@@ -93,6 +104,15 @@ func _on_channel_selected(channel_id: String) -> void:
 	if not dm.get("is_group", false):
 		return
 	_build_dm_participants(dm)
+
+func _on_dm_channels_updated() -> void:
+	if not AppState.is_dm_mode:
+		return
+	var channel_id: String = AppState.current_channel_id
+	for dm in Client.dm_channels:
+		if dm["id"] == channel_id and dm.get("is_group", false):
+			_build_dm_participants(dm)
+			return
 
 func _on_members_updated(guild_id: String) -> void:
 	if guild_id != _guild_id:
@@ -128,6 +148,7 @@ func _rebuild_row_data() -> void:
 	_update_visible_items(
 		scroll_container.get_v_scroll_bar().value
 	)
+	set_process(true)
 
 func _build_status_groups() -> void:
 	var members: Array = Client.get_members_for_guild(_guild_id)
@@ -295,6 +316,7 @@ func _build_dm_participants(dm: Dictionary) -> void:
 	_update_visible_items(
 		scroll_container.get_v_scroll_bar().value
 	)
+	set_process(true)
 
 # -- Incremental updates (status grouping, no search) --
 
@@ -341,6 +363,7 @@ func _after_incremental_change() -> void:
 	_update_visible_items(
 		scroll_container.get_v_scroll_bar().value
 	)
+	set_process(true)
 
 # -- Incremental helpers --
 

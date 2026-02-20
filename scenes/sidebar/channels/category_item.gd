@@ -19,6 +19,7 @@ var _plus_btn: Button
 var _count_label: Label
 var _drop_above: bool = false
 var _drop_hovered: bool = false
+var _drop_channel_hover: bool = false
 
 @onready var header: Button = $Header
 @onready var chevron: TextureRect = $Header/HBox/Chevron
@@ -188,43 +189,67 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	return {"type": "category", "category_data": _category_data, "source_node": self}
 
 func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
-	if not data is Dictionary or data.get("type", "") != "category":
+	var accepted := false
+	if data is Dictionary:
+		var drop_type: String = data.get("type", "")
+		if drop_type == "channel":
+			var ch_data: Dictionary = data.get("channel_data", {})
+			var cat_id: String = _category_data.get("id", "")
+			if ch_data.get("parent_id", "") != cat_id:
+				_drop_channel_hover = true
+				_drop_hovered = true
+				queue_redraw()
+				accepted = true
+		elif drop_type == "category":
+			_drop_channel_hover = false
+			var source: Control = data.get("source_node")
+			var valid_source: bool = (
+				source != null
+				and source != self
+				and source.get_parent() == get_parent()
+			)
+			if valid_source:
+				_drop_above = at_position.y < size.y / 2.0
+				_drop_hovered = true
+				queue_redraw()
+				accepted = true
+	if not accepted:
 		_clear_drop_indicator()
-		return false
-	var source: Control = data.get("source_node")
-	if source == self:
-		_clear_drop_indicator()
-		return false
-	# Only accept drops from siblings in channel_vbox
-	if source == null or source.get_parent() != get_parent():
-		_clear_drop_indicator()
-		return false
-	_drop_above = at_position.y < size.y / 2.0
-	_drop_hovered = true
-	queue_redraw()
-	return true
+	return accepted
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	_clear_drop_indicator()
-	var source: Control = data.get("source_node")
-	if source == null or source.get_parent() != get_parent():
+	if not data is Dictionary:
 		return
-	var container := get_parent()
-	var target_idx: int = get_index()
-	if not _drop_above:
-		target_idx += 1
-	container.move_child(source, target_idx)
-	# Build position update array for all categories in the container
-	var positions: Array = []
-	var pos: int = 0
-	for child in container.get_children():
-		if child.has_method("get_category_id"):
-			var cat_id: String = child.get_category_id()
-			if cat_id != "":
-				positions.append({"id": cat_id, "position": pos})
-				pos += 1
-	if positions.size() > 0:
-		Client.admin.reorder_channels(guild_id, positions)
+	var drop_type: String = data.get("type", "")
+	if drop_type == "channel":
+		# Move channel into this category
+		var ch_data: Dictionary = data.get("channel_data", {})
+		var ch_id: String = ch_data.get("id", "")
+		var cat_id: String = _category_data.get("id", "")
+		if ch_id != "" and cat_id != "":
+			Client.admin.update_channel(ch_id, {"parent_id": cat_id})
+		return
+	if drop_type == "category":
+		var source: Control = data.get("source_node")
+		if source == null or source.get_parent() != get_parent():
+			return
+		var container := get_parent()
+		var target_idx: int = get_index()
+		if not _drop_above:
+			target_idx += 1
+		container.move_child(source, target_idx)
+		# Build position update array for all categories in the container
+		var positions: Array = []
+		var pos: int = 0
+		for child in container.get_children():
+			if child.has_method("get_category_id"):
+				var cid: String = child.get_category_id()
+				if cid != "":
+					positions.append({"id": cid, "position": pos})
+					pos += 1
+		if positions.size() > 0:
+			Client.admin.reorder_channels(guild_id, positions)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
@@ -233,13 +258,20 @@ func _notification(what: int) -> void:
 func _clear_drop_indicator() -> void:
 	if _drop_hovered:
 		_drop_hovered = false
+		_drop_channel_hover = false
 		queue_redraw()
 
 func _draw() -> void:
 	if not _drop_hovered:
 		return
 	var line_color := Color(0.34, 0.52, 0.89)
-	if _drop_above:
-		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
+	if _drop_channel_hover:
+		# Highlight the header area when a channel is being dropped onto this category
+		var header_rect := Rect2(Vector2.ZERO, Vector2(size.x, header.size.y))
+		draw_rect(header_rect, Color(line_color, 0.25))
+		draw_rect(header_rect, line_color, false, 2.0)
 	else:
-		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+		if _drop_above:
+			draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
+		else:
+			draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)

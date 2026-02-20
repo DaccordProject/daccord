@@ -180,6 +180,13 @@ func add_reaction(
 			cid, mid, emoji, "No connection found"
 		)
 		return
+	# Optimistic cache update — emit only for new emoji
+	# (existing pills handle their own visual update)
+	var is_new := _update_reaction_cache_add(
+		cid, mid, emoji
+	)
+	if is_new:
+		AppState.reactions_updated.emit(cid, mid)
 	var result := await client.reactions.add(
 		cid, mid, emoji
 	)
@@ -191,35 +198,38 @@ func add_reaction(
 		push_error(
 			"[Client] Failed to add reaction: ", err
 		)
+		# Revert optimistic update
+		_update_reaction_cache_remove(cid, mid, emoji)
+		AppState.reactions_updated.emit(cid, mid)
 		AppState.reaction_failed.emit(
 			cid, mid, emoji, err
 		)
 
+## Updates the reaction cache for an add. Returns true if a new
+## emoji was appended (no existing pill), false otherwise.
 func _update_reaction_cache_add(
 	cid: String, mid: String, emoji: String,
-) -> void:
+) -> bool:
 	if not _c._message_cache.has(cid):
-		return
+		return false
 	for msg in _c._message_cache[cid]:
 		if msg.get("id", "") != mid:
 			continue
 		var reactions: Array = msg.get("reactions", [])
-		var found := false
 		for r in reactions:
 			if r.get("emoji", "") == emoji:
 				r["count"] = r.get("count", 0) + 1
 				r["active"] = true
-				found = true
-				break
-		if not found:
-			reactions.append({
-				"emoji": emoji,
-				"count": 1,
-				"active": true,
-			})
+				msg["reactions"] = reactions
+				return false # Existing emoji
+		reactions.append({
+			"emoji": emoji,
+			"count": 1,
+			"active": true,
+		})
 		msg["reactions"] = reactions
-		break
-	AppState.messages_updated.emit(cid)
+		return true # New emoji
+	return false
 
 func remove_reaction(
 	cid: String, mid: String, emoji: String
@@ -233,6 +243,13 @@ func remove_reaction(
 			cid, mid, emoji, "No connection found"
 		)
 		return
+	# Optimistic cache update — emit only when emoji is
+	# fully removed (existing pills handle visual update)
+	var was_removed := _update_reaction_cache_remove(
+		cid, mid, emoji
+	)
+	if was_removed:
+		AppState.reactions_updated.emit(cid, mid)
 	var result := await client.reactions.remove_own(
 		cid, mid, emoji
 	)
@@ -244,6 +261,9 @@ func remove_reaction(
 		push_error(
 			"[Client] Failed to remove reaction: ", err
 		)
+		# Revert optimistic update
+		_update_reaction_cache_add(cid, mid, emoji)
+		AppState.reactions_updated.emit(cid, mid)
 		AppState.reaction_failed.emit(
 			cid, mid, emoji, err
 		)
@@ -270,11 +290,13 @@ func remove_all_reactions(
 			err
 		)
 
+## Updates the reaction cache for a remove. Returns true if the
+## emoji was fully removed (count hit 0), false otherwise.
 func _update_reaction_cache_remove(
 	cid: String, mid: String, emoji: String,
-) -> void:
+) -> bool:
 	if not _c._message_cache.has(cid):
-		return
+		return false
 	for msg in _c._message_cache[cid]:
 		if msg.get("id", "") != mid:
 			continue
@@ -288,10 +310,12 @@ func _update_reaction_cache_remove(
 			reactions[i]["active"] = false
 			if reactions[i]["count"] <= 0:
 				reactions.remove_at(i)
-			break
-		msg["reactions"] = reactions
+				msg["reactions"] = reactions
+				return true # Fully removed
+			msg["reactions"] = reactions
+			return false # Still has other users
 		break
-	AppState.messages_updated.emit(cid)
+	return false
 
 # --- Presence & typing ---
 

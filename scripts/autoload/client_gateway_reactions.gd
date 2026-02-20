@@ -31,6 +31,10 @@ func on_reaction_add(data: Dictionary) -> void:
 			var found := false
 			for r in reactions:
 				if r.get("emoji", "") == emoji_name:
+					# Skip if already applied optimistically
+					if is_own and r.get("active", false):
+						found = true
+						break
 					r["count"] = r.get("count", 0) + 1
 					if is_own:
 						r["active"] = true
@@ -44,9 +48,7 @@ func on_reaction_add(data: Dictionary) -> void:
 				})
 			msg["reactions"] = reactions
 			break
-	# Skip signal for own reactions — pill already shows optimistic state
-	if not is_own:
-		AppState.reactions_updated.emit(channel_id, message_id)
+	AppState.reactions_updated.emit(channel_id, message_id)
 
 func on_reaction_remove(data: Dictionary) -> void:
 	var channel_id: String = str(data.get("channel_id", ""))
@@ -62,6 +64,9 @@ func on_reaction_remove(data: Dictionary) -> void:
 			var reactions: Array = msg.get("reactions", [])
 			for i in reactions.size():
 				if reactions[i].get("emoji", "") == emoji_name:
+					# Skip if already applied optimistically
+					if is_own and not reactions[i].get("active", true):
+						break
 					reactions[i]["count"] = max(0, reactions[i].get("count", 0) - 1)
 					if is_own:
 						reactions[i]["active"] = false
@@ -70,9 +75,7 @@ func on_reaction_remove(data: Dictionary) -> void:
 					break
 			msg["reactions"] = reactions
 			break
-	# Skip signal for own reactions — pill already shows optimistic state
-	if not is_own:
-		AppState.reactions_updated.emit(channel_id, message_id)
+	AppState.reactions_updated.emit(channel_id, message_id)
 
 func on_reaction_clear(data: Dictionary) -> void:
 	var channel_id: String = str(data.get("channel_id", ""))

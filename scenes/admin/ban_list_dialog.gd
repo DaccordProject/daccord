@@ -158,12 +158,9 @@ func _on_bulk_unban() -> void:
 		false
 	)
 	dialog.confirmed.connect(func():
-		var tasks: Array = []
-		for uid in _selected_user_ids.duplicate():
-			tasks.append(Client.admin.unban_member(_guild_id, uid))
 		var failed := 0
-		for task in tasks:
-			var result: RestResult = await task
+		for uid in _selected_user_ids.duplicate():
+			var result: RestResult = await Client.admin.unban_member(_guild_id, uid)
 			if result == null or not result.ok:
 				failed += 1
 		_selected_user_ids.clear()
@@ -183,7 +180,7 @@ func _on_unban(user_id: String, username: String) -> void:
 		false
 	)
 	dialog.confirmed.connect(func():
-		Client.admin.unban_member(_guild_id, user_id)
+		await Client.admin.unban_member(_guild_id, user_id)
 	)
 
 func _on_load_more() -> void:

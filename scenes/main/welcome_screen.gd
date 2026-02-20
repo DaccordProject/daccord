@@ -9,14 +9,14 @@ const AddServerDialogScene := preload(
 const BLURPLE := Color(0.345, 0.396, 0.949)
 const MUTED_GRAY := Color(0.58, 0.608, 0.643)
 
+var _pulse_tween: Tween
+var _features_vbox: VBoxContainer
+
 @onready var logo_label: Label = $ContentCenter/ContentVBox/LogoLabel
 @onready var tagline_label: Label = $ContentCenter/ContentVBox/TaglineLabel
 @onready var features_hbox: HBoxContainer = $ContentCenter/ContentVBox/FeaturesHBox
 @onready var cta_button: Button = $ContentCenter/ContentVBox/CTAButton
 @onready var particles: CPUParticles2D = $ParticlesLayer/FloatingParticles
-
-var _pulse_tween: Tween
-var _features_vbox: VBoxContainer
 
 
 func _ready() -> void:
@@ -30,8 +30,8 @@ func _ready() -> void:
 	# Position particles to span the full area
 	call_deferred("_on_resized")
 
-	# Start entrance animation
-	_animate_entrance()
+	# Defer entrance animation so container layout completes first
+	_start_entrance_deferred()
 
 
 func _on_resized() -> void:
@@ -39,6 +39,13 @@ func _on_resized() -> void:
 		# Position at bottom center, emission spans full width
 		particles.position = Vector2(size.x / 2.0, size.y)
 		particles.emission_rect_extents = Vector2(size.x / 2.0, 10)
+
+
+func _start_entrance_deferred() -> void:
+	# Wait one frame for the VBoxContainer to lay out its children,
+	# so position.y values reflect the real layout (not default 0).
+	await get_tree().process_frame
+	_animate_entrance()
 
 
 func _animate_entrance() -> void:

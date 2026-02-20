@@ -8,30 +8,36 @@ Channel permission management allows server admins to set per-role permission ov
 ## User Steps
 
 1. Right-click the guild icon or click the banner dropdown and select **Channels** (requires `manage_channels` permission).
-2. In the Channel Management dialog, find the target channel row and click the **Perms** button.
-3. The Channel Permissions dialog opens, showing a role list on the left and a permission grid on the right.
+2. In the Channel Management dialog, find the target channel row and click the **Perms** button (only visible if user has `manage_roles` permission).
+3. The Channel Permissions dialog opens, showing a role list on the left and a permission grid on the right. The permission grid is filtered by channel type (text channels hide voice perms, voice channels hide text perms).
 4. Click a role in the left panel to view/edit its overwrites for this channel. The selected role is highlighted with a dark background.
-5. For each permission, click ✓ (Allow), / (Inherit), or ✗ (Deny) to set the overwrite state.
-6. Click **Reset** to return all permissions for the selected role to Inherit.
-7. Click **Save** to persist the overwrites to the server. Roles with actual overwrites are upserted individually; roles reset to all-INHERIT are deleted from the server.
-8. Close the dialog via the ✕ button, Escape, or clicking the backdrop.
+5. To add a member-specific overwrite, click **+ Add Member** below the role list and search for a member.
+6. For each permission, click ✓ (Allow), / (Inherit), or ✗ (Deny) to set the overwrite state.
+7. Click **Reset** to return all permissions for the selected role/member to Inherit.
+8. Click **Save** to persist the overwrites to the server. Roles/members with actual overwrites are upserted individually; those reset to all-INHERIT are deleted from the server.
+9. Close the dialog via the ✕ button, Escape, or clicking the backdrop. If there are unsaved changes, a confirmation dialog asks whether to discard them.
 
 ## Signal Flow
 
 ```
-channel_row "Perms" click
+channel_row "Perms" click (button hidden if user lacks manage_roles)
   → permissions_requested signal emitted (channel_row.gd:26)
     → channel_management_dialog._on_permissions_channel() (line 213)
       → Instantiates ChannelPermissionsScene, adds to root
         → channel_permissions_dialog.setup(channel, guild_id)
           → _load_overwrites() reads channel.permission_overwrites, records _original_overwrite_ids
+          → Snapshots _original_overwrite_data and _original_overwrite_types for dirty tracking
           → _rebuild_role_list() calls Client.get_roles_for_guild(), stores _role_buttons
 
-User clicks role
-  → _on_role_selected(role_id)
-    → Initializes overwrite data for role (all INHERIT if new)
-    → _update_role_selection() highlights selected role button via StyleBoxFlat
-    → _rebuild_perm_list() creates PermOverwriteRow per permission
+User clicks role or member
+  → _on_entity_selected(entity_id, entity_type)
+    → Initializes overwrite data for entity (all INHERIT if new)
+    → _update_role_selection() highlights selected button via StyleBoxFlat
+    → _rebuild_perm_list() creates PermOverwriteRow per permission, filtered by channel type
+
+User clicks "+ Add Member"
+  → _on_add_member_overwrite() opens searchable member picker popup
+    → Selecting a member adds "user"-type overwrite data and selects that member
 
 User clicks Allow/Inherit/Deny button
   → perm_overwrite_row emits state_changed(perm, new_state)
@@ -47,6 +53,12 @@ User clicks Save
         → PUT /channels/:id/overwrites/:overwrite_id (server)
     → On success: dialog closes
     → On failure: error label shown
+
+User closes dialog with unsaved changes
+  → _try_close() checks _is_dirty() by comparing current state to original snapshot
+    → If dirty: shows ConfirmDialog ("Unsaved Changes" / "Discard")
+      → On confirm: dialog closes
+    → If clean: dialog closes immediately
 ```
 
 ## Key Files
@@ -65,7 +77,7 @@ User clicks Save
 | `addons/accordkit/models/channel.gd` | `AccordChannel` with `permission_overwrites` array field |
 | `addons/accordkit/rest/endpoints/channels_api.gd` | `upsert_overwrite()`, `delete_overwrite()`, `list_overwrites()` for dedicated overwrite routes |
 | `scripts/autoload/client_models.gd` | `channel_to_dict()` converts `permission_overwrites` to dict array (line 217) |
-| `scripts/autoload/client.gd` | `has_permission()` (line 672) — space-level permission check, `get_roles_for_guild()` (line 409) |
+| `scripts/autoload/client.gd` | `has_permission()` — space-level permission check, `has_channel_permission()` — channel-level with overwrite resolution, `get_roles_for_guild()` |
 | `accordserver/src/routes/channels.rs` | Server-side overwrite CRUD routes (list, upsert, delete) |
 | `accordserver/src/db/permission_overwrites.rs` | DB layer: list/upsert/delete permission overwrites |
 | `accordserver/src/middleware/permissions.rs` | `resolve_channel_permissions()` — Discord-style overwrite resolution algorithm |
@@ -108,9 +120,13 @@ Original overwrite IDs are recorded in `_original_overwrite_ids` so that roles r
 
 ### Permission Grid
 
-`_rebuild_perm_list()` (line 105) creates one `PermOverwriteRow` per permission from `AccordPermission.all()` (37 permissions total). Each row shows the permission name (humanized via `perm.replace("_", " ").capitalize()`, line 27 of `perm_overwrite_row.gd`) and three toggle buttons.
+`_rebuild_perm_list()` creates one `PermOverwriteRow` per permission from `_perms_for_channel_type()`, which filters `AccordPermission.all()` based on the channel type:
 
-The row emits `state_changed(perm, new_state)` when any button is clicked. The dialog handles this in `_toggle_perm()` (line 118), updating `_overwrite_data` and calling `update_state()` on the single changed row (no full rebuild).
+- **Text / Announcement / Forum** channels: voice-only permissions are hidden (`connect`, `speak`, `mute_members`, `deafen_members`, `move_members`, `use_vad`, `priority_speaker`, `stream`).
+- **Voice** channels: text-only permissions are hidden (`send_messages`, `send_tts`, `manage_messages`, `embed_links`, `attach_files`, `read_history`, `mention_everyone`, `use_external_emojis`, `manage_threads`, `create_threads`, `use_external_stickers`, `send_in_threads`).
+- **Category** channels: all permissions are shown.
+
+Each row shows the permission name (humanized via `perm.replace("_", " ").capitalize()`) and three toggle buttons. The row emits `state_changed(perm, new_state)` when any button is clicked. The dialog handles this in `_toggle_perm()`, updating `_overwrite_data` and calling `update_state()` on the single changed row (no full rebuild).
 
 ### Button Color Feedback (perm_overwrite_row.gd)
 
@@ -184,7 +200,10 @@ The server exposes dedicated overwrite REST routes:
 
 ### Client-Side Permission Checks
 
-`Client.has_permission()` (line 672 of `client.gd`) checks space-level permissions only. It does not account for channel-level overwrites. The check merges @everyone permissions with assigned role permissions and uses `AccordPermission.has()`. Instance admins and space owners bypass all checks.
+Two permission check methods exist:
+
+- **`Client.has_permission(guild_id, perm)`** — checks space-level permissions only. Merges @everyone permissions with assigned role permissions. Instance admins and space owners bypass all checks.
+- **`Client.has_channel_permission(guild_id, channel_id, perm)`** — resolves channel-level permissions using the Discord-style algorithm: base role perms → administrator bypass → @everyone channel overwrite → role overwrites (union, allow wins) → member overwrite. Uses `permission_overwrites` from the cached channel dictionary.
 
 ### Entry Point Gating
 
@@ -192,12 +211,16 @@ The channel management dialog is accessible via:
 - **Guild icon context menu**: gated by `Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS)` at `guild_icon.gd:119`
 - **Banner dropdown**: gated by the same check at `banner.gd:64`
 
-Within the channel management dialog, the "Perms" button on each `channel_row.tscn` is always visible (not permission-gated). The server enforces `manage_roles` permission on the overwrite CRUD endpoints.
+Within the channel management dialog, the "Perms" button on each `channel_row` is hidden if the user lacks `manage_roles` permission. The `channel_row.setup()` method accepts a `guild_id` parameter and checks `Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES)` to control visibility. The server also enforces `manage_roles` permission on the overwrite CRUD endpoints as a second layer of protection.
+
+### Dirty State Tracking
+
+The dialog snapshots `_overwrite_data` and `_overwrite_types` at load time into `_original_overwrite_data` and `_original_overwrite_types`. When the user attempts to close (via close button, Escape, or backdrop click), `_is_dirty()` compares the current state to the snapshot. If changes exist, a `ConfirmDialog` asks whether to discard them. If the user confirms, the dialog closes; otherwise it stays open.
 
 ## Implementation Status
 
 - [x] Channel Permissions dialog UI with role list and permission grid
-- [x] Per-role Allow/Inherit/Deny toggles for all 37 permissions
+- [x] Per-role Allow/Inherit/Deny toggles for all 39 permissions
 - [x] Load existing overwrites from channel data
 - [x] Reset selected role to all-INHERIT
 - [x] Save button with loading state and error display
@@ -212,15 +235,8 @@ Within the channel management dialog, the "Perms" button on each `channel_row.ts
 - [x] Visual indication of selected role in the role list
 - [x] Stale overwrite cleanup on save (roles reset to all-INHERIT are deleted)
 - [x] Efficient per-row updates on permission toggle (no full rebuild)
-- [ ] Member-type overwrite support in UI
-- [ ] Client-side channel-level permission checks
-
-## Gaps / TODO
-
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No member-type overwrites | Medium | The dialog only creates overwrites with `"type": "role"` (line 149). The server supports `"member"` type overwrites, and `resolve_channel_permissions()` handles them (line 300 of `permissions.rs`), but the UI has no way to add member-specific overwrites. |
-| Perms button not permission-gated | Low | The "Perms" button in `channel_row.tscn` (line 31) is always shown. While the server enforces `manage_roles` on the overwrite endpoints, users without permission see the dialog and only get a failure on save. The button should be hidden or disabled if the user lacks `manage_roles`. |
-| Client-side `has_permission` ignores channel overwrites | Medium | `Client.has_permission()` at `client.gd:672` only checks space-level role permissions. It does not factor in channel-level overwrites. This means UI gating (e.g., showing edit buttons) may be inaccurate for channels with overwrites. A `has_channel_permission()` method is needed. |
-| No dirty state tracking | Low | Changing permissions and closing without saving silently discards changes. No "unsaved changes" warning is shown. |
-| All 37 permissions shown for every channel | Low | Some permissions are irrelevant to certain channel types (e.g., `SPEAK` and `CONNECT` for text channels, `SEND_MESSAGES` for voice channels). The grid could be filtered based on channel type. |
+- [x] Member-type overwrite support in UI (+ Add Member button with searchable picker)
+- [x] Client-side channel-level permission checks (`has_channel_permission()`)
+- [x] Perms button gated by `manage_roles` permission
+- [x] Dirty state tracking with unsaved changes confirmation dialog
+- [x] Permission grid filtered by channel type (text vs voice)

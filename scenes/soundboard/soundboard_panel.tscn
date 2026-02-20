@@ -22,10 +22,22 @@ script = ExtResource("1")
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="VBox"]
+[node name="TitleRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
+
+[node name="Title" type="Label" parent="VBox/TitleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "Soundboard"
 theme_override_font_sizes/font_size = 14
+
+[node name="CloseBtn" type="Button" parent="VBox/TitleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 24)
+text = "✕"
+flat = true
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
 [node name="SearchInput" type="LineEdit" parent="VBox"]
 layout_mode = 2

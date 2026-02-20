@@ -48,21 +48,17 @@ func test_setup_system_message_not_edited() -> void:
 # --- _format_file_size (static) ---
 
 func test_format_file_size_bytes() -> void:
-	# Static method on the script class
-	var mc_script = load("res://scenes/messages/message_content.gd")
-	var result: String = mc_script._format_file_size(512)
+	var result: String = component._format_file_size(512)
 	assert_eq(result, "512 B")
 
 
 func test_format_file_size_kilobytes() -> void:
-	var mc_script = load("res://scenes/messages/message_content.gd")
-	var result: String = mc_script._format_file_size(2048)
+	var result: String = component._format_file_size(2048)
 	assert_eq(result, "2.0 KB")
 
 
 func test_format_file_size_megabytes() -> void:
-	var mc_script = load("res://scenes/messages/message_content.gd")
-	var result: String = mc_script._format_file_size(5242880)
+	var result: String = component._format_file_size(5242880)
 	assert_eq(result, "5.0 MB")
 
 

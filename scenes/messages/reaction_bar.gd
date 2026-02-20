@@ -1,4 +1,4 @@
-extends FlowContainer
+extends HBoxContainer
 
 const ReactionPillScene := preload("res://scenes/messages/reaction_pill.tscn")
 

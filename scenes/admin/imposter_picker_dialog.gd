@@ -5,10 +5,14 @@ var _selected_role: Dictionary = {}
 var _is_custom: bool = false
 var _custom_perm_checks: Dictionary = {} # perm_name -> CheckBox
 
-@onready var role_list: VBoxContainer = $CenterContainer/Panel/VBox/Content/RoleScroll/RoleList
-@onready var custom_panel: VBoxContainer = $CenterContainer/Panel/VBox/Content/CustomScroll/CustomPanel
-@onready var custom_scroll: ScrollContainer = $CenterContainer/Panel/VBox/Content/CustomScroll
-@onready var perm_list: VBoxContainer = $CenterContainer/Panel/VBox/Content/CustomScroll/CustomPanel/PermList
+@onready var role_list: VBoxContainer = \
+	$CenterContainer/Panel/VBox/Content/RoleScroll/RoleList
+@onready var custom_panel: VBoxContainer = \
+	$CenterContainer/Panel/VBox/Content/CustomScroll/CustomPanel
+@onready var custom_scroll: ScrollContainer = \
+	$CenterContainer/Panel/VBox/Content/CustomScroll
+@onready var perm_list: VBoxContainer = \
+	$CenterContainer/Panel/VBox/Content/CustomScroll/CustomPanel/PermList
 @onready var preview_button: Button = $CenterContainer/Panel/VBox/Buttons/PreviewButton
 @onready var cancel_button: Button = $CenterContainer/Panel/VBox/Buttons/CancelButton
 @onready var close_button: Button = $CenterContainer/Panel/VBox/Header/CloseButton

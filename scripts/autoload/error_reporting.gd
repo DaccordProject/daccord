@@ -3,6 +3,8 @@ extends Node
 var _initialized := false
 
 func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	if Config.get_error_reporting_enabled():
 		init_sentry()
 

@@ -13,7 +13,7 @@ var _is_hovered: bool = false
 @onready var reply_ref: HBoxContainer = $ContentColumn/ReplyRef
 @onready var reply_author: Label = $ContentColumn/ReplyRef/ReplyAuthor
 @onready var reply_preview: Label = $ContentColumn/ReplyRef/ReplyPreview
-@onready var message_content: VBoxContainer = $ContentColumn/MessageContent
+@onready var message_content = $ContentColumn/MessageContent
 
 @onready var content_column: VBoxContainer = $ContentColumn
 @onready var header: HBoxContainer = $ContentColumn/Header

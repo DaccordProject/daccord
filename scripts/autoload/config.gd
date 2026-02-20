@@ -5,6 +5,15 @@ const _SALT := "daccord-config-v1"
 const _PROFILE_SALT := "daccord-profile-v1"
 const _RECENT_EMOJI_MAX := 16
 const _BACKUP_THROTTLE_SEC := 60
+const ConfigProfilesScript := preload(
+	"res://scripts/autoload/config_profiles.gd"
+)
+const ConfigVoiceScript := preload(
+	"res://scripts/autoload/config_voice.gd"
+)
+
+var profiles # ConfigProfiles
+var voice # ConfigVoice
 
 var _config := ConfigFile.new()
 var _registry := ConfigFile.new()
@@ -26,6 +35,8 @@ func get_emoji_cache_path(emoji_id: String) -> String:
 	return _profile_emoji_cache_dir() + "/" + emoji_id + ".png"
 
 func _ready() -> void:
+	profiles = ConfigProfilesScript.new(self, _PROFILE_SALT)
+	voice = ConfigVoiceScript.new(self)
 	# Parse --profile CLI arg
 	for i in OS.get_cmdline_args().size():
 		var arg: String = OS.get_cmdline_args()[i]
@@ -56,14 +67,28 @@ func _ready() -> void:
 func _migrate_legacy_config() -> void:
 	var dest_dir := "user://profiles/default"
 	DirAccess.make_dir_recursive_absolute(dest_dir)
-	# Move config file
+	# Move config file (only delete original after a verified copy)
 	var src_global: String = ProjectSettings.globalize_path(
 		"user://config.cfg"
 	)
 	var dst_global: String = ProjectSettings.globalize_path(
 		dest_dir + "/config.cfg"
 	)
-	DirAccess.copy_absolute(src_global, dst_global)
+	var copy_err := DirAccess.copy_absolute(src_global, dst_global)
+	if copy_err != OK:
+		push_error(
+			"[Config] Migration copy failed (error %d), keeping original at %s"
+			% [copy_err, src_global]
+		)
+		# Fall back to loading from the old path directly
+		_profile_slug = "default"
+		_write_initial_registry("default", "Default")
+		var key := _derive_key()
+		var err := _config.load_encrypted_pass("user://config.cfg", key)
+		if err != OK:
+			_config.load("user://config.cfg")
+		_load_ok = true
+		return
 	DirAccess.remove_absolute(src_global)
 	# Move emoji cache if exists
 	if DirAccess.dir_exists_absolute("user://emoji_cache"):
@@ -94,12 +119,21 @@ func _load_profile_config() -> void:
 	var plain_err := _config.load(path)
 	if plain_err == OK:
 		_load_ok = true
-		_config.save_encrypted_pass(path, key)
+		# Re-encrypt the plain config file
+		var enc_err := _config.save_encrypted_pass(path, key)
+		if enc_err != OK:
+			push_warning(
+				"[Config] Re-encryption failed (error %d), keeping plain format" % enc_err
+			)
 		return
 	if FileAccess.file_exists(path):
 		_backup_corrupted_file()
-		push_warning(
-			"[Config] Config file unreadable, backed up and starting fresh"
+		push_error(
+			"[Config] Config at '%s' unreadable "
+			% path
+			+ "(encrypted err=%d, plain err=%d), "
+			% [err, plain_err]
+			+ "backed up and starting fresh"
 		)
 	_config = ConfigFile.new()
 	_load_ok = true
@@ -141,12 +175,14 @@ func get_servers() -> Array:
 			"guild_name": _config.get_value(section, "guild_name", ""),
 			"username": _config.get_value(section, "username", ""),
 			"password": _config.get_value(section, "password", ""),
+			"display_name": _config.get_value(section, "display_name", ""),
 		})
 	return servers
 
 func add_server(
 	base_url: String, token: String, guild_name: String,
 	username: String = "", password: String = "",
+	display_name: String = "",
 ) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	var section := "server_%d" % count
@@ -155,6 +191,7 @@ func add_server(
 	_config.set_value(section, "guild_name", guild_name)
 	_config.set_value(section, "username", username)
 	_config.set_value(section, "password", password)
+	_config.set_value(section, "display_name", display_name)
 	_config.set_value("servers", "count", count + 1)
 	save()
 
@@ -171,6 +208,7 @@ func remove_server(index: int) -> void:
 		_config.set_value(dst, "guild_name", _config.get_value(src, "guild_name", ""))
 		_config.set_value(dst, "username", _config.get_value(src, "username", ""))
 		_config.set_value(dst, "password", _config.get_value(src, "password", ""))
+		_config.set_value(dst, "display_name", _config.get_value(src, "display_name", ""))
 	# Erase last section
 	var last := "server_%d" % (count - 1)
 	if _config.has_section(last):
@@ -202,7 +240,18 @@ func save() -> void:
 		push_warning("[Config] save() blocked — config was not loaded successfully")
 		return
 	_throttled_backup()
-	_config.save_encrypted_pass(_config_path(), _derive_key())
+	var path := _config_path()
+	var err := _config.save_encrypted_pass(path, _derive_key())
+	if err != OK:
+		push_warning(
+			"[Config] Encrypted save failed (error %d), falling back to plain save" % err
+		)
+		var plain_err := _config.save(path)
+		if plain_err != OK:
+			push_error(
+				"[Config] Plain save also failed (error %d) — data may be lost!" % plain_err
+			)
+		return
 
 func set_last_selection(guild_id: String, channel_id: String) -> void:
 	_config.set_value("state", "last_guild_id", guild_id)
@@ -224,40 +273,6 @@ func is_category_collapsed(guild_id: String, category_id: String) -> bool:
 	var section := "collapsed_%s" % guild_id
 	return _config.get_value(section, category_id, false)
 
-func get_voice_input_device() -> String:
-	return _config.get_value("voice", "input_device", "")
-
-func set_voice_input_device(device_id: String) -> void:
-	_config.set_value("voice", "input_device", device_id)
-	save()
-
-func get_voice_output_device() -> String:
-	return _config.get_value("voice", "output_device", "")
-
-func set_voice_output_device(device_id: String) -> void:
-	_config.set_value("voice", "output_device", device_id)
-	save()
-
-func get_voice_video_device() -> String:
-	return _config.get_value("voice", "video_device", "")
-
-func set_voice_video_device(device_id: String) -> void:
-	_config.set_value("voice", "video_device", device_id)
-	save()
-
-func get_video_resolution() -> int:
-	return _config.get_value("voice", "video_resolution", 0)
-
-func set_video_resolution(preset: int) -> void:
-	_config.set_value("voice", "video_resolution", preset)
-	save()
-
-func get_video_fps() -> int:
-	return _config.get_value("voice", "video_fps", 30)
-
-func set_video_fps(fps: int) -> void:
-	_config.set_value("voice", "video_fps", fps)
-	save()
 
 func get_user_status() -> int:
 	return _config.get_value("state", "user_status", 0)
@@ -498,182 +513,6 @@ func import_config(path: String) -> Error:
 	save()
 	return OK
 
-## --- Profile management ---
-
-func _slugify(pname: String) -> String:
-	var slug := pname.to_lower().strip_edges()
-	# Replace spaces/underscores with hyphens
-	slug = slug.replace(" ", "-").replace("_", "-")
-	# Strip non-alphanumeric except hyphens
-	var clean := ""
-	for ch in slug:
-		if ch == "-" or (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9"):
-			clean += ch
-	slug = clean
-	# Collapse multiple hyphens
-	while slug.contains("--"):
-		slug = slug.replace("--", "-")
-	slug = slug.trim_prefix("-").trim_suffix("-")
-	if slug.is_empty():
-		slug = "profile"
-	# Truncate to 32 characters
-	if slug.length() > 32:
-		slug = slug.substr(0, 32).trim_suffix("-")
-	# Check for collision and add suffix
-	var order: Array = _registry.get_value("order", "list", [])
-	if slug in order:
-		var counter := 2
-		while (slug + "-" + str(counter)) in order:
-			counter += 1
-		slug = slug + "-" + str(counter)
-	return slug
-
-func _hash_password(slug: String, pw: String) -> String:
-	var ctx := HashingContext.new()
-	ctx.start(HashingContext.HASH_SHA256)
-	var input := (_PROFILE_SALT + slug + pw).to_utf8_buffer()
-	ctx.update(input)
-	var digest := ctx.finish()
-	return digest.hex_encode()
-
-func get_profiles() -> Array:
-	var order: Array = _registry.get_value("order", "list", [])
-	var result: Array = []
-	for slug in order:
-		var section: String = "profile_" + str(slug)
-		var pname: String = _registry.get_value(section, "name", slug)
-		var has_pw: bool = _registry.has_section_key(section, "password_hash")
-		result.append({
-			"slug": slug,
-			"name": pname,
-			"has_password": has_pw,
-		})
-	return result
-
-func get_active_profile_slug() -> String:
-	return _profile_slug
-
-func create_profile(
-	pname: String, pw: String = "", copy_current: bool = false,
-) -> String:
-	var slug := _slugify(pname)
-	var new_dir := "user://profiles/" + slug
-	DirAccess.make_dir_recursive_absolute(new_dir)
-
-	if copy_current:
-		# Copy current profile's config and emoji cache
-		var cur_cfg := _config_path()
-		if FileAccess.file_exists(cur_cfg):
-			DirAccess.copy_absolute(
-				ProjectSettings.globalize_path(cur_cfg),
-				ProjectSettings.globalize_path(new_dir + "/config.cfg")
-			)
-		var cur_emoji := _profile_emoji_cache_dir()
-		if DirAccess.dir_exists_absolute(cur_emoji):
-			var emoji_dst := new_dir + "/emoji_cache"
-			DirAccess.make_dir_recursive_absolute(emoji_dst)
-			_copy_directory(cur_emoji, emoji_dst)
-
-	# Update registry
-	var order: Array = _registry.get_value("order", "list", [])
-	order.append(slug)
-	_registry.set_value("order", "list", order)
-	var section := "profile_" + slug
-	_registry.set_value(section, "name", pname)
-	if not pw.is_empty():
-		_registry.set_value(section, "password_hash", _hash_password(slug, pw))
-	_registry.save(REGISTRY_PATH)
-	return slug
-
-func delete_profile(slug: String) -> bool:
-	if slug == "default":
-		return false
-	# If deleting the active profile, switch to default first
-	if slug == _profile_slug:
-		switch_profile("default")
-	# Remove directory
-	var dir_path := "user://profiles/" + slug
-	if DirAccess.dir_exists_absolute(dir_path):
-		# Remove emoji cache subdirectory first
-		var emoji_dir := dir_path + "/emoji_cache"
-		if DirAccess.dir_exists_absolute(emoji_dir):
-			_remove_directory_recursive(emoji_dir)
-		_remove_directory_recursive(dir_path)
-	# Clean registry
-	var order: Array = _registry.get_value("order", "list", [])
-	var idx := order.find(slug)
-	if idx != -1:
-		order.remove_at(idx)
-	_registry.set_value("order", "list", order)
-	var section := "profile_" + slug
-	if _registry.has_section(section):
-		_registry.erase_section(section)
-	_registry.save(REGISTRY_PATH)
-	return true
-
-func switch_profile(slug: String) -> void:
-	_profile_slug = slug
-	# Update registry active (unless CLI override)
-	if _cli_profile_override.is_empty():
-		_registry.set_value("state", "active", slug)
-		_registry.save(REGISTRY_PATH)
-	# Reload config from new profile
-	_config = ConfigFile.new()
-	_load_ok = false
-	_last_backup_time = 0
-	_load_profile_config()
-	AppState.profile_switched.emit()
-
-func rename_profile(slug: String, new_name: String) -> void:
-	var section := "profile_" + slug
-	_registry.set_value(section, "name", new_name)
-	_registry.save(REGISTRY_PATH)
-
-func set_profile_password(
-	slug: String, old_pw: String, new_pw: String,
-) -> bool:
-	var section := "profile_" + slug
-	# Verify old password if one is set
-	if _registry.has_section_key(section, "password_hash"):
-		var stored: String = _registry.get_value(section, "password_hash", "")
-		if _hash_password(slug, old_pw) != stored:
-			return false
-	# Set or remove password
-	if new_pw.is_empty():
-		_registry.set_value(section, "password_hash", null)
-	else:
-		_registry.set_value(section, "password_hash", _hash_password(slug, new_pw))
-	_registry.save(REGISTRY_PATH)
-	return true
-
-func verify_profile_password(slug: String, pw: String) -> bool:
-	var section := "profile_" + slug
-	if not _registry.has_section_key(section, "password_hash"):
-		return true
-	var stored: String = _registry.get_value(section, "password_hash", "")
-	return _hash_password(slug, pw) == stored
-
-func move_profile_up(slug: String) -> void:
-	var order: Array = _registry.get_value("order", "list", [])
-	var idx := order.find(slug)
-	if idx <= 0:
-		return
-	var temp = order[idx - 1]
-	order[idx - 1] = order[idx]
-	order[idx] = temp
-	_registry.set_value("order", "list", order)
-	_registry.save(REGISTRY_PATH)
-
-func move_profile_down(slug: String) -> void:
-	var order: Array = _registry.get_value("order", "list", [])
-	var idx := order.find(slug)
-	if idx == -1 or idx >= order.size() - 1:
-		return
-	var temp = order[idx + 1]
-	order[idx + 1] = order[idx]
-	order[idx] = temp
-	_registry.set_value("order", "list", order)
-	_registry.save(REGISTRY_PATH)
 
 ## --- Directory helpers ---
 

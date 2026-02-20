@@ -4,13 +4,13 @@ const UpdateDownloadDialogScene := preload(
 	"res://scenes/messages/update_download_dialog.tscn"
 )
 
+var _version_info: Dictionary = {}
+
 @onready var version_label: Label = $HBox/VersionLabel
 @onready var view_changes_button: Button = $HBox/ViewChangesButton
 @onready var update_button: Button = $HBox/UpdateButton
 @onready var skip_button: Button = $HBox/SkipButton
 @onready var dismiss_button: Button = $HBox/DismissButton
-
-var _version_info: Dictionary = {}
 
 func _ready() -> void:
 	AppState.update_available.connect(_on_update_available)

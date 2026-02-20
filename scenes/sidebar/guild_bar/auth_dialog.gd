@@ -3,6 +3,7 @@ extends ColorRect
 signal auth_completed(
 	base_url: String, token: String,
 	username: String, password: String,
+	display_name: String,
 )
 
 enum Mode { SIGN_IN, REGISTER }
@@ -108,7 +109,10 @@ func _on_submit() -> void:
 		_show_error("No token received from server.")
 		return
 
-	auth_completed.emit(_base_url, token, username, password)
+	var dn := ""
+	if _mode == Mode.REGISTER:
+		dn = _display_name_input.text.strip_edges()
+	auth_completed.emit(_base_url, token, username, password, dn)
 	queue_free()
 
 

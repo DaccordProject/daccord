@@ -289,9 +289,15 @@ func update_enabled_state() -> void:
 		emoji_button.disabled = true
 		if _saved_placeholder.is_empty():
 			_saved_placeholder = text_input.placeholder_text
-		var has_send: bool = AccordPermission.has(AppState.imposter_permissions, AccordPermission.SEND_MESSAGES)
+		var has_send: bool = AccordPermission.has(
+			AppState.imposter_permissions,
+			AccordPermission.SEND_MESSAGES
+		)
 		if not has_send:
-			text_input.placeholder_text = "Cannot send \u2014 previewing as %s" % AppState.imposter_role_name
+			text_input.placeholder_text = (
+				"Cannot send \u2014 previewing as %s"
+				% AppState.imposter_role_name
+			)
 		else:
 			text_input.placeholder_text = "Preview mode \u2014 sending disabled"
 		return

@@ -10,11 +10,8 @@ var message_id: String = ""
 var _in_setup: bool = false
 var _press_tween: Tween
 
-@onready var emoji_rect: TextureRect = $HBox/Emoji
-@onready var count_label: Label = $HBox/Count
-
 func _ready() -> void:
-	count_label.add_theme_font_size_override("font_size", 12)
+	add_theme_font_size_override("font_size", 12)
 	_update_active_style()
 	toggled.connect(_on_toggled)
 	AppState.reaction_failed.connect(_on_reaction_failed)
@@ -28,11 +25,11 @@ func setup(data: Dictionary) -> void:
 	button_pressed = data.get("active", false)
 
 	if EmojiData.TEXTURES.has(emoji_key):
-		emoji_rect.texture = EmojiData.TEXTURES[emoji_key]
+		icon = EmojiData.TEXTURES[emoji_key]
 	elif ClientModels.custom_emoji_textures.has(emoji_key):
-		emoji_rect.texture = ClientModels.custom_emoji_textures[emoji_key]
+		icon = ClientModels.custom_emoji_textures[emoji_key]
 
-	count_label.text = str(reaction_count)
+	text = str(reaction_count)
 	tooltip_text = ":%s:" % emoji_key
 	_update_active_style()
 	_in_setup = false
@@ -45,7 +42,7 @@ func _on_toggled(toggled_on: bool) -> void:
 		reaction_count += 1
 	else:
 		reaction_count = max(0, reaction_count - 1)
-	count_label.text = str(reaction_count)
+	text = str(reaction_count)
 	_update_active_style()
 	# Bounce animation
 	if not Config.get_reduced_motion():
@@ -74,7 +71,7 @@ func _on_reaction_failed(ch_id: String, msg_id: String, emoji_name: String, _err
 		reaction_count += 1
 	else:
 		reaction_count = max(0, reaction_count - 1)
-	count_label.text = str(reaction_count)
+	text = str(reaction_count)
 	_update_active_style()
 	_in_setup = false
 

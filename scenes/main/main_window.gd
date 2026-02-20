@@ -2,9 +2,10 @@ extends Control
 
 const BASE_DRAWER_WIDTH := 308
 const MIN_BACKDROP_TAP_TARGET := 48
-const EDGE_SWIPE_ZONE := 20.0
-const SWIPE_THRESHOLD := 80.0
 
+const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
+
+const AvatarScript := preload("res://scenes/common/avatar.gd")
 const ProfileCardScene := preload(
 	"res://scenes/user/profile_card.tscn"
 )
@@ -19,13 +20,13 @@ const ImageLightboxScene := preload(
 )
 
 var tabs: Array[Dictionary] = []
+var _guild_icon_cache: Dictionary = {}
 var _drawer_tween: Tween
 var _sidebar_in_drawer: bool = false
 var _active_profile_card: PanelContainer = null
 var _welcome_screen: Control = null
 var _member_list_before_medium: bool = true
-var _edge_swipe_tracking: bool = false
-var _edge_swipe_start_x: float = 0.0
+var _gestures: RefCounted
 
 @onready var layout_hbox: HBoxContainer = $LayoutHBox
 @onready var sidebar: HBoxContainer = $LayoutHBox/Sidebar
@@ -44,11 +45,13 @@ var _edge_swipe_start_x: float = 0.0
 @onready var drawer_container: Control = $DrawerContainer
 
 func _ready() -> void:
+	_gestures = DrawerGestures.new(self)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.sidebar_drawer_toggled.connect(_on_sidebar_drawer_toggled)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	tab_bar.tab_changed.connect(_on_tab_changed)
 	tab_bar.tab_close_pressed.connect(_on_tab_close)
+	tab_bar.active_tab_rearranged.connect(_on_tab_rearranged)
 	hamburger_button.pressed.connect(_on_hamburger_pressed)
 	sidebar_toggle.pressed.connect(_on_sidebar_toggle_pressed)
 	member_toggle.pressed.connect(_on_member_toggle_pressed)
@@ -60,6 +63,7 @@ func _ready() -> void:
 	AppState.guild_selected.connect(_on_guild_selected)
 	AppState.reauth_needed.connect(_on_reauth_needed)
 	AppState.profile_switched.connect(_on_profile_switched)
+	AppState.server_removed.connect(_on_server_removed)
 	drawer_backdrop.gui_input.connect(_on_backdrop_input)
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
@@ -93,33 +97,7 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:
 		return
-	if AppState.sidebar_drawer_open:
-		return
-
-	# Handle touch events
-	if event is InputEventScreenTouch:
-		if event.pressed and event.position.x <= EDGE_SWIPE_ZONE:
-			_edge_swipe_tracking = true
-			_edge_swipe_start_x = event.position.x
-		elif not event.pressed:
-			_edge_swipe_tracking = false
-	elif event is InputEventScreenDrag and _edge_swipe_tracking:
-		if event.position.x - _edge_swipe_start_x >= SWIPE_THRESHOLD:
-			_edge_swipe_tracking = false
-			AppState.toggle_sidebar_drawer()
-
-	# Handle mouse events (for desktop testing)
-	if event is InputEventMouseButton:
-		if (event.pressed and event.button_index == MOUSE_BUTTON_LEFT
-				and event.position.x <= EDGE_SWIPE_ZONE):
-			_edge_swipe_tracking = true
-			_edge_swipe_start_x = event.position.x
-		elif not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			_edge_swipe_tracking = false
-	elif event is InputEventMouseMotion and _edge_swipe_tracking:
-		if event.position.x - _edge_swipe_start_x >= SWIPE_THRESHOLD:
-			_edge_swipe_tracking = false
-			AppState.toggle_sidebar_drawer()
+	_gestures.handle_input(event)
 
 func _on_channel_selected(channel_id: String) -> void:
 	# Find channel name and topic
@@ -149,19 +127,23 @@ func _on_channel_selected(channel_id: String) -> void:
 	else:
 		topic_bar.visible = false
 
+	# Look up guild for this channel
+	var guild_id: String = Client._channel_to_guild.get(channel_id, "")
+
 	# Check if tab already exists
 	for i in tabs.size():
 		if tabs[i]["channel_id"] == channel_id:
 			tab_bar.current_tab = i
 			return
 
-	_add_tab(channel_name, channel_id)
+	_add_tab(channel_name, channel_id, guild_id)
 
-func _add_tab(tab_name: String, channel_id: String) -> void:
-	tabs.append({"name": tab_name, "channel_id": channel_id})
+func _add_tab(tab_name: String, channel_id: String, guild_id: String) -> void:
+	tabs.append({"name": tab_name, "channel_id": channel_id, "guild_id": guild_id})
 	tab_bar.add_tab(tab_name)
 	tab_bar.current_tab = tabs.size() - 1
 	_update_tab_visibility()
+	_update_tab_icons()
 
 func _on_tab_changed(tab_index: int) -> void:
 	if tab_index >= 0 and tab_index < tabs.size():
@@ -177,10 +159,123 @@ func _on_tab_close(tab_index: int) -> void:
 		var channel_id: String = tabs[tab_bar.current_tab]["channel_id"]
 		AppState.select_channel(channel_id)
 	_update_tab_visibility()
+	_update_tab_icons()
+
+func _on_tab_rearranged(idx_to: int) -> void:
+	var active_channel_id: String = AppState.current_channel_id
+	var idx_from: int = -1
+	for i in tabs.size():
+		if tabs[i]["channel_id"] == active_channel_id:
+			idx_from = i
+			break
+	if idx_from == -1 or idx_from == idx_to:
+		return
+	var tab_data: Dictionary = tabs[idx_from]
+	tabs.remove_at(idx_from)
+	tabs.insert(idx_to, tab_data)
+	_update_tab_icons()
+
+func _on_server_removed(guild_id: String) -> void:
+	# Remove tabs belonging to the disconnected server
+	var i: int = tabs.size() - 1
+	while i >= 0:
+		if tabs[i].get("guild_id", "") == guild_id:
+			tabs.remove_at(i)
+			tab_bar.remove_tab(i)
+		i -= 1
+	if tabs.is_empty():
+		return
+	# Ensure a valid tab is selected
+	var current: int = clampi(tab_bar.current_tab, 0, tabs.size() - 1)
+	tab_bar.current_tab = current
+	AppState.select_channel(tabs[current]["channel_id"])
+	_update_tab_visibility()
+	_update_tab_icons()
 
 func _update_tab_visibility() -> void:
 	# Hide tab bar when only one tab
 	tab_bar.visible = tabs.size() > 1
+
+func _update_tab_icons() -> void:
+	# Count name occurrences
+	var name_count: Dictionary = {}
+	for tab in tabs:
+		var n: String = tab["name"]
+		name_count[n] = name_count.get(n, 0) + 1
+
+	for i in tabs.size():
+		if name_count[tabs[i]["name"]] > 1:
+			_set_guild_icon_for_tab(i)
+		else:
+			tab_bar.set_tab_icon(i, null)
+
+func _set_guild_icon_for_tab(tab_index: int) -> void:
+	var guild_id: String = tabs[tab_index].get("guild_id", "")
+	if guild_id.is_empty():
+		tab_bar.set_tab_icon(tab_index, null)
+		return
+
+	# Already cached locally
+	if _guild_icon_cache.has(guild_id):
+		tab_bar.set_tab_icon(tab_index, _guild_icon_cache[guild_id])
+		return
+
+	var guild: Dictionary = Client.get_guild_by_id(guild_id)
+	if guild.is_empty():
+		tab_bar.set_tab_icon(tab_index, null)
+		return
+
+	var icon_url: String = guild.get("icon", "")
+	if icon_url.is_empty():
+		# Fallback: solid-color swatch
+		var tex: ImageTexture = _create_color_swatch(
+			guild.get("icon_color", Color.GRAY)
+		)
+		_guild_icon_cache[guild_id] = tex
+		tab_bar.set_tab_icon(tab_index, tex)
+		return
+
+	# Check avatar's shared cache
+	if AvatarScript._image_cache.has(icon_url):
+		var tex: ImageTexture = AvatarScript._image_cache[icon_url]
+		_guild_icon_cache[guild_id] = tex
+		tab_bar.set_tab_icon(tab_index, tex)
+		return
+
+	# Fetch asynchronously
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(
+		_on_tab_icon_loaded.bind(guild_id, http)
+	)
+	http.request(icon_url)
+
+func _on_tab_icon_loaded(
+	result: int, response_code: int,
+	_headers: PackedStringArray, body: PackedByteArray,
+	guild_id: String, http: HTTPRequest,
+) -> void:
+	http.queue_free()
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		return
+	var image := Image.new()
+	var err := image.load_png_from_buffer(body)
+	if err != OK:
+		err = image.load_jpg_from_buffer(body)
+	if err != OK:
+		err = image.load_webp_from_buffer(body)
+	if err != OK:
+		return
+	image.resize(16, 16)
+	var tex := ImageTexture.create_from_image(image)
+	_guild_icon_cache[guild_id] = tex
+	# Apply to any tabs that need this guild's icon
+	_update_tab_icons()
+
+func _create_color_swatch(c: Color, px: int = 16) -> ImageTexture:
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	img.fill(c)
+	return ImageTexture.create_from_image(img)
 
 func _on_viewport_resized() -> void:
 	var vp_size := get_viewport().get_visible_rect().size
@@ -321,6 +416,8 @@ func _on_hamburger_pressed() -> void:
 	AppState.toggle_sidebar_drawer()
 
 func _on_backdrop_input(event: InputEvent) -> void:
+	if _gestures.is_close_tracking:
+		return
 	if event is InputEventMouseButton and event.pressed:
 		AppState.close_sidebar_drawer()
 	elif event is InputEventScreenTouch and event.pressed:
@@ -508,6 +605,8 @@ func _on_profile_switched() -> void:
 	tabs.clear()
 	tab_bar.clear_tabs()
 	_update_tab_visibility()
+	_update_tab_icons()
+	_guild_icon_cache.clear()
 	# Reset window title
 	get_window().title = "daccord"
 	# Reset topic bar
@@ -527,6 +626,7 @@ func _on_reauth_needed(
 	dlg.auth_completed.connect(func(
 		_url: String, token: String,
 		username: String, password: String,
+		_dn: String,
 	) -> void:
 		Config.update_server_token(server_index, token)
 		Config.update_server_credentials(

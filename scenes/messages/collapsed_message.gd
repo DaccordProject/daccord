@@ -8,7 +8,7 @@ var _long_press: LongPressDetector
 var _is_hovered: bool = false
 
 @onready var timestamp_label: Label = $TimestampSpacer/TimestampLabel
-@onready var message_content: VBoxContainer = $MessageContent
+@onready var message_content = $MessageContent
 
 @onready var timestamp_spacer: Control = $TimestampSpacer
 
@@ -16,7 +16,7 @@ func _ready() -> void:
 	# Allow mouse events to pass through so hover detection
 	# covers the entire message area.
 	timestamp_spacer.mouse_filter = Control.MOUSE_FILTER_PASS
-	timestamp_label.add_theme_font_size_override("font_size", 9)
+	timestamp_label.add_theme_font_size_override("font_size", 11)
 	timestamp_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 	timestamp_label.visible = false
 	mouse_entered.connect(_on_mouse_entered)

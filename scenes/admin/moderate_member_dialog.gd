@@ -1,14 +1,14 @@
 extends ColorRect
 
-var _guild_id: String = ""
-var _user_id: String = ""
-
 # Duration options in seconds
 const DURATIONS := [60, 300, 600, 3600, 86400, 604800]
 const DURATION_LABELS := [
 	"60 seconds", "5 minutes", "10 minutes",
 	"1 hour", "1 day", "1 week"
 ]
+
+var _guild_id: String = ""
+var _user_id: String = ""
 
 @onready var _title_label: Label = \
 	$CenterContainer/Panel/VBox/Header/Title

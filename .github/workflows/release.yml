@@ -42,13 +42,11 @@ jobs:
             artifact: daccord-windows-x86_64
             extension: exe
             os: ubuntu-latest
-          # macOS requires AccordStream .dylib and a macos-latest runner.
-          # Re-enable once AccordStream publishes macOS binaries.
-          # - platform: macos
-          #   preset: macOS
-          #   artifact: daccord-macos
-          #   extension: zip
-          #   os: macos-latest
+          - platform: macos
+            preset: macOS
+            artifact: daccord-macos
+            extension: zip
+            os: macos-latest
 
     steps:
       - uses: actions/checkout@v4
