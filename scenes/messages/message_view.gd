@@ -118,6 +118,11 @@ func _ready() -> void:
 	_hover_timer.timeout.connect(_on_hover_timer_timeout)
 	add_child(_hover_timer)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if AppState.is_imposter_mode and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		AppState.exit_imposter_mode()
+		get_viewport().set_input_as_handled()
+
 func _process(_delta: float) -> void:
 	if not _action_bar.visible or _hovered_message == null:
 		return
@@ -253,22 +258,23 @@ func _load_messages(channel_id: String) -> void:
 	# Determine which animation to play
 	var is_single_new_message: bool = old_count > 0 and new_count == old_count + 1
 
-	if is_single_new_message and not _is_loading_older:
-		# Fade in the last message child
-		var last_msg := _get_last_message_child()
-		if last_msg:
-			last_msg.modulate.a = 0.0
-			var msg_tween := create_tween()
-			msg_tween.tween_property(last_msg, "modulate:a", 1.0, 0.15) \
+	if not Config.get_reduced_motion():
+		if is_single_new_message and not _is_loading_older:
+			# Fade in the last message child
+			var last_msg := _get_last_message_child()
+			if last_msg:
+				last_msg.modulate.a = 0.0
+				var msg_tween := create_tween()
+				msg_tween.tween_property(last_msg, "modulate:a", 1.0, 0.15) \
+					.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		elif not _is_loading_older and old_count != new_count:
+			# Channel transition fade-in (not for single new messages or older-message loads)
+			if _channel_transition_tween and _channel_transition_tween.is_valid():
+				_channel_transition_tween.kill()
+			scroll_container.modulate.a = 0.0
+			_channel_transition_tween = create_tween()
+			_channel_transition_tween.tween_property(scroll_container, "modulate:a", 1.0, 0.15) \
 				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	elif not _is_loading_older and old_count != new_count:
-		# Channel transition fade-in (not for single new messages or older-message loads)
-		if _channel_transition_tween and _channel_transition_tween.is_valid():
-			_channel_transition_tween.kill()
-		scroll_container.modulate.a = 0.0
-		_channel_transition_tween = create_tween()
-		_channel_transition_tween.tween_property(scroll_container, "modulate:a", 1.0, 0.15) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 	# Scroll to bottom (skip when loading older messages to preserve position)
 	if not _is_loading_older:
@@ -413,7 +419,7 @@ func _diff_messages(channel_id: String) -> void:
 	older_btn.visible = messages.size() >= Client.MESSAGE_CAP
 
 	# Animate new appended messages
-	if appended_nodes.size() > 0 and old_count > 0:
+	if not Config.get_reduced_motion() and appended_nodes.size() > 0 and old_count > 0:
 		for entry in appended_nodes:
 			var node: Control = entry["node"]
 			node.modulate.a = 0.0
@@ -704,6 +710,9 @@ func _scroll_to_bottom() -> void:
 
 func _scroll_to_bottom_animated() -> void:
 	var target := int(scroll_container.get_v_scroll_bar().max_value)
+	if Config.get_reduced_motion():
+		scroll_container.scroll_vertical = target
+		return
 	var distance := absi(target - scroll_container.scroll_vertical)
 	if distance < 50:
 		scroll_container.scroll_vertical = target

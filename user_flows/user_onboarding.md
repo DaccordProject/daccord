@@ -140,18 +140,21 @@ sidebar._on_guilds_updated()                           (line 22)
 |------|------|
 | `scripts/autoload/config.gd` | Persists server configs; `has_servers()` (line 85), `get_last_selection()` (line 96), `add_server()` (line 35) |
 | `scripts/autoload/client.gd` | Startup check (line 90), `connect_server()` (line 112), mode transitions |
-| `scripts/autoload/app_state.gd` | `guilds_updated` signal triggers sidebar startup selection |
-| `scenes/sidebar/guild_bar/add_server_button.gd` | "+" button, emits `add_server_pressed` (line 3) |
+| `scripts/autoload/app_state.gd` | `guilds_updated` signal triggers sidebar startup selection; `server_connecting` signal for overlay progress |
+| `scripts/autoload/client_connection.gd` | Server connection lifecycle; emits `server_connecting` at start of `connect_server()` |
+| `scenes/sidebar/guild_bar/add_server_button.gd` | "+" button, emits `add_server_pressed`; pulse animation when no servers configured |
 | `scenes/sidebar/guild_bar/add_server_dialog.gd` | URL parsing (line 24), server probing (line 134), connection (line 161) |
 | `scenes/sidebar/guild_bar/auth_dialog.gd` | Sign In / Register flow, emits `auth_completed` (line 3) |
 | `scenes/sidebar/guild_bar/guild_bar.gd` | Instantiates dialog (line 87), auto-selects new guild (line 92) |
-| `scenes/sidebar/sidebar.gd` | Startup selection logic with `_startup_selection_done` guard (line 6), session restore (line 29) |
+| `scenes/sidebar/sidebar.gd` | Startup selection logic with multi-server retry (fallback + 5s timer), session restore |
 | `scenes/sidebar/channels/channel_list.gd` | Empty state for no channels (lines 45-61), `pending_channel_id` (line 12) |
 | `scenes/messages/message_view.gd` | Empty state for no messages (line 141), loading state (line 116) |
 | `scenes/main/welcome_screen.gd` | Welcome screen with animated background, entrance animations, CTA button, responsive layout |
 | `scenes/main/welcome_screen.tscn` | Welcome screen scene (shader bg, CPUParticles2D, feature cards, CTA button) |
 | `theme/welcome_bg.gdshader` | Animated gradient background shader (bokeh particles, sparkle shimmer) |
-| `scenes/main/main_window.gd` | Root scene; shows welcome screen when no servers configured, dismisses on first `guilds_updated` |
+| `scenes/main/connecting_overlay.gd` | Connecting overlay with animated dots, progress tracking, auto-dismiss |
+| `scenes/main/connecting_overlay.tscn` | Connecting overlay scene |
+| `scenes/main/main_window.gd` | Root scene; shows welcome screen when no servers configured, connecting overlay on startup, dismisses on first `guilds_updated` |
 
 ## Implementation Details
 
@@ -245,17 +248,20 @@ The welcome screen (`welcome_screen.gd`) layers three visual elements:
 - [x] Connection error rollback (removes config entry on failure)
 - [x] Welcome screen with animated shader background, particle effects, staggered entrance animations, and CTA button
 - [x] Main window empty state when no servers are configured (welcome screen replaces blank content area)
-- [ ] Connection progress indicator during startup auto-connect
+- [x] Connection progress indicator during startup auto-connect
+- [x] Pulse animation on "+" button when no servers configured
+- [x] Password minimum length validation on register
+- [x] Multi-server session restore (retry logic with fallback timer)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | ~~No welcome screen on first launch~~ | ~~Medium~~ | **Resolved.** Welcome screen now shows animated shader background, floating particles, branding, feature cards, and "Add a Server" CTA. Dismissed automatically when first server connects. |
-| No connection progress during startup | Medium | `Client._ready()` calls `connect_server()` for each saved server but provides no visual feedback. The user sees a blank screen until `guilds_updated` fires. Message view shows "Loading messages..." only after a channel is selected. |
+| ~~No connection progress during startup~~ | ~~Medium~~ | **Resolved.** `ConnectingOverlay` scene appears during startup auto-connect, showing server name, progress count, and animated dots. Fades out when all servers have connected or failed. `AppState.server_connecting` signal emitted by `ClientConnection.connect_server()`. |
 | ~~No main window empty state~~ | ~~Medium~~ | **Resolved.** Welcome screen fills the content area when no servers are configured. |
-| No onboarding tooltip or callout | Low | First-time users have no visual cue that the "+" button is how to get started. The button has a tooltip ("Add a Server") but no attention-drawing animation or highlight. |
-| No server removal UI | Medium | `Config.remove_server()` exists (line 49) but no UI button or dialog exposes it to the user. Once a server is added, the only way to remove it is to edit the config file. |
-| `_startup_selection_done` blocks multi-server restore | Low | The `_startup_selection_done` guard in `sidebar.gd` (line 6) means only the first `guilds_updated` event triggers session restore. If the saved guild belongs to a server that connects second, the fallback guild from the first server is selected instead. |
-| No password strength validation on register | Low | `auth_dialog._on_generate_password()` (line 109) generates 12-char random passwords, but manual password entry has no length or complexity requirements -- validation is server-side only. |
-| Display name not synced to username on sign-in | Low | When signing in (not registering), the display name field is hidden. The stored `current_user` display name comes from the server, but if the user registered with a different display name elsewhere, there's no way to update it from the auth dialog. |
+| ~~No onboarding tooltip or callout~~ | ~~Low~~ | **Resolved.** The "+" button now pulses with a looping modulate animation when no servers are configured. Pulse stops on first `guilds_updated`. |
+| ~~No server removal UI~~ | ~~Medium~~ | **Resolved.** Guild icon context menu (right-click) provides "Remove Server" option via `guild_icon.gd`. |
+| ~~`_startup_selection_done` blocks multi-server restore~~ | ~~Low~~ | **Resolved.** `sidebar.gd` now retries on each `guilds_updated`: selects the first available guild as a temporary fallback, then switches to the saved guild when its server connects. A 5-second timer accepts the current selection if the saved guild never appears. |
+| ~~No password strength validation on register~~ | ~~Low~~ | **Resolved.** Register mode now shows a "Minimum 8 characters" hint below the password field. Passwords shorter than 8 characters are rejected with a client-side error before the server request. |
+| Display name not synced to username on sign-in | Low | **Deferred.** Not a true onboarding issue. Display name can be updated post-login via profile settings. The server returns the correct display name on sign-in via `GET /users/@me`. |

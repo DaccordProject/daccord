@@ -158,10 +158,19 @@ func _on_bulk_unban() -> void:
 		false
 	)
 	dialog.confirmed.connect(func():
+		var tasks: Array = []
 		for uid in _selected_user_ids.duplicate():
-			await Client.admin.unban_member(_guild_id, uid)
+			tasks.append(Client.admin.unban_member(_guild_id, uid))
+		var failed := 0
+		for task in tasks:
+			var result: RestResult = await task
+			if result == null or not result.ok:
+				failed += 1
 		_selected_user_ids.clear()
 		_update_bulk_ui()
+		if failed > 0:
+			_error_label.text = "Failed to unban %d user(s)" % failed
+			_error_label.visible = true
 	)
 
 func _on_unban(user_id: String, username: String) -> void:

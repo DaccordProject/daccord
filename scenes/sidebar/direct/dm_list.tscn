@@ -29,9 +29,20 @@ layout_mode = 2
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_right = 8
 
-[node name="HeaderLabel" type="Label" parent="VBox/HeaderMargin"]
+[node name="HeaderRow" type="HBoxContainer" parent="VBox/HeaderMargin"]
 layout_mode = 2
+
+[node name="HeaderLabel" type="Label" parent="VBox/HeaderMargin/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "DIRECT MESSAGES"
+
+[node name="NewGroupBtn" type="Button" parent="VBox/HeaderMargin/HeaderRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(24, 24)
+text = "+"
+flat = true
+tooltip_text = "New Group DM"
 
 [node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
 layout_mode = 2

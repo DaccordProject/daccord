@@ -8,13 +8,14 @@ var _role_data: Dictionary = {}
 @onready var _up_btn: Button = $UpButton
 @onready var _down_btn: Button = $DownButton
 @onready var _role_btn: Button = $RoleButton
+@onready var _count_label: Label = $CountLabel
 
 func _ready() -> void:
 	_up_btn.pressed.connect(func(): move_requested.emit(_role_data, -1))
 	_down_btn.pressed.connect(func(): move_requested.emit(_role_data, 1))
 	_role_btn.pressed.connect(func(): selected.emit(_role_data))
 
-func setup(role: Dictionary, index: int, total: int) -> void:
+func setup(role: Dictionary, index: int, total: int, member_count: int = -1) -> void:
 	_role_data = role
 
 	# Arrow characters
@@ -32,3 +33,8 @@ func setup(role: Dictionary, index: int, total: int) -> void:
 
 	_role_btn.text = role.get("name", "")
 	_role_btn.add_theme_color_override("font_color", display_color)
+
+	if member_count >= 0:
+		_count_label.text = str(member_count)
+	else:
+		_count_label.text = ""

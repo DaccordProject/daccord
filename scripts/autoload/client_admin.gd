@@ -195,6 +195,15 @@ func update_member(
 		await _c.fetch.fetch_members(guild_id)
 	return result
 
+func get_audit_log(
+	guild_id: String, query: Dictionary = {}
+) -> RestResult:
+	var client: AccordClient = _c._client_for_guild(guild_id)
+	if client == null:
+		push_error("[Client] No connection for guild: ", guild_id)
+		return null
+	return await client.audit_logs.list(guild_id, query)
+
 func get_bans(
 	guild_id: String, query: Dictionary = {}
 ) -> RestResult:

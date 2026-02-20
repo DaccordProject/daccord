@@ -11,6 +11,12 @@ const ProfileCardScene := preload(
 const WelcomeScreenScene := preload(
 	"res://scenes/main/welcome_screen.tscn"
 )
+const ConnectingOverlayScene := preload(
+	"res://scenes/main/connecting_overlay.tscn"
+)
+const ImageLightboxScene := preload(
+	"res://scenes/messages/image_lightbox.tscn"
+)
 
 var tabs: Array[Dictionary] = []
 var _drawer_tween: Tween
@@ -53,9 +59,12 @@ func _ready() -> void:
 	AppState.dm_mode_entered.connect(_on_dm_mode_entered)
 	AppState.guild_selected.connect(_on_guild_selected)
 	AppState.reauth_needed.connect(_on_reauth_needed)
+	AppState.profile_switched.connect(_on_profile_switched)
 	drawer_backdrop.gui_input.connect(_on_backdrop_input)
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
+	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
+	AppState.update_download_complete.connect(_on_update_download_complete)
 	# Style topic bar
 	topic_bar.add_theme_font_size_override("font_size", 12)
 	topic_bar.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
@@ -78,6 +87,8 @@ func _ready() -> void:
 	# Welcome screen for first launch (no servers configured)
 	if not Config.has_servers():
 		_show_welcome_screen()
+	elif int(Client.mode) == Client.Mode.CONNECTING:
+		_show_connecting_overlay()
 
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:
@@ -235,10 +246,9 @@ func _on_search_toggled(is_open: bool) -> void:
 		search_panel.activate(AppState.current_guild_id)
 
 func _on_dm_mode_entered() -> void:
-	member_toggle.visible = false
-	member_list.visible = false
 	search_toggle.visible = false
 	AppState.close_search()
+	_update_member_list_visibility()
 
 func _on_guild_selected(_guild_id: String) -> void:
 	_update_member_list_visibility()
@@ -247,8 +257,18 @@ func _on_guild_selected(_guild_id: String) -> void:
 
 func _update_member_list_visibility() -> void:
 	if AppState.is_dm_mode:
-		member_toggle.visible = false
-		member_list.visible = false
+		# Show member list for group DMs only
+		var dm: Dictionary = {}
+		for d in Client.dm_channels:
+			if d["id"] == AppState.current_channel_id:
+				dm = d
+				break
+		if dm.get("is_group", false):
+			member_toggle.visible = true
+			member_list.visible = AppState.member_list_visible
+		else:
+			member_toggle.visible = false
+			member_list.visible = false
 		return
 	match AppState.current_layout_mode:
 		AppState.LayoutMode.FULL:
@@ -320,6 +340,10 @@ func _open_drawer() -> void:
 	drawer_container.visible = true
 	sidebar.visible = true
 	sidebar.offset_right = dw
+	if Config.get_reduced_motion():
+		sidebar.position.x = 0.0
+		drawer_backdrop.modulate.a = 1.0
+		return
 	# Animate: slide in from left
 	sidebar.position.x = -dw
 	drawer_backdrop.modulate.a = 0.0
@@ -332,6 +356,9 @@ func _open_drawer() -> void:
 func _close_drawer() -> void:
 	if _drawer_tween:
 		_drawer_tween.kill()
+	if Config.get_reduced_motion():
+		_hide_drawer_nodes()
+		return
 	var dw := _get_drawer_width()
 	_drawer_tween = create_tween().set_parallel(true)
 	_drawer_tween.tween_property(
@@ -369,6 +396,10 @@ func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
 	var x: float = clampf(pos.x, 0.0, vp_size.x - card_size.x)
 	var y: float = clampf(pos.y, 0.0, vp_size.y - card_size.y)
 	_active_profile_card.position = Vector2(x, y)
+
+func _show_connecting_overlay() -> void:
+	var overlay: ColorRect = ConnectingOverlayScene.instantiate()
+	add_child(overlay)
 
 func _show_welcome_screen() -> void:
 	_welcome_screen = WelcomeScreenScene.instantiate()
@@ -452,8 +483,38 @@ func _show_crash_toast() -> void:
 	add_child(panel)
 	var tween := create_tween()
 	tween.tween_interval(4.0)
-	tween.tween_property(panel, "modulate:a", 0.0, 1.0)
-	tween.tween_callback(panel.queue_free)
+	if Config.get_reduced_motion():
+		tween.tween_callback(panel.queue_free)
+	else:
+		tween.tween_property(panel, "modulate:a", 0.0, 1.0)
+		tween.tween_callback(panel.queue_free)
+
+func _on_image_lightbox_requested(
+	_url: String, texture: ImageTexture,
+) -> void:
+	if texture == null:
+		return
+	var lightbox: ColorRect = ImageLightboxScene.instantiate()
+	add_child(lightbox)
+	lightbox.show_image(texture)
+
+func _on_update_download_complete(_path: String) -> void:
+	var title: String = get_window().title
+	if not title.ends_with("[Update ready]"):
+		get_window().title = title + " [Update ready]"
+
+func _on_profile_switched() -> void:
+	# Clear tabs
+	tabs.clear()
+	tab_bar.clear_tabs()
+	_update_tab_visibility()
+	# Reset window title
+	get_window().title = "daccord"
+	# Reset topic bar
+	topic_bar.visible = false
+	# Show welcome screen if no servers in new profile
+	if not Config.has_servers():
+		_show_welcome_screen()
 
 func _on_reauth_needed(
 	server_index: int, base_url: String,

@@ -20,6 +20,9 @@ func connect_server(
 	var base_url: String = cfg["base_url"]
 	var token: String = cfg["token"]
 	var guild_name: String = cfg["guild_name"]
+	AppState.server_connecting.emit(
+		guild_name, index, servers.size()
+	)
 	var gw_url: String = _c._derive_gateway_url(base_url)
 	var cdn_url: String = _c._derive_cdn_url(base_url)
 
@@ -40,6 +43,7 @@ func connect_server(
 	conn["client"] = client
 
 	# Fetch current user
+	AppState.connection_step.emit("Authenticating...")
 	var me_result: RestResult = await client.users.get_me()
 	if not me_result.ok and base_url.begins_with("https://"):
 		print(
@@ -59,6 +63,7 @@ func connect_server(
 
 	# Token expired/invalid -- try re-auth with stored credentials
 	if not me_result.ok:
+		AppState.connection_step.emit("Re-authenticating...")
 		var new_token: String = await _c.mutations.try_reauth(
 			base_url, cfg.get("username", ""),
 			cfg.get("password", ""),
@@ -115,6 +120,7 @@ func connect_server(
 
 	# Accept invite if provided (non-fatal)
 	if not invite_code.is_empty():
+		AppState.connection_step.emit("Accepting invite...")
 		var inv: RestResult = await client.invites.accept(invite_code)
 		if not inv.ok:
 			var inv_err: String = (
@@ -126,6 +132,7 @@ func connect_server(
 			)
 
 	# Find the guild matching guild_name
+	AppState.connection_step.emit("Fetching spaces...")
 	var spaces_result: RestResult = await client.users.list_spaces()
 	if not spaces_result.ok:
 		var err_msg: String = (
@@ -182,6 +189,7 @@ func connect_server(
 	conn["guild_id"] = found_guild_id
 	_c._guild_to_conn[found_guild_id] = index
 	_c._gw.connect_signals(client, index)
+	AppState.connection_step.emit("Connecting to gateway...")
 	client.login()
 
 	conn["status"] = "connected"
@@ -209,6 +217,43 @@ func _make_client(
 	c.intents = GatewayIntents.all()
 	_c.add_child(c)
 	return c
+
+func disconnect_all() -> void:
+	# Leave voice if active
+	if not AppState.voice_channel_id.is_empty():
+		AppState.leave_voice()
+	# Logout and free all clients
+	for conn in _c._connections:
+		if conn != null and conn["client"] != null:
+			conn["client"].logout()
+			conn["client"].queue_free()
+	# Clear all caches
+	_c._connections.clear()
+	_c._user_cache.clear()
+	_c._guild_cache.clear()
+	_c._channel_cache.clear()
+	_c._dm_channel_cache.clear()
+	_c._message_cache.clear()
+	_c._member_cache.clear()
+	_c._role_cache.clear()
+	_c._voice_state_cache.clear()
+	_c._voice_server_info.clear()
+	_c._unread_channels.clear()
+	_c._channel_mention_counts.clear()
+	_c._message_id_index.clear()
+	_c._member_id_index.clear()
+	_c._guild_to_conn.clear()
+	_c._channel_to_guild.clear()
+	_c._dm_to_conn.clear()
+	_c._auto_reconnect_attempted.clear()
+	_c._emoji_download_pending.clear()
+	_c._remote_tracks.clear()
+	# Reset state
+	_c.current_user = {}
+	_c.mode = Client.Mode.CONNECTING
+	# Clear custom emoji caches
+	ClientModels.custom_emoji_paths.clear()
+	ClientModels.custom_emoji_textures.clear()
 
 func disconnect_server(guild_id: String) -> void:
 	var idx: int = _c._guild_to_conn.get(guild_id, -1)

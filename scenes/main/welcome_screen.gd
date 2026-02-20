@@ -42,6 +42,9 @@ func _on_resized() -> void:
 
 
 func _animate_entrance() -> void:
+	if Config.get_reduced_motion():
+		return
+
 	# Prepare: hide all content, offset downward
 	var elements: Array[Control] = [
 		logo_label, tagline_label, features_hbox, cta_button,
@@ -96,6 +99,8 @@ func _animate_entrance() -> void:
 
 
 func _start_cta_pulse() -> void:
+	if Config.get_reduced_motion():
+		return
 	_pulse_tween = create_tween().set_loops()
 	_pulse_tween.tween_property(
 		cta_button, "modulate", Color(1.1, 1.1, 1.1, 1.0), 1.0
@@ -108,6 +113,11 @@ func _start_cta_pulse() -> void:
 func dismiss() -> void:
 	if _pulse_tween:
 		_pulse_tween.kill()
+
+	if Config.get_reduced_motion():
+		dismissed.emit()
+		queue_free()
+		return
 
 	var tween := create_tween().set_parallel(true)
 

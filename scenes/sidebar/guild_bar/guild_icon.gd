@@ -8,7 +8,9 @@ const RoleMgmtScene := preload("res://scenes/admin/role_management_dialog.tscn")
 const BanListScene := preload("res://scenes/admin/ban_list_dialog.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn")
+const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 
 var guild_id: String = ""
 var guild_name: String = ""
@@ -19,6 +21,8 @@ var _server_index: int = -1
 
 var _context_menu: PopupMenu
 var _status_dot: ColorRect
+var _drop_above: bool = false
+var _drop_hovered: bool = false
 
 @onready var pill: ColorRect = $PillContainer/Pill
 @onready var icon_button: Button = $ButtonContainer/IconButton
@@ -37,6 +41,7 @@ func _ready() -> void:
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
 	add_child(_context_menu)
 	icon_button.gui_input.connect(_on_icon_gui_input)
+	icon_button.set_drag_forwarding(_guild_get_drag_data, _guild_can_drop_data, _guild_drop_data)
 
 	# Status dot (bottom-right of icon)
 	_status_dot = ColorRect.new()
@@ -161,6 +166,14 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Emojis", idx)
 		idx += 1
 
+	if Client.has_permission(guild_id, AccordPermission.VIEW_AUDIT_LOG):
+		_context_menu.add_item("Audit Log", idx)
+		idx += 1
+
+	if not AppState.is_imposter_mode and Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES):
+		_context_menu.add_item("View As...", idx)
+		idx += 1
+
 	var status := Client.get_guild_connection_status(guild_id)
 	if status == "disconnected" or status == "error":
 		_context_menu.add_item("Reconnect", idx)
@@ -218,6 +231,14 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			var dialog := EmojiMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(guild_id)
+		"Audit Log":
+			var dialog := AuditLogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(guild_id)
+		"View As...":
+			var dialog := ImposterPickerScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(guild_id)
 		"Reconnect":
 			var conn_idx: int = _server_index \
 				if _is_disconnected \
@@ -234,6 +255,15 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		"Move to Folder":
 			_show_folder_dialog()
 		"Remove from Folder":
+			# Find which folder this guild is in and insert standalone entry at same position
+			var cur_folder: String = Config.get_guild_folder(guild_id)
+			var order: Array = Config.get_guild_order()
+			var new_order: Array = []
+			for entry in order:
+				new_order.append(entry)
+				if entry is Dictionary and entry.get("type") == "folder" and entry.get("name") == cur_folder:
+					new_order.append({"type": "guild", "id": guild_id})
+			Config.set_guild_order(new_order)
 			Config.set_guild_folder(guild_id, "")
 			Client.update_guild_folder(guild_id, "")
 		"Remove Server":
@@ -291,6 +321,14 @@ func _show_folder_dialog() -> void:
 	dialog.confirmed.connect(func():
 		var folder_text: String = line_edit.text.strip_edges()
 		if not folder_text.is_empty():
+			# Remove standalone entry from saved order
+			var order: Array = Config.get_guild_order()
+			var cleaned: Array = []
+			for entry in order:
+				if entry is Dictionary and entry.get("type") == "guild" and entry.get("id") == guild_id:
+					continue
+				cleaned.append(entry)
+			Config.set_guild_order(cleaned)
 			Config.set_guild_folder(guild_id, folder_text)
 			Client.update_guild_folder(guild_id, folder_text)
 		dialog.queue_free()
@@ -334,3 +372,80 @@ func _update_status_dot() -> void:
 			_status_dot.visible = true
 		_:
 			_status_dot.visible = false
+
+# --- Drag-and-drop reordering ---
+
+func _is_top_level_in_guild_bar() -> bool:
+	var parent := get_parent()
+	return parent != null and parent.name == "GuildList" and parent.get_parent().name == "VBox"
+
+func _guild_get_drag_data(_at_position: Vector2) -> Variant:
+	if not _is_top_level_in_guild_bar():
+		return null
+	var preview := Label.new()
+	preview.text = guild_name
+	preview.add_theme_font_size_override("font_size", 11)
+	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	set_drag_preview(preview)
+	return {"type": "guild_bar_item", "item_type": "guild", "guild_id": guild_id, "source_node": self}
+
+func _guild_can_drop_data(at_position: Vector2, data: Variant) -> bool:
+	if not data is Dictionary or data.get("type", "") != "guild_bar_item":
+		_clear_drop_indicator()
+		return false
+	var source: Control = data.get("source_node")
+	if source == self:
+		_clear_drop_indicator()
+		return false
+	if not _is_top_level_in_guild_bar():
+		_clear_drop_indicator()
+		return false
+	if source == null or source.get_parent() != get_parent():
+		_clear_drop_indicator()
+		return false
+	_drop_above = at_position.y < size.y / 2.0
+	_drop_hovered = true
+	queue_redraw()
+	return true
+
+func _guild_drop_data(_at_position: Vector2, data: Variant) -> void:
+	_clear_drop_indicator()
+	var source: Control = data.get("source_node")
+	if source == null or source.get_parent() != get_parent():
+		return
+	var container := get_parent()
+	var target_idx: int = get_index()
+	if not _drop_above:
+		target_idx += 1
+	container.move_child(source, target_idx)
+	_save_guild_bar_order()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		_clear_drop_indicator()
+
+func _clear_drop_indicator() -> void:
+	if _drop_hovered:
+		_drop_hovered = false
+		queue_redraw()
+
+func _draw() -> void:
+	if not _drop_hovered:
+		return
+	var line_color := Color(0.34, 0.52, 0.89)
+	if _drop_above:
+		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
+	else:
+		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+
+static func _save_guild_bar_order_from(container: Node) -> void:
+	var order: Array = []
+	for child in container.get_children():
+		if child is HBoxContainer and "guild_id" in child and not child.guild_id.is_empty():
+			order.append({"type": "guild", "id": child.guild_id})
+		elif child is VBoxContainer and "folder_name" in child and not child.folder_name.is_empty():
+			order.append({"type": "folder", "name": child.folder_name})
+	Config.set_guild_order(order)
+
+func _save_guild_bar_order() -> void:
+	_save_guild_bar_order_from(get_parent())

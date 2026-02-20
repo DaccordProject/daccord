@@ -151,10 +151,19 @@ func _on_bulk_revoke() -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
+		var tasks: Array = []
 		for code in _selected_codes.duplicate():
-			await Client.admin.delete_invite(code, _guild_id)
+			tasks.append(Client.admin.delete_invite(code, _guild_id))
+		var failed := 0
+		for task in tasks:
+			var result: RestResult = await task
+			if result == null or not result.ok:
+				failed += 1
 		_selected_codes.clear()
 		_update_bulk_ui()
+		if failed > 0:
+			_error_label.text = "Failed to revoke %d invite(s)" % failed
+			_error_label.visible = true
 	)
 
 func _toggle_create() -> void:

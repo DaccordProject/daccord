@@ -4,6 +4,7 @@ signal guild_pressed(guild_id: String)
 signal folder_changed()
 
 const GuildIconScene := preload("res://scenes/sidebar/guild_bar/guild_icon.tscn")
+const AvatarScene := preload("res://scenes/common/avatar.tscn")
 
 var folder_name: String = ""
 var is_expanded: bool = false
@@ -14,6 +15,8 @@ var _active_guild_id: String = ""
 var _expand_tween: Tween
 var _guilds_data_cache: Array = []
 var _context_menu: PopupMenu
+var _drop_above: bool = false
+var _drop_hovered: bool = false
 
 @onready var pill: ColorRect = $FolderRow/PillContainer/Pill
 @onready var folder_button: Button = $FolderRow/ButtonContainer/FolderButton
@@ -38,6 +41,7 @@ func _ready() -> void:
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
 	add_child(_context_menu)
 	folder_button.gui_input.connect(_on_folder_gui_input)
+	folder_button.set_drag_forwarding(_folder_get_drag_data, _folder_can_drop_data, _folder_drop_data)
 
 func setup(p_name: String, guilds: Array, folder_color: Color = Color(0.212, 0.224, 0.247)) -> void:
 	folder_name = p_name
@@ -49,15 +53,20 @@ func setup(p_name: String, guilds: Array, folder_color: Color = Color(0.212, 0.2
 		style.bg_color = folder_color.darkened(0.6)
 		folder_button.add_theme_stylebox_override("normal", style)
 
-	# Create mini grid preview (up to 4 tiny color squares)
+	# Create mini grid preview (up to 4 tiny guild avatars)
 	for child in mini_grid.get_children():
 		child.queue_free()
 	for i in min(guilds.size(), 4):
-		var swatch := ColorRect.new()
-		swatch.custom_minimum_size = Vector2(14, 14)
-		swatch.color = guilds[i].get("icon_color", Color.GRAY)
-		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mini_grid.add_child(swatch)
+		var avatar: ColorRect = AvatarScene.instantiate()
+		avatar.avatar_size = 14
+		avatar.show_letter = false
+		avatar.custom_minimum_size = Vector2(14, 14)
+		avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mini_grid.add_child(avatar)
+		avatar.set_avatar_color(guilds[i].get("icon_color", Color.GRAY))
+		var icon_url = guilds[i].get("icon", null)
+		if icon_url is String and not icon_url.is_empty():
+			avatar.set_avatar_url(icon_url)
 
 	# Create full guild icons for expanded view
 	for child in guild_list.get_children():
@@ -130,6 +139,11 @@ func _toggle_expanded() -> void:
 	if _expand_tween and _expand_tween.is_valid():
 		_expand_tween.kill()
 
+	if Config.get_reduced_motion():
+		guild_list.visible = is_expanded
+		guild_list.modulate.a = 1.0
+		return
+
 	if is_expanded:
 		guild_list.visible = true
 		guild_list.modulate.a = 0.0
@@ -201,6 +215,13 @@ func _rename_folder(new_name: String) -> void:
 		Client.update_guild_folder(icon.guild_id, new_name)
 	# Migrate folder color
 	Config.rename_folder_color(old_name, new_name)
+	# Update saved order
+	var order: Array = Config.get_guild_order()
+	for entry in order:
+		if entry is Dictionary and entry.get("type") == "folder" and entry.get("name") == old_name:
+			entry["name"] = new_name
+			break
+	Config.set_guild_order(order)
 
 func _show_color_picker() -> void:
 	var dialog := ConfirmationDialog.new()
@@ -240,7 +261,117 @@ func _show_delete_confirm() -> void:
 	dialog.popup_centered()
 
 func _delete_folder() -> void:
+	# Update saved order: replace folder entry with standalone guild entries
+	var order: Array = Config.get_guild_order()
+	var new_order: Array = []
+	for entry in order:
+		if entry is Dictionary and entry.get("type") == "folder" and entry.get("name") == folder_name:
+			# Replace folder with its guild entries
+			for icon in guild_icons:
+				new_order.append({"type": "guild", "id": icon.guild_id})
+		else:
+			new_order.append(entry)
+	Config.set_guild_order(new_order)
 	for icon in guild_icons:
 		Config.set_guild_folder(icon.guild_id, "")
 		Client.update_guild_folder(icon.guild_id, "")
 	Config.delete_folder_color(folder_name)
+
+# --- Drag-and-drop reordering ---
+
+func _folder_get_drag_data(_at_position: Vector2) -> Variant:
+	var preview := Label.new()
+	preview.text = folder_name
+	preview.add_theme_font_size_override("font_size", 11)
+	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	set_drag_preview(preview)
+	return {"type": "guild_bar_item", "item_type": "folder", "folder_name": folder_name, "source_node": self}
+
+func _folder_can_drop_data(at_position: Vector2, data: Variant) -> bool:
+	if not data is Dictionary or data.get("type", "") != "guild_bar_item":
+		_clear_drop_indicator()
+		return false
+	var source: Control = data.get("source_node")
+	if source == self:
+		_clear_drop_indicator()
+		return false
+	# Accept sibling reorder or standalone guild being dropped onto folder
+	if source == null or source.get_parent() != get_parent():
+		_clear_drop_indicator()
+		return false
+	# at_position is relative to folder_button (via set_drag_forwarding)
+	var btn_h: float = folder_button.size.y
+	# If a standalone guild is dropped onto center of folder, add to folder
+	var item_type: String = data.get("item_type", "")
+	if item_type == "guild":
+		var third: float = btn_h / 3.0
+		if at_position.y > third and at_position.y < third * 2.0:
+			# Center zone: drop into folder
+			_drop_above = false
+			_drop_hovered = false
+			queue_redraw()
+			return true
+	_drop_above = at_position.y < btn_h / 2.0
+	_drop_hovered = true
+	queue_redraw()
+	return true
+
+func _folder_drop_data(at_position: Vector2, data: Variant) -> void:
+	_clear_drop_indicator()
+	var source: Control = data.get("source_node")
+	if source == null or source.get_parent() != get_parent():
+		return
+	var item_type: String = data.get("item_type", "")
+	# Check if standalone guild dropped onto folder center (add to folder)
+	var btn_h: float = folder_button.size.y
+	if item_type == "guild":
+		var third: float = btn_h / 3.0
+		if at_position.y > third and at_position.y < third * 2.0:
+			var gid: String = data.get("guild_id", "")
+			if not gid.is_empty():
+				Config.set_guild_folder(gid, folder_name)
+				Client.update_guild_folder(gid, folder_name)
+				# Remove standalone entry from order (folder already tracked)
+				var order: Array = Config.get_guild_order()
+				var cleaned: Array = []
+				for entry in order:
+					if entry is Dictionary and entry.get("type") == "guild" and entry.get("id") == gid:
+						continue
+					cleaned.append(entry)
+				Config.set_guild_order(cleaned)
+			return
+	# Sibling reorder
+	var container := get_parent()
+	var target_idx: int = get_index()
+	if not _drop_above:
+		target_idx += 1
+	container.move_child(source, target_idx)
+	_save_guild_bar_order()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		_clear_drop_indicator()
+
+func _clear_drop_indicator() -> void:
+	if _drop_hovered:
+		_drop_hovered = false
+		queue_redraw()
+
+func _draw() -> void:
+	if not _drop_hovered:
+		return
+	var line_color := Color(0.34, 0.52, 0.89)
+	if _drop_above:
+		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
+	else:
+		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+
+func _save_guild_bar_order() -> void:
+	var container := get_parent()
+	var order: Array = []
+	for child in container.get_children():
+		if child is HBoxContainer and "guild_id" in child and not child.guild_id.is_empty():
+			order.append({"type": "guild", "id": child.guild_id})
+		elif child is VBoxContainer and "folder_name" in child and not child.folder_name.is_empty():
+			order.append({"type": "folder", "name": child.folder_name})
+	Config.set_guild_order(order)

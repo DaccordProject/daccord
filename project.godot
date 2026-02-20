@@ -28,6 +28,7 @@ Config="*res://scripts/autoload/config.gd"
 ErrorReporting="*res://scripts/autoload/error_reporting.gd"
 Client="*res://scripts/autoload/client.gd"
 SoundManager="*res://scripts/autoload/sound_manager.gd"
+Updater="*res://scripts/autoload/updater.gd"
 
 [debug]
 

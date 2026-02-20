@@ -32,6 +32,8 @@ func _ready() -> void:
 	AppState.server_disconnected.connect(func(_gid, _c, _r): update_enabled_state())
 	AppState.server_reconnected.connect(func(_gid): update_enabled_state())
 	AppState.server_connection_failed.connect(func(_gid, _r): update_enabled_state())
+	AppState.imposter_mode_changed.connect(func(_a): update_enabled_state())
+	AppState.channel_selected.connect(_on_channel_selected_restore_draft)
 	# Style reply bar
 	reply_label.add_theme_font_size_override("font_size", 12)
 	reply_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
@@ -278,6 +280,22 @@ func _on_message_send_failed(channel_id: String, content: String, error: String)
 func update_enabled_state() -> void:
 	var guild_id: String = Client._channel_to_guild.get(AppState.current_channel_id, "")
 	var connected := Client.is_guild_connected(guild_id) if not guild_id.is_empty() else true
+
+	# Imposter mode: always disable sending (view-only preview)
+	if AppState.is_imposter_mode and guild_id == AppState.imposter_guild_id:
+		text_input.editable = false
+		send_button.disabled = true
+		upload_button.disabled = true
+		emoji_button.disabled = true
+		if _saved_placeholder.is_empty():
+			_saved_placeholder = text_input.placeholder_text
+		var has_send: bool = AccordPermission.has(AppState.imposter_permissions, AccordPermission.SEND_MESSAGES)
+		if not has_send:
+			text_input.placeholder_text = "Cannot send \u2014 previewing as %s" % AppState.imposter_role_name
+		else:
+			text_input.placeholder_text = "Preview mode \u2014 sending disabled"
+		return
+
 	text_input.editable = connected
 	send_button.disabled = not connected
 	upload_button.disabled = not connected
@@ -290,6 +308,13 @@ func update_enabled_state() -> void:
 	else:
 		_saved_placeholder = text_input.placeholder_text
 		text_input.placeholder_text = "Cannot send messages \u2014 disconnected"
+
+func _on_channel_selected_restore_draft(channel_id: String) -> void:
+	var draft: String = Config.get_draft_text(channel_id)
+	if not draft.is_empty():
+		text_input.text = draft
+		text_input.set_caret_column(draft.length())
+		Config.clear_draft_text(channel_id)
 
 func _exit_tree() -> void:
 	if _emoji_picker and is_instance_valid(_emoji_picker):

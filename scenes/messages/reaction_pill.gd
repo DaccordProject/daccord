@@ -48,13 +48,14 @@ func _on_toggled(toggled_on: bool) -> void:
 	count_label.text = str(reaction_count)
 	_update_active_style()
 	# Bounce animation
-	if _press_tween and _press_tween.is_valid():
-		_press_tween.kill()
-	pivot_offset = size / 2
-	scale = Vector2(1.15, 1.15)
-	_press_tween = create_tween()
-	_press_tween.tween_property(self, "scale", Vector2.ONE, 0.15) \
-		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	if not Config.get_reduced_motion():
+		if _press_tween and _press_tween.is_valid():
+			_press_tween.kill()
+		pivot_offset = size / 2
+		scale = Vector2(1.15, 1.15)
+		_press_tween = create_tween()
+		_press_tween.tween_property(self, "scale", Vector2.ONE, 0.15) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 
 	# Call server API
 	if not channel_id.is_empty() and not message_id.is_empty():

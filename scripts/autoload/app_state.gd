@@ -29,6 +29,12 @@ signal typing_stopped(channel_id: String)
 @warning_ignore("unused_signal")
 signal members_updated(guild_id: String)
 @warning_ignore("unused_signal")
+signal member_joined(guild_id: String, member_data: Dictionary)
+@warning_ignore("unused_signal")
+signal member_left(guild_id: String, user_id: String)
+@warning_ignore("unused_signal")
+signal member_status_changed(guild_id: String, user_id: String, new_status: int)
+@warning_ignore("unused_signal")
 signal roles_updated(guild_id: String)
 @warning_ignore("unused_signal")
 signal bans_updated(guild_id: String)
@@ -59,7 +65,7 @@ signal video_enabled_changed(is_enabled: bool)
 @warning_ignore("unused_signal")
 signal screen_share_changed(is_sharing: bool)
 @warning_ignore("unused_signal")
-signal remote_track_received(user_id: String, track: AccordMediaTrack)
+signal remote_track_received(user_id: String, track)
 @warning_ignore("unused_signal")
 signal remote_track_removed(user_id: String)
 @warning_ignore("unused_signal")
@@ -75,6 +81,14 @@ signal server_reconnecting(guild_id: String, attempt: int, max_attempts: int)
 @warning_ignore("unused_signal")
 signal server_reconnected(guild_id: String)
 @warning_ignore("unused_signal")
+signal profile_switched()
+@warning_ignore("unused_signal")
+signal imposter_mode_changed(active: bool)
+@warning_ignore("unused_signal")
+signal connection_step(step: String)
+@warning_ignore("unused_signal")
+signal server_connecting(server_name: String, index: int, total: int)
+@warning_ignore("unused_signal")
 signal server_connection_failed(guild_id: String, reason: String)
 @warning_ignore("unused_signal")
 signal message_send_failed(channel_id: String, content: String, error: String)
@@ -86,6 +100,8 @@ signal message_delete_failed(message_id: String, error: String)
 signal message_fetch_failed(channel_id: String, error: String)
 @warning_ignore("unused_signal")
 signal reaction_failed(channel_id: String, message_id: String, emoji: String, error: String)
+@warning_ignore("unused_signal")
+signal image_lightbox_requested(url: String, texture: ImageTexture)
 
 # Auto-update signals
 @warning_ignore("unused_signal")
@@ -94,6 +110,8 @@ signal update_available(version_info: Dictionary)
 signal update_check_complete(version_info: Variant)
 @warning_ignore("unused_signal")
 signal update_check_failed(error: String)
+@warning_ignore("unused_signal")
+signal update_download_started()
 @warning_ignore("unused_signal")
 signal update_download_progress(percent: float)
 @warning_ignore("unused_signal")
@@ -128,8 +146,14 @@ var is_voice_deafened: bool = false
 var is_video_enabled: bool = false
 var is_screen_sharing: bool = false
 var pending_attachments: Array = []
+var is_imposter_mode: bool = false
+var imposter_permissions: Array = []
+var imposter_role_name: String = ""
+var imposter_guild_id: String = ""
 
 func select_guild(guild_id: String) -> void:
+	if is_imposter_mode and guild_id != imposter_guild_id:
+		exit_imposter_mode()
 	current_guild_id = guild_id
 	is_dm_mode = false
 	guild_selected.emit(guild_id)
@@ -139,6 +163,8 @@ func select_channel(channel_id: String) -> void:
 	channel_selected.emit(channel_id)
 
 func enter_dm_mode() -> void:
+	if is_imposter_mode:
+		exit_imposter_mode()
 	is_dm_mode = true
 	current_guild_id = ""
 	dm_mode_entered.emit()
@@ -242,3 +268,19 @@ func set_video_enabled(enabled: bool) -> void:
 func set_screen_sharing(sharing: bool) -> void:
 	is_screen_sharing = sharing
 	screen_share_changed.emit(sharing)
+
+func enter_imposter_mode(role_data: Dictionary) -> void:
+	is_imposter_mode = true
+	imposter_permissions = role_data.get("permissions", [])
+	imposter_role_name = role_data.get("name", "Unknown")
+	imposter_guild_id = role_data.get("guild_id", current_guild_id)
+	imposter_mode_changed.emit(true)
+
+func exit_imposter_mode() -> void:
+	if not is_imposter_mode:
+		return
+	is_imposter_mode = false
+	imposter_permissions = []
+	imposter_role_name = ""
+	imposter_guild_id = ""
+	imposter_mode_changed.emit(false)

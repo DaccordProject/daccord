@@ -150,3 +150,110 @@ func test_is_newer_release_newer_than_prerelease() -> void:
 func test_is_newer_next_version_prerelease() -> void:
 	# 1.1.0-beta is newer than 1.0.0 (higher minor)
 	assert_true(Updater.is_newer("1.1.0-beta", "1.0.0"))
+
+
+# ------------------------------------------------------------------
+# _parse_release
+# ------------------------------------------------------------------
+
+func test_parse_release_valid_with_linux_asset() -> void:
+	var data := {
+		"tag_name": "v1.2.0",
+		"html_url": "https://github.com/DaccordProject/daccord/releases/tag/v1.2.0",
+		"body": "Release notes here",
+		"prerelease": false,
+		"assets": [
+			{
+				"name": "daccord-linux-x86_64.tar.gz",
+				"browser_download_url": "https://github.com/download/linux.tar.gz",
+				"size": 50000000,
+			},
+			{
+				"name": "daccord-windows-x86_64.zip",
+				"browser_download_url": "https://github.com/download/win.zip",
+				"size": 60000000,
+			},
+		],
+	}
+	var r: Dictionary = Updater._parse_release(data)
+	assert_eq(r["version"], "1.2.0")
+	assert_eq(r["tag"], "v1.2.0")
+	assert_eq(r["release_url"], "https://github.com/DaccordProject/daccord/releases/tag/v1.2.0")
+	assert_eq(r["notes"], "Release notes here")
+	assert_eq(r["prerelease"], false)
+	assert_eq(r["download_url"], "https://github.com/download/linux.tar.gz")
+	assert_eq(r["download_size"], 50000000)
+
+
+func test_parse_release_missing_tag() -> void:
+	var data := {
+		"html_url": "https://example.com",
+		"body": "notes",
+	}
+	var r: Dictionary = Updater._parse_release(data)
+	assert_true(r.is_empty())
+
+
+func test_parse_release_invalid_tag() -> void:
+	var data := {
+		"tag_name": "not-a-version",
+		"html_url": "https://example.com",
+	}
+	var r: Dictionary = Updater._parse_release(data)
+	assert_true(r.is_empty())
+
+
+func test_parse_release_no_linux_asset() -> void:
+	var data := {
+		"tag_name": "v2.0.0",
+		"html_url": "https://example.com/release",
+		"body": "",
+		"prerelease": false,
+		"assets": [
+			{
+				"name": "daccord-windows-x86_64.zip",
+				"browser_download_url": "https://example.com/win.zip",
+				"size": 40000000,
+			},
+		],
+	}
+	var r: Dictionary = Updater._parse_release(data)
+	assert_eq(r["version"], "2.0.0")
+	assert_eq(r["download_url"], "")
+	assert_eq(r["download_size"], 0)
+
+
+# ------------------------------------------------------------------
+# is_downloading / is_update_ready (instance state)
+# ------------------------------------------------------------------
+
+func test_is_downloading_default_false() -> void:
+	var instance := Updater.new()
+	assert_false(instance.is_downloading())
+	instance.free()
+
+
+func test_is_update_ready_default_false() -> void:
+	var instance := Updater.new()
+	assert_false(instance.is_update_ready())
+	instance.free()
+
+
+func test_parse_release_prerelease_tag() -> void:
+	var data := {
+		"tag_name": "v1.3.0-beta.1",
+		"html_url": "https://example.com/pre",
+		"body": "Beta notes",
+		"prerelease": true,
+		"assets": [
+			{
+				"name": "daccord-linux-x86_64.tar.gz",
+				"browser_download_url": "https://example.com/linux-beta.tar.gz",
+				"size": 48000000,
+			},
+		],
+	}
+	var r: Dictionary = Updater._parse_release(data)
+	assert_eq(r["version"], "1.3.0-beta.1")
+	assert_eq(r["prerelease"], true)
+	assert_eq(r["download_url"], "https://example.com/linux-beta.tar.gz")

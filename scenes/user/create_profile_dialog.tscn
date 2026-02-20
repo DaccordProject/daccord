@@ -1,0 +1,121 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/user/create_profile_dialog.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+bg_color = Color(0.184, 0.192, 0.212, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_left = 8
+corner_radius_bottom_right = 8
+content_margin_left = 24.0
+content_margin_top = 20.0
+content_margin_right = 24.0
+content_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxFlat" id="create_btn_normal"]
+bg_color = Color(0.345, 0.396, 0.949, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 4.0
+content_margin_right = 12.0
+content_margin_bottom = 4.0
+
+[node name="CreateProfileDialog" type="ColorRect"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(400, 0)
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "New Profile"
+theme_override_font_sizes/font_size = 20
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "PROFILE NAME"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+max_length = 32
+placeholder_text = "e.g. Work, Personal"
+
+[node name="PasswordLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "PASSWORD (optional)"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="PasswordInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+placeholder_text = "Protect this profile"
+secret = true
+
+[node name="ConfirmLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+text = "CONFIRM PASSWORD"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="ConfirmInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+placeholder_text = "Confirm password"
+secret = true
+
+[node name="OptionLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "INITIAL DATA"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="ScratchRadio" type="CheckBox" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+button_pressed = true
+text = "Start from scratch"
+
+[node name="CopyRadio" type="CheckBox" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Copy current profile"
+
+[node name="CreateButton" type="Button" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+text = "Create"
+theme_override_styles/normal = SubResource("create_btn_normal")
+
+[node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+autowrap_mode = 2

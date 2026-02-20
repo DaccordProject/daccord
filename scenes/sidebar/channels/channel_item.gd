@@ -85,6 +85,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.add_theme_font_size_override("font_size", 14)
 		_gear_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		_gear_btn.tooltip_text = "Edit Channel"
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$HBox.add_child(_gear_btn)
 

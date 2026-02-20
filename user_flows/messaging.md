@@ -65,7 +65,9 @@ Sending:
     -> Client._on_message_create()
       -> _message_cache[channel_id].append(msg_dict)
       -> AppState.messages_updated.emit(channel_id)
-    -> message_view._on_messages_updated() -> re-renders
+    -> message_view._on_messages_updated()
+       -> first load or loading older: _load_messages() (full re-render)
+       -> otherwise: _diff_messages() (remove/update/append)
   On failure:
     -> Client emits AppState.message_send_failed(channel_id, content, error)
     -> Composer._on_message_send_failed() shows error, restores text
@@ -179,8 +181,20 @@ Connection state:
 - Determined per-message during render (line 194): `use_collapsed = (author_id == prev_author_id) and not has_reply and i > 0`.
 - First message always cozy; messages with replies always cozy.
 - Consecutive same-author messages without replies use collapsed layout.
-- Full list re-rendered on every `messages_updated` signal (clears all children, recreates).
+- Full re-render only on first load or older-messages loading; otherwise diff-based updates (see below).
 - Editing state is saved before clearing and restored after re-rendering (lines 162-229).
+
+### Diff-Based Message Updates (message_view.gd)
+
+- `_on_messages_updated()` (line 316) routes to `_diff_messages()` by default. Falls back to `_load_messages()` (full re-render) only on first load (`_message_node_index` is empty) or when loading older messages (`_is_loading_older`).
+- `_diff_messages()` (line 325) performs a three-phase update using `_message_node_index` (a `Dictionary` mapping message IDs to scene nodes):
+  1. **Remove**: Iterates existing node index; any message ID not in the current cache is `queue_free()`-d and erased from the index.
+  2. **Update**: For each message still in the cache that already has a node, calls `node.update_data(msg)` to refresh content in-place. Both `cozy_message` and `collapsed_message` have `update_data()` which updates `_message_data` and calls `message_content.update_content()`. `update_content()` (message_content.gd line 103) re-renders BBCode without recreating the node and skips if the user is currently inline-editing.
+  3. **Append**: Walks the cache from the end backwards until hitting an existing message. New messages are instantiated (cozy or collapsed based on predecessor), added to the scene tree, and registered in `_message_node_index`.
+- **Layout fixup after deletion** (`_fixup_layouts_after_delete`, line 434): After removing messages, checks if any remaining message became the first in sequence but is still a collapsed node. Promotes it to cozy by swapping the scene instance.
+- **Order validation** (line 396): After diffing, verifies that scene-tree child order matches cache order. If messages were inserted mid-list (not just appended), falls back to a full `_load_messages()` re-render.
+- **Fade-in animation** (line 421): Newly appended messages animate from `modulate.a = 0.0` to `1.0` over 0.15s with ease-out cubic.
+- **Auto-scroll** (line 430): Only scrolls to bottom for appended messages when the user was already at the bottom (`auto_scroll` flag).
 
 ### Auto-scroll (message_view.gd)
 
@@ -318,9 +332,8 @@ Connection state:
 - [x] System message rendering (italic gray)
 - [x] (edited) indicator on modified messages
 - [x] Emoji picker in composer (insert shortcodes at cursor)
+- [x] Diff-based message updates (remove/update/append instead of full re-render)
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Full re-render on every update | Low | `_on_messages_updated()` clears and recreates all message nodes instead of diffing |
+No gaps at present.

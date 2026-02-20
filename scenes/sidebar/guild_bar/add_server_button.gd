@@ -2,6 +2,8 @@ extends HBoxContainer
 
 signal add_server_pressed()
 
+var _pulse_tween: Tween
+
 @onready var pill: ColorRect = $PillContainer/Pill
 @onready var icon_button: Button = $IconButton
 
@@ -20,5 +22,27 @@ func _ready() -> void:
 	hover_style.bg_color = Color(0.176, 0.557, 0.384)
 	icon_button.add_theme_stylebox_override("hover", hover_style)
 
+	# Pulse animation when no servers are configured
+	if not Config.has_servers():
+		_start_pulse()
+		AppState.guilds_updated.connect(_stop_pulse, CONNECT_ONE_SHOT)
+
 func _on_pressed() -> void:
 	add_server_pressed.emit()
+
+func _start_pulse() -> void:
+	if Config.get_reduced_motion():
+		return
+	_pulse_tween = create_tween().set_loops()
+	_pulse_tween.tween_property(
+		icon_button, "modulate", Color(1.1, 1.1, 1.1, 1.0), 1.0
+	).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_pulse_tween.tween_property(
+		icon_button, "modulate", Color(1.0, 1.0, 1.0, 1.0), 1.0
+	).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+
+func _stop_pulse() -> void:
+	if _pulse_tween:
+		_pulse_tween.kill()
+		_pulse_tween = null
+	icon_button.modulate = Color(1.0, 1.0, 1.0, 1.0)

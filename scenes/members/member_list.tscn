@@ -23,12 +23,22 @@ script = ExtResource("1")
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="HeaderLabel" type="Label" parent="VBox"]
+[node name="HeaderBar" type="HBoxContainer" parent="VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
+
+[node name="HeaderLabel" type="Label" parent="VBox/HeaderBar"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "MEMBERS"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="GroupToggle" type="Button" parent="VBox/HeaderBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "Status"
+theme_override_font_sizes/font_size = 10
 
 [node name="InviteButton" type="Button" parent="VBox"]
 visible = false
@@ -37,6 +47,12 @@ size_flags_horizontal = 4
 custom_minimum_size = Vector2(0, 28)
 text = "Invite People"
 theme_override_styles/normal = SubResource("invite_btn_style")
+theme_override_font_sizes/font_size = 12
+
+[node name="SearchBar" type="LineEdit" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 28)
+placeholder_text = "Search members..."
 theme_override_font_sizes/font_size = 12
 
 [node name="ScrollContainer" type="ScrollContainer" parent="VBox"]

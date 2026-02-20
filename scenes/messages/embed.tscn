@@ -22,23 +22,66 @@ size_flags_horizontal = 0
 theme_override_styles/panel = SubResource("embed_bg")
 script = ExtResource("1")
 
-[node name="VBox" type="VBoxContainer" parent="."]
+[node name="ContentRow" type="HBoxContainer" parent="."]
 layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="VBox" type="VBoxContainer" parent="ContentRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
-[node name="Title" type="Label" parent="VBox"]
+[node name="AuthorRow" type="HBoxContainer" parent="ContentRow/VBox"]
+visible = false
 layout_mode = 2
-text = "Embed Title"
+theme_override_constants/separation = 8
 
-[node name="Description" type="RichTextLabel" parent="VBox"]
+[node name="AuthorIcon" type="TextureRect" parent="ContentRow/VBox/AuthorRow"]
+custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
-custom_minimum_size = Vector2(0, 40)
+stretch_mode = 5
+expand_mode = 1
+
+[node name="AuthorName" type="RichTextLabel" parent="ContentRow/VBox/AuthorRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+fit_content = true
+bbcode_enabled = true
+scroll_active = false
+
+[node name="Title" type="RichTextLabel" parent="ContentRow/VBox"]
+layout_mode = 2
+fit_content = true
+bbcode_enabled = true
+scroll_active = false
+
+[node name="Description" type="RichTextLabel" parent="ContentRow/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 0)
 fit_content = true
 bbcode_enabled = true
 selection_enabled = true
-text = "Embed description"
 scroll_active = false
 
-[node name="Footer" type="Label" parent="VBox"]
+[node name="FieldsContainer" type="VBoxContainer" parent="ContentRow/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Image" type="TextureRect" parent="ContentRow/VBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 0)
+stretch_mode = 5
+expand_mode = 1
+
+[node name="Footer" type="Label" parent="ContentRow/VBox"]
 layout_mode = 2
 text = "Footer"
+
+[node name="Thumbnail" type="TextureRect" parent="ContentRow"]
+visible = false
+custom_minimum_size = Vector2(80, 80)
+layout_mode = 2
+stretch_mode = 5
+expand_mode = 1

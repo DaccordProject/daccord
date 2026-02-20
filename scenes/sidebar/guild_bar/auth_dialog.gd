@@ -17,6 +17,7 @@ var _prev_username: String = ""
 @onready var _password_input: LineEdit = $CenterContainer/Panel/VBox/PasswordRow/PasswordInput
 @onready var _generate_btn: Button = $CenterContainer/Panel/VBox/PasswordRow/GenerateBtn
 @onready var _view_btn: Button = $CenterContainer/Panel/VBox/PasswordRow/ViewBtn
+@onready var _password_hint: Label = $CenterContainer/Panel/VBox/PasswordHint
 @onready var _display_name_label: Label = $CenterContainer/Panel/VBox/DisplayNameLabel
 @onready var _display_name_input: LineEdit = $CenterContainer/Panel/VBox/DisplayNameInput
 @onready var _submit_btn: Button = $CenterContainer/Panel/VBox/SubmitButton
@@ -54,6 +55,7 @@ func _set_mode(m: Mode) -> void:
 		_display_name_input.visible = false
 		_generate_btn.visible = false
 		_view_btn.visible = false
+		_password_hint.visible = false
 		_password_input.secret = true
 		_view_btn.text = "View"
 		_submit_btn.text = "Sign In"
@@ -64,6 +66,7 @@ func _set_mode(m: Mode) -> void:
 		_display_name_input.visible = true
 		_generate_btn.visible = true
 		_view_btn.visible = true
+		_password_hint.visible = true
 		_submit_btn.text = "Register"
 
 
@@ -76,6 +79,9 @@ func _on_submit() -> void:
 		return
 	if password.is_empty():
 		_show_error("Password is required.")
+		return
+	if _mode == Mode.REGISTER and password.length() < 8:
+		_show_error("Password must be at least 8 characters.")
 		return
 
 	_error_label.visible = false

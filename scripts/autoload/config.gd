@@ -1,53 +1,129 @@
 extends Node
 
-const CONFIG_PATH := "user://config.cfg"
+const REGISTRY_PATH := "user://profile_registry.cfg"
 const _SALT := "daccord-config-v1"
+const _PROFILE_SALT := "daccord-profile-v1"
 const _RECENT_EMOJI_MAX := 16
 const _BACKUP_THROTTLE_SEC := 60
 
 var _config := ConfigFile.new()
+var _registry := ConfigFile.new()
+var _profile_slug: String = "default"
+var _cli_profile_override: String = ""
 var _load_ok: bool = false
 var _last_backup_time: int = 0
 
+func _config_path() -> String:
+	return "user://profiles/%s/config.cfg" % _profile_slug
+
+func _profile_dir() -> String:
+	return "user://profiles/%s" % _profile_slug
+
+func _profile_emoji_cache_dir() -> String:
+	return "user://profiles/%s/emoji_cache" % _profile_slug
+
+func get_emoji_cache_path(emoji_id: String) -> String:
+	return _profile_emoji_cache_dir() + "/" + emoji_id + ".png"
+
 func _ready() -> void:
+	# Parse --profile CLI arg
+	for i in OS.get_cmdline_args().size():
+		var arg: String = OS.get_cmdline_args()[i]
+		if arg == "--profile" and i + 1 < OS.get_cmdline_args().size():
+			_cli_profile_override = OS.get_cmdline_args()[i + 1]
+			break
+
+	if FileAccess.file_exists(REGISTRY_PATH):
+		# Registry exists: load it
+		_registry.load(REGISTRY_PATH)
+		if not _cli_profile_override.is_empty():
+			_profile_slug = _cli_profile_override
+		else:
+			_profile_slug = _registry.get_value(
+				"state", "active", "default"
+			)
+		_load_profile_config()
+	elif FileAccess.file_exists("user://config.cfg"):
+		# Legacy config exists: migrate
+		_migrate_legacy_config()
+	else:
+		# Fresh install
+		_profile_slug = "default"
+		_write_initial_registry("default", "Default")
+		DirAccess.make_dir_recursive_absolute(_profile_dir())
+		_load_ok = true
+
+func _migrate_legacy_config() -> void:
+	var dest_dir := "user://profiles/default"
+	DirAccess.make_dir_recursive_absolute(dest_dir)
+	# Move config file
+	var src_global: String = ProjectSettings.globalize_path(
+		"user://config.cfg"
+	)
+	var dst_global: String = ProjectSettings.globalize_path(
+		dest_dir + "/config.cfg"
+	)
+	DirAccess.copy_absolute(src_global, dst_global)
+	DirAccess.remove_absolute(src_global)
+	# Move emoji cache if exists
+	if DirAccess.dir_exists_absolute("user://emoji_cache"):
+		var emoji_dst := dest_dir + "/emoji_cache"
+		DirAccess.make_dir_recursive_absolute(emoji_dst)
+		_copy_directory("user://emoji_cache", emoji_dst)
+		_remove_directory_recursive("user://emoji_cache")
+	# Write registry
+	_profile_slug = "default"
+	_write_initial_registry("default", "Default")
+	_load_profile_config()
+
+func _write_initial_registry(slug: String, pname: String) -> void:
+	_registry = ConfigFile.new()
+	_registry.set_value("state", "active", slug)
+	_registry.set_value("order", "list", [slug])
+	_registry.set_value("profile_" + slug, "name", pname)
+	_registry.save(REGISTRY_PATH)
+
+func _load_profile_config() -> void:
+	var path := _config_path()
+	DirAccess.make_dir_recursive_absolute(_profile_dir())
 	var key := _derive_key()
-	var err := _config.load_encrypted_pass(CONFIG_PATH, key)
+	var err := _config.load_encrypted_pass(path, key)
 	if err == OK:
 		_load_ok = true
 		return
-	# Fall back to plaintext (first run or migration from unencrypted)
-	var plain_err := _config.load(CONFIG_PATH)
+	var plain_err := _config.load(path)
 	if plain_err == OK:
 		_load_ok = true
-		# Re-save encrypted to migrate
-		_config.save_encrypted_pass(CONFIG_PATH, key)
+		_config.save_encrypted_pass(path, key)
 		return
-	# Both loads failed -- check if file exists on disk
-	if FileAccess.file_exists(CONFIG_PATH):
+	if FileAccess.file_exists(path):
 		_backup_corrupted_file()
 		push_warning(
 			"[Config] Config file unreadable, backed up and starting fresh"
 		)
+	_config = ConfigFile.new()
 	_load_ok = true
 
 func _backup_corrupted_file() -> void:
-	var bak_path := CONFIG_PATH + ".bak"
+	var path := _config_path()
+	var bak_path := path + ".bak"
 	if not FileAccess.file_exists(bak_path):
 		DirAccess.copy_absolute(
-			ProjectSettings.globalize_path(CONFIG_PATH),
+			ProjectSettings.globalize_path(path),
 			ProjectSettings.globalize_path(bak_path)
 		)
 
 func _throttled_backup() -> void:
-	if not FileAccess.file_exists(CONFIG_PATH):
+	var path := _config_path()
+	if not FileAccess.file_exists(path):
 		return
 	var now: int = int(Time.get_unix_time_from_system())
 	if now - _last_backup_time < _BACKUP_THROTTLE_SEC:
 		return
 	_last_backup_time = now
-	var bak_path := CONFIG_PATH + ".bak"
+	var bak_path := path + ".bak"
 	DirAccess.copy_absolute(
-		ProjectSettings.globalize_path(CONFIG_PATH),
+		ProjectSettings.globalize_path(path),
 		ProjectSettings.globalize_path(bak_path)
 	)
 
@@ -126,7 +202,7 @@ func save() -> void:
 		push_warning("[Config] save() blocked — config was not loaded successfully")
 		return
 	_throttled_backup()
-	_config.save_encrypted_pass(CONFIG_PATH, _derive_key())
+	_config.save_encrypted_pass(_config_path(), _derive_key())
 
 func set_last_selection(guild_id: String, channel_id: String) -> void:
 	_config.set_value("state", "last_guild_id", guild_id)
@@ -255,6 +331,13 @@ func get_all_folder_names() -> Array:
 			names.append(folder_name)
 	return names
 
+func get_guild_order() -> Array:
+	return _config.get_value("guild_order", "items", [])
+
+func set_guild_order(order: Array) -> void:
+	_config.set_value("guild_order", "items", order)
+	save()
+
 ## Idle timeout
 
 func get_idle_timeout() -> int:
@@ -321,6 +404,15 @@ func add_recent_emoji(emoji_name: String) -> void:
 	_config.set_value("emoji", "recent", recent)
 	save()
 
+## Accessibility
+
+func get_reduced_motion() -> bool:
+	return _config.get_value("accessibility", "reduced_motion", false)
+
+func set_reduced_motion(enabled: bool) -> void:
+	_config.set_value("accessibility", "reduced_motion", enabled)
+	save()
+
 ## Update preferences
 
 func get_auto_update_check() -> bool:
@@ -345,6 +437,19 @@ func get_last_update_check() -> int:
 
 func set_last_update_check(timestamp: int) -> void:
 	_config.set_value("updates", "last_check_timestamp", timestamp)
+	save()
+
+## Draft text persistence
+
+func set_draft_text(channel_id: String, text: String) -> void:
+	_config.set_value("drafts", channel_id, text)
+	save()
+
+func get_draft_text(channel_id: String) -> String:
+	return _config.get_value("drafts", channel_id, "")
+
+func clear_draft_text(channel_id: String) -> void:
+	_config.set_value("drafts", channel_id, null)
 	save()
 
 func clear() -> void:
@@ -381,13 +486,228 @@ func import_config(path: String) -> Error:
 	if err != OK:
 		return err
 	# Back up current config before replacing
-	if FileAccess.file_exists(CONFIG_PATH):
-		var pre_import := CONFIG_PATH + ".pre-import.bak"
+	var cur_path := _config_path()
+	if FileAccess.file_exists(cur_path):
+		var pre_import := cur_path + ".pre-import.bak"
 		DirAccess.copy_absolute(
-			ProjectSettings.globalize_path(CONFIG_PATH),
+			ProjectSettings.globalize_path(cur_path),
 			ProjectSettings.globalize_path(pre_import)
 		)
 	_config = new_cfg
 	_load_ok = true
 	save()
 	return OK
+
+## --- Profile management ---
+
+func _slugify(pname: String) -> String:
+	var slug := pname.to_lower().strip_edges()
+	# Replace spaces/underscores with hyphens
+	slug = slug.replace(" ", "-").replace("_", "-")
+	# Strip non-alphanumeric except hyphens
+	var clean := ""
+	for ch in slug:
+		if ch == "-" or (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9"):
+			clean += ch
+	slug = clean
+	# Collapse multiple hyphens
+	while slug.contains("--"):
+		slug = slug.replace("--", "-")
+	slug = slug.trim_prefix("-").trim_suffix("-")
+	if slug.is_empty():
+		slug = "profile"
+	# Truncate to 32 characters
+	if slug.length() > 32:
+		slug = slug.substr(0, 32).trim_suffix("-")
+	# Check for collision and add suffix
+	var order: Array = _registry.get_value("order", "list", [])
+	if slug in order:
+		var counter := 2
+		while (slug + "-" + str(counter)) in order:
+			counter += 1
+		slug = slug + "-" + str(counter)
+	return slug
+
+func _hash_password(slug: String, pw: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	var input := (_PROFILE_SALT + slug + pw).to_utf8_buffer()
+	ctx.update(input)
+	var digest := ctx.finish()
+	return digest.hex_encode()
+
+func get_profiles() -> Array:
+	var order: Array = _registry.get_value("order", "list", [])
+	var result: Array = []
+	for slug in order:
+		var section: String = "profile_" + str(slug)
+		var pname: String = _registry.get_value(section, "name", slug)
+		var has_pw: bool = _registry.has_section_key(section, "password_hash")
+		result.append({
+			"slug": slug,
+			"name": pname,
+			"has_password": has_pw,
+		})
+	return result
+
+func get_active_profile_slug() -> String:
+	return _profile_slug
+
+func create_profile(
+	pname: String, pw: String = "", copy_current: bool = false,
+) -> String:
+	var slug := _slugify(pname)
+	var new_dir := "user://profiles/" + slug
+	DirAccess.make_dir_recursive_absolute(new_dir)
+
+	if copy_current:
+		# Copy current profile's config and emoji cache
+		var cur_cfg := _config_path()
+		if FileAccess.file_exists(cur_cfg):
+			DirAccess.copy_absolute(
+				ProjectSettings.globalize_path(cur_cfg),
+				ProjectSettings.globalize_path(new_dir + "/config.cfg")
+			)
+		var cur_emoji := _profile_emoji_cache_dir()
+		if DirAccess.dir_exists_absolute(cur_emoji):
+			var emoji_dst := new_dir + "/emoji_cache"
+			DirAccess.make_dir_recursive_absolute(emoji_dst)
+			_copy_directory(cur_emoji, emoji_dst)
+
+	# Update registry
+	var order: Array = _registry.get_value("order", "list", [])
+	order.append(slug)
+	_registry.set_value("order", "list", order)
+	var section := "profile_" + slug
+	_registry.set_value(section, "name", pname)
+	if not pw.is_empty():
+		_registry.set_value(section, "password_hash", _hash_password(slug, pw))
+	_registry.save(REGISTRY_PATH)
+	return slug
+
+func delete_profile(slug: String) -> bool:
+	if slug == "default":
+		return false
+	# If deleting the active profile, switch to default first
+	if slug == _profile_slug:
+		switch_profile("default")
+	# Remove directory
+	var dir_path := "user://profiles/" + slug
+	if DirAccess.dir_exists_absolute(dir_path):
+		# Remove emoji cache subdirectory first
+		var emoji_dir := dir_path + "/emoji_cache"
+		if DirAccess.dir_exists_absolute(emoji_dir):
+			_remove_directory_recursive(emoji_dir)
+		_remove_directory_recursive(dir_path)
+	# Clean registry
+	var order: Array = _registry.get_value("order", "list", [])
+	var idx := order.find(slug)
+	if idx != -1:
+		order.remove_at(idx)
+	_registry.set_value("order", "list", order)
+	var section := "profile_" + slug
+	if _registry.has_section(section):
+		_registry.erase_section(section)
+	_registry.save(REGISTRY_PATH)
+	return true
+
+func switch_profile(slug: String) -> void:
+	_profile_slug = slug
+	# Update registry active (unless CLI override)
+	if _cli_profile_override.is_empty():
+		_registry.set_value("state", "active", slug)
+		_registry.save(REGISTRY_PATH)
+	# Reload config from new profile
+	_config = ConfigFile.new()
+	_load_ok = false
+	_last_backup_time = 0
+	_load_profile_config()
+	AppState.profile_switched.emit()
+
+func rename_profile(slug: String, new_name: String) -> void:
+	var section := "profile_" + slug
+	_registry.set_value(section, "name", new_name)
+	_registry.save(REGISTRY_PATH)
+
+func set_profile_password(
+	slug: String, old_pw: String, new_pw: String,
+) -> bool:
+	var section := "profile_" + slug
+	# Verify old password if one is set
+	if _registry.has_section_key(section, "password_hash"):
+		var stored: String = _registry.get_value(section, "password_hash", "")
+		if _hash_password(slug, old_pw) != stored:
+			return false
+	# Set or remove password
+	if new_pw.is_empty():
+		_registry.set_value(section, "password_hash", null)
+	else:
+		_registry.set_value(section, "password_hash", _hash_password(slug, new_pw))
+	_registry.save(REGISTRY_PATH)
+	return true
+
+func verify_profile_password(slug: String, pw: String) -> bool:
+	var section := "profile_" + slug
+	if not _registry.has_section_key(section, "password_hash"):
+		return true
+	var stored: String = _registry.get_value(section, "password_hash", "")
+	return _hash_password(slug, pw) == stored
+
+func move_profile_up(slug: String) -> void:
+	var order: Array = _registry.get_value("order", "list", [])
+	var idx := order.find(slug)
+	if idx <= 0:
+		return
+	var temp = order[idx - 1]
+	order[idx - 1] = order[idx]
+	order[idx] = temp
+	_registry.set_value("order", "list", order)
+	_registry.save(REGISTRY_PATH)
+
+func move_profile_down(slug: String) -> void:
+	var order: Array = _registry.get_value("order", "list", [])
+	var idx := order.find(slug)
+	if idx == -1 or idx >= order.size() - 1:
+		return
+	var temp = order[idx + 1]
+	order[idx + 1] = order[idx]
+	order[idx] = temp
+	_registry.set_value("order", "list", order)
+	_registry.save(REGISTRY_PATH)
+
+## --- Directory helpers ---
+
+func _copy_directory(src: String, dst: String) -> void:
+	var dir := DirAccess.open(src)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while not fname.is_empty():
+		if not dir.current_is_dir():
+			DirAccess.copy_absolute(
+				ProjectSettings.globalize_path(src + "/" + fname),
+				ProjectSettings.globalize_path(dst + "/" + fname)
+			)
+		fname = dir.get_next()
+	dir.list_dir_end()
+
+func _remove_directory_recursive(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while not fname.is_empty():
+		var full := path + "/" + fname
+		if dir.current_is_dir():
+			_remove_directory_recursive(full)
+		else:
+			DirAccess.remove_absolute(
+				ProjectSettings.globalize_path(full)
+			)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	DirAccess.remove_absolute(
+		ProjectSettings.globalize_path(path)
+	)

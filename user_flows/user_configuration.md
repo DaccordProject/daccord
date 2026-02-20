@@ -419,29 +419,29 @@ Legacy paths (pre-profile migration):
 - [x] Config backup before overwrite
 - [x] Emit `server_connection_failed` on initial auth failure
 - [x] Token-only re-auth signal (`reauth_needed`) with auth dialog
-- [ ] Profile registry file (`user://profile_registry.cfg`)
-- [ ] Migration from legacy `user://config.cfg` to `user://profiles/default/`
-- [ ] Default profile auto-creation on fresh install
-- [ ] `Config._profile_config_path()` dynamic path resolution
-- [ ] Per-profile emoji cache directory
-- [ ] `Config.create_profile(name, password, copy_current)`
-- [ ] `Config.delete_profile(slug)`
-- [ ] `Config.switch_profile(slug)`
-- [ ] `Config.rename_profile(slug, new_name)`
-- [ ] `Config.set_profile_password(slug, old_password, new_password)`
-- [ ] `Config.verify_profile_password(slug, password) -> bool`
-- [ ] `Config.get_profiles() -> Array`
-- [ ] `Config.get_active_profile_slug() -> String`
-- [ ] `AppState.profile_switched` signal
-- [ ] `Client.disconnect_all()` method
-- [ ] `Client._on_profile_switched()` reset and reconnect handler
-- [ ] Profiles section in user settings UI
-- [ ] Create Profile dialog (name, password, copy/fresh)
-- [ ] Profile password entry dialog
-- [ ] Profile context menu (Rename, Delete, Set Password, Export)
-- [ ] Import Profile flow (file picker + name dialog)
-- [ ] Export Profile with `.daccord-profile` extension
-- [ ] UI rename of "config" to "profile" in export/import labels
+- [x] Profile registry file (`user://profile_registry.cfg`)
+- [x] Migration from legacy `user://config.cfg` to `user://profiles/default/`
+- [x] Default profile auto-creation on fresh install
+- [x] `Config._profile_config_path()` dynamic path resolution
+- [x] Per-profile emoji cache directory
+- [x] `Config.create_profile(name, password, copy_current)`
+- [x] `Config.delete_profile(slug)`
+- [x] `Config.switch_profile(slug)`
+- [x] `Config.rename_profile(slug, new_name)`
+- [x] `Config.set_profile_password(slug, old_password, new_password)`
+- [x] `Config.verify_profile_password(slug, password) -> bool`
+- [x] `Config.get_profiles() -> Array`
+- [x] `Config.get_active_profile_slug() -> String`
+- [x] `AppState.profile_switched` signal
+- [x] `Client.disconnect_all()` method
+- [x] `Client._on_profile_switched()` reset and reconnect handler
+- [x] Profiles section in user settings UI
+- [x] Create Profile dialog (name, password, copy/fresh)
+- [x] Profile password entry dialog
+- [x] Profile context menu (Rename, Delete, Set Password, Export)
+- [x] Import Profile flow (file picker + name dialog)
+- [x] Export Profile with `.daccord-profile` extension
+- [x] UI rename of "config" to "profile" in export/import labels
 - [ ] `--profile <slug>` command-line argument
 - [ ] Profile list ordering (drag-to-reorder or manual up/down)
 

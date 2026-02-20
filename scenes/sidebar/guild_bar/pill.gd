@@ -30,6 +30,9 @@ func set_state_animated(new_state: PillState) -> void:
 	_skip_update = true
 	pill_state = new_state
 	_skip_update = false
+	if Config.get_reduced_motion():
+		_update_pill()
+		return
 	if new_state == PillState.HIDDEN:
 		visible = false
 		return

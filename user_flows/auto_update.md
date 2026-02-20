@@ -5,7 +5,7 @@
 
 This flow describes how daccord checks for new versions, notifies the user, and guides them through updating. The goal is a non-intrusive, user-controlled experience: the app checks for updates on startup and periodically, shows a dismissible banner when an update is available, and lets the user choose when to download and install. Updates are sourced from GitHub Releases via the public API.
 
-None of this is implemented yet. This document serves as a UX specification.
+See the Implementation Status section at the bottom for what has been completed.
 
 ## User Steps
 
@@ -93,10 +93,13 @@ Download:
 |------|------|
 | `scripts/autoload/app_state.gd` | Would add `update_available`, `update_download_started`, `update_download_progress`, `update_download_complete`, `update_download_failed`, `update_check_complete`, `update_check_failed` signals |
 | `scripts/autoload/config.gd` | Would persist `skipped_version`, `dismissed_version`, `auto_update_enabled` preference, `last_update_check` timestamp |
-| `scripts/autoload/updater.gd` | Semver parsing and comparison utilities (`parse_semver`, `compare_semver`, `is_newer`). Will eventually handle GitHub Releases API checks. |
+| `scripts/autoload/updater.gd` | Autoload: semver utilities, GitHub Releases API check (`check_for_updates()`), periodic timer, startup hook, dismiss/skip version logic, `_parse_release()` for extracting version info from GitHub response. |
+| `scenes/messages/update_banner.gd` | Inline banner shown when an update is available. Buttons: View Changes, Update (both open browser), Skip (persists), Dismiss (session-only). |
+| `scenes/messages/update_banner.tscn` | Banner scene (PanelContainer with blurple accent), added to message_view.tscn between ImposterBanner and ScrollContainer. |
 | `scripts/autoload/client.gd` | Holds `APP_VERSION` (reads from `project.godot`). Will trigger update check after connections are established. |
 | `scenes/sidebar/user_bar.gd` | Has "Check for Updates" menu item (id 16), "About" dialog with version/license/GitHub link (id 10). |
-| `scenes/main/main_window.gd` | Would host the update banner in content area and update download dialog |
+| `scenes/messages/update_download_dialog.gd/.tscn` | Modal download dialog with progress bar, cancel/retry/restart buttons. Listens to `AppState.update_download_progress/complete/failed`. |
+| `scenes/main/main_window.gd` | Hosts the update banner in content area; appends "[Update ready]" to window title after download |
 | `project.godot` | Sets `application/config/version` (currently `"0.1.0"`) |
 | `tests/unit/test_updater.gd` | Unit tests for semver parsing, comparison, and `is_newer` |
 
@@ -166,31 +169,31 @@ New keys in `user://config.cfg` under an `[updates]` section:
 - [x] `APP_VERSION` var in `client.gd` (reads from `project.godot`)
 - [x] Version displayed in About dialog with license and GitHub link
 - [x] "About" menu item handler in user_bar.gd (id 10)
-- [x] "Check for Updates" menu item in user bar (id 16, stub handler)
-- [x] Updater script with semver utilities (`scripts/autoload/updater.gd`)
-- [ ] GitHub Releases API integration
+- [x] "Check for Updates" menu item in user bar (id 16, working handler)
+- [x] Updater autoload with semver utilities (`scripts/autoload/updater.gd`)
+- [x] GitHub Releases API integration (`Updater.check_for_updates()`)
 - [x] Semver comparison logic (with unit tests)
-- [ ] Startup update check (after connection or delay)
-- [ ] Periodic re-check (hourly)
-- [ ] Update available banner in content area
-- [ ] Banner dismiss / skip-version logic
-- [ ] Release notes display (in-app or browser)
-- [ ] Download dialog with progress bar
-- [ ] In-place binary replacement
-- [ ] "Restart Now" / "Later" flow
-- [ ] Draft message preservation on restart
+- [x] Startup update check (after connection or 5s delay)
+- [x] Periodic re-check (hourly timer)
+- [x] Update available banner in content area (`scenes/messages/update_banner`)
+- [x] Banner dismiss / skip-version logic
+- [x] Release notes display (opens GitHub release page in browser)
+- [x] Download dialog with progress bar
+- [x] In-place binary replacement (Linux)
+- [x] "Restart Now" / "Later" flow
+- [x] Draft message preservation on restart
 - [x] Config persistence for update preferences (`auto_check`, `skipped_version`, `last_check_timestamp`)
-- [x] Update signals in AppState (`update_available`, `update_check_complete`, `update_check_failed`, `update_download_progress`, `update_download_complete`, `update_download_failed`)
-- [ ] "Update ready" indicator after download
-- [ ] Platform-specific update strategies (Windows/macOS/Linux)
+- [x] Update signals in AppState (`update_available`, `update_check_complete`, `update_check_failed`, `update_download_started`, `update_download_progress`, `update_download_complete`, `update_download_failed`)
+- [x] "Update ready" indicator after download
+- [x] Platform-specific update strategies (Linux: in-place binary replacement; Windows/macOS: fallback to `OS.shell_open()`)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| ~~No version constant~~ | ~~High~~ | Done. `Client.APP_VERSION` reads from `project.godot`'s `config/version`. |
+| ~~No version constant~~ | ~~High~~ | Done. `Client.app_version` reads from `project.godot`'s `config/version`. |
 | ~~"About" menu item does nothing~~ | ~~Medium~~ | Done. About dialog shows version, license, and GitHub link. |
-| No update check mechanism | High | No code checks for new versions. Users must manually visit GitHub to discover updates. The "Check for Updates" menu item is present (id 16) but the handler is a stub. Next step: implement GitHub Releases API call in `updater.gd`. |
-| No download/install flow | Medium | Even once an update is detected, there's no in-app way to download or apply it. The MVP could simply open the release page in the browser via `OS.shell_open()`. |
+| ~~No update check mechanism~~ | ~~High~~ | Done. `Updater` autoload checks GitHub Releases API on startup (after connection or 5s delay), hourly via periodic timer, and on manual "Check for Updates" menu click. Update banner appears in message view. |
+| ~~No download/install flow~~ | ~~Medium~~ | Done. `UpdateDownloadDialog` shows progress bar during download, `Updater` handles tar.gz extraction and binary replacement on Linux. Non-Linux platforms fall back to `OS.shell_open()`. |
 | ~~No update preferences in config~~ | ~~Low~~ | Done. `config.gd` has `[updates]` section with `auto_check`, `skipped_version`, `last_check_timestamp`. |
-| Cross-platform update complexity | Medium | In-place binary replacement is platform-specific and error-prone. The pragmatic first step is browser-based download (`OS.shell_open(release_url)`), upgrading to in-app download later. |
+| ~~Cross-platform update complexity~~ | ~~Medium~~ | Done. Linux gets full in-place update (download, extract tar.gz, replace binary, restart). Windows/macOS fall back to `OS.shell_open(release_url)` until cross-platform binaries exist. |
