@@ -170,7 +170,10 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Audit Log", idx)
 		idx += 1
 
-	if not AppState.is_imposter_mode and Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES):
+	var can_manage_roles: bool = Client.has_permission(
+		guild_id, AccordPermission.MANAGE_ROLES
+	)
+	if not AppState.is_imposter_mode and can_manage_roles:
 		_context_menu.add_item("View As...", idx)
 		idx += 1
 

@@ -20,7 +20,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 horizontal_alignment = 1
-vertical_alignment = 0
+vertical_alignment = 1
 
 [node name="MessageContent" parent="." instance=ExtResource("2")]
 layout_mode = 2

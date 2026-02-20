@@ -3,13 +3,19 @@ extends Button
 signal dm_pressed(dm_id: String)
 signal dm_closed(dm_id: String)
 
+const AddMemberDialogScene := preload(
+	"res://scenes/sidebar/direct/add_member_dialog.tscn"
+)
+
 var dm_id: String = ""
 var _dm_data: Dictionary = {}
 var _context_menu: PopupMenu
 
 @onready var avatar: ColorRect = $HBox/Avatar
+@onready var group_avatar: ColorRect = $HBox/GroupAvatar
 @onready var username_label: Label = $HBox/Info/Username
 @onready var last_message_label: Label = $HBox/Info/LastMessage
+@onready var member_count_label: Label = $HBox/MemberCount
 @onready var unread_dot: ColorRect = $HBox/UnreadDot
 @onready var close_btn: Button = $HBox/CloseBtn
 
@@ -45,12 +51,14 @@ func setup(data: Dictionary) -> void:
 		TextServer.OVERRUN_TRIM_ELLIPSIS
 
 	if is_group:
-		# Group DM avatar: use "G" letter with channel color
-		avatar.set_avatar_color(
-			user.get("color", Color(0.345, 0.396, 0.949))
-		)
-		avatar.set_letter("G")
+		# Group DM: show stacked mini-avatars
+		var recipients: Array = data.get("recipients", [])
+		avatar.visible = false
+		group_avatar.visible = true
+		group_avatar.setup_recipients(recipients)
 	else:
+		avatar.visible = true
+		group_avatar.visible = false
 		avatar.set_avatar_color(
 			user.get("color", Color(0.345, 0.396, 0.949))
 		)
@@ -63,6 +71,23 @@ func setup(data: Dictionary) -> void:
 		if avatar_url is String and not avatar_url.is_empty():
 			avatar.set_avatar_url(avatar_url)
 	unread_dot.visible = data.get("unread", false)
+
+	# Participant count badge for group DMs
+	if is_group:
+		var recips: Array = data.get("recipients", [])
+		var my_id: String = Client.current_user.get("id", "")
+		var has_self: bool = false
+		for r in recips:
+			if r.get("id", "") == my_id:
+				has_self = true
+				break
+		var count: int = recips.size()
+		if not has_self:
+			count += 1
+		member_count_label.text = str(count)
+		member_count_label.visible = true
+	else:
+		member_count_label.visible = false
 
 func _on_close_pressed() -> void:
 	dm_closed.emit(dm_id)
@@ -87,6 +112,7 @@ func _show_group_context_menu(pos: Vector2) -> void:
 	var is_owner: bool = _dm_data.get("owner_id", "") == my_id
 
 	if is_owner:
+		_context_menu.add_item("Add Member", 2)
 		_context_menu.add_item("Rename Group", 0)
 	_context_menu.add_item("Leave Group", 1)
 
@@ -99,6 +125,7 @@ func _on_context_id_pressed(id: int) -> void:
 	match id:
 		0: _rename_group()
 		1: _leave_group()
+		2: _add_member()
 
 func _rename_group() -> void:
 	# Show a simple rename dialog using AcceptDialog
@@ -117,6 +144,11 @@ func _rename_group() -> void:
 	dialog.canceled.connect(func(): dialog.queue_free())
 	get_tree().root.add_child(dialog)
 	dialog.popup_centered(Vector2i(300, 80))
+
+func _add_member() -> void:
+	var dialog: ColorRect = AddMemberDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(dm_id, _dm_data.get("recipients", []))
 
 func _leave_group() -> void:
 	var my_id: String = Client.current_user.get("id", "")

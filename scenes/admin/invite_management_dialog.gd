@@ -151,12 +151,9 @@ func _on_bulk_revoke() -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		var tasks: Array = []
-		for code in _selected_codes.duplicate():
-			tasks.append(Client.admin.delete_invite(code, _guild_id))
 		var failed := 0
-		for task in tasks:
-			var result: RestResult = await task
+		for code in _selected_codes.duplicate():
+			var result: RestResult = await Client.admin.delete_invite(code, _guild_id)
 			if result == null or not result.ok:
 				failed += 1
 		_selected_codes.clear()
@@ -207,7 +204,7 @@ func _on_revoke(code: String) -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		Client.admin.delete_invite(code, _guild_id)
+		await Client.admin.delete_invite(code, _guild_id)
 	)
 
 func _on_invites_updated(guild_id: String) -> void:

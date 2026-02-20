@@ -3,11 +3,13 @@ extends PanelContainer
 var _guild_id: String = ""
 var _all_sounds: Array = []
 
+@onready var _close_btn: Button = $VBox/TitleRow/CloseBtn
 @onready var _search_input: LineEdit = $VBox/SearchInput
 @onready var _sound_list: VBoxContainer = $VBox/Scroll/SoundList
 @onready var _empty_label: Label = $VBox/EmptyLabel
 
 func _ready() -> void:
+	_close_btn.pressed.connect(close)
 	_search_input.text_changed.connect(_on_search_changed)
 	AppState.soundboard_updated.connect(_on_soundboard_updated)
 	AppState.voice_left.connect(func(_ch: String) -> void: close())
@@ -100,3 +102,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		close()
 		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton and event.pressed:
+		var local_pos := get_global_rect()
+		if not local_pos.has_point(event.global_position):
+			close()
+			get_viewport().set_input_as_handled()

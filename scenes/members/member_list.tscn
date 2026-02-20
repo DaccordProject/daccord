@@ -1,21 +1,20 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://bav2ls0nqas7u"]
 
-[ext_resource type="Script" path="res://scenes/members/member_list.gd" id="1"]
+[ext_resource type="Script" uid="uid://dahjd2xa7g78k" path="res://scenes/members/member_list.gd" id="1"]
 
 [sub_resource type="StyleBoxFlat" id="invite_btn_style"]
-bg_color = Color(0.345, 0.396, 0.949, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_left = 4
-corner_radius_bottom_right = 4
 content_margin_left = 8.0
 content_margin_top = 4.0
 content_margin_right = 8.0
 content_margin_bottom = 4.0
+bg_color = Color(0.345, 0.396, 0.949, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="MemberList" type="PanelContainer"]
 custom_minimum_size = Vector2(240, 0)
-layout_mode = 2
 size_flags_horizontal = 0
 script = ExtResource("1")
 
@@ -35,25 +34,25 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="GroupToggle" type="Button" parent="VBox/HeaderBar"]
-layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
-text = "Status"
+layout_mode = 2
 theme_override_font_sizes/font_size = 10
+text = "Status"
 
 [node name="InviteButton" type="Button" parent="VBox"]
 visible = false
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 size_flags_horizontal = 4
-custom_minimum_size = Vector2(0, 28)
-text = "Invite People"
-theme_override_styles/normal = SubResource("invite_btn_style")
 theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("invite_btn_style")
+text = "Invite People"
 
 [node name="SearchBar" type="LineEdit" parent="VBox"]
-layout_mode = 2
 custom_minimum_size = Vector2(0, 28)
-placeholder_text = "Search members..."
+layout_mode = 2
 theme_override_font_sizes/font_size = 12
+placeholder_text = "Search members..."
 
 [node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
 layout_mode = 2

@@ -18,12 +18,14 @@ var app_version: String = ProjectSettings.get_setting(
 )
 
 var mode: Mode = Mode.CONNECTING
+var is_shutting_down: bool = false
 var current_user: Dictionary = {}
 var fetch: ClientFetch
 var admin: ClientAdmin
 var voice: ClientVoice
 var mutations: ClientMutations
 var emoji # ClientEmoji (typed reference causes circular dep)
+var permissions: RefCounted
 var connection: ClientConnection
 
 # --- Data access API (properties) ---
@@ -121,6 +123,10 @@ func _ready() -> void:
 	admin = ClientAdmin.new(self)
 	voice = ClientVoice.new(self)
 	mutations = ClientMutations.new(self)
+	var PermClass = load(
+		"res://scripts/autoload/client_permissions.gd"
+	)
+	permissions = PermClass.new(self)
 	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
@@ -191,6 +197,7 @@ func _check_idle() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		is_shutting_down = true
 		for conn in _connections:
 			if conn != null and conn["client"] != null:
 				conn["client"].logout()
@@ -461,30 +468,13 @@ func rename_group_dm(
 func close_dm(channel_id: String) -> void:
 	await mutations.close_dm(channel_id)
 
-# --- Permission helpers ---
-
 func has_permission(gid: String, perm: String) -> bool:
-	if AppState.is_imposter_mode and gid == AppState.imposter_guild_id:
-		return AccordPermission.has(AppState.imposter_permissions, perm)
-	var my_id: String = current_user.get("id", "")
-	if current_user.get("is_admin", false):
-		return true
-	var guild: Dictionary = _guild_cache.get(gid, {})
-	if guild.get("owner_id", "") == my_id:
-		return true
-	var my_roles: Array = []
-	var mi: int = _member_index_for(gid, my_id)
-	if mi != -1:
-		my_roles = _member_cache.get(gid, [])[mi].get("roles", [])
-	var roles: Array = _role_cache.get(gid, [])
-	var all_perms: Array = []
-	for role in roles:
-		var in_role: bool = role.get("id", "") in my_roles
-		if role.get("position", 0) == 0 or in_role:
-			for p in role.get("permissions", []):
-				if p not in all_perms:
-					all_perms.append(p)
-	return AccordPermission.has(all_perms, perm)
+	return permissions.has_permission(gid, perm)
+
+func has_channel_permission(
+	gid: String, channel_id: String, perm: String,
+) -> bool:
+	return permissions.has_channel_permission(gid, channel_id, perm)
 
 func update_guild_folder(gid: String, folder_name: String) -> void:
 	if _guild_cache.has(gid):
@@ -492,31 +482,10 @@ func update_guild_folder(gid: String, folder_name: String) -> void:
 		AppState.guilds_updated.emit()
 
 func is_space_owner(gid: String) -> bool:
-	var guild: Dictionary = _guild_cache.get(gid, {})
-	return guild.get("owner_id", "") == current_user.get(
-		"id", ""
-	)
+	return permissions.is_space_owner(gid)
 
 func get_my_highest_role_position(gid: String) -> int:
-	if current_user.get("is_admin", false):
-		return 999999
-	if is_space_owner(gid):
-		return 999999
-	var my_id: String = current_user.get("id", "")
-	var mi: int = _member_index_for(gid, my_id)
-	if mi == -1:
-		return 0
-	var my_roles: Array = _member_cache.get(
-		gid, []
-	)[mi].get("roles", [])
-	var roles: Array = _role_cache.get(gid, [])
-	var highest: int = 0
-	for role in roles:
-		if role.get("id", "") in my_roles:
-			var pos: int = role.get("position", 0)
-			if pos > highest:
-				highest = pos
-	return highest
+	return permissions.get_my_highest_role_position(gid)
 
 # --- Unread / mention tracking ---
 

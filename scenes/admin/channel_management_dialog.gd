@@ -68,7 +68,10 @@ func _build_channel_rows(channels: Array) -> void:
 	for ch in channels:
 		var row := ChannelRowScene.instantiate()
 		_channel_list.add_child(row)
-		row.setup(ch, ch.get("id", "") in _selected_ids)
+		row.setup(
+			ch, ch.get("id", "") in _selected_ids,
+			_guild_id,
+		)
 		row.toggled.connect(_on_row_toggled)
 		row.move_requested.connect(_on_move_channel)
 		row.edit_requested.connect(_on_edit_channel)
@@ -140,12 +143,18 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 	if swap_idx < 0 or swap_idx >= _all_channels.size():
 		return
 
-	var pos_a: int = _all_channels[idx].get("position", idx)
-	var pos_b: int = _all_channels[swap_idx].get("position", swap_idx)
-	var data: Array = [
-		{"id": _all_channels[idx].get("id", ""), "position": pos_b},
-		{"id": _all_channels[swap_idx].get("id", ""), "position": pos_a},
-	]
+	# Swap in local array, then send full position list (like drag-and-drop does).
+	# Just swapping two positions fails when channels share the same value.
+	var tmp: Dictionary = _all_channels[idx]
+	_all_channels[idx] = _all_channels[swap_idx]
+	_all_channels[swap_idx] = tmp
+
+	var data: Array = []
+	for i in _all_channels.size():
+		data.append({"id": _all_channels[i].get("id", ""), "position": i})
+
+	# Rebuild rows immediately so the user sees the change
+	_build_channel_rows(_all_channels)
 
 	var result: RestResult = await Client.admin.reorder_channels(_guild_id, data)
 	if result == null or not result.ok:
@@ -153,6 +162,8 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 		if result != null and result.error:
 			err_msg = result.error.message
 		_show_error(err_msg)
+		# Revert on failure — refetch will restore server state
+		_rebuild_list()
 
 func _rebuild_parent_options() -> void:
 	_create_parent.clear()

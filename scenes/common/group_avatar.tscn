@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/common/group_avatar.gd" id="1"]
+
+[node name="GroupAvatar" type="ColorRect"]
+custom_minimum_size = Vector2(32, 32)
+color = Color(0.184, 0.192, 0.212, 1)
+script = ExtResource("1")
+
+[node name="Grid" type="GridContainer" parent="."]
+layout_mode = 0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+columns = 2
+theme_override_constants/h_separation = 1
+theme_override_constants/v_separation = 1

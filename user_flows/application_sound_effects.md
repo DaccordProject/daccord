@@ -76,9 +76,8 @@ User changes sound settings
 | `scripts/autoload/config.gd` | Persists sound preferences: `get_sfx_volume()`, `set_sfx_volume()`, `is_sound_enabled()`, `set_sound_enabled()` |
 | `scripts/autoload/client_gateway.gd` | Calls `SoundManager.play_for_message()` in `on_message_create()` and `SoundManager.play_for_voice_state()` in `on_voice_state_update()` |
 | `scripts/autoload/app_state.gd` | Emits signals that trigger sounds: `message_sent`, `voice_joined`, `voice_left`, `voice_mute_changed`, `voice_deafen_changed` |
-| `scenes/sidebar/sound_settings_dialog.gd` | Sound Settings dialog -- volume slider + per-event toggle checkboxes |
-| `scenes/sidebar/sound_settings_dialog.tscn` | Sound Settings dialog scene |
-| `scenes/sidebar/user_bar.gd` | Opens Sound Settings dialog from menu (id 12) |
+| `scenes/user/user_settings.gd` | User Settings panel -- Sound page (page 3) has volume slider with percentage + per-event toggle checkboxes |
+| `scenes/sidebar/user_bar.gd` | Opens User Settings from the user bar menu |
 | `assets/sfx/` | WAV audio files for each sound event |
 | `default_bus_layout.tres` | Audio bus layout with `Master` and `SFX` buses |
 | `project.godot` | Registers `SoundManager` autoload |
@@ -149,7 +148,7 @@ When the current user's status is `ClientModels.UserStatus.DND`, `SoundManager.p
 
 ### Sound Settings UI
 
-The Sound Settings dialog (`scenes/sidebar/sound_settings_dialog.gd`) is accessible from the user bar menu (id 12). It contains:
+The Sound page (page 3) in User Settings (`scenes/user/user_settings.gd`) contains:
 
 - **Volume slider** (`HSlider`, 0-100%) bound to `Config.get/set_sfx_volume()`
 - **Per-event checkboxes** for each sound event, bound to `Config.is/set_sound_enabled()`

@@ -71,7 +71,8 @@ All user-facing strings are hardcoded English literals. The following categories
 | Messaging | `message_action_bar.tscn`, `message_view.tscn`, `typing_indicator.tscn` | "Add Reaction", "Reply", "Edit", "Delete", "Loading messages...", "Someone is typing..." |
 | Composer | `composer.tscn`, `emoji_picker.tscn`, `message_input.tscn` | "Replying to ...", "Cancel Reply", "Upload", "Emoji", "Send", "Search emoji..." |
 | Sidebar | `voice_bar.tscn`, `dm_list.tscn`, `dm_channel_item.tscn`, `channel_list.tscn` | "Voice Connected", "DIRECT MESSAGES", "Close DM", "No channels yet" |
-| Dialogs | `add_server_dialog.tscn`, `auth_dialog.tscn`, `voice_settings_dialog.tscn`, `sound_settings_dialog.tscn`, `notification_settings_dialog.tscn` | "Add a Server", "Sign In", "Register", "Voice Settings", "Apply" |
+| Dialogs | `add_server_dialog.tscn`, `auth_dialog.tscn` | "Add a Server", "Sign In", "Register", "Apply" |
+| User Settings | `user_settings.tscn` | "Voice & Video", "Sound", "Notifications", "Apply" |
 | Admin | `space_settings_dialog.tscn`, `channel_management_dialog.tscn`, `role_management_dialog.tscn`, `ban_dialog.tscn`, `invite_management_dialog.tscn`, `confirm_dialog.tscn` | "Space Settings", "Manage Roles", "Ban User", "Are you sure?", "Cancel", "Confirm", "Save", "Delete" |
 | Members | `member_list.tscn` | "MEMBERS", "Invite People" |
 | Search | `search_panel.tscn` | "Search messages..." |

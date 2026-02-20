@@ -7,13 +7,15 @@ Daccord uses tween-based animations, shader-driven effects, per-frame `_process`
 
 ## User Steps
 
-1. **Sidebar drawer (compact mode):** User taps the hamburger button → sidebar slides in from the left with a backdrop fade. Tapping the backdrop or navigating closes it with a reverse slide.
+1. **Sidebar drawer (compact mode):** User taps the hamburger button → sidebar slides in from the left with a backdrop fade. Tapping the backdrop or navigating closes it with a reverse slide. Edge-swiping from the left tracks the finger in real-time, snapping open or closed on release.
 2. **Channel panel expand/collapse (medium mode):** User clicks a guild icon → channel panel width animates from 0 → 240px. Selecting a channel collapses it back.
 3. **Guild icon hover:** User hovers over a guild icon → avatar morphs from circle to rounded square via shader. Moving away reverses the morph.
 4. **Pill indicator:** Selecting a guild animates the left-side pill from hidden to active height (20px). Switching away shrinks it back.
 5. **Typing indicator:** When another user types, three dots pulse with a sine wave alpha animation.
 6. **Message hover:** Hovering a message highlights it and shows an action bar. Moving away hides both after a 0.1s debounce.
 7. **Role assignment feedback:** Toggling a role on a member flashes the row green (success) or red (failure).
+8. **Loading skeleton:** While messages load, animated skeleton placeholders (avatar circles + text bars) with a horizontal shimmer sweep appear instead of static text.
+9. **Gesture-driven drawer swipe:** In compact mode, swiping from the left edge tracks the drawer position in real-time. Release past 50% or with a fast flick to open; otherwise it snaps closed. Swiping left on the backdrop closes the drawer with the same tracking behavior.
 
 ## Signal Flow
 
@@ -53,18 +55,37 @@ User action
     │                    msg_node.set_hovered(true) → queue_redraw()
     │                    _action_bar.show_for_message()
     │
-    └─ Typing event ──────► AppState.typing_started
+    ├─ Typing event ──────► AppState.typing_started
+    │                              │
+    │                    typing_indicator.show_typing()
+    │                              │
+    │                    set_process(true) → _process() sine loop
+    │
+    ├─ Channel select ───► message_view._on_channel_selected()
+    │                              │
+    │                    loading_skeleton.visible = true
+    │                    loading_skeleton.reset_shimmer()
+    │                              │
+    │                    _process() sweeps shimmer_offset -0.5→1.5
+    │                              │
+    │                    messages arrive → skeleton hidden
+    │
+    └─ Edge swipe ───────► main_window._handle_open_swipe()
                                    │
-                         typing_indicator.show_typing()
+                         _begin_drawer_tracking() → show nodes
                                    │
-                         set_process(true) → _process() sine loop
+                         _update_drawer_position() → track finger
+                                   │
+                         release → _finish_open_swipe()
+                                   │
+                         _should_snap_open() → snap tween
 ```
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `scenes/main/main_window.gd` | Drawer slide/fade tweens (lines 289–315) |
+| `scenes/main/main_window.gd` | Drawer slide/fade tweens, gesture-driven open/close swipe |
 | `scenes/sidebar/sidebar.gd` | Channel panel expand/collapse tweens (lines 87–101) |
 | `scenes/common/avatar.gd` | `tween_radius()` for shader-driven shape morphing (lines 93–104) |
 | `theme/avatar_circle.gdshader` | Shader that interpolates circle ↔ rounded rectangle via `radius` uniform |
@@ -82,20 +103,40 @@ User action
 | `scenes/sidebar/direct/dm_channel_item.gd` | Close button show/hide on hover (lines 20–21) |
 | `scenes/messages/collapsed_message.gd` | Timestamp show/hide on hover (lines 58–64) |
 | `scenes/search/search_result_item.gd` | StyleBox swap on hover (lines 74–79) |
+| `scenes/messages/loading_skeleton.gd` | Skeleton shimmer `_process` loop, builds 5 placeholder rows |
+| `scenes/messages/loading_skeleton.tscn` | VBoxContainer scene for skeleton placeholders |
+| `theme/skeleton_shimmer.gdshader` | SDF rounded rect + horizontal shimmer sweep shader |
 
 ## Implementation Details
 
 ### Drawer Slide Animation (main_window.gd)
 
-The sidebar drawer is used in compact layout mode (<500px viewport). Two parallel tweens run simultaneously (line 300):
+The sidebar drawer is used in compact layout mode (<500px viewport). It supports both signal-driven tweens (hamburger button) and gesture-driven real-time tracking (edge swipe / backdrop swipe).
 
-- **Open** (`_open_drawer`, line 289): Sidebar starts off-screen at `position.x = -dw` and tweens to `0.0` over 0.2s with `EASE_OUT` / `TRANS_CUBIC`. The backdrop fades from alpha 0 → 1.
-- **Close** (`_close_drawer`, line 306): Reverses both tweens using `EASE_IN` / `TRANS_CUBIC`. A chained callback (`_hide_drawer_nodes`, line 315) hides the backdrop and container after the animation completes.
-- **Immediate close** (`_close_drawer_immediate`, line 317): Kills any running tween and hides nodes instantly — used when switching layout modes.
+**Signal-driven (hamburger button):** Two parallel tweens run simultaneously:
 
-The drawer width is calculated by `_get_drawer_width()` based on viewport size, clamped to `BASE_DRAWER_WIDTH` (308px, line 3).
+- **Open** (`_open_drawer`): Sidebar starts off-screen at `position.x = -dw` and tweens to `0.0` over 0.2s with `EASE_OUT` / `TRANS_CUBIC`. The backdrop fades from alpha 0 → 1.
+- **Close** (`_close_drawer`): Reverses both tweens using `EASE_IN` / `TRANS_CUBIC`. A chained callback (`_hide_drawer_nodes`) hides the backdrop and container after the animation completes.
+- **Immediate close** (`_close_drawer_immediate`): Kills any running tween and hides nodes instantly — used when switching layout modes.
 
-Any running tween is killed before starting a new one (lines 290, 307) to prevent conflicts.
+**Gesture-driven (edge swipe to open):** `_handle_open_swipe()` processes touch/mouse events:
+
+1. Press in edge zone (x <= 20px) starts tracking.
+2. Past a 10px dead zone, `_begin_drawer_tracking()` shows drawer nodes and sets initial position.
+3. `_update_drawer_position()` maps finger position to drawer progress (0–1), updating `sidebar.position.x` and `drawer_backdrop.modulate.a` in real-time. Velocity is tracked via `(pos_x - last_x) / dt`.
+4. On release, `_finish_open_swipe()` decides snap direction: if `|velocity| > 400px/s`, snap based on velocity direction; otherwise snap based on progress vs 0.5 threshold.
+5. `_snap_drawer_open()` / `_snap_drawer_closed()` tween from the current position with proportional duration (`0.2 * remaining_progress`, minimum 0.05s).
+
+**Gesture-driven (backdrop swipe to close):** `_handle_close_swipe()` processes events on the backdrop area (pos_x > drawer_width):
+
+1. Press on backdrop starts close tracking, consuming the event to prevent the backdrop tap handler from firing.
+2. Past a 10px leftward dead zone, `_update_close_drawer_position()` tracks finger in real-time.
+3. On release, same velocity/progress snap logic as open (inverted).
+4. A simple tap on the backdrop (no drag) still closes instantly via the fallback path.
+
+The drawer width is calculated by `_get_drawer_width()` based on viewport size, clamped to `BASE_DRAWER_WIDTH` (308px).
+
+Any running tween is killed before starting a new one to prevent conflicts. All gesture animations respect `Config.get_reduced_motion()` — when enabled, snaps are instant.
 
 ### Channel Panel Expand/Collapse (sidebar.gd)
 
@@ -229,6 +270,29 @@ Several components use instant show/hide on `mouse_entered` / `mouse_exited`:
 | `collapsed_message.gd` | Timestamp label | 58–64 |
 | `search_result_item.gd` | Background highlight (StyleBox swap) | 74–79 |
 
+### Loading Skeleton Shimmer (loading_skeleton.gd + skeleton_shimmer.gdshader)
+
+While messages load, 5 skeleton placeholder rows appear instead of the static "Loading messages..." text. Each row mimics the cozy message layout:
+
+- **Avatar placeholder:** 42×42 `ColorRect` with `corner_radius=0.5` (circle).
+- **Text bars:** Author bar (90–140px wide, 14px tall) + 1–2 content bars (240–320px wide, 14px tall). Width varies per row for a natural look.
+- **Color:** `Color(0.24, 0.25, 0.27)` — matching the message area background but slightly lighter.
+
+The shimmer effect uses `skeleton_shimmer.gdshader`, which combines SDF-based rounded rectangle clipping (same pattern as `avatar_circle.gdshader`) with a horizontal brightness sweep:
+
+- `shimmer_offset` uniform sweeps from -0.5 to 1.5 over 1.2s, looping continuously.
+- The shimmer is a `smoothstep`-based highlight that adds ~0.15 brightness at the sweep position.
+- All bars share the same `ShaderMaterial` offset so the shimmer looks coordinated across the row.
+
+The `_process()` loop increments `shimmer_offset` each frame. `set_process(false)` is called in `_ready()` when `Config.get_reduced_motion()` is true, showing static gray shapes instead. `reset_shimmer()` resets the offset and re-enables processing when the skeleton becomes visible again (e.g., on retry).
+
+**Integration with message_view.gd:**
+- `_on_channel_selected()`: Shows skeleton, hides loading label.
+- `_update_empty_state()`: Shows skeleton when `_is_loading`, hides it otherwise.
+- `_on_message_fetch_failed()` / `_on_loading_timeout()`: Hides skeleton, shows error label.
+- `_on_loading_label_input()` (retry): Hides error label, shows skeleton again.
+- All message list iteration loops skip the skeleton node alongside `older_btn`, `empty_state`, and `loading_label`.
+
 ### Guild Folder Expand/Collapse (guild_folder.gd)
 
 Toggling a guild folder (`_toggle_expanded`) swaps between a mini-grid preview and the full guild list with a fade animation. The mini-grid swap stays instant (it's the collapsed preview), but the guild list fades in/out:
@@ -256,10 +320,9 @@ Toggling a guild folder (`_toggle_expanded`) swaps between a mini-grid preview a
 - [x] Message appear fade-in animation (single new messages)
 - [x] Action bar fade-in/fade-out animation
 - [x] Reaction pill press bounce animation
+- [x] Loading skeleton shimmer animation
+- [x] Gesture-driven drawer swipe (open + close)
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Drawer tween not reused for edge swipe | Low | `main_window.gd` supports edge swipe detection but the swipe doesn't drive the drawer position interactively — it triggers the same tween. A gesture-driven animation would feel more native on touch. |
-| No loading skeleton/shimmer animation | Medium | While messages load, `loading_label` shows static text. A shimmer or skeleton placeholder animation would improve perceived performance. |
+No remaining gaps.

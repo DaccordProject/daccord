@@ -1,5 +1,8 @@
 extends ColorRect
 
+var _version_info: Dictionary = {}
+var _total_size: int = 0
+
 @onready var _title_label: Label = $CenterContainer/Panel/VBox/Header/Title
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _status_label: Label = $CenterContainer/Panel/VBox/StatusLabel
@@ -11,9 +14,6 @@ extends ColorRect
 @onready var _retry_btn: Button = $CenterContainer/Panel/VBox/ButtonRow/RetryButton
 @onready var _restart_btn: Button = $CenterContainer/Panel/VBox/ButtonRow/RestartButton
 @onready var _later_btn: Button = $CenterContainer/Panel/VBox/ButtonRow/LaterButton
-
-var _version_info: Dictionary = {}
-var _total_size: int = 0
 
 func _ready() -> void:
 	_close_btn.pressed.connect(_close)

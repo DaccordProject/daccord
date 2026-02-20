@@ -3,7 +3,7 @@ extends PanelContainer
 const CozyMessageScene := preload("res://scenes/messages/cozy_message.tscn")
 const CollapsedMessageScene := preload("res://scenes/messages/collapsed_message.tscn")
 const MessageActionBarScene := preload("res://scenes/messages/message_action_bar.tscn")
-const ReactionPickerScene := preload("res://scenes/messages/reaction_picker.tscn")
+const MessageViewActionsScript := preload("res://scenes/messages/message_view_actions.gd")
 
 var auto_scroll: bool = true
 var current_channel_id: String = ""
@@ -15,13 +15,8 @@ var _hovered_message: Control = null
 var _hover_timer: Timer
 var _hover_hide_pending: bool = false
 
-var _delete_dialog: ConfirmationDialog
-var _pending_delete_id: String = ""
 var _is_loading_older: bool = false
-
-var _context_menu: PopupMenu
-var _context_menu_data: Dictionary = {}
-var _reaction_picker: Control = null
+var _actions # MessageViewActions
 
 var _scroll_tween: Tween
 var _channel_transition_tween: Tween
@@ -42,6 +37,7 @@ var _banner: MessageViewBanner
 @onready var composer: PanelContainer = $VBox/Composer
 @onready var older_btn: Button = $VBox/ScrollContainer/MessageList/OlderMessagesBtn
 @onready var empty_state: VBoxContainer = $VBox/ScrollContainer/MessageList/EmptyState
+@onready var loading_skeleton: VBoxContainer = $VBox/ScrollContainer/MessageList/LoadingSkeleton
 @onready var loading_label: Label = $VBox/ScrollContainer/MessageList/LoadingLabel
 
 func _ready() -> void:
@@ -92,24 +88,18 @@ func _ready() -> void:
 	_loading_timeout_timer.timeout.connect(_on_loading_timeout)
 	add_child(_loading_timeout_timer)
 
+	# Actions helper (context menu, action bar callbacks)
+	_actions = MessageViewActionsScript.new(self)
+	_actions.setup_context_menu()
+
 	# Action bar
 	_action_bar = MessageActionBarScene.instantiate()
 	add_child(_action_bar)
 	_action_bar.top_level = true
-	_action_bar.action_reply.connect(_on_bar_reply)
-	_action_bar.action_edit.connect(_on_bar_edit)
-	_action_bar.action_delete.connect(_on_bar_delete)
+	_action_bar.action_reply.connect(_actions.on_bar_reply)
+	_action_bar.action_edit.connect(_actions.on_bar_edit)
+	_action_bar.action_delete.connect(_actions.on_bar_delete)
 	_action_bar.mouse_exited.connect(_on_action_bar_unhovered)
-
-	# Shared context menu
-	_context_menu = PopupMenu.new()
-	_context_menu.add_item("Reply", 0)
-	_context_menu.add_item("Edit", 1)
-	_context_menu.add_item("Delete", 2)
-	_context_menu.add_item("Add Reaction", 3)
-	_context_menu.add_item("Remove All Reactions", 4)
-	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
-	add_child(_context_menu)
 
 	# Hover debounce timer
 	_hover_timer = Timer.new()
@@ -118,8 +108,15 @@ func _ready() -> void:
 	_hover_timer.timeout.connect(_on_hover_timer_timeout)
 	add_child(_hover_timer)
 
+func _is_persistent_node(child: Node) -> bool:
+	return (
+		child == older_btn or child == empty_state
+		or child == loading_skeleton or child == loading_label
+	)
+
 func _unhandled_input(event: InputEvent) -> void:
-	if AppState.is_imposter_mode and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if AppState.is_imposter_mode and event is InputEventKey \
+			and event.pressed and event.keycode == KEY_ESCAPE:
 		AppState.exit_imposter_mode()
 		get_viewport().set_input_as_handled()
 
@@ -133,16 +130,21 @@ func _process(_delta: float) -> void:
 
 func _on_channel_selected(channel_id: String) -> void:
 	current_channel_id = channel_id
+	_banner.sync_to_connection()
 	_current_channel_name = "channel"
 	_is_loading = true
 	_old_message_count = 0
 	_message_node_index.clear()
 	_hide_action_bar()
 	_update_empty_state([])
-	# Reset loading label style
+	# Reset loading label style (used for error/timeout states)
 	loading_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
 	loading_label.text = "Loading messages..."
 	loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Show skeleton during loading
+	loading_skeleton.visible = true
+	loading_skeleton.reset_shimmer()
+	loading_label.visible = false
 	_loading_timeout_timer.start()
 	Client.fetch.fetch_messages(channel_id)
 
@@ -164,9 +166,11 @@ func _on_channel_selected(channel_id: String) -> void:
 func _update_empty_state(messages: Array) -> void:
 	if _is_loading:
 		empty_state.visible = false
-		loading_label.visible = true
+		loading_skeleton.visible = true
+		loading_label.visible = false
 	elif messages.is_empty():
 		empty_state.visible = true
+		loading_skeleton.visible = false
 		loading_label.visible = false
 		var title_label: Label = empty_state.get_node("Title")
 		var desc_label: Label = empty_state.get_node("Description")
@@ -179,6 +183,7 @@ func _update_empty_state(messages: Array) -> void:
 				+ " Send a message to get the conversation started!"
 	else:
 		empty_state.visible = false
+		loading_skeleton.visible = false
 		loading_label.visible = false
 
 func _load_messages(channel_id: String) -> void:
@@ -190,7 +195,7 @@ func _load_messages(channel_id: String) -> void:
 	var editing_text := ""
 	if not editing_id.is_empty():
 		for child in message_list.get_children():
-			if child == older_btn or child == empty_state or child == loading_label:
+			if _is_persistent_node(child):
 				continue
 			var mc = child.get("message_content")
 			if mc and mc.is_editing():
@@ -203,7 +208,7 @@ func _load_messages(channel_id: String) -> void:
 	# Clear existing messages (skip persistent nodes)
 	_message_node_index.clear()
 	for child in message_list.get_children():
-		if child == older_btn or child == empty_state or child == loading_label:
+		if _is_persistent_node(child):
 			continue
 		child.queue_free()
 
@@ -247,7 +252,7 @@ func _load_messages(channel_id: String) -> void:
 	# Restore editing state if a message was being edited
 	if not editing_id.is_empty():
 		for child in message_list.get_children():
-			if child == older_btn or child == empty_state or child == loading_label:
+			if _is_persistent_node(child):
 				continue
 			if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == editing_id:
 				var mc = child.get("message_content")
@@ -397,7 +402,7 @@ func _diff_messages(channel_id: String) -> void:
 	var node_order_valid := true
 	var msg_children: Array = []
 	for child in message_list.get_children():
-		if child == older_btn or child == empty_state or child == loading_label:
+		if _is_persistent_node(child):
 			continue
 		msg_children.append(child)
 	if msg_children.size() != messages.size():
@@ -481,7 +486,7 @@ func _on_reactions_updated(channel_id: String, message_id: String) -> void:
 		return
 	# Fallback: linear scan if index misses
 	for child in message_list.get_children():
-		if child == older_btn or child == empty_state or child == loading_label:
+		if _is_persistent_node(child):
 			continue
 		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
 			var mc = child.get("message_content")
@@ -580,93 +585,10 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	if mode == AppState.LayoutMode.COMPACT:
 		_hide_action_bar()
 
-# --- Action Bar Callbacks ---
-
-func _on_bar_reply(msg_data: Dictionary) -> void:
-	AppState.initiate_reply(msg_data.get("id", ""))
-	_hide_action_bar()
-
-func _on_bar_edit(msg_data: Dictionary) -> void:
-	var msg_id: String = msg_data.get("id", "")
-	AppState.start_editing(msg_id)
-	var node: Control = _find_message_node(msg_id)
-	if node:
-		var mc = node.get("message_content")
-		if mc:
-			mc.enter_edit_mode(msg_id, msg_data.get("content", ""))
-	_hide_action_bar()
-
-func _on_bar_delete(msg_data: Dictionary) -> void:
-	_pending_delete_id = msg_data.get("id", "")
-	_hide_action_bar()
-	if not _delete_dialog:
-		_delete_dialog = ConfirmationDialog.new()
-		_delete_dialog.dialog_text = "Are you sure you want to delete this message?"
-		_delete_dialog.confirmed.connect(_on_delete_confirmed)
-		add_child(_delete_dialog)
-	_delete_dialog.popup_centered()
-
-func _on_delete_confirmed() -> void:
-	if not _pending_delete_id.is_empty():
-		AppState.delete_message(_pending_delete_id)
-		_pending_delete_id = ""
-
-# --- Shared Context Menu ---
-
-func _on_context_menu_requested(pos: Vector2i, msg_data: Dictionary) -> void:
-	_context_menu_data = msg_data
-	var author: Dictionary = msg_data.get("author", {})
-	var is_own: bool = author.get("id", "") == Client.current_user.get("id", "")
-	_context_menu.set_item_disabled(1, not is_own)
-	_context_menu.set_item_disabled(2, not is_own)
-	var guild_id: String = Client._channel_to_guild.get(
-		msg_data.get("channel_id", ""), ""
-	)
-	var has_reactions: bool = msg_data.get("reactions", []).size() > 0
-	var can_manage: bool = Client.has_permission(guild_id, "MANAGE_MESSAGES")
-	_context_menu.set_item_disabled(4, not (can_manage and has_reactions))
-	_context_menu.position = pos
-	_context_menu.popup()
-
-func _on_context_menu_id_pressed(id: int) -> void:
-	match id:
-		0: # Reply
-			AppState.initiate_reply(_context_menu_data.get("id", ""))
-		1: # Edit
-			var msg_id: String = _context_menu_data.get("id", "")
-			AppState.start_editing(msg_id)
-			var node: Control = _find_message_node(msg_id)
-			if node:
-				var mc = node.get("message_content")
-				if mc:
-					mc.enter_edit_mode(msg_id, _context_menu_data.get("content", ""))
-		2: # Delete
-			_pending_delete_id = _context_menu_data.get("id", "")
-			if not _delete_dialog:
-				_delete_dialog = ConfirmationDialog.new()
-				_delete_dialog.dialog_text = "Are you sure you want to delete this message?"
-				_delete_dialog.confirmed.connect(_on_delete_confirmed)
-				add_child(_delete_dialog)
-			_delete_dialog.popup_centered()
-		3: # Add Reaction
-			_open_reaction_picker(_context_menu_data)
-		4: # Remove All Reactions
-			var cid: String = _context_menu_data.get("channel_id", "")
-			var mid: String = _context_menu_data.get("id", "")
-			Client.remove_all_reactions(cid, mid)
-
-func _open_reaction_picker(msg_data: Dictionary) -> void:
-	if _reaction_picker and is_instance_valid(_reaction_picker):
-		_reaction_picker.queue_free()
-	_reaction_picker = ReactionPickerScene.instantiate()
-	get_tree().root.add_child(_reaction_picker)
-	var channel_id: String = msg_data.get("channel_id", "")
-	var msg_id: String = msg_data.get("id", "")
-	var pos := get_global_mouse_position()
-	_reaction_picker.open(channel_id, msg_id, pos)
-	_reaction_picker.closed.connect(func():
-		_reaction_picker = null
-	)
+func _on_context_menu_requested(
+	pos: Vector2i, msg_data: Dictionary,
+) -> void:
+	_actions.on_context_menu_requested(pos, msg_data)
 
 # --- Connection Banner ---
 
@@ -680,6 +602,7 @@ func _on_message_fetch_failed(channel_id: String, error: String) -> void:
 		return
 	_is_loading = false
 	_loading_timeout_timer.stop()
+	loading_skeleton.visible = false
 	loading_label.text = "Failed to load messages: %s\nClick to retry" % error
 	loading_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 	loading_label.visible = true
@@ -689,14 +612,19 @@ func _on_loading_timeout() -> void:
 	if not _is_loading:
 		return
 	_is_loading = false
+	loading_skeleton.visible = false
 	loading_label.text = "Loading timed out. Click to retry"
 	loading_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
 func _on_loading_label_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if not _is_loading and loading_label.visible:
 			_is_loading = true
+			loading_label.visible = false
+			loading_skeleton.visible = true
+			loading_skeleton.reset_shimmer()
 			loading_label.text = "Loading messages..."
 			loading_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
 			loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -727,7 +655,7 @@ func _get_last_message_child() -> Control:
 	var children := message_list.get_children()
 	for i in range(children.size() - 1, -1, -1):
 		var child: Node = children[i]
-		if child != older_btn and child != empty_state and child != loading_label:
+		if not _is_persistent_node(child):
 			return child as Control
 	return null
 
@@ -782,7 +710,7 @@ func _find_message_node(message_id: String) -> Control:
 			return node
 	# Fallback: linear scan
 	for child in message_list.get_children():
-		if child == older_btn or child == empty_state or child == loading_label:
+		if _is_persistent_node(child):
 			continue
 		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
 			return child as Control

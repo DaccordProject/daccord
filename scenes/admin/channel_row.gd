@@ -27,7 +27,10 @@ func _ready() -> void:
 	_edit_btn.pressed.connect(func(): edit_requested.emit(_channel_data))
 	_del_btn.pressed.connect(func(): delete_requested.emit(_channel_data))
 
-func setup(ch: Dictionary, selected: bool) -> void:
+func setup(
+	ch: Dictionary, selected: bool,
+	guild_id: String = "",
+) -> void:
 	_channel_data = ch
 	var ch_id: String = ch.get("id", "")
 	set_meta("channel_id", ch_id)
@@ -37,6 +40,13 @@ func setup(ch: Dictionary, selected: bool) -> void:
 	# Arrow characters
 	_up_btn.text = "\u25b2"
 	_down_btn.text = "\u25bc"
+
+	# Hide Perms button if user lacks manage_roles
+	if not guild_id.is_empty():
+		var can_manage: bool = Client.has_permission(
+			guild_id, AccordPermission.MANAGE_ROLES
+		)
+		_perms_btn.visible = can_manage
 
 	var ch_type: int = ch.get("type", 0)
 	match ch_type:

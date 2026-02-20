@@ -1,6 +1,6 @@
 extends GutTest
 
-var component: FlowContainer
+var component: HBoxContainer
 
 
 func before_each() -> void:

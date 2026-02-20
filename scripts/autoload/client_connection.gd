@@ -26,10 +26,18 @@ func connect_server(
 	var gw_url: String = _c._derive_gateway_url(base_url)
 	var cdn_url: String = _c._derive_cdn_url(base_url)
 
+	# Preserve reconnection state from previous connection
+	var was_disconnected := false
+	var old_guild_id := ""
+	if index < _c._connections.size() and _c._connections[index] is Dictionary:
+		was_disconnected = _c._connections[index].get("_was_disconnected", false)
+		old_guild_id = _c._connections[index].get("guild_id", "")
+
 	var conn := {
 		"config": cfg, "client": null,
-		"guild_id": "", "cdn_url": cdn_url,
+		"guild_id": old_guild_id, "cdn_url": cdn_url,
 		"status": "connecting",
+		"_was_disconnected": was_disconnected,
 	}
 	while _c._connections.size() <= index:
 		_c._connections.append(null)
@@ -95,7 +103,7 @@ func connect_server(
 		if uname.is_empty() or pwd.is_empty():
 			AppState.reauth_needed.emit(index, base_url)
 		conn["status"] = "error"
-		AppState.server_connection_failed.emit("", err_msg)
+		AppState.server_connection_failed.emit(old_guild_id, err_msg)
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
@@ -145,7 +153,7 @@ func connect_server(
 			base_url, ": ", err_msg
 		)
 		conn["status"] = "error"
-		AppState.server_connection_failed.emit("", err_msg)
+		AppState.server_connection_failed.emit(old_guild_id, err_msg)
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
@@ -163,7 +171,7 @@ func connect_server(
 		]
 		push_error("[Client] ", err_msg)
 		conn["status"] = "error"
-		AppState.server_connection_failed.emit("", err_msg)
+		AppState.server_connection_failed.emit(old_guild_id, err_msg)
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
@@ -293,6 +301,7 @@ func disconnect_server(guild_id: String) -> void:
 			_c._guild_to_conn[_c._connections[i]["guild_id"]] = i
 	if _c._all_failed() or _c._connections.is_empty():
 		_c.set("mode", Client.Mode.CONNECTING)
+	AppState.server_removed.emit(guild_id)
 	AppState.guilds_updated.emit()
 
 func reconnect_server(index: int) -> void:
@@ -316,6 +325,8 @@ func reconnect_server(index: int) -> void:
 func handle_gateway_reconnect_failed(
 	conn_index: int,
 ) -> void:
+	if _c.is_shutting_down:
+		return
 	if _c._auto_reconnect_attempted.get(conn_index, false):
 		# Already tried once this cycle -- give up
 		if conn_index < _c._connections.size() \

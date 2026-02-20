@@ -51,7 +51,7 @@ func _on_save() -> void:
 		_show_error("Passwords do not match.")
 		return
 
-	if Config.set_profile_password(_slug, old_pw, new_pw):
+	if Config.profiles.set_password(_slug, old_pw, new_pw):
 		queue_free()
 	else:
 		_show_error("Current password is incorrect.")
@@ -63,7 +63,7 @@ func _on_remove() -> void:
 	if old_pw.is_empty():
 		_show_error("Current password is required to remove it.")
 		return
-	if Config.set_profile_password(_slug, old_pw, ""):
+	if Config.profiles.set_password(_slug, old_pw, ""):
 		queue_free()
 	else:
 		_show_error("Current password is incorrect.")

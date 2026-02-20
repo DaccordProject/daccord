@@ -35,7 +35,7 @@ func _on_unlock() -> void:
 	if pw.is_empty():
 		_show_error("Password is required.")
 		return
-	if Config.verify_profile_password(_slug, pw):
+	if Config.profiles.verify_password(_slug, pw):
 		password_verified.emit(_slug)
 		queue_free()
 	else:

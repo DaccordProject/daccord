@@ -2,16 +2,11 @@ extends ColorRect
 
 ## Fullscreen user settings panel with left nav and right content area.
 
-const AvatarScene := preload("res://scenes/common/avatar.tscn")
-const CreateProfileDialogScene := preload(
-	"res://scenes/user/create_profile_dialog.tscn"
+const UserSettingsProfilesPage := preload(
+	"res://scenes/user/user_settings_profiles_page.gd"
 )
-const ProfilePasswordDialogScene := preload(
-	"res://scenes/user/profile_password_dialog.tscn"
-)
-const ProfileSetPasswordDialogScene := preload(
-	"res://scenes/user/profile_set_password_dialog.tscn"
-)
+
+var initial_page: int = 0
 
 var _nav_buttons: Array[Button] = []
 var _pages: Array[Control] = []
@@ -19,9 +14,7 @@ var _current_page: int = 0
 
 # Page references
 var _profiles_page: VBoxContainer
-var _profiles_list_vbox: VBoxContainer
 var _account_page: VBoxContainer
-var _profile_page: VBoxContainer
 var _voice_page: VBoxContainer
 var _sound_page: VBoxContainer
 var _notifications_page: VBoxContainer
@@ -38,6 +31,9 @@ var _danger: UserSettingsDanger
 
 # 2FA page delegate
 var _twofa: UserSettingsTwofa
+
+# Profiles page delegate
+var _profiles_pg: RefCounted
 
 # Notifications page fields
 var _idle_dropdown: OptionButton
@@ -76,7 +72,7 @@ func _ready() -> void:
 	nav_scroll.add_child(nav_margin)
 
 	var sections := [
-		"Profiles", "My Account", "Profile", "Voice & Video", "Sound",
+		"Profiles", "My Account", "Voice & Video", "Sound",
 		"Notifications", "Change Password", "Delete Account",
 		"Two-Factor Auth", "Connections",
 	]
@@ -119,7 +115,6 @@ func _ready() -> void:
 	# Build all pages
 	_profiles_page = _build_profiles_page()
 	_account_page = _build_account_page()
-	_profile_page = _build_profile_page()
 	_voice_page = _build_voice_page()
 	_sound_page = _build_sound_page()
 	_notifications_page = _build_notifications_page()
@@ -129,7 +124,7 @@ func _ready() -> void:
 	_connections_page = _build_connections_page()
 
 	_pages = [
-		_profiles_page, _account_page, _profile_page,
+		_profiles_page, _account_page,
 		_voice_page, _sound_page, _notifications_page,
 		_password_page, _delete_page, _twofa_page,
 		_connections_page,
@@ -138,7 +133,7 @@ func _ready() -> void:
 		content_stack.add_child(page)
 		page.visible = false
 
-	_show_page(0)
+	_show_page(initial_page)
 
 func _on_nav_pressed(index: int) -> void:
 	_show_page(index)
@@ -159,231 +154,10 @@ func _show_page(index: int) -> void:
 # --- Profiles page ---
 
 func _build_profiles_page() -> VBoxContainer:
-	var vbox := _page_vbox("Profiles")
-
-	_profiles_list_vbox = VBoxContainer.new()
-	_profiles_list_vbox.add_theme_constant_override("separation", 6)
-	vbox.add_child(_profiles_list_vbox)
-	_refresh_profiles_list()
-
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 8)
-	vbox.add_child(btn_row)
-
-	var new_btn := Button.new()
-	new_btn.text = "New Profile"
-	new_btn.pressed.connect(_on_new_profile)
-	btn_row.add_child(new_btn)
-
-	var import_btn := Button.new()
-	import_btn.text = "Import Profile"
-	import_btn.pressed.connect(_on_import_profile)
-	btn_row.add_child(import_btn)
-
-	# Close settings on profile switch
-	AppState.profile_switched.connect(queue_free)
-
-	return vbox
-
-func _refresh_profiles_list() -> void:
-	for child in _profiles_list_vbox.get_children():
-		child.queue_free()
-
-	var profiles := Config.get_profiles()
-	var active_slug := Config.get_active_profile_slug()
-
-	for p in profiles:
-		var slug: String = p["slug"]
-		var pname: String = p["name"]
-		var has_pw: bool = p["has_password"]
-		var is_active: bool = slug == active_slug
-
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-
-		var name_lbl := Label.new()
-		name_lbl.text = pname
-		name_lbl.add_theme_font_size_override("font_size", 14)
-		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(name_lbl)
-
-		if has_pw:
-			var lock_lbl := Label.new()
-			lock_lbl.text = "[locked]"
-			lock_lbl.add_theme_font_size_override("font_size", 11)
-			lock_lbl.add_theme_color_override(
-				"font_color", Color(0.58, 0.608, 0.643)
-			)
-			row.add_child(lock_lbl)
-
-		if is_active:
-			var active_lbl := Label.new()
-			active_lbl.text = "(Active)"
-			active_lbl.add_theme_font_size_override("font_size", 12)
-			active_lbl.add_theme_color_override(
-				"font_color", Color(0.345, 0.396, 0.949)
-			)
-			row.add_child(active_lbl)
-		else:
-			var switch_btn := Button.new()
-			switch_btn.text = "Switch"
-			switch_btn.pressed.connect(
-				_on_switch_profile.bind(slug, pname, has_pw)
-			)
-			row.add_child(switch_btn)
-
-		# Context menu
-		var menu_btn := MenuButton.new()
-		menu_btn.text = "..."
-		var popup := menu_btn.get_popup()
-		popup.add_item("Rename", 0)
-		popup.add_item("Set Password", 1)
-		popup.add_item("Export", 2)
-		if slug != "default":
-			popup.add_separator()
-			popup.add_item("Delete", 3)
-		popup.add_separator()
-		popup.add_item("Move Up", 4)
-		popup.add_item("Move Down", 5)
-		popup.id_pressed.connect(
-			_on_profile_menu.bind(slug, pname, has_pw)
-		)
-		row.add_child(menu_btn)
-
-		_profiles_list_vbox.add_child(row)
-
-func _on_switch_profile(
-	slug: String, pname: String, has_pw: bool,
-) -> void:
-	if has_pw:
-		var dlg: ColorRect = ProfilePasswordDialogScene.instantiate()
-		dlg.setup(slug, pname)
-		dlg.password_verified.connect(func(s: String) -> void:
-			Config.switch_profile(s)
-		)
-		get_tree().root.add_child(dlg)
-	else:
-		Config.switch_profile(slug)
-
-func _on_profile_menu(
-	id: int, slug: String, pname: String, has_pw: bool,
-) -> void:
-	match id:
-		0: # Rename
-			_show_rename_dialog(slug, pname)
-		1: # Set Password
-			var dlg: ColorRect = ProfileSetPasswordDialogScene.instantiate()
-			dlg.setup(slug, has_pw)
-			dlg.tree_exited.connect(_refresh_profiles_list)
-			get_tree().root.add_child(dlg)
-		2: # Export
-			_export_profile(slug)
-		3: # Delete
-			_confirm_delete_profile(slug, pname)
-		4: # Move Up
-			Config.move_profile_up(slug)
-			_refresh_profiles_list()
-		5: # Move Down
-			Config.move_profile_down(slug)
-			_refresh_profiles_list()
-
-func _show_rename_dialog(slug: String, current_name: String) -> void:
-	var dlg := AcceptDialog.new()
-	dlg.title = "Rename Profile"
-	dlg.ok_button_text = "Rename"
-	var line := LineEdit.new()
-	line.text = current_name
-	line.max_length = 32
-	dlg.add_child(line)
-	dlg.confirmed.connect(func() -> void:
-		var new_name := line.text.strip_edges()
-		if not new_name.is_empty():
-			Config.rename_profile(slug, new_name)
-			_refresh_profiles_list()
-		dlg.queue_free()
+	_profiles_pg = UserSettingsProfilesPage.new(
+		self, _page_vbox, _section_label,
 	)
-	dlg.canceled.connect(dlg.queue_free)
-	add_child(dlg)
-	dlg.popup_centered(Vector2i(300, 80))
-
-func _confirm_delete_profile(slug: String, pname: String) -> void:
-	var dlg := ConfirmationDialog.new()
-	dlg.title = "Delete Profile"
-	dlg.dialog_text = (
-		"Delete profile \"%s\"? This cannot be undone." % pname
-	)
-	dlg.confirmed.connect(func() -> void:
-		Config.delete_profile(slug)
-		_refresh_profiles_list()
-		dlg.queue_free()
-	)
-	dlg.canceled.connect(dlg.queue_free)
-	add_child(dlg)
-	dlg.popup_centered()
-
-func _export_profile(slug: String) -> void:
-	var fd := FileDialog.new()
-	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-	fd.access = FileDialog.ACCESS_FILESYSTEM
-	fd.title = "Export Profile"
-	fd.add_filter("*.daccord-profile", "daccord Profile")
-	fd.file_selected.connect(func(path: String) -> void:
-		var err := Config.export_config(path)
-		if err == OK:
-			# Toast is handled by caller context
-			pass
-		fd.queue_free()
-	)
-	fd.canceled.connect(fd.queue_free)
-	add_child(fd)
-	fd.popup_centered(Vector2i(600, 400))
-
-func _on_new_profile() -> void:
-	var dlg: ColorRect = CreateProfileDialogScene.instantiate()
-	dlg.profile_created.connect(func(_slug: String) -> void:
-		_refresh_profiles_list()
-	)
-	get_tree().root.add_child(dlg)
-
-func _on_import_profile() -> void:
-	var fd := FileDialog.new()
-	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	fd.access = FileDialog.ACCESS_FILESYSTEM
-	fd.title = "Import Profile"
-	fd.add_filter("*.daccord-profile; *.cfg", "Profile Files")
-	fd.file_selected.connect(func(path: String) -> void:
-		fd.queue_free()
-		_show_import_name_dialog(path)
-	)
-	fd.canceled.connect(fd.queue_free)
-	add_child(fd)
-	fd.popup_centered(Vector2i(600, 400))
-
-func _show_import_name_dialog(import_path: String) -> void:
-	var dlg := AcceptDialog.new()
-	dlg.title = "Name Imported Profile"
-	dlg.ok_button_text = "Import"
-	var line := LineEdit.new()
-	line.placeholder_text = "Profile name"
-	line.max_length = 32
-	dlg.add_child(line)
-	dlg.confirmed.connect(func() -> void:
-		var pname := line.text.strip_edges()
-		if pname.is_empty():
-			pname = "Imported"
-		var slug: String = Config.create_profile(pname)
-		# Load the imported config into the new profile
-		var new_cfg := ConfigFile.new()
-		var err := new_cfg.load(import_path)
-		if err == OK:
-			var cfg_path := "user://profiles/" + slug + "/config.cfg"
-			new_cfg.save(cfg_path)
-		_refresh_profiles_list()
-		dlg.queue_free()
-	)
-	dlg.canceled.connect(dlg.queue_free)
-	add_child(dlg)
-	dlg.popup_centered(Vector2i(300, 80))
+	return _profiles_pg.build()
 
 # --- My Account page ---
 
@@ -396,43 +170,19 @@ func _build_account_page() -> VBoxContainer:
 	)
 	vbox.add_child(username_row)
 
-	var av: ColorRect = AvatarScene.instantiate()
-	av.avatar_size = 80
-	av.show_letter = true
-	av.letter_font_size = 28
-	av.custom_minimum_size = Vector2(80, 80)
-	vbox.add_child(av)
-	av.set_avatar_color(
-		user.get("color", Color(0.345, 0.396, 0.949))
-	)
-	var dn: String = user.get("display_name", "")
-	if dn.length() > 0:
-		av.set_letter(dn[0].to_upper())
-	var avatar_url = user.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		av.set_avatar_url(avatar_url)
-
 	var created: String = user.get("created_at", "")
 	if not created.is_empty():
 		var t_idx := created.find("T")
 		var date_str: String = created.substr(0, t_idx) if t_idx != -1 else created
 		vbox.add_child(_labeled_value("ACCOUNT CREATED", date_str))
 
-	var edit_btn := Button.new()
-	edit_btn.text = "Edit Profile"
-	edit_btn.pressed.connect(func() -> void:
-		_show_page(2)
-	)
-	vbox.add_child(edit_btn)
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
 
-	return vbox
-
-# --- Profile page ---
-
-func _build_profile_page() -> VBoxContainer:
-	var vbox := _page_vbox("Profile")
+	# Editable profile fields (avatar, display name, bio, accent color)
 	_profile = UserSettingsProfile.new()
 	_profile.build(vbox, _section_label, _error_label, self)
+
 	return vbox
 
 # --- Voice & Video page ---
@@ -446,13 +196,13 @@ func _build_voice_page() -> VBoxContainer:
 	var input_devices := AudioServer.get_input_device_list()
 	for dev in input_devices:
 		mic_dropdown.add_item(dev)
-	var saved_input: String = Config.get_voice_input_device()
+	var saved_input: String = Config.voice.get_input_device()
 	for i in mic_dropdown.item_count:
 		if mic_dropdown.get_item_text(i) == saved_input:
 			mic_dropdown.selected = i
 			break
 	mic_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.set_voice_input_device(
+		Config.voice.set_input_device(
 			mic_dropdown.get_item_text(idx)
 		)
 	)
@@ -464,17 +214,47 @@ func _build_voice_page() -> VBoxContainer:
 	var output_devices := AudioServer.get_output_device_list()
 	for dev in output_devices:
 		speaker_dropdown.add_item(dev)
-	var saved_output: String = Config.get_voice_output_device()
+	var saved_output: String = Config.voice.get_output_device()
 	for i in speaker_dropdown.item_count:
 		if speaker_dropdown.get_item_text(i) == saved_output:
 			speaker_dropdown.selected = i
 			break
 	speaker_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.set_voice_output_device(
+		Config.voice.set_output_device(
 			speaker_dropdown.get_item_text(idx)
 		)
 	)
 	vbox.add_child(speaker_dropdown)
+
+	# Camera
+	vbox.add_child(_section_label("CAMERA"))
+	var cam_dropdown := OptionButton.new()
+	if ClassDB.class_exists("AccordStream"):
+		var cameras: Array = AccordStream.get_cameras()
+		var saved_cam: String = Config.voice.get_video_device()
+		var cam_selected := 0
+		for i in cameras.size():
+			var cam: Dictionary = cameras[i]
+			var cam_id: String = cam.get("id", "")
+			var cam_name: String = cam.get("name", cam_id)
+			cam_dropdown.add_item(cam_name)
+			cam_dropdown.set_item_metadata(i, cam_id)
+			if cam_id == saved_cam:
+				cam_selected = i
+		if cameras.is_empty():
+			cam_dropdown.add_item("No cameras found")
+			cam_dropdown.disabled = true
+		else:
+			cam_dropdown.selected = cam_selected
+	else:
+		cam_dropdown.add_item("No cameras found")
+		cam_dropdown.disabled = true
+	cam_dropdown.item_selected.connect(func(idx: int) -> void:
+		if not cam_dropdown.disabled:
+			var device_id: String = cam_dropdown.get_item_metadata(idx)
+			Config.voice.set_video_device(device_id)
+	)
+	vbox.add_child(cam_dropdown)
 
 	# Video resolution
 	vbox.add_child(_section_label("VIDEO RESOLUTION"))
@@ -482,9 +262,9 @@ func _build_voice_page() -> VBoxContainer:
 	res_dropdown.add_item("480p")
 	res_dropdown.add_item("720p")
 	res_dropdown.add_item("1080p")
-	res_dropdown.selected = Config.get_video_resolution()
+	res_dropdown.selected = Config.voice.get_video_resolution()
 	res_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.set_video_resolution(idx)
+		Config.voice.set_video_resolution(idx)
 	)
 	vbox.add_child(res_dropdown)
 
@@ -494,14 +274,14 @@ func _build_voice_page() -> VBoxContainer:
 	fps_dropdown.add_item("15 FPS")
 	fps_dropdown.add_item("30 FPS")
 	fps_dropdown.add_item("60 FPS")
-	var fps_val: int = Config.get_video_fps()
+	var fps_val: int = Config.voice.get_video_fps()
 	match fps_val:
 		15: fps_dropdown.selected = 0
 		60: fps_dropdown.selected = 2
 		_: fps_dropdown.selected = 1
 	fps_dropdown.item_selected.connect(func(idx: int) -> void:
 		var fps_map := [15, 30, 60]
-		Config.set_video_fps(fps_map[idx])
+		Config.voice.set_video_fps(fps_map[idx])
 	)
 	vbox.add_child(fps_dropdown)
 
@@ -513,24 +293,44 @@ func _build_sound_page() -> VBoxContainer:
 	var vbox := _page_vbox("Sound")
 
 	vbox.add_child(_section_label("VOLUME"))
+	var vol_row := HBoxContainer.new()
+	vol_row.add_theme_constant_override("separation", 8)
 	var vol_slider := HSlider.new()
 	vol_slider.min_value = 0.0
 	vol_slider.max_value = 1.0
 	vol_slider.step = 0.05
 	vol_slider.value = Config.get_sfx_volume()
+	vol_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vol_row.add_child(vol_slider)
+	var vol_label := Label.new()
+	vol_label.text = "%d%%" % int(vol_slider.value * 100)
+	vol_label.custom_minimum_size = Vector2(40, 0)
+	vol_row.add_child(vol_label)
 	vol_slider.value_changed.connect(func(val: float) -> void:
 		Config.set_sfx_volume(val)
+		vol_label.text = "%d%%" % int(val * 100)
 	)
-	vbox.add_child(vol_slider)
+	vbox.add_child(vol_row)
 
 	vbox.add_child(_section_label("SOUND EVENTS"))
 	var sound_events := [
-		"message_received", "message_sent", "voice_join",
-		"voice_leave", "notification",
+		["message_received", "Message received (unfocused channel)"],
+		["mention_received", "Mention received"],
+		["message_sent", "Message sent"],
+		["voice_join", "Join voice channel"],
+		["voice_leave", "Leave voice channel"],
+		["peer_join", "Peer joins voice channel"],
+		["peer_leave", "Peer leaves voice channel"],
+		["mute", "Mute"],
+		["unmute", "Unmute"],
+		["deafen", "Deafen"],
+		["undeafen", "Undeafen"],
 	]
-	for sname in sound_events:
+	for event in sound_events:
+		var sname: String = event[0]
+		var slabel: String = event[1]
 		var cb := CheckBox.new()
-		cb.text = sname.replace("_", " ").capitalize()
+		cb.text = slabel
 		cb.button_pressed = Config.is_sound_enabled(sname)
 		cb.toggled.connect(func(pressed: bool) -> void:
 			Config.set_sound_enabled(sname, pressed)

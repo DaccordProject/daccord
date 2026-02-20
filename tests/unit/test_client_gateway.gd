@@ -12,14 +12,12 @@ var gw: ClientGateway
 
 func before_each() -> void:
 	client_node = load("res://scripts/autoload/client.gd").new()
-	# Manually init sub-objects without _ready (avoids
-	# AccordVoiceSession native class and Config dependency).
-	client_node._gw = ClientGateway.new(client_node)
-	client_node.fetch = ClientFetch.new(client_node)
-	client_node.admin = ClientAdmin.new(client_node)
-	client_node.mutations = ClientMutations.new(client_node)
-	# Add to tree so timers work (typing tests)
+	# Temporarily clear server count so _ready() won't try to connect
+	var saved_count: int = Config._config.get_value("servers", "count", 0)
+	Config._config.set_value("servers", "count", 0)
+	# Add to tree so timers work (typing tests) -- _ready() fires here
 	add_child(client_node)
+	Config._config.set_value("servers", "count", saved_count)
 	gw = client_node._gw
 	# Set up a mock connection
 	client_node._connections = [{

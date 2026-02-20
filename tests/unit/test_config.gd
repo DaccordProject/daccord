@@ -1,18 +1,46 @@
 extends GutTest
 
+const _DEFAULT_CFG := "user://profiles/default/config.cfg"
+
 var config: Node
+var _saved_config := PackedByteArray()
+var _had_config := false
 
 
 func before_each() -> void:
+	# Back up real config so tests don't destroy user data.
+	# add_server() and save() write to the real user:// path.
+	_had_config = FileAccess.file_exists(_DEFAULT_CFG)
+	if _had_config:
+		_saved_config = FileAccess.get_file_as_bytes(
+			_DEFAULT_CFG
+		)
 	config = load("res://scripts/autoload/config.gd").new()
 	# Don't call _ready() — it loads from disk. We test in-memory behavior.
 	config._load_ok = true
 
 
 func after_each() -> void:
-	config._load_ok = true
-	config.clear()
 	config.free()
+	# Restore backed-up config file
+	if _had_config:
+		var f := FileAccess.open(
+			_DEFAULT_CFG, FileAccess.WRITE
+		)
+		if f:
+			f.store_buffer(_saved_config)
+			f.close()
+	elif FileAccess.file_exists(_DEFAULT_CFG):
+		DirAccess.remove_absolute(
+			ProjectSettings.globalize_path(_DEFAULT_CFG)
+		)
+	# Clean up backup files the import test creates
+	for suffix in [".bak", ".pre-import.bak"]:
+		var p: String = _DEFAULT_CFG + str(suffix)
+		if FileAccess.file_exists(p):
+			DirAccess.remove_absolute(
+				ProjectSettings.globalize_path(p)
+			)
 
 
 # --- has_servers ---

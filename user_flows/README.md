@@ -49,3 +49,5 @@ Ordered by natural user journey:
 | 41 | [Profiles](profiles.md) | Multi-profile support, profile switching with optional passwords, per-profile config and emoji cache, migration from single-config, export/import as profiles |
 | 42 | [Imposter Mode](imposter_mode.md) | Admin permission preview, "View As" role picker, impersonated permission resolution, channel visibility filtering, write-protection, imposter banner |
 | 43 | [User Settings Menu](user_settings.md) | Fullscreen settings panel with 10 pages (Profiles, My Account, Profile edit, Voice & Video, Sound, Notifications, Change Password, Delete Account, 2FA, Connections), profile management dialogs, UX gaps |
+| 44 | [Message Threads](message_threads.md) | Slack-style message threads: thread panel UI, thread data model, reply count indicators, thread composer, permission gating, responsive layout |
+| 45 | [Forums](forums.md) | Discord-style forum channels: post list view, post creation with titles, thread panel integration, sort/filter, builds on Message Threads |

@@ -285,7 +285,12 @@ func _folder_get_drag_data(_at_position: Vector2) -> Variant:
 	preview.add_theme_font_size_override("font_size", 11)
 	preview.add_theme_color_override("font_color", Color(1, 1, 1))
 	set_drag_preview(preview)
-	return {"type": "guild_bar_item", "item_type": "folder", "folder_name": folder_name, "source_node": self}
+	return {
+		"type": "guild_bar_item",
+		"item_type": "folder",
+		"folder_name": folder_name,
+		"source_node": self,
+	}
 
 func _folder_can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary or data.get("type", "") != "guild_bar_item":

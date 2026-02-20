@@ -2,9 +2,8 @@
 
 [ext_resource type="Script" path="res://scenes/messages/reaction_bar.gd" id="1"]
 
-[node name="ReactionBar" type="FlowContainer"]
+[node name="ReactionBar" type="HBoxContainer"]
 offset_right = 400.0
 offset_bottom = 30.0
-theme_override_constants/h_separation = 4
-theme_override_constants/v_separation = 4
+theme_override_constants/separation = 8
 script = ExtResource("1")
