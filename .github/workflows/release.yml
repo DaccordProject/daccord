@@ -316,9 +316,59 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.*
 
+  windows-installer:
+    name: Build Windows installer
+    needs: build
+    runs-on: windows-latest
+    environment: default
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daccord-windows-x86_64
+          path: .
+
+      - name: Extract Windows build
+        run: |
+          mkdir -p dist/build/windows
+          Expand-Archive -Path daccord-windows-x86_64.zip -DestinationPath dist/build/windows
+        shell: pwsh
+
+      - name: Get version from project.godot
+        id: version
+        run: |
+          $ver = (Select-String -Path project.godot -Pattern 'config/version="([^"]+)"').Matches.Groups[1].Value
+          echo "APP_VERSION=$ver" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Compile installer with Inno Setup
+        run: |
+          iscc "/DMyAppVersion=${{ steps.version.outputs.APP_VERSION }}" dist\installer.iss
+        shell: cmd
+
+      - name: Sign installer
+        if: env.WINDOWS_CERT_BASE64 != ''
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64)
+          [IO.File]::WriteAllBytes("cert.pfx", $certBytes)
+          & signtool sign /f cert.pfx /p $env:WINDOWS_CERT_PASSWORD /t http://timestamp.digicert.com /d "daccord" dist\daccord-windows-x86_64-setup.exe
+          Remove-Item cert.pfx
+        shell: pwsh
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daccord-windows-x86_64-setup
+          path: dist/daccord-windows-x86_64-setup.exe
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, windows-installer]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
