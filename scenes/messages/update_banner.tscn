@@ -1,0 +1,61 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/update_banner.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="banner_style"]
+bg_color = Color(0.345, 0.396, 0.949, 0.15)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+
+[node name="UpdateBanner" type="PanelContainer"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+theme_override_styles/panel = SubResource("banner_style")
+script = ExtResource("1")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="VersionLabel" type="Label" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "daccord v0.0.0 is available"
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+
+[node name="ViewChangesButton" type="Button" parent="HBox"]
+layout_mode = 2
+text = "View Changes"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="UpdateButton" type="Button" parent="HBox"]
+layout_mode = 2
+text = "Update"
+flat = true
+theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="SkipButton" type="Button" parent="HBox"]
+layout_mode = 2
+text = "Skip"
+flat = true
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="DismissButton" type="Button" parent="HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(30, 0)
+text = "X"
+flat = true
+theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+theme_override_font_sizes/font_size = 12

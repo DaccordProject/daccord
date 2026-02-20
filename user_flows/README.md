@@ -48,3 +48,4 @@ Ordered by natural user journey:
 | 40 | [Nightly Branch](nightly_branch.md) | Nightly build branch, automated pre-release CI, rolling `nightly` tag, update channel detection, stable/nightly update routing, Sentry channel tagging |
 | 41 | [Profiles](profiles.md) | Multi-profile support, profile switching with optional passwords, per-profile config and emoji cache, migration from single-config, export/import as profiles |
 | 42 | [Imposter Mode](imposter_mode.md) | Admin permission preview, "View As" role picker, impersonated permission resolution, channel visibility filtering, write-protection, imposter banner |
+| 43 | [User Settings Menu](user_settings.md) | Fullscreen settings panel with 10 pages (Profiles, My Account, Profile edit, Voice & Video, Sound, Notifications, Change Password, Delete Account, 2FA, Connections), profile management dialogs, UX gaps |

@@ -74,13 +74,13 @@ func _connect_voice_backend(
 		)
 	elif info.sfu_endpoint != null:
 		var mic_id := Config.get_voice_input_device()
-		if mic_id.is_empty():
-			var mics: Array = AccordStream.get_microphones()
+		if mic_id.is_empty() and _c._accord_stream != null:
+			var mics: Array = _c._accord_stream.get_microphones()
 			if mics.size() > 0:
 				mic_id = mics[0]["id"]
 		var output_id := Config.get_voice_output_device()
-		if not output_id.is_empty():
-			AccordStream.set_output_device(output_id)
+		if not output_id.is_empty() and _c._accord_stream != null:
+			_c._accord_stream.set_output_device(output_id)
 		var ice_config := {}
 		_c._voice_session.connect_custom_sfu(
 			str(info.sfu_endpoint), ice_config, mic_id
@@ -99,7 +99,7 @@ func leave_voice_channel() -> bool:
 		_c._screen_track = null
 	# Clean up remote tracks
 	for uid in _c._remote_tracks:
-		var rt: AccordMediaTrack = _c._remote_tracks[uid]
+		var rt = _c._remote_tracks[uid]
 		if rt != null:
 			rt.stop()
 	_c._remote_tracks.clear()
@@ -155,7 +155,10 @@ func toggle_video() -> void:
 		_c._camera_track = null
 		AppState.set_video_enabled(false)
 	else:
-		var cameras: Array = AccordStream.get_cameras()
+		if _c._accord_stream == null:
+			AppState.voice_error.emit("AccordStream unavailable")
+			return
+		var cameras: Array = _c._accord_stream.get_cameras()
 		if cameras.is_empty():
 			AppState.voice_error.emit("No camera found")
 			return
@@ -174,7 +177,7 @@ func toggle_video() -> void:
 				width = 640
 				height = 360
 		var fps: int = Config.get_video_fps()
-		_c._camera_track = AccordStream.create_camera_track(
+		_c._camera_track = _c._accord_stream.create_camera_track(
 			cam_id, width, height, fps
 		)
 		AppState.set_video_enabled(true)
@@ -189,13 +192,16 @@ func start_screen_share(
 	if _c._screen_track != null:
 		_c._screen_track.stop()
 		_c._screen_track = null
+	if _c._accord_stream == null:
+		AppState.voice_error.emit("AccordStream unavailable")
+		return
 	if source_type == "screen":
 		_c._screen_track = (
-			AccordStream.create_screen_track(source_id, 15)
+			_c._accord_stream.create_screen_track(source_id, 15)
 		)
 	elif source_type == "window":
 		_c._screen_track = (
-			AccordStream.create_window_track(source_id, 15)
+			_c._accord_stream.create_window_track(source_id, 15)
 		)
 	AppState.set_screen_sharing(true)
 	_send_voice_state_update()
@@ -227,12 +233,12 @@ func _send_voice_state_update() -> void:
 
 func on_session_state_changed(state: int) -> void:
 	match state:
-		AccordVoiceSession.FAILED:
+		4: # AccordVoiceSession.FAILED
 			push_error("[Client] Voice session failed")
 			AppState.voice_error.emit(
 				"Voice connection failed"
 			)
-		AccordVoiceSession.DISCONNECTED:
+		0: # AccordVoiceSession.DISCONNECTED
 			pass # Handled by leave_voice_channel
 
 func on_peer_joined(user_id: String) -> void:
@@ -260,7 +266,7 @@ func on_peer_left(user_id: String) -> void:
 			)
 	# Clean up remote track for this peer
 	if _c._remote_tracks.has(user_id):
-		var rt: AccordMediaTrack = _c._remote_tracks[user_id]
+		var rt = _c._remote_tracks[user_id]
 		if rt != null:
 			rt.stop()
 		_c._remote_tracks.erase(user_id)
@@ -269,7 +275,7 @@ func on_peer_left(user_id: String) -> void:
 	print("[Client] Voice peer left: ", user_id)
 
 func on_track_received(
-	user_id: String, track: AccordMediaTrack,
+	user_id: String, track,
 ) -> void:
 	if track == null:
 		return
@@ -278,7 +284,7 @@ func on_track_received(
 		return
 	# Stop any previous track for this peer
 	if _c._remote_tracks.has(user_id):
-		var old: AccordMediaTrack = _c._remote_tracks[user_id]
+		var old = _c._remote_tracks[user_id]
 		if old != null:
 			old.stop()
 	_c._remote_tracks[user_id] = track

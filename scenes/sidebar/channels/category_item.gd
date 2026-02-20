@@ -44,6 +44,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 	guild_id = data.get("guild_id", "")
 	_category_data = data
 	category_name.text = data.get("name", "").to_upper()
+	header.tooltip_text = data.get("name", "")
 
 	# Channel count label (shown when collapsed)
 	_count_label = Label.new()
@@ -77,6 +78,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		_plus_btn.expand_icon = true
 		_plus_btn.add_theme_color_override("icon_normal_color", Color(0.58, 0.608, 0.643))
 		_plus_btn.add_theme_color_override("icon_hover_color", Color(1, 1, 1))
+		_plus_btn.tooltip_text = "Create Channel"
 		_plus_btn.pressed.connect(_on_create_channel)
 		$Header/HBox.add_child(_plus_btn)
 

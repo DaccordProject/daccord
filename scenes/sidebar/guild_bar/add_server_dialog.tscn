@@ -110,6 +110,14 @@ theme_override_styles/normal = SubResource("add_btn_normal")
 theme_override_styles/hover = SubResource("add_btn_hover")
 theme_override_styles/pressed = SubResource("add_btn_pressed")
 
+[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 2
+
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2

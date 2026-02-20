@@ -312,7 +312,13 @@ func on_presence_update(presence: AccordPresence, conn_index: int) -> void:
 		var guild_id: String = _c._connections[conn_index]["guild_id"]
 		var idx: int = _c._member_index_for(guild_id, presence.user_id)
 		if idx != -1:
-			_c._member_cache[guild_id][idx]["status"] = ClientModels._status_string_to_enum(presence.status)
+			var new_status: int = ClientModels._status_string_to_enum(presence.status)
+			var old_status: int = _c._member_cache[guild_id][idx].get("status", -1)
+			_c._member_cache[guild_id][idx]["status"] = new_status
+			if old_status != new_status:
+				AppState.member_status_changed.emit(
+					guild_id, presence.user_id, new_status
+				)
 			AppState.members_updated.emit(guild_id)
 
 func on_user_update(user: AccordUser, conn_index: int) -> void:
@@ -389,6 +395,7 @@ func on_member_join(member: AccordMember, conn_index: int) -> void:
 	if not _c._member_id_index.has(guild_id):
 		_c._member_id_index[guild_id] = {}
 	_c._member_id_index[guild_id][member.user_id] = _c._member_cache[guild_id].size() - 1
+	AppState.member_joined.emit(guild_id, member_dict)
 	AppState.members_updated.emit(guild_id)
 
 func on_member_leave(data: Dictionary, conn_index: int) -> void:
@@ -405,7 +412,8 @@ func on_member_leave(data: Dictionary, conn_index: int) -> void:
 		if idx != -1:
 			_c._member_cache[guild_id].remove_at(idx)
 			_c._rebuild_member_index(guild_id)
-		AppState.members_updated.emit(guild_id)
+			AppState.member_left.emit(guild_id, user_id)
+			AppState.members_updated.emit(guild_id)
 
 func on_member_update(member: AccordMember, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:

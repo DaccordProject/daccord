@@ -106,13 +106,14 @@ var _auto_reconnect_attempted: Dictionary = {}
 var _emoji_download_pending: Dictionary = {} # emoji_id -> true
 
 var _gw: ClientGateway
-var _voice_session: AccordVoiceSession
+var _voice_session: Node
 var _idle_timer: Timer
 var _is_auto_idle: bool = false
 var _last_input_time: float = 0.0
-var _camera_track: AccordMediaTrack
-var _screen_track: AccordMediaTrack
-var _remote_tracks: Dictionary = {} # user_id -> AccordMediaTrack
+var _camera_track
+var _screen_track
+var _remote_tracks: Dictionary = {} # user_id -> track
+var _accord_stream # AccordStream singleton (null if GDExtension unavailable)
 
 func _ready() -> void:
 	_gw = ClientGateway.new(self)
@@ -123,8 +124,10 @@ func _ready() -> void:
 	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
+	if Engine.has_singleton("AccordStream"):
+		_accord_stream = Engine.get_singleton("AccordStream")
 	if ClassDB.class_exists(&"AccordVoiceSession"):
-		_voice_session = AccordVoiceSession.new()
+		_voice_session = ClassDB.instantiate(&"AccordVoiceSession")
 	if _voice_session != null:
 		add_child(_voice_session)
 		set_meta("_voice_session", _voice_session)
@@ -149,6 +152,7 @@ func _ready() -> void:
 			"AccordVoiceSession unavailable — voice disabled"
 		)
 	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
+	AppState.profile_switched.connect(_on_profile_switched)
 	# Idle timer setup
 	_last_input_time = Time.get_ticks_msec() / 1000.0
 	_idle_timer = Timer.new()
@@ -403,15 +407,15 @@ func start_screen_share(
 func stop_screen_share() -> void:
 	voice.stop_screen_share()
 
-func get_camera_track() -> AccordMediaTrack:
+func get_camera_track():
 	return _camera_track
 
-func get_screen_track() -> AccordMediaTrack:
+func get_screen_track():
 	return _screen_track
 
 func get_remote_track(
 	user_id: String,
-) -> AccordMediaTrack:
+):
 	return _remote_tracks.get(user_id)
 
 func update_profile(data: Dictionary) -> bool:
@@ -430,12 +434,38 @@ func delete_account(password: String) -> Dictionary:
 func create_dm(user_id: String) -> void:
 	await mutations.create_dm(user_id)
 
+func create_group_dm(user_ids: Array) -> void:
+	await mutations.create_group_dm(user_ids)
+
+func add_dm_member(
+	channel_id: String, user_id: String,
+) -> bool:
+	return await mutations.add_dm_member(
+		channel_id, user_id
+	)
+
+func remove_dm_member(
+	channel_id: String, user_id: String,
+) -> bool:
+	return await mutations.remove_dm_member(
+		channel_id, user_id
+	)
+
+func rename_group_dm(
+	channel_id: String, new_name: String,
+) -> bool:
+	return await mutations.rename_group_dm(
+		channel_id, new_name
+	)
+
 func close_dm(channel_id: String) -> void:
 	await mutations.close_dm(channel_id)
 
 # --- Permission helpers ---
 
 func has_permission(gid: String, perm: String) -> bool:
+	if AppState.is_imposter_mode and gid == AppState.imposter_guild_id:
+		return AccordPermission.has(AppState.imposter_permissions, perm)
 	var my_id: String = current_user.get("id", "")
 	if current_user.get("is_admin", false):
 		return true
@@ -540,6 +570,9 @@ func _update_guild_unread(gid: String) -> void:
 
 # --- Server management ---
 
+func disconnect_all() -> void:
+	connection.disconnect_all()
+
 func disconnect_server(guild_id: String) -> void:
 	connection.disconnect_server(guild_id)
 
@@ -612,3 +645,16 @@ func _rebuild_member_index(guild_id: String) -> void:
 func _member_index_for(guild_id: String, user_id: String) -> int:
 	var index: Dictionary = _member_id_index.get(guild_id, {})
 	return index.get(user_id, -1)
+
+func _on_profile_switched() -> void:
+	disconnect_all()
+	# Reset AppState navigation state
+	AppState.current_guild_id = ""
+	AppState.current_channel_id = ""
+	AppState.is_dm_mode = false
+	AppState.replying_to_message_id = ""
+	AppState.editing_message_id = ""
+	# Reconnect with new config
+	if Config.has_servers():
+		for i in Config.get_servers().size():
+			connect_server(i)

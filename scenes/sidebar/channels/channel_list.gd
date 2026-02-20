@@ -18,6 +18,7 @@ var _current_guild_id: String = ""
 
 func _ready() -> void:
 	AppState.channels_updated.connect(_on_channels_updated)
+	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 
 func load_guild(guild_id: String) -> void:
 	_current_guild_id = guild_id
@@ -33,6 +34,17 @@ func load_guild(guild_id: String) -> void:
 	banner.setup(guild_data)
 
 	var channels := Client.get_channels_for_guild(guild_id)
+
+	# Imposter mode: filter out channels the impersonated role can't view
+	if AppState.is_imposter_mode and guild_id == AppState.imposter_guild_id:
+		var filtered: Array = []
+		for ch in channels:
+			if ch["type"] == ClientModels.ChannelType.CATEGORY:
+				filtered.append(ch)
+				continue
+			if AccordPermission.has(AppState.imposter_permissions, AccordPermission.VIEW_CHANNEL):
+				filtered.append(ch)
+		channels = filtered
 
 	# Count non-category channels
 	var selectable_channels: int = 0
@@ -186,6 +198,10 @@ func _on_channel_pressed(channel_id: String) -> void:
 func _on_channels_updated(guild_id: String) -> void:
 	if guild_id == _current_guild_id:
 		load_guild(guild_id)
+
+func _on_imposter_mode_changed(_active: bool) -> void:
+	if not _current_guild_id.is_empty():
+		load_guild(_current_guild_id)
 
 func _on_create_channel_pressed(guild_id: String, channels: Array) -> void:
 	var dialog := CreateChannelDialogScene.instantiate()

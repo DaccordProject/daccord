@@ -134,7 +134,7 @@ func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> v
 func on_voice_signal(data: Dictionary, _conn_index: int) -> void:
 	# Forward to AccordVoiceSession if it exists (Phase 4)
 	if _c.has_meta("_voice_session"):
-		var session: AccordVoiceSession = _c.get_meta("_voice_session")
+		var session: Node = _c.get_meta("_voice_session")
 		var user_id: String = str(data.get("user_id", ""))
 		var signal_type: String = str(data.get("type", ""))
 		var payload: Dictionary = data.get("payload", data)

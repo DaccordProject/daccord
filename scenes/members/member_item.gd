@@ -21,7 +21,11 @@ func _ready() -> void:
 
 func setup(data: Dictionary) -> void:
 	_member_data = data
-	display_name.text = data.get("display_name", "Unknown")
+	var dn_text: String = data.get("display_name", "Unknown")
+	if data.get("_is_owner", false):
+		dn_text += " (Owner)"
+	display_name.text = dn_text
+	tooltip_text = data.get("display_name", "Unknown")
 	avatar.set_avatar_color(data.get("color", Color(0.345, 0.396, 0.949)))
 	var dn: String = data.get("display_name", "")
 	if dn.length() > 0:
@@ -187,6 +191,8 @@ func _toggle_role(guild_id: String, user_id: String, id: int) -> void:
 		_context_menu.set_item_checked(item_index, role_id in member_roles)
 
 func _flash_feedback(color: Color) -> void:
+	if Config.get_reduced_motion():
+		return
 	var original_modulate := modulate
 	var tween := create_tween()
 	tween.tween_property(self, "modulate", color + Color(0.7, 0.7, 0.7, 0.7), 0.15)

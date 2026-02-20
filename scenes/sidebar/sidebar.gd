@@ -4,6 +4,8 @@ const CHANNEL_PANEL_WIDTH: float = 240.0
 const CHANNEL_PANEL_ANIM_DURATION: float = 0.15
 
 var _startup_selection_done: bool = false
+var _startup_fallback_selected: bool = false
+var _startup_timer: Timer
 var _channel_panel_tween: Tween
 
 @onready var guild_bar: PanelContainer = $GuildBar
@@ -18,32 +20,41 @@ func _ready() -> void:
 	channel_list.channel_selected.connect(_on_channel_selected)
 	dm_list.dm_selected.connect(_on_dm_selected_channel)
 	AppState.guilds_updated.connect(_on_guilds_updated)
+	_startup_timer = Timer.new()
+	_startup_timer.wait_time = 5.0
+	_startup_timer.one_shot = true
+	_startup_timer.timeout.connect(_on_startup_timeout)
+	add_child(_startup_timer)
 
 func _on_guilds_updated() -> void:
 	if _startup_selection_done:
 		return
 	if Client.guilds.size() == 0:
 		return
-	_startup_selection_done = true
 
 	var saved := Config.get_last_selection()
-	var target_guild_id: String = ""
-	var target_channel_id: String = saved["channel_id"]
 
-	# Check if saved guild still exists
+	# Check if saved guild is now available
 	if saved["guild_id"] != "":
 		for g in Client.guilds:
 			if g["id"] == saved["guild_id"]:
-				target_guild_id = saved["guild_id"]
-				break
+				# Saved guild found -- select it and finish startup
+				_startup_selection_done = true
+				_startup_timer.stop()
+				channel_list.pending_channel_id = saved["channel_id"]
+				guild_bar._on_guild_pressed(saved["guild_id"])
+				return
 
-	# Fall back to first guild
-	if target_guild_id == "":
-		target_guild_id = Client.guilds[0]["id"]
-		target_channel_id = ""
+	# Saved guild not yet available -- select first guild as fallback
+	if not _startup_fallback_selected:
+		_startup_fallback_selected = true
+		channel_list.pending_channel_id = ""
+		guild_bar._on_guild_pressed(Client.guilds[0]["id"])
+		_startup_timer.start()
 
-	channel_list.pending_channel_id = target_channel_id
-	guild_bar._on_guild_pressed(target_guild_id)
+func _on_startup_timeout() -> void:
+	# Saved guild never appeared -- accept current selection
+	_startup_selection_done = true
 
 func _on_guild_selected(guild_id: String) -> void:
 	channel_list.visible = true
@@ -85,6 +96,9 @@ func _on_dm_selected_channel(dm_id: String) -> void:
 	AppState.close_sidebar_drawer()
 
 func set_channel_panel_visible(vis: bool) -> void:
+	if Config.get_reduced_motion():
+		set_channel_panel_visible_immediate(vis)
+		return
 	if _channel_panel_tween:
 		_channel_panel_tween.kill()
 	if vis:

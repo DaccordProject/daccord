@@ -297,21 +297,28 @@ func fetch_members(guild_id: String) -> void:
 		if page.is_empty():
 			break
 
-		# Fetch missing users (deduplicated)
+		# Collect unique missing user IDs upfront
+		var missing_ids: Array = []
+		var seen_ids: Dictionary = {}
 		for member in page:
 			var accord_member: AccordMember = member
-			if not _c._user_cache.has(accord_member.user_id):
-				var user_result: RestResult = \
-					await client.users.fetch(
-						accord_member.user_id
+			var uid: String = accord_member.user_id
+			if not _c._user_cache.has(uid) \
+					and not seen_ids.has(uid):
+				missing_ids.append(uid)
+				seen_ids[uid] = true
+
+		# Fetch missing users (deduplicated)
+		for uid in missing_ids:
+			var user_result: RestResult = \
+				await client.users.fetch(uid)
+			if user_result.ok:
+				_c._user_cache[uid] = \
+					ClientModels.user_to_dict(
+						user_result.data,
+						ClientModels.UserStatus.OFFLINE,
+						cdn_url
 					)
-				if user_result.ok:
-					_c._user_cache[accord_member.user_id] = \
-						ClientModels.user_to_dict(
-							user_result.data,
-							ClientModels.UserStatus.OFFLINE,
-							cdn_url
-						)
 
 		# Build member dicts (all users now cached)
 		for member in page:

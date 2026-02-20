@@ -6,7 +6,9 @@ const RoleMgmtScene := preload("res://scenes/admin/role_management_dialog.tscn")
 const BanListScene := preload("res://scenes/admin/ban_list_dialog.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn")
+const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
+const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 
 var _guild_id: String = ""
 var _admin_menu: PopupMenu
@@ -22,6 +24,7 @@ func _ready() -> void:
 	add_child(_admin_menu)
 	gui_input.connect(_on_banner_input)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 
 func setup(guild_data: Dictionary) -> void:
 	_guild_id = guild_data.get("id", "")
@@ -43,6 +46,7 @@ func _has_any_admin_perm() -> bool:
 		Client.has_permission(_guild_id, AccordPermission.BAN_MEMBERS) or
 		Client.has_permission(_guild_id, AccordPermission.CREATE_INVITES) or
 		Client.has_permission(_guild_id, AccordPermission.MANAGE_EMOJIS) or
+		Client.has_permission(_guild_id, AccordPermission.VIEW_AUDIT_LOG) or
 		Client.has_permission(_guild_id, AccordPermission.MANAGE_SOUNDBOARD) or
 		Client.has_permission(_guild_id, AccordPermission.USE_SOUNDBOARD)
 	)
@@ -81,9 +85,17 @@ func _show_admin_menu() -> void:
 		_admin_menu.add_item("Emojis", idx)
 		idx += 1
 
+	if Client.has_permission(_guild_id, AccordPermission.VIEW_AUDIT_LOG):
+		_admin_menu.add_item("Audit Log", idx)
+		idx += 1
+
 	if (Client.has_permission(_guild_id, AccordPermission.MANAGE_SOUNDBOARD)
 			or Client.has_permission(_guild_id, AccordPermission.USE_SOUNDBOARD)):
 		_admin_menu.add_item("Soundboard", idx)
+		idx += 1
+
+	if not AppState.is_imposter_mode and Client.has_permission(_guild_id, AccordPermission.MANAGE_ROLES):
+		_admin_menu.add_item("View As...", idx)
 		idx += 1
 
 	if idx == 0:
@@ -120,7 +132,19 @@ func _on_admin_menu_pressed(id: int) -> void:
 			var dialog := EmojiMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(_guild_id)
+		"Audit Log":
+			var dialog := AuditLogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(_guild_id)
 		"Soundboard":
 			var dialog := SoundboardMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(_guild_id)
+		"View As...":
+			var dialog := ImposterPickerScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(_guild_id)
+
+func _on_imposter_mode_changed(_active: bool) -> void:
+	_has_admin = _has_any_admin_perm()
+	dropdown_icon.visible = _has_admin

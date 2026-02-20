@@ -82,13 +82,27 @@ func _build_role_buttons(roles: Array) -> void:
 	for child in _role_list.get_children():
 		child.queue_free()
 
+	var role_counts: Dictionary = _compute_role_member_counts()
+
 	for i in roles.size():
 		var role: Dictionary = roles[i]
+		var role_id: String = role.get("id", "")
+		var count: int = role_counts.get(role_id, 0)
 		var row := RoleRowScene.instantiate()
 		_role_list.add_child(row)
-		row.setup(role, i, roles.size())
+		row.setup(role, i, roles.size(), count)
 		row.move_requested.connect(_on_move_role)
 		row.selected.connect(_select_role)
+
+func _compute_role_member_counts() -> Dictionary:
+	var counts: Dictionary = {}
+	var members: Array = Client.get_members_for_guild(_guild_id)
+	for member in members:
+		var roles: Array = member.get("roles", [])
+		for role_id in roles:
+			var rid: String = str(role_id)
+			counts[rid] = counts.get(rid, 0) + 1
+	return counts
 
 func _get_role_index(role: Dictionary) -> int:
 	for i in _all_roles.size():

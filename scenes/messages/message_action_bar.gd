@@ -31,8 +31,11 @@ func show_for_message(msg_node: Control, msg_data: Dictionary) -> void:
 	delete_btn.visible = is_own
 	if _fade_tween and _fade_tween.is_valid():
 		_fade_tween.kill()
-	modulate.a = 0.0
 	visible = true
+	if Config.get_reduced_motion():
+		modulate.a = 1.0
+		return
+	modulate.a = 0.0
 	_fade_tween = create_tween()
 	_fade_tween.tween_property(self, "modulate:a", 1.0, 0.1) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
@@ -40,13 +43,17 @@ func show_for_message(msg_node: Control, msg_data: Dictionary) -> void:
 func hide_bar() -> void:
 	if _fade_tween and _fade_tween.is_valid():
 		_fade_tween.kill()
-	_fade_tween = create_tween()
-	_fade_tween.tween_property(self, "modulate:a", 0.0, 0.1) \
-		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
-	_fade_tween.tween_callback(func():
+	if Config.get_reduced_motion():
 		visible = false
 		modulate.a = 1.0
-	)
+	else:
+		_fade_tween = create_tween()
+		_fade_tween.tween_property(self, "modulate:a", 0.0, 0.1) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+		_fade_tween.tween_callback(func():
+			visible = false
+			modulate.a = 1.0
+		)
 	_message_node = null
 	# Keep message data while reaction picker is open so the callback
 	# can still read channel_id / msg_id after the bar auto-hides.

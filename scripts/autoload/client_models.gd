@@ -27,7 +27,7 @@ const USER_FLAGS := {
 }
 
 # Custom emoji caches — populated by Client when custom emoji are fetched.
-# Maps emoji_name -> local cache path (user://emoji_cache/{id}.png)
+# Maps emoji_name -> local cache path (per-profile emoji_cache/{id}.png)
 static var custom_emoji_paths: Dictionary = {}
 # Maps emoji_name -> Texture2D (in-memory for reaction pills)
 static var custom_emoji_textures: Dictionary = {}
@@ -335,6 +335,27 @@ static func message_to_dict(
 			ed["image"] = e.image.get("url", "")
 		if e.thumbnail != null and e.thumbnail is Dictionary:
 			ed["thumbnail"] = e.thumbnail.get("url", "")
+		if e.author != null and e.author is Dictionary:
+			ed["author"] = {
+				"name": e.author.get("name", ""),
+				"url": e.author.get("url", ""),
+				"icon_url": e.author.get("icon_url", ""),
+			}
+		if e.fields != null and e.fields is Array:
+			var fields_arr: Array = []
+			for f in e.fields:
+				if f is Dictionary:
+					fields_arr.append({
+						"name": f.get("name", ""),
+						"value": f.get("value", ""),
+						"inline": f.get("inline", false),
+					})
+			if fields_arr.size() > 0:
+				ed["fields"] = fields_arr
+		if e.url != null:
+			ed["url"] = str(e.url)
+		if e.type != null:
+			ed["type"] = str(e.type)
 		embeds_arr.append(ed)
 	# First embed for backward compat
 	var embed_dict: Dictionary = embeds_arr[0] if embeds_arr.size() > 0 else {}
@@ -486,11 +507,18 @@ static func dm_channel_to_dict(channel: AccordChannel, user_cache: Dictionary) -
 	if channel.last_message_id != null:
 		last_msg_id = str(channel.last_message_id)
 
+	var owner_id: String = str(channel.owner_id) \
+		if channel.owner_id != null else ""
+	var dm_name: String = str(channel.name) \
+		if channel.name != null else ""
+
 	return {
 		"id": channel.id,
 		"user": user_dict,
 		"recipients": all_recipients,
 		"is_group": is_group,
+		"owner_id": owner_id,
+		"name": dm_name,
 		"last_message": "",
 		"last_message_id": last_msg_id,
 		"unread": false,

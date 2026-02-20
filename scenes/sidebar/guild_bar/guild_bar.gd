@@ -22,25 +22,46 @@ func _ready() -> void:
 
 func _populate_guilds() -> void:
 	# Group guilds by folder
-	var standalone: Array = []
-	var folders: Dictionary = {}
+	var standalone: Dictionary = {}  # guild_id -> data
+	var folders: Dictionary = {}  # folder_name -> [guild_data, ...]
 
 	for g in Client.guilds:
 		var folder_name: String = g.get("folder", "")
 		if folder_name.is_empty():
-			standalone.append(g)
+			standalone[g.get("id", "")] = g
 		else:
 			if not folders.has(folder_name):
 				folders[folder_name] = []
 			folders[folder_name].append(g)
 
-	# Add standalone guilds and folders in order
+	# Read saved order and place items in saved sequence
+	var saved_order: Array = Config.get_guild_order()
+	var placed_guild_ids: Array = []
+	var placed_folder_names: Array = []
+
+	for entry in saved_order:
+		if not entry is Dictionary:
+			continue
+		var entry_type: String = entry.get("type", "")
+		if entry_type == "guild":
+			var gid: String = entry.get("id", "")
+			if standalone.has(gid):
+				_add_guild_icon(standalone[gid])
+				placed_guild_ids.append(gid)
+		elif entry_type == "folder":
+			var fname: String = entry.get("name", "")
+			if folders.has(fname):
+				_add_guild_folder(fname, folders[fname])
+				placed_folder_names.append(fname)
+
+	# Append any items not in saved order (new servers/folders)
 	var processed_folders: Array = []
 	for g in Client.guilds:
 		var folder_name: String = g.get("folder", "")
 		if folder_name.is_empty():
-			_add_guild_icon(g)
-		elif folder_name not in processed_folders:
+			if g.get("id", "") not in placed_guild_ids:
+				_add_guild_icon(g)
+		elif folder_name not in placed_folder_names and folder_name not in processed_folders:
 			processed_folders.append(folder_name)
 			_add_guild_folder(folder_name, folders[folder_name])
 

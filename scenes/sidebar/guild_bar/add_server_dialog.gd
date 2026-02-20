@@ -7,6 +7,7 @@ const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tsc
 @onready var _url_input: LineEdit = $CenterContainer/Panel/VBox/ServerUrlInput
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _add_btn: Button = $CenterContainer/Panel/VBox/AddButton
+@onready var _status_label: Label = $CenterContainer/Panel/VBox/StatusLabel
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
@@ -104,8 +105,14 @@ func _on_add_pressed() -> void:
 				Config.update_server_token(i, token)
 			_add_btn.disabled = true
 			_add_btn.text = "Reconnecting..."
+			_status_label.text = ""
+			_status_label.visible = true
+			var step_cb := func(step: String): _status_label.text = step
+			AppState.connection_step.connect(step_cb)
 			Client._auto_reconnect_attempted.erase(i)
 			var result: Dictionary = await Client.connect_server(i)
+			AppState.connection_step.disconnect(step_cb)
+			_status_label.visible = false
 			_add_btn.disabled = false
 			_add_btn.text = "Add"
 			if result.has("error"):
@@ -179,10 +186,16 @@ func _connect_with_token(
 ) -> void:
 	_add_btn.disabled = true
 	_add_btn.text = "Connecting..."
+	_status_label.text = ""
+	_status_label.visible = true
+	var step_cb := func(step: String): _status_label.text = step
+	AppState.connection_step.connect(step_cb)
 
 	Config.add_server(url, token, guild_name, username, password)
 
 	var result: Dictionary = await Client.connect_server(Config.get_servers().size() - 1, invite_code)
+	AppState.connection_step.disconnect(step_cb)
+	_status_label.visible = false
 	_add_btn.disabled = false
 	_add_btn.text = "Add"
 

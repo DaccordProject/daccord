@@ -108,4 +108,4 @@ User clicks "+"
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No connection progress indicator | Low | User sees "Connecting..." on the Add button but no progress bar or status during the multi-step handshake |
+| ~~No connection progress indicator~~ | ~~Low~~ | Resolved: Status label below Add button shows step-by-step progress ("Authenticating...", "Fetching spaces...", "Connecting to gateway...") via `AppState.connection_step` signal |

@@ -1,6 +1,6 @@
 # Administrative User Management
 
-> Last touched: 2026-02-19 (updated: role hierarchy, timeout/mute, nickname editing, ban confirmation, ban pagination, member permission overwrites)
+> Last touched: 2026-02-19 (updated: audit log viewer, parallel bulk operations, role member counts)
 
 ## Overview
 
@@ -49,6 +49,14 @@ Administrative user management covers the permission-gated actions that server a
 6. Admin deletes a role via "Delete" button with ConfirmDialog (lines 210-230). The @everyone role cannot be deleted (line 159).
 7. Admin reorders roles via up/down arrows — swaps positions and calls `Client.admin.reorder_roles()` (lines 110-135). The @everyone role stays at position 0.
 8. Closing with unsaved changes shows an "Unsaved Changes" confirmation prompt (lines 236-251).
+
+### Viewing the Audit Log
+1. Admin opens the audit log via guild icon right-click > "Audit Log" (requires `view_audit_log`, guild_icon.gd) or channel banner dropdown > "Audit Log" (banner.gd).
+2. The AuditLogDialog loads entries via `Client.admin.get_audit_log()` (audit_log_dialog.gd).
+3. Each row shows an action icon, user name, action type, target, and relative timestamp.
+4. Admin can search entries by action type, user ID, or reason text.
+5. Admin can filter by action type via the dropdown (e.g., "Member Kick", "Role Create").
+6. Pagination loads 25 entries per page with a "Load More" button for cursor-based pagination.
 
 ## Signal Flow
 
@@ -117,6 +125,15 @@ Role CRUD (role management dialog):
         -> AppState.roles_updated(guild_id)
     -> role_management_dialog._on_roles_updated()            [role_management_dialog.gd:232]
       -> _rebuild_role_list()
+
+Audit Log:
+  guild_icon/banner -> "Audit Log" menu item
+    -> AuditLogDialog.setup(guild_id)                        [audit_log_dialog.gd]
+      -> Client.admin.get_audit_log(guild_id, query)         [client_admin.gd]
+        -> AccordClient.audit_logs.list(guild_id, query)     [audit_logs_api.gd]
+          -> GET /spaces/{id}/audit-log?limit=25
+      -> _rebuild_list(entries)
+        -> AuditLogRow.setup(entry_dict)                     [audit_log_row.gd]
 ```
 
 ## Key Files
@@ -143,6 +160,10 @@ Role CRUD (role management dialog):
 | `addons/accordkit/rest/endpoints/bans_api.gd` | Ban REST: `list()` (line 16), `create()` (line 29), `remove()` (line 35) |
 | `addons/accordkit/rest/endpoints/roles_api.gd` | Role REST: `create()` (line 27), `update()` (line 35), `delete()` (line 43), `reorder()` (line 50) |
 | `addons/accordkit/models/permission.gd` | 37 permission constants including `KICK_MEMBERS` (line 7), `BAN_MEMBERS` (line 8), `MANAGE_ROLES` (line 33); `has()` check (line 91) |
+| `addons/accordkit/models/audit_log_entry.gd` | `AccordAuditLogEntry` model with `from_dict()` / `to_dict()` |
+| `addons/accordkit/rest/endpoints/audit_logs_api.gd` | `AuditLogsApi` REST endpoint: `list(space_id, query)` → `GET /spaces/{id}/audit-log` |
+| `scenes/admin/audit_log_dialog.gd` | Audit log viewer dialog with pagination, search, and action type filter |
+| `scenes/admin/audit_log_row.gd` | Audit log row with action icon, user, action, target, and relative timestamp |
 
 ## Implementation Details
 
@@ -266,15 +287,16 @@ The member context menu role toggle (`_toggle_role()`, line 120 of `member_item.
 - [x] Role hierarchy enforcement on client side (cannot assign roles at or above own highest)
 - [x] Timeout/mute member via Moderate dialog (requires MODERATE_MEMBERS permission)
 - [x] Member nickname editing UI via Edit Nickname dialog (requires MANAGE_NICKNAMES permission)
-- [ ] Audit log for admin actions (AccordPermission.VIEW_AUDIT_LOG exists, no API/UI)
+- [x] Audit log viewer with pagination, search, and action type filter (requires VIEW_AUDIT_LOG permission)
 - [x] Ban reason confirmation step (two-step ban with summary preview)
 - [x] Member-specific permission overwrites (user-type overwrites alongside role overwrites)
 - [x] Pagination for ban list (cursor-based, 25 per page with Load More)
+- [x] Parallel bulk unban with error tracking
+- [x] Parallel bulk invite revoke with error tracking
+- [x] Role member count display in role management dialog
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Bulk unban is sequential | Low | `_on_bulk_unban()` (line 138 of `ban_list_dialog.gd`) loops through selected IDs with `await` for each API call. Could be parallelized or batched for large selections. |
-| Role editor doesn't show member count per role | Low | The role management dialog shows role names and permissions but doesn't indicate how many members hold each role. |
-| No audit log viewer | Low | `AccordPermission.VIEW_AUDIT_LOG` (line 13 of `permission.gd`) exists and the Admin default role includes it, but no audit log API endpoints or UI exist. |
+| Audit log depends on server endpoint | Medium | The client-side audit log viewer (`audit_log_dialog.gd`) calls `GET /spaces/{id}/audit-log` which must be implemented in accordserver. Until then, the dialog will show an error. |

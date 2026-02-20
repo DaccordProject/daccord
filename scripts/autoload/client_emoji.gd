@@ -15,7 +15,7 @@ func register(
 	if emoji_id.is_empty() or emoji_name.is_empty():
 		return
 	# Already cached on disk
-	var cache_path := "user://emoji_cache/" + emoji_id + ".png"
+	var cache_path := Config.get_emoji_cache_path(emoji_id)
 	if FileAccess.file_exists(cache_path):
 		ClientModels.custom_emoji_paths[emoji_name] = cache_path
 		return
@@ -24,7 +24,7 @@ func register(
 		return
 	_c._emoji_download_pending[emoji_id] = true
 	# Ensure cache directory exists
-	DirAccess.make_dir_recursive_absolute("user://emoji_cache")
+	DirAccess.make_dir_recursive_absolute(Config._profile_emoji_cache_dir())
 	var url: String = _c.admin.get_emoji_url(guild_id, emoji_id)
 	var http := HTTPRequest.new()
 	_c.add_child(http)

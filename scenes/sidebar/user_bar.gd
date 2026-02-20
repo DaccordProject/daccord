@@ -17,6 +17,8 @@ const ProfileEditDialog := preload(
 @onready var status_icon: ColorRect = $HBox/StatusIcon
 @onready var menu_button: MenuButton = $HBox/MenuButton
 
+var _update_ready_label: Label = null
+
 func _ready() -> void:
 	username.add_theme_font_size_override("font_size", 11)
 	username.add_theme_color_override(
@@ -47,8 +49,8 @@ func _ready() -> void:
 		se_idx, Config.get_suppress_everyone()
 	)
 	popup.add_separator()
-	popup.add_item("Export Config", 18)
-	popup.add_item("Import Config", 19)
+	popup.add_item("Export Profile", 18)
+	popup.add_item("Import Profile", 19)
 	popup.add_separator()
 	popup.add_item("Report a Problem", 13)
 	popup.add_separator()
@@ -56,6 +58,7 @@ func _ready() -> void:
 	popup.add_item("About", 10)
 	popup.add_item("Quit", 11)
 	popup.id_pressed.connect(_on_menu_id_pressed)
+	AppState.update_download_complete.connect(_on_update_ready)
 	# Load current user
 	var user: Dictionary = Client.current_user
 	setup(user)
@@ -143,7 +146,10 @@ func _on_menu_id_pressed(id: int) -> void:
 		15:
 			_toggle_suppress_everyone()
 		16:
-			_check_for_updates()
+			if Updater.is_update_ready():
+				Updater.apply_update_and_restart()
+			else:
+				_check_for_updates()
 		17:
 			_show_notification_settings()
 		18:
@@ -324,8 +330,11 @@ func _show_toast(text: String) -> void:
 	main_win.add_child(panel)
 	var tween := main_win.create_tween()
 	tween.tween_interval(3.0)
-	tween.tween_property(panel, "modulate:a", 0.0, 1.0)
-	tween.tween_callback(panel.queue_free)
+	if Config.get_reduced_motion():
+		tween.tween_callback(panel.queue_free)
+	else:
+		tween.tween_property(panel, "modulate:a", 0.0, 1.0)
+		tween.tween_callback(panel.queue_free)
 
 func _toggle_suppress_everyone() -> void:
 	var suppressed: bool = not Config.get_suppress_everyone()
@@ -335,7 +344,62 @@ func _toggle_suppress_everyone() -> void:
 	popup.set_item_checked(idx, suppressed)
 
 func _check_for_updates() -> void:
-	_show_toast("Checking for updates is not yet available.")
+	_show_toast("Checking for updates...")
+
+	var on_complete: Callable
+	var on_failed: Callable
+	var on_available: Callable
+
+	var cleanup := func() -> void:
+		if AppState.update_check_complete.is_connected(on_complete):
+			AppState.update_check_complete.disconnect(on_complete)
+		if AppState.update_check_failed.is_connected(on_failed):
+			AppState.update_check_failed.disconnect(on_failed)
+		if AppState.update_available.is_connected(on_available):
+			AppState.update_available.disconnect(on_available)
+
+	on_complete = func(_info: Variant) -> void:
+		cleanup.call()
+		_show_toast(
+			"You're on the latest version (v%s)." % Client.app_version
+		)
+
+	on_failed = func(error: String) -> void:
+		cleanup.call()
+		_show_toast("Couldn't check for updates: %s" % error)
+
+	on_available = func(info: Dictionary) -> void:
+		cleanup.call()
+		var version: String = info.get("version", "")
+		_show_toast("Update available: v%s" % version)
+
+	AppState.update_check_complete.connect(on_complete, CONNECT_ONE_SHOT)
+	AppState.update_check_failed.connect(on_failed, CONNECT_ONE_SHOT)
+	AppState.update_available.connect(on_available, CONNECT_ONE_SHOT)
+	Updater.check_for_updates(true)
+
+func _on_update_ready(_path: String) -> void:
+	# Update menu item text
+	var popup := menu_button.get_popup()
+	var idx: int = popup.get_item_index(16)
+	popup.set_item_text(idx, "Restart to Update")
+
+	# Show persistent "Update ready" label
+	if _update_ready_label == null:
+		_update_ready_label = Label.new()
+		_update_ready_label.text = "Update ready"
+		_update_ready_label.add_theme_font_size_override("font_size", 11)
+		_update_ready_label.add_theme_color_override(
+			"font_color", Color(0.345, 0.396, 0.949)
+		)
+		_update_ready_label.mouse_filter = Control.MOUSE_FILTER_STOP
+		_update_ready_label.tooltip_text = "Click to restart and apply update"
+		_update_ready_label.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				Updater.apply_update_and_restart()
+		)
+		var info_vbox: VBoxContainer = $HBox/Info
+		info_vbox.add_child(_update_ready_label)
 
 func _show_notification_settings() -> void:
 	var dlg: AcceptDialog = NotificationSettingsDialog.instantiate()
@@ -356,12 +420,12 @@ func _show_export_dialog() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
-	fd.title = "Export Config"
-	fd.add_filter("*.cfg", "Config Files")
+	fd.title = "Export Profile"
+	fd.add_filter("*.daccord-profile", "daccord Profile")
 	fd.file_selected.connect(func(path: String) -> void:
 		var err := Config.export_config(path)
 		if err == OK:
-			_show_toast("Config exported successfully.")
+			_show_toast("Profile exported successfully.")
 		else:
 			_show_toast("Export failed (error %d)." % err)
 		fd.queue_free()
@@ -374,18 +438,47 @@ func _show_import_dialog() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
-	fd.title = "Import Config"
-	fd.add_filter("*.cfg", "Config Files")
+	fd.title = "Import Profile"
+	fd.add_filter(
+		"*.daccord-profile; *.cfg", "Profile Files"
+	)
 	fd.file_selected.connect(func(path: String) -> void:
-		var err := Config.import_config(path)
-		if err == OK:
-			_show_toast(
-				"Config imported. Restart to apply."
-			)
-		else:
-			_show_toast("Import failed (error %d)." % err)
 		fd.queue_free()
+		_show_import_name_dialog(path)
 	)
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
 	fd.popup_centered(Vector2i(600, 400))
+
+func _show_import_name_dialog(
+	import_path: String,
+) -> void:
+	var dlg := AcceptDialog.new()
+	dlg.title = "Name Imported Profile"
+	dlg.ok_button_text = "Import"
+	var line := LineEdit.new()
+	line.placeholder_text = "Profile name"
+	line.max_length = 32
+	dlg.add_child(line)
+	dlg.confirmed.connect(func() -> void:
+		var pname := line.text.strip_edges()
+		if pname.is_empty():
+			pname = "Imported"
+		var slug: String = Config.create_profile(pname)
+		var new_cfg := ConfigFile.new()
+		var err := new_cfg.load(import_path)
+		if err == OK:
+			var cfg_path := (
+				"user://profiles/" + slug + "/config.cfg"
+			)
+			new_cfg.save(cfg_path)
+			_show_toast("Profile imported successfully.")
+		else:
+			_show_toast(
+				"Import failed (error %d)." % err
+			)
+		dlg.queue_free()
+	)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered(Vector2i(300, 80))

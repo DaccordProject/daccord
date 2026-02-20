@@ -1,6 +1,6 @@
 extends PanelContainer
 
-var _track: AccordMediaTrack
+var _track
 var _texture: ImageTexture
 var _is_live := false
 
@@ -10,7 +10,7 @@ var _is_live := false
 @onready var initials_label: Label = $VBox/InitialsLabel
 
 func setup_local(
-	track: AccordMediaTrack, user: Dictionary,
+	track, user: Dictionary,
 ) -> void:
 	_track = track
 	_is_live = true

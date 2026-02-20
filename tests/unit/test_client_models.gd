@@ -647,3 +647,84 @@ func test_voice_state_all_flags() -> void:
 	assert_true(d["self_stream"])
 	assert_true(d["mute"])
 	assert_true(d["deaf"])
+
+
+# =============================================================================
+# Embed extraction (author, fields, url, type)
+# =============================================================================
+
+func test_embed_author_extraction() -> void:
+	var msg := _make_message({"embeds": [{
+		"title": "Test",
+		"author": {"name": "Author Name", "url": "https://author.com", "icon_url": "https://icon.png"},
+	}]})
+	var d: Dictionary = ClientModels.message_to_dict(msg, {})
+	assert_eq(d["embeds"].size(), 1)
+	var embed: Dictionary = d["embeds"][0]
+	assert_true(embed.has("author"))
+	assert_eq(embed["author"]["name"], "Author Name")
+	assert_eq(embed["author"]["url"], "https://author.com")
+	assert_eq(embed["author"]["icon_url"], "https://icon.png")
+
+
+func test_embed_fields_extraction() -> void:
+	var msg := _make_message({"embeds": [{
+		"title": "Test",
+		"fields": [
+			{"name": "Field 1", "value": "Value 1", "inline": true},
+			{"name": "Field 2", "value": "Value 2", "inline": false},
+		],
+	}]})
+	var d: Dictionary = ClientModels.message_to_dict(msg, {})
+	var embed: Dictionary = d["embeds"][0]
+	assert_true(embed.has("fields"))
+	assert_eq(embed["fields"].size(), 2)
+	assert_eq(embed["fields"][0]["name"], "Field 1")
+	assert_eq(embed["fields"][0]["value"], "Value 1")
+	assert_true(embed["fields"][0]["inline"])
+	assert_eq(embed["fields"][1]["name"], "Field 2")
+	assert_false(embed["fields"][1]["inline"])
+
+
+func test_embed_url_extraction() -> void:
+	var msg := _make_message({"embeds": [{
+		"title": "Clickable",
+		"url": "https://example.com/page",
+	}]})
+	var d: Dictionary = ClientModels.message_to_dict(msg, {})
+	var embed: Dictionary = d["embeds"][0]
+	assert_eq(embed["url"], "https://example.com/page")
+
+
+func test_embed_type_extraction() -> void:
+	var msg := _make_message({"embeds": [{
+		"title": "Video",
+		"type": "video",
+	}]})
+	var d: Dictionary = ClientModels.message_to_dict(msg, {})
+	var embed: Dictionary = d["embeds"][0]
+	assert_eq(embed["type"], "video")
+
+
+func test_embed_no_author_no_fields() -> void:
+	var msg := _make_message({"embeds": [{
+		"title": "Simple",
+		"description": "Just text",
+	}]})
+	var d: Dictionary = ClientModels.message_to_dict(msg, {})
+	var embed: Dictionary = d["embeds"][0]
+	assert_false(embed.has("author"))
+	assert_false(embed.has("fields"))
+	assert_false(embed.has("url"))
+	assert_false(embed.has("type"))
+
+
+func test_embed_empty_fields_not_included() -> void:
+	var msg := _make_message({"embeds": [{
+		"title": "Test",
+		"fields": [],
+	}]})
+	var d: Dictionary = ClientModels.message_to_dict(msg, {})
+	var embed: Dictionary = d["embeds"][0]
+	# Empty fields array should not be included
+	assert_false(embed.has("fields"))

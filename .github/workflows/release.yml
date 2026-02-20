@@ -31,15 +31,13 @@ jobs:
             artifact: daccord-linux-arm64
             extension: arm64
             os: ubuntu-latest
-          # Windows and macOS require AccordStream platform binaries (.dll/.dylib).
-          # Without them, GDExtension types (AccordMediaTrack, AccordVoiceSession)
-          # are unregistered and scripts fail to compile during export.
-          # Re-enable once AccordStream publishes cross-platform releases.
-          # - platform: windows
-          #   preset: Windows
-          #   artifact: daccord-windows-x86_64
-          #   extension: exe
-          #   os: ubuntu-latest
+          - platform: windows
+            preset: Windows
+            artifact: daccord-windows-x86_64
+            extension: exe
+            os: ubuntu-latest
+          # macOS requires AccordStream .dylib and a macos-latest runner.
+          # Re-enable once AccordStream publishes macOS binaries.
           # - platform: macos
           #   preset: macOS
           #   artifact: daccord-macos

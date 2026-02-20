@@ -43,7 +43,7 @@ func _on_voice_left(_channel_id: String) -> void:
 
 func _on_remote_track_received(
 	_user_id: String,
-	_track: AccordMediaTrack,
+	_track,
 ) -> void:
 	_rebuild()
 
@@ -75,7 +75,7 @@ func _rebuild() -> void:
 	var has_tiles := false
 
 	# Local camera tile
-	var cam_track: AccordMediaTrack = (
+	var cam_track = (
 		Client.get_camera_track()
 	)
 	if cam_track != null:
@@ -85,7 +85,7 @@ func _rebuild() -> void:
 		has_tiles = true
 
 	# Local screen share tile
-	var screen_track: AccordMediaTrack = (
+	var screen_track = (
 		Client.get_screen_track()
 	)
 	if screen_track != null:
@@ -123,7 +123,7 @@ func _rebuild() -> void:
 					VideoTileScene.instantiate()
 				)
 				grid.add_child(tile)
-				var remote_track: AccordMediaTrack = (
+				var remote_track = (
 					Client.get_remote_track(uid)
 				)
 				if remote_track != null:

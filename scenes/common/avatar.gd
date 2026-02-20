@@ -108,6 +108,9 @@ func set_radius(value: float) -> void:
 
 func tween_radius(from: float, to: float, duration: float = 0.15) -> Tween:
 	if _shader_material:
+		if Config.get_reduced_motion():
+			set_radius(to)
+			return null
 		var tw := create_tween()
 		tw.tween_method(set_radius, from, to, duration)
 		return tw
