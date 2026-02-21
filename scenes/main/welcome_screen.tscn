@@ -1,10 +1,10 @@
 [gd_scene load_steps=12 format=3]
 
-[ext_resource type="Script" path="res://scenes/main/welcome_screen.gd" id="1"]
-[ext_resource type="Shader" path="res://theme/welcome_bg.gdshader" id="2"]
-[ext_resource type="Texture2D" uid="uid://d12a4fhl6lojk" path="res://theme/icons/chat.svg" id="3"]
-[ext_resource type="Texture2D" path="res://theme/icons/send.svg" id="4"]
-[ext_resource type="Texture2D" path="res://theme/icons/voice_channel.svg" id="5"]
+[ext_resource type="Script" uid="uid://b8vxlclp37paw" path="res://scenes/main/welcome_screen.gd" id="1"]
+[ext_resource type="Shader" uid="uid://lowy6r500esh" path="res://assets/theme/welcome_bg.gdshader" id="2"]
+[ext_resource type="Texture2D" uid="uid://d12a4fhl6lojk" path="res://assets/theme/icons/menu.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="4"]
+[ext_resource type="Texture2D" uid="uid://bmgp245o2nmko" path="res://assets/theme/icons/voice_channel.svg" id="5"]
 
 [sub_resource type="ShaderMaterial" id="shader_mat"]
 shader = ExtResource("2")

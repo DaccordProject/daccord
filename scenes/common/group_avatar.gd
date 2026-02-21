@@ -1,7 +1,7 @@
 extends ColorRect
 
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
-const AvatarShader := preload("res://theme/avatar_circle.gdshader")
+const AvatarShader := preload("res://assets/theme/avatar_circle.gdshader")
 
 @export var avatar_size: int = 32
 

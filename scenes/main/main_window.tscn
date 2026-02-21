@@ -1,15 +1,16 @@
-[gd_scene load_steps=11 format=3 uid="uid://dfdj5l4hj5t18"]
+[gd_scene load_steps=12 format=3 uid="uid://dfdj5l4hj5t18"]
 
 [ext_resource type="Script" uid="uid://cpxq3kjxgwtsg" path="res://scenes/main/main_window.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/sidebar.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/messages/message_view.tscn" id="3"]
-[ext_resource type="Texture2D" uid="uid://d12a4fhl6lojk" path="res://theme/icons/menu.svg" id="4"]
+[ext_resource type="Texture2D" uid="uid://d12a4fhl6lojk" path="res://assets/theme/icons/menu.svg" id="4"]
 [ext_resource type="PackedScene" uid="uid://bav2ls0nqas7u" path="res://scenes/members/member_list.tscn" id="5"]
-[ext_resource type="Texture2D" uid="uid://b3kye1tkgnr60" path="res://theme/icons/members.svg" id="6"]
-[ext_resource type="Texture2D" uid="uid://d2mq4xicf5qe6" path="res://theme/icons/search.svg" id="7"]
+[ext_resource type="Texture2D" uid="uid://b3kye1tkgnr60" path="res://assets/theme/icons/members.svg" id="6"]
+[ext_resource type="Texture2D" uid="uid://d2mq4xicf5qe6" path="res://assets/theme/icons/search.svg" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/search/search_panel.tscn" id="8"]
-[ext_resource type="Texture2D" uid="uid://ddb2dohjdov56" path="res://theme/icons/sidebar_toggle.svg" id="9"]
+[ext_resource type="Texture2D" uid="uid://ddb2dohjdov56" path="res://assets/theme/icons/sidebar_toggle.svg" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/video/video_grid.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/messages/thread_panel.tscn" id="11"]
 
 [node name="MainWindow" type="Control"]
 layout_mode = 3
@@ -93,6 +94,9 @@ size_flags_vertical = 3
 theme_override_constants/separation = 0
 
 [node name="MessageView" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("3")]
+layout_mode = 2
+
+[node name="ThreadPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("11")]
 layout_mode = 2
 
 [node name="MemberList" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("5")]

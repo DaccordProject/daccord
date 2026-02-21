@@ -51,3 +51,4 @@ Ordered by natural user journey:
 | 43 | [User Settings Menu](user_settings.md) | Fullscreen settings panel with 10 pages (Profiles, My Account, Profile edit, Voice & Video, Sound, Notifications, Change Password, Delete Account, 2FA, Connections), profile management dialogs, UX gaps |
 | 44 | [Message Threads](message_threads.md) | Slack-style message threads: thread panel UI, thread data model, reply count indicators, thread composer, permission gating, responsive layout |
 | 45 | [Forums](forums.md) | Discord-style forum channels: post list view, post creation with titles, thread panel integration, sort/filter, builds on Message Threads |
+| 46 | [Master Server Discovery](master_server_discovery.md) | Public server directory via accordmasterserver: server registration, background indexing, search/browse/join flow, discovery panel UI |

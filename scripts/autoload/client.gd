@@ -10,6 +10,7 @@ const CHANNEL_PANEL_WIDTH := 240
 const GUILD_BAR_WIDTH := 68
 const MESSAGE_CAP := 50
 const MAX_CHANNEL_MESSAGES := 200
+const MESSAGE_QUEUE_CAP := 20
 const TOUCH_TARGET_MIN := 44
 const USER_CACHE_CAP := 500
 
@@ -84,6 +85,8 @@ var _member_cache: Dictionary = {}
 var _role_cache: Dictionary = {}
 var _voice_state_cache: Dictionary = {} # channel_id -> Array of voice state dicts
 var _voice_server_info: Dictionary = {} # stored for Phase 4
+var _thread_message_cache: Dictionary = {} # parent_message_id -> Array of message dicts
+var _thread_unread: Dictionary = {} # parent_message_id -> true
 
 # Unread / mention tracking
 var _unread_channels: Dictionary = {}       # channel_id -> true
@@ -103,6 +106,9 @@ var _dm_to_conn: Dictionary = {}  # dm_channel_id -> conn index
 # Tracks whether auto-reconnect (with re-auth) has been attempted
 # per connection index, to prevent infinite loops.
 var _auto_reconnect_attempted: Dictionary = {}
+
+# Offline message queue (sent on reconnect)
+var _message_queue: Array = []
 
 # Custom emoji download queue to avoid duplicate requests
 var _emoji_download_pending: Dictionary = {} # emoji_id -> true
@@ -159,6 +165,7 @@ func _ready() -> void:
 		)
 	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
 	AppState.profile_switched.connect(_on_profile_switched)
+	AppState.server_reconnected.connect(_flush_message_queue)
 	# Idle timer setup
 	_last_input_time = Time.get_ticks_msec() / 1000.0
 	_idle_timer = Timer.new()
@@ -316,6 +323,9 @@ func get_members_for_guild(gid: String) -> Array:
 func get_roles_for_guild(gid: String) -> Array:
 	return _role_cache.get(gid, [])
 
+func get_messages_for_thread(parent_id: String) -> Array:
+	return _thread_message_cache.get(parent_id, [])
+
 func get_message_by_id(mid: String) -> Dictionary:
 	var cid: String = _message_id_index.get(mid, "")
 	if not cid.is_empty() and _message_cache.has(cid):
@@ -350,10 +360,10 @@ func search_messages(
 
 func send_message_to_channel(
 	cid: String, content: String, reply_to: String = "",
-	attachments: Array = []
+	attachments: Array = [], thread_id: String = ""
 ) -> bool:
 	return await mutations.send_message_to_channel(
-		cid, content, reply_to, attachments
+		cid, content, reply_to, attachments, thread_id
 	)
 
 func update_message_content(
@@ -439,34 +449,34 @@ func delete_account(password: String) -> Dictionary:
 	return await mutations.delete_account(password)
 
 func create_dm(user_id: String) -> void:
-	await mutations.create_dm(user_id)
+	await mutations.dm.create_dm(user_id)
 
 func create_group_dm(user_ids: Array) -> void:
-	await mutations.create_group_dm(user_ids)
+	await mutations.dm.create_group_dm(user_ids)
 
 func add_dm_member(
 	channel_id: String, user_id: String,
 ) -> bool:
-	return await mutations.add_dm_member(
+	return await mutations.dm.add_dm_member(
 		channel_id, user_id
 	)
 
 func remove_dm_member(
 	channel_id: String, user_id: String,
 ) -> bool:
-	return await mutations.remove_dm_member(
+	return await mutations.dm.remove_dm_member(
 		channel_id, user_id
 	)
 
 func rename_group_dm(
 	channel_id: String, new_name: String,
 ) -> bool:
-	return await mutations.rename_group_dm(
+	return await mutations.dm.rename_group_dm(
 		channel_id, new_name
 	)
 
 func close_dm(channel_id: String) -> void:
-	await mutations.close_dm(channel_id)
+	await mutations.dm.close_dm(channel_id)
 
 func has_permission(gid: String, perm: String) -> bool:
 	return permissions.has_permission(gid, perm)
@@ -566,6 +576,25 @@ func pending_server_index(pending_id: String) -> int:
 
 func reconnect_server(index: int) -> void:
 	connection.reconnect_server(index)
+
+func _flush_message_queue(guild_id: String) -> void:
+	var to_send: Array = []
+	var remaining: Array = []
+	for entry in _message_queue:
+		var gid: String = _channel_to_guild.get(
+			entry["channel_id"], ""
+		)
+		if gid == guild_id:
+			to_send.append(entry)
+		else:
+			remaining.append(entry)
+	_message_queue = remaining
+	for entry in to_send:
+		await send_message_to_channel(
+			entry["channel_id"], entry["content"],
+			entry.get("reply_to", ""),
+			entry.get("attachments", [])
+		)
 
 ## Forwarding method for deferred calls from ClientGateway.
 func _handle_gateway_reconnect_failed(

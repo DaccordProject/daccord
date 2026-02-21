@@ -48,7 +48,7 @@ enabled=PackedStringArray("res://addons/accordkit/plugin.cfg")
 
 [gui]
 
-theme/custom="res://theme/discord_dark.tres"
+theme/custom="res://assets/theme/discord_dark.tres"
 
 [physics]
 

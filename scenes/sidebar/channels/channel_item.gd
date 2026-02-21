@@ -2,10 +2,11 @@ extends Button
 
 signal channel_pressed(channel_id: String)
 
-const TEXT_ICON := preload("res://theme/icons/text_channel.svg")
-const VOICE_ICON := preload("res://theme/icons/voice_channel.svg")
-const ANNOUNCEMENT_ICON := preload("res://theme/icons/announcement_channel.svg")
-const FORUM_ICON := preload("res://theme/icons/forum_channel.svg")
+const TEXT_ICON := preload("res://assets/theme/icons/text_channel.svg")
+const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
+const ANNOUNCEMENT_ICON := preload("res://assets/theme/icons/announcement_channel.svg")
+const FORUM_ICON := preload("res://assets/theme/icons/forum_channel.svg")
+const DRAG_HANDLE_ICON := preload("res://assets/theme/icons/drag_handle.svg")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 
@@ -14,6 +15,7 @@ var guild_id: String = ""
 var _channel_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _gear_btn: Button
+var _drag_handle: TextureRect
 var _drop_above: bool = false
 var _drop_hovered: bool = false
 
@@ -75,8 +77,19 @@ func setup(data: Dictionary) -> void:
 	else:
 		channel_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 
-	# Gear button for edit (only if user has permission)
+	# Drag handle and gear button (only if user has permission)
 	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		_drag_handle = TextureRect.new()
+		_drag_handle.texture = DRAG_HANDLE_ICON
+		_drag_handle.custom_minimum_size = Vector2(10, 16)
+		_drag_handle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_drag_handle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_drag_handle.modulate = Color(0.58, 0.608, 0.643)
+		_drag_handle.visible = false
+		_drag_handle.mouse_filter = Control.MOUSE_FILTER_PASS
+		$HBox.add_child(_drag_handle)
+		$HBox.move_child(_drag_handle, 0)
+
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
@@ -104,10 +117,14 @@ func set_active(active: bool) -> void:
 		remove_theme_stylebox_override("normal")
 
 func _on_mouse_entered() -> void:
+	if _drag_handle:
+		_drag_handle.visible = true
 	if _gear_btn:
 		_gear_btn.visible = true
 
 func _on_mouse_exited() -> void:
+	if _drag_handle:
+		_drag_handle.visible = false
 	if _gear_btn:
 		_gear_btn.visible = false
 

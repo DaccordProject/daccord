@@ -25,6 +25,7 @@ func setup_context_menu() -> void:
 	_context_menu.add_item("Delete", 2)
 	_context_menu.add_item("Add Reaction", 3)
 	_context_menu.add_item("Remove All Reactions", 4)
+	_context_menu.add_item("Start Thread", 5)
 	_context_menu.id_pressed.connect(on_context_menu_id_pressed)
 	_view.add_child(_context_menu)
 
@@ -46,6 +47,11 @@ func on_bar_edit(msg_data: Dictionary) -> void:
 			mc.enter_edit_mode(
 				msg_id, msg_data.get("content", "")
 			)
+	_view._hide_action_bar()
+
+
+func on_bar_thread(msg_data: Dictionary) -> void:
+	AppState.open_thread(msg_data.get("id", ""))
 	_view._hide_action_bar()
 
 
@@ -135,6 +141,10 @@ func on_context_menu_id_pressed(id: int) -> void:
 			)
 			var mid: String = _context_menu_data.get("id", "")
 			Client.remove_all_reactions(cid, mid)
+		5: # Start Thread
+			AppState.open_thread(
+				_context_menu_data.get("id", "")
+			)
 
 
 func open_reaction_picker(msg_data: Dictionary) -> void:

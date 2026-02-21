@@ -2,9 +2,10 @@ extends VBoxContainer
 
 signal channel_pressed(channel_id: String)
 
-const CHEVRON_DOWN := preload("res://theme/icons/chevron_down.svg")
-const CHEVRON_RIGHT := preload("res://theme/icons/chevron_right.svg")
-const PLUS_ICON := preload("res://theme/icons/plus.svg")
+const CHEVRON_DOWN := preload("res://assets/theme/icons/chevron_down.svg")
+const CHEVRON_RIGHT := preload("res://assets/theme/icons/chevron_right.svg")
+const PLUS_ICON := preload("res://assets/theme/icons/plus.svg")
+const DRAG_HANDLE_ICON := preload("res://assets/theme/icons/drag_handle.svg")
 const ChannelItemScene := preload("res://scenes/sidebar/channels/channel_item.tscn")
 const VoiceChannelItemScene := preload("res://scenes/sidebar/channels/voice_channel_item.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
@@ -16,6 +17,7 @@ var guild_id: String = ""
 var _category_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _plus_btn: Button
+var _drag_handle: TextureRect
 var _count_label: Label
 var _drop_above: bool = false
 var _drop_hovered: bool = false
@@ -67,8 +69,19 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		item.setup(ch)
 		item.channel_pressed.connect(func(id: String): channel_pressed.emit(id))
 
-	# "+" button for creating channels (only if user has permission)
+	# Drag handle and "+" button (only if user has permission)
 	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		_drag_handle = TextureRect.new()
+		_drag_handle.texture = DRAG_HANDLE_ICON
+		_drag_handle.custom_minimum_size = Vector2(10, 16)
+		_drag_handle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_drag_handle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_drag_handle.modulate = Color(0.58, 0.608, 0.643)
+		_drag_handle.visible = false
+		_drag_handle.mouse_filter = Control.MOUSE_FILTER_PASS
+		$Header/HBox.add_child(_drag_handle)
+		$Header/HBox.move_child(_drag_handle, 0)
+
 		_plus_btn = Button.new()
 		_plus_btn.flat = true
 		_plus_btn.visible = false
@@ -112,10 +125,14 @@ func get_channel_items() -> Array:
 	return items
 
 func _on_header_mouse_entered() -> void:
+	if _drag_handle:
+		_drag_handle.visible = true
 	if _plus_btn:
 		_plus_btn.visible = true
 
 func _on_header_mouse_exited() -> void:
+	if _drag_handle:
+		_drag_handle.visible = false
 	if _plus_btn:
 		_plus_btn.visible = false
 

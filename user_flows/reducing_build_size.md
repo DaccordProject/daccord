@@ -252,7 +252,7 @@ Stock template comparison (~85MB for Linux), so the custom template provides a ~
 - [ ] Custom export templates compiled for macOS
 - [x] `export_presets.cfg` updated to reference custom templates
 - [x] `dist/templates/` directory created and git-lfs tracked
-- [ ] CI release workflow updated (Godot version `4.6` -> `4.5.1`)
+- [x] CI release workflow updated (Godot version `4.6` -> `4.5`)
 - [ ] UPX post-processing added to CI for Windows/Linux
 - [x] Build size measured (Linux: 30MB template, 75MB total export)
 - [ ] `disable_advanced_gui` confirmed as unsafe (RichTextLabel dependency)
@@ -263,7 +263,7 @@ Stock template comparison (~85MB for Linux), so the custom template provides a ~
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | Windows/macOS templates not yet compiled | High | `build.sh` supports these platforms but they haven't been built yet. Requires cross-compilation toolchains or native builds. |
-| CI Godot version mismatch | Medium | `release.yml` still references `GODOT_VERSION: "4.6"` — needs updating to `"4.5.1"`. |
+| ~~CI Godot version mismatch~~ | ~~Medium~~ | **Resolved** | `release.yml` updated to `GODOT_VERSION: "4.5.0"`. |
 | Module list not validated | Medium | The selective module list is a best guess. Need to export with `modules_enabled_by_default="no"` and test that the app runs correctly, adding back any missing modules. |
 | No post-export compression | Low | UPX could further reduce Windows/Linux binaries but has trade-offs (RAM, antivirus). Consider for optional/advanced builds. |
 | No web export | Low | Web-specific optimizations (wasm-opt, Brotli) are documented for future reference but not actionable today. |

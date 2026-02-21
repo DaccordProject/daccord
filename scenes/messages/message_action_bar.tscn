@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
-[ext_resource type="Script" path="res://scenes/messages/message_action_bar.gd" id="1"]
-[ext_resource type="Texture2D" path="res://theme/icons/smile.svg" id="2"]
-[ext_resource type="Texture2D" path="res://theme/icons/reply_arrow.svg" id="3"]
-[ext_resource type="Texture2D" path="res://theme/icons/edit.svg" id="4"]
-[ext_resource type="Texture2D" path="res://theme/icons/delete.svg" id="5"]
+[ext_resource type="Script" uid="uid://dobitanfd68rl" path="res://scenes/messages/message_action_bar.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://cmv58ms0mvvin" path="res://assets/theme/icons/smile.svg" id="2"]
+[ext_resource type="Texture2D" uid="uid://bnn82g4oqha4o" path="res://assets/theme/icons/reply_arrow.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://blv6l01t36i0q" path="res://assets/theme/icons/edit.svg" id="4"]
+[ext_resource type="Texture2D" uid="uid://c8ot78lof3j8n" path="res://assets/theme/icons/delete.svg" id="5"]
+[ext_resource type="Texture2D" uid="uid://dwrmq65j76jea" path="res://assets/theme/icons/thread.svg" id="6"]
 
 [sub_resource type="StyleBoxFlat" id="bar_bg"]
 bg_color = Color(0.176, 0.188, 0.208, 1)
@@ -47,6 +48,14 @@ custom_minimum_size = Vector2(32, 28)
 tooltip_text = "Reply"
 flat = true
 icon = ExtResource("3")
+icon_alignment = 1
+
+[node name="ThreadButton" type="Button" parent="HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(32, 28)
+tooltip_text = "Thread"
+flat = true
+icon = ExtResource("6")
 icon_alignment = 1
 
 [node name="EditButton" type="Button" parent="HBox"]

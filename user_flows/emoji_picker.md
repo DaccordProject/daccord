@@ -1,10 +1,12 @@
 # Emoji Picker
 
-Last touched: 2026-02-19
+Last touched: 2026-02-21
 
 ## Overview
 
-The emoji picker allows users to browse and insert emoji into their messages as `:name:` shortcodes. It provides a categorized catalog of 160 Twemoji SVGs across 8 categories, a search bar for filtering by name, and category tabs for quick navigation. Selected emoji are inserted as `:name:` shortcodes at the cursor position in the composer, and rendered inline as images by `markdown_to_bbcode()`. Emoji are also used in message reactions via a shared `EmojiData` catalog. The picker supports custom server emoji loaded from the CDN, displayed in a dedicated "Custom" category tab.
+The emoji picker allows users to browse and insert emoji into their messages as `:name:` shortcodes. It provides a categorized catalog of 190 Twemoji SVGs across 9 categories (including Flags), a search bar for filtering by name, and category tabs for quick navigation. Selected emoji are inserted as `:name:` shortcodes at the cursor position in the composer, and rendered inline as images by `markdown_to_bbcode()`. Emoji are also used in message reactions via a shared `EmojiData` catalog. The picker supports custom server emoji loaded from the CDN, displayed in a dedicated "Custom" category tab.
+
+The picker supports skin tone preferences for 19 hand/gesture emoji in the People category. Users set their preferred skin tone (Default, Light, Medium-Light, Medium, Medium-Dark, Dark) in Settings > Notifications > EMOJI. The preference is applied globally: in the picker grid, in rendered messages, and on reaction pills. Skin tone variant textures (95 SVGs) are lazily loaded on first use to avoid startup overhead.
 
 Custom emoji are stored on the server as image files (uploaded as base64 data URIs via `POST /spaces/{id}/emojis`). The server assigns each emoji a snowflake ID, stores the image to disk, and serves it via CDN at `/emojis/{emoji_id}.{png|gif}`. Emoji CRUD operations broadcast gateway events (`emoji.create`, `emoji.update`, `emoji.delete`) to all members of the space.
 
@@ -14,8 +16,8 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 
 1. User clicks the smiley-face emoji button in the composer toolbar
 2. Emoji picker panel appears above the button (352x360px, dark background with rounded corners)
-3. Category bar at the top shows tabs; if a guild is selected, the first tab is "Custom" (star icon), followed by the 8 built-in category tabs. "Smileys & Emotion" is selected by default
-4. User browses the 8x-column grid of emoji for the current category (20 emoji per built-in category)
+3. Category bar at the top shows tabs; if a guild is selected, the first tab is "Custom" (star icon), followed by the 9 built-in category tabs (including Flags). "Smileys & Emotion" is selected by default
+4. User browses the 8x-column grid of emoji for the current category (20 per built-in category, 30 for Flags). Hand/gesture emoji display with the user's preferred skin tone
 5. Optionally, user types in the search bar to filter emoji by name across all categories (including cached custom emoji)
 6. User clicks an emoji cell
 7. The emoji's `:name:` shortcode is inserted at the caret position in the composer TextEdit (both built-in and custom emoji use the same shortcode format)
@@ -29,6 +31,24 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 3. Emoji textures are loaded from the CDN using HTTPRequest and cached
 4. Custom emoji appear in the grid with their loaded textures
 5. Clicking a custom emoji inserts `:name:` into the composer, or adds it as a reaction
+
+### Change Skin Tone Preference
+
+1. User opens Settings (gear icon in user bar)
+2. User navigates to the "Notifications" page
+3. Under the "EMOJI" section, user selects a skin tone from the dropdown: Default, Light, Medium-Light, Medium, Medium-Dark, or Dark
+4. The preference is saved immediately to the profile config
+5. The next time the emoji picker opens, hand/gesture emoji (19 in the People category) display with the selected skin tone
+6. Messages containing skin-tone-eligible emoji shortcodes render with the selected tone
+7. Reaction pills for skin-tone-eligible emoji also reflect the preference
+
+### Browse Flags Category
+
+1. User opens the emoji picker
+2. User clicks the Flags tab (US flag icon, last tab in the category bar)
+3. 30 country flag emoji are displayed in the grid
+4. User clicks a flag to insert its `:flag_xx:` shortcode
+5. The flag renders as an inline image in the message
 
 ### Dismiss Picker Without Selecting
 
@@ -84,7 +104,7 @@ User clicks custom emoji cell
 Message rendering (shortcode -> inline image):
     -> message_content.setup() calls ClientModels.markdown_to_bbcode(raw_text) (line 17)
         -> Regex matches :emoji_name: patterns (client_models.gd line 372)
-        -> Replaces with [img=20x20]res://theme/emoji/CODEPOINT.svg[/img] (line 380)
+        -> Replaces with [img=20x20]res://assets/theme/emoji/CODEPOINT.svg[/img] (line 380)
 
 Reaction flow (context menu):
     -> cozy_message/collapsed_message._on_context_menu_id_pressed(3) (line 86/81)
@@ -117,7 +137,7 @@ Gateway reaction events:
 | `scenes/messages/composer/emoji_picker.tscn` | Picker layout: 352x360px PanelContainer, CategoryBar, SearchInput, 8-column EmojiGrid in ScrollContainer |
 | `scenes/messages/composer/emoji_button_cell.gd` | Individual emoji button: displays texture, emits `emoji_selected` on click |
 | `scenes/messages/composer/emoji_button_cell.tscn` | Cell layout: 36x36px flat Button with hover highlight, centered icon |
-| `scripts/emoji_data.gd` | Static catalog: `Category` enum, `CATALOG` (8 categories x 20 entries), `TEXTURES` (160 preloaded SVGs), lookup helpers with dictionary-based `get_by_name()` |
+| `scripts/emoji_data.gd` | Static catalog: `Category` enum (9 categories), `CATALOG` (190 entries), `TEXTURES` (190 preloaded SVGs), skin tone support (`get_texture()`, `get_codepoint_with_tone()`), multi-codepoint `codepoint_to_char()`, lazy skin tone texture cache |
 | `scripts/autoload/client_models.gd` | `markdown_to_bbcode()` renders `:name:` shortcodes as inline `[img]` BBCode tags; `emoji_to_dict()` converts `AccordEmoji` models |
 | `scenes/messages/message_content.gd` | Calls `markdown_to_bbcode()` for emoji rendering, passes `channel_id` and `message_id` to reaction bar |
 | `scenes/messages/reaction_pill.gd` | Reaction display: looks up emoji textures, calls `Client.add_reaction()`/`Client.remove_reaction()` on toggle |
@@ -127,22 +147,32 @@ Gateway reaction events:
 | `scripts/autoload/client.gd` | `add_reaction()` (line 403) and `remove_reaction()` (line 413) mutation methods, gateway signal connections (lines 244-248) |
 | `scripts/autoload/client_gateway.gd` | Gateway handlers: `on_reaction_add` (line 290), `on_reaction_remove` (line 320), `on_reaction_clear` (line 344), `on_reaction_clear_emoji` (line 356) |
 | `scripts/autoload/app_state.gd` | `emojis_updated` (line 36) and `reactions_updated` (line 38) signals |
-| `theme/emoji/*.svg` | 160 Twemoji SVG files referenced by hex codepoint filename |
+| `scripts/autoload/config.gd` | `get_emoji_skin_tone()` / `set_emoji_skin_tone()` for persisting skin tone preference (0=Default, 1-5=tones) |
+| `addons/accordkit/models/emoji.gd` | `AccordEmoji` model with `image_url` field parsed from server responses |
+| `scenes/user/user_settings.gd` | Skin tone dropdown in Notifications page under "EMOJI" section |
+| `scripts/download_emoji.sh` | One-time script to download Twemoji SVGs for skin tone variants (95) and flags (30) |
+| `assets/theme/emoji/*.svg` | 285 Twemoji SVG files: 160 base + 95 skin tone variants + 30 flags |
 | `theme/icons/smile.svg` | Emoji button icon in composer toolbar |
 
 ## Implementation Details
 
 ### EmojiData Catalog (emoji_data.gd)
 
-- `Category` enum (line 7): `SMILEYS`, `PEOPLE`, `NATURE`, `FOOD`, `ACTIVITIES`, `TRAVEL`, `OBJECTS`, `SYMBOLS`
-- `CATEGORY_NAMES` (lines 9-18): Human-readable names for tooltip text (e.g., "Smileys & Emotion", "People & Body")
-- `CATEGORY_ICONS` (lines 20-29): Maps each category to its representative codepoint (used as the tab icon)
-- `CATALOG` (lines 31-208): Dictionary mapping each `Category` to an array of 20 `{name, codepoint}` entries. Names use snake_case (e.g., `"grinning_face"`, `"thumbs_up"`). Codepoints are hex strings referencing Twemoji filenames (e.g., `"1f600"`)
-- `TEXTURES` (lines 210-379): Dictionary mapping emoji name to `preload()`ed SVG textures from `theme/emoji/`. All 160 emoji are preloaded at class load time
+- `Category` enum: `SMILEYS`, `PEOPLE`, `NATURE`, `FOOD`, `ACTIVITIES`, `TRAVEL`, `OBJECTS`, `SYMBOLS`, `FLAGS`
+- `CATEGORY_NAMES`: Human-readable names for tooltip text (e.g., "Smileys & Emotion", "People & Body", "Flags")
+- `CATEGORY_ICONS`: Maps each category to its representative codepoint (used as the tab icon). FLAGS uses `1f1fa-1f1f8` (US flag)
+- `CATALOG`: Dictionary mapping each `Category` to an array of `{name, codepoint}` entries. 20 per built-in category, 30 for FLAGS. Codepoints are hex strings; flags use multi-codepoint format (e.g., `"1f1fa-1f1f8"`)
+- `TEXTURES`: Dictionary mapping emoji name to `preload()`ed SVG textures. All 190 base emoji are preloaded at class load time
+- `SKIN_TONE_MODIFIERS`: Array of 6 entries (index 0 = empty/default, 1-5 = skin tone hex codepoints `1f3fb`..`1f3ff`)
+- `SKIN_TONE_EMOJI`: Array of 19 emoji names in the People category that support skin tone variants (all except `handshake`)
+- `_skin_tone_textures` (static var): Lazily-loaded cache of skin tone variant textures (keyed by full codepoint like `"1f44d-1f3fb"`)
 - `_name_lookup` (static var): Lazily-built dictionary mapping emoji name to `{name, codepoint}` entry for O(1) lookup
-- `get_all_for_category(category)` (line 390): Returns the 20-entry array for a category
-- `get_by_name(emoji_name)` (line 393): Dictionary lookup via `_name_lookup` (lazy-initialized on first call)
-- `codepoint_to_char(hex_codepoint)` (line 397): Converts hex string to Unicode character via `char(hex_codepoint.hex_to_int())`. Not used for composer insertion (shortcodes are used instead); exists for potential direct Unicode rendering
+- `get_all_for_category(category)`: Returns the entry array for a category
+- `get_by_name(emoji_name)`: Dictionary lookup via `_name_lookup` (lazy-initialized on first call)
+- `supports_skin_tone(emoji_name)`: Returns true if the emoji supports skin tone variants
+- `get_codepoint_with_tone(emoji_name, tone)`: Returns the codepoint with skin tone modifier appended (e.g., `"1f44d-1f3fb"` for thumbs_up + light tone). Returns base codepoint if tone is 0 or emoji doesn't support tones
+- `get_texture(emoji_name, tone)`: Returns the texture for the emoji with the given skin tone. Lazily loads skin tone SVGs on first access. Falls back to base texture if the variant file doesn't exist
+- `codepoint_to_char(hex_codepoint)`: Converts hex codepoint string to Unicode character(s). Handles multi-codepoint sequences by splitting on `-` (e.g., `"1f1fa-1f1f8"` produces two regional indicator characters for the US flag)
 
 ### Emoji Picker Panel (emoji_picker.gd)
 
@@ -158,7 +188,7 @@ Gateway reaction events:
 ### Emoji Button Cell (emoji_button_cell.gd)
 
 - Extends `Button` (36x36px, flat, centered icon, expand_icon enabled)
-- `setup(data)`: Stores `data.name` as `_emoji_name`, sets `icon` from `EmojiData.TEXTURES`, sets tooltip to name with underscores replaced by spaces
+- `setup(data)`: Stores `data.name` as `_emoji_name`, sets `icon` via `EmojiData.get_texture()` with the user's skin tone preference, sets tooltip to name with underscores replaced by spaces
 - `_on_pressed()`: Emits `emoji_selected(_emoji_name)`
 - Hover style: light gray background (`Color(0.25, 0.26, 0.28)`) with 4px corner radius (defined in .tscn)
 
@@ -178,7 +208,7 @@ Gateway reaction events:
 - `markdown_to_bbcode()` (line 324) converts `:emoji_name:` shortcodes to inline images
 - Regex pattern `:([a-z0-9_]+):` matches shortcodes (line 372)
 - Matches are processed in reverse order to maintain string indices (line 374)
-- Each match is looked up via `EmojiData.get_by_name()` (line 377); if found, replaced with `[img=20x20]res://theme/emoji/CODEPOINT.svg[/img]` (line 380)
+- Each match is looked up via `EmojiData.get_by_name()` (line 377); if found, replaced with `[img=20x20]res://assets/theme/emoji/CODEPOINT.svg[/img]` (line 380)
 - Custom emoji shortcodes (`:custom_name:`) are resolved via `ClientModels.custom_emoji_paths` — if the name is found in the custom emoji cache, it renders as `[img=20x20]{cached_path}[/img]`
 
 ### Reactions API Integration
@@ -202,8 +232,8 @@ Gateway reaction events:
 
 - [x] Emoji button in composer toolbar (smile.svg icon)
 - [x] Emoji picker panel with dark theme styling
-- [x] 8 category tabs with icon buttons and active highlighting
-- [x] 160 Twemoji SVGs across 8 categories (20 per category)
+- [x] 9 category tabs with icon buttons and active highlighting (including Flags)
+- [x] 190 Twemoji SVGs across 9 categories (20 per built-in, 30 flags) + 95 skin tone variants
 - [x] Search-by-name filtering across all categories
 - [x] Shortcode insertion at caret position (`:name:` format)
 - [x] Shortcode rendering as inline images via `markdown_to_bbcode()`
@@ -224,13 +254,16 @@ Gateway reaction events:
 - [x] Custom emoji displayed on reaction pills (fallback to `ClientModels.custom_emoji_textures`)
 - [x] Recently used emoji section (persisted in config, shown as first tab with watch icon)
 - [x] Reaction cache double-mutation fixed (gateway events are sole source of truth)
+- [x] `AccordEmoji` model `image_url` field parsed from server responses (preferred over manual CDN URL construction)
+- [x] Skin tone preference (Default + 5 tones) persisted in config, applied to picker, messages, and reaction pills
+- [x] Skin tone settings UI in Notifications page (dropdown under "EMOJI" section)
+- [x] Skin tone variant textures lazily loaded (95 SVGs, not preloaded at startup)
+- [x] Flags category with 30 country flag emoji (multi-codepoint regional indicator pairs)
+- [x] Multi-codepoint `codepoint_to_char()` for flags and ZWJ sequences
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | `reactions_updated` signal declared but unused | Medium | `AppState.reactions_updated` (line 38) is declared but never emitted or connected; gateway handlers emit `messages_updated` instead, causing full message list re-renders for reaction changes |
-| `AccordEmoji` model missing `image_url` field | Medium | The server returns `image_url` (CDN URL) in emoji responses, but the `AccordEmoji` model does not store it; the client constructs CDN URLs manually via `AccordCDN.emoji()` |
-| No skin tone variants | Low | All emoji are default yellow; no skin tone modifier support |
-| Multi-codepoint emoji not supported | Low | `EmojiData` only handles single-codepoint emoji; flags (regional indicators), ZWJ sequences (family, profession emoji), and other multi-codepoint sequences are absent from the catalog |
 | Upload button not connected | Low | `composer.tscn` has an UploadButton (plus.svg icon) but it has no `pressed` connection in `composer.gd` |

@@ -6,7 +6,8 @@ var _emoji_name: String = ""
 
 func setup(data: Dictionary) -> void:
 	_emoji_name = data.get("name", "")
-	var tex: Texture2D = EmojiData.TEXTURES.get(_emoji_name)
+	var tone: int = Config.get_emoji_skin_tone()
+	var tex: Texture2D = EmojiData.get_texture(_emoji_name, tone)
 	if tex:
 		icon = tex
 	tooltip_text = _emoji_name.replace("_", " ")

@@ -242,7 +242,7 @@ Connection state:
 ### Markdown to BBCode (client_models.gd)
 
 - `ClientModels.markdown_to_bbcode()` (line 353) performs sequential regex replacements: code blocks, inline code, strikethrough, underline, bold, italic, spoilers, links, blockquotes.
-- **Emoji shortcodes**: `:name:` patterns are replaced with inline `[img]` tags pointing to `res://theme/emoji/<codepoint>.svg` (lines 399-410).
+- **Emoji shortcodes**: `:name:` patterns are replaced with inline `[img]` tags pointing to `res://assets/theme/emoji/<codepoint>.svg` (lines 399-410).
 - Spoilers rendered as same-color text on same-color background, wrapped in `[url=spoiler]` for click-to-reveal. Clicking a spoiler re-renders the BBCode with visible text colors.
 - Underline processed before bold to avoid `__` vs `**` conflict (line 367).
 

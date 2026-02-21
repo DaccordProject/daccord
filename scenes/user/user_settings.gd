@@ -395,6 +395,21 @@ func _build_notifications_page() -> VBoxContainer:
 	)
 	vbox.add_child(motion_cb)
 
+	# Emoji skin tone
+	vbox.add_child(_section_label("EMOJI"))
+	var tone_dropdown := OptionButton.new()
+	tone_dropdown.add_item("Default")
+	tone_dropdown.add_item("Light")
+	tone_dropdown.add_item("Medium-Light")
+	tone_dropdown.add_item("Medium")
+	tone_dropdown.add_item("Medium-Dark")
+	tone_dropdown.add_item("Dark")
+	tone_dropdown.selected = Config.get_emoji_skin_tone()
+	tone_dropdown.item_selected.connect(func(idx: int) -> void:
+		Config.set_emoji_skin_tone(idx)
+	)
+	vbox.add_child(tone_dropdown)
+
 	# Per-server mute toggles
 	vbox.add_child(_section_label("SERVER MUTE"))
 	for guild in Client.guilds:

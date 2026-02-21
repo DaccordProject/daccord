@@ -43,15 +43,31 @@ func _init(
 
 
 func on_server_disconnected(
-	guild_id: String, _code: int, _reason: String
+	guild_id: String, code: int, reason: String
 ) -> void:
 	if guild_id != _get_guild_for_channel.call():
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
-	status_label.text = "Connection lost. Reconnecting..."
+	var display := _code_to_message(code)
+	if display.is_empty():
+		display = reason if not reason.is_empty() else "Connection lost"
+	status_label.text = "%s. Reconnecting..." % display
 	retry_button.visible = false
 	connection_banner.visible = true
+
+
+static func _code_to_message(code: int) -> String:
+	match code:
+		4003: return "Authentication failed"
+		4004: return "Session expired"
+		4012: return "Invalid gateway intent"
+		4013: return "Disallowed gateway intent"
+		4014: return "Unauthorized"
+		4000: return "Heartbeat timeout"
+		1000: return "Server closed connection"
+		1001: return "Server going away"
+		_: return ""
 
 
 func on_server_reconnecting(

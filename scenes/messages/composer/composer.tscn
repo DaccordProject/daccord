@@ -1,10 +1,10 @@
 [gd_scene load_steps=7 format=3 uid="uid://d2tbslwtfxe4b"]
 
 [ext_resource type="Script" uid="uid://ch8elogiow0b6" path="res://scenes/messages/composer/composer.gd" id="1"]
-[ext_resource type="Texture2D" uid="uid://cprwmqd0vyvem" path="res://theme/icons/plus.svg" id="2"]
-[ext_resource type="Texture2D" uid="uid://cmv58ms0mvvin" path="res://theme/icons/smile.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://cprwmqd0vyvem" path="res://assets/theme/icons/plus.svg" id="2"]
+[ext_resource type="Texture2D" uid="uid://cmv58ms0mvvin" path="res://assets/theme/icons/smile.svg" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/messages/composer/message_input.tscn" id="3_input"]
-[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://theme/icons/send.svg" id="4"]
+[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="4"]
 
 [sub_resource type="StyleBoxFlat" id="composer_bg"]
 content_margin_left = 4.0

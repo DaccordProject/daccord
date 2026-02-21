@@ -1,8 +1,8 @@
 [gd_scene load_steps=4 format=3]
 
-[ext_resource type="Script" path="res://scenes/sidebar/guild_bar/add_server_button.gd" id="1"]
+[ext_resource type="Script" uid="uid://c2yget8jt15e4" path="res://scenes/sidebar/guild_bar/add_server_button.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/pill.tscn" id="2"]
-[ext_resource type="Texture2D" uid="uid://cprwmqd0vyvem" path="res://theme/icons/plus.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://cprwmqd0vyvem" path="res://assets/theme/icons/plus.svg" id="3"]
 
 [node name="AddServerButton" type="HBoxContainer"]
 custom_minimum_size = Vector2(68, 48)

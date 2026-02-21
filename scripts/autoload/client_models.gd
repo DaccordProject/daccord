@@ -46,9 +46,12 @@ static var _hsv_colors := [
 ]
 
 static func _color_from_id(id: String) -> Color:
-	var idx := id.hash() % _hsv_colors.size()
+	var count: int = _hsv_colors.size()
+	if count == 0:
+		return Color.from_hsv(absf(float(id.hash()) / float(0x7FFFFFFF)), 0.7, 0.9)
+	var idx: int = id.hash() % count
 	if idx < 0:
-		idx += _hsv_colors.size()
+		idx += count
 	return _hsv_colors[idx]
 
 static func _status_string_to_enum(status: String) -> int:
@@ -396,6 +399,14 @@ static func message_to_dict(
 	if msg.mention_roles is Array:
 		mention_roles_arr = msg.mention_roles
 
+	var thread_id_str: String = ""
+	if msg.thread_id != null:
+		thread_id_str = str(msg.thread_id)
+
+	var last_reply_str: String = ""
+	if msg.last_reply_at != null:
+		last_reply_str = str(msg.last_reply_at)
+
 	return {
 		"id": msg.id,
 		"channel_id": msg.channel_id,
@@ -412,6 +423,10 @@ static func message_to_dict(
 		"mentions": mentions_arr,
 		"mention_everyone": msg.mention_everyone,
 		"mention_roles": mention_roles_arr,
+		"thread_id": thread_id_str,
+		"reply_count": msg.reply_count,
+		"last_reply_at": last_reply_str,
+		"thread_participants": msg.thread_participants,
 	}
 
 static func is_user_mentioned(

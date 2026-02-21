@@ -85,13 +85,14 @@ static func markdown_to_bbcode(text: String) -> String:
 	)
 	# Emoji shortcodes :name: -> inline image
 	var emoji_matches := _emoji_regex.search_all(result)
+	var skin_tone: int = Config.get_emoji_skin_tone()
 	for i in range(emoji_matches.size() - 1, -1, -1):
 		var m := emoji_matches[i]
 		var ename := m.get_string(1)
 		var entry := EmojiData.get_by_name(ename)
 		if not entry.is_empty():
-			var cp: String = entry["codepoint"]
-			var img_tag := "[img=20x20]res://theme/emoji/" + cp + ".svg[/img]"
+			var cp: String = EmojiData.get_codepoint_with_tone(ename, skin_tone)
+			var img_tag := "[img=20x20]res://assets/theme/emoji/" + cp + ".svg[/img]"
 			result = result.substr(0, m.get_start()) + img_tag + result.substr(m.get_end())
 		elif ClientModels.custom_emoji_paths.has(ename):
 			var path: String = ClientModels.custom_emoji_paths[ename]

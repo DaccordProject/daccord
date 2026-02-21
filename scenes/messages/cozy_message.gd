@@ -17,6 +17,8 @@ var _is_hovered: bool = false
 
 @onready var content_column: VBoxContainer = $ContentColumn
 @onready var header: HBoxContainer = $ContentColumn/Header
+@onready var thread_indicator: HBoxContainer = $ContentColumn/ThreadIndicator
+@onready var thread_count_label: Label = $ContentColumn/ThreadIndicator/ThreadCountLabel
 
 func _ready() -> void:
 	# Allow mouse events to pass through child controls so hover
@@ -65,6 +67,23 @@ func setup(data: Dictionary) -> void:
 		reply_ref.visible = false
 
 	message_content.setup(data)
+
+	# Thread indicator
+	var thread_reply_count: int = data.get("reply_count", 0)
+	if thread_reply_count > 0:
+		thread_indicator.visible = true
+		var suffix: String = "reply" if thread_reply_count == 1 else "replies"
+		thread_count_label.text = "%d %s" % [thread_reply_count, suffix]
+		thread_count_label.add_theme_font_size_override("font_size", 12)
+		thread_count_label.add_theme_color_override("font_color", Color(0.345, 0.396, 0.949))
+		# Detect unread thread
+		if Client._thread_unread.has(data.get("id", "")):
+			thread_count_label.add_theme_color_override("font_color", Color(0.4, 0.5, 1.0))
+		thread_indicator.gui_input.connect(_on_thread_indicator_input)
+		thread_indicator.mouse_filter = Control.MOUSE_FILTER_STOP
+		thread_indicator.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	else:
+		thread_indicator.visible = false
 
 	# Mention highlight
 	var my_id: String = Client.current_user.get("id", "")
@@ -137,6 +156,10 @@ func _on_gui_input(event: InputEvent) -> void:
 				var uid: String = user.get("id", "")
 				if not uid.is_empty():
 					AppState.profile_card_requested.emit(uid, global_click)
+
+func _on_thread_indicator_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		AppState.open_thread(_message_data.get("id", ""))
 
 func _emit_context_menu(pos: Vector2i) -> void:
 	context_menu_requested.emit(pos, _message_data)

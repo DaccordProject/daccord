@@ -150,12 +150,15 @@ func _load_recent_category() -> void:
 func _add_custom_emoji_cell(emoji) -> void:
 	var emoji_id: String = ""
 	var emoji_name: String = ""
+	var emoji_image_url: String = ""
 	if emoji is Dictionary:
 		emoji_id = str(emoji.get("id", ""))
 		emoji_name = str(emoji.get("name", ""))
+		emoji_image_url = str(emoji.get("image_url", ""))
 	elif emoji is AccordEmoji:
 		emoji_id = emoji.id
 		emoji_name = emoji.name
+		emoji_image_url = emoji.image_url
 
 	if emoji_id.is_empty():
 		return
@@ -168,8 +171,12 @@ func _add_custom_emoji_cell(emoji) -> void:
 	if _custom_emoji_cache.has(emoji_id):
 		cell.icon = _custom_emoji_cache[emoji_id]["texture"]
 	else:
-		# Load from CDN
-		var url := Client.admin.get_emoji_url(AppState.current_guild_id, emoji_id)
+		# Prefer image_url from server, fall back to constructed CDN URL
+		var url: String
+		if not emoji_image_url.is_empty():
+			url = emoji_image_url
+		else:
+			url = Client.admin.get_emoji_url(AppState.current_guild_id, emoji_id)
 		var http := HTTPRequest.new()
 		cell.add_child(http)
 		http.request_completed.connect(func(

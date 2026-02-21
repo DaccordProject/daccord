@@ -1,6 +1,6 @@
 # Test Coverage
 
-Last touched: 2026-02-20
+Last touched: 2026-02-21
 
 ## Overview
 
@@ -67,11 +67,12 @@ cleanup() ──► kill server + rm accord_test.db
 | `tests/unit/test_guild_icon.gd` | Unit tests for guild_icon — setup, pill state, mention badge, active (11 tests) |
 | `tests/unit/test_guild_folder.gd` | Unit tests for guild_folder — setup, expand/collapse, set_active, notifications, context menu (24 tests) |
 | `tests/unit/test_reaction_bar.gd` | Unit tests for reaction_bar — setup, pill creation, ID injection (5 tests) |
-| `tests/unit/test_updater.gd` | Unit tests for Updater semver parsing, comparison, is_newer, and parse_release (32 tests) |
+| `tests/unit/test_updater.gd` | Unit tests for Updater semver parsing, comparison, is_newer, parse_release, and instance state (34 tests) |
 | `tests/unit/test_user_bar.gd` | Unit tests for user_bar — avatar handling, display name, username, status icon (12 tests) |
 | `tests/unit/test_error_reporting.gd` | Unit tests for ErrorReporting — guard clauses, signal handlers, PII scrubbing (20 tests) |
 | `tests/unit/test_config_profiles.gd` | Unit tests for Config profiles — slugify, password hashing, CRUD, ordering (22 tests) |
 | `tests/unit/test_embed.gd` | Unit tests for embed component — setup, title/URL, author, fields, footer, color, type (12 tests) |
+| `tests/unit/test_user_settings.gd` | Smoke tests for user settings panel — script loading, instantiation, page building, navigation, Escape close (10 tests) |
 | `tests/accordkit/helpers/test_base.gd` | AccordTestBase — seeds server, creates clients per test |
 | `tests/accordkit/helpers/seed_client.gd` | SeedClient — POSTs to `/test/seed` for test data |
 | `tests/accordkit/unit/test_snowflake.gd` | AccordSnowflake encode/decode (9 tests) |
@@ -94,6 +95,7 @@ cleanup() ──► kill server + rm accord_test.db
 | `tests/accordkit/gateway/test_gateway_connect.gd` | WebSocket connect/disconnect lifecycle (3 tests) |
 | `tests/accordkit/gateway/test_gateway_events.gd` | Real-time gateway event delivery (1 test) |
 | `tests/accordkit/e2e/test_full_lifecycle.gd` | Full login-to-logout lifecycle (1 test) |
+| `tests/accordkit/e2e/test_add_server.gd` | Full invite flow — create space, create invite, bot accepts, gateway event, REST verify, send message (1 test) |
 | `tests/accordstream/integration/test_device_enumeration.gd` | Device listing APIs (34 tests) |
 | `tests/accordstream/integration/test_media_tracks.gd` | Media track create/enable/stop (25 tests) |
 | `tests/accordstream/integration/test_peer_connection.gd` | WebRTC peer connection API (51 tests) |
@@ -182,6 +184,8 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 **test_embed.gd** — 12 tests for the embed message component. Covers `setup` with empty data (hides embed), title only (shows title, hides author/fields/image/thumbnail/footer), title with URL (BBCode link in title_rtl), description only, author with/without URL (author_row visibility, name rendering), fields (container visible with fields, hidden without), footer (visible with text, hidden without), custom color (border_color on StyleBoxFlat), and type "image" (hides title/description, shows image_rect).
 
+**test_user_settings.gd** — 10 smoke tests for the user settings panel. Script loading tests (4) verify `user_settings.gd`, `user_settings_profile.gd`, `user_settings_danger.gd`, and `user_settings_twofa.gd` load without parse errors. Instantiation test (1) verifies the panel can be added to the scene tree. Profile type tests (2) verify `get_profiles()` returns Array containing "default" and `get_active_slug()` returns String. Page building tests (2) verify all 9 pages are created and page navigation switches visibility. Escape key test (1) verifies `_unhandled_input` with `KEY_ESCAPE` queues the panel for deletion. Sets up an in-memory `Config` with profiles and voice sub-objects and a mock `Client.current_user` dict in `before_each()`.
+
 **test_channel_item.gd** — 15 tests for the channel item sidebar component. Covers `setup` (stores IDs, sets name text), type icon selection (TEXT/VOICE/ANNOUNCEMENT/FORUM), NSFW red tint vs default, unread dot visibility and font color, `set_active` (adds/removes style override), signal existence, and data storage.
 
 **test_category_item.gd** — 10 tests for the category item sidebar component. Covers `setup` (stores guild_id, uppercases name, creates count label, instantiates text + voice channel items), collapse toggle (hides channels, shows count label, restores on double-toggle), `get_category_id`, and signal existence.
@@ -192,7 +196,7 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 **test_reaction_bar.gd** — 5 tests for the reaction bar container. Covers empty reactions (hidden), non-empty pill creation (count verification), channel/message ID injection into reaction data, setup clears previous children, and single reaction creates single pill.
 
-**test_updater.gd** — 32 tests for the Updater semver utilities. Covers `parse_semver` (basic version, v-prefix, prerelease tag, combined v-prefix + prerelease, invalid too-few-parts, non-numeric, empty string, whitespace stripping), `compare_semver` (equal, major/minor/patch greater/less, release beats prerelease, prerelease less than release, prerelease lexicographic ordering, prerelease equal, v-prefix, invalid returns zero), `is_newer` (true, false-equal, false-older, prerelease not newer than release, release newer than prerelease, next-version prerelease is newer), and `parse_release` (valid release with Linux asset, missing tag, invalid tag, no Linux asset, prerelease tag).
+**test_updater.gd** — 34 tests for the Updater semver utilities. Covers `parse_semver` (basic version, v-prefix, prerelease tag, combined v-prefix + prerelease, invalid too-few-parts, non-numeric, empty string, whitespace stripping), `compare_semver` (equal, major/minor/patch greater/less, release beats prerelease, prerelease less than release, prerelease lexicographic ordering, prerelease equal, v-prefix, invalid returns zero), `is_newer` (true, false-equal, false-older, prerelease not newer than release, release newer than prerelease, next-version prerelease is newer), `parse_release` (valid release with Linux asset, missing tag, invalid tag, no Linux asset, prerelease tag), and instance state (`is_downloading` default false, `is_update_ready` default false).
 
 ### AccordKit Unit Tests (`tests/accordkit/unit/`)
 
@@ -225,6 +229,7 @@ Six test files, all extending `AccordTestBase`:
 ### AccordKit E2E Tests (`tests/accordkit/e2e/`)
 
 - **test_full_lifecycle.gd** (1 test) — 7-step sequential flow: bot login, get_me verification, user creates space, list channels, send+fetch message, cross-client gateway event (user sends, bot receives `message_create`), bot logout.
+- **test_add_server.gd** (1 test) — 8-step invite flow: user creates space, user creates invite, bot connects gateway and waits for ready, bot accepts invite, user verifies `member_join` gateway event with bot's user ID, REST verification that bot appears in member list, bot sends message in the new space's general channel to prove access, bot logs out.
 
 ### AccordStream Tests (`tests/accordstream/integration/`)
 
@@ -240,21 +245,21 @@ Four test files plus an end-to-end file, no server needed:
 
 Three jobs on push/PR to `master`:
 
-1. **lint** — Python 3.12 + `gdtoolkit`, runs `gdlint scripts/ scenes/` (line 32). Also runs code complexity analysis via `gdradon cc scripts/ scenes/` (lines 34-45), emitting a warning annotation for functions graded C-F.
-2. **test** — Checks out project + accordkit + accordstream addons, installs Godot 4.6 via `chickensoft-games/setup-godot@v2`, caches GUT and Sentry SDK, imports project, runs unit tests (`res://tests/unit`) with 5-minute timeout (line 137-148). Also runs AccordStream tests with `continue-on-error: true` (lines 150-162). Generates a test result summary to `$GITHUB_STEP_SUMMARY` (lines 164-175).
-3. **integration-test** — Checks out project + accordkit + accordstream + accordserver, installs Rust with `sccache` caching, builds accordserver with fallback if sccache fails (lines 271-280), starts in test mode, polls `/health` until ready (lines 289-301). Runs AccordKit suites individually: unit tests (line 322-333), REST integration tests (lines 335-346), and gateway + e2e tests with `continue-on-error: true` (lines 348-368). Uploads server log as artifact on failure (lines 390-396).
+1. **lint** — Python 3.12 + `gdtoolkit`, runs `gdlint scripts/ scenes/` (line 33). Also runs code complexity analysis via `gdradon cc scripts/ scenes/` (lines 35-46), emitting a warning annotation for functions graded C-F.
+2. **test** — Checks out project + accordstream addon, installs Godot 4.5 via `chickensoft-games/setup-godot@v2`, caches GUT and Sentry SDK, imports project, runs unit tests (`res://tests/unit`) with 5-minute timeout (lines 130-141). Also runs AccordStream tests with `continue-on-error: true` (lines 143-155). Generates a test result summary to `$GITHUB_STEP_SUMMARY` (lines 157-168).
+3. **integration-test** — Checks out project + accordstream + accordserver, installs Rust with `sccache` caching, builds accordserver with fallback if sccache fails (lines 256-265), starts in test mode, polls `/health` until ready (lines 274-286). Runs AccordKit suites individually: unit tests (lines 307-318), REST integration tests (lines 320-331), and gateway + e2e tests with `continue-on-error: true` (lines 333-353). Uploads server log as artifact on failure (lines 375-381).
 
 ### Test Count Summary
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 27 | 522 | No |
+| Unit (`tests/unit/`) | 28 | 534 | No |
 | AccordKit unit (`tests/accordkit/unit/`) | 11 | 129 | No |
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
-| AccordKit e2e (`tests/accordkit/e2e/`) | 1 | 1 | Yes |
+| AccordKit e2e (`tests/accordkit/e2e/`) | 2 | 2 | Yes |
 | AccordStream (`tests/accordstream/integration/`) | 5 | 157 | No |
-| **Total** | **52** | **860** | |
+| **Total** | **54** | **873** | |
 
 ## Implementation Status
 
@@ -264,7 +269,7 @@ Three jobs on push/PR to `master`:
 - [x] Reuse of existing server instance if already running
 - [x] AccordTestBase with `/test/seed` integration
 - [x] CI lint job (`gdlint scripts/ scenes/`)
-- [x] CI unit test job (Godot 4.6 headless)
+- [x] CI unit test job (Godot 4.5 headless)
 - [x] CI integration test job (accordserver + AccordKit tests, `continue-on-error`)
 - [x] Release pipeline (cross-platform export + GitHub Release)
 - [x] Unit tests for AppState (37 tests)
@@ -287,6 +292,7 @@ Three jobs on push/PR to `master`:
 - [x] AccordKit permission enforcement tests (23 tests)
 - [x] AccordKit gateway connect/event tests (4 tests)
 - [x] AccordKit full lifecycle e2e test (1 test)
+- [x] AccordKit invite flow e2e test (1 test)
 - [x] AccordStream device enumeration tests (34 tests)
 - [x] AccordStream media track tests (25 tests)
 - [x] AccordStream peer connection tests (51 tests)
@@ -299,15 +305,15 @@ Three jobs on push/PR to `master`:
 - [x] Unit tests for guild_icon sidebar component (11 tests)
 - [x] Unit tests for guild_folder sidebar component (24 tests)
 - [x] Unit tests for reaction_bar container (5 tests)
-- [x] Unit tests for Updater semver + parse_release (32 tests)
+- [x] Unit tests for Updater semver + parse_release + instance state (34 tests)
 - [x] Unit tests for user_bar — avatar, display name, status icon (12 tests)
 - [x] Unit tests for ErrorReporting — guard clauses, signal handlers, PII scrubbing (20 tests)
 - [x] Unit tests for Config profiles — slugify, CRUD, passwords, ordering (22 tests)
 - [x] Unit tests for embed component — setup, title, author, fields, footer, color, type (12 tests)
 - [x] Smoke tests for Client `_ready()` startup — sub-modules, AccordVoiceSession, signal wiring (6 tests)
+- [x] Smoke tests for user settings panel — script loading, pages, navigation (10 tests)
 - [ ] AccordStream tests in CI (require media hardware)
 - [ ] No mock/stub/double usage anywhere (real objects only)
-- [ ] Cross-file seed isolation (server-side `/test/seed` conflicts)
 
 ## Gaps / TODO
 
@@ -320,12 +326,11 @@ Three jobs on push/PR to `master`:
 | No tests for message_view | Medium | `scenes/messages/message_view.gd` (the scroll container / message list manager) is untested due to heavy `Client` dependency. Individual message components (cozy, collapsed, content) are tested. |
 | No tests for sidebar containers | Medium | Parent containers (`sidebar.gd`, `channel_list.gd`, `guild_bar.gd`) are untested due to heavy `Client` dependency. Leaf components (channel_item, category_item, guild_icon, guild_folder) are tested. |
 | No tests for member_list | Low | `scenes/members/member_list.gd` — member panel display untested. |
-| No tests for admin dialogs | Medium | 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. |
+| No tests for admin dialogs | Medium | 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. User settings panel now has smoke tests (`test_user_settings.gd`). |
 | No tests for emoji_picker | Low | `scenes/messages/composer/emoji_picker.gd` — emoji search, category filtering, insertion untested. |
 | No tests for search_panel | Low | `scenes/search/search_panel.gd` — search UI untested. |
 | No tests for `SoundManager` autoload | Low | `scripts/autoload/sound_manager.gd` — sound event playback and volume control have no tests. |
-| `/test/seed` fails after first test file | High | AccordTestBase's `before_all()` calls `/test/seed`, which returns 500 after the first test file runs. All subsequent integration/gateway/e2e test files fail. Server-side fix needed in `accordserver/src/routes/test_seed.rs`. |
-| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 349). AccordStream tests also use `continue-on-error: true` (line 151). AccordKit unit and REST integration tests are blocking. |
+| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 334). AccordStream tests also use `continue-on-error: true` (line 144). AccordKit unit and REST integration tests are blocking. |
 | AccordStream tests skip in headless CI | Medium | Tests guard with `pass_test("No X available — skipping")` when no hardware is detected. Most tests will be skipped in headless environments. |
 | `test_disconnect_clean_state` is a smoke test | Low | `tests/accordkit/gateway/test_gateway_connect.gd` — the disconnect test just asserts `true` after logout; does not verify internal connection state. |
 | No mock/stub/double usage | Medium | All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree. |

@@ -237,7 +237,7 @@ Note: member_to_dict() duplicates the user dict from cache, then overlays the me
 | `\|\|text\|\|` | `[bgcolor][color]text[/color][/bgcolor]` (spoiler, hidden text) |
 | `[text](url)` | `[url=url]text[/url]` |
 | `> text` | `[indent][color]text[/color][/indent]` (blockquote) |
-| `:emoji_name:` | `[img=20x20]res://theme/emoji/{codepoint}.svg[/img]` (if found in EmojiData) |
+| `:emoji_name:` | `[img=20x20]res://assets/theme/emoji/{codepoint}.svg[/img]` (if found in EmojiData) |
 
 ### Timestamp Formatting (client_models.gd:68-132)
 

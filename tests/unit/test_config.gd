@@ -128,13 +128,13 @@ func test_remove_server_negative_index_no_op() -> void:
 func test_clear_removes_all_servers() -> void:
 	config.add_server("http://host1:3000", "tok_1", "guild-a")
 	config.add_server("http://host2:4000", "tok_2", "guild-b")
-	config.clear()
+	config._clear()
 	assert_false(config.has_servers())
 	assert_eq(config.get_servers().size(), 0)
 
 
 func test_clear_on_empty_is_no_op() -> void:
-	config.clear()
+	config._clear()
 	assert_false(config.has_servers())
 
 
