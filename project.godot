@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="daccord"
-config/version="0.1.0"
+config/version="0.1.1"
 run/main_scene="res://scenes/main/main_window.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 run/low_processor_mode=true
@@ -38,12 +38,13 @@ settings/gdscript/always_track_call_stacks=true
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+window/dpi/allow_hidpi=false
 window/size/min_width=320
 window/size/min_height=480
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/accordkit/plugin.cfg", "res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/accordkit/plugin.cfg")
 
 [gui]
 
