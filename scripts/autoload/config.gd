@@ -461,6 +461,15 @@ func set_last_update_check(timestamp: int) -> void:
 	_config.set_value("updates", "last_check_timestamp", timestamp)
 	save()
 
+## Master server URL
+
+func get_master_server_url() -> String:
+	return _config.get_value("master", "url", "https://master.daccord.chat")
+
+func set_master_server_url(url: String) -> void:
+	_config.set_value("master", "url", url)
+	save()
+
 ## Draft text persistence
 
 func set_draft_text(channel_id: String, text: String) -> void:
