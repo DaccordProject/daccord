@@ -1,0 +1,45 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/guild_bar/space_row.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="join_btn"]
+bg_color = Color(0.176, 0.557, 0.384, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+
+[node name="SpaceRow" type="HBoxContainer"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+script = ExtResource("1")
+
+[node name="Info" type="VBoxContainer" parent="."]
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="NameLabel" type="Label" parent="Info"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+
+[node name="DescLabel" type="Label" parent="Info"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+autowrap_mode = 2
+
+[node name="MembersLabel" type="Label" parent="Info"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 10
+
+[node name="JoinButton" type="Button" parent="."]
+layout_mode = 2
+size_flags_vertical = 4
+text = "Join"
+theme_override_styles/normal = SubResource("join_btn")
+theme_override_font_sizes/font_size = 12

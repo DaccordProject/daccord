@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/guild_bar/add_server_dialog.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/browse_servers_panel.tscn" id="2"]
 
 [sub_resource type="StyleBoxFlat" id="panel_style"]
 bg_color = Color(0.184, 0.192, 0.212, 1)
@@ -65,7 +66,7 @@ grow_vertical = 2
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
 layout_mode = 2
-custom_minimum_size = Vector2(400, 0)
+custom_minimum_size = Vector2(480, 0)
 theme_override_styles/panel = SubResource("panel_style")
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]
@@ -86,23 +87,34 @@ layout_mode = 2
 text = "✕"
 flat = true
 
-[node name="Description" type="Label" parent="CenterContainer/Panel/VBox"]
+[node name="TabContainer" type="TabContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 340)
+
+[node name="Browse Servers" parent="CenterContainer/Panel/VBox/TabContainer" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="Enter URL" type="VBoxContainer" parent="CenterContainer/Panel/VBox/TabContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Description" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 layout_mode = 2
 text = "Enter a server URL or invite link"
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
-[node name="ServerUrlLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+[node name="ServerUrlLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 layout_mode = 2
 text = "SERVER URL"
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
-[node name="ServerUrlInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+[node name="ServerUrlInput" type="LineEdit" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
 placeholder_text = "example.com or example.com?invite=CODE"
 
-[node name="AddButton" type="Button" parent="CenterContainer/Panel/VBox"]
+[node name="AddButton" type="Button" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
 text = "Add"
@@ -110,7 +122,7 @@ theme_override_styles/normal = SubResource("add_btn_normal")
 theme_override_styles/hover = SubResource("add_btn_hover")
 theme_override_styles/pressed = SubResource("add_btn_pressed")
 
-[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 visible = false
 layout_mode = 2
 horizontal_alignment = 1
@@ -118,7 +130,7 @@ theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 12
 autowrap_mode = 2
 
-[node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+[node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)

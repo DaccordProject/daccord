@@ -4,20 +4,22 @@ signal server_added(guild_id: String)
 
 const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tscn")
 
-@onready var _url_input: LineEdit = $CenterContainer/Panel/VBox/ServerUrlInput
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
-@onready var _add_btn: Button = $CenterContainer/Panel/VBox/AddButton
-@onready var _status_label: Label = $CenterContainer/Panel/VBox/StatusLabel
-@onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
+@onready var _tab_container: TabContainer = $CenterContainer/Panel/VBox/TabContainer
+@onready var _browse_panel: VBoxContainer = $"CenterContainer/Panel/VBox/TabContainer/Browse Servers"
+@onready var _url_input: LineEdit = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/ServerUrlInput"
+@onready var _add_btn: Button = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/AddButton"
+@onready var _status_label: Label = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/StatusLabel"
+@onready var _error_label: Label = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/ErrorLabel"
 
 func _ready() -> void:
 	_close_btn.pressed.connect(_close)
 	_url_input.text_submitted.connect(func(_t): _on_add_pressed())
 	_add_btn.pressed.connect(_on_add_pressed)
+	_browse_panel.join_pressed.connect(_on_browse_join)
 
-	# Focus first input after a frame
-	await get_tree().process_frame
-	_url_input.grab_focus()
+	# Focus search on browse tab by default
+	_tab_container.current_tab = 0
 
 ## Parses a server URL string into its components.
 ## Format: [protocol://]host[:port][#guild-name][?token=value&invite=code]
@@ -67,6 +69,32 @@ static func parse_server_url(raw: String) -> Dictionary:
 		"invite_code": invite_code,
 	}
 
+
+## Called when user clicks Join on a space in the browse tab.
+func _on_browse_join(server_url: String, _space_id: String) -> void:
+	# Check if we already have this server connected
+	var servers := Config.get_servers()
+	for i in servers.size():
+		var server: Dictionary = servers[i]
+		if _urls_match(server["base_url"], server_url) and Client.is_server_connected(i):
+			_show_error("Already connected to this server.")
+			return
+
+	# Not connected — probe and authenticate
+	var reachable := await _probe_server(server_url)
+	if not reachable:
+		return
+
+	# Show auth dialog, then connect
+	var auth_dialog := AuthDialogScene.instantiate()
+	auth_dialog.setup(server_url)
+	auth_dialog.auth_completed.connect(
+		func(resolved_url: String, t: String, u: String, p: String, dn: String):
+			_connect_with_token(resolved_url, "general", t, "", u, p, dn)
+	)
+	get_parent().add_child(auth_dialog)
+
+
 func _on_add_pressed() -> void:
 	var raw := _url_input.text.strip_edges()
 
@@ -86,16 +114,7 @@ func _on_add_pressed() -> void:
 	var servers := Config.get_servers()
 	for i in servers.size():
 		var server: Dictionary = servers[i]
-		var urls_match: bool = server["base_url"] == url
-		if not urls_match:
-			# Also check HTTP vs HTTPS variant
-			var alt_url := url
-			if alt_url.begins_with("https://"):
-				alt_url = alt_url.replace("https://", "http://")
-			elif alt_url.begins_with("http://"):
-				alt_url = alt_url.replace("http://", "https://")
-			urls_match = server["base_url"] == alt_url
-		if urls_match and server["guild_name"] == guild_name:
+		if _urls_match(server["base_url"], url) and server["guild_name"] == guild_name:
 			if Client.is_server_connected(i):
 				_show_error("This server is already added.")
 				return
@@ -205,6 +224,19 @@ func _connect_with_token(
 	else:
 		server_added.emit(result.get("guild_id", ""))
 		_close()
+
+
+static func _urls_match(a: String, b: String) -> bool:
+	if a == b:
+		return true
+	# Also check HTTP vs HTTPS variant
+	var alt := b
+	if alt.begins_with("https://"):
+		alt = alt.replace("https://", "http://")
+	elif alt.begins_with("http://"):
+		alt = alt.replace("http://", "https://")
+	return a == alt
+
 
 func _show_error(msg: String) -> void:
 	_error_label.text = msg
