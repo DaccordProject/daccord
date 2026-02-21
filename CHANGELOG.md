@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-02-21
+
+### Changed
+- ETC2/ASTC texture import for macOS universal export
+- Refactored large modules and overhauled README
+- Gated release builds on CI passing
+- Added Windows installer job to release workflow
+- Added profiles, group DMs, embeds, audit log, imposter mode, auto-update, and UI polish
+
 ## [0.1.0] - 2026-02-19
 
 ### Added
