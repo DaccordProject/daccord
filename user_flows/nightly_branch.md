@@ -163,7 +163,7 @@ on:
   workflow_dispatch:       # Manual trigger
 
 env:
-  GODOT_VERSION: "4.6.0"
+  GODOT_VERSION: "4.5.0"
 
 permissions:
   contents: write

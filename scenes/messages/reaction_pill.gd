@@ -24,8 +24,10 @@ func setup(data: Dictionary) -> void:
 	message_id = data.get("message_id", "")
 	button_pressed = data.get("active", false)
 
-	if EmojiData.TEXTURES.has(emoji_key):
-		icon = EmojiData.TEXTURES[emoji_key]
+	var skin_tone: int = Config.get_emoji_skin_tone()
+	var tone_tex: Texture2D = EmojiData.get_texture(emoji_key, skin_tone)
+	if tone_tex:
+		icon = tone_tex
 	elif ClientModels.custom_emoji_textures.has(emoji_key):
 		icon = ClientModels.custom_emoji_textures[emoji_key]
 

@@ -1,6 +1,6 @@
 extends VBoxContainer
 
-const SHIMMER_SHADER := preload("res://theme/skeleton_shimmer.gdshader")
+const SHIMMER_SHADER := preload("res://assets/theme/skeleton_shimmer.gdshader")
 
 const BAR_COLOR := Color(0.24, 0.25, 0.27)
 const ROW_COUNT := 5

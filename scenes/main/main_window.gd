@@ -1,9 +1,7 @@
 extends Control
 
-const BASE_DRAWER_WIDTH := 308
-const MIN_BACKDROP_TAP_TARGET := 48
-
 const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
+const MainWindowDrawerScript := preload("res://scenes/main/main_window_drawer.gd")
 
 const AvatarScript := preload("res://scenes/common/avatar.gd")
 const ProfileCardScene := preload(
@@ -21,8 +19,7 @@ const ImageLightboxScene := preload(
 
 var tabs: Array[Dictionary] = []
 var _guild_icon_cache: Dictionary = {}
-var _drawer_tween: Tween
-var _sidebar_in_drawer: bool = false
+var _drawer: MainWindowDrawer
 var _active_profile_card: PanelContainer = null
 var _welcome_screen: Control = null
 var _member_list_before_medium: bool = true
@@ -39,15 +36,19 @@ var _gestures: RefCounted
 @onready var topic_bar: Label = $LayoutHBox/ContentArea/TopicBar
 @onready var content_body: HBoxContainer = $LayoutHBox/ContentArea/ContentBody
 @onready var message_view: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MessageView
+@onready var thread_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ThreadPanel
 @onready var member_list: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MemberList
 @onready var search_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/SearchPanel
 @onready var drawer_backdrop: ColorRect = $DrawerBackdrop
 @onready var drawer_container: Control = $DrawerContainer
 
 func _ready() -> void:
+	_drawer = MainWindowDrawerScript.new(
+		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
+	)
 	_gestures = DrawerGestures.new(self)
 	AppState.channel_selected.connect(_on_channel_selected)
-	AppState.sidebar_drawer_toggled.connect(_on_sidebar_drawer_toggled)
+	AppState.sidebar_drawer_toggled.connect(_drawer.on_sidebar_drawer_toggled)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	tab_bar.tab_changed.connect(_on_tab_changed)
 	tab_bar.tab_close_pressed.connect(_on_tab_close)
@@ -66,6 +67,8 @@ func _ready() -> void:
 	AppState.server_removed.connect(_on_server_removed)
 	drawer_backdrop.gui_input.connect(_on_backdrop_input)
 	get_viewport().size_changed.connect(_on_viewport_resized)
+	AppState.thread_opened.connect(_on_thread_opened)
+	AppState.thread_closed.connect(_on_thread_closed)
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
 	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
 	AppState.update_download_complete.connect(_on_update_download_complete)
@@ -281,43 +284,50 @@ func _on_viewport_resized() -> void:
 	var vp_size := get_viewport().get_visible_rect().size
 	AppState.update_layout_mode(vp_size.x, vp_size.y)
 	# Recalculate drawer width if sidebar is in drawer and open
-	if _sidebar_in_drawer and AppState.sidebar_drawer_open:
-		sidebar.offset_right = _get_drawer_width()
+	if _drawer.is_in_drawer() and AppState.sidebar_drawer_open:
+		sidebar.offset_right = _drawer.get_drawer_width()
 
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	match mode:
 		AppState.LayoutMode.FULL:
-			_move_sidebar_to_layout()
+			_drawer.move_sidebar_to_layout()
 			sidebar.visible = true
 			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
 			hamburger_button.visible = false
 			sidebar_toggle.visible = true
-			_close_drawer_immediate()
+			_drawer.close_drawer_immediate()
 			AppState.member_list_visible = _member_list_before_medium
+			message_view.visible = true
 			_update_member_list_visibility()
 			_update_search_visibility()
 		AppState.LayoutMode.MEDIUM:
-			_move_sidebar_to_layout()
+			_drawer.move_sidebar_to_layout()
 			sidebar.visible = true
 			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
 			hamburger_button.visible = false
 			sidebar_toggle.visible = true
-			_close_drawer_immediate()
+			_drawer.close_drawer_immediate()
 			_member_list_before_medium = AppState.member_list_visible
 			AppState.member_list_visible = false
+			message_view.visible = true
 			_update_member_list_visibility()
 			_update_search_visibility()
 		AppState.LayoutMode.COMPACT:
-			_move_sidebar_to_drawer()
+			_drawer.move_sidebar_to_drawer()
 			sidebar.set_channel_panel_visible_immediate(true)
 			hamburger_button.visible = true
 			sidebar_toggle.visible = false
-			_close_drawer_immediate()
+			_drawer.close_drawer_immediate()
 			member_toggle.visible = false
 			member_list.visible = false
 			search_toggle.visible = false
 			search_panel.visible = false
 			AppState.close_search()
+			# In compact mode, thread panel replaces message view
+			if AppState.thread_panel_visible:
+				message_view.visible = false
+			else:
+				message_view.visible = true
 
 func _on_sidebar_toggle_pressed() -> void:
 	AppState.toggle_channel_panel()
@@ -339,6 +349,26 @@ func _on_search_toggled(is_open: bool) -> void:
 	search_panel.visible = is_open
 	if is_open:
 		search_panel.activate(AppState.current_guild_id)
+
+func _on_thread_opened(_parent_message_id: String) -> void:
+	match AppState.current_layout_mode:
+		AppState.LayoutMode.FULL:
+			# Hide member list when thread panel is open
+			member_list.visible = false
+		AppState.LayoutMode.MEDIUM:
+			member_list.visible = false
+		AppState.LayoutMode.COMPACT:
+			# Thread panel replaces the message view
+			message_view.visible = false
+
+func _on_thread_closed() -> void:
+	match AppState.current_layout_mode:
+		AppState.LayoutMode.FULL:
+			_update_member_list_visibility()
+		AppState.LayoutMode.MEDIUM:
+			_update_member_list_visibility()
+		AppState.LayoutMode.COMPACT:
+			message_view.visible = true
 
 func _on_dm_mode_entered() -> void:
 	search_toggle.visible = false
@@ -368,10 +398,17 @@ func _update_member_list_visibility() -> void:
 	match AppState.current_layout_mode:
 		AppState.LayoutMode.FULL:
 			member_toggle.visible = true
-			member_list.visible = AppState.member_list_visible
+			# Hide member list when thread panel is open
+			if AppState.thread_panel_visible:
+				member_list.visible = false
+			else:
+				member_list.visible = AppState.member_list_visible
 		AppState.LayoutMode.MEDIUM:
 			member_toggle.visible = true
-			member_list.visible = AppState.member_list_visible
+			if AppState.thread_panel_visible:
+				member_list.visible = false
+			else:
+				member_list.visible = AppState.member_list_visible
 		AppState.LayoutMode.COMPACT:
 			member_toggle.visible = false
 			member_list.visible = false
@@ -390,28 +427,6 @@ func _update_search_visibility() -> void:
 			search_toggle.visible = true
 			search_panel.visible = AppState.search_open
 
-func _move_sidebar_to_layout() -> void:
-	if not _sidebar_in_drawer:
-		return
-	_sidebar_in_drawer = false
-	drawer_container.remove_child(sidebar)
-	layout_hbox.add_child(sidebar)
-	layout_hbox.move_child(sidebar, 0)
-
-func _get_drawer_width() -> float:
-	var vp_width: float = get_viewport().get_visible_rect().size.x
-	return minf(BASE_DRAWER_WIDTH, vp_width - MIN_BACKDROP_TAP_TARGET)
-
-func _move_sidebar_to_drawer() -> void:
-	if _sidebar_in_drawer:
-		return
-	_sidebar_in_drawer = true
-	layout_hbox.remove_child(sidebar)
-	drawer_container.add_child(sidebar)
-	# Position sidebar inside drawer
-	sidebar.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	sidebar.offset_right = _get_drawer_width()
-
 func _on_hamburger_pressed() -> void:
 	AppState.toggle_sidebar_drawer()
 
@@ -422,57 +437,6 @@ func _on_backdrop_input(event: InputEvent) -> void:
 		AppState.close_sidebar_drawer()
 	elif event is InputEventScreenTouch and event.pressed:
 		AppState.close_sidebar_drawer()
-
-func _on_sidebar_drawer_toggled(is_open: bool) -> void:
-	if is_open:
-		_open_drawer()
-	else:
-		_close_drawer()
-
-func _open_drawer() -> void:
-	if _drawer_tween:
-		_drawer_tween.kill()
-	var dw := _get_drawer_width()
-	drawer_backdrop.visible = true
-	drawer_container.visible = true
-	sidebar.visible = true
-	sidebar.offset_right = dw
-	if Config.get_reduced_motion():
-		sidebar.position.x = 0.0
-		drawer_backdrop.modulate.a = 1.0
-		return
-	# Animate: slide in from left
-	sidebar.position.x = -dw
-	drawer_backdrop.modulate.a = 0.0
-	_drawer_tween = create_tween().set_parallel(true)
-	_drawer_tween.tween_property(
-		sidebar, "position:x", 0.0, 0.2
-	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	_drawer_tween.tween_property(drawer_backdrop, "modulate:a", 1.0, 0.2)
-
-func _close_drawer() -> void:
-	if _drawer_tween:
-		_drawer_tween.kill()
-	if Config.get_reduced_motion():
-		_hide_drawer_nodes()
-		return
-	var dw := _get_drawer_width()
-	_drawer_tween = create_tween().set_parallel(true)
-	_drawer_tween.tween_property(
-		sidebar, "position:x", -dw, 0.2
-	).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
-	_drawer_tween.tween_property(drawer_backdrop, "modulate:a", 0.0, 0.2)
-	_drawer_tween.chain().tween_callback(_hide_drawer_nodes)
-
-func _close_drawer_immediate() -> void:
-	if _drawer_tween:
-		_drawer_tween.kill()
-	_hide_drawer_nodes()
-
-func _hide_drawer_nodes() -> void:
-	drawer_backdrop.visible = false
-	drawer_container.visible = false
-	AppState.sidebar_drawer_open = false
 
 func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
 	if _active_profile_card and is_instance_valid(_active_profile_card):

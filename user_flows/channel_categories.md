@@ -175,7 +175,7 @@ Each category is a `VBoxContainer` with a header `Button` and a `ChannelContaine
 **Drag-and-drop** (lines 165-232): Categories support D&D reordering within `channel_vbox`. `_get_drag_data()` (line 167) is gated on `MANAGE_CHANNELS` and returns `{"type": "category", ...}` with an uppercase label preview. `_can_drop_data()` (line 177) validates same type and same parent. `_drop_data()` (line 194) moves the source node, builds a position array from all categories via `get_category_id()`, and calls `Client.reorder_channels()`. A blue line indicator is drawn via `_draw()` (line 225).
 
 ### Channel item drag-and-drop (`channel_item.gd`)
-Channels support D&D reordering within the same parent container (lines 148-213). `_get_drag_data()` (line 150) is gated on `MANAGE_CHANNELS` and returns `{"type": "channel", ...}` with a "# name" label preview. `_can_drop_data()` (line 159) validates same type and same parent container (either `channel_container` within a category or `channel_vbox` for uncategorized). `_drop_data()` (line 176) moves the source node and builds a position array from sibling channels. A blue line indicator is drawn at the drop position via `_draw()` (line 206).
+Channels support D&D reordering within the same parent container and cross-category moves. `_get_drag_data()` is gated on `MANAGE_CHANNELS` and returns `{"type": "channel", ...}` with a "# name" label preview. `_can_drop_data()` validates same type and same guild. `_drop_data()` checks if the source and target share the same parent — if so, it reorders within the container; if not, it performs a cross-category move by calling `Client.admin.update_channel()` to change `parent_id`. A blue line indicator is drawn at the drop position via `_draw()`. The same cross-category logic exists in `voice_channel_item.gd`.
 
 ### Create channel dialog (`create_channel_dialog.gd`)
 The dialog (`setup()`, line 20) always adds Text/Voice/Announcement/Forum types (lines 25-28). The "Category" type (item id `4`) is added in both contexts: when called from `channel_list` (line 32) and when called from a category's context menu (line 44). When `parent_id` is set and the selected type is "category", the `parent_id` is skipped in `_on_create()` (line 66) since categories are always top-level. The parent dropdown is shown only when called from `channel_list` (lines 33-41).
@@ -200,6 +200,7 @@ On any of these events, `channel_list._on_channels_updated()` (line 163) calls `
 - "+" button: 16x16, hidden by default, shown on hover (lines 105-111), gray icon that turns white on hover (lines 72-73).
 - Channel count label: 10px font size, gray, shown only when collapsed (lines 48-53).
 - Channel container: VBox with 2px separation between child items.
+- Drag handle: 6-dot grip icon (`drag_handle.svg`), 10x16 `TextureRect`, gray `Color(0.58, 0.608, 0.643)`, hidden by default, shown on hover. Placed as first child of the HBox (before type icon on channels, before chevron on categories). Only created when user has `MANAGE_CHANNELS` permission.
 - Drag preview: white text label ("# channel-name" or "CATEGORY NAME").
 - Drop indicator: blue line `Color(0.34, 0.52, 0.89)`, 2px wide, drawn at top or bottom edge.
 
@@ -208,7 +209,8 @@ Category CRUD and reorder operations are gated behind `AccordPermission.MANAGE_C
 - The "+" button on category headers only renders if the user has permission (line 63).
 - The right-click context menu only appears if the user has permission (line 115).
 - The "+ Create Channel" button at the bottom of the channel list checks permission (line 127).
-- Drag-and-drop initiation is gated in `_get_drag_data()` (channel_item.gd line 151, category_item.gd line 168).
+- Drag-and-drop initiation is gated in `_get_drag_data()` (channel_item.gd, voice_channel_item.gd, category_item.gd).
+- Drag handle icons are only created in `setup()` when the user has permission.
 
 ## Implementation Status
 - [x] Category grouping — channels grouped by `parent_id` in two-pass algorithm
@@ -226,9 +228,8 @@ Category CRUD and reorder operations are gated behind `AccordPermission.MANAGE_C
 - [x] Real-time sync — gateway events trigger full channel list rebuild
 - [x] Admin channel management — categories listed with "C" type indicator
 - [x] Empty state — shown when no non-category channels exist
+- [x] Cross-category channel drag — channels can be dropped onto items in other categories or onto category headers to re-parent them
+- [x] Drag handle visual affordance — 6-dot grip icon appears on hover for channels, voice channels, and category headers (permission-gated)
 
 ## Gaps / TODO
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No cross-category channel drag | Low | Channels can only be reordered within their current parent. Moving a channel to a different category requires the channel edit dialog to change `parent_id`. A future enhancement could allow dropping channels onto category headers to re-parent them. |
-| No drag handle visual affordance | Low | There is no visual grip/handle icon indicating items are draggable. Users must discover drag-and-drop by attempting it. |
+No remaining gaps.

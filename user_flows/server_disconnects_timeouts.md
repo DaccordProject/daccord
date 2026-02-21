@@ -3,7 +3,7 @@
 
 ## Overview
 
-This flow documents what happens when a server connection is lost during a live session -- covering WebSocket gateway disconnects, REST API timeouts, automatic reconnection, and how (or whether) the user is informed. The gateway layer has robust automatic reconnection with exponential backoff and session resume, but the UI layer currently provides no feedback for any of these events. All errors are logged to the console only, leaving users unaware of connection problems.
+This flow documents what happens when a server connection is lost during a live session -- covering WebSocket gateway disconnects, REST API timeouts, automatic reconnection with exponential backoff, and session resume capabilities. The UI provides connection banners (yellow/green/red), guild icon status dots, composer state changes, inline error feedback for failed edits/deletes, and an offline message queue that auto-sends on reconnect.
 
 ## User Steps
 
@@ -194,7 +194,7 @@ Heartbeat Timeout:
 
 - **Server probe** (lines 127-151): Before connecting, makes a lightweight GET to `/auth/login`. Shows errors in `_error_label` if unreachable. Tries HTTPS then HTTP.
 - **Connection attempt UI** (lines 154-172): Button text changes to "Connecting...", disabled during attempt. On failure, rolls back config and shows error.
-- **This is the only place in the entire app where connection errors are shown to the user.**
+- Connection errors are also shown via message view banners, guild icon status dots, and composer state.
 
 ### Gateway-to-UI Signal Chain
 
@@ -230,12 +230,11 @@ Heartbeat Timeout:
 - [x] Client handler for AccordClient.disconnected/reconnecting/resumed signals
 - [x] conn["status"] updated on runtime disconnect/reconnect
 - [x] Composer disabled state when disconnected (input disabled, placeholder changed)
-- [ ] Offline mode / queued message sending
+- [x] Offline message queue (queued while disconnected, auto-sent on reconnect)
+- [x] Fatal disconnect codes mapped to human-readable messages (4003, 4004, 4012, 4013, 4014)
+- [x] Edit failure re-enters edit mode with error message
+- [x] Delete failure shows inline error on the message
 
 ## Gaps / TODO
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No offline queue for messages | Low | Messages typed while disconnected are lost. Could queue them and send when reconnection succeeds. |
-| Fatal disconnect codes not mapped to human-readable messages | Low | Close codes 4003/4004/4012/4013/4014 are shown as raw codes. Could map to friendlier messages like "Your session has expired" or "Authentication failed". |
-| Edit/delete failure has no inline UI | Low | `message_edit_failed` and `message_delete_failed` signals are emitted but no UI component currently listens to them for inline feedback. The signals are available for future use. |
+No known gaps.

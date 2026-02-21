@@ -9,11 +9,13 @@ var _c: Node # Client autoload
 var _typing_timers: Dictionary = {} # channel_id -> Timer node
 var _reactions: ClientGatewayReactions
 var _events: ClientGatewayEvents
+var _members: ClientGatewayMembers
 
 func _init(client_node: Node) -> void:
 	_c = client_node
 	_reactions = ClientGatewayReactions.new(client_node)
 	_events = ClientGatewayEvents.new(client_node)
+	_members = ClientGatewayMembers.new(client_node)
 
 func connect_signals(
 	client: AccordClient, idx: int
@@ -31,13 +33,13 @@ func connect_signals(
 	client.presence_update.connect(
 		on_presence_update.bind(idx))
 	client.member_join.connect(
-		on_member_join.bind(idx))
+		_members.on_member_join.bind(idx))
 	client.member_leave.connect(
-		on_member_leave.bind(idx))
+		_members.on_member_leave.bind(idx))
 	client.member_update.connect(
-		on_member_update.bind(idx))
+		_members.on_member_update.bind(idx))
 	client.member_chunk.connect(
-		on_member_chunk.bind(idx))
+		_members.on_member_chunk.bind(idx))
 	client.user_update.connect(
 		on_user_update.bind(idx))
 	client.space_create.connect(
@@ -183,6 +185,36 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 				)
 
 	var msg_dict := ClientModels.message_to_dict(message, _c._user_cache, cdn_url)
+
+	# Thread reply handling: route to thread cache if this is a thread reply
+	if message.thread_id != null and not str(message.thread_id).is_empty():
+		var tid: String = str(message.thread_id)
+		# Add to thread message cache if we're tracking this thread
+		if _c._thread_message_cache.has(tid):
+			# Skip if already in cache
+			var already_cached := false
+			for existing in _c._thread_message_cache[tid]:
+				if existing.get("id", "") == message.id:
+					already_cached = true
+					break
+			if not already_cached:
+				_c._thread_message_cache[tid].append(msg_dict)
+		# Update parent message's reply_count in main cache
+		var parent_cid: String = _c._message_id_index.get(tid, "")
+		if not parent_cid.is_empty() and _c._message_cache.has(parent_cid):
+			for parent_msg in _c._message_cache[parent_cid]:
+				if parent_msg.get("id", "") == tid:
+					parent_msg["reply_count"] = parent_msg.get("reply_count", 0) + 1
+					break
+			AppState.messages_updated.emit(parent_cid)
+		# Mark thread as unread if panel is not open for it
+		if AppState.current_thread_id != tid:
+			_c._thread_unread[tid] = true
+		# Emit thread update signal
+		if AppState.current_thread_id == tid:
+			AppState.thread_messages_updated.emit(tid)
+		return
+
 	# Skip if already in cache (e.g. from a parallel gateway connection)
 	if _c._message_id_index.has(message.id):
 		return
@@ -241,21 +273,55 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 	AppState.messages_updated.emit(message.channel_id)
 
 func on_message_update(message: AccordMessage, conn_index: int) -> void:
-	if not _c._message_cache.has(message.channel_id):
-		return
 	var cdn_url := ""
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
 		cdn_url = _c._connections[conn_index]["cdn_url"]
+	var msg_dict := ClientModels.message_to_dict(message, _c._user_cache, cdn_url)
+
+	# Thread reply: update in thread cache
+	if message.thread_id != null and not str(message.thread_id).is_empty():
+		var tid: String = str(message.thread_id)
+		if _c._thread_message_cache.has(tid):
+			var thread_msgs: Array = _c._thread_message_cache[tid]
+			for i in thread_msgs.size():
+				if thread_msgs[i].get("id", "") == message.id:
+					thread_msgs[i] = msg_dict
+					break
+		if AppState.current_thread_id == tid:
+			AppState.thread_messages_updated.emit(tid)
+		return
+
+	if not _c._message_cache.has(message.channel_id):
+		return
 	var msgs: Array = _c._message_cache[message.channel_id]
 	for i in msgs.size():
 		if msgs[i].get("id", "") == message.id:
-			msgs[i] = ClientModels.message_to_dict(message, _c._user_cache, cdn_url)
+			msgs[i] = msg_dict
 			break
 	AppState.messages_updated.emit(message.channel_id)
 
 func on_message_delete(data: Dictionary) -> void:
 	var msg_id: String = data.get("id", "")
 	var channel_id: String = data.get("channel_id", "")
+
+	# Check if this is a thread reply deletion
+	for tid in _c._thread_message_cache:
+		var thread_msgs: Array = _c._thread_message_cache[tid]
+		for i in thread_msgs.size():
+			if thread_msgs[i].get("id", "") == msg_id:
+				thread_msgs.remove_at(i)
+				# Decrement parent message reply_count
+				var parent_cid: String = _c._message_id_index.get(tid, "")
+				if not parent_cid.is_empty() and _c._message_cache.has(parent_cid):
+					for parent_msg in _c._message_cache[parent_cid]:
+						if parent_msg.get("id", "") == tid:
+							parent_msg["reply_count"] = maxi(parent_msg.get("reply_count", 1) - 1, 0)
+							break
+					AppState.messages_updated.emit(parent_cid)
+				if AppState.current_thread_id == tid:
+					AppState.thread_messages_updated.emit(tid)
+				return
+
 	if channel_id.is_empty() or not _c._message_cache.has(channel_id):
 		return
 	var msgs: Array = _c._message_cache[channel_id]
@@ -342,38 +408,6 @@ func on_user_update(user: AccordUser, conn_index: int) -> void:
 		_c.current_user = _c._user_cache[user.id]
 	AppState.user_updated.emit(user.id)
 
-func on_member_chunk(data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	var cdn_url: String = _c._connections[conn_index]["cdn_url"]
-	var members_data: Array = data.get("members", [])
-	if not _c._member_cache.has(guild_id):
-		_c._member_cache[guild_id] = []
-	var existing: Array = _c._member_cache[guild_id]
-	var existing_ids: Dictionary = {}
-	for i in existing.size():
-		existing_ids[existing[i].get("id", "")] = i
-	for raw in members_data:
-		if raw is Dictionary:
-			var raw_user = raw.get("user", null)
-			if raw_user is Dictionary:
-				var uid: String = str(raw_user.get("id", ""))
-				if not uid.is_empty() and not _c._user_cache.has(uid):
-					var parsed_user: AccordUser = AccordUser.from_dict(raw_user)
-					_c._user_cache[uid] = ClientModels.user_to_dict(
-						parsed_user, ClientModels.UserStatus.OFFLINE, cdn_url
-					)
-		var member: AccordMember = AccordMember.from_dict(raw)
-		var member_dict := ClientModels.member_to_dict(member, _c._user_cache)
-		if existing_ids.has(member.user_id):
-			existing[existing_ids[member.user_id]] = member_dict
-		else:
-			existing.append(member_dict)
-			existing_ids[member.user_id] = existing.size() - 1
-	_c._member_id_index[guild_id] = existing_ids
-	AppState.members_updated.emit(guild_id)
-
 func on_channel_pins_update(data: Dictionary) -> void:
 	var channel_id: String = str(data.get("channel_id", ""))
 	if not channel_id.is_empty():
@@ -381,65 +415,6 @@ func on_channel_pins_update(data: Dictionary) -> void:
 
 func on_interaction_create(_interaction: AccordInteraction, _conn_index: int) -> void:
 	pass # No interaction UI; wired to prevent silent drop
-
-func on_member_join(member: AccordMember, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var conn: Dictionary = _c._connections[conn_index]
-	var guild_id: String = conn["guild_id"]
-	var cdn_url: String = conn["cdn_url"]
-	if not _c._user_cache.has(member.user_id):
-		var client: AccordClient = conn["client"]
-		if client != null:
-			var user_result: RestResult = await client.users.fetch(member.user_id)
-			if user_result.ok:
-				_c._user_cache[member.user_id] = ClientModels.user_to_dict(
-					user_result.data,
-					ClientModels.UserStatus.OFFLINE,
-					cdn_url
-				)
-	var member_dict := ClientModels.member_to_dict(member, _c._user_cache)
-	if not _c._member_cache.has(guild_id):
-		_c._member_cache[guild_id] = []
-	_c._member_cache[guild_id].append(member_dict)
-	if not _c._member_id_index.has(guild_id):
-		_c._member_id_index[guild_id] = {}
-	_c._member_id_index[guild_id][member.user_id] = _c._member_cache[guild_id].size() - 1
-	AppState.member_joined.emit(guild_id, member_dict)
-	AppState.members_updated.emit(guild_id)
-
-func on_member_leave(data: Dictionary, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	var user_id: String = data.get("user_id", "")
-	if user_id.is_empty():
-		var user_data = data.get("user", null)
-		if user_data is Dictionary:
-			user_id = str(user_data.get("id", ""))
-	if _c._member_cache.has(guild_id):
-		var idx: int = _c._member_index_for(guild_id, user_id)
-		if idx != -1:
-			_c._member_cache[guild_id].remove_at(idx)
-			_c._rebuild_member_index(guild_id)
-			AppState.member_left.emit(guild_id, user_id)
-			AppState.members_updated.emit(guild_id)
-
-func on_member_update(member: AccordMember, conn_index: int) -> void:
-	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
-		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	if _c._member_cache.has(guild_id):
-		var member_dict := ClientModels.member_to_dict(member, _c._user_cache)
-		var idx: int = _c._member_index_for(guild_id, member.user_id)
-		if idx != -1:
-			_c._member_cache[guild_id][idx] = member_dict
-		else:
-			_c._member_cache[guild_id].append(member_dict)
-			if not _c._member_id_index.has(guild_id):
-				_c._member_id_index[guild_id] = {}
-			_c._member_id_index[guild_id][member.user_id] = _c._member_cache[guild_id].size() - 1
-		AppState.members_updated.emit(guild_id)
 
 func on_space_create(space: AccordSpace, conn_index: int) -> void:
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:

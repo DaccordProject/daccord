@@ -265,6 +265,68 @@ func fetch_older_messages(channel_id: String) -> void:
 		_c._message_id_index[msg.get("id", "")] = channel_id
 	AppState.messages_updated.emit(channel_id)
 
+func fetch_thread_messages(channel_id: String, parent_message_id: String) -> void:
+	var client: AccordClient = _c._client_for_channel(
+		channel_id
+	)
+	if client == null:
+		return
+	var cdn_url: String = _c._cdn_for_channel(channel_id)
+	var result: RestResult = await client.messages.list_thread(
+		channel_id, parent_message_id
+	)
+	if result.ok:
+		await _fetch_unknown_authors(
+			result.data, client, cdn_url
+		)
+		var msgs: Array = []
+		for msg in result.data:
+			var accord_msg: AccordMessage = msg
+			msgs.append(
+				ClientModels.message_to_dict(
+					accord_msg, _c._user_cache, cdn_url
+				)
+			)
+		_c._thread_message_cache[parent_message_id] = msgs
+		AppState.thread_messages_updated.emit(
+			parent_message_id
+		)
+	else:
+		var err_msg: String = (
+			result.error.message
+			if result.error
+			else "unknown"
+		)
+		push_error(
+			"[Client] Failed to fetch thread messages: ",
+			err_msg
+		)
+
+func fetch_active_threads(channel_id: String) -> Array:
+	var client: AccordClient = _c._client_for_channel(
+		channel_id
+	)
+	if client == null:
+		return []
+	var cdn_url: String = _c._cdn_for_channel(channel_id)
+	var result: RestResult = await client.messages.list_active_threads(
+		channel_id
+	)
+	if result.ok:
+		await _fetch_unknown_authors(
+			result.data, client, cdn_url
+		)
+		var msgs: Array = []
+		for msg in result.data:
+			var accord_msg: AccordMessage = msg
+			msgs.append(
+				ClientModels.message_to_dict(
+					accord_msg, _c._user_cache, cdn_url
+				)
+			)
+		return msgs
+	return []
+
 func fetch_members(guild_id: String) -> void:
 	var client: AccordClient = _c._client_for_guild(guild_id)
 	if client == null:

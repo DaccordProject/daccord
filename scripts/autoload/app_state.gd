@@ -105,6 +105,14 @@ signal reaction_failed(channel_id: String, message_id: String, emoji: String, er
 @warning_ignore("unused_signal")
 signal image_lightbox_requested(url: String, texture: ImageTexture)
 
+# Thread signals
+@warning_ignore("unused_signal")
+signal thread_opened(parent_message_id: String)
+@warning_ignore("unused_signal")
+signal thread_closed()
+@warning_ignore("unused_signal")
+signal thread_messages_updated(parent_message_id: String)
+
 # Auto-update signals
 @warning_ignore("unused_signal")
 signal update_available(version_info: Dictionary)
@@ -148,6 +156,8 @@ var is_voice_deafened: bool = false
 var is_video_enabled: bool = false
 var is_screen_sharing: bool = false
 var pending_attachments: Array = []
+var current_thread_id: String = ""
+var thread_panel_visible: bool = false
 var is_imposter_mode: bool = false
 var imposter_permissions: Array = []
 var imposter_role_name: String = ""
@@ -270,6 +280,16 @@ func set_video_enabled(enabled: bool) -> void:
 func set_screen_sharing(sharing: bool) -> void:
 	is_screen_sharing = sharing
 	screen_share_changed.emit(sharing)
+
+func open_thread(parent_message_id: String) -> void:
+	current_thread_id = parent_message_id
+	thread_panel_visible = true
+	thread_opened.emit(parent_message_id)
+
+func close_thread() -> void:
+	current_thread_id = ""
+	thread_panel_visible = false
+	thread_closed.emit()
 
 func enter_imposter_mode(role_data: Dictionary) -> void:
 	is_imposter_mode = true

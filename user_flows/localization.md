@@ -4,7 +4,7 @@ Last touched: 2026-02-19
 
 ## Overview
 
-daccord currently has no localization (i18n/l10n) infrastructure. All user-facing strings are hardcoded in English across scene files and GDScript code. Godot 4.6 supports PO/POT-based translation via `TranslationServer` and the `tr()` function, but none of this machinery is wired up. This document catalogs the current state and outlines what's needed to add multi-language support.
+daccord currently has no localization (i18n/l10n) infrastructure. All user-facing strings are hardcoded in English across scene files and GDScript code. Godot 4.5 supports PO/POT-based translation via `TranslationServer` and the `tr()` function, but none of this machinery is wired up. This document catalogs the current state and outlines what's needed to add multi-language support.
 
 ## User Steps (Target Experience)
 

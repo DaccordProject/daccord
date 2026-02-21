@@ -405,6 +405,13 @@ func set_server_muted(guild_id: String, muted: bool) -> void:
 func get_recent_emoji() -> Array:
 	return _config.get_value("emoji", "recent", [])
 
+func get_emoji_skin_tone() -> int:
+	return _config.get_value("emoji", "skin_tone", 0)
+
+func set_emoji_skin_tone(tone: int) -> void:
+	_config.set_value("emoji", "skin_tone", clampi(tone, 0, 5))
+	save()
+
 func add_recent_emoji(emoji_name: String) -> void:
 	var recent: Array = get_recent_emoji()
 	# Remove duplicate if already present
@@ -467,7 +474,7 @@ func clear_draft_text(channel_id: String) -> void:
 	_config.set_value("drafts", channel_id, null)
 	save()
 
-func clear() -> void:
+func _clear() -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	for i in count:
 		var section := "server_%d" % i

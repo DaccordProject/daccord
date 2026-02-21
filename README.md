@@ -54,9 +54,9 @@ You can add as many servers as you like. Need a server to connect to? Check out 
 
 ## Building from source
 
-Daccord is built with [Godot 4.6](https://godotengine.org/). To run it from source:
+Daccord is built with [Godot 4.5](https://godotengine.org/). To run it from source:
 
-1. Install [Godot 4.6](https://godotengine.org/download/)
+1. Install [Godot 4.5](https://godotengine.org/download/)
 2. Clone this repository
 3. Open the project in Godot and hit Play
 

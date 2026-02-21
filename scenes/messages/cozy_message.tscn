@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scenes/messages/cozy_message.gd" id="1"]
+[ext_resource type="Script" uid="uid://dl7vfy21f3bkr" path="res://scenes/messages/cozy_message.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/messages/message_content.tscn" id="2"]
-[ext_resource type="Texture2D" path="res://theme/icons/reply_arrow.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://bnn82g4oqha4o" path="res://assets/theme/icons/reply_arrow.svg" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="4"]
+[ext_resource type="Texture2D" uid="uid://dwrmq65j76jea" path="res://assets/theme/icons/thread.svg" id="5"]
 
 [node name="CozyMessage" type="HBoxContainer"]
 offset_right = 600.0
@@ -54,4 +55,19 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="MessageContent" parent="ContentColumn" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="ThreadIndicator" type="HBoxContainer" parent="ContentColumn"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ThreadIcon" type="TextureRect" parent="ContentColumn/ThreadIndicator"]
+layout_mode = 2
+custom_minimum_size = Vector2(14, 14)
+texture = ExtResource("5")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ThreadCountLabel" type="Label" parent="ContentColumn/ThreadIndicator"]
 layout_mode = 2

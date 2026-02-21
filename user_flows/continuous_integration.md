@@ -79,7 +79,7 @@ Push/PR to master
   │     │     ├─ Install audio libraries (libasound2, libpulse, libopus)
   │     │     ├─ Symlink addons/
   │     │     ├─ Install GUT (cached) + Sentry SDK (cached)
-  │     │     ├─ Setup Godot 4.6.0 (chickensoft-games/setup-godot@v2)
+  │     │     ├─ Setup Godot 4.5.0 (chickensoft-games/setup-godot@v2)
   │     │     ├─ Cache + import project (.godot/imported/)
   │     │     ├─ Run GUT on tests/unit/ (-gexit for proper exit codes)
   │     │     ├─ Run GUT on tests/accordstream/ (-gexit)
@@ -102,7 +102,7 @@ Push v* tag
         ├─> 4x parallel Build jobs (Linux x86_64, Linux ARM64, Windows, macOS)
         │     ├─ Validate tag matches project.godot version
         │     ├─ Checkout + addon symlink + AccordStream binaries
-        │     ├─ Setup Godot 4.6.0 with export templates
+        │     ├─ Setup Godot 4.5.0 with export templates
         │     ├─ Inject SENTRY_DSN, clear missing custom templates
         │     ├─ Export (godot --headless --export-release)
         │     ├─ Package (tar.gz / zip)
@@ -151,7 +151,7 @@ Triggered by `v*` tags. Builds four platform artifacts, creates a GitHub Release
 | `addons/gut` | `bitwes/Gut` v9.5.0 (public) | Source tarball from GitHub tags | Yes (`actions/cache`) |
 | `addons/sentry` | `getsentry/sentry-godot` v1.3.2 (public) | Release zip from GitHub | Yes (`actions/cache`) |
 
-**Godot Version:** `4.6.0` (must be full semver for `chickensoft-games/setup-godot@v2`). Renderer: GL Compatibility. Export templates needed for release only.
+**Godot Version:** `4.5.0` (must be full semver for `chickensoft-games/setup-godot@v2`). Renderer: GL Compatibility. Export templates needed for release only.
 
 ### Caching Strategy
 
@@ -212,7 +212,7 @@ gh api repos/DaccordProject/accordkit/commits?per_page=1 --jq '.[0].commit.autho
 
 If the CI run started before the AccordKit push, re-run the CI: `gh run rerun <RUN_ID>`.
 
-**7. GUT framework errors** -- GUT 9.5.0 has a known compatibility issue with Godot 4.6 where `gut_loader.gd:35` throws a `Nil` to `bool` assignment error. This is non-fatal and tests still run. Filter it out when reviewing logs:
+**7. GUT framework errors** -- GUT 9.5.0 has a known compatibility issue with Godot 4.5 where `gut_loader.gd:35` throws a `Nil` to `bool` assignment error. This is non-fatal and tests still run. Filter it out when reviewing logs:
 
 ```bash
 gh run view <RUN_ID> --log-failed 2>&1 | grep "SCRIPT ERROR" | grep -v gut_loader
@@ -242,7 +242,7 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 - [x] Addon symlinking (accordkit, accordstream)
 - [x] GUT install from source tarball (cached)
 - [x] Sentry SDK install from release zip (cached)
-- [x] Godot 4.6.0 setup via `chickensoft-games/setup-godot@v2`
+- [x] Godot 4.5.0 setup via `chickensoft-games/setup-godot@v2`
 - [x] Headless project import before test runs
 - [x] Accordserver build from source with cargo caching
 - [x] Server health check with 30s timeout
@@ -283,7 +283,7 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 | Godot import not cached | ~~Low~~ | **Resolved** | `actions/cache` for `.godot/imported/` keyed on project + scene hashes. |
 | Integration tests non-blocking | ~~Medium~~ | **Resolved** | `continue-on-error` removed; integration tests now block the pipeline. |
 | sccache runtime crash | ~~Medium~~ | **Resolved** | sccache setup step can succeed while sccache crashes at runtime if GHA cache backend is down. Added retry logic: if `cargo build` fails with sccache, re-runs without it (`RUSTC_WRAPPER=""`). |
-| GUT 9.5.0 + Godot 4.6 compatibility | Low | Open | `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run). Monitor for upstream fix. |
+| GUT 9.5.0 + Godot 4.5 compatibility | Low | Open | `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run). Monitor for upstream fix. |
 | AccordStream GDExtension doesn't load in CI | ~~Medium~~ | **Resolved** | Two-pronged fix: (a) `client.gd` guards voice session creation with `ClassDB.class_exists()` and null checks — `_ready()` completes fully even without AccordStream; `client_voice.gd` null-checks `_voice_session` before all method calls; `test_client_startup.gd` skips voice-specific tests when unavailable. (b) CI installs `libasound2-dev`, `libpulse-dev`, `libopus-dev` so the extension can load in headless mode. |
 | Gateway tests time out | ~~Medium~~ | **Resolved** | Increased wait timeout from 10s to 15s for CI. Added `disconnected` signal detection for early exit on connection failure. Added guard `if not ready_received: return` to skip dependent assertions. Needs CI run to verify. |
 | Integration tests not verified | Medium | Open | Last run (22186380820) failed at "Build accordserver" due to sccache runtime crash. Retry logic, `continue-on-error` removal, and graceful degradation all need verification in a new CI run. |

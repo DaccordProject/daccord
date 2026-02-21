@@ -3,6 +3,7 @@ extends PanelContainer
 signal action_reply(msg_data: Dictionary)
 signal action_edit(msg_data: Dictionary)
 signal action_delete(msg_data: Dictionary)
+signal action_thread(msg_data: Dictionary)
 
 const ReactionPickerScene := preload("res://scenes/messages/reaction_picker.tscn")
 
@@ -13,12 +14,14 @@ var _fade_tween: Tween
 
 @onready var react_btn: Button = $HBox/ReactButton
 @onready var reply_btn: Button = $HBox/ReplyButton
+@onready var thread_btn: Button = $HBox/ThreadButton
 @onready var edit_btn: Button = $HBox/EditButton
 @onready var delete_btn: Button = $HBox/DeleteButton
 
 func _ready() -> void:
 	react_btn.pressed.connect(_on_react_pressed)
 	reply_btn.pressed.connect(_on_reply_pressed)
+	thread_btn.pressed.connect(_on_thread_pressed)
 	edit_btn.pressed.connect(_on_edit_pressed)
 	delete_btn.pressed.connect(_on_delete_pressed)
 
@@ -71,6 +74,9 @@ func _on_react_pressed() -> void:
 
 func _on_reply_pressed() -> void:
 	action_reply.emit(_message_data)
+
+func _on_thread_pressed() -> void:
+	action_thread.emit(_message_data)
 
 func _on_edit_pressed() -> void:
 	action_edit.emit(_message_data)

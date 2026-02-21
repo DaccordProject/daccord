@@ -6,7 +6,7 @@ on:
       - "v*"
 
 env:
-  GODOT_VERSION: "4.6.0"
+  GODOT_VERSION: "4.5.0"
   GUT_VERSION: "9.5.0"
   SENTRY_VERSION: "1.3.2"
 
@@ -216,7 +216,7 @@ jobs:
           cd dist/build/${{ matrix.platform }}
           # Include .desktop file and icon for Linux packages
           cp ../../../dist/daccord.desktop . 2>/dev/null || true
-          cp ../../../dist/icons/icon_128x128.png daccord.png 2>/dev/null || true
+          cp ../../../assets/icons/icon_128x128.png daccord.png 2>/dev/null || true
           tar czf ../../../${{ matrix.artifact }}.tar.gz *
 
       - name: Package Windows

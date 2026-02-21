@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-daccord is a Godot 4.6 chat client that connects to [accordserver](https://github.com/daccord-projects/accordserver) instances -- a custom Rust backend with a REST API and WebSocket gateway.
+daccord is a Godot 4.5 chat client that connects to [accordserver](https://github.com/daccord-projects/accordserver) instances -- a custom Rust backend with a REST API and WebSocket gateway.
 
 The client connects to one or more accordserver instances using token-based authentication. Supports multi-server connections, real-time messaging via WebSocket, and full CRUD for messages. If no servers are configured, the UI is empty until the user adds a server via the Add Server dialog.
 
 ## Running
 
-Open in Godot 4.6 and run. Main scene: `scenes/main/main_window.tscn`. Renderer: GL Compatibility.
+Open in Godot 4.5 and run. Main scene: `scenes/main/main_window.tscn`. Renderer: GL Compatibility.
 
 ## User Flows
 
@@ -25,7 +25,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
 - `ClientModels` (`scripts/autoload/client_models.gd`) -- Static helper class that converts AccordKit typed models (`AccordUser`, `AccordSpace`, `AccordChannel`, `AccordMessage`) into the dictionary shapes UI components expect. Also defines `ChannelType` and `UserStatus` enums used by both AccordKit conversion and UI components.
 
 **Addons:**
-- `accordkit` -- GDScript client library for the accordserver API. Provides `AccordClient` (REST + WebSocket gateway), typed models (`AccordUser`, `AccordSpace`, `AccordChannel`, `AccordMessage`, `AccordInvite`, etc.), REST endpoints, and gateway event handling.
+- `accordkit` -- GDScript client library for the accordserver API. Developed in-tree under `addons/accordkit/` (no separate repo). Provides `AccordClient` (REST + WebSocket gateway), typed models (`AccordUser`, `AccordSpace`, `AccordChannel`, `AccordMessage`, `AccordInvite`, etc.), REST endpoints, and gateway event handling. Snowflake IDs are strings throughout. REST methods return `RestResult` via await. Nullable fields use `var field = null` (no type hint).
 - `accordstream` -- GDExtension (native binary) for audio/voice streaming.
 - `gut` -- GUT (Godot Unit Test) framework for testing.
 
@@ -50,7 +50,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
 
 **Responsive layout:** `AppState` tracks a `LayoutMode` enum (`COMPACT` <500px, `MEDIUM` <768px, `FULL` >=768px). In compact mode, the sidebar becomes a drawer overlay toggled by a hamburger button.
 
-**Theme:** `theme/discord_dark.tres` is the global theme. Icons are SVGs in `theme/icons/`. Avatar rendering uses a custom shader (`theme/avatar_circle.gdshader`) with a `radius` parameter that animates between 0.5 (circle) and 0.3 (rounded square) on hover.
+**Theme:** `assets/theme/discord_dark.tres` is the global theme. Icons are SVGs in `assets/theme/icons/`. Avatar rendering uses a custom shader (`assets/theme/avatar_circle.gdshader`) with a `radius` parameter that animates between 0.5 (circle) and 0.3 (rounded square) on hover.
 
 ## GDScript Type Inference Pitfalls
 

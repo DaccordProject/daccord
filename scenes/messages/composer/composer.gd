@@ -49,10 +49,25 @@ func _on_send() -> void:
 	AppState.pending_attachments = _pending_files.duplicate()
 	_pending_files.clear()
 	_update_attachment_bar()
+	# Check if we're queueing (disconnected but can queue)
+	var guild_id: String = Client._channel_to_guild.get(
+		AppState.current_channel_id, ""
+	)
+	var is_queuing := false
+	if not guild_id.is_empty() and not Client.is_guild_connected(guild_id):
+		var status: String = Client.get_guild_connection_status(guild_id)
+		is_queuing = status in ["disconnected", "reconnecting"]
 	AppState.send_message(text)
 	text_input.text = ""
 	if AppState.replying_to_message_id != "":
 		AppState.cancel_reply()
+	# Show queue confirmation
+	if is_queuing:
+		error_label.add_theme_color_override(
+			"font_color", Color(0.58, 0.608, 0.643)
+		)
+		error_label.text = "Message queued \u2014 will send when reconnected"
+		error_label.visible = true
 
 func _on_text_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -302,8 +317,14 @@ func update_enabled_state() -> void:
 			text_input.placeholder_text = "Preview mode \u2014 sending disabled"
 		return
 
-	text_input.editable = connected
-	send_button.disabled = not connected
+	# Check if we can queue messages while disconnected
+	var can_queue := false
+	if not connected and not guild_id.is_empty():
+		var status: String = Client.get_guild_connection_status(guild_id)
+		can_queue = status in ["disconnected", "reconnecting"]
+
+	text_input.editable = connected or can_queue
+	send_button.disabled = not connected and not can_queue
 	upload_button.disabled = not connected
 	emoji_button.disabled = not connected
 	if connected:
@@ -311,8 +332,13 @@ func update_enabled_state() -> void:
 			text_input.placeholder_text = _saved_placeholder
 			_saved_placeholder = ""
 		error_label.visible = false
+	elif can_queue:
+		if _saved_placeholder.is_empty():
+			_saved_placeholder = text_input.placeholder_text
+		text_input.placeholder_text = "Messages will be queued and sent when reconnected"
 	else:
-		_saved_placeholder = text_input.placeholder_text
+		if _saved_placeholder.is_empty():
+			_saved_placeholder = text_input.placeholder_text
 		text_input.placeholder_text = "Cannot send messages \u2014 disconnected"
 
 func _on_channel_selected_restore_draft(channel_id: String) -> void:

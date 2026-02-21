@@ -1,6 +1,6 @@
 extends ColorRect
 
-const AvatarShader := preload("res://theme/avatar_circle.gdshader")
+const AvatarShader := preload("res://assets/theme/avatar_circle.gdshader")
 
 # Simple in-memory image cache shared across all avatars
 const AVATAR_CACHE_CAP := 200

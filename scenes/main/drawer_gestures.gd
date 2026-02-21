@@ -95,9 +95,9 @@ func _reset_open_swipe() -> void:
 
 
 func _begin_drawer_tracking() -> void:
-	if _w._drawer_tween:
-		_w._drawer_tween.kill()
-	var dw: float = _w._get_drawer_width()
+	if _w._drawer._drawer_tween:
+		_w._drawer._drawer_tween.kill()
+	var dw: float = _w._drawer.get_drawer_width()
 	_w.drawer_backdrop.visible = true
 	_w.drawer_container.visible = true
 	_w.sidebar.visible = true
@@ -107,7 +107,7 @@ func _begin_drawer_tracking() -> void:
 
 
 func _update_drawer_position(pos_x: float) -> void:
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 	var progress: float = clampf(
 		(pos_x - _edge_swipe_start_x) / dw, 0.0, 1.0
 	)
@@ -123,7 +123,7 @@ func _update_drawer_position(pos_x: float) -> void:
 
 
 func _finish_open_swipe() -> void:
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 	var progress: float = clampf(
 		(_w.sidebar.position.x + dw) / dw, 0.0, 1.0
 	)
@@ -140,39 +140,39 @@ func _snap_drawer_open(progress: float) -> void:
 		_w.drawer_backdrop.modulate.a = 1.0
 		return
 	var duration: float = maxf(0.2 * (1.0 - progress), 0.05)
-	if _w._drawer_tween:
-		_w._drawer_tween.kill()
-	_w._drawer_tween = _w.create_tween().set_parallel(true)
-	_w._drawer_tween.tween_property(
+	if _w._drawer._drawer_tween:
+		_w._drawer._drawer_tween.kill()
+	_w._drawer._drawer_tween = _w.create_tween().set_parallel(true)
+	_w._drawer._drawer_tween.tween_property(
 		_w.sidebar, "position:x", 0.0, duration
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	_w._drawer_tween.tween_property(
+	_w._drawer._drawer_tween.tween_property(
 		_w.drawer_backdrop, "modulate:a", 1.0, duration
 	)
 
 
 func _snap_drawer_closed(progress: float) -> void:
 	if Config.get_reduced_motion():
-		_w._hide_drawer_nodes()
+		_w._drawer.hide_drawer_nodes()
 		return
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 	var duration: float = maxf(0.2 * progress, 0.05)
-	if _w._drawer_tween:
-		_w._drawer_tween.kill()
-	_w._drawer_tween = _w.create_tween().set_parallel(true)
-	_w._drawer_tween.tween_property(
+	if _w._drawer._drawer_tween:
+		_w._drawer._drawer_tween.kill()
+	_w._drawer._drawer_tween = _w.create_tween().set_parallel(true)
+	_w._drawer._drawer_tween.tween_property(
 		_w.sidebar, "position:x", -dw, duration
 	).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
-	_w._drawer_tween.tween_property(
+	_w._drawer._drawer_tween.tween_property(
 		_w.drawer_backdrop, "modulate:a", 0.0, duration
 	)
-	_w._drawer_tween.chain().tween_callback(_w._hide_drawer_nodes)
+	_w._drawer._drawer_tween.chain().tween_callback(_w._hide_drawer_nodes)
 
 
 # --- Close Swipe ---
 
 func _handle_close_swipe(event: InputEvent) -> void:
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 
 	# Touch events
 	if event is InputEventScreenTouch:
@@ -231,7 +231,7 @@ func _reset_close_swipe() -> void:
 
 
 func _update_close_drawer_position(pos_x: float) -> void:
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 	var close_progress: float = clampf(
 		(_close_swipe_start_x - pos_x) / dw, 0.0, 1.0
 	)
@@ -247,7 +247,7 @@ func _update_close_drawer_position(pos_x: float) -> void:
 
 
 func _finish_close_swipe() -> void:
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 	var close_progress: float = clampf(
 		-_w.sidebar.position.x / dw, 0.0, 1.0
 	)
@@ -260,20 +260,20 @@ func _finish_close_swipe() -> void:
 
 func _snap_drawer_closed_from_close(close_progress: float) -> void:
 	if Config.get_reduced_motion():
-		_w._hide_drawer_nodes()
+		_w._drawer.hide_drawer_nodes()
 		return
-	var dw: float = _w._get_drawer_width()
+	var dw: float = _w._drawer.get_drawer_width()
 	var duration: float = maxf(0.2 * (1.0 - close_progress), 0.05)
-	if _w._drawer_tween:
-		_w._drawer_tween.kill()
-	_w._drawer_tween = _w.create_tween().set_parallel(true)
-	_w._drawer_tween.tween_property(
+	if _w._drawer._drawer_tween:
+		_w._drawer._drawer_tween.kill()
+	_w._drawer._drawer_tween = _w.create_tween().set_parallel(true)
+	_w._drawer._drawer_tween.tween_property(
 		_w.sidebar, "position:x", -dw, duration
 	).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
-	_w._drawer_tween.tween_property(
+	_w._drawer._drawer_tween.tween_property(
 		_w.drawer_backdrop, "modulate:a", 0.0, duration
 	)
-	_w._drawer_tween.chain().tween_callback(_w._hide_drawer_nodes)
+	_w._drawer._drawer_tween.chain().tween_callback(_w._hide_drawer_nodes)
 
 
 func _should_snap_open(progress: float, velocity: float) -> bool:

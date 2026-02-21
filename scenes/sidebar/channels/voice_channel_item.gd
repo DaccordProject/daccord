@@ -2,7 +2,8 @@ extends VBoxContainer
 
 signal channel_pressed(channel_id: String)
 
-const VOICE_ICON := preload("res://theme/icons/voice_channel.svg")
+const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
+const DRAG_HANDLE_ICON := preload("res://assets/theme/icons/drag_handle.svg")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
@@ -11,6 +12,7 @@ var channel_id: String = ""
 var guild_id: String = ""
 var _channel_data: Dictionary = {}
 var _gear_btn: Button
+var _drag_handle: TextureRect
 var _context_menu: PopupMenu
 var _gear_just_pressed: bool = false
 var _drop_above: bool = false
@@ -49,8 +51,19 @@ func setup(data: Dictionary) -> void:
 	channel_button.tooltip_text = data.get("name", "")
 	type_icon.texture = VOICE_ICON
 
-	# Gear button for edit (only if user has permission)
+	# Drag handle and gear button (only if user has permission)
 	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		_drag_handle = TextureRect.new()
+		_drag_handle.texture = DRAG_HANDLE_ICON
+		_drag_handle.custom_minimum_size = Vector2(10, 16)
+		_drag_handle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_drag_handle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_drag_handle.modulate = Color(0.58, 0.608, 0.643)
+		_drag_handle.visible = false
+		_drag_handle.mouse_filter = Control.MOUSE_FILTER_PASS
+		$ChannelButton/HBox.add_child(_drag_handle)
+		$ChannelButton/HBox.move_child(_drag_handle, 0)
+
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
@@ -184,10 +197,14 @@ func _refresh_participants() -> void:
 		participant_container.add_child(row)
 
 func _on_mouse_entered() -> void:
+	if _drag_handle:
+		_drag_handle.visible = true
 	if _gear_btn:
 		_gear_btn.visible = true
 
 func _on_mouse_exited() -> void:
+	if _drag_handle:
+		_drag_handle.visible = false
 	if _gear_btn:
 		_gear_btn.visible = false
 

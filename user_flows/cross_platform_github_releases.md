@@ -26,7 +26,7 @@ This flow documents how daccord builds release artifacts via GitHub Actions and 
 11. Sentry SDK 1.3.2 addon is installed with caching (lines 102-118). Downloaded from `getsentry/sentry-godot` releases.
 12. AccordStream platform binaries are downloaded from the latest `accordstream` GitHub release and merged into the addon directory. This step uses `continue-on-error` so builds succeed even if no release exists yet.
 13. A safety step checks whether the AccordStream native binary exists for the current platform (lines 138-158). If missing, the `.gdextension` file is removed to prevent Godot from crashing (macOS throws a fatal NSException when loading a missing dylib).
-14. Godot 4.6 is installed via `chickensoft-games/setup-godot@v2` with export templates included.
+14. Godot 4.5 is installed via `chickensoft-games/setup-godot@v2` with export templates included.
 15. Godot import cache is restored/saved per platform (lines 167-173).
 16. The project is imported headlessly (`godot --headless --import .`).
 17. If the `SENTRY_DSN` secret is configured, the Sentry DSN in `project.godot` is replaced with the production value. Uses `sed -i.bak` for macOS compatibility (line 184).
@@ -87,7 +87,7 @@ build job (matrix: linux, linux-arm64, windows, macos) — runs in parallel:
   -> Remove AccordStream if platform binary missing
        checks for libaccordstream.so/.dll/.dylib per platform
        removes .gdextension file if missing (prevents macOS NSException crash)
-  -> chickensoft-games/setup-godot@v2 (Godot 4.6 + export templates)
+  -> chickensoft-games/setup-godot@v2 (Godot 4.5 + export templates)
   -> Cache Godot import (per-platform key)
   -> godot --headless --import .
   -> [conditional] Inject Sentry DSN (sed -i.bak for macOS compat)
@@ -163,7 +163,7 @@ release job (needs: [build, windows-installer]):
 **Trigger:** Push of a tag matching `v*` (line 6). The workflow requires `contents: write` permission (line 14) to create releases. Build jobs use the `default` GitHub environment (line 20) for access to environment secrets.
 
 **Environment variables** (lines 8-11):
-- `GODOT_VERSION: "4.6.0"` — Godot engine version for setup-godot action.
+- `GODOT_VERSION: "4.5.0"` — Godot engine version for setup-godot action.
 - `GUT_VERSION: "9.5.0"` — GUT test framework version (required as enabled plugin in project.godot).
 - `SENTRY_VERSION: "1.3.2"` — Sentry SDK version (required for error reporting autoload).
 
@@ -357,7 +357,7 @@ Signing and notarization are conditional on GitHub secrets being configured. Wit
 - [x] Sentry SDK installation with caching (required for error reporting autoload)
 - [x] Audio library installation for Linux runners
 - [x] AccordStream safety removal when platform binary missing
-- [x] Godot 4.6 setup with export templates
+- [x] Godot 4.5 setup with export templates
 - [x] Godot import caching (per-platform keys)
 - [x] Headless project import before export
 - [x] Platform-specific artifact packaging (tar.gz, zip)
