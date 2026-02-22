@@ -98,6 +98,8 @@ func connect_signals(
 		on_gateway_reconnecting.bind(idx))
 	client.resumed.connect(
 		on_gateway_reconnected.bind(idx))
+	client.raw_event.connect(
+		on_gateway_raw_event.bind(idx))
 
 func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
@@ -105,18 +107,28 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	var conn: Dictionary = _c._connections[conn_index]
 	print("[Client] Gateway ready for: ", conn["config"]["base_url"])
 	_c._auto_reconnect_attempted.erase(conn_index)
+	# Parse server version from READY payload (if provided)
+	var srv_version: String = _data.get("server_version", "")
+	var api_version: String = _data.get("api_version", "")
+	if not srv_version.is_empty():
+		conn["server_version"] = srv_version
+	if not api_version.is_empty():
+		conn["api_version"] = api_version
+		if api_version != AccordConfig.API_VERSION:
+			AppState.server_version_warning.emit(
+				conn["guild_id"], srv_version,
+				AccordConfig.CLIENT_VERSION
+			)
 	# Emit reconnected if this was a reconnect after disconnect
 	var was_down: bool = conn.get("_was_disconnected", false) \
 		or conn["status"] != "connected"
 	conn["_was_disconnected"] = false
 	conn["status"] = "connected"
-	if was_down and not conn["guild_id"].is_empty():
-		AppState.server_reconnected.emit(conn["guild_id"])
-	if not conn["guild_id"].is_empty():
-		_c.fetch.fetch_channels(conn["guild_id"])
-		_c.fetch.fetch_members(conn["guild_id"])
-		_c.fetch.fetch_roles(conn["guild_id"])
-	_c.fetch.fetch_dm_channels()
+	var guild_id: String = conn["guild_id"]
+	if was_down and not guild_id.is_empty():
+		AppState.server_reconnected.emit(guild_id)
+	# Refetch all data (awaited so server_synced fires after completion)
+	await _refetch_data(conn, conn_index)
 
 func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void:
 	if _c.is_shutting_down:
@@ -165,6 +177,37 @@ func on_gateway_reconnected(conn_index: int) -> void:
 	conn["_was_disconnected"] = false
 	_c._auto_reconnect_attempted.erase(conn_index)
 	AppState.server_reconnected.emit(conn["guild_id"])
+	# RESUME path: also refetch data since server restart invalidates state
+	await _refetch_data(conn, conn_index)
+
+func on_gateway_raw_event(
+	_event_type: String, _data: Dictionary, conn_index: int
+) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	if conn.get("status", "") == "connected":
+		return
+	var guild_id: String = conn.get("guild_id", "")
+	conn["status"] = "connected"
+	conn["_was_disconnected"] = false
+	_c._auto_reconnect_attempted.erase(conn_index)
+	if not guild_id.is_empty():
+		AppState.server_reconnected.emit(guild_id)
+
+func _refetch_data(conn: Dictionary, conn_index: int) -> void:
+	var guild_id: String = conn["guild_id"]
+	conn["_syncing"] = true
+	if not guild_id.is_empty():
+		await _c.fetch.fetch_channels(guild_id)
+		await _c.fetch.fetch_members(guild_id)
+		await _c.fetch.fetch_roles(guild_id)
+		_c.fetch.resync_voice_states(guild_id)
+		await _c.fetch.refresh_current_user(conn_index)
+	await _c.fetch.fetch_dm_channels()
+	conn["_syncing"] = false
+	if not guild_id.is_empty():
+		AppState.server_synced.emit(guild_id)
 
 func on_message_create(message: AccordMessage, conn_index: int) -> void:
 	var cdn_url := ""
@@ -207,6 +250,15 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 					parent_msg["reply_count"] = parent_msg.get("reply_count", 0) + 1
 					break
 			AppState.messages_updated.emit(parent_cid)
+		# Update reply_count and last_reply_at in forum post cache
+		for forum_ch_id in _c._forum_post_cache:
+			var forum_posts: Array = _c._forum_post_cache[forum_ch_id]
+			for fp in forum_posts:
+				if fp.get("id", "") == tid:
+					fp["reply_count"] = fp.get("reply_count", 0) + 1
+					fp["last_reply_at"] = msg_dict.get("timestamp", "")
+					AppState.forum_posts_updated.emit(forum_ch_id)
+					break
 		# Mark thread as unread if panel is not open for it
 		if AppState.current_thread_id != tid:
 			_c._thread_unread[tid] = true
@@ -214,6 +266,17 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 		if AppState.current_thread_id == tid:
 			AppState.thread_messages_updated.emit(tid)
 		return
+
+	# Forum channel: top-level message = new post → insert into forum post cache
+	if _c._channel_cache.has(message.channel_id):
+		var ch_type: int = _c._channel_cache[message.channel_id].get("type", 0)
+		if ch_type == ClientModels.ChannelType.FORUM:
+			if not _c._forum_post_cache.has(message.channel_id):
+				_c._forum_post_cache[message.channel_id] = []
+			_c._forum_post_cache[message.channel_id].insert(0, msg_dict)
+			_c._message_id_index[message.id] = message.channel_id
+			AppState.forum_posts_updated.emit(message.channel_id)
+			return
 
 	# Skip if already in cache (e.g. from a parallel gateway connection)
 	if _c._message_id_index.has(message.id):
@@ -291,6 +354,15 @@ func on_message_update(message: AccordMessage, conn_index: int) -> void:
 			AppState.thread_messages_updated.emit(tid)
 		return
 
+	# Update forum post cache if applicable
+	if _c._forum_post_cache.has(message.channel_id):
+		var forum_posts: Array = _c._forum_post_cache[message.channel_id]
+		for i in forum_posts.size():
+			if forum_posts[i].get("id", "") == message.id:
+				forum_posts[i] = msg_dict
+				AppState.forum_posts_updated.emit(message.channel_id)
+				break
+
 	if not _c._message_cache.has(message.channel_id):
 		return
 	var msgs: Array = _c._message_cache[message.channel_id]
@@ -320,6 +392,16 @@ func on_message_delete(data: Dictionary) -> void:
 					AppState.messages_updated.emit(parent_cid)
 				if AppState.current_thread_id == tid:
 					AppState.thread_messages_updated.emit(tid)
+				return
+
+	# Remove from forum post cache if applicable
+	if not channel_id.is_empty() and _c._forum_post_cache.has(channel_id):
+		var forum_posts: Array = _c._forum_post_cache[channel_id]
+		for i in forum_posts.size():
+			if forum_posts[i].get("id", "") == msg_id:
+				forum_posts.remove_at(i)
+				_c._message_id_index.erase(msg_id)
+				AppState.forum_posts_updated.emit(channel_id)
 				return
 
 	if channel_id.is_empty() or not _c._message_cache.has(channel_id):

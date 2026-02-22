@@ -92,6 +92,18 @@ func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:
 	var state_dict := ClientModels.voice_state_to_dict(state, _c._user_cache)
 	var new_channel: String = state_dict["channel_id"]
 	var user_id: String = state.user_id
+	var my_id: String = _c.current_user.get("id", "")
+
+	# If we are not in voice and have no backend credentials, ignore
+	# self updates that would otherwise show us as connected.
+	if user_id == my_id and AppState.voice_channel_id.is_empty() \
+			and _c._voice_server_info.is_empty() \
+			and not new_channel.is_empty():
+		if _c.has_method("_voice_log"):
+			_c._voice_log(
+				"ignore self voice_state_update without backend"
+			)
+		return
 
 	# Remove user from any previous channel in the cache
 	var old_channel := ""
@@ -122,7 +134,6 @@ func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:
 		SoundManager.play_for_voice_state(user_id, new_channel, old_channel)
 
 	# Detect force-disconnect: if our user's channel_id becomes empty
-	var my_id: String = _c.current_user.get("id", "")
 	if user_id == my_id and new_channel.is_empty() and not AppState.voice_channel_id.is_empty():
 		AppState.leave_voice()
 
@@ -130,6 +141,24 @@ func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> v
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	_c._voice_server_info = info.to_dict()
+	if _c.has_method("_voice_log"):
+		_c._voice_log(
+			"voice_server_update backend=%s sfu=%s livekit=%s" % [
+				str(info.backend),
+				str(info.sfu_endpoint),
+				str(info.livekit_url)
+			]
+		)
+	# If we're already in a voice channel and no session is active,
+	# connect the backend now (server may send update asynchronously).
+	if not AppState.voice_channel_id.is_empty() and _c._voice_session != null:
+		var state := 0
+		if _c._voice_session.has_method("get_session_state"):
+			state = _c._voice_session.get_session_state()
+		if state == 0:
+			if _c.has_method("_voice_log"):
+				_c._voice_log("voice_server_update connecting backend now")
+			_c.voice._connect_voice_backend(info)
 
 func on_voice_signal(data: Dictionary, _conn_index: int) -> void:
 	# Forward to AccordVoiceSession if it exists (Phase 4)

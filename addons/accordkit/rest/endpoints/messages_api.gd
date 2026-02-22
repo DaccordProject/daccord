@@ -158,6 +158,13 @@ func list_active_threads(channel_id: String) -> RestResult:
 	return result
 
 
+## Lists top-level posts in a forum channel. Passes `top_level=true`
+## to the standard list endpoint so the server returns only root messages.
+func list_posts(channel_id: String, query: Dictionary = {}) -> RestResult:
+	query["top_level"] = "true"
+	return await list(channel_id, query)
+
+
 ## Triggers the typing indicator in a channel. The indicator lasts for
 ## roughly 10 seconds or until the bot sends a message.
 func typing(channel_id: String) -> RestResult:

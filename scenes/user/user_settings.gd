@@ -189,48 +189,111 @@ func _build_account_page() -> VBoxContainer:
 
 func _build_voice_page() -> VBoxContainer:
 	var vbox := _page_vbox("Voice & Video")
+	var accord_stream = Engine.get_singleton("AccordStream")
 
 	# Microphone
 	vbox.add_child(_section_label("INPUT DEVICE"))
 	var mic_dropdown := OptionButton.new()
-	var input_devices := AudioServer.get_input_device_list()
-	for dev in input_devices:
-		mic_dropdown.add_item(dev)
 	var saved_input: String = Config.voice.get_input_device()
-	for i in mic_dropdown.item_count:
-		if mic_dropdown.get_item_text(i) == saved_input:
-			mic_dropdown.selected = i
-			break
-	mic_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.voice.set_input_device(
-			mic_dropdown.get_item_text(idx)
+	if accord_stream:
+		mic_dropdown.add_item("System Default")
+		mic_dropdown.set_item_metadata(0, "")
+		var mics: Array = accord_stream.get_microphones()
+		var mic_selected: int = 0
+		for i in mics.size():
+			var mic: Dictionary = mics[i]
+			var mic_id: String = mic.get("id", "")
+			var mic_name: String = mic.get("name", mic_id)
+			var item_idx: int = mic_dropdown.item_count
+			mic_dropdown.add_item(mic_name)
+			mic_dropdown.set_item_metadata(item_idx, mic_id)
+			if mic_id == saved_input:
+				mic_selected = item_idx
+		if mics.is_empty():
+			mic_dropdown.clear()
+			mic_dropdown.add_item("No microphones found")
+			mic_dropdown.disabled = true
+		else:
+			mic_dropdown.selected = mic_selected
+	else:
+		var input_devices: PackedStringArray = (
+			AudioServer.get_input_device_list()
 		)
+		for dev in input_devices:
+			mic_dropdown.add_item(dev)
+		for i in mic_dropdown.item_count:
+			if mic_dropdown.get_item_text(i) == saved_input:
+				mic_dropdown.selected = i
+				break
+	mic_dropdown.item_selected.connect(func(idx: int) -> void:
+		if mic_dropdown.disabled:
+			return
+		if accord_stream:
+			var device_id: String = str(
+				mic_dropdown.get_item_metadata(idx)
+			)
+			Config.voice.set_input_device(device_id)
+		else:
+			Config.voice.set_input_device(
+				mic_dropdown.get_item_text(idx)
+			)
 	)
 	vbox.add_child(mic_dropdown)
 
 	# Speaker
 	vbox.add_child(_section_label("OUTPUT DEVICE"))
 	var speaker_dropdown := OptionButton.new()
-	var output_devices := AudioServer.get_output_device_list()
-	for dev in output_devices:
-		speaker_dropdown.add_item(dev)
 	var saved_output: String = Config.voice.get_output_device()
-	for i in speaker_dropdown.item_count:
-		if speaker_dropdown.get_item_text(i) == saved_output:
-			speaker_dropdown.selected = i
-			break
-	speaker_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.voice.set_output_device(
-			speaker_dropdown.get_item_text(idx)
+	if accord_stream:
+		speaker_dropdown.add_item("System Default")
+		speaker_dropdown.set_item_metadata(0, "")
+		var speakers: Array = accord_stream.get_speakers()
+		var speaker_selected: int = 0
+		for i in speakers.size():
+			var speaker: Dictionary = speakers[i]
+			var speaker_id: String = speaker.get("id", "")
+			var speaker_name: String = speaker.get("name", speaker_id)
+			var item_idx: int = speaker_dropdown.item_count
+			speaker_dropdown.add_item(speaker_name)
+			speaker_dropdown.set_item_metadata(item_idx, speaker_id)
+			if speaker_id == saved_output:
+				speaker_selected = item_idx
+		if speakers.is_empty():
+			speaker_dropdown.clear()
+			speaker_dropdown.add_item("No output devices found")
+			speaker_dropdown.disabled = true
+		else:
+			speaker_dropdown.selected = speaker_selected
+	else:
+		var output_devices: PackedStringArray = (
+			AudioServer.get_output_device_list()
 		)
+		for dev in output_devices:
+			speaker_dropdown.add_item(dev)
+		for i in speaker_dropdown.item_count:
+			if speaker_dropdown.get_item_text(i) == saved_output:
+				speaker_dropdown.selected = i
+				break
+	speaker_dropdown.item_selected.connect(func(idx: int) -> void:
+		if speaker_dropdown.disabled:
+			return
+		if accord_stream:
+			var device_id: String = str(
+				speaker_dropdown.get_item_metadata(idx)
+			)
+			Config.voice.set_output_device(device_id)
+		else:
+			Config.voice.set_output_device(
+				speaker_dropdown.get_item_text(idx)
+			)
 	)
 	vbox.add_child(speaker_dropdown)
 
 	# Camera
 	vbox.add_child(_section_label("CAMERA"))
 	var cam_dropdown := OptionButton.new()
-	if ClassDB.class_exists("AccordStream"):
-		var cameras: Array = AccordStream.get_cameras()
+	if accord_stream:
+		var cameras: Array = accord_stream.get_cameras()
 		var saved_cam: String = Config.voice.get_video_device()
 		var cam_selected := 0
 		for i in cameras.size():

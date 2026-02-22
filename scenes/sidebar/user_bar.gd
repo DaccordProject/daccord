@@ -51,12 +51,14 @@ func _ready() -> void:
 	popup.add_item("Quit", 11)
 	popup.id_pressed.connect(_on_menu_id_pressed)
 	AppState.update_download_complete.connect(_on_update_ready)
-	# Load current user
-	var user: Dictionary = Client.current_user
-	setup(user)
+	# Load current user (active view)
+	_refresh_active_user()
 	# Refresh when a server connection completes
 	AppState.guilds_updated.connect(_on_guilds_updated)
 	AppState.user_updated.connect(_on_user_updated)
+	AppState.guild_selected.connect(_on_active_view_changed)
+	AppState.dm_mode_entered.connect(_on_active_view_changed)
+	AppState.channel_selected.connect(_on_active_view_changed)
 
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get(
@@ -85,11 +87,20 @@ func setup(user: Dictionary) -> void:
 	tooltip_text = custom if not custom.is_empty() else ""
 
 func _on_guilds_updated() -> void:
-	setup(Client.current_user)
+	_refresh_active_user()
 
 func _on_user_updated(user_id: String) -> void:
-	if user_id == Client.current_user.get("id", ""):
-		setup(Client.current_user)
+	var active_user: Dictionary = Client.get_active_user()
+	if user_id == active_user.get("id", ""):
+		setup(active_user)
+
+func _on_active_view_changed(_id: String = "") -> void:
+	_refresh_active_user()
+
+func _refresh_active_user() -> void:
+	var user: Dictionary = Client.get_active_user()
+	if not user.is_empty():
+		setup(user)
 
 func _on_voice_joined(_channel_id: String) -> void:
 	voice_indicator.visible = true
@@ -145,7 +156,7 @@ func _on_menu_id_pressed(id: int) -> void:
 		19:
 			_show_import_dialog()
 	if id >= 0 and id <= 3:
-		setup(Client.current_user)
+		_refresh_active_user()
 
 func _show_profile_edit_dialog() -> void:
 	var dlg: ColorRect = ProfileEditDialog.instantiate()
@@ -222,11 +233,11 @@ func _show_custom_status_dialog() -> void:
 		var activity: Dictionary = {}
 		if not text.is_empty():
 			activity = {"name": text}
-		var status: int = Client.current_user.get(
+		var status: int = Client.get_active_user().get(
 			"status", ClientModels.UserStatus.ONLINE
 		)
 		Client.update_presence(status, activity)
-		setup(Client.current_user)
+		_refresh_active_user()
 		dlg.queue_free()
 	)
 	dlg.canceled.connect(dlg.queue_free)

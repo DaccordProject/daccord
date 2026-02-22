@@ -182,6 +182,8 @@ func fetch_messages(channel_id: String) -> void:
 					accord_msg, _c._user_cache, cdn_url
 				)
 			)
+		# API returns newest-first; reverse so oldest is first for display
+		msgs.reverse()
 		# Clear old index entries for this channel
 		if _c._message_cache.has(channel_id):
 			for old_msg in _c._message_cache[channel_id]:
@@ -250,6 +252,8 @@ func fetch_older_messages(channel_id: String) -> void:
 				accord_msg, _c._user_cache, cdn_url
 			)
 		)
+	# API returns newest-first; reverse so oldest is first for display
+	older_msgs.reverse()
 	if older_msgs.is_empty():
 		AppState.messages_updated.emit(channel_id)
 		return
@@ -287,6 +291,8 @@ func fetch_thread_messages(channel_id: String, parent_message_id: String) -> voi
 					accord_msg, _c._user_cache, cdn_url
 				)
 			)
+		# API returns newest-first; reverse so oldest is first for display
+		msgs.reverse()
 		_c._thread_message_cache[parent_message_id] = msgs
 		AppState.thread_messages_updated.emit(
 			parent_message_id
@@ -300,6 +306,51 @@ func fetch_thread_messages(channel_id: String, parent_message_id: String) -> voi
 		push_error(
 			"[Client] Failed to fetch thread messages: ",
 			err_msg
+		)
+
+func fetch_forum_posts(channel_id: String, sort: String = "latest_activity") -> void:
+	var client: AccordClient = _c._client_for_channel(
+		channel_id
+	)
+	if client == null:
+		AppState.message_fetch_failed.emit(
+			channel_id, "No connection found"
+		)
+		return
+	var cdn_url: String = _c._cdn_for_channel(channel_id)
+	var query: Dictionary = {
+		"limit": _c.MESSAGE_CAP,
+		"sort": sort,
+	}
+	var result: RestResult = await client.messages.list_posts(
+		channel_id, query
+	)
+	if result.ok:
+		await _fetch_unknown_authors(
+			result.data, client, cdn_url
+		)
+		var posts: Array = []
+		for msg in result.data:
+			var accord_msg: AccordMessage = msg
+			var d: Dictionary = ClientModels.message_to_dict(
+				accord_msg, _c._user_cache, cdn_url
+			)
+			posts.append(d)
+			_c._message_id_index[d.get("id", "")] = channel_id
+		_c._forum_post_cache[channel_id] = posts
+		AppState.forum_posts_updated.emit(channel_id)
+	else:
+		var err_msg: String = (
+			result.error.message
+			if result.error
+			else "unknown"
+		)
+		push_error(
+			"[Client] Failed to fetch forum posts: ",
+			err_msg
+		)
+		AppState.message_fetch_failed.emit(
+			channel_id, err_msg
 		)
 
 func fetch_active_threads(channel_id: String) -> Array:
@@ -455,6 +506,36 @@ func fetch_voice_states(channel_id: String) -> void:
 			"[Client] Failed to fetch voice states: ",
 			err_msg
 		)
+
+func refresh_current_user(conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	var client: AccordClient = conn.get("client")
+	if client == null:
+		return
+	var cdn_url: String = conn.get("cdn_url", "")
+	var result: RestResult = await client.users.get_me()
+	if result.ok:
+		var user: AccordUser = result.data
+		var existing: Dictionary = _c._user_cache.get(user.id, {})
+		var status: int = existing.get(
+			"status", ClientModels.UserStatus.ONLINE
+		)
+		var user_dict: Dictionary = ClientModels.user_to_dict(
+			user, status, cdn_url
+		)
+		_c._user_cache[user.id] = user_dict
+		conn["user"] = user_dict
+		conn["user_id"] = user.id
+		if _c.current_user.get("id", "") == user.id:
+			_c.current_user = user_dict
+		AppState.user_updated.emit(user.id)
+
+func resync_voice_states(guild_id: String) -> void:
+	for ch_id in _c._voice_state_cache.keys():
+		if _c._channel_to_guild.get(ch_id, "") == guild_id:
+			fetch_voice_states(ch_id)
 
 func _fetch_dm_previews() -> void:
 	var updated := false

@@ -6,6 +6,7 @@ const CategoryItemScene := preload("res://scenes/sidebar/channels/category_item.
 const ChannelItemScene := preload("res://scenes/sidebar/channels/channel_item.tscn")
 const VoiceChannelItemScene := preload("res://scenes/sidebar/channels/voice_channel_item.tscn")
 const CreateChannelDialogScene := preload("res://scenes/admin/create_channel_dialog.tscn")
+const UncategorizedDropTargetScene := preload("res://scenes/sidebar/channels/uncategorized_drop_target.tscn")
 
 var channel_item_nodes: Dictionary = {}
 var active_channel_id: String = ""
@@ -19,6 +20,7 @@ var _current_guild_id: String = ""
 func _ready() -> void:
 	AppState.channels_updated.connect(_on_channels_updated)
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
+	AppState.channel_selected.connect(_on_app_channel_selected)
 
 func load_guild(guild_id: String) -> void:
 	_current_guild_id = guild_id
@@ -128,6 +130,13 @@ func load_guild(guild_id: String) -> void:
 		item.channel_pressed.connect(_on_channel_pressed)
 		channel_item_nodes[ch["id"]] = item
 
+	# Drop target for uncategorized root when empty (supports dragging out of categories)
+	if can_manage and uncategorized.is_empty() and not sorted_categories.is_empty():
+		var drop_target = UncategorizedDropTargetScene.instantiate()
+		channel_vbox.add_child(drop_target)
+		drop_target.setup(guild_id)
+		drop_target.channel_dropped.connect(_on_uncategorized_drop)
+
 	# Add categories with their children
 	for cat_data in sorted_categories:
 		var category: VBoxContainer = CategoryItemScene.instantiate()
@@ -156,6 +165,8 @@ func load_guild(guild_id: String) -> void:
 	var select_id: String = ""
 	if pending_channel_id != "" and channel_item_nodes.has(pending_channel_id):
 		select_id = pending_channel_id
+	elif AppState.current_channel_id != "" and channel_item_nodes.has(AppState.current_channel_id):
+		select_id = AppState.current_channel_id
 	else:
 		for ch in channels:
 			var ch_type: int = ch.get("type", 0)
@@ -183,15 +194,7 @@ func _on_channel_pressed(channel_id: String) -> void:
 			Client.join_voice_channel(channel_id)
 		return
 
-	# Deactivate previous
-	if active_channel_id != "" and channel_item_nodes.has(active_channel_id):
-		channel_item_nodes[active_channel_id].set_active(false)
-
-	active_channel_id = channel_id
-
-	# Activate new
-	if channel_item_nodes.has(channel_id):
-		channel_item_nodes[channel_id].set_active(true)
+	_set_active_channel(channel_id)
 
 	channel_selected.emit(channel_id)
 
@@ -203,7 +206,31 @@ func _on_imposter_mode_changed(_active: bool) -> void:
 	if not _current_guild_id.is_empty():
 		load_guild(_current_guild_id)
 
+func _on_app_channel_selected(channel_id: String) -> void:
+	if _current_guild_id.is_empty():
+		return
+	if not channel_item_nodes.has(channel_id):
+		return
+	_set_active_channel(channel_id)
+
+func _set_active_channel(channel_id: String) -> void:
+	if channel_id == active_channel_id:
+		return
+	if active_channel_id != "" and channel_item_nodes.has(active_channel_id):
+		channel_item_nodes[active_channel_id].set_active(false)
+	active_channel_id = channel_id
+	if channel_item_nodes.has(channel_id):
+		channel_item_nodes[channel_id].set_active(true)
+
 func _on_create_channel_pressed(guild_id: String, channels: Array) -> void:
 	var dialog := CreateChannelDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(guild_id, "", channels)
+
+func _on_uncategorized_drop(channel_data: Dictionary) -> void:
+	var channel_id: String = channel_data.get("id", "")
+	if channel_id == "":
+		return
+	if channel_data.get("parent_id", "") == "":
+		return
+	Client.admin.update_channel(channel_id, {"parent_id": null})

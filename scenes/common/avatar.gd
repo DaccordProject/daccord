@@ -99,6 +99,10 @@ func _apply_texture(tex: ImageTexture) -> void:
 		move_child(letter_label, get_child_count() - 1)
 	_texture_rect.texture = tex
 	letter_label.visible = false
+	# Preserve ring state on the new material
+	var current_ring: float = _shader_material.get_shader_parameter("ring_opacity")
+	if current_ring > 0.0 and _texture_rect.material is ShaderMaterial:
+		_texture_rect.material.set_shader_parameter("ring_opacity", current_ring)
 
 func set_radius(value: float) -> void:
 	if _shader_material:
@@ -115,6 +119,28 @@ func tween_radius(from: float, to: float, duration: float = 0.15) -> Tween:
 		tw.tween_method(set_radius, from, to, duration)
 		return tw
 	return null
+
+func set_ring_opacity(value: float) -> void:
+	if _shader_material:
+		_shader_material.set_shader_parameter("ring_opacity", value)
+	if _texture_rect and _texture_rect.material is ShaderMaterial:
+		_texture_rect.material.set_shader_parameter("ring_opacity", value)
+
+func tween_ring(from: float, to: float, duration: float = 0.15) -> Tween:
+	if _shader_material:
+		if Config.get_reduced_motion():
+			set_ring_opacity(to)
+			return null
+		var tw := create_tween()
+		tw.tween_method(set_ring_opacity, from, to, duration)
+		return tw
+	return null
+
+func set_speaking(is_speaking: bool) -> void:
+	if is_speaking:
+		tween_ring(0.0, 1.0, 0.15)
+	else:
+		tween_ring(1.0, 0.0, 0.15)
 
 func _resize_letter_label() -> void:
 	letter_label.offset_right = avatar_size

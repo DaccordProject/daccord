@@ -1,14 +1,37 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=2 format=3 uid="uid://cc7ltba0b23ap"]
 
-[ext_resource type="Script" path="res://scenes/sidebar/channels/channel_item.gd" id="1"]
+[ext_resource type="Script" uid="uid://dg3brivrgow3b" path="res://scenes/sidebar/channels/channel_item.gd" id="1"]
 
 [node name="ChannelItem" type="Button"]
-custom_minimum_size = Vector2(0, 44)
-offset_right = 220.0
-offset_bottom = 44.0
+custom_minimum_size = Vector2(0, 30)
+offset_right = 16.0
+offset_bottom = 8.0
 flat = true
 alignment = 0
 script = ExtResource("1")
+
+[node name="ActiveBg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.24, 0.26, 0.3, 1)
+
+[node name="ActivePill" type="ColorRect" parent="."]
+custom_minimum_size = Vector2(4, 18)
+layout_mode = 1
+anchors_preset = 6
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 2.0
+offset_top = -9.0
+offset_right = 6.0
+offset_bottom = 9.0
+mouse_filter = 2
+color = Color(0.34, 0.56, 0.94, 1)
 
 [node name="HBox" type="HBoxContainer" parent="."]
 layout_mode = 1
@@ -21,9 +44,10 @@ mouse_filter = 2
 theme_override_constants/separation = 6
 
 [node name="TypeIcon" type="TextureRect" parent="HBox"]
-layout_mode = 2
 custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
 size_flags_vertical = 4
+expand_mode = 4
 stretch_mode = 5
 
 [node name="ChannelName" type="Label" parent="HBox"]
@@ -32,7 +56,6 @@ size_flags_horizontal = 3
 vertical_alignment = 1
 
 [node name="UnreadDot" type="ColorRect" parent="HBox"]
-layout_mode = 2
 custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
 size_flags_vertical = 4
-color = Color(1, 1, 1, 1)

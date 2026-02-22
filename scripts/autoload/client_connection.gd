@@ -111,11 +111,30 @@ func connect_server(
 	if base_url != cfg["base_url"]:
 		Config.update_server_url(index, base_url)
 
+	# Check server version compatibility (non-blocking)
+	var ver_result: RestResult = await client.rest.make_request(
+		"GET", "/version"
+	)
+	if ver_result.ok and ver_result.data is Dictionary:
+		conn["server_version"] = ver_result.data.get("version", "")
+		conn["server_git_sha"] = ver_result.data.get("git_sha", "")
+		var srv_ver: String = conn["server_version"]
+		# Compare major version (first digit before the dot)
+		var client_major: String = AccordConfig.CLIENT_VERSION.split(".")[0]
+		var server_major: String = srv_ver.split(".")[0] if not srv_ver.is_empty() else ""
+		if not server_major.is_empty() and server_major != client_major:
+			AppState.server_version_warning.emit(
+				old_guild_id, srv_ver,
+				AccordConfig.CLIENT_VERSION
+			)
+
 	var me_user: AccordUser = me_result.data
 	var me_dict := ClientModels.user_to_dict(
 		me_user, ClientModels.UserStatus.ONLINE, cdn_url
 	)
 	_c._user_cache[me_user.id] = me_dict
+	conn["user_id"] = me_user.id
+	conn["user"] = me_dict
 	if _c.current_user.is_empty():
 		_c.current_user = me_dict
 
@@ -199,6 +218,7 @@ func connect_server(
 	_c._gw.connect_signals(client, index)
 	AppState.connection_step.emit("Connecting to gateway...")
 	client.login()
+	await client.connected
 
 	conn["status"] = "connected"
 	_c._auto_reconnect_attempted.erase(index)

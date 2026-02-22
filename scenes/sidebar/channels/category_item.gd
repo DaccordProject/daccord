@@ -5,7 +5,6 @@ signal channel_pressed(channel_id: String)
 const CHEVRON_DOWN := preload("res://assets/theme/icons/chevron_down.svg")
 const CHEVRON_RIGHT := preload("res://assets/theme/icons/chevron_right.svg")
 const PLUS_ICON := preload("res://assets/theme/icons/plus.svg")
-const DRAG_HANDLE_ICON := preload("res://assets/theme/icons/drag_handle.svg")
 const ChannelItemScene := preload("res://scenes/sidebar/channels/channel_item.tscn")
 const VoiceChannelItemScene := preload("res://scenes/sidebar/channels/voice_channel_item.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
@@ -17,11 +16,11 @@ var guild_id: String = ""
 var _category_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _plus_btn: Button
-var _drag_handle: TextureRect
 var _count_label: Label
 var _drop_above: bool = false
 var _drop_hovered: bool = false
 var _drop_channel_hover: bool = false
+var _drop_style: StyleBoxFlat
 
 @onready var header: Button = $Header
 @onready var chevron: TextureRect = $Header/HBox/Chevron
@@ -34,6 +33,22 @@ func _ready() -> void:
 	chevron.modulate = Color(0.58, 0.608, 0.643)
 	category_name.add_theme_font_size_override("font_size", 11)
 	category_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+
+	# Display-only children should not intercept mouse events (especially drag)
+	chevron.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	category_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Forward _get_drag_data from Header so category drags start from the header.
+	# Drop handling (_can_drop_data, _drop_data) is on this VBoxContainer directly;
+	# the header is set to MOUSE_FILTER_IGNORE during drags so events reach us.
+	header.set_drag_forwarding(_get_drag_data, _can_drop_data, _drop_data)
+
+	# Pre-build the drop highlight style (reused across frames)
+	_drop_style = StyleBoxFlat.new()
+	_drop_style.bg_color = Color(0.34, 0.52, 0.89, 0.25)
+	_drop_style.border_color = Color(0.34, 0.52, 0.89)
+	_drop_style.set_border_width_all(2)
+	_drop_style.set_corner_radius_all(4)
 
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
@@ -55,6 +70,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 	_count_label.add_theme_font_size_override("font_size", 10)
 	_count_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 	_count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_count_label.visible = false
 	$Header/HBox.add_child(_count_label)
 
@@ -69,19 +85,8 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		item.setup(ch)
 		item.channel_pressed.connect(func(id: String): channel_pressed.emit(id))
 
-	# Drag handle and "+" button (only if user has permission)
+	# "+" button (only if user has permission)
 	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
-		_drag_handle = TextureRect.new()
-		_drag_handle.texture = DRAG_HANDLE_ICON
-		_drag_handle.custom_minimum_size = Vector2(10, 16)
-		_drag_handle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		_drag_handle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_drag_handle.modulate = Color(0.58, 0.608, 0.643)
-		_drag_handle.visible = false
-		_drag_handle.mouse_filter = Control.MOUSE_FILTER_PASS
-		$Header/HBox.add_child(_drag_handle)
-		$Header/HBox.move_child(_drag_handle, 0)
-
 		_plus_btn = Button.new()
 		_plus_btn.flat = true
 		_plus_btn.visible = false
@@ -125,14 +130,10 @@ func get_channel_items() -> Array:
 	return items
 
 func _on_header_mouse_entered() -> void:
-	if _drag_handle:
-		_drag_handle.visible = true
 	if _plus_btn:
 		_plus_btn.visible = true
 
 func _on_header_mouse_exited() -> void:
-	if _drag_handle:
-		_drag_handle.visible = false
 	if _plus_btn:
 		_plus_btn.visible = false
 
@@ -213,11 +214,14 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 			var ch_data: Dictionary = data.get("channel_data", {})
 			var cat_id: String = _category_data.get("id", "")
 			if ch_data.get("parent_id", "") != cat_id:
+				if not _drop_channel_hover:
+					header.add_theme_stylebox_override("normal", _drop_style)
 				_drop_channel_hover = true
 				_drop_hovered = true
-				queue_redraw()
 				accepted = true
 		elif drop_type == "category":
+			if _drop_channel_hover:
+				header.remove_theme_stylebox_override("normal")
 			_drop_channel_hover = false
 			var source: Control = data.get("source_node")
 			var valid_source: bool = (
@@ -226,7 +230,7 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 				and source.get_parent() == get_parent()
 			)
 			if valid_source:
-				_drop_above = at_position.y < size.y / 2.0
+				_drop_above = at_position.y < header.size.y / 2.0
 				_drop_hovered = true
 				queue_redraw()
 				accepted = true
@@ -245,7 +249,7 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 		var ch_id: String = ch_data.get("id", "")
 		var cat_id: String = _category_data.get("id", "")
 		if ch_id != "" and cat_id != "":
-			Client.admin.update_channel(ch_id, {"parent_id": cat_id})
+			_move_channel_to_category(ch_id, cat_id)
 		return
 	if drop_type == "category":
 		var source: Control = data.get("source_node")
@@ -268,27 +272,53 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 		if positions.size() > 0:
 			Client.admin.reorder_channels(guild_id, positions)
 
+func _move_channel_to_category(ch_id: String, cat_id: String) -> void:
+	var result: RestResult = await Client.admin.update_channel(ch_id, {"parent_id": cat_id})
+	if result == null:
+		push_warning("[CategoryItem] No connection for channel %s" % ch_id)
+	elif not result.ok:
+		var err_msg: String = ""
+		if result.error != null:
+			err_msg = "%s (code=%s, status=%d)" % [
+				result.error.message, result.error.code, result.status_code
+			]
+		else:
+			err_msg = "status=%d" % result.status_code
+		push_warning("[CategoryItem] Failed to move channel %s to category %s: %s" % [
+			ch_id, cat_id, err_msg
+		])
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END:
+	if what == NOTIFICATION_DRAG_BEGIN:
+		# Let drops pass through the header and channel container
+		# to this VBoxContainer so _can_drop_data/_drop_data fire directly.
+		header.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		channel_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if _plus_btn:
+			_plus_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	elif what == NOTIFICATION_DRAG_END:
+		header.mouse_filter = Control.MOUSE_FILTER_STOP
+		channel_container.mouse_filter = Control.MOUSE_FILTER_STOP
+		if _plus_btn:
+			_plus_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		_clear_drop_indicator()
 
 func _clear_drop_indicator() -> void:
 	if _drop_hovered:
 		_drop_hovered = false
+		if _drop_channel_hover:
+			header.remove_theme_stylebox_override("normal")
 		_drop_channel_hover = false
 		queue_redraw()
 
 func _draw() -> void:
 	if not _drop_hovered:
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
 	if _drop_channel_hover:
-		# Highlight the header area when a channel is being dropped onto this category
-		var header_rect := Rect2(Vector2.ZERO, Vector2(size.x, header.size.y))
-		draw_rect(header_rect, Color(line_color, 0.25))
-		draw_rect(header_rect, line_color, false, 2.0)
+		# Channel-on-category indicator is shown via header StyleBox override
+		return
+	var line_color := Color(0.34, 0.52, 0.89)
+	if _drop_above:
+		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
 	else:
-		if _drop_above:
-			draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
-		else:
-			draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)

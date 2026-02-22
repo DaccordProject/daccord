@@ -28,6 +28,7 @@ var thread_id = null
 var reply_count: int = 0
 var last_reply_at = null
 var thread_participants: Array = []
+var title = null
 
 
 static func from_dict(d: Dictionary) -> AccordMessage:
@@ -127,6 +128,8 @@ static func from_dict(d: Dictionary) -> AccordMessage:
 	for p in raw_participants:
 		m.thread_participants.append(str(p))
 
+	m.title = d.get("title", null)
+
 	return m
 
 
@@ -184,4 +187,6 @@ func to_dict() -> Dictionary:
 		d["last_reply_at"] = last_reply_at
 	if thread_participants.size() > 0:
 		d["thread_participants"] = thread_participants
+	if title != null:
+		d["title"] = title
 	return d

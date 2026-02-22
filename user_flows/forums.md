@@ -263,37 +263,27 @@ Gateway events for forum channels need special handling in `client_gateway.gd`:
 - [x] Forum grouped with text for permission filtering (`channel_permissions_dialog.gd:273-276`)
 - [x] Thread permission constants (`MANAGE_THREADS`, `CREATE_THREADS`, `SEND_IN_THREADS`)
 - [x] Unit tests for forum icon and enum mapping
-- [ ] Forum post list view (forum_view scene)
-- [ ] Forum post row component
-- [ ] Post creation form (title + body)
-- [ ] Channel type detection in message_view to switch to forum layout
-- [ ] Thread panel (prerequisite — see Message Threads)
-- [ ] Thread signals and state in AppState (prerequisite — see Message Threads)
-- [ ] `thread_id`, `reply_count`, `title` fields on AccordMessage
-- [ ] Thread message fetch/send API endpoints
-- [ ] Gateway handling for thread-aware message events
-- [ ] Forum post sort/filter controls
-- [ ] Forum empty state
-- [ ] Forum-specific context menu items (Edit Post, Delete Post)
-- [ ] Permission checks for `CREATE_THREADS` / `SEND_IN_THREADS`
-- [ ] Responsive layout for forum view + thread panel
+- [x] Forum post list view (`forum_view.tscn` + `forum_view.gd`)
+- [x] Forum post row component (`forum_post_row.tscn` + `forum_post_row.gd`)
+- [x] Post creation form (title + body) — inline in forum_view
+- [x] Channel type detection in message_view to switch to forum layout
+- [x] Thread panel (prerequisite — see Message Threads)
+- [x] Thread signals and state in AppState (prerequisite — see Message Threads)
+- [x] `thread_id`, `reply_count`, `title` fields on AccordMessage
+- [x] Thread message fetch/send API endpoints (`list_posts()`, `list_thread()`)
+- [x] Gateway handling for thread-aware message events (forum post create/update/delete)
+- [x] Forum post sort/filter controls (Latest Activity, Newest, Oldest)
+- [x] Forum empty state ("No posts yet" with New Post button)
+- [x] Forum-specific context menu items (Open Thread, Delete Post)
+- [x] Permission checks for `MANAGE_THREADS` on delete
+- [x] Responsive layout for forum view + thread panel
 - [ ] Server-side forum/thread support in accordserver
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No forum post list view | High | `message_view.gd` (line 149) calls `fetch_messages()` with no channel type check. Forum channels render as flat message lists. Need a `forum_view` scene. |
-| No thread panel (prerequisite) | High | The thread panel from Message Threads must be built first. Forums depend on it for viewing/replying to post threads. |
-| No thread data model | High | `AccordMessage` (message.gd) has no `thread_id`, `reply_count`, `last_reply_at`, or `title` fields. Server must support these. |
-| No thread/forum API endpoints | High | `MessagesApi` (messages_api.gd) has no thread-filtered list or forum post creation methods. Requires accordserver backend support. |
-| No AppState thread state | High | `app_state.gd` has no `current_thread_id`, `thread_panel_visible`, or thread signals. Required for opening posts in thread panel. |
-| No post creation form | High | No UI for creating a forum post with a title field. The standard composer (message_view.gd line 37) only has a content text input. |
-| No gateway thread awareness | Medium | `client_gateway.gd` `on_message_create` (line 24) does not differentiate thread replies from top-level messages. |
-| Thread permissions unused | Medium | `MANAGE_THREADS`, `CREATE_THREADS`, `SEND_IN_THREADS` exist in permission.gd (lines 40-43) but no client code checks them. |
-| No forum post sort/filter | Medium | No UI for sorting posts by latest activity, newest, or oldest. |
-| No post title on messages | Medium | `AccordMessage` has no `title` field. Forum posts need titles. Fallback: use first line of content. |
-| No forum empty state | Low | When a forum channel has zero posts, the generic "Welcome to #channel" empty state shows (message_view.gd lines 180-183) instead of a forum-specific one. |
-| Compact layout forum UX | Low | No design for forum post list + thread panel on narrow viewports (<500px). |
+| ~~Compact layout forum UX~~ | ~~Low~~ | ~~Resolved: forum_view adapts header (compact "+" button, smaller title), forum_post_row hides avatar/activity in compact, thread_panel shows "\u2190 Back" button and drops min-width.~~ |
 | No post pinning or archiving | Low | `AccordChannel` has `archived` and `auto_archive_after` fields (channel.gd lines 21-22) but no UI uses them. |
-| Server-side forum support missing | High | accordserver has no forum-specific logic — only thread permission strings exist (permission.rs lines 47-50). Backend must support forum channel semantics, thread-filtered message queries, and post titles. |
+| Server-side forum support missing | High | accordserver needs to support `title` field on messages and the `top_level=true` query param for listing forum posts. Until then, `list_posts()` falls back to listing all messages in the channel. |
+| Edit post UI | Low | No inline edit for forum post title+body. Users can edit content via the thread panel. |

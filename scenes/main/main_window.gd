@@ -1,7 +1,7 @@
 extends Control
 
 const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
-const MainWindowDrawerScript := preload("res://scenes/main/main_window_drawer.gd")
+const PanelResizeHandle := preload("res://scenes/main/panel_resize_handle.gd")
 
 const AvatarScript := preload("res://scenes/common/avatar.gd")
 const ProfileCardScene := preload(
@@ -24,6 +24,16 @@ var _active_profile_card: PanelContainer = null
 var _welcome_screen: Control = null
 var _member_list_before_medium: bool = true
 var _gestures: RefCounted
+var _thread_handle: Control
+var _member_handle: Control
+var _search_handle: Control
+var _clamping_panels: bool = false
+
+const PANEL_HANDLE_WIDTH := 6.0
+const MESSAGE_VIEW_MIN := 300.0
+const PANEL_MIN_THREAD := 240.0
+const PANEL_MIN_MEMBER := 180.0
+const PANEL_MIN_SEARCH := 240.0
 
 @onready var layout_hbox: HBoxContainer = $LayoutHBox
 @onready var sidebar: HBoxContainer = $LayoutHBox/Sidebar
@@ -43,7 +53,7 @@ var _gestures: RefCounted
 @onready var drawer_container: Control = $DrawerContainer
 
 func _ready() -> void:
-	_drawer = MainWindowDrawerScript.new(
+	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
 	_gestures = DrawerGestures.new(self)
@@ -72,9 +82,32 @@ func _ready() -> void:
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
 	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
 	AppState.update_download_complete.connect(_on_update_download_complete)
+	AppState.voice_error.connect(_on_voice_error)
 	# Style topic bar
 	topic_bar.add_theme_font_size_override("font_size", 12)
 	topic_bar.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+
+	# Create resize handles for side panels
+	_thread_handle = PanelResizeHandle.new(
+		thread_panel, 240.0, 0.0, 340.0, 0.8,
+	)
+	content_body.add_child(_thread_handle)
+	content_body.move_child(_thread_handle, thread_panel.get_index())
+
+	_member_handle = PanelResizeHandle.new(
+		member_list, 180.0, 400.0, 240.0,
+	)
+	content_body.add_child(_member_handle)
+	content_body.move_child(_member_handle, member_list.get_index())
+
+	_search_handle = PanelResizeHandle.new(
+		search_panel, 240.0, 500.0, 340.0,
+	)
+	content_body.add_child(_search_handle)
+	content_body.move_child(_search_handle, search_panel.get_index())
+
+	_sync_handle_visibility()
+	content_body.resized.connect(_clamp_panel_widths)
 
 	_update_tab_visibility()
 
@@ -87,7 +120,8 @@ func _ready() -> void:
 
 	# Crash recovery toast
 	if Config.get_error_reporting_enabled() and ErrorReporting._initialized:
-		var last_id: String = SentrySDK.get_last_event_id()
+		var last_id_value = SentrySDK.get_last_event_id()
+		var last_id: String = last_id_value if last_id_value != null else ""
 		if not last_id.is_empty():
 			call_deferred("_show_crash_toast")
 
@@ -228,7 +262,8 @@ func _set_guild_icon_for_tab(tab_index: int) -> void:
 		tab_bar.set_tab_icon(tab_index, null)
 		return
 
-	var icon_url: String = guild.get("icon", "")
+	var icon_url_value = guild.get("icon", "")
+	var icon_url: String = icon_url_value if icon_url_value != null else ""
 	if icon_url.is_empty():
 		# Fallback: solid-color swatch
 		var tex: ImageTexture = _create_color_swatch(
@@ -300,6 +335,7 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 			message_view.visible = true
 			_update_member_list_visibility()
 			_update_search_visibility()
+			_sync_handle_visibility()
 		AppState.LayoutMode.MEDIUM:
 			_drawer.move_sidebar_to_layout()
 			sidebar.visible = true
@@ -312,6 +348,7 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 			message_view.visible = true
 			_update_member_list_visibility()
 			_update_search_visibility()
+			_sync_handle_visibility()
 		AppState.LayoutMode.COMPACT:
 			_drawer.move_sidebar_to_drawer()
 			sidebar.set_channel_panel_visible_immediate(true)
@@ -323,11 +360,64 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 			search_toggle.visible = false
 			search_panel.visible = false
 			AppState.close_search()
+			_sync_handle_visibility()
 			# In compact mode, thread panel replaces message view
 			if AppState.thread_panel_visible:
 				message_view.visible = false
 			else:
 				message_view.visible = true
+
+func _sync_handle_visibility() -> void:
+	var is_compact: bool = (
+		AppState.current_layout_mode == AppState.LayoutMode.COMPACT
+	)
+	_thread_handle.visible = thread_panel.visible and not is_compact
+	_member_handle.visible = member_list.visible and not is_compact
+	_search_handle.visible = search_panel.visible and not is_compact
+	_clamp_panel_widths()
+
+func _clamp_panel_widths() -> void:
+	if _clamping_panels:
+		return
+	_clamping_panels = true
+
+	var available: float = content_body.size.x
+	# Reserve space for visible handles
+	var reserved: float = MESSAGE_VIEW_MIN
+	if _thread_handle.visible:
+		reserved += PANEL_HANDLE_WIDTH
+	if _member_handle.visible:
+		reserved += PANEL_HANDLE_WIDTH
+	if _search_handle.visible:
+		reserved += PANEL_HANDLE_WIDTH
+
+	var budget: float = available - reserved
+	if budget <= 0.0:
+		_clamping_panels = false
+		return
+
+	# Collect visible panels and their hard minimums
+	var panels: Array[Array] = []
+	if thread_panel.visible:
+		panels.append([thread_panel, PANEL_MIN_THREAD])
+	if member_list.visible:
+		panels.append([member_list, PANEL_MIN_MEMBER])
+	if search_panel.visible:
+		panels.append([search_panel, PANEL_MIN_SEARCH])
+
+	var total: float = 0.0
+	for p in panels:
+		total += p[0].custom_minimum_size.x
+
+	if total > budget:
+		# Scale all panels down proportionally, respecting hard minimums
+		var excess: float = total - budget
+		for p in panels:
+			var share: float = p[0].custom_minimum_size.x / total
+			var reduced: float = p[0].custom_minimum_size.x - excess * share
+			p[0].custom_minimum_size.x = maxf(reduced, p[1])
+
+	_clamping_panels = false
 
 func _on_sidebar_toggle_pressed() -> void:
 	AppState.toggle_channel_panel()
@@ -341,34 +431,25 @@ func _on_member_toggle_pressed() -> void:
 
 func _on_member_list_toggled(_is_visible: bool) -> void:
 	_update_member_list_visibility()
+	_sync_handle_visibility()
 
 func _on_search_toggle_pressed() -> void:
 	AppState.toggle_search()
 
 func _on_search_toggled(is_open: bool) -> void:
 	search_panel.visible = is_open
+	_sync_handle_visibility()
 	if is_open:
 		search_panel.activate(AppState.current_guild_id)
 
 func _on_thread_opened(_parent_message_id: String) -> void:
-	match AppState.current_layout_mode:
-		AppState.LayoutMode.FULL:
-			# Hide member list when thread panel is open
-			member_list.visible = false
-		AppState.LayoutMode.MEDIUM:
-			member_list.visible = false
-		AppState.LayoutMode.COMPACT:
-			# Thread panel replaces the message view
-			message_view.visible = false
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		# Thread panel replaces the message view in compact mode
+		message_view.visible = false
 
 func _on_thread_closed() -> void:
-	match AppState.current_layout_mode:
-		AppState.LayoutMode.FULL:
-			_update_member_list_visibility()
-		AppState.LayoutMode.MEDIUM:
-			_update_member_list_visibility()
-		AppState.LayoutMode.COMPACT:
-			message_view.visible = true
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		message_view.visible = true
 
 func _on_dm_mode_entered() -> void:
 	search_toggle.visible = false
@@ -398,17 +479,10 @@ func _update_member_list_visibility() -> void:
 	match AppState.current_layout_mode:
 		AppState.LayoutMode.FULL:
 			member_toggle.visible = true
-			# Hide member list when thread panel is open
-			if AppState.thread_panel_visible:
-				member_list.visible = false
-			else:
-				member_list.visible = AppState.member_list_visible
+			member_list.visible = AppState.member_list_visible
 		AppState.LayoutMode.MEDIUM:
 			member_toggle.visible = true
-			if AppState.thread_panel_visible:
-				member_list.visible = false
-			else:
-				member_list.visible = AppState.member_list_visible
+			member_list.visible = AppState.member_list_visible
 		AppState.LayoutMode.COMPACT:
 			member_toggle.visible = false
 			member_list.visible = false
@@ -549,6 +623,50 @@ func _show_crash_toast() -> void:
 	else:
 		tween.tween_property(panel, "modulate:a", 0.0, 1.0)
 		tween.tween_callback(panel.queue_free)
+
+func _show_toast(text: String, is_error: bool = false) -> void:
+	var toast := Label.new()
+	toast.text = text
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_font_size_override("font_size", 13)
+	var text_color := Color(0.92, 0.92, 0.92)
+	if is_error:
+		text_color = Color(1.0, 0.86, 0.86)
+	toast.add_theme_color_override("font_color", text_color)
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = (
+		Color(0.28, 0.12, 0.12, 0.95)
+		if is_error
+		else Color(0.18, 0.19, 0.21, 0.95)
+	)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	style.content_margin_left = 16.0
+	style.content_margin_right = 16.0
+	style.content_margin_top = 10.0
+	style.content_margin_bottom = 10.0
+	panel.add_theme_stylebox_override("panel", style)
+	panel.add_child(toast)
+	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.anchor_bottom = 1.0
+	panel.anchor_top = 1.0
+	panel.offset_top = -60.0
+	panel.offset_bottom = -20.0
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	add_child(panel)
+	var tween := create_tween()
+	tween.tween_interval(4.0)
+	if Config.get_reduced_motion():
+		tween.tween_callback(panel.queue_free)
+	else:
+		tween.tween_property(panel, "modulate:a", 0.0, 1.0)
+		tween.tween_callback(panel.queue_free)
+
+func _on_voice_error(error: String) -> void:
+	_show_toast("Voice error: %s" % error, true)
 
 func _on_image_lightbox_requested(
 	_url: String, texture: ImageTexture,

@@ -52,3 +52,5 @@ Ordered by natural user journey:
 | 44 | [Message Threads](message_threads.md) | Slack-style message threads: thread panel UI, thread data model, reply count indicators, thread composer, permission gating, responsive layout |
 | 45 | [Forums](forums.md) | Discord-style forum channels: post list view, post creation with titles, thread panel integration, sort/filter, builds on Message Threads |
 | 46 | [Master Server Discovery](master_server_discovery.md) | Public server directory via accordmasterserver: server registration, background indexing, search/browse/join flow, discovery panel UI |
+| 47 | [Text Channel Chat Bot](text_channel_chat_bot.md) | Bot message rendering, bot user flag, webhook messages, interaction model, slash command API, component support gaps |
+| 48 | [Server Update](server_update.md) | Reconnection after server restart/update, stale cache risks, permission race windows, API version gaps, data resync coverage |

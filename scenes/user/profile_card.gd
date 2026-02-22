@@ -319,10 +319,13 @@ func setup(user_data: Dictionary, guild_id: String = "") -> void:
 		_member_since_label.text = "Member since " + _format_date(created_at)
 		_member_since_label.visible = true
 
-	# Message button (hidden for self)
+	# Message button (hidden for self or unknown user)
 	var my_id: String = Client.current_user.get("id", "")
-	if user_data.get("id", "") != my_id:
+	var target_id: String = user_data.get("id", "")
+	if not my_id.is_empty() and not target_id.is_empty() and target_id != my_id:
 		_message_btn.visible = true
+	else:
+		_message_btn.visible = false
 
 func _activity_prefix(type: String) -> String:
 	return _ACTIVITY_PREFIXES.get(type, "")
@@ -339,7 +342,7 @@ func _on_message_pressed() -> void:
 		Client.create_dm(user_id)
 	queue_free()
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
 		queue_free()
