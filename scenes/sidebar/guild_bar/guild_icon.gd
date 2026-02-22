@@ -15,6 +15,7 @@ const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.
 var guild_id: String = ""
 var guild_name: String = ""
 var is_active: bool = false
+var _is_hovered: bool = false
 var _has_unread: bool = false
 var _is_disconnected: bool = false
 var _server_index: int = -1
@@ -96,10 +97,14 @@ func set_active(active: bool) -> void:
 	if pill:
 		if active:
 			pill.set_state_animated(pill.PillState.ACTIVE)
-		elif _has_unread:
-			pill.set_state_animated(pill.PillState.UNREAD)
+			avatar_rect.tween_radius(0.5, 0.3)
 		else:
-			pill.set_state_animated(pill.PillState.HIDDEN)
+			if not _is_hovered:
+				avatar_rect.tween_radius(0.3, 0.5)
+			if _has_unread:
+				pill.set_state_animated(pill.PillState.UNREAD)
+			else:
+				pill.set_state_animated(pill.PillState.HIDDEN)
 
 func _on_pressed() -> void:
 	if _is_disconnected:
@@ -112,14 +117,18 @@ func _on_pressed() -> void:
 	guild_pressed.emit(guild_id)
 
 func _on_hover_enter() -> void:
-	avatar_rect.tween_radius(0.5, 0.3)
+	_is_hovered = true
+	if not is_active:
+		avatar_rect.tween_radius(0.5, 0.3)
 
 func _on_hover_exit() -> void:
+	_is_hovered = false
 	if not is_active:
 		avatar_rect.tween_radius(0.3, 0.5)
 
 func _on_button_down() -> void:
-	avatar_rect.tween_radius(0.5, 0.3)
+	if not is_active:
+		avatar_rect.tween_radius(0.5, 0.3)
 
 func _on_button_up() -> void:
 	if not is_active:

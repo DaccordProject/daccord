@@ -3,7 +3,6 @@ extends VBoxContainer
 signal channel_pressed(channel_id: String)
 
 const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
-const DRAG_HANDLE_ICON := preload("res://assets/theme/icons/drag_handle.svg")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
@@ -12,11 +11,11 @@ var channel_id: String = ""
 var guild_id: String = ""
 var _channel_data: Dictionary = {}
 var _gear_btn: Button
-var _drag_handle: TextureRect
 var _context_menu: PopupMenu
 var _gear_just_pressed: bool = false
 var _drop_above: bool = false
 var _drop_hovered: bool = false
+var _participant_avatars: Dictionary = {} # user_id -> Avatar node ref
 
 @onready var channel_button: Button = $ChannelButton
 @onready var type_icon: TextureRect = $ChannelButton/HBox/TypeIcon
@@ -34,10 +33,19 @@ func _ready() -> void:
 	AppState.voice_state_updated.connect(_on_voice_state_updated)
 	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
+	AppState.speaking_changed.connect(_on_speaking_changed)
 
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
 	add_child(_context_menu)
+
+	# Display-only children should not intercept mouse events (especially drag)
+	type_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	channel_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	user_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Forward drag-and-drop from ChannelButton to this VBoxContainer
+	channel_button.set_drag_forwarding(_get_drag_data, _can_drop_data, _drop_data)
 
 	channel_button.gui_input.connect(_on_gui_input)
 	channel_button.mouse_entered.connect(_on_mouse_entered)
@@ -51,19 +59,8 @@ func setup(data: Dictionary) -> void:
 	channel_button.tooltip_text = data.get("name", "")
 	type_icon.texture = VOICE_ICON
 
-	# Drag handle and gear button (only if user has permission)
+	# Gear button (only if user has permission)
 	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
-		_drag_handle = TextureRect.new()
-		_drag_handle.texture = DRAG_HANDLE_ICON
-		_drag_handle.custom_minimum_size = Vector2(10, 16)
-		_drag_handle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		_drag_handle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_drag_handle.modulate = Color(0.58, 0.608, 0.643)
-		_drag_handle.visible = false
-		_drag_handle.mouse_filter = Control.MOUSE_FILTER_PASS
-		$ChannelButton/HBox.add_child(_drag_handle)
-		$ChannelButton/HBox.move_child(_drag_handle, 0)
-
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
@@ -97,9 +94,10 @@ func _on_voice_left(cid: String) -> void:
 		_refresh_participants()
 
 func _refresh_participants() -> void:
-	# Clear old participant items
+	# Clear old participant items and avatar tracking
 	for child in participant_container.get_children():
 		child.queue_free()
+	_participant_avatars.clear()
 
 	var voice_users: Array = Client.get_voice_users(channel_id)
 	var count: int = voice_users.size()
@@ -144,6 +142,13 @@ func _refresh_participants() -> void:
 		var avatar_url = user.get("avatar", null)
 		if avatar_url is String and not avatar_url.is_empty():
 			av.set_avatar_url(avatar_url)
+
+		# Track avatar and apply current speaking state (no animation during rebuild)
+		var user_id: String = user.get("id", vs.get("user_id", ""))
+		if not user_id.is_empty():
+			_participant_avatars[user_id] = av
+			if Client.is_user_speaking(user_id):
+				av.set_ring_opacity(1.0)
 
 		# Spacer between avatar and name
 		var gap := Control.new()
@@ -196,15 +201,17 @@ func _refresh_participants() -> void:
 
 		participant_container.add_child(row)
 
+func _on_speaking_changed(user_id: String, is_speaking: bool) -> void:
+	if _participant_avatars.has(user_id):
+		var av = _participant_avatars[user_id]
+		if is_instance_valid(av):
+			av.set_speaking(is_speaking)
+
 func _on_mouse_entered() -> void:
-	if _drag_handle:
-		_drag_handle.visible = true
 	if _gear_btn:
 		_gear_btn.visible = true
 
 func _on_mouse_exited() -> void:
-	if _drag_handle:
-		_drag_handle.visible = false
 	if _gear_btn:
 		_gear_btn.visible = false
 
@@ -286,7 +293,10 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 		var target_parent_id: String = _channel_data.get("parent_id", "")
 		var source_id: String = source_data.get("id", "")
 		if source_id != "":
-			Client.admin.update_channel(source_id, {"parent_id": target_parent_id})
+			if target_parent_id == "":
+				Client.admin.update_channel(source_id, {"parent_id": null})
+			else:
+				Client.admin.update_channel(source_id, {"parent_id": target_parent_id})
 		return
 	# Same parent: reorder within the container
 	var container := get_parent()

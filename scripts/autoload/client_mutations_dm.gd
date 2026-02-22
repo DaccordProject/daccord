@@ -15,6 +15,13 @@ func create_dm(user_id: String) -> void:
 			"[Client] No connected client for create_dm"
 		)
 		return
+	if user_id.is_empty():
+		push_error("[Client] Failed to create DM: user_id is empty")
+		return
+	var my_id: String = _c.current_user.get("id", "")
+	if not my_id.is_empty() and user_id == my_id:
+		push_warning("[Client] Skipping DM create for self")
+		return
 	var cdn_url: String = _c._first_connected_cdn()
 	var result: RestResult = await client.users.create_dm(
 		{"recipient_id": user_id}

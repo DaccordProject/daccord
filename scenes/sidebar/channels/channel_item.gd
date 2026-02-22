@@ -6,7 +6,6 @@ const TEXT_ICON := preload("res://assets/theme/icons/text_channel.svg")
 const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
 const ANNOUNCEMENT_ICON := preload("res://assets/theme/icons/announcement_channel.svg")
 const FORUM_ICON := preload("res://assets/theme/icons/forum_channel.svg")
-const DRAG_HANDLE_ICON := preload("res://assets/theme/icons/drag_handle.svg")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 
@@ -15,13 +14,15 @@ var guild_id: String = ""
 var _channel_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _gear_btn: Button
-var _drag_handle: TextureRect
 var _drop_above: bool = false
 var _drop_hovered: bool = false
+var _has_unread: bool = false
 
 @onready var type_icon: TextureRect = $HBox/TypeIcon
 @onready var channel_name: Label = $HBox/ChannelName
 @onready var unread_dot: ColorRect = $HBox/UnreadDot
+@onready var active_bg: ColorRect = $ActiveBg
+@onready var active_pill: ColorRect = $ActivePill
 
 func _ready() -> void:
 	pressed.connect(func(): channel_pressed.emit(channel_id))
@@ -33,6 +34,8 @@ func _ready() -> void:
 	gui_input.connect(_on_gui_input)
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
+	active_bg.visible = false
+	active_pill.visible = false
 
 func setup(data: Dictionary) -> void:
 	channel_id = data.get("id", "")
@@ -70,26 +73,12 @@ func setup(data: Dictionary) -> void:
 		$HBox.add_child(count_label)
 		$HBox.move_child(count_label, $HBox.get_child_count() - 1)
 
-	var has_unread: bool = data.get("unread", false)
-	unread_dot.visible = has_unread
-	if has_unread:
-		channel_name.add_theme_color_override("font_color", Color(1, 1, 1))
-	else:
-		channel_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_has_unread = data.get("unread", false)
+	unread_dot.visible = _has_unread
+	_apply_text_color()
 
-	# Drag handle and gear button (only if user has permission)
+	# Gear button (only if user has permission)
 	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
-		_drag_handle = TextureRect.new()
-		_drag_handle.texture = DRAG_HANDLE_ICON
-		_drag_handle.custom_minimum_size = Vector2(10, 16)
-		_drag_handle.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		_drag_handle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_drag_handle.modulate = Color(0.58, 0.608, 0.643)
-		_drag_handle.visible = false
-		_drag_handle.mouse_filter = Control.MOUSE_FILTER_PASS
-		$HBox.add_child(_drag_handle)
-		$HBox.move_child(_drag_handle, 0)
-
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
@@ -105,26 +94,24 @@ func setup(data: Dictionary) -> void:
 
 func set_active(active: bool) -> void:
 	if active:
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.24, 0.25, 0.27)
-		style.corner_radius_top_left = 4
-		style.corner_radius_top_right = 4
-		style.corner_radius_bottom_left = 4
-		style.corner_radius_bottom_right = 4
-		add_theme_stylebox_override("normal", style)
+		active_bg.visible = true
+		active_pill.visible = true
+	else:
+		active_bg.visible = false
+		active_pill.visible = false
+	_apply_text_color()
+
+func _apply_text_color() -> void:
+	if _has_unread:
 		channel_name.add_theme_color_override("font_color", Color(1, 1, 1))
 	else:
-		remove_theme_stylebox_override("normal")
+		channel_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 
 func _on_mouse_entered() -> void:
-	if _drag_handle:
-		_drag_handle.visible = true
 	if _gear_btn:
 		_gear_btn.visible = true
 
 func _on_mouse_exited() -> void:
-	if _drag_handle:
-		_drag_handle.visible = false
 	if _gear_btn:
 		_gear_btn.visible = false
 
@@ -205,7 +192,10 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 		var target_parent_id: String = _channel_data.get("parent_id", "")
 		var source_id: String = source_data.get("id", "")
 		if source_id != "":
-			Client.admin.update_channel(source_id, {"parent_id": target_parent_id})
+			if target_parent_id == "":
+				Client.admin.update_channel(source_id, {"parent_id": null})
+			else:
+				Client.admin.update_channel(source_id, {"parent_id": target_parent_id})
 		return
 	# Same parent: reorder within the container
 	var container := get_parent()

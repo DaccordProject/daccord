@@ -7,6 +7,7 @@ var _parent_message_id: String = ""
 var _parent_channel_id: String = ""
 var _also_send_to_channel: bool = false
 
+@onready var thread_title: Label = $VBox/Header/ThreadTitle
 @onready var close_button: Button = $VBox/Header/CloseButton
 @onready var reply_count_label: Label = $VBox/ReplyCountLabel
 @onready var parent_container: MarginContainer = $VBox/ParentMessageContainer
@@ -24,6 +25,8 @@ func _ready() -> void:
 	AppState.thread_opened.connect(_on_thread_opened)
 	AppState.thread_closed.connect(_on_thread_closed)
 	AppState.thread_messages_updated.connect(_on_thread_messages_updated)
+	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
+	_apply_layout(AppState.current_layout_mode)
 
 func _on_thread_opened(parent_message_id: String) -> void:
 	_parent_message_id = parent_message_id
@@ -59,6 +62,14 @@ func _on_thread_opened(parent_message_id: String) -> void:
 
 	# Fetch thread messages
 	Client.fetch.fetch_thread_messages(_parent_channel_id, parent_message_id)
+
+	# Hide "Also send to channel" for forum threads (forums have no separate channel)
+	var ch: Dictionary = Client._channel_cache.get(_parent_channel_id, {})
+	var is_forum: bool = ch.get("type", 0) == ClientModels.ChannelType.FORUM
+	also_send_check.visible = not is_forum
+	if is_forum:
+		_also_send_to_channel = false
+		also_send_check.button_pressed = false
 
 	# Focus input
 	thread_input.grab_focus()
@@ -140,3 +151,15 @@ func _on_input_key(event: InputEvent) -> void:
 		elif event.keycode == KEY_ESCAPE:
 			get_viewport().set_input_as_handled()
 			AppState.close_thread()
+
+func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
+	_apply_layout(mode)
+
+func _apply_layout(mode: AppState.LayoutMode) -> void:
+	match mode:
+		AppState.LayoutMode.COMPACT:
+			close_button.text = "\u2190 Back"
+			custom_minimum_size.x = 0
+		_:
+			close_button.text = "X"
+			custom_minimum_size.x = 340

@@ -2,6 +2,10 @@ extends Node
 
 enum Mode { LIVE, CONNECTING }
 
+# Toggle verbose voice diagnostics in the editor/console.
+const DEBUG_VOICE_LOGS := true
+const VOICE_LOG_PATH := "user://voice_debug.log"
+
 # Dimension constants
 const GUILD_ICON_SIZE := 48
 const AVATAR_SIZE := 42
@@ -87,6 +91,7 @@ var _voice_state_cache: Dictionary = {} # channel_id -> Array of voice state dic
 var _voice_server_info: Dictionary = {} # stored for Phase 4
 var _thread_message_cache: Dictionary = {} # parent_message_id -> Array of message dicts
 var _thread_unread: Dictionary = {} # parent_message_id -> true
+var _forum_post_cache: Dictionary = {} # channel_id -> Array of post dicts
 
 # Unread / mention tracking
 var _unread_channels: Dictionary = {}       # channel_id -> true
@@ -122,8 +127,26 @@ var _camera_track
 var _screen_track
 var _remote_tracks: Dictionary = {} # user_id -> track
 var _accord_stream # AccordStream singleton (null if GDExtension unavailable)
+var _speaking_users: Dictionary = {} # user_id -> last_active timestamp (float)
+var _speaking_timer: Timer
 
 func _ready() -> void:
+	if DEBUG_VOICE_LOGS:
+		var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.WRITE)
+		if f:
+			f.store_line("=== Voice debug start ===")
+			f.close()
+		_voice_log("voice logger initialized")
+		_voice_log(
+			"Engine.has_singleton(AccordStream)=%s" % [
+				str(Engine.has_singleton("AccordStream"))
+			]
+		)
+		_voice_log(
+			"ClassDB.class_exists(AccordVoiceSession)=%s" % [
+				str(ClassDB.class_exists(&"AccordVoiceSession"))
+			]
+		)
 	_gw = ClientGateway.new(self)
 	fetch = ClientFetch.new(self)
 	admin = ClientAdmin.new(self)
@@ -159,10 +182,35 @@ func _ready() -> void:
 			_voice_session.track_received.connect(
 				voice.on_track_received
 			)
+		if _voice_session.has_signal("audio_level_changed"):
+			_voice_session.audio_level_changed.connect(
+				voice.on_audio_level_changed
+			)
+		if DEBUG_VOICE_LOGS:
+			_voice_log("voice_session ready")
+			var has_audio: bool = _voice_session.has_signal(
+				"audio_level_changed"
+			)
+			var has_track: bool = _voice_session.has_signal(
+				"track_received"
+			)
+			_voice_log(
+				"signals audio_level_changed=%s track_received=%s" % [
+					str(has_audio), str(has_track)
+				]
+			)
 	else:
 		push_warning(
 			"AccordVoiceSession unavailable — voice disabled"
 		)
+		if DEBUG_VOICE_LOGS:
+			_voice_log("voice_session unavailable")
+	# Speaking debounce timer (checks every 200ms for 300ms silence)
+	_speaking_timer = Timer.new()
+	_speaking_timer.wait_time = 0.2
+	_speaking_timer.timeout.connect(_check_speaking_timeouts)
+	add_child(_speaking_timer)
+	_speaking_timer.start()
 	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
 	AppState.profile_switched.connect(_on_profile_switched)
 	AppState.server_reconnected.connect(_flush_message_queue)
@@ -234,10 +282,39 @@ func _conn_for_guild(guild_id: String):
 		return null
 	return _connections[idx]
 
+func _first_connected_conn():
+	for conn in _connections:
+		if conn != null \
+				and conn.get("status", "") == "connected":
+			return conn
+	return null
+
+func _conn_for_active_view():
+	if AppState.is_dm_mode:
+		var cid: String = AppState.current_channel_id
+		if not cid.is_empty():
+			var conn_idx: int = _dm_to_conn.get(cid, -1)
+			if conn_idx != -1 and conn_idx < _connections.size():
+				var dm_conn = _connections[conn_idx]
+				if dm_conn != null:
+					return dm_conn
+	var gid: String = AppState.current_guild_id
+	if not gid.is_empty():
+		var guild_conn = _conn_for_guild(gid)
+		if guild_conn != null:
+			return guild_conn
+	return _first_connected_conn()
+
 func _client_for_guild(gid: String) -> AccordClient:
 	var conn = _conn_for_guild(gid)
 	if conn == null: return null
 	return conn["client"]
+
+func _client_for_active_view() -> AccordClient:
+	var conn = _conn_for_active_view()
+	if conn == null:
+		return null
+	return conn.get("client", null)
 
 func _client_for_channel(cid: String) -> AccordClient:
 	var gid: String = _channel_to_guild.get(cid, "")
@@ -258,6 +335,12 @@ func _cdn_for_guild(guild_id: String) -> String:
 	var conn = _conn_for_guild(guild_id)
 	if conn == null: return ""
 	return conn["cdn_url"]
+
+func _cdn_for_active_view() -> String:
+	var conn = _conn_for_active_view()
+	if conn == null:
+		return ""
+	return conn.get("cdn_url", "")
 
 func _cdn_for_channel(channel_id: String) -> String:
 	var gid: String = _channel_to_guild.get(channel_id, "")
@@ -314,6 +397,17 @@ func get_messages_for_channel(cid: String) -> Array:
 func get_user_by_id(uid: String) -> Dictionary:
 	return _user_cache.get(uid, {})
 
+func get_active_user() -> Dictionary:
+	var conn = _conn_for_active_view()
+	if conn != null:
+		var uid: String = conn.get("user_id", "")
+		if not uid.is_empty() and _user_cache.has(uid):
+			return _user_cache[uid]
+		var user: Dictionary = conn.get("user", {})
+		if user.size() > 0:
+			return user
+	return current_user
+
 func get_guild_by_id(gid: String) -> Dictionary:
 	return _guild_cache.get(gid, {})
 
@@ -325,6 +419,9 @@ func get_roles_for_guild(gid: String) -> Array:
 
 func get_messages_for_thread(parent_id: String) -> Array:
 	return _thread_message_cache.get(parent_id, [])
+
+func get_forum_posts(channel_id: String) -> Array:
+	return _forum_post_cache.get(channel_id, [])
 
 func get_message_by_id(mid: String) -> Dictionary:
 	var cid: String = _message_id_index.get(mid, "")
@@ -347,6 +444,32 @@ func get_voice_users(ch_id: String) -> Array:
 func get_voice_user_count(ch_id: String) -> int:
 	return voice.get_voice_user_count(ch_id)
 
+func is_user_speaking(user_id: String) -> bool:
+	return _speaking_users.has(user_id)
+
+func _check_speaking_timeouts() -> void:
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var expired: Array = []
+	for uid in _speaking_users:
+		if now - _speaking_users[uid] > 0.3:
+			expired.append(uid)
+	for uid in expired:
+		_speaking_users.erase(uid)
+		if DEBUG_VOICE_LOGS:
+			_voice_log("speaking_stop uid=%s" % uid)
+		AppState.speaking_changed.emit(uid, false)
+
+func _voice_log(message: String) -> void:
+	if not DEBUG_VOICE_LOGS:
+		return
+	var line := "[VoiceDebug] " + message
+	print(line)
+	var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ_WRITE)
+	if f:
+		f.seek_end()
+		f.store_line(line)
+		f.close()
+
 # --- Search (delegates to ClientMutations) ---
 
 func search_messages(
@@ -360,10 +483,11 @@ func search_messages(
 
 func send_message_to_channel(
 	cid: String, content: String, reply_to: String = "",
-	attachments: Array = [], thread_id: String = ""
+	attachments: Array = [], thread_id: String = "",
+	title: String = ""
 ) -> bool:
 	return await mutations.send_message_to_channel(
-		cid, content, reply_to, attachments, thread_id
+		cid, content, reply_to, attachments, thread_id, title
 	)
 
 func update_message_content(
@@ -566,6 +690,12 @@ func get_guild_connection_status(gid: String) -> String:
 	if conn == null: return "none"
 	return conn.get("status", "none")
 
+func is_guild_syncing(gid: String) -> bool:
+	var conn = _conn_for_guild(gid)
+	if conn == null:
+		return false
+	return conn.get("_syncing", false)
+
 func get_conn_index_for_guild(gid: String) -> int:
 	return _guild_to_conn.get(gid, -1)
 
@@ -646,6 +776,7 @@ func _member_index_for(guild_id: String, user_id: String) -> int:
 
 func _on_profile_switched() -> void:
 	disconnect_all()
+	_forum_post_cache.clear()
 	# Reset AppState navigation state
 	AppState.current_guild_id = ""
 	AppState.current_channel_id = ""

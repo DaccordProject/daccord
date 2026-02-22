@@ -64,7 +64,8 @@ func search_messages(
 
 func send_message_to_channel(
 	cid: String, content: String, reply_to: String = "",
-	attachments: Array = [], thread_id: String = ""
+	attachments: Array = [], thread_id: String = "",
+	title: String = ""
 ) -> bool:
 	# Queue message if server is disconnected/reconnecting
 	var gid: String = _c._channel_to_guild.get(cid, "")
@@ -93,6 +94,8 @@ func send_message_to_channel(
 		data["reply_to"] = reply_to
 	if not thread_id.is_empty():
 		data["thread_id"] = thread_id
+	if not title.is_empty():
+		data["title"] = title
 	var result: RestResult
 	if attachments.is_empty():
 		result = await client.messages.create(cid, data)
@@ -367,11 +370,11 @@ func send_typing(cid: String) -> void:
 # --- Profile management ---
 
 func update_profile(data: Dictionary) -> bool:
-	var client: AccordClient = _c._first_connected_client()
+	var client: AccordClient = _c._client_for_active_view()
 	if client == null:
 		push_error("[Client] No connected client for update_profile")
 		return false
-	var cdn_url: String = _c._first_connected_cdn()
+	var cdn_url: String = _c._cdn_for_active_view()
 	var result: RestResult = await client.users.update_me(data)
 	if not result.ok:
 		var err: String = (
@@ -381,7 +384,8 @@ func update_profile(data: Dictionary) -> bool:
 		push_error("[Client] Failed to update profile: ", err)
 		return false
 	var user: AccordUser = result.data
-	var status: int = _c.current_user.get(
+	var active_user: Dictionary = _c.get_active_user()
+	var status: int = active_user.get(
 		"status", ClientModels.UserStatus.ONLINE
 	)
 	var user_dict := ClientModels.user_to_dict(
@@ -392,7 +396,11 @@ func update_profile(data: Dictionary) -> bool:
 	user_dict["client_status"] = old.get("client_status", {})
 	user_dict["activities"] = old.get("activities", [])
 	_c._user_cache[user.id] = user_dict
-	_c.current_user = user_dict
+	if _c.current_user.get("id", "") == user.id:
+		_c.current_user = user_dict
+	var conn = _c._conn_for_active_view()
+	if conn != null and conn.get("user_id", "") == user.id:
+		conn["user"] = user_dict
 	AppState.user_updated.emit(user.id)
 	return true
 

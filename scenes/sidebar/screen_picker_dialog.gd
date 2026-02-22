@@ -2,6 +2,8 @@ extends ColorRect
 
 signal source_selected(source_type: String, source_id: int)
 
+var _accord_stream = Engine.get_singleton("AccordStream")
+
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _tab_bar: TabBar = $CenterContainer/Panel/VBox/TabBar
 @onready var _source_list: VBoxContainer = $CenterContainer/Panel/VBox/Scroll/SourceList
@@ -28,7 +30,7 @@ func _on_tab_changed(tab: int) -> void:
 
 func _populate_screens() -> void:
 	_clear_list()
-	var screens: Array = AccordStream.get_screens()
+	var screens: Array = _accord_stream.get_screens()
 	if screens.is_empty():
 		_add_empty_label("No screens found")
 		return
@@ -43,7 +45,7 @@ func _populate_screens() -> void:
 
 func _populate_windows() -> void:
 	_clear_list()
-	var windows: Array = AccordStream.get_windows()
+	var windows: Array = _accord_stream.get_windows()
 	if windows.is_empty():
 		_add_empty_label("No windows found")
 		return

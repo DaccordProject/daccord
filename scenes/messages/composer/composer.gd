@@ -31,6 +31,7 @@ func _ready() -> void:
 	AppState.message_send_failed.connect(_on_message_send_failed)
 	AppState.server_disconnected.connect(func(_gid, _c, _r): update_enabled_state())
 	AppState.server_reconnected.connect(func(_gid): update_enabled_state())
+	AppState.server_synced.connect(func(_gid): update_enabled_state())
 	AppState.server_connection_failed.connect(func(_gid, _r): update_enabled_state())
 	AppState.imposter_mode_changed.connect(func(_a): update_enabled_state())
 	AppState.channel_selected.connect(_on_channel_selected_restore_draft)
@@ -317,17 +318,26 @@ func update_enabled_state() -> void:
 			text_input.placeholder_text = "Preview mode \u2014 sending disabled"
 		return
 
+	# Syncing: connected but data not yet refreshed
+	var is_syncing := false
+	if connected and not guild_id.is_empty():
+		is_syncing = Client.is_guild_syncing(guild_id)
+
 	# Check if we can queue messages while disconnected
 	var can_queue := false
 	if not connected and not guild_id.is_empty():
 		var status: String = Client.get_guild_connection_status(guild_id)
 		can_queue = status in ["disconnected", "reconnecting"]
 
-	text_input.editable = connected or can_queue
-	send_button.disabled = not connected and not can_queue
-	upload_button.disabled = not connected
-	emoji_button.disabled = not connected
-	if connected:
+	text_input.editable = (connected and not is_syncing) or can_queue
+	send_button.disabled = (not connected and not can_queue) or is_syncing
+	upload_button.disabled = not connected or is_syncing
+	emoji_button.disabled = not connected or is_syncing
+	if is_syncing:
+		if _saved_placeholder.is_empty():
+			_saved_placeholder = text_input.placeholder_text
+		text_input.placeholder_text = "Syncing..."
+	elif connected:
 		if not _saved_placeholder.is_empty():
 			text_input.placeholder_text = _saved_placeholder
 			_saved_placeholder = ""

@@ -34,7 +34,7 @@ func setup_context_menu() -> void:
 
 func on_bar_reply(msg_data: Dictionary) -> void:
 	AppState.initiate_reply(msg_data.get("id", ""))
-	_view._hide_action_bar()
+	_view._hover.hide_action_bar()
 
 
 func on_bar_edit(msg_data: Dictionary) -> void:
@@ -47,17 +47,17 @@ func on_bar_edit(msg_data: Dictionary) -> void:
 			mc.enter_edit_mode(
 				msg_id, msg_data.get("content", "")
 			)
-	_view._hide_action_bar()
+	_view._hover.hide_action_bar()
 
 
 func on_bar_thread(msg_data: Dictionary) -> void:
 	AppState.open_thread(msg_data.get("id", ""))
-	_view._hide_action_bar()
+	_view._hover.hide_action_bar()
 
 
 func on_bar_delete(msg_data: Dictionary) -> void:
 	_pending_delete_id = msg_data.get("id", "")
-	_view._hide_action_bar()
+	_view._hover.hide_action_bar()
 	if not _delete_dialog:
 		_delete_dialog = ConfirmationDialog.new()
 		_delete_dialog.dialog_text = (
