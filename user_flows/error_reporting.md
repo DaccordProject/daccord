@@ -250,7 +250,7 @@ The `_before_send` callback (line 33) provides three gates:
 
 ### Release Tracking
 
-The SDK's release string is derived from `project.godot`'s `application/config/version` (currently `"0.1.0"`, line 18). The `app_version` tag is set explicitly in `init_sentry()` (line 19). GlitchTip groups errors by release, making it easy to see if a new version introduced regressions.
+The SDK's release string is derived from `project.godot`'s `application/config/version` (currently `"0.1.1"`, line 18). The `app_version` tag is set explicitly in `init_sentry()` (line 19). GlitchTip groups errors by release, making it easy to see if a new version introduced regressions.
 
 ### Environment Tags
 

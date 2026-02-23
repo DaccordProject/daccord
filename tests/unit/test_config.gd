@@ -9,7 +9,7 @@ var _had_config := false
 
 func before_each() -> void:
 	# Back up real config so tests don't destroy user data.
-	# add_server() and save() write to the real user:// path.
+	# add_server() and _save() write to the real user:// path.
 	_had_config = FileAccess.file_exists(_DEFAULT_CFG)
 	if _had_config:
 		_saved_config = FileAccess.get_file_as_bytes(
@@ -148,7 +148,7 @@ func test_load_ok_defaults_to_false() -> void:
 func test_save_allowed_when_load_ok_true() -> void:
 	config._load_ok = true
 	config._config.set_value("test", "key", "val")
-	config.save()
+	config._save()
 	# Verify the value is still accessible (save didn't clear it)
 	var val: String = config._config.get_value("test", "key", "")
 	assert_eq(val, "val")

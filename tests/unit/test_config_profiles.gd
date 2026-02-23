@@ -14,7 +14,7 @@ var _had_config := false
 func before_each() -> void:
 	# Back up real user files so tests don't destroy user data.
 	# profiles.create() saves to the real registry, and
-	# config.save() writes to the real default profile config.
+	# config._save() writes to the real default profile config.
 	_had_registry = FileAccess.file_exists(_REGISTRY_PATH)
 	if _had_registry:
 		_saved_registry = FileAccess.get_file_as_bytes(

@@ -55,3 +55,4 @@ Ordered by natural user journey:
 | 47 | [Text Channel Chat Bot](text_channel_chat_bot.md) | Bot message rendering, bot user flag, webhook messages, interaction model, slash command API, component support gaps |
 | 48 | [Server Update](server_update.md) | Reconnection after server restart/update, stale cache risks, permission race windows, API version gaps, data resync coverage |
 | 49 | [Web Export](web_export.md) | Browser export (Godot Web/WASM), hosting, and web-specific voice/video plan (Web APIs instead of AccordStream) |
+| 50 | [Two-Factor Authentication](two_factor_authentication.md) | Enable/verify/disable 2FA from User Settings, backup codes, and current UX gaps |

@@ -57,7 +57,7 @@ Startup Update Check:
   Client._ready() (after connections established)
     -> Updater.check_for_updates()
     -> HTTPRequest to GitHub Releases API
-    -> Response parsed: latest tag vs APP_VERSION
+    -> Response parsed: latest tag vs Client.app_version
     -> If newer:
       -> AppState.update_available.emit(version_info)
       -> main_window._on_update_available()
@@ -91,23 +91,23 @@ Download:
 
 | File | Role |
 |------|------|
-| `scripts/autoload/app_state.gd` | Would add `update_available`, `update_download_started`, `update_download_progress`, `update_download_complete`, `update_download_failed`, `update_check_complete`, `update_check_failed` signals |
-| `scripts/autoload/config.gd` | Would persist `skipped_version`, `dismissed_version`, `auto_update_enabled` preference, `last_update_check` timestamp |
+| `scripts/autoload/app_state.gd` | Defines `update_available`, `update_download_started`, `update_download_progress`, `update_download_complete`, `update_download_failed`, `update_check_complete`, `update_check_failed` signals |
+| `scripts/autoload/config.gd` | Persists `skipped_version`, `dismissed_version`, `auto_update_enabled` preference, `last_update_check` timestamp |
 | `scripts/autoload/updater.gd` | Autoload: semver utilities, GitHub Releases API check (`check_for_updates()`), periodic timer, startup hook, dismiss/skip version logic, `_parse_release()` for extracting version info from GitHub response. |
 | `scenes/messages/update_banner.gd` | Inline banner shown when an update is available. Buttons: View Changes, Update (both open browser), Skip (persists), Dismiss (session-only). |
 | `scenes/messages/update_banner.tscn` | Banner scene (PanelContainer with blurple accent), added to message_view.tscn between ImposterBanner and ScrollContainer. |
-| `scripts/autoload/client.gd` | Holds `APP_VERSION` (reads from `project.godot`). Will trigger update check after connections are established. |
+| `scripts/autoload/client.gd` | Holds `app_version` (reads from `project.godot`). Will trigger update check after connections are established. |
 | `scenes/sidebar/user_bar.gd` | Has "Check for Updates" menu item (id 16), "About" dialog with version/license/GitHub link (id 10). |
 | `scenes/messages/update_download_dialog.gd/.tscn` | Modal download dialog with progress bar, cancel/retry/restart buttons. Listens to `AppState.update_download_progress/complete/failed`. |
 | `scenes/main/main_window.gd` | Hosts the update banner in content area; appends "[Update ready]" to window title after download |
-| `project.godot` | Sets `application/config/version` (currently `"0.1.0"`) |
+| `project.godot` | Sets `application/config/version` (currently `"0.1.1"`) |
 | `tests/unit/test_updater.gd` | Unit tests for semver parsing, comparison, and `is_newer` |
 
 ## Implementation Details
 
 ### Version Constant
 
-The app currently has no version string anywhere. `project.godot` does not define `application/config/version`. The first step is adding a `APP_VERSION` constant (e.g., in `client.gd` or a dedicated `version.gd` autoload) and setting the version in `project.godot` so it can be read at runtime via `ProjectSettings.get_setting("application/config/version")`.
+The app version is read from `project.godot` via `ProjectSettings.get_setting("application/config/version")` and stored on `Client.app_version`.
 
 ### Update Source
 
@@ -120,7 +120,7 @@ GitHub Releases API (`GET https://api.github.com/repos/daccord-projects/daccord/
 ### Update Check Logic
 
 An `Updater` class (autoload or instantiated by `Client`) would:
-1. Read `APP_VERSION` and parse as semver.
+1. Read `Client.app_version` and parse as semver.
 2. GET the latest release from GitHub.
 3. Parse `tag_name` (strip leading `v`), compare against current version.
 4. If newer and not in `Config.skipped_version` and not already dismissed this session: emit `AppState.update_available` with a dictionary `{ "version": "1.2.0", "notes": "...", "download_url": "...", "size": 12345678 }`.
@@ -166,7 +166,7 @@ New keys in `user://config.cfg` under an `[updates]` section:
 
 ## Implementation Status
 
-- [x] `APP_VERSION` var in `client.gd` (reads from `project.godot`)
+- [x] `Client.app_version` reads from `project.godot`'s `config/version`
 - [x] Version displayed in About dialog with license and GitHub link
 - [x] "About" menu item handler in user_bar.gd (id 10)
 - [x] "Check for Updates" menu item in user bar (id 16, working handler)
