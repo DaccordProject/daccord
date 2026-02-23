@@ -4,12 +4,12 @@ signal join_pressed(server_url: String, space_id: String)
 
 const ServerCardScene := preload("res://scenes/sidebar/guild_bar/server_card.tscn")
 
+var _all_servers: Array = []
+
 @onready var _search_input: LineEdit = $SearchInput
 @onready var _scroll: ScrollContainer = $ScrollContainer
 @onready var _server_list: VBoxContainer = $ScrollContainer/ServerList
 @onready var _status_label: Label = $StatusLabel
-
-var _all_servers: Array = []
 
 func _ready() -> void:
 	_search_input.text_changed.connect(_on_search_changed)

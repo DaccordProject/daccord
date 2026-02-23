@@ -193,7 +193,7 @@ func add_server(
 	_config.set_value(section, "password", password)
 	_config.set_value(section, "display_name", display_name)
 	_config.set_value("servers", "count", count + 1)
-	save()
+	_save()
 
 func remove_server(index: int) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -214,7 +214,7 @@ func remove_server(index: int) -> void:
 	if _config.has_section(last):
 		_config.erase_section(last)
 	_config.set_value("servers", "count", count - 1)
-	save()
+	_save()
 
 func update_server_url(index: int, new_url: String) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -222,7 +222,7 @@ func update_server_url(index: int, new_url: String) -> void:
 		return
 	var section := "server_%d" % index
 	_config.set_value(section, "base_url", new_url)
-	save()
+	_save()
 
 func update_server_token(index: int, new_token: String) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -230,14 +230,14 @@ func update_server_token(index: int, new_token: String) -> void:
 		return
 	var section := "server_%d" % index
 	_config.set_value(section, "token", new_token)
-	save()
+	_save()
 
 func has_servers() -> bool:
 	return _config.get_value("servers", "count", 0) > 0
 
-func save() -> void:
+func _save() -> void:
 	if not _load_ok:
-		push_warning("[Config] save() blocked — config was not loaded successfully")
+		push_warning("[Config] _save() blocked — config was not loaded successfully")
 		return
 	_throttled_backup()
 	var path := _config_path()
@@ -256,7 +256,7 @@ func save() -> void:
 func set_last_selection(guild_id: String, channel_id: String) -> void:
 	_config.set_value("state", "last_guild_id", guild_id)
 	_config.set_value("state", "last_channel_id", channel_id)
-	save()
+	_save()
 
 func get_last_selection() -> Dictionary:
 	return {
@@ -267,7 +267,7 @@ func get_last_selection() -> Dictionary:
 func set_category_collapsed(guild_id: String, category_id: String, collapsed: bool) -> void:
 	var section := "collapsed_%s" % guild_id
 	_config.set_value(section, category_id, collapsed)
-	save()
+	_save()
 
 func is_category_collapsed(guild_id: String, category_id: String) -> bool:
 	var section := "collapsed_%s" % guild_id
@@ -279,28 +279,28 @@ func get_user_status() -> int:
 
 func set_user_status(status: int) -> void:
 	_config.set_value("state", "user_status", status)
-	save()
+	_save()
 
 func get_custom_status() -> String:
 	return _config.get_value("state", "custom_status", "")
 
 func set_custom_status(text: String) -> void:
 	_config.set_value("state", "custom_status", text)
-	save()
+	_save()
 
 func get_error_reporting_enabled() -> bool:
 	return _config.get_value("error_reporting", "enabled", false)
 
 func set_error_reporting_enabled(value: bool) -> void:
 	_config.set_value("error_reporting", "enabled", value)
-	save()
+	_save()
 
 func has_error_reporting_preference() -> bool:
 	return _config.has_section_key("error_reporting", "consent_shown")
 
 func set_error_reporting_consent_shown() -> void:
 	_config.set_value("error_reporting", "consent_shown", true)
-	save()
+	_save()
 
 func get_guild_folder(guild_id: String) -> String:
 	return _config.get_value("folders", guild_id, "")
@@ -310,31 +310,31 @@ func set_guild_folder(guild_id: String, folder_name: String) -> void:
 		_config.set_value("folders", guild_id, null)
 	else:
 		_config.set_value("folders", guild_id, folder_name)
-	save()
+	_save()
 
 func get_guild_folder_color(guild_id: String) -> Color:
 	return _config.get_value("folder_colors", guild_id, Color(0.212, 0.224, 0.247))
 
 func set_guild_folder_color(guild_id: String, color: Color) -> void:
 	_config.set_value("folder_colors", guild_id, color)
-	save()
+	_save()
 
 func get_folder_color(fname: String) -> Color:
 	return _config.get_value("folder_name_colors", fname, Color(0.212, 0.224, 0.247))
 
 func set_folder_color(fname: String, color: Color) -> void:
 	_config.set_value("folder_name_colors", fname, color)
-	save()
+	_save()
 
 func rename_folder_color(old_name: String, new_name: String) -> void:
 	var color: Color = _config.get_value("folder_name_colors", old_name, Color(0.212, 0.224, 0.247))
 	_config.set_value("folder_name_colors", old_name, null)
 	_config.set_value("folder_name_colors", new_name, color)
-	save()
+	_save()
 
 func delete_folder_color(fname: String) -> void:
 	_config.set_value("folder_name_colors", fname, null)
-	save()
+	_save()
 
 func get_all_folder_names() -> Array:
 	var names: Array = []
@@ -351,7 +351,7 @@ func get_guild_order() -> Array:
 
 func set_guild_order(order: Array) -> void:
 	_config.set_value("guild_order", "items", order)
-	save()
+	_save()
 
 ## Idle timeout
 
@@ -360,7 +360,7 @@ func get_idle_timeout() -> int:
 
 func set_idle_timeout(seconds: int) -> void:
 	_config.set_value("idle", "timeout", seconds)
-	save()
+	_save()
 
 ## Sound preferences
 
@@ -369,7 +369,7 @@ func get_sfx_volume() -> float:
 
 func set_sfx_volume(vol: float) -> void:
 	_config.set_value("sounds", "volume", clampf(vol, 0.0, 1.0))
-	save()
+	_save()
 
 func is_sound_enabled(sound_name: String) -> bool:
 	# message_sent defaults to off, everything else defaults to on
@@ -378,7 +378,7 @@ func is_sound_enabled(sound_name: String) -> bool:
 
 func set_sound_enabled(sound_name: String, enabled: bool) -> void:
 	_config.set_value("sounds", sound_name, enabled)
-	save()
+	_save()
 
 ## Notification preferences
 
@@ -387,7 +387,7 @@ func get_suppress_everyone() -> bool:
 
 func set_suppress_everyone(value: bool) -> void:
 	_config.set_value("notifications", "suppress_everyone", value)
-	save()
+	_save()
 
 func is_server_muted(guild_id: String) -> bool:
 	return _config.get_value("muted_servers", guild_id, false)
@@ -398,7 +398,7 @@ func set_server_muted(guild_id: String, muted: bool) -> void:
 	else:
 		# Remove the key entirely when unmuting
 		_config.set_value("muted_servers", guild_id, null)
-	save()
+	_save()
 
 ## Recently used emoji
 
@@ -410,7 +410,7 @@ func get_emoji_skin_tone() -> int:
 
 func set_emoji_skin_tone(tone: int) -> void:
 	_config.set_value("emoji", "skin_tone", clampi(tone, 0, 5))
-	save()
+	_save()
 
 func add_recent_emoji(emoji_name: String) -> void:
 	var recent: Array = get_recent_emoji()
@@ -424,7 +424,7 @@ func add_recent_emoji(emoji_name: String) -> void:
 	if recent.size() > _RECENT_EMOJI_MAX:
 		recent.resize(_RECENT_EMOJI_MAX)
 	_config.set_value("emoji", "recent", recent)
-	save()
+	_save()
 
 ## Accessibility
 
@@ -433,16 +433,26 @@ func get_reduced_motion() -> bool:
 
 func set_reduced_motion(enabled: bool) -> void:
 	_config.set_value("accessibility", "reduced_motion", enabled)
-	save()
+	_save()
+
+func get_ui_scale() -> float:
+	return _config.get_value("accessibility", "ui_scale", 0.0)
+
+func _set_ui_scale(scale: float) -> void:
+	if scale <= 0.0:
+		_config.set_value("accessibility", "ui_scale", null)
+	else:
+		_config.set_value("accessibility", "ui_scale", clampf(scale, 0.5, 3.0))
+	_save()
 
 ## Update preferences
 
 func get_auto_update_check() -> bool:
 	return _config.get_value("updates", "auto_check", true)
 
-func set_auto_update_check(enabled: bool) -> void:
+func _set_auto_update_check(enabled: bool) -> void:
 	_config.set_value("updates", "auto_check", enabled)
-	save()
+	_save()
 
 func get_skipped_version() -> String:
 	return _config.get_value("updates", "skipped_version", "")
@@ -452,14 +462,14 @@ func set_skipped_version(version: String) -> void:
 		_config.set_value("updates", "skipped_version", null)
 	else:
 		_config.set_value("updates", "skipped_version", version)
-	save()
+	_save()
 
 func get_last_update_check() -> int:
 	return _config.get_value("updates", "last_check_timestamp", 0)
 
 func set_last_update_check(timestamp: int) -> void:
 	_config.set_value("updates", "last_check_timestamp", timestamp)
-	save()
+	_save()
 
 ## Master server URL
 
@@ -468,20 +478,20 @@ func get_master_server_url() -> String:
 
 func set_master_server_url(url: String) -> void:
 	_config.set_value("master", "url", url)
-	save()
+	_save()
 
 ## Draft text persistence
 
 func set_draft_text(channel_id: String, text: String) -> void:
 	_config.set_value("drafts", channel_id, text)
-	save()
+	_save()
 
 func get_draft_text(channel_id: String) -> String:
 	return _config.get_value("drafts", channel_id, "")
 
 func clear_draft_text(channel_id: String) -> void:
 	_config.set_value("drafts", channel_id, null)
-	save()
+	_save()
 
 func _clear() -> void:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -490,7 +500,7 @@ func _clear() -> void:
 		if _config.has_section(section):
 			_config.erase_section(section)
 	_config.set_value("servers", "count", 0)
-	save()
+	_save()
 
 func update_server_credentials(
 	index: int, username: String, password: String
@@ -501,7 +511,7 @@ func update_server_credentials(
 	var section := "server_%d" % index
 	_config.set_value(section, "username", username)
 	_config.set_value(section, "password", password)
-	save()
+	_save()
 
 ## Config export/import
 
@@ -526,7 +536,7 @@ func import_config(path: String) -> Error:
 		)
 	_config = new_cfg
 	_load_ok = true
-	save()
+	_save()
 	return OK
 
 

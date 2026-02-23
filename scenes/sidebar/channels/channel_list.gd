@@ -6,7 +6,9 @@ const CategoryItemScene := preload("res://scenes/sidebar/channels/category_item.
 const ChannelItemScene := preload("res://scenes/sidebar/channels/channel_item.tscn")
 const VoiceChannelItemScene := preload("res://scenes/sidebar/channels/voice_channel_item.tscn")
 const CreateChannelDialogScene := preload("res://scenes/admin/create_channel_dialog.tscn")
-const UncategorizedDropTargetScene := preload("res://scenes/sidebar/channels/uncategorized_drop_target.tscn")
+const UncategorizedDropTargetScene := preload(
+	"res://scenes/sidebar/channels/uncategorized_drop_target.tscn"
+)
 
 var channel_item_nodes: Dictionary = {}
 var active_channel_id: String = ""

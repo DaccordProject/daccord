@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
   pull_request:
     branches: [master]
   workflow_call:
@@ -59,7 +57,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: DaccordProject/accordstream
-          token: ${{ secrets.GH_PAT }}
           path: .accordstream_repo
           lfs: true
 
@@ -181,7 +178,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: DaccordProject/accordstream
-          token: ${{ secrets.GH_PAT }}
           path: .accordstream_repo
           lfs: true
 

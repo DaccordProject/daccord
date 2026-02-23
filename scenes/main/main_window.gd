@@ -1,8 +1,12 @@
 extends Control
 
+const PANEL_HANDLE_WIDTH := 6.0
+const MESSAGE_VIEW_MIN := 300.0
+const PANEL_MIN_THREAD := 240.0
+const PANEL_MIN_MEMBER := 180.0
+const PANEL_MIN_SEARCH := 240.0
 const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
 const PanelResizeHandle := preload("res://scenes/main/panel_resize_handle.gd")
-
 const AvatarScript := preload("res://scenes/common/avatar.gd")
 const ProfileCardScene := preload(
 	"res://scenes/user/profile_card.tscn"
@@ -18,6 +22,7 @@ const ImageLightboxScene := preload(
 )
 
 var tabs: Array[Dictionary] = []
+
 var _guild_icon_cache: Dictionary = {}
 var _drawer: MainWindowDrawer
 var _active_profile_card: PanelContainer = null
@@ -28,12 +33,6 @@ var _thread_handle: Control
 var _member_handle: Control
 var _search_handle: Control
 var _clamping_panels: bool = false
-
-const PANEL_HANDLE_WIDTH := 6.0
-const MESSAGE_VIEW_MIN := 300.0
-const PANEL_MIN_THREAD := 240.0
-const PANEL_MIN_MEMBER := 180.0
-const PANEL_MIN_SEARCH := 240.0
 
 @onready var layout_hbox: HBoxContainer = $LayoutHBox
 @onready var sidebar: HBoxContainer = $LayoutHBox/Sidebar
@@ -56,6 +55,7 @@ func _ready() -> void:
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
+	_apply_ui_scale()
 	_gestures = DrawerGestures.new(self)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.sidebar_drawer_toggled.connect(_drawer.on_sidebar_drawer_toggled)
@@ -130,6 +130,28 @@ func _ready() -> void:
 		_show_welcome_screen()
 	elif int(Client.mode) == Client.Mode.CONNECTING:
 		_show_connecting_overlay()
+
+func _apply_ui_scale() -> void:
+	var scale: float = Config.get_ui_scale()
+	if scale <= 0.0:
+		scale = _auto_ui_scale()
+	if scale <= 1.0:
+		return
+	get_window().content_scale_factor = scale
+
+func _auto_ui_scale() -> float:
+	var allow_hidpi: bool = ProjectSettings.get_setting(
+		"display/window/dpi/allow_hidpi"
+	)
+	if not allow_hidpi:
+		return 1.0
+	var screen: int = DisplayServer.window_get_current_screen(
+		DisplayServer.MAIN_WINDOW_ID
+	)
+	var screen_scale: float = DisplayServer.screen_get_scale(screen)
+	if screen_scale <= 1.0:
+		return 1.0
+	return clampf(screen_scale, 1.0, 2.0)
 
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:

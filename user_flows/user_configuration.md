@@ -73,7 +73,7 @@ Dialog._on_confirmed() / immediate signal callback
 Config.set_*()  -->  _config.set_value(section, key, val)
     |
     v
-Config.save()  -->  _config.save_encrypted_pass(_profile_config_path(), key)
+Config._save()  -->  _config.save_encrypted_pass(_profile_config_path(), key)
     |
     v
 user://profiles/<active-slug>/config.cfg (AES-256-CBC encrypted on disk)

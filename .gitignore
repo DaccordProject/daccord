@@ -17,3 +17,4 @@ addons/gut
 dist/build/
 dist/templates/
 addons/sentry
+.xdg_data
