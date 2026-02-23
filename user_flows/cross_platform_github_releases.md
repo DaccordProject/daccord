@@ -4,14 +4,14 @@ Last touched: 2026-02-23
 
 ## Overview
 
-This flow documents how daccord builds release artifacts via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.0`) is pushed, a CI pipeline validates the tag against `project.godot`, installs all required addons (GUT, Sentry SDK, AccordStream), exports the Godot project for enabled platforms, optionally injects a production Sentry DSN, packages each artifact (with `.desktop` file for Linux), optionally signs/notarizes (when secrets are configured), builds a Windows installer via Inno Setup, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`. Linux x86_64, ARM64, Windows, and macOS are enabled. All platforms work without AccordStream because all GDExtension type references have been replaced with dynamic lookups that are parse-safe when the extension is unavailable. The workflow removes the `.gdextension` file when the platform binary is missing, preventing crashes (including the macOS `NSException` from loading a nil dylib URL).
+This flow documents how daccord builds release artifacts via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.1`) is pushed, a CI pipeline validates the tag against `project.godot`, installs all required addons (GUT, Sentry SDK, AccordStream), exports the Godot project for enabled platforms, optionally injects a production Sentry DSN, packages each artifact (with `.desktop` file for Linux), optionally signs/notarizes (when secrets are configured), builds a Windows installer via Inno Setup, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`. Linux x86_64, ARM64, Windows, and macOS are enabled. All platforms work without AccordStream because all GDExtension type references have been replaced with dynamic lookups that are parse-safe when the extension is unavailable. The workflow removes the `.gdextension` file when the platform binary is missing, preventing crashes (including the macOS `NSException` from loading a nil dylib URL).
 
 ## User Steps
 
 ### Tagging a Release
 
 1. Developer updates `CHANGELOG.md` with a new version section (e.g., `## [0.2.0]`) following Keep a Changelog format.
-2. Developer updates `config/version` in `project.godot` (currently `"0.1.0"`, line 18).
+2. Developer updates `config/version` in `project.godot` (currently `"0.1.1"`, line 18).
 3. Developer commits the changes and pushes to `master`.
 4. Developer creates and pushes a git tag: `git tag v0.2.0 && git push origin v0.2.0`.
 5. The `v*` tag push triggers the Release workflow (`.github/workflows/release.yml`, line 6).
@@ -144,8 +144,8 @@ release job (needs: [build, windows-installer]):
 | `.github/workflows/release.yml` | Release CI pipeline. Installs GUT/Sentry/audio libs, validates version tag, downloads AccordStream binaries, removes missing GDExtensions, builds enabled platforms in parallel, clears missing custom templates, packages with .desktop files, optionally signs/notarizes, creates GitHub Release. |
 | `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests). Runs on push/PR to `master`. Three jobs: lint, unit tests, integration tests (with accordserver). |
 | `export_presets.cfg` | Godot export presets for Linux x86_64 (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3). Defines output paths, architectures, custom templates, and platform-specific options. |
-| `project.godot` | Project config. Declares version (`config/version="0.1.0"`, line 18), Sentry DSN (`sentry/config/dsn`, line 63), renderer (GL Compatibility), and autoloads. |
-| `CHANGELOG.md` | Keep a Changelog format. The release job extracts notes for the tagged version from this file. Currently has `[0.1.0] - 2026-02-19` section. |
+| `project.godot` | Project config. Declares version (`config/version="0.1.1"`, line 18), Sentry DSN (`sentry/config/dsn`, line 63), renderer (GL Compatibility), and autoloads. |
+| `CHANGELOG.md` | Keep a Changelog format. The release job extracts notes for the tagged version from this file. Currently has `[0.1.1] - 2026-02-21` section. |
 | `.gitignore` | Excludes `dist/build/` and `dist/templates/` but tracks `dist/icons/` and `dist/daccord.desktop` (previously the broad `dist` entry excluded all distribution assets). |
 | `dist/installer.iss` | Inno Setup script for the Windows installer. Defines app metadata, install directory, Start Menu/desktop shortcuts, and file sources. Version is injected at build time via `/DMyAppVersion`. |
 | `dist/icons/daccord.ico` | Windows application icon referenced by the Windows export preset and installer. |
@@ -312,7 +312,7 @@ The `dist/` directory contains platform-specific distribution files:
 
 ### Version Management
 
-The project version is set in `project.godot` at `config/version="0.1.0"` (line 18). This is the only source of truth for the version number. The release workflow validates that the git tag matches this version, failing the build on mismatch.
+The project version is set in `project.godot` at `config/version="0.1.1"` (line 18). This is the only source of truth for the version number. The release workflow validates that the git tag matches this version, failing the build on mismatch.
 
 - There is no `APP_VERSION` constant in client code — `client.gd` and `config.gd` have no version references.
 - `error_reporting.gd` reads the version from ProjectSettings at runtime and sets it as a Sentry tag.

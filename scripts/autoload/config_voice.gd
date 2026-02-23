@@ -18,7 +18,7 @@ func set_input_device(device_id: String) -> void:
 	_parent._config.set_value(
 		"voice", "input_device", device_id
 	)
-	_parent.save()
+	_parent._save()
 
 
 func get_output_device() -> String:
@@ -31,7 +31,7 @@ func set_output_device(device_id: String) -> void:
 	_parent._config.set_value(
 		"voice", "output_device", device_id
 	)
-	_parent.save()
+	_parent._save()
 
 
 func get_video_device() -> String:
@@ -44,7 +44,7 @@ func set_video_device(device_id: String) -> void:
 	_parent._config.set_value(
 		"voice", "video_device", device_id
 	)
-	_parent.save()
+	_parent._save()
 
 
 func get_video_resolution() -> int:
@@ -57,7 +57,7 @@ func set_video_resolution(preset: int) -> void:
 	_parent._config.set_value(
 		"voice", "video_resolution", preset
 	)
-	_parent.save()
+	_parent._save()
 
 
 func get_video_fps() -> int:
@@ -66,4 +66,4 @@ func get_video_fps() -> int:
 
 func set_video_fps(fps: int) -> void:
 	_parent._config.set_value("voice", "video_fps", fps)
-	_parent.save()
+	_parent._save()

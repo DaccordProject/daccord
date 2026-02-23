@@ -235,9 +235,6 @@ func update_server_token(index: int, new_token: String) -> void:
 func has_servers() -> bool:
 	return _config.get_value("servers", "count", 0) > 0
 
-func save() -> void:
-	_save()
-
 func _save() -> void:
 	if not _load_ok:
 		push_warning("[Config] _save() blocked — config was not loaded successfully")
