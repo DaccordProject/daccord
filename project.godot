@@ -38,8 +38,7 @@ settings/gdscript/always_track_call_stacks=true
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/stretch/mode="canvas_items"
-window/dpi/allow_hidpi=false
+window/dpi/allow_hidpi=true
 window/size/min_width=320
 window/size/min_height=480
 

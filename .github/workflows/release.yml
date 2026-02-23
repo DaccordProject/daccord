@@ -69,24 +69,15 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: .accordkit_repo
 
-      - name: Checkout accordstream
-        uses: actions/checkout@v4
-        with:
-          repository: DaccordProject/accordstream
-          token: ${{ secrets.GH_PAT }}
-          path: .accordstream_repo
-          lfs: true
-
       - name: Install audio libraries (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
 
-      - name: Symlink addons
+      - name: Symlink accordkit addon
         run: |
           ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
-          ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
 
       - name: Cache GUT
         uses: actions/cache@v4
@@ -121,23 +112,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
 
-      - name: Download AccordStream platform binaries
-        continue-on-error: true
+      - name: Install AccordStream addon (latest release)
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Downloading AccordStream platform binaries..."
+          echo "Downloading AccordStream addon (latest release)..."
           TMPDIR=$(mktemp -d)
           gh release download --repo DaccordProject/accordstream \
-            --pattern "accordstream-addon.zip" --dir "$TMPDIR" || exit 0
+            --pattern "accordstream-addon.zip" --dir "$TMPDIR"
           unzip -o "$TMPDIR/accordstream-addon.zip" -d "$TMPDIR/extracted"
-          # Copy any missing native binaries into the addon
-          if [ -d "$TMPDIR/extracted/addons/accordstream/bin" ]; then
-            cp -n "$TMPDIR/extracted/addons/accordstream/bin/"* \
-              addons/accordstream/bin/ 2>/dev/null || true
+          if [ ! -d "$TMPDIR/extracted/addons/accordstream" ]; then
+            echo "::error::AccordStream addon not found in release asset"
+            exit 1
           fi
+          rm -rf addons/accordstream
+          cp -R "$TMPDIR/extracted/addons/accordstream" addons/accordstream
           rm -rf "$TMPDIR"
-          echo "AccordStream binaries updated."
+          echo "AccordStream addon installed from latest release."
 
       - name: Remove AccordStream if platform binary missing
         run: |
@@ -313,6 +304,20 @@ jobs:
           zip -r $GITHUB_WORKSPACE/${{ matrix.artifact }}.zip daccord.app
           cd $GITHUB_WORKSPACE
           rm -rf $RUNNER_TEMP/macos_staple
+
+      - name: Create macOS DMG
+        if: matrix.platform == 'macos'
+        run: |
+          TMPDIR="$RUNNER_TEMP/dmg_build"
+          rm -rf "$TMPDIR"
+          mkdir -p "$TMPDIR"
+          unzip -o ${{ matrix.artifact }}.zip -d "$TMPDIR"
+          hdiutil create \
+            -volname "daccord" \
+            -srcfolder "$TMPDIR/daccord.app" \
+            -ov -format UDZO \
+            "$GITHUB_WORKSPACE/${{ matrix.artifact }}.dmg"
+          rm -rf "$TMPDIR"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

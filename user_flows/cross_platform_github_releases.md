@@ -1,6 +1,6 @@
 # Cross-Platform GitHub Releases
 
-Last touched: 2026-02-20
+Last touched: 2026-02-23
 
 ## Overview
 
@@ -20,11 +20,11 @@ This flow documents how daccord builds release artifacts via GitHub Actions and 
 
 6. Build jobs run in the `default` GitHub environment (line 20) for each enabled platform: Linux x86_64, ARM64, and Windows on `ubuntu-latest`, and macOS on `macos-latest`.
 7. Each build job validates that the git tag matches the version in `project.godot`. If they differ, the build fails immediately.
-8. Each build job checks out the main repo with LFS, then checks out `accordkit` and `accordstream` addons (with LFS for accordstream) into `.accordkit_repo/` and `.accordstream_repo/` respectively, and symlinks them into `addons/`.
+8. Each build job checks out the main repo with LFS, then checks out the `accordkit` addon into `.accordkit_repo/` and symlinks it into `addons/accordkit`.
 9. Audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`) are installed on Linux runners (line 76).
 10. GUT 9.5.0 addon is installed with caching (lines 87-100). Uses `curl` instead of `wget` for macOS compatibility.
 11. Sentry SDK 1.3.2 addon is installed with caching (lines 102-118). Downloaded from `getsentry/sentry-godot` releases.
-12. AccordStream platform binaries are downloaded from the latest `accordstream` GitHub release and merged into the addon directory. This step uses `continue-on-error` so builds succeed even if no release exists yet.
+12. The AccordStream addon is downloaded from the latest `accordstream` GitHub release (`accordstream-addon.zip`) and installed into `addons/accordstream`.
 13. A safety step checks whether the AccordStream native binary exists for the current platform (lines 138-158). If missing, the `.gdextension` file is removed to prevent Godot from crashing (macOS throws a fatal NSException when loading a missing dylib).
 14. Godot 4.5 is installed via `chickensoft-games/setup-godot@v2` with export templates included.
 15. Godot import cache is restored/saved per platform (lines 167-173).
@@ -76,14 +76,13 @@ build job (matrix: linux, linux-arm64, windows, macos) — runs in parallel:
        strips "v" prefix from tag, compares to project.godot config/version
        fails build on mismatch
   -> actions/checkout@v4 (accordkit -> .accordkit_repo/)
-  -> actions/checkout@v4 (accordstream -> .accordstream_repo/, with LFS)
   -> [Linux only] Install audio libraries (libasound2-dev, libpulse-dev, libopus-dev)
-  -> ln -sf symlinks into addons/
+  -> ln -sf accordkit addon into addons/
   -> Cache + Install GUT 9.5.0 (curl for macOS compat)
   -> Cache + Install Sentry SDK 1.3.2 (gh release download from getsentry/sentry-godot)
-  -> Download AccordStream platform binaries (continue-on-error)
+  -> Install AccordStream addon (latest release)
        gh release download from DaccordProject/accordstream
-       extracts missing .dll/.dylib/.so into addons/accordstream/bin/
+       extracts addons/accordstream into workspace
   -> Remove AccordStream if platform binary missing
        checks for libaccordstream.so/.dll/.dylib per platform
        removes .gdextension file if missing (prevents macOS NSException crash)
@@ -186,13 +185,13 @@ release job (needs: [build, windows-installer]):
 
 Both are required because `project.godot` lists them as enabled plugins (line 46: `enabled=PackedStringArray("res://addons/accordkit/plugin.cfg", "res://addons/gut/plugin.cfg")`).
 
-**AccordStream binary download** (lines 120-136): After symlinking, a `continue-on-error` step uses `gh release download` to fetch the latest `accordstream-addon.zip` from the `DaccordProject/accordstream` repository. Missing native binaries are extracted into `addons/accordstream/bin/`.
+**AccordStream addon download** (lines 120-140): A `gh release download` step fetches the latest `accordstream-addon.zip` from the `DaccordProject/accordstream` repository and replaces `addons/accordstream` with the extracted addon so release builds use the released addon contents.
 
 **AccordStream safety removal** (lines 138-158): After the download step, a per-platform check determines whether the expected native library exists. If missing, the entire `.gdextension` file (and its `.uid`) is removed. This prevents Godot from attempting to load a non-existent library, which causes a fatal crash on macOS and compile errors on all platforms.
 
 **Version validation**: Strips the `v` prefix from the git tag and compares it against `config/version` in `project.godot`. If they differ, the step emits a `::error::` annotation and exits with code 1, failing the build before any export work begins.
 
-**Addon checkout**: The `accordkit` and `accordstream` addons live in separate repositories. They are checked out into `.accordkit_repo/` and `.accordstream_repo/` within the workspace. The accordstream checkout uses `lfs: true` to pull native binary files. Both are symlinked into `addons/`.
+**Addon checkout**: The `accordkit` addon is checked out into `.accordkit_repo/` and symlinked into `addons/accordkit`. AccordStream is installed from the latest release asset instead of being checked out.
 
 **Custom template fallback** (lines 187-200): Before export, a step scans `export_presets.cfg` for `custom_template/release` paths and checks if each referenced file exists. If a template is missing, the path is cleared via `sed -i.bak` (macOS-compatible) so Godot falls back to stock templates.
 
@@ -352,7 +351,7 @@ Signing and notarization are conditional on GitHub secrets being configured. Wit
 - [x] Release workflow triggered by `v*` tag push
 - [x] Linux x86_64 and ARM64 builds active and passing
 - [x] First release `v0.1.0` published with changelog notes
-- [x] Addon checkout and symlinking for accordkit and accordstream
+- [x] Accordkit addon checkout + symlink; AccordStream addon install from latest release
 - [x] GUT addon installation with caching (required as enabled plugin)
 - [x] Sentry SDK installation with caching (required for error reporting autoload)
 - [x] Audio library installation for Linux runners

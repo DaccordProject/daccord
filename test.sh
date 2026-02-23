@@ -45,6 +45,11 @@ warn()    { echo -e "${YELLOW}[warn]${NC}  $*"; }
 err()     { echo -e "${RED}[err]${NC}   $*"; }
 header()  { echo -e "\n${BOLD}$*${NC}"; }
 
+setup_godot_user_dir() {
+    export XDG_DATA_HOME="$SCRIPT_DIR/.xdg_data"
+    mkdir -p "$XDG_DATA_HOME/godot/app_userdata/daccord/logs"
+}
+
 # ---------------------------------------------------------------------------
 # Determine which test dirs to run
 # ---------------------------------------------------------------------------
@@ -216,6 +221,7 @@ main() {
     fi
 
     resolve_dirs "${1:-all}"
+    setup_godot_user_dir
 
     if [ "$NEEDS_SERVER" = true ]; then
         # Check if server is already running

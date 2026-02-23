@@ -3,6 +3,9 @@ extends Control
 ## Draggable handle placed before a side panel in an HBoxContainer.
 ## Resizes the target panel horizontally on drag.
 
+const HANDLE_WIDTH := 6.0
+const DOUBLE_CLICK_MS := 400
+
 var _target: Control
 var _min_width: float
 var _max_width: float
@@ -13,9 +16,6 @@ var _dragging: bool = false
 var _drag_start_x: float = 0.0
 var _drag_start_width: float = 0.0
 var _hovered: bool = false
-
-const HANDLE_WIDTH := 6.0
-const DOUBLE_CLICK_MS := 400
 var _last_click_time: int = 0
 
 

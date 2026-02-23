@@ -6,11 +6,21 @@ const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tsc
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _tab_container: TabContainer = $CenterContainer/Panel/VBox/TabContainer
-@onready var _browse_panel: VBoxContainer = $"CenterContainer/Panel/VBox/TabContainer/Browse Servers"
-@onready var _url_input: LineEdit = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/ServerUrlInput"
-@onready var _add_btn: Button = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/AddButton"
-@onready var _status_label: Label = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/StatusLabel"
-@onready var _error_label: Label = $"CenterContainer/Panel/VBox/TabContainer/Enter URL/ErrorLabel"
+@onready var _browse_panel: VBoxContainer = get_node(
+	"CenterContainer/Panel/VBox/TabContainer/Browse Servers"
+)
+@onready var _url_input: LineEdit = get_node(
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/ServerUrlInput"
+)
+@onready var _add_btn: Button = get_node(
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/AddButton"
+)
+@onready var _status_label: Label = get_node(
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/StatusLabel"
+)
+@onready var _error_label: Label = get_node(
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/ErrorLabel"
+)
 
 func _ready() -> void:
 	_close_btn.pressed.connect(_close)

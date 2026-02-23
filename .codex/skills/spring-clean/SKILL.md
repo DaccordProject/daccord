@@ -39,13 +39,13 @@ Fix all lint issues directly in the source files. Re-run `bash lint.sh` to confi
 
 ## Phase 3: Break Down Large Files
 
-Find all `.gd` files over 600 lines:
+Find all `.gd` files over 800 lines:
 
 ```
 wc -l scripts/**/*.gd scenes/**/*.gd
 ```
 
-For each file over 600 lines:
+For each file over 800 lines:
 1. Read the file and identify logical groupings of functionality
 2. Extract cohesive groups into new files (helper classes, sub-components, or utility scripts)
 3. Update all references to the extracted code
