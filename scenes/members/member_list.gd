@@ -86,11 +86,21 @@ func _on_guild_selected(guild_id: String) -> void:
 	search_bar.text = ""
 	_update_virtual_height()
 	_hide_all_pool_nodes()
-	invite_btn.visible = Client.has_permission(
-		guild_id, AccordPermission.CREATE_INVITES
-	)
+	_update_invite_btn_visibility()
 	if not Client.get_members_for_guild(guild_id).is_empty():
 		_rebuild_row_data()
+
+func _update_invite_btn_visibility() -> void:
+	if _guild_id.is_empty():
+		invite_btn.visible = false
+		return
+	var has_perm: bool = Client.has_permission(
+		_guild_id, AccordPermission.CREATE_INVITES
+	)
+	var member_count: int = Client.get_members_for_guild(
+		_guild_id
+	).size()
+	invite_btn.visible = has_perm and member_count <= 2
 
 func _on_channel_selected(channel_id: String) -> void:
 	if not AppState.is_dm_mode:
@@ -117,6 +127,7 @@ func _on_dm_channels_updated() -> void:
 func _on_members_updated(guild_id: String) -> void:
 	if guild_id != _guild_id:
 		return
+	_update_invite_btn_visibility()
 	if _incremental_handled:
 		_incremental_handled = false
 		return
@@ -334,6 +345,7 @@ func _on_member_joined(
 			and _find_member_row(user_id) != -1:
 		return
 	_insert_member_into_group(member_data)
+	_update_invite_btn_visibility()
 	_after_incremental_change()
 
 func _on_member_left(
@@ -343,6 +355,7 @@ func _on_member_left(
 		return
 	_incremental_handled = true
 	_remove_member_row(user_id)
+	_update_invite_btn_visibility()
 	_after_incremental_change()
 
 func _on_member_status_changed(

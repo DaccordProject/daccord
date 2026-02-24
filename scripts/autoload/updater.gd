@@ -161,18 +161,48 @@ static func _parse_release(data: Dictionary) -> Dictionary:
 	var notes: String = data.get("body", "")
 	var prerelease: bool = data.get("prerelease", false)
 
-	# Find Linux asset
+	# Find platform-appropriate asset
 	var download_url := ""
 	var download_size: int = 0
 	var assets: Array = data.get("assets", [])
+	var platform_key: String = OS.get_name().to_lower()
+	var best_asset := {}
+	var fallback_asset := {}
+
 	for asset in assets:
 		if not asset is Dictionary:
 			continue
-		var name: String = asset.get("name", "").to_lower()
-		if name.contains("linux"):
-			download_url = asset.get("browser_download_url", "")
-			download_size = asset.get("size", 0)
-			break
+		var aname: String = asset.get("name", "").to_lower()
+		if not aname.contains(platform_key):
+			continue
+		if platform_key == "linux":
+			var arch: String = Engine.get_architecture_name()
+			if aname.contains(arch):
+				best_asset = asset
+				break
+			if fallback_asset.is_empty():
+				fallback_asset = asset
+		elif platform_key == "windows":
+			if aname.contains("setup"):
+				best_asset = asset
+				break
+			if fallback_asset.is_empty():
+				fallback_asset = asset
+		elif platform_key == "macos":
+			if aname.ends_with(".dmg"):
+				best_asset = asset
+				break
+			if fallback_asset.is_empty():
+				fallback_asset = asset
+		else:
+			if fallback_asset.is_empty():
+				fallback_asset = asset
+
+	var chosen: Dictionary = best_asset if not best_asset.is_empty() \
+			else fallback_asset
+	if not chosen.is_empty():
+		download_url = chosen.get("browser_download_url", "")
+		download_size = chosen.get("size", 0)
 
 	return {
 		"version": version,

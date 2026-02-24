@@ -57,3 +57,5 @@ Ordered by natural user journey:
 | 49 | [Web Export](web_export.md) | Browser export (Godot Web/WASM), hosting, and web-specific voice/video plan (Web APIs instead of LiveKit) |
 | 50 | [Two-Factor Authentication](two_factor_authentication.md) | Enable/verify/disable 2FA from User Settings, backup codes, and current UX gaps |
 | 51 | [Godot-LiveKit](godot_livekit.md) | GDExtension addon wrapping LiveKit C++ SDK: native classes (Room, Track, Participant, Stream, Source, E2EE), LiveKitAdapter GDScript wrapper, audio/video pipelines, build process, platform binaries |
+| 52 | [Screen Sharing](screen_sharing.md) | Screen picker dialog, publishing screen share tracks via LiveKit, local/remote tile rendering, voice state sync, track cleanup |
+| 53 | [Gedis](gedis.md) | Proposed in-memory key-value store addon with Redis-like API and watch system for reactive state management, replacing AppState signal boilerplate |

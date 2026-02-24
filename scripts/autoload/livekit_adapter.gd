@@ -190,17 +190,21 @@ func _process(_delta: float) -> void:
 		var uid: String = _identity_to_user.get(identity, identity)
 		if level > 0.001:
 			audio_level_changed.emit(uid, level)
-	# Local mic level via AudioEffectCapture
-	if _mic_effect != null and _local_audio_track != null and not _muted:
+	# Local mic: capture frames → push to LiveKit + compute speaking level
+	if _mic_effect != null and _local_audio_source != null and not _muted:
 		var frames_avail: int = _mic_effect.get_frames_available()
 		if frames_avail > 0:
-			var buf: PackedVector2Array = _mic_effect.get_buffer(
-				mini(frames_avail, 480)
-			)
+			var buf: PackedVector2Array = _mic_effect.get_buffer(frames_avail)
+			# Convert stereo capture to mono and push to LiveKit
+			var mono := PackedFloat32Array()
+			mono.resize(buf.size())
 			var rms: float = 0.0
-			for frame in buf:
-				var sample: float = (frame.x + frame.y) * 0.5
+			for i in buf.size():
+				var sample: float = (buf[i].x + buf[i].y) * 0.5
+				mono[i] = sample
 				rms += sample * sample
+			_local_audio_source.capture_frame(mono, 48000, 1, mono.size())
+			# Compute level for speaking indicator
 			if buf.size() > 0:
 				rms = sqrt(rms / buf.size())
 			if rms > 0.001:
