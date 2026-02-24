@@ -53,6 +53,7 @@ func _ready() -> void:
 		func(mode): _hover.on_layout_mode_changed(mode)
 	)
 	AppState.message_fetch_failed.connect(_on_message_fetch_failed)
+	AppState.message_delete_failed.connect(_on_message_delete_failed)
 	_scroll = MessageViewScrollScript.new(self)
 	scroll_container.get_v_scroll_bar().changed.connect(_scroll.on_scrollbar_changed)
 	scroll_container.get_v_scroll_bar().value_changed.connect(_scroll.on_scroll_value_changed)
@@ -582,6 +583,13 @@ func _guild_for_current_channel() -> String:
 	return Client._channel_to_guild.get(current_channel_id, "")
 
 # --- Fetch Failure & Loading Timeout ---
+
+func _on_message_delete_failed(message_id: String, error: String) -> void:
+	var node: Control = _find_message_node(message_id)
+	if node:
+		var mc = node.get("message_content")
+		if mc and mc.has_method("show_edit_error"):
+			mc.show_edit_error("Delete failed: %s" % error)
 
 func _on_message_fetch_failed(channel_id: String, error: String) -> void:
 	if channel_id != current_channel_id:

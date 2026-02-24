@@ -518,9 +518,19 @@ func on_user_update(user: AccordUser, conn_index: int) -> void:
 		cdn_url = _c._connections[conn_index]["cdn_url"]
 	var existing: Dictionary = _c._user_cache.get(user.id, {})
 	var status: int = existing.get("status", ClientModels.UserStatus.OFFLINE)
-	_c._user_cache[user.id] = ClientModels.user_to_dict(user, status, cdn_url)
+	var user_dict: Dictionary = ClientModels.user_to_dict(user, status, cdn_url)
+	_c._user_cache[user.id] = user_dict
 	if _c.current_user.get("id", "") == user.id:
-		_c.current_user = _c._user_cache[user.id]
+		_c.current_user = user_dict
+	# Propagate display_name/avatar changes to member_cache entries
+	for gid in _c._member_cache:
+		var idx: int = _c._member_index_for(gid, user.id)
+		if idx != -1:
+			var member: Dictionary = _c._member_cache[gid][idx]
+			member["display_name"] = user_dict.get("display_name", member.get("display_name", ""))
+			member["avatar"] = user_dict.get("avatar", member.get("avatar", ""))
+			member["username"] = user_dict.get("username", member.get("username", ""))
+			AppState.members_updated.emit(gid)
 	AppState.user_updated.emit(user.id)
 
 func on_channel_pins_update(data: Dictionary) -> void:

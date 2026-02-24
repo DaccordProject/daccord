@@ -70,6 +70,7 @@ func _connect_breadcrumbs() -> void:
 	AppState.sidebar_drawer_toggled.connect(
 		_on_sidebar_drawer_toggled
 	)
+	AppState.voice_error.connect(_on_voice_error)
 
 func _on_guild_selected(guild_id: String) -> void:
 	_add_breadcrumb(
@@ -103,6 +104,9 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 
 func _on_sidebar_drawer_toggled(_is_open: bool) -> void:
 	_add_breadcrumb("Sidebar toggled", "ui")
+
+func _on_voice_error(error: String) -> void:
+	_add_breadcrumb("Voice error: %s" % error, "voice")
 
 func _add_breadcrumb(
 	message: String, category: String
