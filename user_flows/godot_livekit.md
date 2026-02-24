@@ -56,6 +56,9 @@ LiveKitRoom                                      |                              
          |                                       |                                    |-- remote_track_received
          |                                       |                                    |
          | (per frame, in _process)              |                                    |
+         |                                       | _room.poll_events()               |
+         |                                       |   (drain C++ callbacks to main    |
+         |                                       |    thread)                        |
          |                                       | poll remote video streams          |
          |                                       | poll remote audio into playback    |
          |                                       | compute audio levels               |
@@ -146,6 +149,7 @@ The central class. Wraps `livekit::Room` and uses a `GodotRoomDelegate` (inner c
 - `disconnect_from_room()` -- disconnects and cleans up
 - `get_local_participant()` -> `LiveKitLocalParticipant`
 - `get_remote_participants()` -> Dictionary
+- `poll_events()` -- drains the thread-safe event queue on the main thread (called per-frame by `LiveKitAdapter._process()`)
 - `get_sid()`, `get_name()`, `get_metadata()`, `get_connection_state()`
 
 ### Track Hierarchy (livekit_track.h)
@@ -186,7 +190,7 @@ Base `LiveKitParticipant`:
 1. `LiveKitAudioSource.create(48000, 1, 200)` -- creates a source with 48kHz, mono, 200ms queue
 2. `LiveKitLocalAudioTrack.create("microphone", source)` -- creates a track backed by the source
 3. `LocalParticipant.publish_track(track, {"source": SOURCE_MICROPHONE})` -- publishes to the room
-4. `LiveKitAdapter._setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection (line 290)
+4. `LiveKitAdapter._setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection (line 301)
 5. The LiveKit C++ SDK reads from the audio source internally and sends via WebRTC
 
 **Receiving (remote audio -> Godot playback)**:
@@ -194,22 +198,22 @@ Base `LiveKitParticipant`:
 2. `LiveKitAudioStream.from_track(track)` -- creates a stream with a background reader thread (`_reader_loop`, `livekit_audio_stream.h` line 34) that buffers incoming audio
 3. `AudioStreamGenerator` + `AudioStreamPlayer` created per remote participant
 4. Per-frame `LiveKitAudioStream.poll(playback)` pushes buffered audio into `AudioStreamGeneratorPlayback`
-5. Deafen sets player `volume_db` to `-80.0` (line 100 of `livekit_adapter.gd`)
+5. Deafen sets player `volume_db` to `-80.0` (line 108 of `livekit_adapter.gd`)
 
-**Audio level detection** (`livekit_adapter.gd`, `_process`, lines 159-196):
-- Remote: `_estimate_audio_level(player)` reads `AudioServer.get_bus_peak_volume_left_db()`, converts dB to linear (line 397)
-- Local: reads `AudioEffectCapture.get_buffer()`, computes RMS, emits if > 0.001 (lines 183-196)
+**Audio level detection** (`livekit_adapter.gd`, `_process`, lines 167-207):
+- Remote: `_estimate_audio_level(player)` reads `AudioServer.get_bus_peak_volume_left_db()`, converts dB to linear (line 408)
+- Local: reads `AudioEffectCapture.get_buffer()`, computes RMS, emits if > 0.001 (lines 194-207)
 
 ### Video Pipeline
 
-**Publishing camera** (`LiveKitAdapter.publish_camera()`, line 111):
+**Publishing camera** (`LiveKitAdapter.publish_camera()`, line 119):
 1. `LiveKitVideoSource.create(width, height)` -- creates a video source
 2. `LiveKitLocalVideoTrack.create("camera", source)` -- creates a track
 3. `LocalParticipant.publish_track(track, {"source": SOURCE_CAMERA})` -- publishes
 4. Returns `LiveKitVideoStream.from_track()` for local preview
 
-**Publishing screen** (`LiveKitAdapter.publish_screen()`, line 134):
-1. `LiveKitVideoSource.create(1920, 1080)` -- hardcoded 1080p
+**Publishing screen** (`LiveKitAdapter.publish_screen()`, line 142):
+1. `LiveKitVideoSource.create(1920, 1080)` -- hardcoded 1080p (line 147)
 2. `LiveKitLocalVideoTrack.create("screen", source)` -- creates a track
 3. `LocalParticipant.publish_track(track, {"source": SOURCE_SCREENSHARE})` -- publishes
 
