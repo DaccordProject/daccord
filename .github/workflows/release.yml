@@ -108,8 +108,8 @@ jobs:
           echo "Downloading godot-livekit addon (latest release)..."
           TMPDIR=$(mktemp -d)
           gh release download --repo NodotProject/godot-livekit \
-            --pattern "godot-livekit-addon.zip" --dir "$TMPDIR"
-          unzip -o "$TMPDIR/godot-livekit-addon.zip" -d "$TMPDIR/extracted"
+            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
           if [ ! -d "$TMPDIR/extracted/addons/godot-livekit" ]; then
             echo "::error::godot-livekit addon not found in release asset"
             exit 1
@@ -129,10 +129,10 @@ jobs:
             exit 0
           fi
           case "${{ matrix.platform }}" in
-            linux)      LIB="addons/godot-livekit/bin/libgodot-livekit.linux.template_release.x86_64" ;;
-            linux-arm64) LIB="addons/godot-livekit/bin/libgodot-livekit.linux.template_release.x86_64" ;;
-            windows)    LIB="addons/godot-livekit/bin/libgodot-livekit.windows.template_release.x86_64.dll" ;;
-            macos)      LIB="addons/godot-livekit/bin/libgodot-livekit.macos.template_release.universal.dylib" ;;
+            linux)       LIB="addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" ;;
+            linux-arm64) LIB="addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" ;;
+            windows)     LIB="addons/godot-livekit/bin/libgodot-livekit.windows.x86_64.dll" ;;
+            macos)       LIB="addons/godot-livekit/bin/libgodot-livekit.macos.universal.dylib" ;;
           esac
           if [ ! -f "$LIB" ]; then
             echo "::warning::godot-livekit binary $LIB not found — removing GDExtension to prevent crash"
