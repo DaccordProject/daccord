@@ -27,6 +27,7 @@ driver/enable_input=true
 
 [autoload]
 
+SingleInstance="*res://scripts/autoload/single_instance.gd"
 AppState="*res://scripts/autoload/app_state.gd"
 Config="*res://scripts/autoload/config.gd"
 ErrorReporting="*res://scripts/autoload/error_reporting.gd"

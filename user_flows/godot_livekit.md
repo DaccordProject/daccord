@@ -131,7 +131,11 @@ The central class. Wraps `livekit::Room` and uses a `GodotRoomDelegate` (inner c
 **Connection states** (enum `ConnectionState`):
 - `STATE_DISCONNECTED = 0`, `STATE_CONNECTED = 1`, `STATE_RECONNECTING = 2`
 
-**Threading model**: `connect_to_room()` runs connection in a background `std::thread` (line 82-83, `connect_thread_`, `connecting_async_`), then finalizes on the main thread via `_finalize_connection()`.
+**Threading model**: `connect_to_room()` runs connection in a background `std::thread` (line 82-83, `connect_thread_`, `connecting_async_`), then finalizes on the main thread via `_finalize_connection()`. The adapter calls `poll_events()` every frame in `_process()` (line 172) to drain the thread-safe event queue, executing C++ callbacks (connection results, participant joins/leaves, track subscriptions) on the main thread.
+
+**Connection options**: The adapter passes `{"auto_reconnect": false}` to `connect_to_room()` (line 72 of `livekit_adapter.gd`), disabling the SDK's built-in reconnection. Reconnection is handled at the application layer by `ClientVoice` / gateway events.
+
+**Disconnect optimization**: `disconnect_voice()` (line 74) skips the blocking `unpublish_track()` SDK calls and instead drops all local track references before calling `disconnect_from_room()`, relying on the room teardown to handle track cleanup internally.
 
 **Signals emitted** (from `GodotRoomDelegate` overrides):
 - `connected`, `disconnected`, `reconnecting`, `reconnected`
@@ -310,7 +314,7 @@ The extension supports data messaging and RPC between participants, though dacco
 - `test_disconnect_voice_from_disconnected` -- idempotent disconnect (line 63)
 - `test_has_required_signals` -- verifies all 5 signals exist (line 73)
 - `test_disconnect_emits_state_signal` -- signal emission (line 96)
-- `test_unpublish_camera_without_room` / `test_unpublish_screen_without_room` -- no-error on null room, asserts state stays DISCONNECTED (lines 108, 113)
+- `test_unpublish_camera_without_room` / `test_unpublish_screen_without_room` -- no-error on null room, asserts state stays DISCONNECTED (lines 108, 118)
 
 #### E2E Voice Auth Handshake (test_voice_auth_handshake.gd)
 
@@ -395,7 +399,7 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 | Data channels unused | Low | `publish_data()` and `data_received` signal are available but daccord uses the WebSocket gateway for all messaging. Could be useful for low-latency in-call features (e.g., cursor sharing, annotations). |
 | RPC unused | Low | `perform_rpc()` / `register_rpc_method()` are available. Could enable peer-to-peer features without gateway round-trips. |
 | No WebRTC stats UI | Low | `LiveKitTrack.get_stats()` returns detailed WebRTC metrics but they are not exposed in any settings or debug panel. |
-| Screen share resolution hardcoded | Low | `publish_screen()` uses 1920x1080 (line 139 of `livekit_adapter.gd`). Should use the actual screen/window resolution. |
+| Screen share resolution hardcoded | Low | `publish_screen()` uses 1920x1080 (line 147 of `livekit_adapter.gd`). Should use the actual screen/window resolution. |
 | No ARM64 builds | Medium | Build script only supports x86_64 for Linux/Windows. macOS builds are universal (x86_64 + arm64) but Linux ARM is missing. |
 | No web platform | High | GDExtension native libraries cannot load in Godot Web exports. See `web_export.md` for the planned Web API approach. |
 | Input/output device selection not applied | Low | `Config.voice` persists device preferences but `LiveKitAdapter` always uses the default `AudioStreamMicrophone` and default audio bus. Need to route selected devices through to LiveKit audio source and playback. |

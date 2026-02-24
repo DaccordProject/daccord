@@ -130,6 +130,38 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	# Refetch all data (awaited so server_synced fires after completion)
 	await _refetch_data(conn, conn_index)
 
+	# Apply initial presences from READY payload
+	var presences: Array = _data.get("presences", [])
+	_apply_presences(presences, guild_id)
+
+func _apply_presences(presences: Array, guild_id: String) -> void:
+	for p in presences:
+		if not p is Dictionary:
+			continue
+		var uid: String = str(p.get("user_id", ""))
+		if uid.is_empty():
+			continue
+		var status: int = ClientModels._status_string_to_enum(
+			p.get("status", "offline")
+		)
+		# Update user cache
+		if _c._user_cache.has(uid):
+			_c._user_cache[uid]["status"] = status
+			_c._user_cache[uid]["client_status"] = p.get(
+				"client_status", {}
+			)
+			_c._user_cache[uid]["activities"] = p.get(
+				"activities", []
+			)
+		# Update member cache
+		if not guild_id.is_empty():
+			var idx: int = _c._member_index_for(guild_id, uid)
+			if idx != -1:
+				_c._member_cache[guild_id][idx]["status"] = status
+	# Notify UI
+	if not guild_id.is_empty():
+		AppState.members_updated.emit(guild_id)
+
 func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void:
 	if _c.is_shutting_down:
 		return
