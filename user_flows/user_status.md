@@ -3,25 +3,25 @@
 
 ## Overview
 
-The user bar sits at the bottom of the sidebar's channel panel. It displays the current user's avatar, display name, username, and status indicator. A MenuButton dropdown allows changing status (Online, Idle, Do Not Disturb, Invisible), setting a custom status message, and provides About and Quit options. Status changes are sent to all connected servers via AccordKit and reflected in real time. Status persists across app restarts via Config. Incoming presence updates from the gateway update caches and the user bar UI automatically. Avatar images are loaded from CDN URLs with a fallback to colored circles, and the avatar animates between circle and rounded-square on hover.
+The user bar sits at the bottom of the sidebar's channel panel. It displays the current user's avatar, display name, username, and status indicator. Clicking the status indicator opens a popup menu for changing status (Online, Idle, Do Not Disturb, Invisible) and setting a custom status message. The "..." MenuButton provides profile, settings, and app-level options. Status changes are sent to all connected servers via AccordKit and reflected in real time. Status persists across app restarts via Config. Incoming presence updates from the gateway update caches and the user bar UI automatically. Avatar images are loaded from CDN URLs with a fallback to colored circles, and the avatar animates between circle and rounded-square on hover.
 
 ## User Steps
 
 1. User sees their info in the user bar (bottom of sidebar)
-2. Click the "..." MenuButton -> PopupMenu appears
-3. Menu shows status options: Online, Idle, Do Not Disturb, Invisible
+2. Click the status indicator (colored dot) -> status popup appears
+3. Popup shows status options: Online, Idle, Do Not Disturb, Invisible, Set Custom Status
 4. Select a status -> status is sent to all connected servers, indicator color updates, status persists to config
 5. Other users see the status change via gateway presence events
 6. "Set Custom Status" opens a dialog to enter/clear a custom status message
-7. Menu also shows "About" (version info dialog) and "Quit" items
-8. "Quit" closes the application
-9. On next launch, the saved status is restored after the first server connects
+7. The "..." MenuButton provides Edit Profile, Settings, and other app-level options
+8. On next launch, the saved status is restored after the first server connects
 
 ## Signal Flow
 
 ```
-User selects status from MenuButton popup
-    -> _on_menu_id_pressed(id)
+User clicks status indicator -> status popup appears
+User selects status from status popup
+    -> _on_status_id_pressed(id)
         -> Client.update_presence(status_enum, activity)
             -> ClientMutations.update_presence(status_enum, activity)
                 -> Client.current_user["status"] updated
@@ -81,24 +81,22 @@ Presence update received from gateway
 
 ### User Bar (user_bar.gd)
 
-- Displays: avatar (ColorRect with circle shader + CDN image), display_name label, username label (gray, 11px), status indicator (10x10 ColorRect), voice indicator, MenuButton ("...")
+- Displays: avatar (ColorRect with circle shader + CDN image), display_name label, username label (gray, 11px), status indicator (14x14 clickable ColorRect), voice indicator, MenuButton ("...")
 - Avatar: loads image via `set_avatar_url()` from user dict's `"avatar"` key; falls back to colored circle if no URL
 - Avatar hover: tweens radius 0.5->0.3 on mouse enter, 0.3->0.5 on mouse exit (same pattern as guild icons)
 - Custom status: displayed as tooltip on the user bar PanelContainer
-- Status indicator: small colored circle, color set via match on `UserStatus` enum
+- Status indicator: clickable colored dot with pointing hand cursor and "Change status" tooltip
   - Online: green, Idle: yellow, DND: red, Offline/Invisible: gray
-- PopupMenu created in `_ready()` with items:
-  - "Online" (index 0)
-  - "Idle" (index 1)
-  - "Do Not Disturb" (index 2)
-  - "Invisible" (index 3)
-  - "Set Custom Status" (index 4)
+  - Clicking opens a dedicated status PopupMenu
+- Status PopupMenu (`_status_popup`) created in `_ready()` with items:
+  - "Online" (id 0)
+  - "Idle" (id 1)
+  - "Do Not Disturb" (id 2)
+  - "Invisible" (id 3)
   - Separator
-  - "About" (index 10)
-  - "Quit" (index 11)
-- `_on_menu_id_pressed(id)`: calls `Client.update_presence()` for status items 0-3, custom status dialog for 4, about dialog for 10
-- "About" item: shows AcceptDialog with app name and version from `ProjectSettings`
-- "Quit" item: calls `get_tree().quit()`
+  - "Set Custom Status" (id 4)
+- `_on_status_id_pressed(id)`: calls `Client.update_presence()` for status items 0-3, custom status dialog for 4
+- MenuButton ("...") popup provides: Edit Profile, Settings, Suppress @everyone, Export/Import Profile, Report a Problem, Check for Updates, About, Quit
 - Signal connections:
   - `AppState.guilds_updated` -> `_on_guilds_updated()` -> refreshes from `Client.current_user`
   - `AppState.user_updated` -> `_on_user_updated(user_id)` -> refreshes if ID matches current user

@@ -119,14 +119,13 @@ var _message_queue: Array = []
 var _emoji_download_pending: Dictionary = {} # emoji_id -> true
 
 var _gw: ClientGateway
-var _voice_session: Node
+var _voice_session: LiveKitAdapter
 var _idle_timer: Timer
 var _is_auto_idle: bool = false
 var _last_input_time: float = 0.0
-var _camera_track
-var _screen_track
-var _remote_tracks: Dictionary = {} # user_id -> track
-var _accord_stream # AccordStream singleton (null if GDExtension unavailable)
+var _camera_track  # LiveKitVideoStream (local preview)
+var _screen_track  # LiveKitVideoStream (local preview)
+var _remote_tracks: Dictionary = {} # user_id -> LiveKitVideoStream
 var _speaking_users: Dictionary = {} # user_id -> last_active timestamp (float)
 var _speaking_timer: Timer
 
@@ -138,13 +137,8 @@ func _ready() -> void:
 			f.close()
 		_voice_log("voice logger initialized")
 		_voice_log(
-			"Engine.has_singleton(AccordStream)=%s" % [
-				str(Engine.has_singleton("AccordStream"))
-			]
-		)
-		_voice_log(
-			"ClassDB.class_exists(AccordVoiceSession)=%s" % [
-				str(ClassDB.class_exists(&"AccordVoiceSession"))
+			"ClassDB.class_exists(LiveKitRoom)=%s" % [
+				str(ClassDB.class_exists(&"LiveKitRoom"))
 			]
 		)
 	_gw = ClientGateway.new(self)
@@ -159,52 +153,25 @@ func _ready() -> void:
 	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
-	if Engine.has_singleton("AccordStream"):
-		_accord_stream = Engine.get_singleton("AccordStream")
-	if ClassDB.class_exists(&"AccordVoiceSession"):
-		_voice_session = ClassDB.instantiate(&"AccordVoiceSession")
-	if _voice_session != null:
-		add_child(_voice_session)
-		set_meta("_voice_session", _voice_session)
-		_voice_session.session_state_changed.connect(
-			voice.on_session_state_changed
-		)
-		_voice_session.peer_joined.connect(
-			voice.on_peer_joined
-		)
-		_voice_session.peer_left.connect(
-			voice.on_peer_left
-		)
-		_voice_session.signal_outgoing.connect(
-			voice.on_signal_outgoing
-		)
-		if _voice_session.has_signal("track_received"):
-			_voice_session.track_received.connect(
-				voice.on_track_received
-			)
-		if _voice_session.has_signal("audio_level_changed"):
-			_voice_session.audio_level_changed.connect(
-				voice.on_audio_level_changed
-			)
-		if DEBUG_VOICE_LOGS:
-			_voice_log("voice_session ready")
-			var has_audio: bool = _voice_session.has_signal(
-				"audio_level_changed"
-			)
-			var has_track: bool = _voice_session.has_signal(
-				"track_received"
-			)
-			_voice_log(
-				"signals audio_level_changed=%s track_received=%s" % [
-					str(has_audio), str(has_track)
-				]
-			)
-	else:
-		push_warning(
-			"AccordVoiceSession unavailable — voice disabled"
-		)
-		if DEBUG_VOICE_LOGS:
-			_voice_log("voice_session unavailable")
+	_voice_session = LiveKitAdapter.new()
+	add_child(_voice_session)
+	_voice_session.session_state_changed.connect(
+		voice.on_session_state_changed
+	)
+	_voice_session.peer_joined.connect(
+		voice.on_peer_joined
+	)
+	_voice_session.peer_left.connect(
+		voice.on_peer_left
+	)
+	_voice_session.track_received.connect(
+		voice.on_track_received
+	)
+	_voice_session.audio_level_changed.connect(
+		voice.on_audio_level_changed
+	)
+	if DEBUG_VOICE_LOGS:
+		_voice_log("LiveKitAdapter ready")
 	# Speaking debounce timer (checks every 200ms for 300ms silence)
 	_speaking_timer = Timer.new()
 	_speaking_timer.wait_time = 0.2

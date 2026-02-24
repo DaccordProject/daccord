@@ -143,28 +143,18 @@ func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> v
 	_c._voice_server_info = info.to_dict()
 	if _c.has_method("_voice_log"):
 		_c._voice_log(
-			"voice_server_update backend=%s sfu=%s livekit=%s" % [
-				str(info.backend),
-				str(info.sfu_endpoint),
+			"voice_server_update livekit=%s" % [
 				str(info.livekit_url)
 			]
 		)
-	# If we're already in a voice channel and no session is active,
+	# If we're already in a voice channel and disconnected,
 	# connect the backend now (server may send update asynchronously).
 	if not AppState.voice_channel_id.is_empty() and _c._voice_session != null:
-		var state := 0
-		if _c._voice_session.has_method("get_session_state"):
-			state = _c._voice_session.get_session_state()
-		if state == 0:
+		var state: int = _c._voice_session.get_session_state()
+		if state == LiveKitAdapter.State.DISCONNECTED:
 			if _c.has_method("_voice_log"):
 				_c._voice_log("voice_server_update connecting backend now")
 			_c.voice._connect_voice_backend(info)
 
-func on_voice_signal(data: Dictionary, _conn_index: int) -> void:
-	# Forward to AccordVoiceSession if it exists (Phase 4)
-	if _c.has_meta("_voice_session"):
-		var session: Node = _c.get_meta("_voice_session")
-		var user_id: String = str(data.get("user_id", ""))
-		var signal_type: String = str(data.get("type", ""))
-		var payload: Dictionary = data.get("payload", data)
-		session.handle_voice_signal(user_id, signal_type, payload)
+func on_voice_signal(_data: Dictionary, _conn_index: int) -> void:
+	pass # LiveKit handles signaling internally

@@ -142,6 +142,7 @@ func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void
 		# Escalate to full reconnect (with re-auth) instead of
 		# giving up immediately. _handle_gateway_reconnect_failed
 		# will go to "error" if it has already been tried once.
+		conn["status"] = "disconnected"
 		conn["_was_disconnected"] = true
 		AppState.server_disconnected.emit(guild_id, code, reason)
 		_c.call_deferred(

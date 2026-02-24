@@ -4,7 +4,7 @@ Last touched: 2026-02-21
 
 ## Overview
 
-daccord uses the GUT (Godot Unit Test) framework for automated testing. The test suite spans three tiers: unit tests for autoloads and UI components, AccordKit integration tests that hit a live accordserver, and AccordStream tests for WebRTC/voice APIs. A Bash runner (`test.sh`) orchestrates server lifecycle and suite selection, while GitHub Actions CI runs unit tests, lint, and integration tests on every push.
+daccord uses the GUT (Godot Unit Test) framework for automated testing. The test suite spans three tiers: unit tests for autoloads and UI components, AccordKit integration tests that hit a live accordserver, and LiveKit tests for WebRTC/voice APIs. A Bash runner (`test.sh`) orchestrates server lifecycle and suite selection, while GitHub Actions CI runs unit tests, lint, and integration tests on every push.
 
 ## User Steps
 
@@ -96,11 +96,11 @@ cleanup() ──► kill server + rm accord_test.db
 | `tests/accordkit/gateway/test_gateway_events.gd` | Real-time gateway event delivery (1 test) |
 | `tests/accordkit/e2e/test_full_lifecycle.gd` | Full login-to-logout lifecycle (1 test) |
 | `tests/accordkit/e2e/test_add_server.gd` | Full invite flow — create space, create invite, bot accepts, gateway event, REST verify, send message (1 test) |
-| `tests/accordstream/integration/test_device_enumeration.gd` | Device listing APIs (34 tests) |
-| `tests/accordstream/integration/test_media_tracks.gd` | Media track create/enable/stop (25 tests) |
-| `tests/accordstream/integration/test_peer_connection.gd` | WebRTC peer connection API (51 tests) |
-| `tests/accordstream/integration/test_voice_session.gd` | Voice session state machine (39 tests) |
-| `tests/accordstream/integration/test_end_to_end.gd` | Multi-step WebRTC workflows (8 tests) |
+| `tests/livekit/integration/test_device_enumeration.gd` | Device listing APIs (34 tests) |
+| `tests/livekit/integration/test_media_tracks.gd` | Media track create/enable/stop (25 tests) |
+| `tests/livekit/integration/test_peer_connection.gd` | WebRTC peer connection API (51 tests) |
+| `tests/livekit/integration/test_voice_session.gd` | Voice session state machine (39 tests) |
+| `tests/livekit/integration/test_end_to_end.gd` | Multi-step WebRTC workflows (8 tests) |
 
 ## Implementation Details
 
@@ -112,8 +112,8 @@ The runner (lines 1-250) uses `set -euo pipefail` for strict error handling. Sui
 |----------|-------------|---------------|
 | `unit` | `res://tests/unit` | No |
 | `accordkit` | `res://tests/accordkit` | Yes |
-| `accordstream` | `res://tests/accordstream` | No |
-| `integration` | `res://tests/accordkit`, `res://tests/accordstream` | Yes |
+| `livekit` | `res://tests/livekit` | No |
+| `integration` | `res://tests/accordkit`, `res://tests/livekit` | Yes |
 | `all` (default) | All three | Yes |
 
 Server startup (lines 84-138): builds with `cargo build --quiet`, removes stale `accord_test.db*` files, starts with `ACCORD_TEST_MODE=true` and `DATABASE_URL=sqlite:accord_test.db?mode=rwc`, then polls `GET /api/v1/gateway` up to 30 times at 1s intervals. If the server is already running on `:39099`, it reuses the existing instance (line 221).
@@ -231,7 +231,7 @@ Six test files, all extending `AccordTestBase`:
 - **test_full_lifecycle.gd** (1 test) — 7-step sequential flow: bot login, get_me verification, user creates space, list channels, send+fetch message, cross-client gateway event (user sends, bot receives `message_create`), bot logout.
 - **test_add_server.gd** (1 test) — 8-step invite flow: user creates space, user creates invite, bot connects gateway and waits for ready, bot accepts invite, user verifies `member_join` gateway event with bot's user ID, REST verification that bot appears in member list, bot sends message in the new space's general channel to prove access, bot logs out.
 
-### AccordStream Tests (`tests/accordstream/integration/`)
+### LiveKit Tests (`tests/livekit/integration/`)
 
 Four test files plus an end-to-end file, no server needed:
 
@@ -246,8 +246,8 @@ Four test files plus an end-to-end file, no server needed:
 Three jobs on push/PR to `master`:
 
 1. **lint** — Python 3.12 + `gdtoolkit`, runs `gdlint scripts/ scenes/` (line 33). Also runs code complexity analysis via `gdradon cc scripts/ scenes/` (lines 35-46), emitting a warning annotation for functions graded C-F.
-2. **test** — Checks out project + accordstream addon, installs Godot 4.5 via `chickensoft-games/setup-godot@v2`, caches GUT and Sentry SDK, imports project, runs unit tests (`res://tests/unit`) with 5-minute timeout (lines 130-141). Also runs AccordStream tests with `continue-on-error: true` (lines 143-155). Generates a test result summary to `$GITHUB_STEP_SUMMARY` (lines 157-168).
-3. **integration-test** — Checks out project + accordstream + accordserver, installs Rust with `sccache` caching, builds accordserver with fallback if sccache fails (lines 256-265), starts in test mode, polls `/health` until ready (lines 274-286). Runs AccordKit suites individually: unit tests (lines 307-318), REST integration tests (lines 320-331), and gateway + e2e tests with `continue-on-error: true` (lines 333-353). Uploads server log as artifact on failure (lines 375-381).
+2. **test** — Checks out project + livekit addon, installs Godot 4.5 via `chickensoft-games/setup-godot@v2`, caches GUT and Sentry SDK, imports project, runs unit tests (`res://tests/unit`) with 5-minute timeout (lines 130-141). Also runs LiveKit tests with `continue-on-error: true` (lines 143-155). Generates a test result summary to `$GITHUB_STEP_SUMMARY` (lines 157-168).
+3. **integration-test** — Checks out project + livekit + accordserver, installs Rust with `sccache` caching, builds accordserver with fallback if sccache fails (lines 256-265), starts in test mode, polls `/health` until ready (lines 274-286). Runs AccordKit suites individually: unit tests (lines 307-318), REST integration tests (lines 320-331), and gateway + e2e tests with `continue-on-error: true` (lines 333-353). Uploads server log as artifact on failure (lines 375-381).
 
 ### Test Count Summary
 
@@ -258,12 +258,12 @@ Three jobs on push/PR to `master`:
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
 | AccordKit e2e (`tests/accordkit/e2e/`) | 2 | 2 | Yes |
-| AccordStream (`tests/accordstream/integration/`) | 5 | 157 | No |
+| LiveKit (`tests/livekit/integration/`) | 5 | 157 | No |
 | **Total** | **54** | **873** | |
 
 ## Implementation Status
 
-- [x] Test runner with suite selection (`unit`, `integration`, `accordkit`, `accordstream`, `all`)
+- [x] Test runner with suite selection (`unit`, `integration`, `accordkit`, `livekit`, `all`)
 - [x] Automatic server lifecycle (build, start, poll, cleanup)
 - [x] Fresh database per test run (removes stale `accord_test.db*`)
 - [x] Reuse of existing server instance if already running
@@ -293,11 +293,11 @@ Three jobs on push/PR to `master`:
 - [x] AccordKit gateway connect/event tests (4 tests)
 - [x] AccordKit full lifecycle e2e test (1 test)
 - [x] AccordKit invite flow e2e test (1 test)
-- [x] AccordStream device enumeration tests (34 tests)
-- [x] AccordStream media track tests (25 tests)
-- [x] AccordStream peer connection tests (51 tests)
-- [x] AccordStream voice session tests (39 tests)
-- [x] AccordStream e2e workflow tests (8 tests)
+- [x] LiveKit device enumeration tests (34 tests)
+- [x] LiveKit media track tests (25 tests)
+- [x] LiveKit peer connection tests (51 tests)
+- [x] LiveKit voice session tests (39 tests)
+- [x] LiveKit e2e workflow tests (8 tests)
 - [x] Unit tests for Client autoload — data access, routing, permissions, unread (60 tests)
 - [x] Unit tests for ClientGateway — event dispatch, cache mutation (36 tests)
 - [x] Unit tests for channel_item sidebar component (15 tests)
@@ -312,7 +312,7 @@ Three jobs on push/PR to `master`:
 - [x] Unit tests for embed component — setup, title, author, fields, footer, color, type (12 tests)
 - [x] Smoke tests for Client `_ready()` startup — sub-modules, AccordVoiceSession, signal wiring (6 tests)
 - [x] Smoke tests for user settings panel — script loading, pages, navigation (10 tests)
-- [ ] AccordStream tests in CI (require media hardware)
+- [ ] LiveKit tests in CI (require media hardware)
 - [ ] No mock/stub/double usage anywhere (real objects only)
 
 ## Gaps / TODO
@@ -330,9 +330,9 @@ Three jobs on push/PR to `master`:
 | No tests for emoji_picker | Low | `scenes/messages/composer/emoji_picker.gd` — emoji search, category filtering, insertion untested. |
 | No tests for search_panel | Low | `scenes/search/search_panel.gd` — search UI untested. |
 | No tests for `SoundManager` autoload | Low | `scripts/autoload/sound_manager.gd` — sound event playback and volume control have no tests. |
-| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 334). AccordStream tests also use `continue-on-error: true` (line 144). AccordKit unit and REST integration tests are blocking. |
-| AccordStream tests skip in headless CI | Medium | Tests guard with `pass_test("No X available — skipping")` when no hardware is detected. Most tests will be skipped in headless environments. |
+| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 334). LiveKit tests also use `continue-on-error: true` (line 144). AccordKit unit and REST integration tests are blocking. |
+| LiveKit tests skip in headless CI | Medium | Tests guard with `pass_test("No X available — skipping")` when no hardware is detected. Most tests will be skipped in headless environments. |
 | `test_disconnect_clean_state` is a smoke test | Low | `tests/accordkit/gateway/test_gateway_connect.gd` — the disconnect test just asserts `true` after logout; does not verify internal connection state. |
 | No mock/stub/double usage | Medium | All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree. |
-| GDExtension binary staleness undetected | Medium | AccordStream source changes (e.g., adding `set_output_device()`) are not automatically rebuilt. Stale binaries cause GDScript parse errors that cascade through dependent scripts. CI doesn't verify that the binary matches the source. |
+| GDExtension binary staleness undetected | Medium | LiveKit source changes (e.g., adding `set_output_device()`) are not automatically rebuilt. Stale binaries cause GDScript parse errors that cascade through dependent scripts. CI doesn't verify that the binary matches the source. |
 | No tests for responsive layout behavior | Low | Layout mode breakpoints are tested in `test_app_state.gd`, but the actual UI response (sidebar drawer, hamburger button, panel visibility) in `main_window.gd` is untested. |

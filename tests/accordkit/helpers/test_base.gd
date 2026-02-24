@@ -1,7 +1,11 @@
 class_name AccordTestBase extends GutTest
 
-const BASE_URL := "http://127.0.0.1:39099"
-const GATEWAY_URL := "ws://127.0.0.1:39099/ws"
+## Default server URLs (overridable via ACCORD_TEST_URL env var).
+## Example: ACCORD_TEST_URL=http://192.168.1.144:39099 ./test.sh accordkit
+const _DEFAULT_BASE_URL := "http://127.0.0.1:39099"
+
+var BASE_URL: String = _DEFAULT_BASE_URL
+var GATEWAY_URL: String = "ws://127.0.0.1:39099/ws"
 
 var seed_data: Dictionary = {}
 
@@ -18,8 +22,24 @@ var bot_client: AccordClient
 var user_client: AccordClient
 
 
+func _resolve_server_url() -> void:
+	var env_url: String = OS.get_environment("ACCORD_TEST_URL")
+	if not env_url.is_empty():
+		BASE_URL = env_url
+		# Derive gateway URL: http(s) -> ws(s)
+		GATEWAY_URL = env_url.replace(
+			"https://", "wss://"
+		).replace(
+			"http://", "ws://"
+		) + "/ws"
+		gut.p("Using server from ACCORD_TEST_URL: %s" % BASE_URL)
+	else:
+		gut.p("Using default server: %s" % BASE_URL)
+
+
 func before_all() -> void:
-	seed_data = await SeedClient.seed(self)
+	_resolve_server_url()
+	seed_data = await SeedClient.seed(self, BASE_URL)
 	assert_false(seed_data.is_empty(), "Seed data should not be empty — is the server running?")
 
 	var user_info: Dictionary = seed_data.get("user", {})

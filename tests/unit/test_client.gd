@@ -4,7 +4,7 @@ extends GutTest
 ## permissions, and unread tracking.
 ##
 ## Strategy: create a bare Client node via load().new() WITHOUT
-## add_child so _ready() never fires (avoids AccordVoiceSession
+## add_child so _ready() never fires (avoids LiveKitAdapter
 ## and Config dependencies).  Populate internal caches directly.
 
 var client: Node
@@ -13,7 +13,7 @@ var client: Node
 func before_each() -> void:
 	client = load("res://scripts/autoload/client.gd").new()
 	# Manually init the pieces _ready() would create, minus the
-	# native AccordVoiceSession that is unavailable in headless.
+	# native LiveKit GDExtension that may be unavailable in headless.
 	client._gw = ClientGateway.new(client)
 	client.fetch = ClientFetch.new(client)
 	client.admin = ClientAdmin.new(client)

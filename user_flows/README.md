@@ -12,7 +12,7 @@ Ordered by natural user journey:
 | 4 | [Direct Messages](direct_messages.md) | DM mode entry, DM list, DM channel items, search, sending DMs |
 | 5 | [Responsive Layout](responsive_layout.md) | Three layout modes (COMPACT/MEDIUM/FULL), sidebar drawer, hamburger button, sidebar/member/search toggles, topic bar, animations |
 | 6 | [User Status](user_status.md) | User bar, status dropdown, avatar rendering, about/quit menu |
-| 7 | [Voice Channels](voice_channels.md) | Voice channel display, AccordKit voice API, AccordStream addon, current gaps |
+| 7 | [Voice Channels](voice_channels.md) | Voice channel display, AccordKit voice API, LiveKit addon, current gaps |
 | 8 | [Data Model](data_model.md) | ClientModels conversion, dictionary shapes, caching architecture |
 | 9 | [Gateway Events](gateway_events.md) | WebSocket event handling, event-to-signal mapping, real-time sync |
 | 10 | [Admin Server Management](admin_server_management.md) | Space settings, channel/role/member/ban/invite management, permissions, hierarchy enforcement |
@@ -25,8 +25,8 @@ Ordered by natural user journey:
 | 17 | [Soundboard](soundboard.md) | Playing audio clips into voice channels, sound management, server/client mixing architecture, permission model |
 | 18 | [Message Reactions](message_reactions.md) | Adding/removing emoji reactions, reaction pills, optimistic updates, gateway sync, emoji picker integration |
 | 19 | [Channel Permission Management](channel_permission_management.md) | Per-channel role permission overwrites, Allow/Inherit/Deny toggles, Discord-style resolution algorithm, server-side enforcement |
-| 20 | [Test Coverage](test_coverage.md) | GUT test framework, test runner, CI pipeline, 437 tests across unit/integration/e2e/AccordStream suites, coverage gaps |
-| 21 | [Video Chat](video_chat.md) | Camera video, screen/window sharing, WebRTC video tracks, SDP negotiation, AccordStream media pipeline, video state flags |
+| 20 | [Test Coverage](test_coverage.md) | GUT test framework, test runner, CI pipeline, 437 tests across unit/integration/e2e/LiveKit suites, coverage gaps |
+| 21 | [Video Chat](video_chat.md) | Camera video, screen/window sharing, WebRTC video tracks, SDP negotiation, LiveKit media pipeline, video state flags |
 | 22 | [Reducing Build Size](reducing_build_size.md) | Custom export templates, stripping unused engine features (3D, Vulkan, OpenXR), selective modules, UPX compression, CI integration |
 | 23 | [UI Animations](ui_animations.md) | Tween-based drawer/panel/pill/avatar animations, shader morphing, typing indicator sine wave, hover state machines, flash feedback |
 | 24 | [Error Reporting](error_reporting.md) | Self-hosted GlitchTip (Sentry-compatible) error tracking via the Sentry Godot SDK, opt-in consent, PII filtering, breadcrumbs, crash recovery |
@@ -54,5 +54,6 @@ Ordered by natural user journey:
 | 46 | [Master Server Discovery](master_server_discovery.md) | Public server directory via accordmasterserver: server registration, background indexing, search/browse/join flow, discovery panel UI |
 | 47 | [Text Channel Chat Bot](text_channel_chat_bot.md) | Bot message rendering, bot user flag, webhook messages, interaction model, slash command API, component support gaps |
 | 48 | [Server Update](server_update.md) | Reconnection after server restart/update, stale cache risks, permission race windows, API version gaps, data resync coverage |
-| 49 | [Web Export](web_export.md) | Browser export (Godot Web/WASM), hosting, and web-specific voice/video plan (Web APIs instead of AccordStream) |
+| 49 | [Web Export](web_export.md) | Browser export (Godot Web/WASM), hosting, and web-specific voice/video plan (Web APIs instead of LiveKit) |
 | 50 | [Two-Factor Authentication](two_factor_authentication.md) | Enable/verify/disable 2FA from User Settings, backup codes, and current UX gaps |
+| 51 | [Godot-LiveKit](godot_livekit.md) | GDExtension addon wrapping LiveKit C++ SDK: native classes (Room, Track, Participant, Stream, Source, E2EE), LiveKitAdapter GDScript wrapper, audio/video pipelines, build process, platform binaries |

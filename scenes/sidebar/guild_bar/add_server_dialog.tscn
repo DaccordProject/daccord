@@ -91,9 +91,6 @@ flat = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 340)
 
-[node name="Browse Servers" parent="CenterContainer/Panel/VBox/TabContainer" instance=ExtResource("2")]
-layout_mode = 2
-
 [node name="Enter URL" type="VBoxContainer" parent="CenterContainer/Panel/VBox/TabContainer"]
 layout_mode = 2
 theme_override_constants/separation = 12
@@ -135,3 +132,6 @@ visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
 autowrap_mode = 2
+
+[node name="Browse Servers" parent="CenterContainer/Panel/VBox/TabContainer" instance=ExtResource("2")]
+layout_mode = 2
