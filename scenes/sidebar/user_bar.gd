@@ -66,6 +66,7 @@ func _ready() -> void:
 	AppState.guild_selected.connect(_on_active_view_changed)
 	AppState.dm_mode_entered.connect(_on_active_view_changed)
 	AppState.channel_selected.connect(_on_active_view_changed)
+	AppState.config_changed.connect(_on_config_changed)
 
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get(
@@ -92,6 +93,12 @@ func setup(user: Dictionary) -> void:
 	# Show custom status as tooltip
 	var custom: String = Config.get_custom_status()
 	tooltip_text = custom if not custom.is_empty() else ""
+
+func _on_config_changed(section: String, _key: String) -> void:
+	if section == "notifications":
+		var popup := menu_button.get_popup()
+		var se_idx: int = popup.get_item_index(15)
+		popup.set_item_checked(se_idx, Config.get_suppress_everyone())
 
 func _on_guilds_updated() -> void:
 	_refresh_active_user()

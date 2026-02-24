@@ -294,6 +294,7 @@ func get_error_reporting_enabled() -> bool:
 func set_error_reporting_enabled(value: bool) -> void:
 	_config.set_value("error_reporting", "enabled", value)
 	_save()
+	AppState.config_changed.emit("error_reporting", "enabled")
 
 func has_error_reporting_preference() -> bool:
 	return _config.has_section_key("error_reporting", "consent_shown")
@@ -361,6 +362,7 @@ func get_idle_timeout() -> int:
 func set_idle_timeout(seconds: int) -> void:
 	_config.set_value("idle", "timeout", seconds)
 	_save()
+	AppState.config_changed.emit("idle", "timeout")
 
 ## Sound preferences
 
@@ -370,6 +372,7 @@ func get_sfx_volume() -> float:
 func set_sfx_volume(vol: float) -> void:
 	_config.set_value("sounds", "volume", clampf(vol, 0.0, 1.0))
 	_save()
+	AppState.config_changed.emit("sounds", "volume")
 
 func is_sound_enabled(sound_name: String) -> bool:
 	# message_sent defaults to off, everything else defaults to on
@@ -379,6 +382,7 @@ func is_sound_enabled(sound_name: String) -> bool:
 func set_sound_enabled(sound_name: String, enabled: bool) -> void:
 	_config.set_value("sounds", sound_name, enabled)
 	_save()
+	AppState.config_changed.emit("sounds", sound_name)
 
 ## Notification preferences
 
@@ -388,6 +392,7 @@ func get_suppress_everyone() -> bool:
 func set_suppress_everyone(value: bool) -> void:
 	_config.set_value("notifications", "suppress_everyone", value)
 	_save()
+	AppState.config_changed.emit("notifications", "suppress_everyone")
 
 func is_server_muted(guild_id: String) -> bool:
 	return _config.get_value("muted_servers", guild_id, false)
@@ -399,6 +404,7 @@ func set_server_muted(guild_id: String, muted: bool) -> void:
 		# Remove the key entirely when unmuting
 		_config.set_value("muted_servers", guild_id, null)
 	_save()
+	AppState.config_changed.emit("muted_servers", guild_id)
 
 ## Recently used emoji
 
@@ -411,6 +417,7 @@ func get_emoji_skin_tone() -> int:
 func set_emoji_skin_tone(tone: int) -> void:
 	_config.set_value("emoji", "skin_tone", clampi(tone, 0, 5))
 	_save()
+	AppState.config_changed.emit("emoji", "skin_tone")
 
 func add_recent_emoji(emoji_name: String) -> void:
 	var recent: Array = get_recent_emoji()
@@ -434,6 +441,7 @@ func get_reduced_motion() -> bool:
 func set_reduced_motion(enabled: bool) -> void:
 	_config.set_value("accessibility", "reduced_motion", enabled)
 	_save()
+	AppState.config_changed.emit("accessibility", "reduced_motion")
 
 func get_ui_scale() -> float:
 	return _config.get_value("accessibility", "ui_scale", 0.0)
@@ -444,6 +452,7 @@ func _set_ui_scale(scale: float) -> void:
 	else:
 		_config.set_value("accessibility", "ui_scale", clampf(scale, 0.5, 3.0))
 	_save()
+	AppState.config_changed.emit("accessibility", "ui_scale")
 
 ## Update preferences
 
@@ -453,6 +462,7 @@ func get_auto_update_check() -> bool:
 func _set_auto_update_check(enabled: bool) -> void:
 	_config.set_value("updates", "auto_check", enabled)
 	_save()
+	AppState.config_changed.emit("updates", "auto_check")
 
 func get_skipped_version() -> String:
 	return _config.get_value("updates", "skipped_version", "")

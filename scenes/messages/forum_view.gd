@@ -28,6 +28,7 @@ func _ready() -> void:
 	_build_ui()
 
 	AppState.forum_posts_updated.connect(_on_forum_posts_updated)
+	AppState.channels_updated.connect(_on_channels_updated)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	_apply_layout(AppState.current_layout_mode)
 
@@ -281,6 +282,21 @@ func _on_context_menu_pressed(id: int) -> void:
 			AppState.open_thread(msg_id)
 		1: # Delete Post
 			Client.remove_message(msg_id)
+
+func _on_channels_updated(guild_id: String) -> void:
+	if _channel_id.is_empty():
+		return
+	# Check if this forum channel's guild matches
+	var ch_guild: String = Client._channel_to_guild.get(_channel_id, "")
+	if ch_guild != guild_id:
+		return
+	# Update channel name if it changed
+	var ch: Dictionary = Client._channel_cache.get(_channel_id, {})
+	if not ch.is_empty():
+		var new_name: String = ch.get("name", _channel_name)
+		if new_name != _channel_name:
+			_channel_name = new_name
+			_forum_title.text = "# %s" % new_name
 
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	_apply_layout(mode)

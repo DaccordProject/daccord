@@ -74,7 +74,6 @@ signal speaking_changed(user_id: String, is_speaking: bool)
 signal profile_card_requested(user_id: String, position: Vector2)
 signal member_list_toggled(is_visible: bool)
 signal channel_panel_toggled(is_visible: bool)
-signal orientation_changed(is_landscape: bool)
 signal search_toggled(is_open: bool)
 @warning_ignore("unused_signal")
 signal server_removed(guild_id: String)
@@ -141,6 +140,10 @@ signal update_download_failed(error: String)
 @warning_ignore("unused_signal")
 signal reauth_needed(server_index: int, base_url: String)
 
+# Config setting changed (section, key identify what changed)
+@warning_ignore("unused_signal")
+signal config_changed(section: String, key: String)
+
 enum LayoutMode { COMPACT, MEDIUM, FULL }
 
 const COMPACT_BREAKPOINT: float = 500.0
@@ -156,7 +159,6 @@ var sidebar_drawer_open: bool = false
 var member_list_visible: bool = true
 var channel_panel_visible: bool = true
 var search_open: bool = false
-var is_landscape: bool = false
 var voice_channel_id: String = ""
 var voice_guild_id: String = ""
 var is_voice_muted: bool = false
@@ -212,7 +214,7 @@ func edit_message(message_id: String, new_content: String) -> void:
 func delete_message(message_id: String) -> void:
 	message_deleted.emit(message_id)
 
-func update_layout_mode(viewport_width: float, viewport_height: float = 0.0) -> void:
+func update_layout_mode(viewport_width: float, _viewport_height: float = 0.0) -> void:
 	var new_mode: LayoutMode
 	if viewport_width < COMPACT_BREAKPOINT:
 		new_mode = LayoutMode.COMPACT
@@ -223,13 +225,6 @@ func update_layout_mode(viewport_width: float, viewport_height: float = 0.0) -> 
 	if new_mode != current_layout_mode:
 		current_layout_mode = new_mode
 		layout_mode_changed.emit(new_mode)
-
-	# Landscape detection
-	if viewport_height > 0.0:
-		var new_landscape: bool = viewport_width / viewport_height > 1.5
-		if new_landscape != is_landscape:
-			is_landscape = new_landscape
-			orientation_changed.emit(new_landscape)
 
 func toggle_sidebar_drawer() -> void:
 	sidebar_drawer_open = not sidebar_drawer_open
