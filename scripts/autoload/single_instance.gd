@@ -35,8 +35,7 @@ func _is_process_alive(pid: int) -> bool:
 		if output.size() > 0:
 			return str(output[0]).contains(str(pid))
 		return false
-	else:
-		return OS.execute("kill", PackedStringArray(["-0", str(pid)])) == 0
+	return OS.execute("kill", PackedStringArray(["-0", str(pid)])) == 0
 
 func _write_lock() -> void:
 	var file := FileAccess.open(LOCK_FILE, FileAccess.WRITE)

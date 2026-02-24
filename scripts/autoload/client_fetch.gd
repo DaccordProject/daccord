@@ -533,8 +533,11 @@ func refresh_current_user(conn_index: int) -> void:
 		AppState.user_updated.emit(user.id)
 
 func resync_voice_states(guild_id: String) -> void:
-	for ch_id in _c._voice_state_cache.keys():
-		if _c._channel_to_guild.get(ch_id, "") == guild_id:
+	for ch_id in _c._channel_cache:
+		if _c._channel_to_guild.get(ch_id, "") != guild_id:
+			continue
+		if _c._channel_cache[ch_id].get("type", -1) \
+				== ClientModels.ChannelType.VOICE:
 			fetch_voice_states(ch_id)
 
 func _fetch_dm_previews() -> void:
