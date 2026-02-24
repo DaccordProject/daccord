@@ -89,7 +89,7 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 - **accordserver** -- Full REST API with CRUD endpoints, play trigger, audio file storage, gateway events, and permission checks. Database table `soundboard_sounds` stores metadata (id, space_id, name, audio_path, audio_content_type, audio_size, volume, creator_id, timestamps)
 - **AccordKit** -- `AccordSound` model, `SoundboardApi` REST class (list/fetch/create/update/delete/play), gateway event handling for `soundboard.*` events, `AccordCDN.sound()` URL helper, permission constants (`MANAGE_SOUNDBOARD`, `USE_SOUNDBOARD`)
 - **daccord client** -- Soundboard management dialog (upload, rename, volume, delete, search/filter), sound row component, AppState signals (`soundboard_updated`, `soundboard_played`), Client/ClientAdmin/ClientGateway/ClientModels integration, banner menu entry for users with soundboard permissions
-- **AccordStream** -- Provides microphone capture and WebRTC peer connections. Audio file playback for soundboard is handled client-side by `SoundManager`, not via AccordStream
+- **LiveKit** -- Provides microphone capture and WebRTC peer connections. Audio file playback for soundboard is handled client-side by `SoundManager`, not via LiveKit
 - **Voice join/leave UI** -- Fully implemented (see `voice_channels.md`). Users can join/leave voice channels and the soundboard panel appears in the voice bar
 
 ### Server API (accordserver -- implemented)
@@ -143,11 +143,11 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 4. **AccordClient**: Expose `soundboard: SoundboardApi` property, add `soundboard_create`, `soundboard_update`, `soundboard_delete`, `soundboard_play` signals
 5. **CDN helper**: Add `AccordCDN.sound()` URL builder for audio file URLs
 
-### Required AccordStream Work
+### Required LiveKit Work
 
 1. **Audio file decoding** -- Load and decode audio files (OGG, MP3, WAV)
 2. **Audio mixing** -- Mix decoded audio with microphone input into the outgoing WebRTC stream, OR play audio locally and send via a separate audio track
-3. **Alternative**: If server-side mixing is used, AccordStream only needs to play received audio (which it may already handle via `track_received` on `AccordPeerConnection`)
+3. **Alternative**: If server-side mixing is used, LiveKit only needs to play received audio (which it may already handle via `track_received` on `AccordPeerConnection`)
 
 ### Required Client Work
 
@@ -164,7 +164,7 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 | Approach | Pros | Cons |
 |----------|------|------|
 | **Server-side mixing** | Consistent playback for all participants, no client download needed, lower client complexity | Requires SFU changes, higher server CPU usage, latency |
-| **Client-side mixing** | Simpler server implementation, each client controls its own volume | Requires audio download, playback timing may differ across clients, AccordStream needs audio file playback |
+| **Client-side mixing** | Simpler server implementation, each client controls its own volume | Requires audio download, playback timing may differ across clients, LiveKit needs audio file playback |
 
 ## Implementation Status
 

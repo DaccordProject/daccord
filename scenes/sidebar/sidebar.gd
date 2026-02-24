@@ -20,6 +20,7 @@ func _ready() -> void:
 	channel_list.channel_selected.connect(_on_channel_selected)
 	dm_list.dm_selected.connect(_on_dm_selected_channel)
 	AppState.guilds_updated.connect(_on_guilds_updated)
+	AppState.server_removed.connect(_on_server_removed)
 	_startup_timer = Timer.new()
 	_startup_timer.wait_time = 5.0
 	_startup_timer.one_shot = true
@@ -55,6 +56,13 @@ func _on_guilds_updated() -> void:
 func _on_startup_timeout() -> void:
 	# Saved guild never appeared -- accept current selection
 	_startup_selection_done = true
+
+func _on_server_removed(guild_id: String) -> void:
+	if guild_bar.active_guild_id != guild_id:
+		return
+	# Active server was removed -- select a fallback guild
+	if Client.guilds.size() > 0:
+		guild_bar._on_guild_pressed(Client.guilds[0]["id"])
 
 func _on_guild_selected(guild_id: String) -> void:
 	channel_list.visible = true

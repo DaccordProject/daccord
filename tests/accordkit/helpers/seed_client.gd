@@ -1,13 +1,17 @@
 class_name SeedClient extends RefCounted
 
-const SEED_URL := "http://127.0.0.1:39099/test/seed"
+const _DEFAULT_SEED_URL := "http://127.0.0.1:39099/test/seed"
 
-static func seed(parent: Node) -> Dictionary:
+static func seed(parent: Node, base_url: String = "") -> Dictionary:
+	var seed_url: String = _DEFAULT_SEED_URL
+	if not base_url.is_empty():
+		seed_url = base_url + "/test/seed"
+
 	var http := HTTPRequest.new()
 	parent.add_child(http)
 
 	var headers := PackedStringArray(["Content-Type: application/json"])
-	var error := http.request(SEED_URL, headers, HTTPClient.METHOD_POST, "{}")
+	var error := http.request(seed_url, headers, HTTPClient.METHOD_POST, "{}")
 	if error != OK:
 		http.queue_free()
 		push_error("SeedClient: request failed with error %d" % error)

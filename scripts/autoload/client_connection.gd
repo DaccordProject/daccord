@@ -97,10 +97,11 @@ func connect_server(
 			"[Client] Auth failed for ", base_url,
 			": ", err_msg
 		)
-		# Emit reauth_needed for token-only connections
-		var uname: String = cfg.get("username", "")
-		var pwd: String = cfg.get("password", "")
-		if uname.is_empty() or pwd.is_empty():
+		# Prompt re-auth for auth failures (401/403) regardless
+		# of whether stored credentials exist -- they may be stale.
+		# For non-auth errors (server down, etc.) only show retry.
+		var is_auth_error: bool = me_result.status_code in [401, 403]
+		if is_auth_error:
 			AppState.reauth_needed.emit(index, base_url)
 		conn["status"] = "error"
 		AppState.server_connection_failed.emit(old_guild_id, err_msg)
@@ -291,6 +292,9 @@ func disconnect_server(guild_id: String) -> void:
 	if AppState.voice_guild_id == guild_id:
 		AppState.leave_voice()
 	var conn = _c._connections[idx]
+	# Null the slot first so gateway disconnect handlers see null and
+	# bail out instead of triggering reconnection / banner signals.
+	_c._connections[idx] = null
 	if conn != null and conn["client"] != null:
 		conn["client"].logout()
 		conn["client"].queue_free()
@@ -313,7 +317,6 @@ func disconnect_server(guild_id: String) -> void:
 				_c._message_id_index.erase(msg.get("id", ""))
 			_c._message_cache.erase(ch_id)
 	_c._guild_to_conn.erase(guild_id)
-	_c._connections[idx] = null
 	Config.remove_server(idx)
 	_c._guild_to_conn.clear()
 	for i in _c._connections.size():

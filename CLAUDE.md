@@ -26,7 +26,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
 
 **Addons:**
 - `accordkit` -- GDScript client library for the accordserver API. Developed in-tree under `addons/accordkit/` (no separate repo). Provides `AccordClient` (REST + WebSocket gateway), typed models (`AccordUser`, `AccordSpace`, `AccordChannel`, `AccordMessage`, `AccordInvite`, etc.), REST endpoints, and gateway event handling. Snowflake IDs are strings throughout. REST methods return `RestResult` via await. Nullable fields use `var field = null` (no type hint).
-- `accordstream` -- GDExtension (native binary) for audio/voice streaming.
+- `godot-livekit` -- GDExtension wrapping the LiveKit C++ SDK for room-based voice/video. Provides `LiveKitRoom`, `LiveKitVideoStream`, `LiveKitAudioStream`, and related classes. Wrapped by `LiveKitAdapter` (`scripts/autoload/livekit_adapter.gd`) which bridges the room-based API to the signal surface `client.gd` expects.
 - `gut` -- GUT (Godot Unit Test) framework for testing.
 
 **Server connection flow:** On startup, `Client._ready()` checks `Config.has_servers()`. If servers exist, it calls `connect_server()` for each. Each connection authenticates with a Bearer token, fetches the current user via `GET /users/@me`, lists the user's spaces (guilds) via `GET /users/@me/spaces`, matches the configured guild name, connects the WebSocket gateway, and enters `LIVE` mode. If no servers are configured, the client stays in `CONNECTING` mode (UI is empty until a server is added).
@@ -81,9 +81,9 @@ GDScript's `:=` operator infers the type from the right-hand side. This **fails 
 ```bash
 ./test.sh              # All tests (starts accordserver automatically)
 ./test.sh unit         # Unit tests only (no server needed)
-./test.sh integration  # AccordKit + AccordStream integration/e2e tests
+./test.sh integration  # AccordKit + LiveKit integration/e2e tests
 ./test.sh accordkit    # AccordKit tests only
-./test.sh accordstream # AccordStream tests only (no server needed)
+./test.sh livekit # LiveKit tests only (no server needed)
 ```
 
 Server logs are written to `test_server.log` -- tail them with `tail -f test_server.log` while tests run.
@@ -95,7 +95,7 @@ Server logs are written to `test_server.log` -- tail them with `tail -f test_ser
 - `tests/accordkit/gateway/` -- WebSocket gateway connect and event tests.
 - `tests/accordkit/e2e/` -- Full lifecycle test (login, API calls, gateway events, logout).
 - `tests/accordkit/helpers/` -- `AccordTestBase` (base class for server-dependent tests) and `SeedClient` (calls `POST /test/seed` to populate test data).
-- `tests/accordstream/integration/` -- WebRTC peer connection, media track, and voice session tests. No server needed.
+- `tests/livekit/unit/` -- Unit tests for LiveKitAdapter (state machine, mute/deafen, signal surface). No server needed.
 
 **Server-dependent tests** (accordkit integration/gateway/e2e) require accordserver running on `127.0.0.1:39099` with `ACCORD_TEST_MODE=true`. The `test.sh` script handles this automatically. The test base class (`AccordTestBase`) calls `/test/seed` in `before_all()` to create a user, bot, space, and channels for each test file.
 

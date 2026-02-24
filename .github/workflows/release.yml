@@ -112,44 +112,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
 
-      - name: Install AccordStream addon (latest release)
+      - name: Install godot-livekit addon (latest release)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Downloading AccordStream addon (latest release)..."
+          echo "Downloading godot-livekit addon (latest release)..."
           TMPDIR=$(mktemp -d)
-          gh release download --repo DaccordProject/accordstream \
-            --pattern "accordstream-addon.zip" --dir "$TMPDIR"
-          unzip -o "$TMPDIR/accordstream-addon.zip" -d "$TMPDIR/extracted"
-          if [ ! -d "$TMPDIR/extracted/addons/accordstream" ]; then
-            echo "::error::AccordStream addon not found in release asset"
+          gh release download --repo NodotProject/godot-livekit \
+            --pattern "godot-livekit-addon.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-addon.zip" -d "$TMPDIR/extracted"
+          if [ ! -d "$TMPDIR/extracted/addons/godot-livekit" ]; then
+            echo "::error::godot-livekit addon not found in release asset"
             exit 1
           fi
-          rm -rf addons/accordstream
-          cp -R "$TMPDIR/extracted/addons/accordstream" addons/accordstream
+          rm -rf addons/godot-livekit
+          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
           rm -rf "$TMPDIR"
-          echo "AccordStream addon installed from latest release."
+          echo "godot-livekit addon installed from latest release."
 
-      - name: Remove AccordStream if platform binary missing
+      - name: Remove godot-livekit if platform binary missing
         run: |
           # Godot crashes on macOS (NSException) if a GDExtension references
           # a missing dylib. Safest fix: remove the extension entirely.
-          GDEXT="addons/accordstream/accordstream.gdextension"
+          GDEXT="addons/godot-livekit/godot-livekit.gdextension"
           if [ ! -f "$GDEXT" ]; then
-            echo "No AccordStream GDExtension found, skipping."
+            echo "No godot-livekit GDExtension found, skipping."
             exit 0
           fi
           case "${{ matrix.platform }}" in
-            linux)      LIB="addons/accordstream/bin/libaccordstream.so" ;;
-            linux-arm64) LIB="addons/accordstream/bin/libaccordstream.so" ;;
-            windows)    LIB="addons/accordstream/bin/libaccordstream.dll" ;;
-            macos)      LIB="addons/accordstream/bin/libaccordstream.dylib" ;;
+            linux)      LIB="addons/godot-livekit/bin/libgodot-livekit.linux.template_release.x86_64" ;;
+            linux-arm64) LIB="addons/godot-livekit/bin/libgodot-livekit.linux.template_release.x86_64" ;;
+            windows)    LIB="addons/godot-livekit/bin/libgodot-livekit.windows.template_release.x86_64.dll" ;;
+            macos)      LIB="addons/godot-livekit/bin/libgodot-livekit.macos.template_release.universal.dylib" ;;
           esac
           if [ ! -f "$LIB" ]; then
-            echo "::warning::AccordStream binary $LIB not found — removing GDExtension to prevent crash"
+            echo "::warning::godot-livekit binary $LIB not found — removing GDExtension to prevent crash"
             rm -f "$GDEXT" "$GDEXT.uid"
           else
-            echo "AccordStream binary found: $LIB"
+            echo "godot-livekit binary found: $LIB"
           fi
 
       - name: Set up Godot

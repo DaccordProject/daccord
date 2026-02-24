@@ -41,12 +41,6 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 text = "✕"
 
-[node name="TabBar" type="TabBar" parent="CenterContainer/Panel/VBox"]
-layout_mode = 2
-tab_count = 2
-tab_0/title = "Screens"
-tab_1/title = "Windows"
-
 [node name="Scroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 size_flags_vertical = 3

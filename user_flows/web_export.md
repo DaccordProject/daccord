@@ -2,7 +2,7 @@
 
 ## Overview
 
-This flow covers exporting daccord to the web (Godot Web / WASM) and the runtime differences that impact voice and video. Today, daccord’s voice/video pipeline depends on the AccordStream GDExtension (`AccordVoiceSession`, device enumeration, track creation), which is unavailable in web exports; a web build needs a separate “voice session” backend implemented via browser Web APIs (WebRTC + `getUserMedia`) instead.
+This flow covers exporting daccord to the web (Godot Web / WASM) and the runtime differences that impact voice and video. Today, daccord’s voice/video pipeline depends on the LiveKit GDExtension (`AccordVoiceSession`, device enumeration, track creation), which is unavailable in web exports; a web build needs a separate “voice session” backend implemented via browser Web APIs (WebRTC + `getUserMedia`) instead.
 
 ## User Steps
 
@@ -64,14 +64,14 @@ gateway voice.signal event          |                              |
 |------|------|
 | `export_presets.cfg:1` | Export presets. No Web preset is defined today (only Linux/Windows/macOS/ARM). |
 | `.github/workflows/release.yml:209` | CI exports release presets via `godot --headless --export-release`; no web artifact is built. |
-| `scripts/autoload/client.gd:129` | Voice session wiring. Loads `AccordStream` singleton and instantiates `AccordVoiceSession` if available (lines 162-205). |
+| `scripts/autoload/client.gd:129` | Voice session wiring. Loads `LiveKit` singleton and instantiates `AccordVoiceSession` if available (lines 162-205). |
 | `scripts/autoload/client_voice.gd:26` | Voice join pipeline: calls REST join, validates backend info, then `_connect_voice_backend()` (lines 26-115). |
 | `scripts/autoload/client_voice.gd:120` | Backend connect currently no-ops if `_voice_session` is null (lines 120-123). |
 | `scripts/autoload/client_voice.gd:227` | Video/screen-share toggles require `_accord_stream` for camera/screen tracks; errors if unavailable (lines 227-285). |
 | `scripts/autoload/client_gateway_events.gd:89` | Gateway voice event handling and forwarding of `voice.signal` to `_voice_session` (lines 89-170). |
 | `addons/accordkit/gateway/gateway_socket.gd:449` | `send_voice_signal()` sends `VOICE_SIGNAL` op with `{type, payload}` for signaling. |
-| `scenes/sidebar/screen_picker_dialog.gd:5` | Screen/window picker depends on `AccordStream.get_screens()` / `get_windows()` (web builds need a different UI or no screen share). |
-| `scenes/user/user_settings.gd:190` | “Voice & Video” settings page enumerates devices via AccordStream when available (lines 190+). |
+| `scenes/sidebar/screen_picker_dialog.gd:5` | Screen/window picker depends on `LiveKit.get_screens()` / `get_windows()` (web builds need a different UI or no screen share). |
+| `scenes/user/user_settings.gd:190` | “Voice & Video” settings page enumerates devices via LiveKit when available (lines 190+). |
 
 ## Implementation Details
 
@@ -82,7 +82,7 @@ gateway voice.signal event          |                              |
 
 ### Runtime capability detection (partially implemented)
 
-- `Client._ready()` checks for the AccordStream singleton (line 162) and the `AccordVoiceSession` class (line 164). If missing, it warns “voice disabled” (lines 202-205).
+- `Client._ready()` checks for the LiveKit singleton (line 162) and the `AccordVoiceSession` class (line 164). If missing, it warns “voice disabled” (lines 202-205).
 - `ClientVoice.toggle_video()` and `start_screen_share()` hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274).
 
 ### Voice join behavior when the voice session is missing (implemented but incorrect for web)
@@ -107,8 +107,8 @@ The web implementation would use browser APIs via `JavaScriptBridge` and would l
 
 - [ ] Web export preset exists and produces a working browser build
 - [ ] Web export hosted build can connect to a server and do text chat end-to-end
-- [ ] Voice on web uses browser WebRTC APIs (mic) instead of AccordStream
-- [ ] Video on web uses browser WebRTC APIs (camera) instead of AccordStream
+- [ ] Voice on web uses browser WebRTC APIs (mic) instead of LiveKit
+- [ ] Video on web uses browser WebRTC APIs (camera) instead of LiveKit
 - [ ] Screen share on web (optional; can be deferred)
 - [x] Voice signaling transport exists via gateway `VOICE_SIGNAL` (`send_voice_signal`, `on_voice_signal`)
 - [x] UI state/signals for voice + video exist in `AppState` (voice_* / video_enabled_changed)
@@ -119,6 +119,6 @@ The web implementation would use browser APIs via `JavaScriptBridge` and would l
 |-----|----------|-------|
 | No Web export preset | Medium | Add a Web preset to `export_presets.cfg` and (optionally) CI packaging. |
 | Voice “connects” in UI even when `_voice_session` is missing | High | `_connect_voice_backend()` returns early (client_voice.gd lines 120-123) but `AppState.join_voice()` still fires (line 113). Web builds need to block join or provide a web voice session. |
-| Voice/video depend on AccordStream APIs | High | Camera/screen tracks hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274); settings UI assumes AccordStream for full device enumeration (user_settings.gd line 192). |
+| Voice/video depend on LiveKit APIs | High | Camera/screen tracks hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274); settings UI assumes LiveKit for full device enumeration (user_settings.gd line 192). |
 | `voice.signal` forwarding only targets `_voice_session` | Medium | `ClientGatewayEvents.on_voice_signal()` forwards to meta `_voice_session` only (client_gateway_events.gd lines 165-170). A web session needs the same hook. |
-| Screen/window picker is desktop-only | Low | `screen_picker_dialog.gd` assumes AccordStream screen/window enumeration (lines 31-59). Basic web voice/video can ship without screen sharing initially. |
+| Screen/window picker is desktop-only | Low | `screen_picker_dialog.gd` assumes LiveKit screen/window enumeration (lines 31-59). Basic web voice/video can ship without screen sharing initially. |

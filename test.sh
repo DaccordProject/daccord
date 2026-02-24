@@ -9,9 +9,14 @@
 # Usage:
 #   ./test.sh              Run all tests
 #   ./test.sh unit         Run only unit tests (no server needed)
-#   ./test.sh integration  Run AccordKit + AccordStream integration/e2e tests
+#   ./test.sh integration  Run AccordKit integration/e2e tests
 #   ./test.sh accordkit    Run only AccordKit tests
-#   ./test.sh accordstream Run only AccordStream tests
+#   ./test.sh livekit      Run only LiveKit adapter tests (no server needed)
+#
+# Environment variables:
+#   ACCORD_TEST_URL        Run against a remote server instead of starting one
+#                          locally. The server must have ACCORD_TEST_MODE=true.
+#                          Example: ACCORD_TEST_URL=http://192.168.1.144:39099 ./test.sh accordkit
 #
 # Server logs are written to: test_server.log
 # Tail them with: tail -f test_server.log
@@ -61,23 +66,23 @@ resolve_dirs() {
             ;;
         integration)
             NEEDS_SERVER=true
-            GUT_DIRS="res://tests/accordkit,res://tests/accordstream"
+            GUT_DIRS="res://tests/accordkit"
             ;;
         accordkit)
             NEEDS_SERVER=true
             GUT_DIRS="res://tests/accordkit"
             ;;
-        accordstream)
+        livekit)
             NEEDS_SERVER=false
-            GUT_DIRS="res://tests/accordstream"
+            GUT_DIRS="res://tests/livekit"
             ;;
         all)
             NEEDS_SERVER=true
-            GUT_DIRS="res://tests/unit,res://tests/accordkit,res://tests/accordstream"
+            GUT_DIRS="res://tests/unit,res://tests/accordkit,res://tests/livekit"
             ;;
         *)
             err "Unknown suite: $1"
-            echo "Usage: $0 [unit|integration|accordkit|accordstream|all]"
+            echo "Usage: $0 [unit|integration|accordkit|livekit|all]"
             exit 1
             ;;
     esac
@@ -224,8 +229,17 @@ main() {
     setup_godot_user_dir
 
     if [ "$NEEDS_SERVER" = true ]; then
+        if [ -n "${ACCORD_TEST_URL:-}" ]; then
+            info "Using remote server: $ACCORD_TEST_URL"
+            export ACCORD_TEST_URL
+            if curl -sf "${ACCORD_TEST_URL}/api/v1/gateway" > /dev/null 2>&1; then
+                ok "Remote server is reachable"
+            else
+                err "Remote server at $ACCORD_TEST_URL is not reachable"
+                exit 1
+            fi
         # Check if server is already running
-        if curl -sf http://127.0.0.1:39099/api/v1/gateway > /dev/null 2>&1; then
+        elif curl -sf http://127.0.0.1:39099/api/v1/gateway > /dev/null 2>&1; then
             warn "Server already running on :39099 -- using existing instance"
             info "Server logs will be wherever that instance logs to"
         else

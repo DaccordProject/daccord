@@ -1,7 +1,6 @@
 extends PanelContainer
 
-var _track
-var _texture: ImageTexture
+var _stream  # LiveKitVideoStream
 var _is_live := false
 var _user_id: String = ""
 var _speaking_style: StyleBoxFlat
@@ -15,9 +14,9 @@ func _ready() -> void:
 	AppState.speaking_changed.connect(_on_speaking_changed)
 
 func setup_local(
-	track, user: Dictionary,
+	stream, user: Dictionary,
 ) -> void:
-	_track = track
+	_stream = stream
 	_is_live = true
 	_user_id = user.get("id", "")
 	name_label.text = user.get(
@@ -26,15 +25,12 @@ func setup_local(
 	mute_label.visible = false
 	initials_label.visible = false
 	video_rect.visible = true
-	# Attach video sink if method exists
-	if _track.has_method("attach_video_sink"):
-		_track.attach_video_sink()
 
 func setup_placeholder(
 	user: Dictionary, voice_state: Dictionary,
 ) -> void:
 	_is_live = false
-	_track = null
+	_stream = null
 	_user_id = user.get("id", "")
 	var dn: String = user.get("display_name", "?")
 	name_label.text = dn
@@ -70,23 +66,15 @@ func _on_speaking_changed(user_id: String, is_speaking: bool) -> void:
 		remove_theme_stylebox_override("panel")
 
 func _process(_delta: float) -> void:
-	if not _is_live or _track == null:
+	if not _is_live or _stream == null:
 		return
-	if not _track.has_video_frame():
-		return
-	var frame: Image = _track.get_video_frame()
-	if frame == null:
-		return
-	if _texture == null:
-		_texture = ImageTexture.create_from_image(frame)
-		video_rect.texture = _texture
-	else:
-		_texture.update(frame)
+	_stream.poll()
+	var tex: ImageTexture = _stream.get_texture()
+	if tex != null:
+		video_rect.texture = tex
 
 func _exit_tree() -> void:
-	if _track != null and _track.has_method(
-		"detach_video_sink"
-	):
-		_track.detach_video_sink()
-	_track = null
+	if _stream != null and _stream.has_method("close"):
+		_stream.close()
+	_stream = null
 	_is_live = false

@@ -4,7 +4,7 @@ Last touched: 2026-02-23
 
 ## Overview
 
-This flow documents how daccord builds release artifacts via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.1`) is pushed, a CI pipeline validates the tag against `project.godot`, installs all required addons (GUT, Sentry SDK, AccordStream), exports the Godot project for enabled platforms, optionally injects a production Sentry DSN, packages each artifact (with `.desktop` file for Linux), optionally signs/notarizes (when secrets are configured), builds a Windows installer via Inno Setup, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`. Linux x86_64, ARM64, Windows, and macOS are enabled. All platforms work without AccordStream because all GDExtension type references have been replaced with dynamic lookups that are parse-safe when the extension is unavailable. The workflow removes the `.gdextension` file when the platform binary is missing, preventing crashes (including the macOS `NSException` from loading a nil dylib URL).
+This flow documents how daccord builds release artifacts via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.1`) is pushed, a CI pipeline validates the tag against `project.godot`, installs all required addons (GUT, Sentry SDK, LiveKit), exports the Godot project for enabled platforms, optionally injects a production Sentry DSN, packages each artifact (with `.desktop` file for Linux), optionally signs/notarizes (when secrets are configured), builds a Windows installer via Inno Setup, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`. Linux x86_64, ARM64, Windows, and macOS are enabled. All platforms work without LiveKit because all GDExtension type references have been replaced with dynamic lookups that are parse-safe when the extension is unavailable. The workflow removes the `.gdextension` file when the platform binary is missing, preventing crashes (including the macOS `NSException` from loading a nil dylib URL).
 
 ## User Steps
 
@@ -24,8 +24,8 @@ This flow documents how daccord builds release artifacts via GitHub Actions and 
 9. Audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`) are installed on Linux runners (line 76).
 10. GUT 9.5.0 addon is installed with caching (lines 87-100). Uses `curl` instead of `wget` for macOS compatibility.
 11. Sentry SDK 1.3.2 addon is installed with caching (lines 102-118). Downloaded from `getsentry/sentry-godot` releases.
-12. The AccordStream addon is downloaded from the latest `accordstream` GitHub release (`accordstream-addon.zip`) and installed into `addons/accordstream`.
-13. A safety step checks whether the AccordStream native binary exists for the current platform (lines 138-158). If missing, the `.gdextension` file is removed to prevent Godot from crashing (macOS throws a fatal NSException when loading a missing dylib).
+12. The LiveKit addon is downloaded from the latest `livekit` GitHub release (`livekit-addon.zip`) and installed into `addons/livekit`.
+13. A safety step checks whether the LiveKit native binary exists for the current platform (lines 138-158). If missing, the `.gdextension` file is removed to prevent Godot from crashing (macOS throws a fatal NSException when loading a missing dylib).
 14. Godot 4.5 is installed via `chickensoft-games/setup-godot@v2` with export templates included.
 15. Godot import cache is restored/saved per platform (lines 167-173).
 16. The project is imported headlessly (`godot --headless --import .`).
@@ -80,11 +80,11 @@ build job (matrix: linux, linux-arm64, windows, macos) — runs in parallel:
   -> ln -sf accordkit addon into addons/
   -> Cache + Install GUT 9.5.0 (curl for macOS compat)
   -> Cache + Install Sentry SDK 1.3.2 (gh release download from getsentry/sentry-godot)
-  -> Install AccordStream addon (latest release)
-       gh release download from DaccordProject/accordstream
-       extracts addons/accordstream into workspace
-  -> Remove AccordStream if platform binary missing
-       checks for libaccordstream.so/.dll/.dylib per platform
+  -> Install LiveKit addon (latest release)
+       gh release download from DaccordProject/livekit
+       extracts addons/livekit into workspace
+  -> Remove LiveKit if platform binary missing
+       checks for liblivekit.so/.dll/.dylib per platform
        removes .gdextension file if missing (prevents macOS NSException crash)
   -> chickensoft-games/setup-godot@v2 (Godot 4.5 + export templates)
   -> Cache Godot import (per-platform key)
@@ -141,7 +141,7 @@ release job (needs: [build, windows-installer]):
 
 | File | Role |
 |------|------|
-| `.github/workflows/release.yml` | Release CI pipeline. Installs GUT/Sentry/audio libs, validates version tag, downloads AccordStream binaries, removes missing GDExtensions, builds enabled platforms in parallel, clears missing custom templates, packages with .desktop files, optionally signs/notarizes, creates GitHub Release. |
+| `.github/workflows/release.yml` | Release CI pipeline. Installs GUT/Sentry/audio libs, validates version tag, downloads LiveKit binaries, removes missing GDExtensions, builds enabled platforms in parallel, clears missing custom templates, packages with .desktop files, optionally signs/notarizes, creates GitHub Release. |
 | `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests). Runs on push/PR to `master`. Three jobs: lint, unit tests, integration tests (with accordserver). |
 | `export_presets.cfg` | Godot export presets for Linux x86_64 (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3). Defines output paths, architectures, custom templates, and platform-specific options. |
 | `project.godot` | Project config. Declares version (`config/version="0.1.1"`, line 18), Sentry DSN (`sentry/config/dsn`, line 63), renderer (GL Compatibility), and autoloads. |
@@ -175,9 +175,9 @@ release job (needs: [build, windows-installer]):
 | `windows` | `Windows` | `daccord-windows-x86_64` | `exe` | `ubuntu-latest` | Active |
 | `macos` | `macOS` | `daccord-macos` | `zip` | `macos-latest` | Active |
 
-**How builds work without AccordStream:** All GDExtension type annotations (`AccordMediaTrack`, `AccordVoiceSession`) have been replaced with base types or untyped variants. The `AccordStream` singleton is resolved dynamically via `Engine.get_singleton()` at runtime, so scripts parse successfully even when the GDExtension is absent. Voice/video features are disabled gracefully (null guards). Test files referencing AccordStream types are excluded from export via `exclude_filter="tests/*"` in `export_presets.cfg`. On macOS, Godot throws a fatal `NSInvalidArgumentException` if a GDExtension references a missing `.dylib`, so the workflow removes the `.gdextension` file entirely when the platform binary is absent.
+**How builds work without LiveKit:** All GDExtension type annotations (`AccordMediaTrack`, `AccordVoiceSession`) have been replaced with base types or untyped variants. The `LiveKit` singleton is resolved dynamically via `Engine.get_singleton()` at runtime, so scripts parse successfully even when the GDExtension is absent. Voice/video features are disabled gracefully (null guards). Test files referencing LiveKit types are excluded from export via `exclude_filter="tests/*"` in `export_presets.cfg`. On macOS, Godot throws a fatal `NSInvalidArgumentException` if a GDExtension references a missing `.dylib`, so the workflow removes the `.gdextension` file entirely when the platform binary is absent.
 
-**Audio library installation** (lines 76-80): Linux runners install `libasound2-dev`, `libpulse-dev`, and `libopus-dev` needed by AccordStream. Conditional on `runner.os == 'Linux'` so it's skipped on macOS when re-enabled.
+**Audio library installation** (lines 76-80): Linux runners install `libasound2-dev`, `libpulse-dev`, and `libopus-dev` needed by LiveKit. Conditional on `runner.os == 'Linux'` so it's skipped on macOS when re-enabled.
 
 **Addon installation** (ported from CI pipeline):
 - **GUT** (lines 87-100): Cached by version. Downloaded via `curl -sL` (not `wget`, for macOS compatibility).
@@ -185,13 +185,13 @@ release job (needs: [build, windows-installer]):
 
 Both are required because `project.godot` lists them as enabled plugins (line 46: `enabled=PackedStringArray("res://addons/accordkit/plugin.cfg", "res://addons/gut/plugin.cfg")`).
 
-**AccordStream addon download** (lines 120-140): A `gh release download` step fetches the latest `accordstream-addon.zip` from the `DaccordProject/accordstream` repository and replaces `addons/accordstream` with the extracted addon so release builds use the released addon contents.
+**LiveKit addon download** (lines 120-140): A `gh release download` step fetches the latest `livekit-addon.zip` from the `DaccordProject/livekit` repository and replaces `addons/livekit` with the extracted addon so release builds use the released addon contents.
 
-**AccordStream safety removal** (lines 138-158): After the download step, a per-platform check determines whether the expected native library exists. If missing, the entire `.gdextension` file (and its `.uid`) is removed. This prevents Godot from attempting to load a non-existent library, which causes a fatal crash on macOS and compile errors on all platforms.
+**LiveKit safety removal** (lines 138-158): After the download step, a per-platform check determines whether the expected native library exists. If missing, the entire `.gdextension` file (and its `.uid`) is removed. This prevents Godot from attempting to load a non-existent library, which causes a fatal crash on macOS and compile errors on all platforms.
 
 **Version validation**: Strips the `v` prefix from the git tag and compares it against `config/version` in `project.godot`. If they differ, the step emits a `::error::` annotation and exits with code 1, failing the build before any export work begins.
 
-**Addon checkout**: The `accordkit` addon is checked out into `.accordkit_repo/` and symlinked into `addons/accordkit`. AccordStream is installed from the latest release asset instead of being checked out.
+**Addon checkout**: The `accordkit` addon is checked out into `.accordkit_repo/` and symlinked into `addons/accordkit`. LiveKit is installed from the latest release asset instead of being checked out.
 
 **Custom template fallback** (lines 187-200): Before export, a step scans `export_presets.cfg` for `custom_template/release` paths and checks if each referenced file exists. If a template is missing, the path is cleared via `sed -i.bak` (macOS-compatible) so Godot falls back to stock templates.
 
@@ -293,7 +293,7 @@ All presets reference custom export templates from `dist/templates/` for reduced
 The CI workflow runs on push/PR to `master` with three jobs:
 
 - **Lint job**: Installs `gdtoolkit` via pip, runs `gdlint scripts/ scenes/`. Also runs `gdradon` complexity analysis and flags functions with grades C-F.
-- **Unit test job** (needs lint): Checks out addons, installs audio libraries, installs GUT and Sentry SDK (with caching), sets up Godot (without templates), caches Godot imports, runs GUT unit tests from `tests/unit/`. Also runs AccordStream tests with `continue-on-error` (may crash without audio hardware). Outputs test summaries to GitHub Step Summary.
+- **Unit test job** (needs lint): Checks out addons, installs audio libraries, installs GUT and Sentry SDK (with caching), sets up Godot (without templates), caches Godot imports, runs GUT unit tests from `tests/unit/`. Also runs LiveKit tests with `continue-on-error` (may crash without audio hardware). Outputs test summaries to GitHub Step Summary.
 - **Integration test job** (needs lint): Checks out all repos including `accordserver`, installs Rust via `dtolnay/rust-toolchain@stable`, sets up `sccache` with fallback, caches Rust builds, builds accordserver, starts it with `ACCORD_TEST_MODE=true` and SQLite database, waits for `/health` readiness. Runs AccordKit unit tests, REST integration tests (required), and gateway/e2e tests (allowed to fail). Uploads server logs as artifact.
 
 ### Changelog Format (`CHANGELOG.md`)
@@ -351,11 +351,11 @@ Signing and notarization are conditional on GitHub secrets being configured. Wit
 - [x] Release workflow triggered by `v*` tag push
 - [x] Linux x86_64 and ARM64 builds active and passing
 - [x] First release `v0.1.0` published with changelog notes
-- [x] Accordkit addon checkout + symlink; AccordStream addon install from latest release
+- [x] Accordkit addon checkout + symlink; LiveKit addon install from latest release
 - [x] GUT addon installation with caching (required as enabled plugin)
 - [x] Sentry SDK installation with caching (required for error reporting autoload)
 - [x] Audio library installation for Linux runners
-- [x] AccordStream safety removal when platform binary missing
+- [x] LiveKit safety removal when platform binary missing
 - [x] Godot 4.5 setup with export templates
 - [x] Godot import caching (per-platform keys)
 - [x] Headless project import before export
@@ -379,17 +379,17 @@ Signing and notarization are conditional on GitHub secrets being configured. Wit
 - [x] Linux `.desktop` file and icon included in release artifacts
 - [x] `dist/icons/` and `dist/daccord.desktop` tracked in git
 - [x] ARM64 Linux build in matrix
-- [x] Windows build (AccordStream types resolved dynamically; voice/video disabled without `.dll`)
+- [x] Windows build (LiveKit types resolved dynamically; voice/video disabled without `.dll`)
 - [x] Windows installer via Inno Setup (`dist/installer.iss`, built on `windows-latest` runner)
 - [x] Windows installer code signing step (conditional on `WINDOWS_CERT_BASE64` secret, uses native `signtool`)
-- [x] macOS build (AccordStream `.gdextension` removed when `.dylib` missing; voice/video disabled gracefully)
+- [x] macOS build (LiveKit `.gdextension` removed when `.dylib` missing; voice/video disabled gracefully)
 - [ ] Custom export templates for Linux ARM64, Windows, and macOS (referenced in presets but not yet built — stock fallback used)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| macOS AccordStream `.dylib` missing | Low | AccordStream GDExtension only has a Linux `.so` binary. macOS builds proceed without voice/video — the `.gdextension` file is removed at build time. Voice features will activate automatically once a `.dylib` is published. |
+| macOS LiveKit `.dylib` missing | Low | LiveKit GDExtension only has a Linux `.so` binary. macOS builds proceed without voice/video — the `.gdextension` file is removed at build time. Voice features will activate automatically once a `.dylib` is published. |
 | Windows code signing not yet active | Medium | Workflow steps exist for both the exe (via `osslsigncode`) and the installer (via `signtool`) but require `WINDOWS_CERT_BASE64` and `WINDOWS_CERT_PASSWORD` secrets. Users will see SmartScreen/Defender warnings until a certificate is purchased and configured. |
 | macOS signing/notarization not yet active | Medium | Workflow steps exist but require Apple Developer account secrets (`APPLE_CERTIFICATE_BASE64`, `APPLE_ID`, etc.). Gatekeeper will block the app until secrets are configured. |
 | Missing ARM64, Windows, and macOS custom templates | Medium | `export_presets.cfg` references custom templates for all platforms but only Linux x86_64 exists (`dist/templates/godot.linuxbsd.template_release.x86_64`). The workflow auto-clears missing paths so Godot falls back to stock templates, inflating those binaries. See [Reducing Build Size](reducing_build_size.md). |

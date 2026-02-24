@@ -42,9 +42,12 @@ text = "cooldev"
 
 [node name="StatusIcon" type="ColorRect" parent="HBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(10, 10)
+custom_minimum_size = Vector2(14, 14)
 size_flags_vertical = 4
 color = Color(0.231, 0.647, 0.365, 1)
+mouse_filter = 0
+mouse_default_cursor_shape = 2
+tooltip_text = "Change status"
 
 [node name="VoiceIndicator" type="Label" parent="HBox"]
 visible = false

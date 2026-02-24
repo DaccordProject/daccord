@@ -2,7 +2,7 @@
   "dirs": [
     "res://tests/unit",
     "res://tests/accordkit",
-    "res://tests/accordstream"
+    "res://tests/livekit"
   ],
   "include_subdirs": true,
   "prefix": "test_",
