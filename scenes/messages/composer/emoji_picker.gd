@@ -24,6 +24,7 @@ func _ready() -> void:
 	_build_category_bar()
 	search_input.text_changed.connect(_on_search_changed)
 	search_input.placeholder_text = "Search emoji..."
+	AppState.emojis_updated.connect(_on_emojis_updated)
 	# Default to recently used if any exist
 	if Config.get_recent_emoji().size() > 0:
 		_is_recent_selected = true
@@ -205,6 +206,16 @@ func _add_custom_emoji_cell(emoji) -> void:
 		Config.add_recent_emoji(emoji_name)
 		emoji_picked.emit(custom_key)
 	)
+
+func _on_emojis_updated(guild_id: String) -> void:
+	if guild_id != AppState.current_guild_id:
+		return
+	# Invalidate custom emoji cache so next open fetches fresh data
+	_custom_emoji_cache.clear()
+	_custom_emojis.clear()
+	# If currently viewing custom category, refresh immediately
+	if _is_custom_selected:
+		_load_custom_category()
 
 func _on_search_changed(query: String) -> void:
 	_clear_grid()

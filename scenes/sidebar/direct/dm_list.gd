@@ -20,6 +20,7 @@ func _ready() -> void:
 	new_group_btn.pressed.connect(_on_new_group_pressed)
 	search.text_changed.connect(_on_search_text_changed)
 	AppState.dm_channels_updated.connect(_on_dm_channels_updated)
+	AppState.user_updated.connect(_on_user_updated)
 	_populate_dms()
 
 func _populate_dms() -> void:
@@ -49,6 +50,24 @@ func _set_active_dm(dm_id: String) -> void:
 
 func _on_dm_channels_updated() -> void:
 	_populate_dms()
+
+func _on_user_updated(user_id: String) -> void:
+	# Refresh DM items that involve this user
+	for dm in Client.dm_channels:
+		var dm_user: Dictionary = dm.get("user", {})
+		if dm_user.get("id", "") == user_id:
+			var item = dm_item_nodes.get(dm["id"])
+			if item != null and item.has_method("setup"):
+				item.setup(dm)
+			return
+		# Also check group DM recipients
+		if dm.get("is_group", false):
+			for r in dm.get("recipients", []):
+				if r.get("id", "") == user_id:
+					var item = dm_item_nodes.get(dm["id"])
+					if item != null and item.has_method("setup"):
+						item.setup(dm)
+					break
 
 func _on_new_group_pressed() -> void:
 	var dialog := CreateGroupDMScene.instantiate()

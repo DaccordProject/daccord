@@ -5,6 +5,8 @@ const UserSettingsScene := preload("res://scenes/user/user_settings.tscn")
 const SoundboardPanelScene := preload("res://scenes/soundboard/soundboard_panel.tscn")
 
 var _soundboard_panel: PanelContainer = null
+var _saved_channel_label: String = ""
+var _error_tween: Tween
 
 @onready var channel_label: Label = $VBox/StatusRow/ChannelLabel
 @onready var status_dot: ColorRect = $VBox/StatusRow/StatusDot
@@ -31,6 +33,7 @@ func _ready() -> void:
 	AppState.voice_deafen_changed.connect(_on_deafen_changed)
 	AppState.video_enabled_changed.connect(_on_video_changed)
 	AppState.screen_share_changed.connect(_on_screen_share_changed)
+	AppState.voice_error.connect(_on_voice_error)
 
 func _on_voice_joined(channel_id: String) -> void:
 	visible = true
@@ -52,6 +55,24 @@ func _on_voice_joined(channel_id: String) -> void:
 func _on_voice_left(_channel_id: String) -> void:
 	visible = false
 	_close_soundboard_panel()
+
+func _on_voice_error(error: String) -> void:
+	if not visible:
+		return
+	_saved_channel_label = channel_label.text
+	channel_label.text = error
+	status_dot.color = Color(0.929, 0.259, 0.271)
+	if _error_tween and _error_tween.is_valid():
+		_error_tween.kill()
+	_error_tween = create_tween()
+	_error_tween.tween_interval(4.0)
+	_error_tween.tween_callback(_clear_voice_error)
+
+func _clear_voice_error() -> void:
+	if not visible:
+		return
+	channel_label.text = _saved_channel_label
+	status_dot.color = Color(0.231, 0.647, 0.365)
 
 func _on_mute_pressed() -> void:
 	Client.set_voice_muted(not AppState.is_voice_muted)

@@ -22,6 +22,7 @@ func _ready() -> void:
 	_restart_btn.pressed.connect(_on_restart)
 	_later_btn.pressed.connect(_close)
 
+	AppState.update_download_started.connect(_on_started)
 	AppState.update_download_progress.connect(_on_progress)
 	AppState.update_download_complete.connect(_on_complete)
 	AppState.update_download_failed.connect(_on_failed)
@@ -43,6 +44,11 @@ func _set_downloading_state() -> void:
 	_restart_btn.visible = false
 	_later_btn.visible = false
 	_progress_bar.value = 0
+
+func _on_started() -> void:
+	_set_downloading_state()
+	var version: String = _version_info.get("version", "unknown")
+	_status_label.text = "Downloading daccord v%s..." % version
 
 func _on_progress(percent: float) -> void:
 	_progress_bar.value = percent
@@ -89,6 +95,7 @@ func _on_restart() -> void:
 	Updater.apply_update_and_restart()
 
 func _close() -> void:
+	AppState.update_download_started.disconnect(_on_started)
 	AppState.update_download_progress.disconnect(_on_progress)
 	AppState.update_download_complete.disconnect(_on_complete)
 	AppState.update_download_failed.disconnect(_on_failed)

@@ -25,6 +25,7 @@ func _ready() -> void:
 	AppState.thread_opened.connect(_on_thread_opened)
 	AppState.thread_closed.connect(_on_thread_closed)
 	AppState.thread_messages_updated.connect(_on_thread_messages_updated)
+	AppState.reactions_updated.connect(_on_reactions_updated)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	_apply_layout(AppState.current_layout_mode)
 
@@ -86,6 +87,14 @@ func _on_thread_closed() -> void:
 func _on_thread_messages_updated(parent_id: String) -> void:
 	if parent_id != _parent_message_id:
 		return
+	_render_thread_messages()
+
+func _on_reactions_updated(channel_id: String, _message_id: String) -> void:
+	if channel_id != _parent_channel_id:
+		return
+	if not visible or _parent_message_id.is_empty():
+		return
+	# Re-render thread messages to pick up reaction changes
 	_render_thread_messages()
 
 func _render_thread_messages() -> void:

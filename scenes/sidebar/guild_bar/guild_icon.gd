@@ -57,6 +57,7 @@ func _ready() -> void:
 	AppState.server_reconnecting.connect(_on_connection_changed_3)
 	AppState.server_reconnected.connect(_on_connection_changed_1)
 	AppState.server_connection_failed.connect(_on_connection_changed)
+	AppState.config_changed.connect(_on_config_changed)
 
 func setup(data: Dictionary) -> void:
 	guild_id = data.get("id", "")
@@ -350,6 +351,10 @@ func _show_folder_dialog() -> void:
 	)
 	get_tree().root.add_child(dialog)
 	dialog.popup_centered()
+
+func _on_config_changed(section: String, key: String) -> void:
+	if section == "muted_servers" and key == guild_id:
+		_update_muted_visual()
 
 func _update_muted_visual() -> void:
 	if Config.is_server_muted(guild_id):
