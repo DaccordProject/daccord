@@ -62,22 +62,11 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout accordkit
-        uses: actions/checkout@v4
-        with:
-          repository: DaccordProject/accordkit
-          token: ${{ secrets.GH_PAT }}
-          path: .accordkit_repo
-
       - name: Install audio libraries (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
-
-      - name: Symlink accordkit addon
-        run: |
-          ln -sf $GITHUB_WORKSPACE/.accordkit_repo/addons/accordkit addons/accordkit
 
       - name: Cache GUT
         uses: actions/cache@v4
