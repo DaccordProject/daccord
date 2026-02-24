@@ -18,3 +18,4 @@ dist/build/
 dist/templates/
 addons/sentry
 .xdg_data
+test_server.log

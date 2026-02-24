@@ -28,7 +28,6 @@ func _ready() -> void:
 	_add_btn.pressed.connect(_on_add_pressed)
 	_browse_panel.join_pressed.connect(_on_browse_join)
 
-	# Focus search on browse tab by default
 	_tab_container.current_tab = 0
 
 ## Parses a server URL string into its components.

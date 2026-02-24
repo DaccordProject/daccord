@@ -2,22 +2,14 @@ extends GutTest
 
 ## Smoke tests for the Client autoload _ready() startup path.
 ##
-## The existing test_client.gd deliberately skips _ready() to
-## avoid the AccordVoiceSession GDExtension dependency.  These
-## tests exercise the full startup path to catch:
-## - GDExtension parse failures cascading through sub-modules
-## - AccordVoiceSession instantiation failures
+## These tests exercise the full startup path to catch:
+## - LiveKitAdapter instantiation failures
 ## - Signal wiring errors between voice session and ClientVoice
 ## - Sub-module construction failures in _ready()
 
 
-var _has_voice: bool = ClassDB.class_exists(
-	&"AccordVoiceSession"
-)
-
-
 # ClientVoice is the sub-module most likely to break when
-# AccordStream GDExtension binaries are stale or missing.
+# voice-related code changes.
 func test_client_voice_instantiates() -> void:
 	var mock := Node.new()
 	add_child_autofree(mock)
@@ -28,7 +20,7 @@ func test_client_voice_instantiates() -> void:
 
 
 # Core smoke test: add_child triggers _ready() which creates
-# all sub-modules and wires up AccordVoiceSession signals.
+# all sub-modules and wires up LiveKitAdapter signals.
 func test_client_ready_creates_sub_modules() -> void:
 	var client = load(
 		"res://scripts/autoload/client.gd"
@@ -51,43 +43,33 @@ func test_client_ready_creates_sub_modules() -> void:
 	)
 
 
-# Verify AccordVoiceSession is created and attached as child.
+# Verify LiveKitAdapter is created and attached as child.
 func test_client_ready_creates_voice_session() -> void:
-	if not _has_voice:
-		pass_test("AccordVoiceSession unavailable (headless)")
-		return
 	var client = load(
 		"res://scripts/autoload/client.gd"
 	).new()
 	add_child_autofree(client)
-	assert_true(
-		client.has_meta("_voice_session"),
-		"Voice session meta not set",
+	assert_not_null(
+		client._voice_session,
+		"Voice session is null",
 	)
-	var session = client.get_meta("_voice_session")
-	assert_not_null(session, "Voice session is null")
 	assert_true(
-		session is AccordVoiceSession,
+		client._voice_session is LiveKitAdapter,
 		"Voice session is wrong type",
 	)
 	assert_true(
-		session.get_parent() == client,
+		client._voice_session.get_parent() == client,
 		"Voice session not a child of Client",
 	)
 
 
 # Verify voice session signals are connected to ClientVoice.
 func test_client_ready_wires_voice_signals() -> void:
-	if not _has_voice:
-		pass_test("AccordVoiceSession unavailable (headless)")
-		return
 	var client = load(
 		"res://scripts/autoload/client.gd"
 	).new()
 	add_child_autofree(client)
-	var session: AccordVoiceSession = client.get_meta(
-		"_voice_session"
-	)
+	var session: LiveKitAdapter = client._voice_session
 	assert_true(
 		session.session_state_changed.is_connected(
 			client.voice.on_session_state_changed
@@ -107,10 +89,16 @@ func test_client_ready_wires_voice_signals() -> void:
 		"peer_left not connected",
 	)
 	assert_true(
-		session.signal_outgoing.is_connected(
-			client.voice.on_signal_outgoing
+		session.track_received.is_connected(
+			client.voice.on_track_received
 		),
-		"signal_outgoing not connected",
+		"track_received not connected",
+	)
+	assert_true(
+		session.audio_level_changed.is_connected(
+			client.voice.on_audio_level_changed
+		),
+		"audio_level_changed not connected",
 	)
 
 

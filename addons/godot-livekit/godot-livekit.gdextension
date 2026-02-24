@@ -1,0 +1,13 @@
+[configuration]
+entry_symbol = "livekit_library_init"
+compatibility_minimum = "4.5"
+
+[libraries]
+linux.x86_64 = "res://addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so"
+windows.x86_64 = "res://addons/godot-livekit/bin/libgodot-livekit.windows.x86_64.dll"
+macos = "res://addons/godot-livekit/bin/libgodot-livekit.macos.universal.dylib"
+
+[dependencies]
+linux.x86_64 = {"res://addons/godot-livekit/bin/liblivekit_ffi.so": "", "res://addons/godot-livekit/bin/liblivekit.so": ""}
+windows.x86_64 = {"res://addons/godot-livekit/bin/livekit_ffi.dll": "", "res://addons/godot-livekit/bin/livekit.dll": ""}
+macos = {"res://addons/godot-livekit/bin/liblivekit_ffi.dylib": "", "res://addons/godot-livekit/bin/liblivekit.dylib": ""}

@@ -5,6 +5,7 @@ const ProfileEditDialog := preload(
 )
 
 var _update_ready_label: Label = null
+var _status_popup: PopupMenu = null
 
 @onready var avatar: ColorRect = $HBox/Avatar
 @onready var display_name: Label = $HBox/Info/DisplayName
@@ -24,13 +25,19 @@ func _ready() -> void:
 	# Avatar hover animation
 	avatar.mouse_entered.connect(_on_avatar_hover_enter)
 	avatar.mouse_exited.connect(_on_avatar_hover_exit)
+	# Setup status popup on the status icon
+	_status_popup = PopupMenu.new()
+	_status_popup.add_item("Online", 0)
+	_status_popup.add_item("Idle", 1)
+	_status_popup.add_item("Do Not Disturb", 2)
+	_status_popup.add_item("Invisible", 3)
+	_status_popup.add_separator()
+	_status_popup.add_item("Set Custom Status", 4)
+	_status_popup.id_pressed.connect(_on_status_id_pressed)
+	add_child(_status_popup)
+	status_icon.gui_input.connect(_on_status_icon_input)
 	# Setup menu
 	var popup := menu_button.get_popup()
-	popup.add_item("Online", 0)
-	popup.add_item("Idle", 1)
-	popup.add_item("Do Not Disturb", 2)
-	popup.add_item("Invisible", 3)
-	popup.add_item("Set Custom Status", 4)
 	popup.add_item("Edit Profile", 5)
 	popup.add_separator()
 	popup.add_item("Settings", 6)
@@ -114,7 +121,14 @@ func _on_avatar_hover_enter() -> void:
 func _on_avatar_hover_exit() -> void:
 	avatar.tween_radius(0.3, 0.5)
 
-func _on_menu_id_pressed(id: int) -> void:
+func _on_status_icon_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		var pos: Vector2 = status_icon.global_position
+		pos.y += status_icon.size.y
+		_status_popup.position = Vector2i(pos)
+		_status_popup.popup()
+
+func _on_status_id_pressed(id: int) -> void:
 	match id:
 		0:
 			Client.update_presence(
@@ -134,6 +148,11 @@ func _on_menu_id_pressed(id: int) -> void:
 			)
 		4:
 			_show_custom_status_dialog()
+	if id >= 0 and id <= 3:
+		_refresh_active_user()
+
+func _on_menu_id_pressed(id: int) -> void:
+	match id:
 		5:
 			_show_profile_edit_dialog()
 		6:
@@ -155,8 +174,6 @@ func _on_menu_id_pressed(id: int) -> void:
 			_show_export_dialog()
 		19:
 			_show_import_dialog()
-	if id >= 0 and id <= 3:
-		_refresh_active_user()
 
 func _show_profile_edit_dialog() -> void:
 	var dlg: ColorRect = ProfileEditDialog.instantiate()

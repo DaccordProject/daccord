@@ -15,11 +15,15 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="daccord"
-config/version="0.1.1"
+config/version="0.1.2"
 run/main_scene="res://scenes/main/main_window.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 run/low_processor_mode=true
 config/icon="res://icon.svg"
+
+[audio]
+
+driver/enable_input=true
 
 [autoload]
 
@@ -38,7 +42,6 @@ settings/gdscript/always_track_call_stacks=true
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/dpi/allow_hidpi=true
 window/size/min_width=320
 window/size/min_height=480
 

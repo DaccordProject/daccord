@@ -75,14 +75,14 @@ Push/PR to master
   │     │     └─ Code complexity analysis (gdradon cc, warns on grade C-F)
   │     │
   │     ├─> Unit Tests job (needs: lint)
-  │     │     ├─ Checkout daccord + accordkit + accordstream (GH_PAT)
+  │     │     ├─ Checkout daccord + accordkit + livekit (GH_PAT)
   │     │     ├─ Install audio libraries (libasound2, libpulse, libopus)
   │     │     ├─ Symlink addons/
   │     │     ├─ Install GUT (cached) + Sentry SDK (cached)
   │     │     ├─ Setup Godot 4.5.0 (chickensoft-games/setup-godot@v2)
   │     │     ├─ Cache + import project (.godot/imported/)
   │     │     ├─ Run GUT on tests/unit/ (-gexit for proper exit codes)
-  │     │     ├─ Run GUT on tests/accordstream/ (-gexit)
+  │     │     ├─ Run GUT on tests/livekit/ (-gexit)
   │     │     └─ Write per-suite test result summary to $GITHUB_STEP_SUMMARY
   │     │
   │     └─> Integration Tests job (needs: lint, blocking)
@@ -101,7 +101,7 @@ Push v* tag
   └─> release.yml triggers
         ├─> 4x parallel Build jobs (Linux x86_64, Linux ARM64, Windows, macOS)
         │     ├─ Validate tag matches project.godot version
-        │     ├─ Checkout + addon symlink + AccordStream binaries
+        │     ├─ Checkout + addon symlink + LiveKit binaries
         │     ├─ Setup Godot 4.5.0 with export templates
         │     ├─ Inject SENTRY_DSN, clear missing custom templates
         │     ├─ Export (godot --headless --export-release)
@@ -122,7 +122,7 @@ Three jobs triggered on push/PR to `master`. Unit Tests and Integration Tests bo
 | Job | Runner | Environment | Depends On | Required | Purpose |
 |-----|--------|-------------|------------|----------|---------|
 | **Lint** | ubuntu-latest | *(none)* | *(none)* | Yes | gdlint + gdradon complexity analysis on `scripts/` and `scenes/` |
-| **Unit Tests** | ubuntu-latest | `default` | Lint | Yes | GUT tests in `tests/unit/` + `tests/accordstream/` |
+| **Unit Tests** | ubuntu-latest | `default` | Lint | Yes | GUT tests in `tests/unit/` + `tests/livekit/` |
 | **Integration Tests** | ubuntu-latest | `default` | Lint | Yes (blocking) | GUT tests in `tests/accordkit/` with live accordserver |
 
 ### Workflow: `.github/workflows/release.yml`
@@ -137,7 +137,7 @@ Triggered by `v*` tags. Builds four platform artifacts, creates a GitHub Release
 |------|---------|
 | `DaccordProject/daccord` | This client (CI runs here) |
 | `DaccordProject/accordkit` | GDScript client library (REST + WebSocket) |
-| `DaccordProject/accordstream` | GDExtension for audio/voice (native binaries in LFS) |
+| `DaccordProject/livekit` | GDExtension for audio/voice (native binaries in LFS) |
 | `DaccordProject/accordserver` | Rust backend (built from source for integration tests) |
 
 **Authentication:** Cross-repo checkout requires a PAT stored as environment secret `GH_PAT` in the `default` environment. Required scopes: `repo` (classic) or Contents:Read (fine-grained).
@@ -147,7 +147,7 @@ Triggered by `v*` tags. Builds four platform artifacts, creates a GitHub Release
 | Addon | Source | Install Method | Cached |
 |-------|--------|---------------|--------|
 | `addons/accordkit` | `DaccordProject/accordkit` (private) | `actions/checkout` + symlink | No |
-| `addons/accordstream` | `DaccordProject/accordstream` (private, LFS) | `actions/checkout` with `lfs: true` + symlink | No |
+| `addons/livekit` | `DaccordProject/livekit` (private, LFS) | `actions/checkout` with `lfs: true` + symlink | No |
 | `addons/gut` | `bitwes/Gut` v9.5.0 (public) | Source tarball from GitHub tags | Yes (`actions/cache`) |
 | `addons/sentry` | `getsentry/sentry-godot` v1.3.2 (public) | Release zip from GitHub | Yes (`actions/cache`) |
 
@@ -174,10 +174,10 @@ gh api repos/DaccordProject/accordkit/git/trees/master?recursive=1 \
   --jq '.tree[] | select(.path | endswith(".gd")) | .path'
 ```
 
-**2. "Can't open dynamic library... invalid ELF header"** -- The AccordStream `.so` is likely an LFS pointer, not the actual binary. LFS pointers are ~130 bytes; a real `.so` is megabytes:
+**2. "Can't open dynamic library... invalid ELF header"** -- The LiveKit `.so` is likely an LFS pointer, not the actual binary. LFS pointers are ~130 bytes; a real `.so` is megabytes:
 
 ```bash
-gh api repos/DaccordProject/accordstream/contents/addons/accordstream/bin/libaccordstream.so \
+gh api repos/DaccordProject/livekit/contents/addons/livekit/bin/liblivekit.so \
   --jq '.size'
 ```
 
@@ -220,7 +220,7 @@ gh run view <RUN_ID> --log-failed 2>&1 | grep "SCRIPT ERROR" | grep -v gut_loade
 
 **8. sccache runtime crash** -- The sccache *setup* step can succeed (binary installs fine) while sccache *runtime* crashes because the GHA cache backend is temporarily down. The error looks like `error: process didn't exit successfully: 'sccache ... rustc -vV'` with an HTML error body. The build step has retry logic: if cargo fails with sccache, it retries without it. If you see `::warning::Build failed with sccache, retrying without it`, the retry is working. If the retry also fails, the issue is with cargo/Rust itself, not sccache.
 
-**9. AccordStream cascading failures** -- If the AccordStream GDExtension binary fails to load (e.g., LFS pointer instead of real binary, or extension not compiled for the runner arch), `AccordVoiceSession` and other extension classes aren't registered. `client.gd` now guards voice session creation with `ClassDB.class_exists(&"AccordVoiceSession")` and null checks, so the Client autoload initializes fully even without AccordStream. Voice-dependent tests in `test_client_startup.gd` skip gracefully when AccordVoiceSession is unavailable. CI also installs audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`) to help the extension load. Look for the root error:
+**9. LiveKit cascading failures** -- If the LiveKit GDExtension binary fails to load (e.g., LFS pointer instead of real binary, or extension not compiled for the runner arch), `AccordVoiceSession` and other extension classes aren't registered. `client.gd` now guards voice session creation with `ClassDB.class_exists(&"AccordVoiceSession")` and null checks, so the Client autoload initializes fully even without LiveKit. Voice-dependent tests in `test_client_startup.gd` skip gracefully when AccordVoiceSession is unavailable. CI also installs audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`) to help the extension load. Look for the root error:
 
 ```bash
 gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScriptNativeClass\|AccordVoiceSession unavailable"
@@ -235,11 +235,11 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 - [x] Lint job passing (verified in run 22186380820)
 - [x] Code complexity analysis with gdradon (warns on grade C-F functions)
 - [x] Unit test job with GUT headless runner
-- [x] AccordStream tests in unit test job (`tests/accordstream/`)
+- [x] LiveKit tests in unit test job (`tests/livekit/`)
 - [x] Integration test job with live accordserver (blocking)
 - [x] Release workflow triggered by `v*` tags (`.github/workflows/release.yml`)
 - [x] Cross-repo checkout via `GH_PAT` environment secret
-- [x] Addon symlinking (accordkit, accordstream)
+- [x] Addon symlinking (accordkit, livekit)
 - [x] GUT install from source tarball (cached)
 - [x] Sentry SDK install from release zip (cached)
 - [x] Godot 4.5.0 setup via `chickensoft-games/setup-godot@v2`
@@ -253,14 +253,14 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 - [x] Local daccord changes pushed (test fixes, performance improvements, error reporting)
 - [x] GUT `-gexit` flag for proper exit codes (non-zero on test failure)
 - [x] `set -o pipefail` in test steps (prevents `| tee` from swallowing exit codes)
-- [x] Test result summary in `$GITHUB_STEP_SUMMARY` (per-suite for unit/accordstream)
+- [x] Test result summary in `$GITHUB_STEP_SUMMARY` (per-suite for unit/livekit)
 - [x] sccache for Rust builds (resilient: `continue-on-error` + conditional wrapper + retry fallback)
 - [x] Godot import cache (`.godot/imported/`, hash-keyed)
 - [x] gdlintrc config file for lint job
 - [x] Integration tests made blocking (`continue-on-error` removed)
 - [x] Job dependency ordering (unit tests + integration tests depend on lint)
-- [x] Unit test job runs (470/477 tests pass; 7 failures are AccordStream-related, see gaps)
-- [x] AccordStream graceful degradation (`client.gd` guards voice session creation, tests skip when unavailable)
+- [x] Unit test job runs (470/477 tests pass; 7 failures are LiveKit-related, see gaps)
+- [x] LiveKit graceful degradation (`client.gd` guards voice session creation, tests skip when unavailable)
 - [x] Audio libraries installed on CI runners (`libasound2-dev`, `libpulse-dev`, `libopus-dev`)
 - [x] Gateway tests improved (longer timeouts, disconnection detection, early exit on failure)
 - [ ] Unit tests fully green (needs CI run to verify after graceful degradation fix)
@@ -284,7 +284,7 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 | Integration tests non-blocking | ~~Medium~~ | **Resolved** | `continue-on-error` removed; integration tests now block the pipeline. |
 | sccache runtime crash | ~~Medium~~ | **Resolved** | sccache setup step can succeed while sccache crashes at runtime if GHA cache backend is down. Added retry logic: if `cargo build` fails with sccache, re-runs without it (`RUSTC_WRAPPER=""`). |
 | GUT 9.5.0 + Godot 4.5 compatibility | Low | Open | `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run). Monitor for upstream fix. |
-| AccordStream GDExtension doesn't load in CI | ~~Medium~~ | **Resolved** | Two-pronged fix: (a) `client.gd` guards voice session creation with `ClassDB.class_exists()` and null checks — `_ready()` completes fully even without AccordStream; `client_voice.gd` null-checks `_voice_session` before all method calls; `test_client_startup.gd` skips voice-specific tests when unavailable. (b) CI installs `libasound2-dev`, `libpulse-dev`, `libopus-dev` so the extension can load in headless mode. |
+| LiveKit GDExtension doesn't load in CI | ~~Medium~~ | **Resolved** | Two-pronged fix: (a) `client.gd` guards voice session creation with `ClassDB.class_exists()` and null checks — `_ready()` completes fully even without LiveKit; `client_voice.gd` null-checks `_voice_session` before all method calls; `test_client_startup.gd` skips voice-specific tests when unavailable. (b) CI installs `libasound2-dev`, `libpulse-dev`, `libopus-dev` so the extension can load in headless mode. |
 | Gateway tests time out | ~~Medium~~ | **Resolved** | Increased wait timeout from 10s to 15s for CI. Added `disconnected` signal detection for early exit on connection failure. Added guard `if not ready_received: return` to skip dependent assertions. Needs CI run to verify. |
 | Integration tests not verified | Medium | Open | Last run (22186380820) failed at "Build accordserver" due to sccache runtime crash. Retry logic, `continue-on-error` removal, and graceful degradation all need verification in a new CI run. |
 | First release not tagged | Low | Open | No `v0.1.0` tag pushed yet. Requires all CI jobs passing first. |
@@ -300,4 +300,4 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 | `test.sh` | Local test runner (starts accordserver automatically) |
 | `tests/unit/` | Unit tests (no server needed) |
 | `tests/accordkit/` | Integration tests (need accordserver) |
-| `tests/accordstream/` | AccordStream tests (no server needed) |
+| `tests/livekit/` | LiveKit tests (no server needed) |

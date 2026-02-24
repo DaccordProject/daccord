@@ -235,6 +235,18 @@ func _on_tab_rearranged(idx_to: int) -> void:
 	_update_tab_icons()
 
 func _on_server_removed(guild_id: String) -> void:
+	var was_active: bool = AppState.current_guild_id == guild_id
+	# Clear composition state tied to the removed server
+	if was_active:
+		if not AppState.replying_to_message_id.is_empty():
+			AppState.cancel_reply()
+		if not AppState.editing_message_id.is_empty():
+			AppState.editing_message_id = ""
+		if AppState.thread_panel_visible:
+			AppState.close_thread()
+	if AppState.is_imposter_mode and AppState.imposter_guild_id == guild_id:
+		AppState.exit_imposter_mode()
+
 	# Remove tabs belonging to the disconnected server
 	var i: int = tabs.size() - 1
 	while i >= 0:
@@ -242,8 +254,18 @@ func _on_server_removed(guild_id: String) -> void:
 			tabs.remove_at(i)
 			tab_bar.remove_tab(i)
 		i -= 1
+
 	if tabs.is_empty():
+		# Reset navigation state
+		AppState.current_guild_id = ""
+		AppState.current_channel_id = ""
+		get_window().title = "daccord"
+		topic_bar.visible = false
+		_update_tab_visibility()
+		if not Config.has_servers():
+			_show_welcome_screen()
 		return
+
 	# Ensure a valid tab is selected
 	var current: int = clampi(tab_bar.current_tab, 0, tabs.size() - 1)
 	tab_bar.current_tab = current
@@ -574,6 +596,13 @@ func _show_welcome_screen() -> void:
 	)
 
 func _on_first_server_added() -> void:
+	# Guard: guilds_updated can fire from disconnect_server() too.
+	# Only dismiss the welcome screen when a server actually exists.
+	if not Config.has_servers():
+		AppState.guilds_updated.connect(
+			_on_first_server_added, CONNECT_ONE_SHOT
+		)
+		return
 	if _welcome_screen and is_instance_valid(_welcome_screen):
 		_welcome_screen.dismissed.connect(func() -> void:
 			content_body.visible = true

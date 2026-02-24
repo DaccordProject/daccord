@@ -140,7 +140,14 @@ func sync_to_connection() -> void:
 	match status:
 		"connected", "none":
 			connection_banner.visible = false
-		"disconnected", "reconnecting", "connecting":
+		"connecting":
+			connection_banner.add_theme_stylebox_override(
+				"panel", _style_warning
+			)
+			status_label.text = "Connecting..."
+			retry_button.visible = false
+			connection_banner.visible = true
+		"disconnected", "reconnecting":
 			connection_banner.add_theme_stylebox_override(
 				"panel", _style_warning
 			)

@@ -53,11 +53,11 @@ jobs:
         with:
           lfs: true
 
-      - name: Checkout accordstream
+      - name: Checkout godot-livekit
         uses: actions/checkout@v4
         with:
-          repository: DaccordProject/accordstream
-          path: .accordstream_repo
+          repository: NodotProject/godot-livekit
+          path: .godot_livekit_repo
           lfs: true
 
       - name: Install audio libraries
@@ -67,7 +67,7 @@ jobs:
 
       - name: Symlink addons
         run: |
-          ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+          ln -sf $GITHUB_WORKSPACE/.godot_livekit_repo/addons/godot-livekit addons/godot-livekit
 
       - name: Cache GUT
         uses: actions/cache@v4
@@ -137,7 +137,7 @@ jobs:
             2>&1 | tee /tmp/gut_unit.txt
         timeout-minutes: 5
 
-      - name: Run AccordStream tests (may crash without audio hardware)
+      - name: Run LiveKit tests (may crash without audio hardware)
         continue-on-error: true
         run: |
           set -o pipefail
@@ -147,14 +147,14 @@ jobs:
             -gprefix=test_ \
             -gsuffix=.gd \
             -glog=1 \
-            -gdir=res://tests/accordstream \
-            2>&1 | tee /tmp/gut_accordstream.txt
+            -gdir=res://tests/livekit \
+            2>&1 | tee /tmp/gut_livekit.txt
         timeout-minutes: 5
 
       - name: Test result summary
         if: always()
         run: |
-          for file in /tmp/gut_unit.txt /tmp/gut_accordstream.txt; do
+          for file in /tmp/gut_unit.txt /tmp/gut_livekit.txt; do
             if [ -f "$file" ]; then
               suite=$(basename "$file" .txt | sed 's/gut_//')
               echo "## ${suite} test results" >> $GITHUB_STEP_SUMMARY
@@ -174,11 +174,11 @@ jobs:
         with:
           lfs: true
 
-      - name: Checkout accordstream
+      - name: Checkout godot-livekit
         uses: actions/checkout@v4
         with:
-          repository: DaccordProject/accordstream
-          path: .accordstream_repo
+          repository: NodotProject/godot-livekit
+          path: .godot_livekit_repo
           lfs: true
 
       - name: Checkout accordserver
@@ -195,7 +195,7 @@ jobs:
 
       - name: Symlink addons
         run: |
-          ln -sf $GITHUB_WORKSPACE/.accordstream_repo/addons/accordstream addons/accordstream
+          ln -sf $GITHUB_WORKSPACE/.godot_livekit_repo/addons/godot-livekit addons/godot-livekit
 
       - name: Cache GUT
         uses: actions/cache@v4
