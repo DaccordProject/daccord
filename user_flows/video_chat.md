@@ -118,7 +118,7 @@ Video chat in daccord enables camera video and screen sharing within voice chann
 | `addons/accordkit/voice/voice_manager.gd` | Voice lifecycle: join/leave, voice_connected/voice_disconnected signals |
 | `addons/accordkit/gateway/gateway_socket.gd` | Gateway voice events: `voice_state_update`, `voice_server_update`, `voice_signal`; `update_voice_state()` with video/stream params |
 | `addons/accordkit/core/accord_client.gd` | `update_voice_state()` (line 165) with `self_video`/`self_stream` params; re-emits voice signals; exposes `voice` API (line 107) |
-| `scripts/autoload/app_state.gd` | Voice signals: `voice_state_updated` (line 52), `voice_joined` (line 54), `voice_left` (line 56), `voice_error` (line 58), `voice_mute_changed` (line 60), `voice_deafen_changed` (line 62), `video_enabled_changed` (line 64), `screen_share_changed` (line 66), `remote_track_received` (line 68), `remote_track_removed` (line 70), `speaking_changed` (line 72); state vars: `voice_channel_id` (line 160), `voice_guild_id` (line 161), `is_voice_muted` (line 162), `is_voice_deafened` (line 163), `is_video_enabled` (line 164), `is_screen_sharing` (line 165) |
+| `scripts/autoload/app_state.gd` | Voice signals: `voice_state_updated` (line 52), `voice_joined` (line 54), `voice_left` (line 56), `voice_error` (line 58), `voice_mute_changed` (line 60), `voice_deafen_changed` (line 62), `video_enabled_changed` (line 64), `screen_share_changed` (line 66), `remote_track_received` (line 68), `remote_track_removed` (line 70), `speaking_changed` (line 72); state vars: `voice_channel_id` (line 160), `voice_space_id` (line 161), `is_voice_muted` (line 162), `is_voice_deafened` (line 163), `is_video_enabled` (line 164), `is_screen_sharing` (line 165) |
 | `scripts/autoload/client.gd` | Voice session setup (creates LiveKitAdapter in `_ready()`, line 156), voice state cache `_voice_state_cache` (line 90), `_remote_tracks` (line 128), `_camera_track`/`_screen_track` (lines 126-127) |
 | `scripts/autoload/client_voice.gd` | Voice mutation API: `join_voice_channel()` (line 26), `leave_voice_channel()` (line 127), `toggle_video()` (line 189), `start_screen_share()` (line 219), `stop_screen_share()` (line 237), `on_track_received()` (line 308), session callbacks (lines 263-344) |
 | `scripts/autoload/client_gateway.gd` | Voice gateway signal connections (lines 89-94) |
@@ -164,14 +164,14 @@ Voice gateway events are fully wired through the data layer:
 
 **AppState state vars** (`app_state.gd`):
 - `voice_channel_id: String` (line 160) -- current voice channel (empty if not connected)
-- `voice_guild_id: String` (line 161) -- guild of current voice channel
+- `voice_space_id: String` (line 161) -- space of current voice channel
 - `is_voice_muted: bool` (line 162) -- local mute state
 - `is_voice_deafened: bool` (line 163) -- local deafen state
 - `is_video_enabled: bool` (line 164) -- camera is active
 - `is_screen_sharing: bool` (line 165) -- screen share is active
 
 **AppState helpers** (`app_state.gd`):
-- `join_voice(channel_id, guild_id)` (line 260) -- sets state, emits `voice_joined`
+- `join_voice(channel_id, space_id)` (line 260) -- sets state, emits `voice_joined`
 - `leave_voice()` (line 265) -- clears state, resets mute/deafen/video/screen, emits `voice_left`
 - `set_voice_muted(muted)` (line 276) -- updates state, emits `voice_mute_changed`
 - `set_voice_deafened(deafened)` (line 280) -- updates state, emits `voice_deafen_changed`
@@ -215,7 +215,7 @@ Calls `VoiceApi.get_status(channel_id)`, converts each `AccordVoiceState` via `v
 - Each participant row (lines 121-202): 28px indent + 18x18 Avatar component (with letter, color, optional avatar URL) + 6px gap + display name label (12px, gray) + mute/deaf indicators (red "M"/"D") + green "V" for `self_video` + blue "S" for `self_stream`
 - Speaking state: tracks Avatar nodes in `_participant_avatars` dict (line 149), applies green ring via `Client.is_user_speaking()` on rebuild (line 150), animates via `_on_speaking_changed()` -> `av.set_speaking()` (line 208)
 - Gear button + context menu for channel edit/delete (requires MANAGE_CHANNELS permission)
-- Drag-and-drop reordering within the same guild (lines 257-314)
+- Drag-and-drop reordering within the same space (lines 257-314)
 
 **channel_list.gd** voice integration:
 - `VoiceChannelItemScene` preloaded
@@ -227,7 +227,7 @@ Calls `VoiceApi.get_status(channel_id)`, converts each `AccordVoiceState` via `v
 
 **voice_bar.gd** -- Self-managing PanelContainer in sidebar:
 - Hidden by default, shows on `voice_joined`, hides on `voice_left` (lines 20, 35, 52)
-- Status row: green `ColorRect` dot + channel name label (looked up from `Client.get_channels_for_guild()`)
+- Status row: green `ColorRect` dot + channel name label (looked up from `Client.get_channels_for_space()`)
 - Button row (lines 9-17): Mic, Deaf, Cam, Share, SFX, Settings, Disconnect
 - Mute button (line 56): toggles via `Client.set_voice_muted()`, red tint `StyleBoxFlat` when active
 - Deafen button (line 59): toggles via `Client.set_voice_deafened()`, red tint when active

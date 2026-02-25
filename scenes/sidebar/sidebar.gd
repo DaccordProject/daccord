@@ -15,11 +15,11 @@ var _channel_panel_tween: Tween
 @onready var user_bar: PanelContainer = $ChannelPanel/UserBar
 
 func _ready() -> void:
-	guild_bar.guild_selected.connect(_on_guild_selected)
+	guild_bar.space_selected.connect(_on_space_selected)
 	guild_bar.dm_selected.connect(_on_dm_selected)
 	channel_list.channel_selected.connect(_on_channel_selected)
 	dm_list.dm_selected.connect(_on_dm_selected_channel)
-	AppState.guilds_updated.connect(_on_guilds_updated)
+	AppState.spaces_updated.connect(_on_spaces_updated)
 	AppState.server_removed.connect(_on_server_removed)
 	_startup_timer = Timer.new()
 	_startup_timer.wait_time = 5.0
@@ -27,50 +27,50 @@ func _ready() -> void:
 	_startup_timer.timeout.connect(_on_startup_timeout)
 	add_child(_startup_timer)
 
-func _on_guilds_updated() -> void:
+func _on_spaces_updated() -> void:
 	if _startup_selection_done:
 		return
-	if Client.guilds.size() == 0:
+	if Client.spaces.size() == 0:
 		return
 
 	var saved := Config.get_last_selection()
 
-	# Check if saved guild is now available
-	if saved["guild_id"] != "":
-		for g in Client.guilds:
-			if g["id"] == saved["guild_id"]:
-				# Saved guild found -- select it and finish startup
+	# Check if saved space is now available
+	if saved["space_id"] != "":
+		for g in Client.spaces:
+			if g["id"] == saved["space_id"]:
+				# Saved space found -- select it and finish startup
 				_startup_selection_done = true
 				_startup_timer.stop()
 				channel_list.pending_channel_id = saved["channel_id"]
-				guild_bar._on_guild_pressed(saved["guild_id"])
+				guild_bar._on_space_pressed(saved["space_id"])
 				return
 
-	# Saved guild not yet available -- select first guild as fallback
+	# Saved space not yet available -- select first space as fallback
 	if not _startup_fallback_selected:
 		_startup_fallback_selected = true
 		channel_list.pending_channel_id = ""
-		guild_bar._on_guild_pressed(Client.guilds[0]["id"])
+		guild_bar._on_space_pressed(Client.spaces[0]["id"])
 		_startup_timer.start()
 
 func _on_startup_timeout() -> void:
-	# Saved guild never appeared -- accept current selection
+	# Saved space never appeared -- accept current selection
 	_startup_selection_done = true
 
-func _on_server_removed(guild_id: String) -> void:
-	if guild_bar.active_guild_id != guild_id:
+func _on_server_removed(space_id: String) -> void:
+	if guild_bar.active_space_id != space_id:
 		return
-	# Active server was removed -- select a fallback guild
-	if Client.guilds.size() > 0:
-		guild_bar._on_guild_pressed(Client.guilds[0]["id"])
+	# Active server was removed -- select a fallback space
+	if Client.spaces.size() > 0:
+		guild_bar._on_space_pressed(Client.spaces[0]["id"])
 
-func _on_guild_selected(guild_id: String) -> void:
+func _on_space_selected(space_id: String) -> void:
 	channel_list.visible = true
 	dm_list.visible = false
-	channel_list.load_guild(guild_id)
-	AppState.select_guild(guild_id)
-	Config.set_last_selection(guild_id, AppState.current_channel_id)
-	# In medium mode, show channel panel when guild is selected
+	channel_list.load_space(space_id)
+	AppState.select_space(space_id)
+	Config.set_last_selection(space_id, AppState.current_channel_id)
+	# In medium mode, show channel panel when space is selected
 	if AppState.current_layout_mode == AppState.LayoutMode.MEDIUM:
 		AppState.channel_panel_visible = true
 		set_channel_panel_visible(true)
@@ -86,7 +86,7 @@ func _on_dm_selected() -> void:
 
 func _on_channel_selected(channel_id: String) -> void:
 	AppState.select_channel(channel_id)
-	Config.set_last_selection(AppState.current_guild_id, channel_id)
+	Config.set_last_selection(AppState.current_space_id, channel_id)
 	# In medium mode, hide channel panel after selection
 	if AppState.current_layout_mode == AppState.LayoutMode.MEDIUM:
 		AppState.channel_panel_visible = false

@@ -34,9 +34,9 @@ func _ready() -> void:
 		return
 
 	if Config.has_servers():
-		# Wait for first guild data before checking
-		AppState.guilds_updated.connect(
-			_on_first_guilds_updated, CONNECT_ONE_SHOT
+		# Wait for first space data before checking
+		AppState.spaces_updated.connect(
+			_on_first_spaces_updated, CONNECT_ONE_SHOT
 		)
 	else:
 		# No servers configured -- check after a short delay
@@ -44,7 +44,7 @@ func _ready() -> void:
 		delay.timeout.connect(func(): check_for_updates(false))
 
 
-func _on_first_guilds_updated() -> void:
+func _on_first_spaces_updated() -> void:
 	check_for_updates(false)
 
 

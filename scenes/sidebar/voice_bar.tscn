@@ -1,6 +1,10 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/voice_bar.gd" id="1"]
+[ext_resource type="Shader" path="res://assets/theme/status_circle.gdshader" id="2"]
+
+[sub_resource type="ShaderMaterial" id="status_circle_mat"]
+shader = ExtResource("2")
 
 [sub_resource type="StyleBoxFlat" id="voice_bar_bg"]
 bg_color = Color(0.145, 0.153, 0.173, 1)
@@ -26,6 +30,7 @@ layout_mode = 2
 theme_override_constants/separation = 6
 
 [node name="StatusDot" type="ColorRect" parent="VBox/StatusRow"]
+material = SubResource("status_circle_mat")
 layout_mode = 2
 custom_minimum_size = Vector2(8, 8)
 size_flags_vertical = 4

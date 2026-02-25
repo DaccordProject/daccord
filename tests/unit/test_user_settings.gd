@@ -1,10 +1,7 @@
 extends GutTest
 
-## Tests for the UserSettings panel (scenes/user/user_settings.gd).
-##
-## Strategy: create a Config with profiles/voice initialized in memory,
-## set up minimal Client state, then instantiate the script and verify
-## it loads and builds pages without parse or runtime errors.
+## Tests for the settings panels (app_settings.gd, server_settings.gd,
+## settings_base.gd, and their delegates).
 
 var config: Node
 var _original_user: Dictionary
@@ -52,13 +49,26 @@ func after_each() -> void:
 
 # --- Script loading ---
 
-func test_user_settings_script_loads_without_parse_error() -> void:
-	var script = load("res://scenes/user/user_settings.gd")
+func test_settings_base_script_loads() -> void:
+	var script = load("res://scenes/user/settings_base.gd")
 	assert_not_null(
 		script,
-		"user_settings.gd should load without parse errors"
+		"settings_base.gd should load without parse errors"
 	)
 
+func test_app_settings_script_loads() -> void:
+	var script = load("res://scenes/user/app_settings.gd")
+	assert_not_null(
+		script,
+		"app_settings.gd should load without parse errors"
+	)
+
+func test_server_settings_script_loads() -> void:
+	var script = load("res://scenes/user/server_settings.gd")
+	assert_not_null(
+		script,
+		"server_settings.gd should load without parse errors"
+	)
 
 func test_user_settings_profile_script_loads() -> void:
 	var script = load(
@@ -81,11 +91,11 @@ func test_user_settings_twofa_script_loads() -> void:
 	assert_not_null(script)
 
 
-# --- Instantiation ---
+# --- App Settings instantiation ---
 
-func test_user_settings_instantiates() -> void:
+func test_app_settings_instantiates() -> void:
 	var panel: ColorRect = load(
-		"res://scenes/user/user_settings.gd"
+		"res://scenes/user/app_settings.gd"
 	).new()
 	add_child(panel)
 	await get_tree().process_frame
@@ -97,8 +107,6 @@ func test_user_settings_instantiates() -> void:
 # --- Profiles page types ---
 
 func test_refresh_profiles_list_types() -> void:
-	# Verify that get_profiles returns Array and get_active_slug
-	# returns String — the root cause of the parse errors.
 	var prof_list = Config.profiles.get_profiles()
 	assert_true(
 		prof_list is Array,
@@ -120,25 +128,25 @@ func test_profiles_list_contains_default() -> void:
 	assert_has(slugs, "default")
 
 
-# --- Page building ---
+# --- App Settings page building ---
 
-func test_all_pages_created() -> void:
+func test_app_settings_all_pages_created() -> void:
 	var panel: ColorRect = load(
-		"res://scenes/user/user_settings.gd"
+		"res://scenes/user/app_settings.gd"
 	).new()
 	add_child(panel)
 	await get_tree().process_frame
-	# The panel builds 9 pages (My Account includes profile editing)
-	assert_eq(panel._pages.size(), 9)
+	# App settings has 6 pages
+	assert_eq(panel._pages.size(), 6)
 	for page in panel._pages:
 		assert_true(is_instance_valid(page))
 	panel.queue_free()
 	await get_tree().process_frame
 
 
-func test_page_navigation() -> void:
+func test_app_settings_page_navigation() -> void:
 	var panel: ColorRect = load(
-		"res://scenes/user/user_settings.gd"
+		"res://scenes/user/app_settings.gd"
 	).new()
 	add_child(panel)
 	await get_tree().process_frame
@@ -153,9 +161,46 @@ func test_page_navigation() -> void:
 	await get_tree().process_frame
 
 
+# --- Input sensitivity ---
+
+func test_default_input_sensitivity() -> void:
+	assert_eq(
+		config.voice.get_input_sensitivity(), 50,
+		"Default input sensitivity should be 50"
+	)
+
+func test_set_input_sensitivity_persists() -> void:
+	config.voice.set_input_sensitivity(75)
+	assert_eq(
+		config.voice.get_input_sensitivity(), 75,
+		"Sensitivity should persist after set"
+	)
+
+func test_sensitivity_to_threshold_boundaries() -> void:
+	config.voice.set_input_sensitivity(0)
+	assert_almost_eq(
+		config.voice.get_speaking_threshold(), 0.1, 0.001,
+		"0% sensitivity should give threshold ~0.1"
+	)
+	config.voice.set_input_sensitivity(100)
+	assert_almost_eq(
+		config.voice.get_speaking_threshold(), 0.0001, 0.00001,
+		"100% sensitivity should give threshold ~0.0001"
+	)
+
+func test_speaking_threshold_uses_config_value() -> void:
+	config.voice.set_input_sensitivity(50)
+	var threshold: float = config.voice.get_speaking_threshold()
+	# 10^(-1 - 1.5) = 10^-2.5 ≈ 0.00316
+	assert_almost_eq(
+		threshold, 0.00316, 0.001,
+		"50% sensitivity should give threshold ~0.003"
+	)
+
+
 func test_escape_closes_panel() -> void:
 	var panel: ColorRect = load(
-		"res://scenes/user/user_settings.gd"
+		"res://scenes/user/app_settings.gd"
 	).new()
 	add_child(panel)
 	await get_tree().process_frame

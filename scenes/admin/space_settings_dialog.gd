@@ -1,10 +1,15 @@
 extends ColorRect
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const AvatarScene := preload("res://scenes/common/avatar.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _dirty: bool = false
+var _pending_icon_data_uri: String = ""
+var _icon_removed: bool = false
+var _icon_preview: ColorRect
 
+@onready var _vbox: VBoxContainer = $CenterContainer/Panel/VBox
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _name_input: LineEdit = $CenterContainer/Panel/VBox/NameInput
 @onready var _desc_input: TextEdit = $CenterContainer/Panel/VBox/DescInput
@@ -29,6 +34,42 @@ func _ready() -> void:
 	_notifications_btn.add_item("All Messages", 0)
 	_notifications_btn.add_item("Mentions Only", 1)
 
+	# Build icon upload section (inserted after Header)
+	var icon_label := Label.new()
+	icon_label.text = "SPACE ICON"
+	icon_label.add_theme_font_size_override("font_size", 11)
+	icon_label.add_theme_color_override(
+		"font_color", Color(0.7, 0.7, 0.7)
+	)
+	_vbox.add_child(icon_label)
+	_vbox.move_child(icon_label, 1)
+
+	var icon_row := HBoxContainer.new()
+	icon_row.add_theme_constant_override("separation", 12)
+	_vbox.add_child(icon_row)
+	_vbox.move_child(icon_row, 2)
+
+	_icon_preview = AvatarScene.instantiate()
+	_icon_preview.avatar_size = 64
+	_icon_preview.show_letter = true
+	_icon_preview.letter_font_size = 22
+	_icon_preview.custom_minimum_size = Vector2(64, 64)
+	icon_row.add_child(_icon_preview)
+
+	var icon_btns := VBoxContainer.new()
+	icon_btns.add_theme_constant_override("separation", 4)
+	icon_row.add_child(icon_btns)
+
+	var upload_btn := Button.new()
+	upload_btn.text = "Upload Icon"
+	upload_btn.pressed.connect(_on_icon_upload)
+	icon_btns.add_child(upload_btn)
+
+	var remove_btn := Button.new()
+	remove_btn.text = "Remove"
+	remove_btn.pressed.connect(_on_icon_remove)
+	icon_btns.add_child(remove_btn)
+
 	# Track dirty state
 	_name_input.text_changed.connect(func(_t: String): _dirty = true)
 	_desc_input.text_changed.connect(func(): _dirty = true)
@@ -36,32 +77,43 @@ func _ready() -> void:
 	_notifications_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_public_check.toggled.connect(func(_b: bool): _dirty = true)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
-	var guild: Dictionary = Client.get_guild_by_id(guild_id)
+func setup(space_id: String) -> void:
+	_space_id = space_id
+	var space: Dictionary = Client.get_space_by_id(space_id)
 
 	if _name_input:
-		_name_input.text = guild.get("name", "")
+		_name_input.text = space.get("name", "")
 	if _desc_input:
-		_desc_input.text = guild.get("description", "")
+		_desc_input.text = space.get("description", "")
 
-	var ver: String = guild.get("verification_level", "none")
+	# Icon preview
+	var sname: String = space.get("name", "")
+	_icon_preview.set_avatar_color(
+		space.get("icon_color", Color(0.345, 0.396, 0.949))
+	)
+	if sname.length() > 0:
+		_icon_preview.set_letter(sname[0].to_upper())
+	var icon_url = space.get("icon", null)
+	if icon_url is String and not icon_url.is_empty():
+		_icon_preview.set_avatar_url(icon_url)
+
+	var ver: String = space.get("verification_level", "none")
 	match ver:
 		"low": _verification_btn.select(1)
 		"medium": _verification_btn.select(2)
 		"high": _verification_btn.select(3)
 		_: _verification_btn.select(0)
 
-	var notif: String = guild.get("default_notifications", "all")
+	var notif: String = space.get("default_notifications", "all")
 	if notif == "mentions":
 		_notifications_btn.select(1)
 	else:
 		_notifications_btn.select(0)
 
-	_public_check.button_pressed = guild.get("public", false)
+	_public_check.button_pressed = space.get("public", false)
 
 	# Only the owner can see the danger zone
-	_danger_zone.visible = Client.is_space_owner(guild_id)
+	_danger_zone.visible = Client.is_space_owner(space_id)
 	_dirty = false
 
 func _on_save() -> void:
@@ -86,7 +138,13 @@ func _on_save() -> void:
 	else:
 		data["features"] = []
 
-	var result: RestResult = await Client.admin.update_space(_guild_id, data)
+	# Icon upload / removal
+	if not _pending_icon_data_uri.is_empty():
+		data["icon"] = _pending_icon_data_uri
+	elif _icon_removed:
+		data["icon"] = ""
+
+	var result: RestResult = await Client.admin.update_space(_space_id, data)
 	_save_btn.disabled = false
 	_save_btn.text = "Save"
 
@@ -100,18 +158,56 @@ func _on_save() -> void:
 		_dirty = false
 		queue_free()
 
+func _on_icon_upload() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.use_native_dialog = true
+	fd.filters = PackedStringArray([
+		"*.png ; PNG Images",
+		"*.jpg, *.jpeg ; JPEG Images",
+		"*.webp ; WebP Images",
+	])
+	fd.file_selected.connect(func(path: String) -> void:
+		var file := FileAccess.open(path, FileAccess.READ)
+		if file == null:
+			return
+		var bytes := file.get_buffer(file.get_length())
+		file.close()
+		_pending_icon_data_uri = AccordCDN.build_data_uri(bytes, path)
+		_icon_removed = false
+		var img := Image.new()
+		if img.load(path) == OK:
+			var tex := ImageTexture.create_from_image(img)
+			_icon_preview._apply_texture(tex)
+		_dirty = true
+		fd.queue_free()
+	)
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(600, 400))
+
+func _on_icon_remove() -> void:
+	_icon_removed = true
+	_pending_icon_data_uri = ""
+	_icon_preview.letter_label.visible = true
+	if _icon_preview._texture_rect != null:
+		_icon_preview._texture_rect.queue_free()
+		_icon_preview._texture_rect = null
+	_dirty = true
+
 func _on_delete() -> void:
-	var guild: Dictionary = Client.get_guild_by_id(_guild_id)
+	var space: Dictionary = Client.get_space_by_id(_space_id)
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Server",
-		"Are you sure you want to delete '%s'? This cannot be undone." % guild.get("name", ""),
+		"Delete Space",
+		"Are you sure you want to delete '%s'? This cannot be undone." % space.get("name", ""),
 		"Delete",
 		true
 	)
 	dialog.confirmed.connect(func():
-		var result: RestResult = await Client.admin.delete_space(_guild_id)
+		var result: RestResult = await Client.admin.delete_space(_space_id)
 		if result != null and result.ok:
 			_dirty = false
 			queue_free()

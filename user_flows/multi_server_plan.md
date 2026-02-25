@@ -9,7 +9,7 @@
 
 ## Target State
 
-Users configure multiple server connections via the "Add a Server" dialog. Each entry is: `host:port` + `guild name` (lowercase, URL-safe) + `token`. The app connects to all configured servers at startup. The guild bar aggregates guilds from all connected servers.
+Users configure multiple server connections via the "Add a Server" dialog. Each entry is: `host:port` + `space name` (lowercase, URL-safe) + `token`. The app connects to all configured servers at startup. The space bar aggregates spaces from all connected servers.
 
 ---
 
@@ -84,22 +84,22 @@ count=2
 [server_0]
 base_url=http://example.com:3000
 token=abc123
-guild_name=my-guild
+space_name=my-space
 
 [server_1]
 base_url=http://other.com:3000
 token=xyz789
-guild_name=cool-guild
+space_name=cool-space
 ```
 
 **API:**
 
 ```gdscript
 # Each server entry is a Dictionary:
-# { "base_url": String, "token": String, "guild_name": String }
+# { "base_url": String, "token": String, "space_name": String }
 
 func get_servers() -> Array[Dictionary]
-func add_server(base_url: String, token: String, guild_name: String) -> void
+func add_server(base_url: String, token: String, space_name: String) -> void
 func remove_server(index: int) -> void
 func save() -> void
 func has_servers() -> bool
@@ -115,9 +115,9 @@ Manage multiple `AccordClient` instances, one per configured server.
 # Per-server connection state
 var _connections: Array = []
 # Each entry: {
-#   "config": Dictionary,         # { base_url, token, guild_name }
+#   "config": Dictionary,         # { base_url, token, space_name }
 #   "client": AccordClient,       # the AccordClient instance
-#   "guild_id": String,           # resolved guild ID (from guild_name)
+#   "space_id": String,           # resolved space ID (from space_name)
 #   "cdn_url": String,            # base_url + "/cdn"
 #   "status": String,             # "connecting", "connected", "error"
 # }
@@ -134,41 +134,41 @@ _connect_server(server_config):
   1. Create AccordClient with server_config.base_url, token
   2. Add as child
   3. Call get_me() to authenticate
-  4. Call list_spaces() to find the guild matching guild_name
-  5. If found, store the guild_id
+  4. Call list_spaces() to find the space matching space_name
+  5. If found, store the space_id
   6. Connect gateway signals (scoped to this server's client)
   7. Call client.login()
-  8. On gateway ready, fetch channels + messages for just that guild
+  8. On gateway ready, fetch channels + messages for just that space
 ```
 
 **Data access changes:**
 
-The `guilds` property now returns aggregated guilds across all connections. Each guild dict gets a `"_server_index"` (or `"_connection"`) field so the rest of the app knows which `AccordClient` to use for API calls against that guild.
+The `spaces` property now returns aggregated spaces across all connections. Each space dict gets a `"_server_index"` (or `"_connection"`) field so the rest of the app knows which `AccordClient` to use for API calls against that space.
 
 ```gdscript
-var guilds: Array:
+var spaces: Array:
     get:
         if _connections.is_empty():
-            return MockData.guilds
+            return MockData.spaces
         var result: Array = []
         for conn in _connections:
             if conn.status == "connected":
-                result.append(_guild_cache[conn.guild_id])
+                result.append(_space_cache[conn.space_id])
         return result
 ```
 
-API calls (`send_message`, `fetch_channels`, etc.) need to route to the correct `AccordClient` based on which server owns the channel/guild:
+API calls (`send_message`, `fetch_channels`, etc.) need to route to the correct `AccordClient` based on which server owns the channel/space:
 
 ```gdscript
-func _client_for_guild(guild_id: String) -> AccordClient:
+func _client_for_space(space_id: String) -> AccordClient:
     for conn in _connections:
-        if conn.guild_id == guild_id:
+        if conn.space_id == space_id:
             return conn.client
     return null
 
 func _client_for_channel(channel_id: String) -> AccordClient:
     var ch := _channel_cache.get(channel_id, {})
-    return _client_for_guild(ch.get("guild_id", ""))
+    return _client_for_space(ch.get("space_id", ""))
 ```
 
 **CDN URL routing:**
@@ -197,28 +197,28 @@ Replace current Join/Create dual-mode with a single "Add Server" form:
 
 **Fields:**
 - Server URL (LineEdit, placeholder: `http://host:port`)
-- Guild Name (LineEdit, placeholder: `guild-name`, lowercase/URL-safe)
+- Space Name (LineEdit, placeholder: `space-name`, lowercase/URL-safe)
 - Token (LineEdit, placeholder: `Token`, secret=true)
 
 **Flow:**
 1. User fills in all three fields
-2. "Add" button validates inputs (non-empty, guild name is URL-safe)
+2. "Add" button validates inputs (non-empty, space name is URL-safe)
 3. Saves to Config
 4. Calls `Client.connect_server(...)` to connect immediately
-5. On success: closes dialog, guild appears in sidebar
-6. On error (bad token, guild not found): shows error in dialog
+5. On success: closes dialog, space appears in sidebar
+6. On error (bad token, space not found): shows error in dialog
 
 Remove the "Create" mode — creating servers is a server-admin operation, not an in-app feature in this model.
 
 ### 8. Remove the settings dialog
 
-The settings dialog (`scenes/settings/settings_dialog.gd` + `.tscn`) created earlier should be removed. Server management is handled entirely through Add Server. To disconnect/remove a server, add a right-click context menu or option on guild icons in the guild bar.
+The settings dialog (`scenes/settings/settings_dialog.gd` + `.tscn`) created earlier should be removed. Server management is handled entirely through Add Server. To disconnect/remove a server, add a right-click context menu or option on space icons in the space bar.
 
 ### 9. Update `guild_bar` (`scenes/sidebar/guild_bar/guild_bar.gd`)
 
-- Guild icons now represent individual server connections (one guild per server entry)
-- Right-click on a guild icon could offer "Remove Server" (removes from Config, disconnects)
-- No folder grouping changes needed — folders can still group guilds from different servers
+- Space icons now represent individual server connections (one space per server entry)
+- Right-click on a space icon could offer "Remove Server" (removes from Config, disconnects)
+- No folder grouping changes needed — folders can still group spaces from different servers
 
 ### 10. Update `project.godot`
 

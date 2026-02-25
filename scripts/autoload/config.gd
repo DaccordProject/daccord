@@ -115,10 +115,14 @@ func _load_profile_config() -> void:
 	var err := _config.load_encrypted_pass(path, key)
 	if err == OK:
 		_load_ok = true
+		_migrate_guild_to_space_keys()
+		_migrate_clear_passwords()
 		return
 	var plain_err := _config.load(path)
 	if plain_err == OK:
 		_load_ok = true
+		_migrate_guild_to_space_keys()
+		_migrate_clear_passwords()
 		# Re-encrypt the plain config file
 		var enc_err := _config.save_encrypted_pass(path, key)
 		if enc_err != OK:
@@ -137,6 +141,43 @@ func _load_profile_config() -> void:
 		)
 	_config = ConfigFile.new()
 	_load_ok = true
+
+func _migrate_clear_passwords() -> void:
+	var count: int = _config.get_value("servers", "count", 0)
+	var changed := false
+	for i in count:
+		var section := "server_%d" % i
+		if _config.has_section_key(section, "password"):
+			_config.set_value(section, "password", null)
+			changed = true
+	if changed:
+		_save()
+
+func _migrate_guild_to_space_keys() -> void:
+	var changed := false
+	# Migrate server_N/guild_name → server_N/space_name
+	var count: int = _config.get_value("servers", "count", 0)
+	for i in count:
+		var section := "server_%d" % i
+		if _config.has_section_key(section, "guild_name"):
+			var val: String = _config.get_value(section, "guild_name", "")
+			_config.set_value(section, "space_name", val)
+			_config.set_value(section, "guild_name", null)
+			changed = true
+	# Migrate state/last_guild_id → state/last_space_id
+	if _config.has_section_key("state", "last_guild_id"):
+		var val: String = _config.get_value("state", "last_guild_id", "")
+		_config.set_value("state", "last_space_id", val)
+		_config.set_value("state", "last_guild_id", null)
+		changed = true
+	# Migrate guild_order section → space_order section
+	if _config.has_section("guild_order"):
+		var items: Array = _config.get_value("guild_order", "items", [])
+		_config.set_value("space_order", "items", items)
+		_config.erase_section("guild_order")
+		changed = true
+	if changed:
+		_save()
 
 func _backup_corrupted_file() -> void:
 	var path := _config_path()
@@ -172,25 +213,23 @@ func get_servers() -> Array:
 		servers.append({
 			"base_url": _config.get_value(section, "base_url", ""),
 			"token": _config.get_value(section, "token", ""),
-			"guild_name": _config.get_value(section, "guild_name", ""),
+			"space_name": _config.get_value(section, "space_name", ""),
 			"username": _config.get_value(section, "username", ""),
-			"password": _config.get_value(section, "password", ""),
 			"display_name": _config.get_value(section, "display_name", ""),
 		})
 	return servers
 
 func add_server(
-	base_url: String, token: String, guild_name: String,
-	username: String = "", password: String = "",
+	base_url: String, token: String, space_name: String,
+	username: String = "",
 	display_name: String = "",
 ) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	var section := "server_%d" % count
 	_config.set_value(section, "base_url", base_url)
 	_config.set_value(section, "token", token)
-	_config.set_value(section, "guild_name", guild_name)
+	_config.set_value(section, "space_name", space_name)
 	_config.set_value(section, "username", username)
-	_config.set_value(section, "password", password)
 	_config.set_value(section, "display_name", display_name)
 	_config.set_value("servers", "count", count + 1)
 	_save()
@@ -205,9 +244,8 @@ func remove_server(index: int) -> void:
 		var dst := "server_%d" % i
 		_config.set_value(dst, "base_url", _config.get_value(src, "base_url", ""))
 		_config.set_value(dst, "token", _config.get_value(src, "token", ""))
-		_config.set_value(dst, "guild_name", _config.get_value(src, "guild_name", ""))
+		_config.set_value(dst, "space_name", _config.get_value(src, "space_name", ""))
 		_config.set_value(dst, "username", _config.get_value(src, "username", ""))
-		_config.set_value(dst, "password", _config.get_value(src, "password", ""))
 		_config.set_value(dst, "display_name", _config.get_value(src, "display_name", ""))
 	# Erase last section
 	var last := "server_%d" % (count - 1)
@@ -253,24 +291,24 @@ func _save() -> void:
 			)
 		return
 
-func set_last_selection(guild_id: String, channel_id: String) -> void:
-	_config.set_value("state", "last_guild_id", guild_id)
+func set_last_selection(space_id: String, channel_id: String) -> void:
+	_config.set_value("state", "last_space_id", space_id)
 	_config.set_value("state", "last_channel_id", channel_id)
 	_save()
 
 func get_last_selection() -> Dictionary:
 	return {
-		"guild_id": _config.get_value("state", "last_guild_id", ""),
+		"space_id": _config.get_value("state", "last_space_id", ""),
 		"channel_id": _config.get_value("state", "last_channel_id", ""),
 	}
 
-func set_category_collapsed(guild_id: String, category_id: String, collapsed: bool) -> void:
-	var section := "collapsed_%s" % guild_id
+func set_category_collapsed(space_id: String, category_id: String, collapsed: bool) -> void:
+	var section := "collapsed_%s" % space_id
 	_config.set_value(section, category_id, collapsed)
 	_save()
 
-func is_category_collapsed(guild_id: String, category_id: String) -> bool:
-	var section := "collapsed_%s" % guild_id
+func is_category_collapsed(space_id: String, category_id: String) -> bool:
+	var section := "collapsed_%s" % space_id
 	return _config.get_value(section, category_id, false)
 
 
@@ -303,21 +341,21 @@ func set_error_reporting_consent_shown() -> void:
 	_config.set_value("error_reporting", "consent_shown", true)
 	_save()
 
-func get_guild_folder(guild_id: String) -> String:
-	return _config.get_value("folders", guild_id, "")
+func get_space_folder(space_id: String) -> String:
+	return _config.get_value("folders", space_id, "")
 
-func set_guild_folder(guild_id: String, folder_name: String) -> void:
+func set_space_folder(space_id: String, folder_name: String) -> void:
 	if folder_name.is_empty():
-		_config.set_value("folders", guild_id, null)
+		_config.set_value("folders", space_id, null)
 	else:
-		_config.set_value("folders", guild_id, folder_name)
+		_config.set_value("folders", space_id, folder_name)
 	_save()
 
-func get_guild_folder_color(guild_id: String) -> Color:
-	return _config.get_value("folder_colors", guild_id, Color(0.212, 0.224, 0.247))
+func get_space_folder_color(space_id: String) -> Color:
+	return _config.get_value("folder_colors", space_id, Color(0.212, 0.224, 0.247))
 
-func set_guild_folder_color(guild_id: String, color: Color) -> void:
-	_config.set_value("folder_colors", guild_id, color)
+func set_space_folder_color(space_id: String, color: Color) -> void:
+	_config.set_value("folder_colors", space_id, color)
 	_save()
 
 func get_folder_color(fname: String) -> Color:
@@ -347,11 +385,11 @@ func get_all_folder_names() -> Array:
 			names.append(folder_name)
 	return names
 
-func get_guild_order() -> Array:
-	return _config.get_value("guild_order", "items", [])
+func get_space_order() -> Array:
+	return _config.get_value("space_order", "items", [])
 
-func set_guild_order(order: Array) -> void:
-	_config.set_value("guild_order", "items", order)
+func set_space_order(order: Array) -> void:
+	_config.set_value("space_order", "items", order)
 	_save()
 
 ## Idle timeout
@@ -394,17 +432,36 @@ func set_suppress_everyone(value: bool) -> void:
 	_save()
 	AppState.config_changed.emit("notifications", "suppress_everyone")
 
-func is_server_muted(guild_id: String) -> bool:
-	return _config.get_value("muted_servers", guild_id, false)
+## Per-server suppress @everyone override
+## Returns: -1 = use global default, 0 = don't suppress, 1 = suppress
+func get_server_suppress_everyone(space_id: String) -> int:
+	return _config.get_value("server_suppress", space_id, -1)
 
-func set_server_muted(guild_id: String, muted: bool) -> void:
+func set_server_suppress_everyone(space_id: String, value: int) -> void:
+	if value == -1:
+		_config.set_value("server_suppress", space_id, null)
+	else:
+		_config.set_value("server_suppress", space_id, clampi(value, 0, 1))
+	_save()
+	AppState.config_changed.emit("server_suppress", space_id)
+
+func is_suppress_everyone_for_space(space_id: String) -> bool:
+	var override: int = get_server_suppress_everyone(space_id)
+	if override == -1:
+		return get_suppress_everyone()
+	return override == 1
+
+func is_server_muted(space_id: String) -> bool:
+	return _config.get_value("muted_servers", space_id, false)
+
+func set_server_muted(space_id: String, muted: bool) -> void:
 	if muted:
-		_config.set_value("muted_servers", guild_id, true)
+		_config.set_value("muted_servers", space_id, true)
 	else:
 		# Remove the key entirely when unmuting
-		_config.set_value("muted_servers", guild_id, null)
+		_config.set_value("muted_servers", space_id, null)
 	_save()
-	AppState.config_changed.emit("muted_servers", guild_id)
+	AppState.config_changed.emit("muted_servers", space_id)
 
 ## Recently used emoji
 
@@ -512,15 +569,14 @@ func _clear() -> void:
 	_config.set_value("servers", "count", 0)
 	_save()
 
-func update_server_credentials(
-	index: int, username: String, password: String
+func update_server_username(
+	index: int, username: String
 ) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	if index < 0 or index >= count:
 		return
 	var section := "server_%d" % index
 	_config.set_value(section, "username", username)
-	_config.set_value(section, "password", password)
 	_save()
 
 ## Config export/import
@@ -529,7 +585,15 @@ func export_config(path: String) -> Error:
 	if not _load_ok:
 		push_warning("[Config] export blocked — config was not loaded")
 		return ERR_INVALID_DATA
-	return _config.save(path)
+	# Create a sanitized copy that strips secrets from server sections
+	var sanitized := ConfigFile.new()
+	for section in _config.get_sections():
+		for key in _config.get_section_keys(section):
+			# Strip token and password from server_N sections
+			if section.begins_with("server_") and key in ["token", "password"]:
+				continue
+			sanitized.set_value(section, key, _config.get_value(section, key))
+	return sanitized.save(path)
 
 func import_config(path: String) -> Error:
 	var new_cfg := ConfigFile.new()

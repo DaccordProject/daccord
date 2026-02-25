@@ -145,7 +145,6 @@ UserSettings._ready()                                  (line 45)
 | `scenes/user/profile_password_dialog.tscn` | Scene tree for profile unlock dialog |
 | `scenes/user/profile_set_password_dialog.gd` | Dialog: set, change, or remove a profile password |
 | `scenes/user/profile_set_password_dialog.tscn` | Scene tree for profile set-password dialog |
-| `scenes/user/profile_edit_dialog.gd` | Standalone modal dialog for editing profile (separate from settings panel) |
 | `scenes/user/profile_card.gd` | Floating profile card popup shown on avatar/username click |
 | `scenes/sidebar/user_bar.gd` | User bar at bottom of sidebar — opens settings via menu (line 160) |
 | `scripts/autoload/config.gd` | All settings persistence: voice, video, sound, notifications, profiles, passwords |
@@ -229,7 +228,7 @@ Built by `_build_notifications_page()` (line 544). Contains:
 - **Idle Timeout** dropdown — options: Disabled, 1/5/10/30 minutes, mapped to seconds `[0, 60, 300, 600, 1800]` (lines 556-572)
 - **Error Reporting** checkbox — toggles Sentry reporting; also initializes Sentry when enabled (lines 575-586)
 - **Accessibility** section with "Reduce motion" checkbox — auto-saves via `Config.set_reduced_motion()` (lines 589-596)
-- **Server Mute** — dynamically generates one checkbox per guild from `Client.guilds`, labeled "Mute [name]" (lines 599-609)
+- **Server Mute** — dynamically generates one checkbox per space from `Client.spaces`, labeled "Mute [name]" (lines 599-609)
 
 ### Change Password Page
 
@@ -281,13 +280,9 @@ Built by `_build_connections_page()` (line 642). Shows "Loading connections..." 
 
 **ProfileSetPasswordDialog** (`profile_set_password_dialog.gd`): Fullscreen overlay. Conditionally shows current password field and "Remove Password" button based on `has_password`. Validates current password via `Config.verify_profile_password()`, then calls `Config.set_profile_password()`. Closes on background click or Escape (lines 78-86).
 
-### Profile Edit Dialog (Standalone)
-
-`profile_edit_dialog.gd` is a standalone modal (separate from the settings panel) opened via "Edit Profile" in the user bar menu (line 132 in `user_bar.gd`). It has dirty-change tracking with an unsaved-changes confirmation dialog on close (lines 282-295). Same fields as the in-panel Profile page but with Cancel/Save buttons and backdrop click handling.
-
 ### Profile Card (Popup)
 
-`profile_card.gd` is a floating popup shown when clicking a user's avatar. Displays avatar, status dot, display name, username, custom status, activities, device status, bio, roles (guild context), badges, member-since date, and a "Message" button for non-self users. Not part of the settings panel but shares the profile data model.
+`profile_card.gd` is a floating popup shown when clicking a user's avatar. Displays avatar, status dot, display name, username, custom status, activities, device status, bio, roles (space context), badges, member-since date, and a "Message" button for non-self users. Not part of the settings panel but shares the profile data model.
 
 ## Implementation Status
 
@@ -304,7 +299,6 @@ Built by `_build_connections_page()` (line 642). Shows "Loading connections..." 
 - [x] 2FA enable/verify/disable with backup codes
 - [x] Connections page (async-loaded from server)
 - [x] Escape key dismissal
-- [x] Standalone profile edit dialog (with dirty-change tracking)
 - [ ] 2FA status not loaded from server on page open (defaults to "not enabled")
 - [ ] No password visibility toggle on any password fields
 - [ ] No password strength indicator

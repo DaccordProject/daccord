@@ -1,10 +1,12 @@
 ; Inno Setup script for daccord Windows installer
 ; Built during CI — placeholders are replaced by the release workflow.
 
-#define MyAppName "daccord"
-#define MyAppVersion GetEnv('APP_VERSION')
-#if MyAppVersion == ""
-#define MyAppVersion "0.0.0"
+#define MyAppName "Daccord"
+#ifndef MyAppVersion
+  #define MyAppVersion GetEnv('APP_VERSION')
+  #if MyAppVersion == ""
+    #define MyAppVersion "0.0.0"
+  #endif
 #endif
 #define MyAppPublisher "daccord-projects"
 #define MyAppURL "https://github.com/daccord-projects/daccord"

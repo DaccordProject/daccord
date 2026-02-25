@@ -25,7 +25,7 @@ func after_each() -> void:
 func _ch_data(overrides: Dictionary = {}) -> Dictionary:
 	var d := {
 		"id": "c_1",
-		"guild_id": "g_1",
+		"space_id": "g_1",
 		"name": "general",
 		"type": ClientModels.ChannelType.TEXT,
 		"unread": false,
@@ -41,7 +41,7 @@ func _ch_data(overrides: Dictionary = {}) -> Dictionary:
 func test_setup_stores_ids() -> void:
 	component.setup(_ch_data())
 	assert_eq(component.channel_id, "c_1")
-	assert_eq(component.guild_id, "g_1")
+	assert_eq(component.space_id, "g_1")
 
 
 func test_setup_sets_channel_name() -> void:
@@ -77,7 +77,7 @@ func test_setup_nsfw_red_tint() -> void:
 
 func test_setup_non_nsfw_default_tint() -> void:
 	component.setup(_ch_data({"nsfw": false}))
-	assert_eq(component.type_icon.modulate, Color(0.58, 0.608, 0.643))
+	assert_eq(component.type_icon.modulate, Color(0.44, 0.47, 0.51))
 
 
 func test_setup_unread_dot_visible() -> void:

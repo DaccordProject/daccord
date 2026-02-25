@@ -61,6 +61,38 @@ static func sound(audio_url: String, cdn_url: String = "") -> String:
 		return audio_url
 	return _resolve(cdn_url) + audio_url
 
+## Resolves a server-returned CDN path (e.g. "/cdn/avatars/123.png")
+## to a full URL. Handles both absolute URLs and relative /cdn/ paths.
+static func resolve_path(
+	path: String, cdn_url: String = "",
+) -> String:
+	if path.begins_with("http://") or path.begins_with("https://"):
+		return path
+	if path.begins_with("/cdn/"):
+		return _resolve(cdn_url) + path.substr(4)
+	if path.begins_with("/"):
+		return _resolve(cdn_url) + path
+	return _resolve(cdn_url) + "/" + path
+
+## Builds a data URI from raw file bytes and a file path.
+## Returns "data:image/{ext};base64,{encoded}" suitable for
+## the server's avatar/icon/banner upload fields.
+static func build_data_uri(
+	bytes: PackedByteArray, file_path: String,
+) -> String:
+	var ext: String = file_path.get_extension().to_lower()
+	var mime: String
+	match ext:
+		"jpg", "jpeg":
+			mime = "image/jpeg"
+		"webp":
+			mime = "image/webp"
+		"gif":
+			mime = "image/gif"
+		_:
+			mime = "image/png"
+	return "data:" + mime + ";base64," + Marshalls.raw_to_base64(bytes)
+
 static func is_animated(hash: String) -> bool:
 	return hash.begins_with("a_")
 

@@ -179,7 +179,7 @@ func test_user_to_dict_status() -> void:
 
 
 # =============================================================================
-# space_to_guild_dict
+# space_to_dict
 # =============================================================================
 
 func _make_space(overrides: Dictionary = {}) -> AccordSpace:
@@ -199,35 +199,35 @@ func _make_space(overrides: Dictionary = {}) -> AccordSpace:
 	return AccordSpace.from_dict(d)
 
 
-func test_space_to_guild_dict_basic() -> void:
+func test_space_to_dict_basic() -> void:
 	var space := _make_space()
-	var d: Dictionary = ClientModels.space_to_guild_dict(space)
+	var d: Dictionary = ClientModels.space_to_dict(space)
 	assert_eq(d["id"], "s_1")
 	assert_eq(d["name"], "Test Space")
 	assert_eq(d["owner_id"], "u_owner")
 
 
-func test_space_to_guild_dict_description_null() -> void:
+func test_space_to_dict_description_null() -> void:
 	var space := _make_space({"description": null})
-	var d: Dictionary = ClientModels.space_to_guild_dict(space)
+	var d: Dictionary = ClientModels.space_to_dict(space)
 	assert_eq(d["description"], "")
 
 
-func test_space_to_guild_dict_public_from_features() -> void:
+func test_space_to_dict_public_from_features() -> void:
 	var space := _make_space({"features": ["public"]})
-	var d: Dictionary = ClientModels.space_to_guild_dict(space)
+	var d: Dictionary = ClientModels.space_to_dict(space)
 	assert_true(d["public"])
 
 
-func test_space_to_guild_dict_not_public() -> void:
+func test_space_to_dict_not_public() -> void:
 	var space := _make_space({"features": []})
-	var d: Dictionary = ClientModels.space_to_guild_dict(space)
+	var d: Dictionary = ClientModels.space_to_dict(space)
 	assert_false(d["public"])
 
 
-func test_space_to_guild_dict_icon_url() -> void:
+func test_space_to_dict_icon_url() -> void:
 	var space := _make_space()
-	var d: Dictionary = ClientModels.space_to_guild_dict(space, "https://cdn.example.com")
+	var d: Dictionary = ClientModels.space_to_dict(space, "https://cdn.example.com")
 	assert_not_null(d["icon"])
 	assert_string_contains(str(d["icon"]), "space-icons")
 
@@ -271,10 +271,10 @@ func test_channel_to_dict_parent_id_null() -> void:
 	assert_eq(d["parent_id"], "")
 
 
-func test_channel_to_dict_guild_id_from_space_id() -> void:
+func test_channel_to_dict_space_id_from_space_id() -> void:
 	var channel := _make_channel()
 	var d: Dictionary = ClientModels.channel_to_dict(channel)
-	assert_eq(d["guild_id"], "s_1")
+	assert_eq(d["space_id"], "s_1")
 
 
 func test_channel_to_dict_position() -> void:

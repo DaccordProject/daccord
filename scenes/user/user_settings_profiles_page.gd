@@ -197,6 +197,7 @@ func _export_profile(_slug: String) -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.use_native_dialog = true
 	fd.title = "Export Profile"
 	fd.add_filter("*.daccord-profile", "daccord Profile")
 	fd.file_selected.connect(func(path: String) -> void:
@@ -222,6 +223,7 @@ func _on_import_profile() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.use_native_dialog = true
 	fd.title = "Import Profile"
 	fd.add_filter("*.daccord-profile; *.cfg", "Profile Files")
 	fd.file_selected.connect(func(path: String) -> void:

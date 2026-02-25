@@ -23,7 +23,7 @@ const ImageLightboxScene := preload(
 
 var tabs: Array[Dictionary] = []
 
-var _guild_icon_cache: Dictionary = {}
+var _space_icon_cache: Dictionary = {}
 var _drawer: MainWindowDrawer
 var _active_profile_card: PanelContainer = null
 var _welcome_screen: Control = null
@@ -33,6 +33,7 @@ var _thread_handle: Control
 var _member_handle: Control
 var _search_handle: Control
 var _clamping_panels: bool = false
+var _update_indicator: Button = null
 
 @onready var layout_hbox: HBoxContainer = $LayoutHBox
 @onready var sidebar: HBoxContainer = $LayoutHBox/Sidebar
@@ -56,6 +57,9 @@ func _ready() -> void:
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
 	_apply_ui_scale()
+	AudioServer.set_bus_volume_db(
+		0, linear_to_db(Config.voice.get_output_volume() / 100.0)
+	)
 	_gestures = DrawerGestures.new(self)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.sidebar_drawer_toggled.connect(_drawer.on_sidebar_drawer_toggled)
@@ -71,7 +75,7 @@ func _ready() -> void:
 	AppState.member_list_toggled.connect(_on_member_list_toggled)
 	AppState.search_toggled.connect(_on_search_toggled)
 	AppState.dm_mode_entered.connect(_on_dm_mode_entered)
-	AppState.guild_selected.connect(_on_guild_selected)
+	AppState.space_selected.connect(_on_space_selected)
 	AppState.reauth_needed.connect(_on_reauth_needed)
 	AppState.profile_switched.connect(_on_profile_switched)
 	AppState.server_removed.connect(_on_server_removed)
@@ -81,8 +85,41 @@ func _ready() -> void:
 	AppState.thread_closed.connect(_on_thread_closed)
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
 	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
-	AppState.update_download_complete.connect(_on_update_download_complete)
 	AppState.voice_error.connect(_on_voice_error)
+	AppState.update_available.connect(_on_update_indicator_show)
+	AppState.update_download_complete.connect(_on_update_indicator_ready)
+
+	# Update indicator in content header (hidden until update available)
+	_update_indicator = Button.new()
+	_update_indicator.custom_minimum_size = Vector2(44, 44)
+	_update_indicator.flat = true
+	_update_indicator.tooltip_text = "Update available"
+	_update_indicator.icon = preload(
+		"res://assets/theme/icons/update.svg"
+	)
+	_update_indicator.add_theme_color_override(
+		"icon_normal_color", Color(0.92, 0.26, 0.27)
+	)
+	_update_indicator.add_theme_color_override(
+		"icon_hover_color", Color(1.0, 0.35, 0.36)
+	)
+	_update_indicator.visible = false
+	_update_indicator.pressed.connect(_on_update_indicator_pressed)
+	var header: HBoxContainer = $LayoutHBox/ContentArea/ContentHeader
+	header.add_child(_update_indicator)
+	header.move_child(
+		_update_indicator, search_toggle.get_index()
+	)
+	# Show if an update is already known
+	if Updater.is_update_ready() or (
+		not Updater.get_latest_version_info().is_empty()
+		and Updater.is_newer(
+			Updater.get_latest_version_info().get("version", ""),
+			Client.app_version,
+		)
+	):
+		_update_indicator.visible = true
+
 	# Style topic bar
 	topic_bar.add_theme_font_size_override("font_size", 12)
 	topic_bar.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
@@ -175,9 +212,9 @@ func _on_channel_selected(channel_id: String) -> void:
 
 	# Update window title
 	if AppState.is_dm_mode:
-		get_window().title = "daccord - " + channel_name
+		get_window().title = "Daccord - " + channel_name
 	else:
-		get_window().title = "daccord - #" + channel_name
+		get_window().title = "Daccord - #" + channel_name
 
 	# Update topic bar
 	if topic != "":
@@ -186,8 +223,8 @@ func _on_channel_selected(channel_id: String) -> void:
 	else:
 		topic_bar.visible = false
 
-	# Look up guild for this channel
-	var guild_id: String = Client._channel_to_guild.get(channel_id, "")
+	# Look up space for this channel
+	var space_id: String = Client._channel_to_space.get(channel_id, "")
 
 	# Check if tab already exists
 	for i in tabs.size():
@@ -195,10 +232,10 @@ func _on_channel_selected(channel_id: String) -> void:
 			tab_bar.current_tab = i
 			return
 
-	_add_tab(channel_name, channel_id, guild_id)
+	_add_tab(channel_name, channel_id, space_id)
 
-func _add_tab(tab_name: String, channel_id: String, guild_id: String) -> void:
-	tabs.append({"name": tab_name, "channel_id": channel_id, "guild_id": guild_id})
+func _add_tab(tab_name: String, channel_id: String, space_id: String) -> void:
+	tabs.append({"name": tab_name, "channel_id": channel_id, "space_id": space_id})
 	tab_bar.add_tab(tab_name)
 	tab_bar.current_tab = tabs.size() - 1
 	_update_tab_visibility()
@@ -234,8 +271,8 @@ func _on_tab_rearranged(idx_to: int) -> void:
 	tabs.insert(idx_to, tab_data)
 	_update_tab_icons()
 
-func _on_server_removed(guild_id: String) -> void:
-	var was_active: bool = AppState.current_guild_id == guild_id
+func _on_server_removed(space_id: String) -> void:
+	var was_active: bool = AppState.current_space_id == space_id
 	# Clear composition state tied to the removed server
 	if was_active:
 		if not AppState.replying_to_message_id.is_empty():
@@ -244,22 +281,22 @@ func _on_server_removed(guild_id: String) -> void:
 			AppState.editing_message_id = ""
 		if AppState.thread_panel_visible:
 			AppState.close_thread()
-	if AppState.is_imposter_mode and AppState.imposter_guild_id == guild_id:
+	if AppState.is_imposter_mode and AppState.imposter_space_id == space_id:
 		AppState.exit_imposter_mode()
 
 	# Remove tabs belonging to the disconnected server
 	var i: int = tabs.size() - 1
 	while i >= 0:
-		if tabs[i].get("guild_id", "") == guild_id:
+		if tabs[i].get("space_id", "") == space_id:
 			tabs.remove_at(i)
 			tab_bar.remove_tab(i)
 		i -= 1
 
 	if tabs.is_empty():
 		# Reset navigation state
-		AppState.current_guild_id = ""
+		AppState.current_space_id = ""
 		AppState.current_channel_id = ""
-		get_window().title = "daccord"
+		get_window().title = "Daccord"
 		topic_bar.visible = false
 		_update_tab_visibility()
 		if not Config.has_servers():
@@ -286,41 +323,41 @@ func _update_tab_icons() -> void:
 
 	for i in tabs.size():
 		if name_count[tabs[i]["name"]] > 1:
-			_set_guild_icon_for_tab(i)
+			_set_space_icon_for_tab(i)
 		else:
 			tab_bar.set_tab_icon(i, null)
 
-func _set_guild_icon_for_tab(tab_index: int) -> void:
-	var guild_id: String = tabs[tab_index].get("guild_id", "")
-	if guild_id.is_empty():
+func _set_space_icon_for_tab(tab_index: int) -> void:
+	var space_id: String = tabs[tab_index].get("space_id", "")
+	if space_id.is_empty():
 		tab_bar.set_tab_icon(tab_index, null)
 		return
 
 	# Already cached locally
-	if _guild_icon_cache.has(guild_id):
-		tab_bar.set_tab_icon(tab_index, _guild_icon_cache[guild_id])
+	if _space_icon_cache.has(space_id):
+		tab_bar.set_tab_icon(tab_index, _space_icon_cache[space_id])
 		return
 
-	var guild: Dictionary = Client.get_guild_by_id(guild_id)
-	if guild.is_empty():
+	var space: Dictionary = Client.get_space_by_id(space_id)
+	if space.is_empty():
 		tab_bar.set_tab_icon(tab_index, null)
 		return
 
-	var icon_url_value = guild.get("icon", "")
+	var icon_url_value = space.get("icon", "")
 	var icon_url: String = icon_url_value if icon_url_value != null else ""
 	if icon_url.is_empty():
 		# Fallback: solid-color swatch
 		var tex: ImageTexture = _create_color_swatch(
-			guild.get("icon_color", Color.GRAY)
+			space.get("icon_color", Color.GRAY)
 		)
-		_guild_icon_cache[guild_id] = tex
+		_space_icon_cache[space_id] = tex
 		tab_bar.set_tab_icon(tab_index, tex)
 		return
 
 	# Check avatar's shared cache
 	if AvatarScript._image_cache.has(icon_url):
 		var tex: ImageTexture = AvatarScript._image_cache[icon_url]
-		_guild_icon_cache[guild_id] = tex
+		_space_icon_cache[space_id] = tex
 		tab_bar.set_tab_icon(tab_index, tex)
 		return
 
@@ -328,14 +365,14 @@ func _set_guild_icon_for_tab(tab_index: int) -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	http.request_completed.connect(
-		_on_tab_icon_loaded.bind(guild_id, http)
+		_on_tab_icon_loaded.bind(space_id, http)
 	)
 	http.request(icon_url)
 
 func _on_tab_icon_loaded(
 	result: int, response_code: int,
 	_headers: PackedStringArray, body: PackedByteArray,
-	guild_id: String, http: HTTPRequest,
+	space_id: String, http: HTTPRequest,
 ) -> void:
 	http.queue_free()
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
@@ -350,8 +387,8 @@ func _on_tab_icon_loaded(
 		return
 	image.resize(16, 16)
 	var tex := ImageTexture.create_from_image(image)
-	_guild_icon_cache[guild_id] = tex
-	# Apply to any tabs that need this guild's icon
+	_space_icon_cache[space_id] = tex
+	# Apply to any tabs that need this space's icon
 	_update_tab_icons()
 
 func _create_color_swatch(c: Color, px: int = 16) -> ImageTexture:
@@ -484,7 +521,7 @@ func _on_search_toggled(is_open: bool) -> void:
 	search_panel.visible = is_open
 	_sync_handle_visibility()
 	if is_open:
-		search_panel.activate(AppState.current_guild_id)
+		search_panel.activate(AppState.current_space_id)
 
 func _on_thread_opened(_parent_message_id: String) -> void:
 	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
@@ -500,7 +537,7 @@ func _on_dm_mode_entered() -> void:
 	AppState.close_search()
 	_update_member_list_visibility()
 
-func _on_guild_selected(_guild_id: String) -> void:
+func _on_space_selected(_space_id: String) -> void:
 	_update_member_list_visibility()
 	_update_search_visibility()
 	AppState.close_search()
@@ -564,10 +601,10 @@ func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
 		return
 	_active_profile_card = ProfileCardScene.instantiate()
 	add_child(_active_profile_card)
-	var guild_id: String = ""
+	var space_id: String = ""
 	if not AppState.is_dm_mode:
-		guild_id = AppState.current_guild_id
-	_active_profile_card.setup(user_data, guild_id)
+		space_id = AppState.current_space_id
+	_active_profile_card.setup(user_data, space_id)
 	# Position near click, clamped to viewport
 	await get_tree().process_frame
 	var vp_size := get_viewport().get_visible_rect().size
@@ -582,35 +619,33 @@ func _show_connecting_overlay() -> void:
 
 func _show_welcome_screen() -> void:
 	_welcome_screen = WelcomeScreenScene.instantiate()
-	# Ensure it fills the VBoxContainer
-	_welcome_screen.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_welcome_screen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content_area.add_child(_welcome_screen)
-	# Move welcome screen above ContentBody (index 0 = ContentHeader, 1 = TopicBar, 2 = VideoGrid)
-	content_area.move_child(_welcome_screen, 3)
-	# Hide normal content
-	content_body.visible = false
+	# Add as full-window overlay covering sidebar + content
+	add_child(_welcome_screen)
+	# Hide normal layout
+	layout_hbox.visible = false
 	# Listen for first server connection
-	AppState.guilds_updated.connect(
-		_on_first_server_added, CONNECT_ONE_SHOT
-	)
-
-func _on_first_server_added() -> void:
-	# Guard: guilds_updated can fire from disconnect_server() too.
-	# Only dismiss the welcome screen when a server actually exists.
-	if not Config.has_servers():
-		AppState.guilds_updated.connect(
+	if not AppState.spaces_updated.is_connected(_on_first_server_added):
+		AppState.spaces_updated.connect(
 			_on_first_server_added, CONNECT_ONE_SHOT
 		)
+
+func _on_first_server_added() -> void:
+	# Guard: spaces_updated can fire from disconnect_server() too.
+	# Only dismiss the welcome screen when a server actually exists.
+	if not Config.has_servers():
+		if not AppState.spaces_updated.is_connected(_on_first_server_added):
+			AppState.spaces_updated.connect(
+				_on_first_server_added, CONNECT_ONE_SHOT
+			)
 		return
 	if _welcome_screen and is_instance_valid(_welcome_screen):
 		_welcome_screen.dismissed.connect(func() -> void:
-			content_body.visible = true
+			layout_hbox.visible = true
 			_welcome_screen = null
 		)
 		_welcome_screen.dismiss()
 	else:
-		content_body.visible = true
+		layout_hbox.visible = true
 		_welcome_screen = null
 
 func _show_consent_dialog() -> void:
@@ -640,40 +675,9 @@ func _show_consent_dialog() -> void:
 	dialog.popup_centered()
 
 func _show_crash_toast() -> void:
-	var toast := Label.new()
-	toast.text = "An error report from your last session was sent."
-	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toast.add_theme_font_size_override("font_size", 13)
-	toast.add_theme_color_override(
-		"font_color", Color(0.75, 0.75, 0.75)
+	_show_toast(
+		"An error report from your last session was sent."
 	)
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.18, 0.19, 0.21, 0.95)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	style.content_margin_left = 16.0
-	style.content_margin_right = 16.0
-	style.content_margin_top = 10.0
-	style.content_margin_bottom = 10.0
-	panel.add_theme_stylebox_override("panel", style)
-	panel.add_child(toast)
-	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	panel.anchor_bottom = 1.0
-	panel.anchor_top = 1.0
-	panel.offset_top = -60.0
-	panel.offset_bottom = -20.0
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	add_child(panel)
-	var tween := create_tween()
-	tween.tween_interval(4.0)
-	if Config.get_reduced_motion():
-		tween.tween_callback(panel.queue_free)
-	else:
-		tween.tween_property(panel, "modulate:a", 0.0, 1.0)
-		tween.tween_callback(panel.queue_free)
 
 func _show_toast(text: String, is_error: bool = false) -> void:
 	var toast := Label.new()
@@ -728,10 +732,22 @@ func _on_image_lightbox_requested(
 	add_child(lightbox)
 	lightbox.show_image(texture)
 
-func _on_update_download_complete(_path: String) -> void:
-	var title: String = get_window().title
-	if not title.ends_with("[Update ready]"):
-		get_window().title = title + " [Update ready]"
+func _on_update_indicator_show(_info: Dictionary) -> void:
+	_update_indicator.visible = true
+	_update_indicator.tooltip_text = "Update available"
+
+func _on_update_indicator_ready(_path: String) -> void:
+	_update_indicator.visible = true
+	_update_indicator.tooltip_text = "Update ready — restart to apply"
+
+func _on_update_indicator_pressed() -> void:
+	var AppSettingsScene: PackedScene = load(
+		"res://scenes/user/app_settings.tscn"
+	)
+	if AppSettingsScene:
+		var settings: ColorRect = AppSettingsScene.instantiate()
+		settings.initial_page = 5 # Updates page
+		get_tree().root.add_child(settings)
 
 func _on_profile_switched() -> void:
 	# Clear tabs
@@ -739,9 +755,9 @@ func _on_profile_switched() -> void:
 	tab_bar.clear_tabs()
 	_update_tab_visibility()
 	_update_tab_icons()
-	_guild_icon_cache.clear()
+	_space_icon_cache.clear()
 	# Reset window title
-	get_window().title = "daccord"
+	get_window().title = "Daccord"
 	# Reset topic bar
 	topic_bar.visible = false
 	# Show welcome screen if no servers in new profile
@@ -750,20 +766,21 @@ func _on_profile_switched() -> void:
 
 func _on_reauth_needed(
 	server_index: int, base_url: String,
+	username: String,
 ) -> void:
 	var AuthDialog: PackedScene = load(
 		"res://scenes/sidebar/guild_bar/auth_dialog.tscn"
 	)
 	var dlg: ColorRect = AuthDialog.instantiate()
-	dlg.setup(base_url)
+	dlg.setup(base_url, username)
 	dlg.auth_completed.connect(func(
 		_url: String, token: String,
-		username: String, password: String,
+		new_username: String, _password: String,
 		_dn: String,
 	) -> void:
 		Config.update_server_token(server_index, token)
-		Config.update_server_credentials(
-			server_index, username, password,
+		Config.update_server_username(
+			server_index, new_username,
 		)
 		Client.reconnect_server(server_index)
 	)

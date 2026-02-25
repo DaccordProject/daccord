@@ -3,7 +3,7 @@
 
 ## Overview
 
-This flow documents what happens when a server connection is lost during a live session -- covering WebSocket gateway disconnects, REST API timeouts, automatic reconnection with exponential backoff, and session resume capabilities. The UI provides connection banners (yellow/green/red), guild icon status dots, composer state changes, inline error feedback for failed edits/deletes, and an offline message queue that auto-sends on reconnect.
+This flow documents what happens when a server connection is lost during a live session -- covering WebSocket gateway disconnects, REST API timeouts, automatic reconnection with exponential backoff, and session resume capabilities. The UI provides connection banners (yellow/green/red), space icon status dots, composer state changes, inline error feedback for failed edits/deletes, and an offline message queue that auto-sends on reconnect.
 
 ## User Steps
 
@@ -13,15 +13,15 @@ This flow documents what happens when a server connection is lost during a live 
 2. Server becomes unreachable (crash, network drop, maintenance).
 3. WebSocket enters `STATE_CLOSED`. Gateway emits `disconnected(code, reason)`.
 4. `ClientGateway.on_gateway_disconnected()` updates `conn["status"]` to `"disconnected"`, emits `AppState.server_disconnected`.
-5. **User sees:** Yellow connection banner: "Connection lost. Reconnecting..." Guild icon shows yellow status dot. Composer is disabled with "Cannot send messages -- disconnected" placeholder.
+5. **User sees:** Yellow connection banner: "Connection lost. Reconnecting..." Space icon shows yellow status dot. Composer is disabled with "Cannot send messages -- disconnected" placeholder.
 6. New messages stop arriving. Typing indicators stop. Presence updates stop.
 7. Gateway automatically begins reconnection attempts (up to 10, exponential backoff). Gateway emits `reconnecting(attempt, max_attempts)`.
 8. **User sees:** Banner updates: "Reconnecting... (attempt 2/10)".
 9. If reconnection succeeds: gateway resumes session or receives fresh `ready`. `ClientGateway.on_gateway_reconnected()` updates status to `"connected"`, emits `AppState.server_reconnected`.
-10. **User sees:** Green "Reconnected!" banner (auto-hides after 3s). Composer re-enables. Guild icon dot disappears. Messages arrive via gateway replay.
+10. **User sees:** Green "Reconnected!" banner (auto-hides after 3s). Composer re-enables. Space icon dot disappears. Messages arrive via gateway replay.
 11. If all 10 gateway reconnection attempts fail: `ClientGateway.on_gateway_reconnecting()` escalates to `_handle_gateway_reconnect_failed()`.
 12. First time: Client performs a full `reconnect_server()` with re-authentication (token refresh via stored credentials). If re-auth succeeds, a fresh connection is established.
-13. If re-auth also fails: **User sees:** Red banner: "Connection failed: Reconnection failed" with "Reconnect" button. Guild icon shows red dot. Right-click guild icon for "Reconnect" option.
+13. If re-auth also fails: **User sees:** Red banner: "Connection failed: Reconnection failed" with "Reconnect" button. Space icon shows red dot. Right-click space icon for "Reconnect" option.
 
 ### REST API Timeout (Message Fails to Send)
 
@@ -58,14 +58,14 @@ This flow documents what happens when a server connection is lost during a live 
 5. First time: Client performs a full `reconnect_server()` which tears down the old connection, re-authenticates using stored credentials (`_try_reauth()`), obtains a fresh token, and reconnects from scratch. Banner stays yellow ("Reconnecting...").
 6. If re-auth succeeds: normal "Reconnected!" flow (green banner, composer re-enables).
 7. If re-auth fails (bad credentials / server still down): `conn["status"]` set to `"error"`, emits `AppState.server_connection_failed`.
-8. **User sees:** Red banner with "Reconnect" button. Guild icon shows red dot. Composer disabled.
+8. **User sees:** Red banner with "Reconnect" button. Space icon shows red dot. Composer disabled.
 
 ### Manual Server Removal
 
-1. User right-clicks a guild icon in the guild bar.
+1. User right-clicks a space icon in the space bar.
 2. Selects "Remove Server" from the context menu.
-3. `Client.disconnect_server(guild_id)` calls `client.logout()`, cleans all caches.
-4. Config removed via `Config.remove_server()`. Guild icon disappears.
+3. `Client.disconnect_server(space_id)` calls `client.logout()`, cleans all caches.
+4. Config removed via `Config.remove_server()`. Space icon disappears.
 5. If no connected servers remain, `mode` reverts to `CONNECTING` (empty UI).
 
 ## Signal Flow
@@ -83,7 +83,7 @@ Gateway Disconnect:
       -> UI components react:
         - message_view: shows yellow/red connection banner
         - composer: disables input
-        - guild_icon: shows yellow/red status dot
+        - guild_icon: shows yellow/red space status dot
     -> _should_reconnect(code) checked
       -> If true: _attempt_reconnect()
         -> _reconnect_attempts++
@@ -166,7 +166,7 @@ Heartbeat Timeout:
 ### Client Mutation Error Handling (client.gd)
 
 - Core mutation methods (`send_message_to_channel`, `update_message_content`, `remove_message`) return `bool` and emit failure signals on error:
-  1. Route to correct `AccordClient` via `_client_for_channel()` or `_client_for_guild()`.
+  1. Route to correct `AccordClient` via `_client_for_channel()` or `_client_for_space()`.
   2. If client is `null`: `push_error()`, emit failure signal (`message_send_failed`, `message_edit_failed`, `message_delete_failed`), return `false`.
   3. Await the REST call.
   4. If `result.ok == false`: `push_error()`, emit failure signal, return `false`.
@@ -181,8 +181,8 @@ Heartbeat Timeout:
 - `_all_failed()`: Returns true if every connection has status `"error"`.
 - `mode`: `CONNECTING` or `LIVE`. Set to `LIVE` on first successful connection. Reverted to `CONNECTING` on `disconnect_server()` if all connections are gone.
 - `ClientGateway.on_gateway_disconnected()` updates `conn["status"]` on runtime disconnects, keeping status accurate.
-- `is_guild_connected(guild_id)`: Returns true if the connection status is `"connected"`.
-- `get_guild_connection_status(guild_id)`: Returns the current status string.
+- `is_space_connected(space_id)`: Returns true if the connection status is `"connected"`.
+- `get_space_connection_status(space_id)`: Returns the current status string.
 - `reconnect_server(index)`: Tears down and re-establishes a connection by index.
 
 ### HTTPS-to-HTTP Fallback (client.gd)
@@ -194,7 +194,7 @@ Heartbeat Timeout:
 
 - **Server probe** (lines 127-151): Before connecting, makes a lightweight GET to `/auth/login`. Shows errors in `_error_label` if unreachable. Tries HTTPS then HTTP.
 - **Connection attempt UI** (lines 154-172): Button text changes to "Connecting...", disabled during attempt. On failure, rolls back config and shows error.
-- Connection errors are also shown via message view banners, guild icon status dots, and composer state.
+- Connection errors are also shown via message view banners, space icon status dots, and composer state.
 
 ### Gateway-to-UI Signal Chain
 
@@ -216,15 +216,15 @@ Heartbeat Timeout:
 - [x] REST rate-limit retry (429 with exponential backoff, up to 3 retries)
 - [x] REST error message mapping (timeout, connection error, TLS failure, etc.)
 - [x] HTTPS-to-HTTP fallback on initial connection
-- [x] Manual server removal via guild icon context menu
+- [x] Manual server removal via space icon context menu
 - [x] Connection error display in Add Server dialog
 - [x] Data re-fetch on gateway ready (channels, members, roles, DM channels)
 - [x] Connection status banner in message view (yellow for disconnect/reconnecting, green for reconnected, red for failed)
 - [x] "Reconnecting..." progress with attempt count in banner
 - [x] Failed message sends restore text to composer with error label
 - [x] Failed edits/deletes emit AppState signals (`message_edit_failed`, `message_delete_failed`)
-- [x] Reconnect button in connection banner and guild icon context menu
-- [x] Per-server connection status indicator (colored dot on guild icon)
+- [x] Reconnect button in connection banner and space icon context menu
+- [x] Per-server connection status indicator (colored dot on space icon)
 - [x] "Loading messages..." 15s timeout with error state and click-to-retry
 - [x] AppState signals for connection lifecycle (8 new signals)
 - [x] Client handler for AccordClient.disconnected/reconnecting/resumed signals

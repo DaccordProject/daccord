@@ -12,7 +12,7 @@ const CreateChannelDialogScene := preload("res://scenes/admin/create_channel_dia
 const CategoryEditDialogScene := preload("res://scenes/admin/category_edit_dialog.tscn")
 
 var is_collapsed: bool = false
-var guild_id: String = ""
+var space_id: String = ""
 var _category_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _plus_btn: Button
@@ -59,7 +59,7 @@ func _ready() -> void:
 	header.mouse_exited.connect(_on_header_mouse_exited)
 
 func setup(data: Dictionary, child_channels: Array) -> void:
-	guild_id = data.get("guild_id", "")
+	space_id = data.get("space_id", "")
 	_category_data = data
 	category_name.text = data.get("name", "").to_upper()
 	header.tooltip_text = data.get("name", "")
@@ -86,7 +86,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		item.channel_pressed.connect(func(id: String): channel_pressed.emit(id))
 
 	# "+" button (only if user has permission)
-	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_plus_btn = Button.new()
 		_plus_btn.flat = true
 		_plus_btn.visible = false
@@ -108,14 +108,14 @@ func _toggle_collapsed() -> void:
 	if _count_label:
 		_count_label.visible = is_collapsed
 	var cat_id: String = _category_data.get("id", "")
-	if guild_id != "" and cat_id != "":
-		Config.set_category_collapsed(guild_id, cat_id, is_collapsed)
+	if space_id != "" and cat_id != "":
+		Config.set_category_collapsed(space_id, cat_id, is_collapsed)
 
 func restore_collapse_state() -> void:
 	var cat_id: String = _category_data.get("id", "")
-	if guild_id == "" or cat_id == "":
+	if space_id == "" or cat_id == "":
 		return
-	var collapsed: bool = Config.is_category_collapsed(guild_id, cat_id)
+	var collapsed: bool = Config.is_category_collapsed(space_id, cat_id)
 	if collapsed:
 		is_collapsed = true
 		channel_container.visible = false
@@ -139,7 +139,7 @@ func _on_header_mouse_exited() -> void:
 
 func _on_header_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 			var pos := get_global_mouse_position()
 			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
 
@@ -160,7 +160,7 @@ func _on_context_menu_id_pressed(id: int) -> void:
 func _on_create_channel() -> void:
 	var dialog := CreateChannelDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
-	dialog.setup(guild_id, _category_data.get("id", ""))
+	dialog.setup(space_id, _category_data.get("id", ""))
 
 func _on_edit_category() -> void:
 	var dialog := CategoryEditDialogScene.instantiate()
@@ -197,7 +197,7 @@ func get_category_id() -> String:
 # --- Drag-and-drop reordering ---
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
-	if guild_id == "" or not Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+	if space_id == "" or not Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		return null
 	var preview := Label.new()
 	preview.text = _category_data.get("name", "").to_upper()
@@ -270,7 +270,7 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 					positions.append({"id": cid, "position": pos})
 					pos += 1
 		if positions.size() > 0:
-			Client.admin.reorder_channels(guild_id, positions)
+			Client.admin.reorder_channels(space_id, positions)
 
 func _move_channel_to_category(ch_id: String, cat_id: String) -> void:
 	var result: RestResult = await Client.admin.update_channel(ch_id, {"parent_id": cat_id})

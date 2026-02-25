@@ -116,7 +116,7 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 		conn["api_version"] = api_version
 		if api_version != AccordConfig.API_VERSION:
 			AppState.server_version_warning.emit(
-				conn["guild_id"], srv_version,
+				conn["space_id"], srv_version,
 				AccordConfig.CLIENT_VERSION
 			)
 	# Emit reconnected if this was a reconnect after disconnect
@@ -124,17 +124,17 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 		or conn["status"] != "connected"
 	conn["_was_disconnected"] = false
 	conn["status"] = "connected"
-	var guild_id: String = conn["guild_id"]
-	if was_down and not guild_id.is_empty():
-		AppState.server_reconnected.emit(guild_id)
+	var space_id: String = conn["space_id"]
+	if was_down and not space_id.is_empty():
+		AppState.server_reconnected.emit(space_id)
 	# Refetch all data (awaited so server_synced fires after completion)
 	await _refetch_data(conn, conn_index)
 
 	# Apply initial presences from READY payload
 	var presences: Array = _data.get("presences", [])
-	_apply_presences(presences, guild_id)
+	_apply_presences(presences, space_id)
 
-func _apply_presences(presences: Array, guild_id: String) -> void:
+func _apply_presences(presences: Array, space_id: String) -> void:
 	for p in presences:
 		if not p is Dictionary:
 			continue
@@ -154,13 +154,13 @@ func _apply_presences(presences: Array, guild_id: String) -> void:
 				"activities", []
 			)
 		# Update member cache
-		if not guild_id.is_empty():
-			var idx: int = _c._member_index_for(guild_id, uid)
+		if not space_id.is_empty():
+			var idx: int = _c._member_index_for(space_id, uid)
 			if idx != -1:
-				_c._member_cache[guild_id][idx]["status"] = status
+				_c._member_cache[space_id][idx]["status"] = status
 	# Notify UI
-	if not guild_id.is_empty():
-		AppState.members_updated.emit(guild_id)
+	if not space_id.is_empty():
+		AppState.members_updated.emit(space_id)
 
 func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void:
 	if _c.is_shutting_down:
@@ -168,7 +168,7 @@ func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var conn: Dictionary = _c._connections[conn_index]
-	var guild_id: String = conn["guild_id"]
+	var space_id: String = conn["space_id"]
 	var fatal_codes := [4003, 4004, 4012, 4013, 4014]
 	if code in fatal_codes:
 		# Escalate to full reconnect (with re-auth) instead of
@@ -176,14 +176,14 @@ func on_gateway_disconnected(code: int, reason: String, conn_index: int) -> void
 		# will go to "error" if it has already been tried once.
 		conn["status"] = "disconnected"
 		conn["_was_disconnected"] = true
-		AppState.server_disconnected.emit(guild_id, code, reason)
+		AppState.server_disconnected.emit(space_id, code, reason)
 		_c.call_deferred(
 			"_handle_gateway_reconnect_failed", conn_index
 		)
 	else:
 		conn["status"] = "disconnected"
 		conn["_was_disconnected"] = true
-		AppState.server_disconnected.emit(guild_id, code, reason)
+		AppState.server_disconnected.emit(space_id, code, reason)
 
 func on_gateway_reconnecting(attempt: int, max_attempts: int, conn_index: int) -> void:
 	if _c.is_shutting_down:
@@ -192,7 +192,7 @@ func on_gateway_reconnecting(attempt: int, max_attempts: int, conn_index: int) -
 		return
 	var conn: Dictionary = _c._connections[conn_index]
 	conn["status"] = "reconnecting"
-	AppState.server_reconnecting.emit(conn["guild_id"], attempt, max_attempts)
+	AppState.server_reconnecting.emit(conn["space_id"], attempt, max_attempts)
 	if attempt >= max_attempts:
 		# Escalate to full reconnect with re-auth instead of
 		# giving up. The old client will be destroyed by
@@ -209,7 +209,7 @@ func on_gateway_reconnected(conn_index: int) -> void:
 	conn["status"] = "connected"
 	conn["_was_disconnected"] = false
 	_c._auto_reconnect_attempted.erase(conn_index)
-	AppState.server_reconnected.emit(conn["guild_id"])
+	AppState.server_reconnected.emit(conn["space_id"])
 	# RESUME path: also refetch data since server restart invalidates state
 	await _refetch_data(conn, conn_index)
 
@@ -221,26 +221,26 @@ func on_gateway_raw_event(
 	var conn: Dictionary = _c._connections[conn_index]
 	if conn.get("status", "") == "connected":
 		return
-	var guild_id: String = conn.get("guild_id", "")
+	var space_id: String = conn.get("space_id", "")
 	conn["status"] = "connected"
 	conn["_was_disconnected"] = false
 	_c._auto_reconnect_attempted.erase(conn_index)
-	if not guild_id.is_empty():
-		AppState.server_reconnected.emit(guild_id)
+	if not space_id.is_empty():
+		AppState.server_reconnected.emit(space_id)
 
 func _refetch_data(conn: Dictionary, conn_index: int) -> void:
-	var guild_id: String = conn["guild_id"]
+	var space_id: String = conn["space_id"]
 	conn["_syncing"] = true
-	if not guild_id.is_empty():
-		await _c.fetch.fetch_channels(guild_id)
-		await _c.fetch.fetch_members(guild_id)
-		await _c.fetch.fetch_roles(guild_id)
-		_c.fetch.resync_voice_states(guild_id)
+	if not space_id.is_empty():
+		await _c.fetch.fetch_channels(space_id)
+		await _c.fetch.fetch_members(space_id)
+		await _c.fetch.fetch_roles(space_id)
+		_c.fetch.resync_voice_states(space_id)
 		await _c.fetch.refresh_current_user(conn_index)
 	await _c.fetch.fetch_dm_channels()
 	conn["_syncing"] = false
-	if not guild_id.is_empty():
-		AppState.server_synced.emit(guild_id)
+	if not space_id.is_empty():
+		AppState.server_synced.emit(space_id)
 
 func on_message_create(message: AccordMessage, conn_index: int) -> void:
 	var cdn_url := ""
@@ -332,8 +332,8 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 			pass # Skip all notification tracking in DND mode
 		else:
 			# Check server mute
-			var guild_id: String = _c._channel_to_guild.get(message.channel_id, "")
-			if Config.is_server_muted(guild_id):
+			var space_id: String = _c._channel_to_space.get(message.channel_id, "")
+			if Config.is_server_muted(space_id):
 				pass # Server is muted — skip unread tracking
 			else:
 				# Determine if this is a mention
@@ -341,11 +341,11 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 				if message.mention_everyone and not Config.get_suppress_everyone():
 					is_mention = true
 				if not is_mention:
-					is_mention = _has_role_mention(message.mention_roles, guild_id)
+					is_mention = _has_role_mention(message.mention_roles, space_id)
 
 				# Enforce default_notifications setting
-				var guild: Dictionary = _c._guild_cache.get(guild_id, {})
-				var notif_level: String = guild.get("default_notifications", "all")
+				var space: Dictionary = _c._space_cache.get(space_id, {})
+				var notif_level: String = space.get("default_notifications", "all")
 				if notif_level == "mentions" and not is_mention:
 					pass # Not a mention in mentions-only mode — skip
 				else:
@@ -500,17 +500,17 @@ func on_presence_update(presence: AccordPresence, conn_index: int) -> void:
 		_c._user_cache[presence.user_id]["activities"] = act_arr
 		AppState.user_updated.emit(presence.user_id)
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
-		var guild_id: String = _c._connections[conn_index]["guild_id"]
-		var idx: int = _c._member_index_for(guild_id, presence.user_id)
+		var space_id: String = _c._connections[conn_index]["space_id"]
+		var idx: int = _c._member_index_for(space_id, presence.user_id)
 		if idx != -1:
 			var new_status: int = ClientModels._status_string_to_enum(presence.status)
-			var old_status: int = _c._member_cache[guild_id][idx].get("status", -1)
-			_c._member_cache[guild_id][idx]["status"] = new_status
+			var old_status: int = _c._member_cache[space_id][idx].get("status", -1)
+			_c._member_cache[space_id][idx]["status"] = new_status
 			if old_status != new_status:
 				AppState.member_status_changed.emit(
-					guild_id, presence.user_id, new_status
+					space_id, presence.user_id, new_status
 				)
-			AppState.members_updated.emit(guild_id)
+			AppState.members_updated.emit(space_id)
 
 func on_user_update(user: AccordUser, conn_index: int) -> void:
 	var cdn_url := ""
@@ -544,29 +544,29 @@ func on_interaction_create(_interaction: AccordInteraction, _conn_index: int) ->
 func on_space_create(space: AccordSpace, conn_index: int) -> void:
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
 		var conn: Dictionary = _c._connections[conn_index]
-		if space.id == conn["guild_id"]:
+		if space.id == conn["space_id"]:
 			var cdn_url: String = conn.get("cdn_url", "")
-			var new_guild: Dictionary = ClientModels.space_to_guild_dict(space, cdn_url)
-			new_guild["folder"] = Config.get_guild_folder(space.id)
-			_c._guild_cache[space.id] = new_guild
-			AppState.guilds_updated.emit()
+			var new_space: Dictionary = ClientModels.space_to_dict(space, cdn_url)
+			new_space["folder"] = Config.get_space_folder(space.id)
+			_c._space_cache[space.id] = new_space
+			AppState.spaces_updated.emit()
 
 func on_space_update(space: AccordSpace) -> void:
-	if _c._guild_cache.has(space.id):
-		var old_guild: Dictionary = _c._guild_cache[space.id]
-		var cdn_url: String = _c._cdn_for_guild(space.id)
-		var new_guild: Dictionary = ClientModels.space_to_guild_dict(space, cdn_url)
-		new_guild["unread"] = old_guild.get("unread", false)
-		new_guild["mentions"] = old_guild.get("mentions", 0)
-		new_guild["folder"] = old_guild.get("folder", "")
-		_c._guild_cache[space.id] = new_guild
-		AppState.guilds_updated.emit()
+	if _c._space_cache.has(space.id):
+		var old_space: Dictionary = _c._space_cache[space.id]
+		var cdn_url: String = _c._cdn_for_space(space.id)
+		var new_space: Dictionary = ClientModels.space_to_dict(space, cdn_url)
+		new_space["unread"] = old_space.get("unread", false)
+		new_space["mentions"] = old_space.get("mentions", 0)
+		new_space["folder"] = old_space.get("folder", "")
+		_c._space_cache[space.id] = new_space
+		AppState.spaces_updated.emit()
 
 func on_space_delete(data: Dictionary) -> void:
 	var space_id: String = data.get("id", "")
-	_c._guild_cache.erase(space_id)
-	_c._guild_to_conn.erase(space_id)
-	AppState.guilds_updated.emit()
+	_c._space_cache.erase(space_id)
+	_c._space_to_conn.erase(space_id)
+	AppState.spaces_updated.emit()
 
 func on_channel_create(channel: AccordChannel, conn_index: int) -> void:
 	if channel.type == "dm" or channel.type == "group_dm":
@@ -585,9 +585,9 @@ func on_channel_create(channel: AccordChannel, conn_index: int) -> void:
 		AppState.dm_channels_updated.emit()
 	else:
 		_c._channel_cache[channel.id] = ClientModels.channel_to_dict(channel)
-		var guild_id: String = str(channel.space_id) if channel.space_id != null else ""
-		_c._channel_to_guild[channel.id] = guild_id
-		AppState.channels_updated.emit(guild_id)
+		var space_id: String = str(channel.space_id) if channel.space_id != null else ""
+		_c._channel_to_space[channel.id] = space_id
+		AppState.channels_updated.emit(space_id)
 
 func on_channel_update(channel: AccordChannel, conn_index: int) -> void:
 	if channel.type == "dm" or channel.type == "group_dm":
@@ -613,9 +613,9 @@ func on_channel_update(channel: AccordChannel, conn_index: int) -> void:
 		new_ch["unread"] = old_ch.get("unread", false)
 		new_ch["voice_users"] = old_ch.get("voice_users", 0)
 		_c._channel_cache[channel.id] = new_ch
-		var guild_id: String = str(channel.space_id) if channel.space_id != null else ""
-		_c._channel_to_guild[channel.id] = guild_id
-		AppState.channels_updated.emit(guild_id)
+		var space_id: String = str(channel.space_id) if channel.space_id != null else ""
+		_c._channel_to_space[channel.id] = space_id
+		AppState.channels_updated.emit(space_id)
 
 func on_channel_delete(channel: AccordChannel) -> void:
 	if channel.type == "dm" or channel.type == "group_dm":
@@ -623,56 +623,56 @@ func on_channel_delete(channel: AccordChannel) -> void:
 		AppState.dm_channels_updated.emit()
 	else:
 		_c._channel_cache.erase(channel.id)
-		_c._channel_to_guild.erase(channel.id)
-		var guild_id: String = str(channel.space_id) if channel.space_id != null else ""
-		AppState.channels_updated.emit(guild_id)
+		_c._channel_to_space.erase(channel.id)
+		var space_id: String = str(channel.space_id) if channel.space_id != null else ""
+		AppState.channels_updated.emit(space_id)
 
 func on_role_create(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
+	var space_id: String = _c._connections[conn_index]["space_id"]
 	var role := AccordRole.from_dict(data.get("role", data))
 	var role_dict := ClientModels.role_to_dict(role)
-	if not _c._role_cache.has(guild_id):
-		_c._role_cache[guild_id] = []
-	_c._role_cache[guild_id].append(role_dict)
-	AppState.roles_updated.emit(guild_id)
+	if not _c._role_cache.has(space_id):
+		_c._role_cache[space_id] = []
+	_c._role_cache[space_id].append(role_dict)
+	AppState.roles_updated.emit(space_id)
 
 func on_role_update(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
+	var space_id: String = _c._connections[conn_index]["space_id"]
 	var role := AccordRole.from_dict(data.get("role", data))
 	var role_dict := ClientModels.role_to_dict(role)
-	if _c._role_cache.has(guild_id):
-		var roles: Array = _c._role_cache[guild_id]
+	if _c._role_cache.has(space_id):
+		var roles: Array = _c._role_cache[space_id]
 		for i in roles.size():
 			if roles[i].get("id", "") == role_dict["id"]:
 				roles[i] = role_dict
 				break
-	AppState.roles_updated.emit(guild_id)
+	AppState.roles_updated.emit(space_id)
 
 func on_role_delete(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
+	var space_id: String = _c._connections[conn_index]["space_id"]
 	var role_id: String = str(data.get("role_id", data.get("id", "")))
-	if _c._role_cache.has(guild_id):
-		var roles: Array = _c._role_cache[guild_id]
+	if _c._role_cache.has(space_id):
+		var roles: Array = _c._role_cache[space_id]
 		for i in roles.size():
 			if roles[i].get("id", "") == role_id:
 				roles.remove_at(i)
 				break
-	AppState.roles_updated.emit(guild_id)
+	AppState.roles_updated.emit(space_id)
 
-func _has_role_mention(mention_roles: Array, guild_id: String) -> bool:
-	if mention_roles.is_empty() or guild_id.is_empty():
+func _has_role_mention(mention_roles: Array, space_id: String) -> bool:
+	if mention_roles.is_empty() or space_id.is_empty():
 		return false
 	var my_id: String = _c.current_user.get("id", "")
-	var idx: int = _c._member_index_for(guild_id, my_id)
+	var idx: int = _c._member_index_for(space_id, my_id)
 	if idx == -1:
 		return false
-	var my_roles: Array = _c._member_cache.get(guild_id, [])[idx].get("roles", [])
+	var my_roles: Array = _c._member_cache.get(space_id, [])[idx].get("roles", [])
 	for role_id in mention_roles:
 		if role_id in my_roles:
 			return true

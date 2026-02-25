@@ -6,7 +6,7 @@ const SearchResultScene := preload(
 const DEBOUNCE_MS := 300.0
 const PAGE_SIZE := 25
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _query: String = ""
 var _offset: int = 0
 var _has_more: bool = false
@@ -60,7 +60,7 @@ func _ready() -> void:
 	)
 	load_more_btn.add_theme_font_size_override("font_size", 12)
 
-	AppState.guild_selected.connect(_on_guild_selected)
+	AppState.space_selected.connect(_on_space_selected)
 	AppState.dm_mode_entered.connect(_on_dm_mode_entered)
 
 
@@ -74,8 +74,8 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func activate(guild_id: String) -> void:
-	_guild_id = guild_id
+func activate(space_id: String) -> void:
+	_space_id = space_id
 	search_input.grab_focus()
 
 
@@ -89,7 +89,7 @@ func _on_search_text_changed(new_text: String) -> void:
 
 func _on_debounce_timeout() -> void:
 	var text := search_input.text.strip_edges()
-	if text.is_empty() or _guild_id.is_empty():
+	if text.is_empty() or _space_id.is_empty():
 		return
 	_query = text
 	_offset = 0
@@ -107,16 +107,16 @@ func _on_load_more_pressed() -> void:
 	_do_search()
 
 
-func _on_guild_selected(_gid: String) -> void:
+func _on_space_selected(_gid: String) -> void:
 	_clear_results()
 	search_input.text = ""
-	_guild_id = _gid
+	_space_id = _gid
 
 
 func _on_dm_mode_entered() -> void:
 	_clear_results()
 	search_input.text = ""
-	_guild_id = ""
+	_space_id = ""
 
 
 func _clear_results() -> void:
@@ -138,7 +138,7 @@ func _do_search() -> void:
 
 	var filters := {"limit": PAGE_SIZE, "offset": _offset}
 	var result: Dictionary = await Client.search_messages(
-		_guild_id, _query, filters
+		_space_id, _query, filters
 	)
 
 	_searching = false

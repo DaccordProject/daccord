@@ -25,7 +25,7 @@ func after_each() -> void:
 func _cat_data(overrides: Dictionary = {}) -> Dictionary:
 	var d := {
 		"id": "cat_1",
-		"guild_id": "g_1",
+		"space_id": "g_1",
 		"name": "Text Channels",
 	}
 	d.merge(overrides, true)
@@ -35,7 +35,7 @@ func _cat_data(overrides: Dictionary = {}) -> Dictionary:
 func _ch_data(overrides: Dictionary = {}) -> Dictionary:
 	var d := {
 		"id": "c_1",
-		"guild_id": "g_1",
+		"space_id": "g_1",
 		"name": "general",
 		"type": ClientModels.ChannelType.TEXT,
 		"unread": false,
@@ -47,9 +47,9 @@ func _ch_data(overrides: Dictionary = {}) -> Dictionary:
 
 # --- setup ---
 
-func test_setup_stores_guild_id() -> void:
+func test_setup_stores_space_id() -> void:
 	component.setup(_cat_data(), [])
-	assert_eq(component.guild_id, "g_1")
+	assert_eq(component.space_id, "g_1")
 
 
 func test_setup_uppercases_name() -> void:

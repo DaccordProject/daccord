@@ -77,14 +77,14 @@ flat = true
 
 [node name="NameLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-text = "SERVER NAME"
+text = "SPACE NAME"
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
-placeholder_text = "Server name"
+placeholder_text = "Space name"
 
 [node name="DescLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -95,7 +95,7 @@ theme_override_font_sizes/font_size = 11
 [node name="DescInput" type="TextEdit" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 80)
-placeholder_text = "Server description"
+placeholder_text = "Space description"
 
 [node name="VerificationRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -142,12 +142,12 @@ layout_mode = 2
 
 [node name="PublicCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/PublicRow"]
 layout_mode = 2
-text = "Public server"
+text = "Public space"
 
 [node name="PublicInfo" type="Label" parent="CenterContainer/Panel/VBox/PublicRow"]
 layout_mode = 2
 text = "ⓘ"
-tooltip_text = "When enabled, this space appears in the public server directory and anyone can join."
+tooltip_text = "When enabled, this space appears in the public directory and anyone can join."
 mouse_filter = 0
 theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
 theme_override_font_sizes/font_size = 14
@@ -186,5 +186,5 @@ theme_override_font_sizes/font_size = 11
 [node name="DeleteButton" type="Button" parent="CenterContainer/Panel/VBox/DangerZone"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
-text = "Delete Server"
+text = "Delete Space"
 theme_override_styles/normal = SubResource("delete_btn_normal")

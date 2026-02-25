@@ -8,7 +8,7 @@ const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 
 var channel_id: String = ""
-var guild_id: String = ""
+var space_id: String = ""
 var _channel_data: Dictionary = {}
 var _gear_btn: Button
 var _context_menu: PopupMenu
@@ -53,14 +53,14 @@ func _ready() -> void:
 
 func setup(data: Dictionary) -> void:
 	channel_id = data.get("id", "")
-	guild_id = data.get("guild_id", "")
+	space_id = data.get("space_id", "")
 	_channel_data = data
 	channel_name.text = data.get("name", "")
 	channel_button.tooltip_text = data.get("name", "")
 	type_icon.texture = VOICE_ICON
 
 	# Gear button (only if user has permission)
-	if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
@@ -114,7 +114,7 @@ func _refresh_participants() -> void:
 		type_icon.modulate = Color(0.231, 0.647, 0.365)
 		channel_name.add_theme_color_override("font_color", Color(1, 1, 1))
 	else:
-		type_icon.modulate = Color(0.58, 0.608, 0.643)
+		type_icon.modulate = Color(0.44, 0.47, 0.51)
 		channel_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 
 	# Build participant items
@@ -210,14 +210,18 @@ func _on_speaking_changed(user_id: String, is_speaking: bool) -> void:
 func _on_mouse_entered() -> void:
 	if _gear_btn:
 		_gear_btn.visible = true
+	if AppState.voice_channel_id != channel_id:
+		type_icon.modulate = Color(0.72, 0.75, 0.78)
 
 func _on_mouse_exited() -> void:
 	if _gear_btn:
 		_gear_btn.visible = false
+	if AppState.voice_channel_id != channel_id:
+		type_icon.modulate = Color(0.44, 0.47, 0.51)
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		if guild_id != "" and Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+		if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 			var pos := get_global_mouse_position()
 			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
 
@@ -255,7 +259,7 @@ func _on_delete_channel() -> void:
 # --- Drag-and-drop reordering ---
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
-	if guild_id == "" or not Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS):
+	if space_id == "" or not Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		return null
 	var preview := Label.new()
 	preview.text = "# " + _channel_data.get("name", "")
@@ -271,9 +275,9 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if source == self or source == null:
 		_clear_drop_indicator()
 		return false
-	# Accept drops from any channel in the same guild
+	# Accept drops from any channel in the same space
 	var source_data: Dictionary = data.get("channel_data", {})
-	if source_data.get("guild_id", "") != guild_id:
+	if source_data.get("space_id", "") != space_id:
 		_clear_drop_indicator()
 		return false
 	_drop_above = at_position.y < size.y / 2.0
@@ -311,7 +315,7 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 			positions.append({"id": child.channel_id, "position": pos})
 			pos += 1
 	if positions.size() > 0:
-		Client.admin.reorder_channels(guild_id, positions)
+		Client.admin.reorder_channels(space_id, positions)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:

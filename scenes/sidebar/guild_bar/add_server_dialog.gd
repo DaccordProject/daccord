@@ -1,6 +1,6 @@
 extends ColorRect
 
-signal server_added(guild_id: String)
+signal server_added(space_id: String)
 
 const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tscn")
 
@@ -10,16 +10,16 @@ const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tsc
 	"CenterContainer/Panel/VBox/TabContainer/Browse Servers"
 )
 @onready var _url_input: LineEdit = get_node(
-	"CenterContainer/Panel/VBox/TabContainer/Enter URL/ServerUrlInput"
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/UrlField/ServerUrlInput"
 )
 @onready var _add_btn: Button = get_node(
-	"CenterContainer/Panel/VBox/TabContainer/Enter URL/AddButton"
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/AddButton"
 )
 @onready var _status_label: Label = get_node(
-	"CenterContainer/Panel/VBox/TabContainer/Enter URL/StatusLabel"
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/StatusLabel"
 )
 @onready var _error_label: Label = get_node(
-	"CenterContainer/Panel/VBox/TabContainer/Enter URL/ErrorLabel"
+	"CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/ErrorLabel"
 )
 
 func _ready() -> void:
@@ -29,14 +29,17 @@ func _ready() -> void:
 	_browse_panel.join_pressed.connect(_on_browse_join)
 
 	_tab_container.current_tab = 0
+	# Hide the Browse Servers tab for now
+	_tab_container.set_tab_hidden(1, true)
+	_tab_container.tabs_visible = false
 
 ## Parses a server URL string into its components.
-## Format: [protocol://]host[:port][#guild-name][?token=value&invite=code]
-## Defaults: https protocol, port 39099, guild "general", no token, no invite.
+## Format: [protocol://]host[:port][#space-name][?token=value&invite=code]
+## Defaults: https protocol, port 39099, space "general", no token, no invite.
 static func parse_server_url(raw: String) -> Dictionary:
 	var text := raw.strip_edges()
 	var token := ""
-	var guild_name := "general"
+	var space_name := "general"
 	var invite_code := ""
 
 	# Extract query parameters (?token=...&invite=...)
@@ -51,12 +54,12 @@ static func parse_server_url(raw: String) -> Dictionary:
 			elif kv.size() == 2 and kv[0] == "invite":
 				invite_code = kv[1]
 
-	# Extract #guild-name fragment
+	# Extract #space-name fragment
 	var h_pos := text.find("#")
 	if h_pos != -1:
 		var name_part := text.substr(h_pos + 1)
 		if not name_part.is_empty():
-			guild_name = name_part
+			space_name = name_part
 		text = text.substr(0, h_pos)
 
 	# Add protocol if missing
@@ -73,7 +76,7 @@ static func parse_server_url(raw: String) -> Dictionary:
 
 	return {
 		"base_url": text,
-		"guild_name": guild_name,
+		"space_name": space_name,
 		"token": token,
 		"invite_code": invite_code,
 	}
@@ -98,8 +101,8 @@ func _on_browse_join(server_url: String, _space_id: String) -> void:
 	var auth_dialog := AuthDialogScene.instantiate()
 	auth_dialog.setup(server_url)
 	auth_dialog.auth_completed.connect(
-		func(resolved_url: String, t: String, u: String, p: String, dn: String):
-			_connect_with_token(resolved_url, "general", t, "", u, p, dn)
+		func(resolved_url: String, t: String, u: String, _p: String, dn: String):
+			_connect_with_token(resolved_url, "general", t, "", u, dn)
 	)
 	get_parent().add_child(auth_dialog)
 
@@ -113,17 +116,17 @@ func _on_add_pressed() -> void:
 
 	var parsed := parse_server_url(raw)
 	var url: String = parsed["base_url"]
-	var guild_name: String = parsed["guild_name"]
+	var space_name: String = parsed["space_name"]
 	var token: String = parsed["token"]
 	var invite_code: String = parsed["invite_code"]
 
 	_error_label.visible = false
 
-	# Check if this server + guild is already configured
+	# Check if this server + space is already configured
 	var servers := Config.get_servers()
 	for i in servers.size():
 		var server: Dictionary = servers[i]
-		if _urls_match(server["base_url"], url) and server["guild_name"] == guild_name:
+		if _urls_match(server["base_url"], url) and server["space_name"] == space_name:
 			if Client.is_server_connected(i):
 				_show_error("This server is already added.")
 				return
@@ -147,10 +150,23 @@ func _on_add_pressed() -> void:
 				_show_error(result["error"])
 			else:
 				server_added.emit(
-					result.get("guild_id", "")
+					result.get("space_id", "")
 				)
 				_close()
 			return
+
+	# Check if we already have credentials for this server from another space
+	var reused_token := ""
+	var reused_username := ""
+	var reused_display_name := ""
+	if token.is_empty():
+		for i in servers.size():
+			var server: Dictionary = servers[i]
+			if _urls_match(server["base_url"], url) and Client.is_server_connected(i):
+				reused_token = server.get("token", "")
+				reused_username = server.get("username", "")
+				reused_display_name = server.get("display_name", "")
+				break
 
 	# Probe the server to verify it's reachable before proceeding
 	_add_btn.disabled = true
@@ -164,17 +180,25 @@ func _on_add_pressed() -> void:
 	_add_btn.disabled = false
 	_add_btn.text = "Add"
 
-	if token.is_empty():
-		# No token -- show auth dialog to register or sign in
+	if not token.is_empty():
+		# Explicit token in URL -- use it directly
+		_connect_with_token(url, space_name, token, invite_code)
+	elif not reused_token.is_empty():
+		# Reuse credentials from an already-connected space on the same server
+		_connect_with_token(
+			url, space_name, reused_token, invite_code,
+			reused_username,
+			reused_display_name,
+		)
+	else:
+		# No token available -- show auth dialog to register or sign in
 		var auth_dialog := AuthDialogScene.instantiate()
 		auth_dialog.setup(url)
 		auth_dialog.auth_completed.connect(
-			func(resolved_url: String, t: String, u: String, p: String, dn: String):
-				_connect_with_token(resolved_url, guild_name, t, invite_code, u, p, dn)
+			func(resolved_url: String, t: String, u: String, _p: String, dn: String):
+				_connect_with_token(resolved_url, space_name, t, invite_code, u, dn)
 		)
 		get_parent().add_child(auth_dialog)
-	else:
-		_connect_with_token(url, guild_name, token, invite_code)
 
 
 ## Makes a lightweight request to verify the server is reachable.
@@ -208,9 +232,9 @@ func _probe_server(url: String) -> bool:
 
 
 func _connect_with_token(
-	url: String, guild_name: String,
+	url: String, space_name: String,
 	token: String, invite_code: String,
-	username: String = "", password: String = "",
+	username: String = "",
 	display_name: String = "",
 ) -> void:
 	_add_btn.disabled = true
@@ -220,7 +244,7 @@ func _connect_with_token(
 	var step_cb := func(step: String): _status_label.text = step
 	AppState.connection_step.connect(step_cb)
 
-	Config.add_server(url, token, guild_name, username, password, display_name)
+	Config.add_server(url, token, space_name, username, display_name)
 
 	var result: Dictionary = await Client.connect_server(Config.get_servers().size() - 1, invite_code)
 	AppState.connection_step.disconnect(step_cb)
@@ -231,7 +255,7 @@ func _connect_with_token(
 	if result.has("error"):
 		_show_error(result["error"])
 	else:
-		server_added.emit(result.get("guild_id", ""))
+		server_added.emit(result.get("space_id", ""))
 		_close()
 
 

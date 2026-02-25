@@ -25,7 +25,7 @@ Server restarts
               │           └─> AppState.server_disconnected emitted
               │                 ├─> MessageViewBanner shows warning
               │                 ├─> Composer disables input
-              │                 └─> GuildIcon shows disconnected state
+              │                 └─> SpaceIcon shows disconnected state
               └─> GatewaySocket._attempt_reconnect()
                     ├─> reconnecting signal (attempt N/10)
                     │     └─> ClientGateway.on_gateway_reconnecting()
@@ -70,7 +70,7 @@ Server restarts
 | `scripts/autoload/app_state.gd` | Connection signals (`server_disconnected`, `server_reconnected`, etc.) |
 | `scenes/messages/message_view_banner.gd` | Connection status banner UI |
 | `scenes/messages/composer/composer.gd` | Composer enable/disable based on connection status |
-| `scenes/sidebar/guild_bar/guild_icon.gd` | Guild icon disconnected state indicator |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Space icon disconnected state indicator |
 
 ## Implementation Details
 
@@ -93,16 +93,16 @@ Both paths now call `_refetch_data()` which awaits all fetches before emitting `
 
 | Data | Refetched? | Method | Cache Strategy |
 |------|-----------|--------|----------------|
-| Channels | Yes | `fetch_channels()` (client_fetch.gd) | Full replacement — old channels for guild erased, new ones written |
+| Channels | Yes | `fetch_channels()` (client_fetch.gd) | Full replacement — old channels for space erased, new ones written |
 | Members | Yes | `fetch_members()` (client_fetch.gd) | Full replacement — paginated 1000/page, complete cache swap |
 | Roles | Yes | `fetch_roles()` (client_fetch.gd) | Full replacement — entire array replaced |
 | DM channels | Yes | `fetch_dm_channels()` (client_fetch.gd) | Full refresh with unread/preview state preservation |
 | Messages | Yes | `fetch_messages()` (message_view.gd) | Current channel refetched on `server_reconnected`; forum/thread caches cleared |
-| Voice states | Yes | `resync_voice_states()` (client_fetch.gd) | Refetches all cached voice channels for the guild |
+| Voice states | Yes | `resync_voice_states()` (client_fetch.gd) | Refetches all cached voice channels for the space |
 | Current user | Yes | `refresh_current_user()` (client_fetch.gd) | Re-calls `GET /users/@me` and updates user cache + conn |
 | Forum posts | Cleared | — | Stale cache cleared on reconnect; refetched when user navigates to forum channel |
 | Thread messages | Cleared | — | Stale cache cleared on reconnect; refetched when user opens thread panel |
-| Guild info | **No** | — | Updated only via space.update gateway event |
+| Space info | **No** | — | Updated only via space.update gateway event |
 
 ### Permission Evaluation After Reconnect
 - `client_permissions.gd` computes permissions **on-demand** from `_role_cache` and `_member_cache` (no separate permission cache).
@@ -125,7 +125,7 @@ Both paths now call `_refetch_data()` which awaits all fetches before emitting `
   - **Error** (red): "Connection failed: {reason}" with a Retry button
   - **Version warning** (amber, persistent): "Server version mismatch (server vX.Y.Z, client vA.B.C). Some features may not work correctly."
 - `sync_to_connection()` syncs banner state when switching channels.
-- Composer disables input during disconnection and during syncing (`Client.is_guild_syncing()`). Placeholder shows "Syncing..." while syncing.
+- Composer disables input during disconnection and during syncing (`Client.is_space_syncing()`). Placeholder shows "Syncing..." while syncing.
 
 ### Escalation: Full Reconnect with Re-auth
 - When gateway reconnection exhausts all 10 attempts, `on_gateway_reconnecting()` (line 153) calls `_handle_gateway_reconnect_failed()`.
@@ -142,7 +142,7 @@ Both paths now call `_refetch_data()` which awaits all fetches before emitting `
 - The banner shows a persistent amber warning on version mismatch: "Server version mismatch (server vX.Y.Z, client vA.B.C). Some features may not work correctly."
 
 ### Role and Permission Update via Gateway Events
-- `role.create` (client_gateway.gd:561): appends new role to `_role_cache[guild_id]`.
+- `role.create` (client_gateway.gd:561): appends new role to `_role_cache[space_id]`.
 - `role.update` (client_gateway.gd:572): finds and replaces role in cache by ID.
 - `role.delete` (client_gateway.gd:586): removes role from cache by ID.
 - `member.update` (client_gateway_members.gd:87): replaces member dict in cache (includes role assignments).
@@ -162,7 +162,7 @@ Both paths now call `_refetch_data()` which awaits all fetches before emitting `
 - [x] Full data refetch (channels, members, roles, DMs) on IDENTIFY reconnect
 - [x] Connection status banner with disconnect/reconnecting/reconnected states
 - [x] Composer disable during disconnection
-- [x] Guild icon disconnected state indicator
+- [x] Space icon disconnected state indicator
 - [x] Message queueing during disconnection (cap 20)
 - [x] Message queue flush on reconnect
 - [x] Escalation to full reconnect with re-auth on gateway exhaustion
@@ -179,15 +179,15 @@ Both paths now call `_refetch_data()` which awaits all fetches before emitting `
 ## Gaps / TODO
 | Gap | Severity | Status | Notes |
 |-----|----------|--------|-------|
-| Messages not refetched on reconnect | Medium | **Fixed** | `message_view.gd` connects to `server_reconnected` and calls `fetch_messages()` for the current channel. Forum/thread caches are cleared for the reconnected guild. |
+| Messages not refetched on reconnect | Medium | **Fixed** | `message_view.gd` connects to `server_reconnected` and calls `fetch_messages()` for the current channel. Forum/thread caches are cleared for the reconnected space. |
 | Permission race window after reconnect | Medium | **Fixed** | All fetches are now awaited via `_refetch_data()`. The `conn["_syncing"]` flag + `server_synced` signal prevent permission-dependent actions during the refetch window. Composer is disabled while syncing. |
 | RESUME path skips all data refetch | Medium | **Fixed** | `on_gateway_reconnected()` now calls `_refetch_data()`, same as the IDENTIFY path. |
 | No API version negotiation | High | **Fixed** | `connect_server()` calls `GET /api/v1/version` and compares major versions. READY payload includes `api_version` and `server_version`. Mismatches trigger a persistent amber banner warning. |
-| Voice states not resynced on reconnect | Medium | **Fixed** | `resync_voice_states()` iterates cached voice channels for the guild and refetches each via `fetch_voice_states()`. Called from `_refetch_data()`. |
+| Voice states not resynced on reconnect | Medium | **Fixed** | `resync_voice_states()` iterates cached voice channels for the space and refetches each via `fetch_voice_states()`. Called from `_refetch_data()`. |
 | User cache never bulk-refreshed | Low | **Fixed** | `refresh_current_user()` re-calls `GET /users/@me` on reconnect and updates user cache + connection dict. Other users still rely on gateway events. |
 | No server-side version/capability announcement | Medium | **Fixed** | READY payload now includes `api_version` and `server_version` (accordserver change). Client parses and stores them in the connection dict. |
-| Forum/thread caches not refreshed on reconnect | Low | **Fixed** | Forum post and thread message caches are cleared for the reconnected guild's channels on `server_reconnected`. |
-| Guild info not refetched on reconnect | Low | Open | Guild metadata is only updated via `space.update` gateway events, not refetched on reconnect. |
+| Forum/thread caches not refreshed on reconnect | Low | **Fixed** | Forum post and thread message caches are cleared for the reconnected space's channels on `server_reconnected`. |
+| Space info not refetched on reconnect | Low | Open | Space metadata is only updated via `space.update` gateway events, not refetched on reconnect. |
 | Queued messages may fail after server update | Low | Open | Messages queued during disconnection are flushed on reconnect without re-validating against the updated server. |
 | Channel permission overwrites only update via full channel update | Low | Open | There is no granular `permission_overwrite.update` event. Overwrites change only when the entire channel is updated. |
 | No "server updated, please restart" notification | Medium | Open | The version warning banner addresses version mismatches, but there is no mechanism to prompt the user to update the client application itself. |

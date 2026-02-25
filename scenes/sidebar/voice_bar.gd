@@ -1,12 +1,13 @@
 extends PanelContainer
 
 const ScreenPickerDialog := preload("res://scenes/sidebar/screen_picker_dialog.tscn")
-const UserSettingsScene := preload("res://scenes/user/user_settings.tscn")
+const AppSettingsScene := preload("res://scenes/user/app_settings.tscn")
 const SoundboardPanelScene := preload("res://scenes/soundboard/soundboard_panel.tscn")
 
 var _soundboard_panel: PanelContainer = null
 var _saved_channel_label: String = ""
 var _error_tween: Tween
+var _pulse_tween: Tween
 
 @onready var channel_label: Label = $VBox/StatusRow/ChannelLabel
 @onready var status_dot: ColorRect = $VBox/StatusRow/StatusDot
@@ -34,25 +35,33 @@ func _ready() -> void:
 	AppState.video_enabled_changed.connect(_on_video_changed)
 	AppState.screen_share_changed.connect(_on_screen_share_changed)
 	AppState.voice_error.connect(_on_voice_error)
+	AppState.voice_session_state_changed.connect(_on_session_state_changed)
 
 func _on_voice_joined(channel_id: String) -> void:
 	visible = true
-	# Look up channel name
-	var channels: Array = Client.get_channels_for_guild(AppState.voice_guild_id)
+	# Look up channel name and save it for state transitions
+	var channels: Array = Client.get_channels_for_space(AppState.voice_space_id)
 	var ch_name := "Voice Connected"
 	for ch in channels:
 		if ch.get("id", "") == channel_id:
 			ch_name = ch.get("name", "Voice Connected")
 			break
-	channel_label.text = ch_name
-	status_dot.color = Color(0.231, 0.647, 0.365)
+	_saved_channel_label = ch_name
+	# Show connecting state until LiveKit session confirms CONNECTED
+	channel_label.text = "Connecting..."
+	channel_label.add_theme_color_override(
+		"font_color", Color(0.98, 0.82, 0.24)
+	)
+	status_dot.color = Color(0.98, 0.82, 0.24)
+	_start_pulse()
 	sfx_btn.visible = Client.has_permission(
-		AppState.voice_guild_id,
+		AppState.voice_space_id,
 		AccordPermission.USE_SOUNDBOARD,
 	)
 	_update_button_visuals()
 
 func _on_voice_left(_channel_id: String) -> void:
+	_stop_pulse()
 	visible = false
 	_close_soundboard_panel()
 
@@ -73,6 +82,47 @@ func _clear_voice_error() -> void:
 		return
 	channel_label.text = _saved_channel_label
 	status_dot.color = Color(0.231, 0.647, 0.365)
+
+func _on_session_state_changed(state: int) -> void:
+	if not visible:
+		return
+	match state:
+		LiveKitAdapter.State.CONNECTING:
+			_stop_pulse()
+			channel_label.text = "Connecting..."
+			channel_label.add_theme_color_override(
+				"font_color", Color(0.98, 0.82, 0.24)
+			)
+			status_dot.color = Color(0.98, 0.82, 0.24)
+			_start_pulse()
+		LiveKitAdapter.State.CONNECTED:
+			_stop_pulse()
+			channel_label.text = _saved_channel_label
+			channel_label.add_theme_color_override(
+				"font_color", Color(0.231, 0.647, 0.365)
+			)
+			status_dot.color = Color(0.231, 0.647, 0.365)
+			status_dot.modulate.a = 1.0
+		LiveKitAdapter.State.RECONNECTING:
+			_stop_pulse()
+			_saved_channel_label = channel_label.text
+			channel_label.text = "Reconnecting..."
+			channel_label.add_theme_color_override(
+				"font_color", Color(0.96, 0.59, 0.15)
+			)
+			status_dot.color = Color(0.96, 0.59, 0.15)
+			_start_pulse()
+
+func _start_pulse() -> void:
+	_stop_pulse()
+	_pulse_tween = create_tween().set_loops()
+	_pulse_tween.tween_property(status_dot, "modulate:a", 0.3, 0.6)
+	_pulse_tween.tween_property(status_dot, "modulate:a", 1.0, 0.6)
+
+func _stop_pulse() -> void:
+	if _pulse_tween and _pulse_tween.is_valid():
+		_pulse_tween.kill()
+	status_dot.modulate.a = 1.0
 
 func _on_mute_pressed() -> void:
 	Client.set_voice_muted(not AppState.is_voice_muted)
@@ -102,7 +152,7 @@ func _on_sfx_pressed() -> void:
 		return
 	_soundboard_panel = SoundboardPanelScene.instantiate()
 	add_child(_soundboard_panel)
-	_soundboard_panel.setup(AppState.voice_guild_id)
+	_soundboard_panel.setup(AppState.voice_space_id)
 	_soundboard_panel.tree_exited.connect(
 		func() -> void: _soundboard_panel = null
 	)
@@ -119,8 +169,8 @@ func _close_soundboard_panel() -> void:
 		_soundboard_panel = null
 
 func _on_settings_pressed() -> void:
-	var settings: ColorRect = UserSettingsScene.instantiate()
-	settings.initial_page = 2
+	var settings: ColorRect = AppSettingsScene.instantiate()
+	settings.initial_page = 1  # Voice & Video
 	get_tree().root.add_child(settings)
 
 func _on_disconnect_pressed() -> void:

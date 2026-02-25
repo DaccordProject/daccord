@@ -162,7 +162,7 @@ Connection state:
 - **Loading state**: When a channel is selected (line 109), `_is_loading` is set to `true` and a centered "Loading messages..." label is shown while `Client.fetch.fetch_messages()` runs. A 15-second timeout timer starts (line 119). Once `messages_updated` fires and `_load_messages()` runs, the loading label is hidden.
 - **Loading timeout**: If the 15-second timer fires while still loading (line 439), the label changes to "Loading timed out. Click to retry" in red. The label becomes clickable (`MOUSE_FILTER_STOP`).
 - **Fetch failure**: On `message_fetch_failed` (line 429), the loading label shows the error message in red with "Click to retry". Clicking retries `Client.fetch.fetch_messages()` (line 455).
-- **Empty state**: When a channel has 0 messages, a centered `EmptyState` VBoxContainer is shown. For guild channels: "Welcome to #channel-name" / "This is the beginning of this channel. Send a message to get the conversation started!". For DM channels: "No messages yet" / "Send a message to start the conversation." (lines 137-155).
+- **Empty state**: When a channel has 0 messages, a centered `EmptyState` VBoxContainer is shown. For space channels: "Welcome to #channel-name" / "This is the beginning of this channel. Send a message to get the conversation started!". For DM channels: "No messages yet" / "Send a message to start the conversation." (lines 137-155).
 - All states are persistent child nodes of `MessageList` (alongside `OlderMessagesBtn`), toggled via visibility. The message clearing loop and message cap logic skip these persistent nodes.
 
 ### Connection Banner (message_view.gd)
@@ -174,7 +174,7 @@ Connection state:
 - On `server_reconnected` (line 397): shows "Reconnected!" in success style, auto-hides after 3 seconds.
 - On `server_connection_failed` (line 406): shows "Connection failed: [reason]" in error style with a visible Retry button.
 - Retry (line 415): clears the auto-reconnect guard and calls `Client.reconnect_server()`.
-- Banner only reacts to events for the guild that owns the currently viewed channel (line 376).
+- Banner only reacts to events for the space that owns the currently viewed channel (line 376).
 
 ### Cozy vs Collapsed Layout (message_view.gd)
 

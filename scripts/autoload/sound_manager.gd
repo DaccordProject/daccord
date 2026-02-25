@@ -26,7 +26,7 @@ var _window_focused: bool = true
 # Soundboard playback
 var _soundboard_player: AudioStreamPlayer
 var _audio_cache: Dictionary = {} # audio_url -> AudioStream
-var _sound_meta_cache: Dictionary = {} # guild_id -> Array[Dictionary]
+var _sound_meta_cache: Dictionary = {} # space_id -> Array[Dictionary]
 var _soundboard_download_pending: Dictionary = {} # url -> true
 
 func _ready() -> void:
@@ -133,7 +133,7 @@ func _on_voice_deafen_changed(is_deafened: bool) -> void:
 # --- Soundboard playback ---
 
 func _on_soundboard_played(
-	guild_id: String, sound_id: String, _user_id: String,
+	space_id: String, sound_id: String, _user_id: String,
 ) -> void:
 	if AppState.is_voice_deafened:
 		return
@@ -141,12 +141,12 @@ func _on_soundboard_played(
 		return
 	if _is_dnd():
 		return
-	_play_soundboard_sound(guild_id, sound_id)
+	_play_soundboard_sound(space_id, sound_id)
 
 func _play_soundboard_sound(
-	guild_id: String, sound_id: String,
+	space_id: String, sound_id: String,
 ) -> void:
-	var sounds: Array = await _get_sound_meta(guild_id)
+	var sounds: Array = await _get_sound_meta(space_id)
 	var sound_dict: Dictionary = {}
 	for s in sounds:
 		if s.get("id", "") == sound_id:
@@ -160,7 +160,7 @@ func _play_soundboard_sound(
 		return
 
 	var full_url: String = Client.admin.get_sound_url(
-		guild_id, audio_url
+		space_id, audio_url
 	)
 	var sound_volume: float = sound_dict.get("volume", 1.0)
 
@@ -235,12 +235,12 @@ func _decode_audio(
 	# Fallback: try OGG
 	return AudioStreamOggVorbis.load_from_buffer(body)
 
-func _get_sound_meta(guild_id: String) -> Array:
-	if _sound_meta_cache.has(guild_id):
-		return _sound_meta_cache[guild_id]
+func _get_sound_meta(space_id: String) -> Array:
+	if _sound_meta_cache.has(space_id):
+		return _sound_meta_cache[space_id]
 
 	var result: RestResult = await Client.admin.get_sounds(
-		guild_id
+		space_id
 	)
 	if result == null or not result.ok:
 		return []
@@ -252,8 +252,8 @@ func _get_sound_meta(guild_id: String) -> Array:
 			dicts.append(ClientModels.sound_to_dict(sound))
 		elif sound is Dictionary:
 			dicts.append(sound)
-	_sound_meta_cache[guild_id] = dicts
+	_sound_meta_cache[space_id] = dicts
 	return dicts
 
-func _on_soundboard_updated(guild_id: String) -> void:
-	_sound_meta_cache.erase(guild_id)
+func _on_soundboard_updated(space_id: String) -> void:
+	_sound_meta_cache.erase(space_id)

@@ -1,6 +1,6 @@
 extends Node
 
-signal guild_selected(guild_id: String)
+signal space_selected(space_id: String)
 signal channel_selected(channel_id: String)
 signal dm_mode_entered()
 signal message_sent(text: String)
@@ -13,9 +13,9 @@ signal message_deleted(message_id: String)
 signal layout_mode_changed(mode: LayoutMode)
 signal sidebar_drawer_toggled(is_open: bool)
 @warning_ignore("unused_signal")
-signal guilds_updated()
+signal spaces_updated()
 @warning_ignore("unused_signal")
-signal channels_updated(guild_id: String)
+signal channels_updated(space_id: String)
 @warning_ignore("unused_signal")
 signal dm_channels_updated()
 @warning_ignore("unused_signal")
@@ -27,25 +27,25 @@ signal typing_started(channel_id: String, username: String)
 @warning_ignore("unused_signal")
 signal typing_stopped(channel_id: String)
 @warning_ignore("unused_signal")
-signal members_updated(guild_id: String)
+signal members_updated(space_id: String)
 @warning_ignore("unused_signal")
-signal member_joined(guild_id: String, member_data: Dictionary)
+signal member_joined(space_id: String, member_data: Dictionary)
 @warning_ignore("unused_signal")
-signal member_left(guild_id: String, user_id: String)
+signal member_left(space_id: String, user_id: String)
 @warning_ignore("unused_signal")
-signal member_status_changed(guild_id: String, user_id: String, new_status: int)
+signal member_status_changed(space_id: String, user_id: String, new_status: int)
 @warning_ignore("unused_signal")
-signal roles_updated(guild_id: String)
+signal roles_updated(space_id: String)
 @warning_ignore("unused_signal")
-signal bans_updated(guild_id: String)
+signal bans_updated(space_id: String)
 @warning_ignore("unused_signal")
-signal invites_updated(guild_id: String)
+signal invites_updated(space_id: String)
 @warning_ignore("unused_signal")
-signal emojis_updated(guild_id: String)
+signal emojis_updated(space_id: String)
 @warning_ignore("unused_signal")
-signal soundboard_updated(guild_id: String)
+signal soundboard_updated(space_id: String)
 @warning_ignore("unused_signal")
-signal soundboard_played(guild_id: String, sound_id: String, user_id: String)
+signal soundboard_played(space_id: String, sound_id: String, user_id: String)
 @warning_ignore("unused_signal")
 signal reactions_updated(channel_id: String, message_id: String)
 @warning_ignore("unused_signal")
@@ -56,6 +56,8 @@ signal voice_joined(channel_id: String)
 signal voice_left(channel_id: String)
 @warning_ignore("unused_signal")
 signal voice_error(error: String)
+@warning_ignore("unused_signal")
+signal voice_session_state_changed(state: int)
 @warning_ignore("unused_signal")
 signal voice_mute_changed(is_muted: bool)
 @warning_ignore("unused_signal")
@@ -76,17 +78,17 @@ signal member_list_toggled(is_visible: bool)
 signal channel_panel_toggled(is_visible: bool)
 signal search_toggled(is_open: bool)
 @warning_ignore("unused_signal")
-signal server_removed(guild_id: String)
+signal server_removed(space_id: String)
 @warning_ignore("unused_signal")
-signal server_disconnected(guild_id: String, code: int, reason: String)
+signal server_disconnected(space_id: String, code: int, reason: String)
 @warning_ignore("unused_signal")
-signal server_reconnecting(guild_id: String, attempt: int, max_attempts: int)
+signal server_reconnecting(space_id: String, attempt: int, max_attempts: int)
 @warning_ignore("unused_signal")
-signal server_reconnected(guild_id: String)
+signal server_reconnected(space_id: String)
 @warning_ignore("unused_signal")
-signal server_synced(guild_id: String)
+signal server_synced(space_id: String)
 @warning_ignore("unused_signal")
-signal server_version_warning(guild_id: String, server_version: String, client_version: String)
+signal server_version_warning(space_id: String, server_version: String, client_version: String)
 @warning_ignore("unused_signal")
 signal profile_switched()
 @warning_ignore("unused_signal")
@@ -96,7 +98,7 @@ signal connection_step(step: String)
 @warning_ignore("unused_signal")
 signal server_connecting(server_name: String, index: int, total: int)
 @warning_ignore("unused_signal")
-signal server_connection_failed(guild_id: String, reason: String)
+signal server_connection_failed(space_id: String, reason: String)
 @warning_ignore("unused_signal")
 signal message_send_failed(channel_id: String, content: String, error: String)
 @warning_ignore("unused_signal")
@@ -138,7 +140,7 @@ signal update_download_failed(error: String)
 
 # Re-authentication needed (token-only connection with expired token)
 @warning_ignore("unused_signal")
-signal reauth_needed(server_index: int, base_url: String)
+signal reauth_needed(server_index: int, base_url: String, username: String)
 
 # Config setting changed (section, key identify what changed)
 @warning_ignore("unused_signal")
@@ -149,7 +151,7 @@ enum LayoutMode { COMPACT, MEDIUM, FULL }
 const COMPACT_BREAKPOINT: float = 500.0
 const MEDIUM_BREAKPOINT: float = 768.0
 
-var current_guild_id: String = ""
+var current_space_id: String = ""
 var current_channel_id: String = ""
 var is_dm_mode: bool = false
 var replying_to_message_id: String = ""
@@ -160,7 +162,7 @@ var member_list_visible: bool = true
 var channel_panel_visible: bool = true
 var search_open: bool = false
 var voice_channel_id: String = ""
-var voice_guild_id: String = ""
+var voice_space_id: String = ""
 var is_voice_muted: bool = false
 var is_voice_deafened: bool = false
 var is_video_enabled: bool = false
@@ -171,14 +173,14 @@ var thread_panel_visible: bool = false
 var is_imposter_mode: bool = false
 var imposter_permissions: Array = []
 var imposter_role_name: String = ""
-var imposter_guild_id: String = ""
+var imposter_space_id: String = ""
 
-func select_guild(guild_id: String) -> void:
-	if is_imposter_mode and guild_id != imposter_guild_id:
+func select_space(space_id: String) -> void:
+	if is_imposter_mode and space_id != imposter_space_id:
 		exit_imposter_mode()
-	current_guild_id = guild_id
+	current_space_id = space_id
 	is_dm_mode = false
-	guild_selected.emit(guild_id)
+	space_selected.emit(space_id)
 
 func select_channel(channel_id: String) -> void:
 	current_channel_id = channel_id
@@ -188,7 +190,7 @@ func enter_dm_mode() -> void:
 	if is_imposter_mode:
 		exit_imposter_mode()
 	is_dm_mode = true
-	current_guild_id = ""
+	current_space_id = ""
 	dm_mode_entered.emit()
 
 func send_message(text: String) -> void:
@@ -252,15 +254,15 @@ func close_search() -> void:
 		search_open = false
 		search_toggled.emit(false)
 
-func join_voice(channel_id: String, guild_id: String) -> void:
+func join_voice(channel_id: String, space_id: String) -> void:
 	voice_channel_id = channel_id
-	voice_guild_id = guild_id
+	voice_space_id = space_id
 	voice_joined.emit(channel_id)
 
 func leave_voice() -> void:
 	var old_channel := voice_channel_id
 	voice_channel_id = ""
-	voice_guild_id = ""
+	voice_space_id = ""
 	is_voice_muted = false
 	is_voice_deafened = false
 	is_video_enabled = false
@@ -298,7 +300,7 @@ func enter_imposter_mode(role_data: Dictionary) -> void:
 	is_imposter_mode = true
 	imposter_permissions = role_data.get("permissions", [])
 	imposter_role_name = role_data.get("name", "Unknown")
-	imposter_guild_id = role_data.get("guild_id", current_guild_id)
+	imposter_space_id = role_data.get("space_id", current_space_id)
 	imposter_mode_changed.emit(true)
 
 func exit_imposter_mode() -> void:
@@ -307,5 +309,5 @@ func exit_imposter_mode() -> void:
 	is_imposter_mode = false
 	imposter_permissions = []
 	imposter_role_name = ""
-	imposter_guild_id = ""
+	imposter_space_id = ""
 	imposter_mode_changed.emit(false)

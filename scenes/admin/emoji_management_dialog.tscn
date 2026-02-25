@@ -103,3 +103,4 @@ title = "Select Emoji Image"
 size = Vector2i(600, 400)
 ok_button_text = "Open"
 file_mode = 0
+use_native_dialog = true

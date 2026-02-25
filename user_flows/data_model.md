@@ -3,7 +3,7 @@
 
 ## Overview
 
-daccord uses a dictionary-based data model as the contract between the network layer (AccordKit) and the UI. `ClientModels` converts AccordKit typed models into dictionary shapes that UI components consume via their `setup(data: Dictionary)` methods. `Client` maintains seven in-memory caches (users, guilds, channels, DM channels, messages, members, roles) populated from REST fetches and kept current via gateway events. Unread and mention state is tracked separately and merged into cached dicts at runtime. A secondary `_message_id_index` provides O(1) message lookups. User cache is evicted when it exceeds `USER_CACHE_CAP` (500).
+daccord uses a dictionary-based data model as the contract between the network layer (AccordKit) and the UI. `ClientModels` converts AccordKit typed models into dictionary shapes that UI components consume via their `setup(data: Dictionary)` methods. `Client` maintains seven in-memory caches (users, spaces, channels, DM channels, messages, members, roles) populated from REST fetches and kept current via gateway events. Unread and mention state is tracked separately and merged into cached dicts at runtime. A secondary `_message_id_index` provides O(1) message lookups. User cache is evicted when it exceeds `USER_CACHE_CAP` (500).
 
 ## Data Flow
 
@@ -18,10 +18,10 @@ AccordServer (REST/Gateway)
 
 ## Signal Flow
 
-1. **REST fetch** (e.g., `Client.fetch.fetch_guilds()`) returns AccordKit typed models
-2. `ClientModels` converts each model to a dictionary via `space_to_guild_dict()`, `channel_to_dict()`, `message_to_dict()`, `member_to_dict()`, `role_to_dict()`, etc.
-3. Dictionaries are stored in the appropriate `Client` cache (`_guild_cache`, `_channel_cache`, `_message_cache`, `_member_cache`, `_role_cache`, etc.)
-4. `Client` emits an `AppState` signal (`guilds_updated`, `channels_updated`, `messages_updated`, `members_updated`, `roles_updated`, etc.)
+1. **REST fetch** (e.g., `Client.fetch.fetch_spaces()`) returns AccordKit typed models
+2. `ClientModels` converts each model to a dictionary via `space_to_dict()`, `channel_to_dict()`, `message_to_dict()`, `member_to_dict()`, `role_to_dict()`, etc.
+3. Dictionaries are stored in the appropriate `Client` cache (`_space_cache`, `_channel_cache`, `_message_cache`, `_member_cache`, `_role_cache`, etc.)
+4. `Client` emits an `AppState` signal (`spaces_updated`, `channels_updated`, `messages_updated`, `members_updated`, `roles_updated`, etc.)
 5. UI components receive the signal, read from `Client`'s data access API, and call `setup(data)` with the dictionary
 6. **Gateway events** (message_create, message_update, message_delete, channel_create, member_join, role_create, reaction_add, etc.) follow the same path: convert model -> update cache -> emit signal -> UI refreshes
 
@@ -31,7 +31,7 @@ AccordServer (REST/Gateway)
 |------|------|
 | `scripts/autoload/client_models.gd` | Static conversion functions, enums (ChannelType, UserStatus), color palette, markdown_to_bbcode |
 | `scripts/autoload/client.gd` | Seven caches, unread/mention tracking, message ID index, data access API, mutation API, search API, permission helpers, cache eviction, routing to correct server connection |
-| `scripts/autoload/client_fetch.gd` | `ClientFetch` -- extracted fetch operations (guilds, channels, DMs, messages, members, roles); builds message ID index on fetch |
+| `scripts/autoload/client_fetch.gd` | `ClientFetch` -- extracted fetch operations (spaces, channels, DMs, messages, members, roles); builds message ID index on fetch |
 | `scripts/autoload/client_admin.gd` | `ClientAdmin` -- admin API wrappers (space/channel/role/member/ban/invite/emoji/sound CRUD, reordering, permission overwrites) |
 | `scripts/autoload/client_gateway.gd` | `ClientGateway` -- gateway event handlers (messages, typing, presence, members, roles, bans, invites, emojis, soundboard, reactions, connection lifecycle); tracks unread/mentions on message_create; updates DM last_message previews; maintains message ID index |
 | `scripts/autoload/app_state.gd` | Central signal bus and UI state tracking |
@@ -72,7 +72,7 @@ UserStatus (line 10): `{ ONLINE, IDLE, DND, OFFLINE }`
 
 10 HSV colors at S=0.7, V=0.9 with hues: 0.0, 0.08, 0.16, 0.28, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95
 - `_color_from_id(id: String)`: Deterministic color assignment via `id.hash() % palette_size`
-- Used for user avatars, guild icons, and DM avatars when no image is available
+- Used for user avatars, space icons, and DM avatars when no image is available
 
 ### Dictionary Shapes
 
@@ -89,7 +89,7 @@ UserStatus (line 10): `{ ONLINE, IDLE, DND, OFFLINE }`
 }
 ```
 
-**Guild Dict** (client_models.gd:159-187, `space_to_guild_dict()`):
+**Space Dict** (client_models.gd:159-187, `space_to_dict()`):
 ```
 {
     "id": String,
@@ -97,8 +97,8 @@ UserStatus (line 10): `{ ONLINE, IDLE, DND, OFFLINE }`
     "icon_color": Color,             # Deterministic from _color_from_id(id)
     "icon": String|null,             # CDN URL via AccordCDN.space_icon() or null
     "folder": "",                    # Always empty string (client-side feature, not server data)
-    "unread": bool,                  # Initialized false; updated by Client.mark_channel_unread()/_update_guild_unread()
-    "mentions": int,                 # Initialized 0; updated by Client._update_guild_unread() from _channel_mention_counts
+    "unread": bool,                  # Initialized false; updated by Client.mark_channel_unread()/_update_space_unread()
+    "mentions": int,                 # Initialized 0; updated by Client._update_space_unread() from _channel_mention_counts
     "owner_id": String,              # Space owner user ID
     "description": String,           # From space.description, "" if null
     "verification_level": String,    # From space.verification_level
@@ -112,7 +112,7 @@ UserStatus (line 10): `{ ONLINE, IDLE, DND, OFFLINE }`
 ```
 {
     "id": String,
-    "guild_id": String,      # From channel.space_id
+    "space_id": String,      # From channel.space_id
     "name": String,
     "type": int,             # ChannelType enum value
     "parent_id": String,     # Category parent or ""
@@ -253,13 +253,13 @@ Note: member_to_dict() duplicates the user dict from cache, then overlays the me
 ### Caching Architecture (client.gd)
 
 Seven caches:
-- `_user_cache: Dictionary` -- keyed by user_id -> user dict. Evicted via `trim_user_cache()` when exceeding `USER_CACHE_CAP` (500); preserves current user, current guild members, and current channel message authors.
-- `_guild_cache: Dictionary` -- keyed by guild_id -> guild dict
+- `_user_cache: Dictionary` -- keyed by user_id -> user dict. Evicted via `trim_user_cache()` when exceeding `USER_CACHE_CAP` (500); preserves current user, current space members, and current channel message authors.
+- `_space_cache: Dictionary` -- keyed by space_id -> space dict
 - `_channel_cache: Dictionary` -- keyed by channel_id -> channel dict
 - `_dm_channel_cache: Dictionary` -- keyed by channel_id -> DM channel dict
 - `_message_cache: Dictionary` -- keyed by channel_id -> Array of message dicts
-- `_member_cache: Dictionary` -- keyed by guild_id -> Array of member dicts
-- `_role_cache: Dictionary` -- keyed by guild_id -> Array of role dicts
+- `_member_cache: Dictionary` -- keyed by space_id -> Array of member dicts
+- `_role_cache: Dictionary` -- keyed by space_id -> Array of role dicts
 
 Auxiliary indexes:
 - `_message_id_index: Dictionary` -- message_id -> channel_id, maintained on message_create/delete and fetch_messages; enables O(1) lookups in `get_message_by_id()` and `_find_channel_for_message()`
@@ -267,28 +267,28 @@ Auxiliary indexes:
 - `_channel_mention_counts: Dictionary` -- channel_id -> int, incremented on message_create when current user is mentioned, cleared on channel_selected
 
 Routing maps:
-- `_guild_to_conn: Dictionary` -- guild_id -> connection index (for multi-server)
-- `_channel_to_guild: Dictionary` -- channel_id -> guild_id
+- `_space_to_conn: Dictionary` -- space_id -> connection index (for multi-server)
+- `_channel_to_space: Dictionary` -- channel_id -> space_id
 
 Cache population (via ClientFetch):
-- On connect: guild fetched via `spaces.fetch()` during `connect_server()`, populates `_guild_cache` with CDN icon URL
-- On gateway ready: `fetch_channels()`, `fetch_members()`, `fetch_roles()` called for the guild; `fetch_dm_channels()` also called
-- On guild select: `fetch_channels(guild_id)` populates `_channel_cache` from `GET /spaces/{id}/channels`
+- On connect: space fetched via `spaces.fetch()` during `connect_server()`, populates `_space_cache` with CDN icon URL
+- On gateway ready: `fetch_channels()`, `fetch_members()`, `fetch_roles()` called for the space; `fetch_dm_channels()` also called
+- On space select: `fetch_channels(space_id)` populates `_channel_cache` from `GET /spaces/{id}/channels`
 - On DM mode: `fetch_dm_channels()` populates `_dm_channel_cache` from `GET /users/@me/channels`
 - On channel select: `fetch_messages(channel_id)` populates `_message_cache` from `GET /channels/{id}/messages?limit=50`; builds `_message_id_index`; triggers `trim_user_cache()`
-- On member list shown: `fetch_members(guild_id)` populates `_member_cache` from `GET /spaces/{id}/members?limit=1000`
-- On role management: `fetch_roles(guild_id)` populates `_role_cache` from `GET /spaces/{id}/roles`
+- On member list shown: `fetch_members(space_id)` populates `_member_cache` from `GET /spaces/{id}/members?limit=1000`
+- On role management: `fetch_roles(space_id)` populates `_role_cache` from `GET /spaces/{id}/roles`
 - Users cached on-demand when encountered in messages, DM recipients, or member fetches
 
 Cache updates via gateway (ClientGateway):
 - message_create: appends to `_message_cache`, adds to `_message_id_index`, enforces MESSAGE_CAP (50) via `pop_front()` (evicted messages removed from index); marks channel unread if not current; checks `message.mentions` and `mention_everyone` to track mention counts; updates DM channel `last_message` preview with truncated content
 - message_update: finds and replaces in `_message_cache` array (with CDN URL for attachments)
 - message_delete: finds and removes from `_message_cache` array and `_message_id_index`
-- channel_create/update: updates `_channel_cache` or `_dm_channel_cache` based on type (dm/group_dm vs guild)
+- channel_create/update: updates `_channel_cache` or `_dm_channel_cache` based on type (dm/group_dm vs space)
 - channel_delete: erases from `_channel_cache` or `_dm_channel_cache`
-- space_create: updates `_guild_cache` if matching connected guild (with CDN URL for icon)
-- space_update: updates `_guild_cache` (with CDN URL for icon)
-- space_delete: erases from `_guild_cache` and `_guild_to_conn`
+- space_create: updates `_space_cache` if matching connected space (with CDN URL for icon)
+- space_update: updates `_space_cache` (with CDN URL for icon)
+- space_delete: erases from `_space_cache` and `_space_to_conn`
 - member_join: fetches user if missing, appends to `_member_cache`
 - member_leave: removes from `_member_cache`
 - member_update: finds and replaces or appends in `_member_cache`
@@ -300,29 +300,29 @@ Cache updates via gateway (ClientGateway):
 - invite_create/invite_delete: emits `invites_updated` (no local cache; invites fetched on-demand)
 - emoji_update: emits `emojis_updated` (no local cache; emojis fetched on-demand)
 - soundboard_create/update/delete: emits `soundboard_updated` (no local cache; sounds fetched on-demand)
-- soundboard_play: emits `soundboard_played` with guild_id, sound_id, user_id
+- soundboard_play: emits `soundboard_played` with space_id, sound_id, user_id
 - reaction_add: increments count or adds new entry in message's reactions array; sets `active` if current user
 - reaction_remove: decrements count, removes entry if count reaches 0; clears `active` if current user
 - reaction_clear: empties entire reactions array for a message
 - reaction_clear_emoji: removes specific emoji entry from reactions array
 
 Data access API (client.gd):
-- `guilds: Array` -> `_guild_cache.values()` (property)
+- `spaces: Array` -> `_space_cache.values()` (property)
 - `channels: Array` -> `_channel_cache.values()` (property)
 - `dm_channels: Array` -> `_dm_channel_cache.values()` (property)
-- `get_channels_for_guild(guild_id)` -> filters `_channel_cache` by guild_id
+- `get_channels_for_space(space_id)` -> filters `_channel_cache` by space_id
 - `get_messages_for_channel(channel_id)` -> returns from `_message_cache` or empty array
 - `get_user_by_id(user_id)` -> returns from `_user_cache` or empty dict
-- `get_guild_by_id(guild_id)` -> returns from `_guild_cache` or empty dict
-- `get_members_for_guild(guild_id)` -> returns from `_member_cache` or empty array
-- `get_roles_for_guild(guild_id)` -> returns from `_role_cache` or empty array
+- `get_space_by_id(space_id)` -> returns from `_space_cache` or empty dict
+- `get_members_for_space(space_id)` -> returns from `_member_cache` or empty array
+- `get_roles_for_space(space_id)` -> returns from `_role_cache` or empty array
 - `get_message_by_id(message_id)` -> O(1) via `_message_id_index` with linear fallback (line 412)
 
 ### Unread / Mention Tracking (client.gd)
 
-- `_on_channel_selected_clear_unread(cid)` (line 703): Connected to `AppState.channel_selected`. Erases unread flag and mention count for the channel, updates cached channel dict, recomputes guild aggregates, emits `channels_updated`/`dm_channels_updated`.
-- `mark_channel_unread(cid, is_mention)` (line 718): Sets `_unread_channels[cid] = true`, increments `_channel_mention_counts[cid]` if `is_mention`, updates the cached channel dict's `unread` field, recomputes guild aggregates, emits `channels_updated`/`dm_channels_updated` and `guilds_updated`.
-- `_update_guild_unread(gid)` (line 736): Iterates channels in `_channel_cache` for the guild, computes `unread = any channel unread` and `mentions = sum of channel mention counts`, writes results to `_guild_cache[gid]`.
+- `_on_channel_selected_clear_unread(cid)` (line 703): Connected to `AppState.channel_selected`. Erases unread flag and mention count for the channel, updates cached channel dict, recomputes space aggregates, emits `channels_updated`/`dm_channels_updated`.
+- `mark_channel_unread(cid, is_mention)` (line 718): Sets `_unread_channels[cid] = true`, increments `_channel_mention_counts[cid]` if `is_mention`, updates the cached channel dict's `unread` field, recomputes space aggregates, emits `channels_updated`/`dm_channels_updated` and `spaces_updated`.
+- `_update_space_unread(gid)` (line 736): Iterates channels in `_channel_cache` for the space, computes `unread = any channel unread` and `mentions = sum of channel mention counts`, writes results to `_space_cache[gid]`.
 - **Gateway trigger** (client_gateway.gd): `on_message_create()` calls `mark_channel_unread(channel_id, is_mention)` when `message.channel_id != AppState.current_channel_id` and `message.author_id != current_user.id`. Mention detection checks `my_id in message.mentions or message.mention_everyone`.
 
 ### Avatar Image Loading (avatar.gd)
@@ -331,7 +331,7 @@ Data access API (client.gd):
 - `_on_image_loaded()`: Tries PNG, JPG, and WebP decoding in order. On success, stores the `ImageTexture` in `_image_cache` and calls `_apply_texture()`.
 - `_apply_texture(tex)`: Creates a `TextureRect` child with `PRESET_FULL_RECT` anchoring, applies the same circle shader (`avatar_circle.gdshader`), hides the letter label.
 - `set_radius()` syncs the radius parameter to both the ColorRect shader and the TextureRect shader, so hover animations (circle -> rounded square) work on loaded images.
-- **Callers**: `cozy_message.gd` calls `avatar.set_avatar_url(avatar_url)` in `setup()` when the user dict has a non-empty `avatar` URL. `guild_icon.gd` calls `avatar_rect.set_avatar_url(icon_url)` in `setup()` when the guild dict has a non-empty `icon` URL.
+- **Callers**: `cozy_message.gd` calls `avatar.set_avatar_url(avatar_url)` in `setup()` when the user dict has a non-empty `avatar` URL. `guild_icon.gd` calls `avatar_rect.set_avatar_url(icon_url)` in `setup()` when the space dict has a non-empty `icon` URL.
 
 ### Mutation API (client.gd)
 
@@ -345,7 +345,7 @@ Data access API (client.gd):
 
 ### Search API (client.gd)
 
-- `search_messages(guild_id, query_str, filters)` -> searches via `messages.search()` REST endpoint; fetches missing authors on-demand; passes CDN URL for attachment URLs; returns `{results: Array, has_more: bool}`
+- `search_messages(space_id, query_str, filters)` -> searches via `messages.search()` REST endpoint; fetches missing authors on-demand; passes CDN URL for attachment URLs; returns `{results: Array, has_more: bool}`
 
 ### Permission Helpers (client.gd)
 
@@ -358,46 +358,46 @@ Thin delegation layer that routes calls to the correct AccordClient and refreshe
 
 | Method | REST call | Cache refresh |
 |--------|-----------|---------------|
-| `update_space(guild_id, data)` | `spaces.update()` | `fetch_guilds()` |
-| `delete_space(guild_id)` | `spaces.delete()` | none |
-| `create_channel(guild_id, data)` | `spaces.create_channel()` | `fetch_channels()` |
+| `update_space(space_id, data)` | `spaces.update()` | `fetch_spaces()` |
+| `delete_space(space_id)` | `spaces.delete()` | none |
+| `create_channel(space_id, data)` | `spaces.create_channel()` | `fetch_channels()` |
 | `update_channel(channel_id, data)` | `channels.update()` | `fetch_channels()` |
 | `delete_channel(channel_id)` | `channels.delete()` | `fetch_channels()` |
-| `create_role(guild_id, data)` | `roles.create()` | `fetch_roles()` |
-| `update_role(guild_id, role_id, data)` | `roles.update()` | `fetch_roles()` |
-| `delete_role(guild_id, role_id)` | `roles.delete()` | `fetch_roles()` |
-| `kick_member(guild_id, user_id)` | `members.kick()` | `fetch_members()` |
-| `ban_member(guild_id, user_id, data)` | `bans.create()` | `fetch_members()` + `bans_updated` |
-| `unban_member(guild_id, user_id)` | `bans.remove()` | `bans_updated` |
-| `add_member_role(guild_id, user_id, role_id)` | `members.add_role()` | `fetch_members()` |
-| `remove_member_role(guild_id, user_id, role_id)` | `members.remove_role()` | `fetch_members()` |
-| `get_bans(guild_id)` | `bans.list()` | none (on-demand) |
-| `get_invites(guild_id)` | `invites.list_space()` | none (on-demand) |
-| `create_invite(guild_id, data)` | `invites.create_space()` | `invites_updated` |
-| `delete_invite(code, guild_id)` | `invites.delete()` | `invites_updated` |
-| `get_emojis(guild_id)` | `emojis.list()` | none (on-demand) |
-| `create_emoji(guild_id, data)` | `emojis.create()` | `emojis_updated` |
-| `update_emoji(guild_id, emoji_id, data)` | `emojis.update()` | `emojis_updated` |
-| `delete_emoji(guild_id, emoji_id)` | `emojis.delete()` | `emojis_updated` |
-| `get_sounds(guild_id)` | `soundboard.list()` | none (on-demand) |
-| `create_sound(guild_id, data)` | `soundboard.create()` | `soundboard_updated` |
-| `update_sound(guild_id, sound_id, data)` | `soundboard.update()` | `soundboard_updated` |
-| `delete_sound(guild_id, sound_id)` | `soundboard.delete()` | `soundboard_updated` |
-| `play_sound(guild_id, sound_id)` | `soundboard.play()` | none |
-| `get_emoji_url(guild_id, emoji_id, animated)` | `AccordCDN.emoji()` | none |
-| `get_sound_url(guild_id, audio_url)` | `AccordCDN.sound()` | none |
-| `reorder_channels(guild_id, data)` | `spaces.reorder_channels()` | `fetch_channels()` |
-| `reorder_roles(guild_id, data)` | `roles.reorder()` | `fetch_roles()` |
+| `create_role(space_id, data)` | `roles.create()` | `fetch_roles()` |
+| `update_role(space_id, role_id, data)` | `roles.update()` | `fetch_roles()` |
+| `delete_role(space_id, role_id)` | `roles.delete()` | `fetch_roles()` |
+| `kick_member(space_id, user_id)` | `members.kick()` | `fetch_members()` |
+| `ban_member(space_id, user_id, data)` | `bans.create()` | `fetch_members()` + `bans_updated` |
+| `unban_member(space_id, user_id)` | `bans.remove()` | `bans_updated` |
+| `add_member_role(space_id, user_id, role_id)` | `members.add_role()` | `fetch_members()` |
+| `remove_member_role(space_id, user_id, role_id)` | `members.remove_role()` | `fetch_members()` |
+| `get_bans(space_id)` | `bans.list()` | none (on-demand) |
+| `get_invites(space_id)` | `invites.list_space()` | none (on-demand) |
+| `create_invite(space_id, data)` | `invites.create_space()` | `invites_updated` |
+| `delete_invite(code, space_id)` | `invites.delete()` | `invites_updated` |
+| `get_emojis(space_id)` | `emojis.list()` | none (on-demand) |
+| `create_emoji(space_id, data)` | `emojis.create()` | `emojis_updated` |
+| `update_emoji(space_id, emoji_id, data)` | `emojis.update()` | `emojis_updated` |
+| `delete_emoji(space_id, emoji_id)` | `emojis.delete()` | `emojis_updated` |
+| `get_sounds(space_id)` | `soundboard.list()` | none (on-demand) |
+| `create_sound(space_id, data)` | `soundboard.create()` | `soundboard_updated` |
+| `update_sound(space_id, sound_id, data)` | `soundboard.update()` | `soundboard_updated` |
+| `delete_sound(space_id, sound_id)` | `soundboard.delete()` | `soundboard_updated` |
+| `play_sound(space_id, sound_id)` | `soundboard.play()` | none |
+| `get_emoji_url(space_id, emoji_id, animated)` | `AccordCDN.emoji()` | none |
+| `get_sound_url(space_id, audio_url)` | `AccordCDN.sound()` | none |
+| `reorder_channels(space_id, data)` | `spaces.reorder_channels()` | `fetch_channels()` |
+| `reorder_roles(space_id, data)` | `roles.reorder()` | `fetch_roles()` |
 | `update_channel_overwrites(channel_id, overwrites)` | `channels.update()` | `fetch_channels()` |
 
 ### Server Management (client.gd)
 
-- `disconnect_server(guild_id)` -> logs out, clears all caches for that guild (guild, roles, members, channels, messages, unread/mentions, message index, routing), removes config, re-indexes connections, emits `guilds_updated`
+- `disconnect_server(space_id)` -> logs out, clears all caches for that space (space, roles, members, channels, messages, unread/mentions, message index, routing), removes config, re-indexes connections, emits `spaces_updated`
 - `reconnect_server(index)` -> logs out old client, resets status to "connecting", calls `connect_server()` again
 - `is_server_connected(index)` -> checks if connection at index is "connected"
-- `is_guild_connected(gid)` -> checks connection for guild
-- `get_guild_connection_status(gid)` -> returns status string ("connected", "connecting", "disconnected", "reconnecting", "error", "none")
-- `get_conn_index_for_guild(gid)` -> returns connection index
+- `is_space_connected(gid)` -> checks connection for space
+- `get_space_connection_status(gid)` -> returns status string ("connected", "connecting", "disconnected", "reconnecting", "error", "none")
+- `get_conn_index_for_space(gid)` -> returns connection index
 
 ### Reconnection Architecture (client.gd + client_gateway.gd)
 
@@ -411,7 +411,7 @@ Thin delegation layer that routes calls to the correct AccordClient and refreshe
 
 | Signal | Parameters | Emitted by |
 |--------|------------|------------|
-| `guild_selected` | guild_id | AppState.select_guild() |
+| `space_selected` | space_id | AppState.select_space() |
 | `channel_selected` | channel_id | AppState.select_channel(); also triggers Client._on_channel_selected_clear_unread() |
 | `dm_mode_entered` | -- | AppState.enter_dm_mode() |
 | `message_sent` | text | AppState.send_message() |
@@ -422,28 +422,28 @@ Thin delegation layer that routes calls to the correct AccordClient and refreshe
 | `message_deleted` | message_id | AppState.delete_message() |
 | `layout_mode_changed` | mode | AppState.update_layout_mode() |
 | `sidebar_drawer_toggled` | is_open | AppState.toggle/close_sidebar_drawer() |
-| `guilds_updated` | -- | Client/ClientFetch/ClientGateway; also emitted by mark_channel_unread() when guild indicators change |
-| `channels_updated` | guild_id | ClientFetch/ClientGateway; also emitted by _on_channel_selected_clear_unread() and mark_channel_unread() |
+| `spaces_updated` | -- | Client/ClientFetch/ClientGateway; also emitted by mark_channel_unread() when space indicators change |
+| `channels_updated` | space_id | ClientFetch/ClientGateway; also emitted by _on_channel_selected_clear_unread() and mark_channel_unread() |
 | `dm_channels_updated` | -- | ClientFetch/ClientGateway; also emitted by on_message_create() for DM last_message updates and mark_channel_unread() |
 | `messages_updated` | channel_id | ClientFetch/ClientGateway/Client (reactions) |
 | `user_updated` | user_id | ClientGateway (presence), Client (own presence) |
 | `typing_started` | channel_id, username | ClientGateway |
 | `typing_stopped` | channel_id | UI components (timer-based) |
-| `members_updated` | guild_id | ClientFetch/ClientGateway/Client/ClientAdmin |
-| `roles_updated` | guild_id | ClientFetch/ClientGateway/ClientAdmin |
-| `bans_updated` | guild_id | ClientGateway/ClientAdmin |
-| `invites_updated` | guild_id | ClientGateway/ClientAdmin |
-| `emojis_updated` | guild_id | ClientGateway/ClientAdmin |
-| `soundboard_updated` | guild_id | ClientGateway/ClientAdmin |
-| `soundboard_played` | guild_id, sound_id, user_id | ClientGateway |
+| `members_updated` | space_id | ClientFetch/ClientGateway/Client/ClientAdmin |
+| `roles_updated` | space_id | ClientFetch/ClientGateway/ClientAdmin |
+| `bans_updated` | space_id | ClientGateway/ClientAdmin |
+| `invites_updated` | space_id | ClientGateway/ClientAdmin |
+| `emojis_updated` | space_id | ClientGateway/ClientAdmin |
+| `soundboard_updated` | space_id | ClientGateway/ClientAdmin |
+| `soundboard_played` | space_id, sound_id, user_id | ClientGateway |
 | `reactions_updated` | channel_id, message_id | UI components |
 | `member_list_toggled` | is_visible | AppState.toggle_member_list() |
 | `channel_panel_toggled` | is_visible | AppState.toggle_channel_panel() |
 | `search_toggled` | is_open | AppState.toggle/close_search() |
-| `server_disconnected` | guild_id, code, reason | ClientGateway |
-| `server_reconnecting` | guild_id, attempt, max_attempts | ClientGateway |
-| `server_reconnected` | guild_id | ClientGateway |
-| `server_connection_failed` | guild_id, reason | Client |
+| `server_disconnected` | space_id, code, reason | ClientGateway |
+| `server_reconnecting` | space_id, attempt, max_attempts | ClientGateway |
+| `server_reconnected` | space_id | ClientGateway |
+| `server_connection_failed` | space_id, reason | Client |
 | `message_send_failed` | channel_id, content, error | Client |
 | `message_edit_failed` | message_id, error | Client |
 | `message_delete_failed` | message_id, error | Client |
@@ -453,7 +453,7 @@ Thin delegation layer that routes calls to the correct AccordClient and refreshe
 
 | Variable | Type | Default |
 |----------|------|---------|
-| `current_guild_id` | String | "" |
+| `current_space_id` | String | "" |
 | `current_channel_id` | String | "" |
 | `is_dm_mode` | bool | false |
 | `replying_to_message_id` | String | "" |
@@ -473,7 +473,7 @@ Server config shape (per server):
 {
     "base_url": String,
     "token": String,
-    "guild_name": String,
+    "space_name": String,
     "username": String,   # For re-auth on token expiry
     "password": String,   # For re-auth on token expiry
 }
@@ -481,26 +481,26 @@ Server config shape (per server):
 
 Methods:
 - `get_servers() -> Array` -- returns array of server config dicts
-- `add_server(base_url, token, guild_name, username, password)` -- adds and saves
+- `add_server(base_url, token, space_name, username, password)` -- adds and saves
 - `remove_server(index)` -- removes by index and re-indexes remaining
 - `update_server_url(index, new_url)` -- updates base URL (e.g., after HTTPS->HTTP fallback)
 - `update_server_token(index, new_token)` -- updates token (e.g., after re-auth)
 - `has_servers() -> bool` -- checks if any servers configured
-- `set_last_selection(guild_id, channel_id)` -- persists last selected guild/channel
-- `get_last_selection() -> Dictionary` -- returns `{guild_id, channel_id}`
-- `set_category_collapsed(guild_id, category_id, collapsed)` -- persists category UI state
-- `is_category_collapsed(guild_id, category_id) -> bool` -- retrieves category state
+- `set_last_selection(space_id, channel_id)` -- persists last selected space/channel
+- `get_last_selection() -> Dictionary` -- returns `{space_id, channel_id}`
+- `set_category_collapsed(space_id, category_id, collapsed)` -- persists category UI state
+- `is_category_collapsed(space_id, category_id) -> bool` -- retrieves category state
 - `clear()` -- wipes all server configs
 
 Multi-server routing (client.gd):
-- `_client_for_guild(guild_id)` -> looks up `_guild_to_conn`, returns AccordClient
-- `_client_for_channel(channel_id)` -> channel -> guild -> connection
-- `_cdn_for_guild(guild_id)` / `_cdn_for_channel(channel_id)` -> CDN URL for correct server
+- `_client_for_space(space_id)` -> looks up `_space_to_conn`, returns AccordClient
+- `_client_for_channel(channel_id)` -> channel -> space -> connection
+- `_cdn_for_space(space_id)` / `_cdn_for_channel(channel_id)` -> CDN URL for correct server
 
 Constants (client.gd:6-12):
 - `MESSAGE_CAP := 50` -- max messages cached per channel
-- `GUILD_ICON_SIZE := 48`, `AVATAR_SIZE := 42`, `CHANNEL_ICON_SIZE := 32`
-- `CHANNEL_PANEL_WIDTH := 240`, `GUILD_BAR_WIDTH := 68`
+- `SPACE_ICON_SIZE := 48`, `AVATAR_SIZE := 42`, `CHANNEL_ICON_SIZE := 32`
+- `CHANNEL_PANEL_WIDTH := 240`, `SPACE_BAR_WIDTH := 68`
 - `TOUCH_TARGET_MIN := 44`
 - `USER_CACHE_CAP := 500` -- max user cache entries before eviction (line 53)
 
@@ -509,10 +509,10 @@ Constants (client.gd:6-12):
 - [x] ClientModels conversion layer (typed models -> dicts) for all 9 model types
 - [x] ChannelType and UserStatus enums with bidirectional string conversion
 - [x] Deterministic color palette from IDs
-- [x] Seven in-memory caches (users, guilds, channels, DMs, messages, members, roles)
+- [x] Seven in-memory caches (users, spaces, channels, DMs, messages, members, roles)
 - [x] Gateway-driven cache updates for all event types (messages, channels, spaces, members, roles, reactions, presence)
 - [x] Gateway signal-only notifications for bans, invites, emojis, soundboard (on-demand fetching, no local cache)
-- [x] Multi-server routing via guild_to_conn and channel_to_guild maps
+- [x] Multi-server routing via space_to_conn and channel_to_space maps
 - [x] Message cap enforcement (50 per channel)
 - [x] CDN URL generation for avatars, space icons, emojis, sounds, attachments
 - [x] Timestamp formatting (ISO 8601 -> 12-hour with Today/Yesterday/date)
@@ -531,10 +531,10 @@ Constants (client.gd:6-12):
 - [x] Encrypted config persistence with credential storage
 - [x] Markdown to BBCode conversion (code, bold, italic, underline, strike, spoiler, links, blockquotes, emoji shortcodes)
 - [x] Error signals for failed mutations (send, edit, delete, fetch)
-- [x] Unread channel tracking (set on message_create, cleared on channel_selected, aggregated to guild)
-- [x] Mention count tracking (incremented on message_create when user is mentioned, aggregated to guild)
+- [x] Unread channel tracking (set on message_create, cleared on channel_selected, aggregated to space)
+- [x] Mention count tracking (incremented on message_create when user is mentioned, aggregated to space)
 - [x] DM last_message preview (updated on message_create with truncated content)
-- [x] Guild icon URLs from AccordSpace.icon via AccordCDN.space_icon()
+- [x] Space icon URLs from AccordSpace.icon via AccordCDN.space_icon()
 - [x] Avatar image loading via HTTP with static in-memory cache and circle shader clipping
 - [x] O(1) message lookup via _message_id_index (with linear fallback)
 - [x] User cache eviction (trim_user_cache() at USER_CACHE_CAP=500)
@@ -545,9 +545,9 @@ Constants (client.gd:6-12):
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | `voice_users` always 0 | Medium | `channel_to_dict()` (line 208) includes a `voice_users: 0` placeholder but no voice state tracking is connected. AccordVoiceState model exists but gateway events for voice state aren't wired. `channel_item.gd` reads this field (line 61) |
-| `folder` always empty | Low | `space_to_guild_dict()` (line 178) hardcodes `folder: ""`. This is a client-side organizational feature (grouping servers into folders); the server has no folder concept. `guild_folder.gd` exists in the UI but folder assignment is not implemented |
+| `folder` always empty | Low | `space_to_dict()` (line 178) hardcodes `folder: ""`. This is a client-side organizational feature (grouping servers into folders); the server has no folder concept. `guild_folder.gd` exists in the UI but folder assignment is not implemented |
 | DM `last_message` only from gateway | Low | `dm_channel_to_dict()` (line 358) initializes `last_message: ""`. Only updated when a message_create gateway event arrives. On initial load, DM previews are blank until a new message is sent/received. Could pre-populate from `AccordChannel.last_message_id` by fetching the message |
 | No image display for attachments | Low | `message_content.gd` renders attachments as clickable filename links with file sizes. Image attachments (content_type starts with "image/") could be rendered inline as actual images |
 | Timestamps in UTC | Low | `_format_timestamp()` parses and displays UTC time directly. Users in non-UTC timezones see UTC times. Could convert to local time |
-| Member cache limit | Low | `fetch_members()` requests limit=1000; large guilds may not fetch all members. No pagination implemented |
+| Member cache limit | Low | `fetch_members()` requests limit=1000; large spaces may not fetch all members. No pagination implemented |
 | Avatar image cache unbounded | Low | `avatar.gd` static `_image_cache` grows without limit. Could add an LRU eviction policy |

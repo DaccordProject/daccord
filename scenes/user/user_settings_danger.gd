@@ -16,13 +16,17 @@ var _del_error: Label
 var _del_btn: Button
 
 var _tree: SceneTree
+var _pw_accord_client: AccordClient = null
+var _del_accord_client: AccordClient = null
 
 
 func build_password_page(
 	page_vbox: VBoxContainer,
 	section_label_fn: Callable,
 	error_label_fn: Callable,
+	accord_client: AccordClient = null,
 ) -> void:
+	_pw_accord_client = accord_client
 	page_vbox.add_child(section_label_fn.call("CURRENT PASSWORD"))
 	_pw_current = LineEdit.new()
 	_pw_current.secret = true
@@ -65,9 +69,22 @@ func _on_password_save() -> void:
 		_pw_error.visible = true
 		return
 	_pw_save_btn.disabled = true
-	var result: Dictionary = await Client.change_password(
-		current, new_pw
-	)
+	var result: Dictionary
+	if _pw_accord_client != null:
+		var rest_result: RestResult = await _pw_accord_client.auth.change_password({
+			"current_password": current,
+			"new_password": new_pw,
+		})
+		if rest_result.ok:
+			result = {"ok": true}
+		else:
+			var err: String = (
+				rest_result.error.message
+				if rest_result.error else "unknown"
+			)
+			result = {"ok": false, "error": err}
+	else:
+		result = await Client.change_password(current, new_pw)
 	_pw_save_btn.disabled = false
 	if result.get("ok", false):
 		_pw_current.text = ""
@@ -93,8 +110,10 @@ func build_delete_page(
 	section_label_fn: Callable,
 	error_label_fn: Callable,
 	tree: SceneTree,
+	accord_client: AccordClient = null,
 ) -> void:
 	_tree = tree
+	_del_accord_client = accord_client
 
 	var warning := Label.new()
 	warning.text = (
@@ -150,7 +169,21 @@ func _on_delete_account() -> void:
 		_del_error.visible = true
 		return
 	_del_btn.disabled = true
-	var result: Dictionary = await Client.delete_account(pw)
+	var result: Dictionary
+	if _del_accord_client != null:
+		var rest_result: RestResult = await _del_accord_client.users.delete_me(
+			{"password": pw}
+		)
+		if rest_result.ok:
+			result = {"ok": true}
+		else:
+			var err: String = (
+				rest_result.error.message
+				if rest_result.error else "unknown"
+			)
+			result = {"ok": false, "error": err}
+	else:
+		result = await Client.delete_account(pw)
 	_del_btn.disabled = false
 	if result.get("ok", false):
 		_tree.quit()

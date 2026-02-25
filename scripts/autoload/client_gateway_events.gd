@@ -14,70 +14,70 @@ func _init(client_node: Node) -> void:
 func on_ban_create(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.bans_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.bans_updated.emit(space_id)
 
 func on_ban_delete(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.bans_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.bans_updated.emit(space_id)
 
 func on_invite_create(_invite: AccordInvite, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.invites_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.invites_updated.emit(space_id)
 
 func on_invite_delete(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.invites_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.invites_updated.emit(space_id)
 
 func on_soundboard_create(_sound: AccordSound, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.soundboard_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.soundboard_updated.emit(space_id)
 
 func on_soundboard_update(_sound: AccordSound, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.soundboard_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.soundboard_updated.emit(space_id)
 
 func on_soundboard_delete(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.soundboard_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.soundboard_updated.emit(space_id)
 
 func on_soundboard_play(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
+	var space_id: String = _c._connections[conn_index]["space_id"]
 	var sound_id: String = str(data.get("sound_id", data.get("id", "")))
 	var user_id: String = str(data.get("user_id", ""))
-	AppState.soundboard_played.emit(guild_id, sound_id, user_id)
+	AppState.soundboard_played.emit(space_id, sound_id, user_id)
 
 func on_emoji_create(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.emojis_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.emojis_updated.emit(space_id)
 
 func on_emoji_update(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.emojis_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.emojis_updated.emit(space_id)
 
 func on_emoji_delete(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var guild_id: String = _c._connections[conn_index]["guild_id"]
-	AppState.emojis_updated.emit(guild_id)
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.emojis_updated.emit(space_id)
 
 func on_interaction_create(
 	_interaction: AccordInteraction, _conn_index: int,

@@ -31,7 +31,7 @@ User selects language
 | `project.godot` | No `[locale]` section exists yet; would register `.po` translation files |
 | `scripts/autoload/config.gd` | Would persist the user's language preference |
 | `addons/accordkit/models/space.gd` | Has `preferred_locale` field (line 24) — server-side setting, not client i18n |
-| `scripts/autoload/client_models.gd` | Passes `preferred_locale` through to guild dict (line 253) |
+| `scripts/autoload/client_models.gd` | Passes `preferred_locale` through to space dict (line 253) |
 | `user_flows/reducing_build_size.md` | Documents disabled advanced text server (lines 73-76), blocking RTL support |
 
 ## Implementation Details
@@ -44,7 +44,7 @@ There are no `.po`, `.pot`, `.csv`, or `.translation` files anywhere in the proj
 
 AccordKit models carry locale data from the accordserver API, but these are protocol fields, not client translations:
 
-- `AccordSpace.preferred_locale` — defaults to `"en-US"` (`addons/accordkit/models/space.gd`, line 24). Deserialized from server JSON (line 66), serialized back (line 97). Passed through `ClientModels.space_to_guild_dict()` (line 253 of `client_models.gd`).
+- `AccordSpace.preferred_locale` — defaults to `"en-US"` (`addons/accordkit/models/space.gd`, line 24). Deserialized from server JSON (line 66), serialized back (line 97). Passed through `ClientModels.space_to_dict()` (line 253 in `client_models.gd`).
 - `AccordInteraction.locale` — nullable field on interaction objects (`addons/accordkit/models/interaction.gd`, line 16).
 
 These could inform a future "match server locale" feature but are unrelated to translating the client UI.
@@ -87,9 +87,9 @@ All user-facing strings are hardcoded English literals. The following categories
 | Context menus | `cozy_message.gd`, `collapsed_message.gd` | "Reply", "Edit", "Delete" |
 | User bar | `user_bar.gd` | "daccord v%s", "What's on your mind?", "Clear Status" |
 | User settings | `user_settings.gd`, `user_settings_twofa.gd`, `user_settings_danger.gd` | "My Account", "Change Password", "Delete My Account", "Enable 2FA" |
-| Profile | `profile_card.gd`, `profile_edit_dialog.gd` | "ABOUT ME", "ROLES", "Edit Profile", "Upload Avatar" |
+| Profile | `profile_card.gd` | "ABOUT ME", "ROLES", "Upload Avatar" |
 | Admin dialogs | `channel_management_dialog.gd`, `role_management_dialog.gd`, `invite_management_dialog.gd`, `ban_dialog.gd`, `space_settings_dialog.gd` | "Creating...", "Saving...", "Delete Selected (%d)" |
-| Guild bar | `guild_icon.gd`, `add_server_dialog.gd`, `auth_dialog.gd` | "Folder name", "Checking...", "Connecting..." |
+| Space bar | `guild_icon.gd`, `add_server_dialog.gd`, `auth_dialog.gd` | "Folder name", "Checking...", "Connecting..." |
 | Voice bar | `voice_bar.gd` | "Mic Off", "Cam On", "Sharing" |
 | Soundboard | `soundboard_panel.gd`, `soundboard_management_dialog.gd` | "No sounds available.", "Sound name cannot be empty." |
 

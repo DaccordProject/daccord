@@ -7,7 +7,7 @@ Ordered by natural user journey:
 | # | Document | Description |
 |---|----------|-------------|
 | 1 | [Server Connection](server_connection.md) | Adding a server, URL parsing, auth (sign-in/register), token management, HTTPS/HTTP fallback, multi-server |
-| 2 | [Guild & Channel Navigation](guild_channel_navigation.md) | Guild bar, guild icons/folders, channel categories/types, channel selection, tab management |
+| 2 | [Space & Channel Navigation](guild_channel_navigation.md) | Space bar, space icons/folders, channel categories/types, channel selection, tab management |
 | 3 | [Messaging](messaging.md) | Send/receive, cozy vs collapsed layout, reply/edit/delete, context menus, markdown, embeds, reactions, typing indicators |
 | 4 | [Direct Messages](direct_messages.md) | DM mode entry, DM list, DM channel items, search, sending DMs |
 | 5 | [Responsive Layout](responsive_layout.md) | Three layout modes (COMPACT/MEDIUM/FULL), sidebar drawer, hamburger button, sidebar/member/search toggles, topic bar, animations |
@@ -21,7 +21,7 @@ Ordered by natural user journey:
 | 13 | [Editing Messages](editing_messages.md) | Inline edit mode, ownership check, Enter/Escape handling, REST PATCH, gateway update, editing state |
 | 14 | [Server Disconnects & Timeouts](server_disconnects_timeouts.md) | Gateway disconnect handling, auto-reconnect, REST timeouts, heartbeat failures, UX gaps for connection state |
 | 15 | [Auto-Update](auto_update.md) | Startup & manual update checks via GitHub Releases, update banner, download dialog, version skipping, platform considerations |
-| 16 | [In-App Notifications](in_app_notifications.md) | Unread/mention indicators on guilds, channels, and DMs; mention highlights in messages; notification settings; current gaps |
+| 16 | [In-App Notifications](in_app_notifications.md) | Unread/mention indicators on spaces, channels, and DMs; mention highlights in messages; notification settings; current gaps |
 | 17 | [Soundboard](soundboard.md) | Playing audio clips into voice channels, sound management, server/client mixing architecture, permission model |
 | 18 | [Message Reactions](message_reactions.md) | Adding/removing emoji reactions, reaction pills, optimistic updates, gateway sync, emoji picker integration |
 | 19 | [Channel Permission Management](channel_permission_management.md) | Per-channel role permission overwrites, Allow/Inherit/Deny toggles, Discord-style resolution algorithm, server-side enforcement |
@@ -35,7 +35,7 @@ Ordered by natural user journey:
 | 27 | [User Onboarding](user_onboarding.md) | First-run experience, empty states, Add Server + auth flow, startup auto-connect, session restore, subsequent launches |
 | 28 | [Group DMs](group_dms.md) | Group DM detection via recipient count, comma-separated names, channel-ID avatar, gateway handling, creation/management gaps |
 | 29 | [File Sharing](file_sharing.md) | File attachments, image/file upload via composer, clipboard paste (images & large text), multipart form infrastructure, attachment rendering (inline images & download links), CDN URLs |
-| 30 | [Guild Folders](guild_folders.md) | Client-side guild grouping, folder assignment via context menu, collapsible mini-grid preview, folder persistence in Config, expand/collapse animation |
+| 30 | [Space Folders](guild_folders.md) | Client-side space grouping, folder assignment via context menu, collapsible mini-grid preview, folder persistence in Config, expand/collapse animation |
 | 31 | [User Management](user_management.md) | Authentication (sign-in/register), user data model, presence/status control, user bar, member list with admin actions, avatar rendering, user caching |
 | 32 | [Administrative User Management](admin_user_management.md) | Kick/ban/unban members, role assignment via context menu, role management dialog, ban list with bulk unban, permission gating, gateway sync |
 | 33 | [User Configuration](user_configuration.md) | Per-profile encrypted config, profile registry, migration from legacy single-file, server credentials, session restore, voice/sound/status preferences, per-profile emoji cache, notification settings, export/import profiles, local data layout |
@@ -59,3 +59,9 @@ Ordered by natural user journey:
 | 51 | [Godot-LiveKit](godot_livekit.md) | GDExtension addon wrapping LiveKit C++ SDK: native classes (Room, Track, Participant, Stream, Source, E2EE), LiveKitAdapter GDScript wrapper, audio/video pipelines, build process, platform binaries |
 | 52 | [Screen Sharing](screen_sharing.md) | Screen picker dialog, publishing screen share tracks via LiveKit, local/remote tile rendering, voice state sync, track cleanup |
 | 53 | [Signal Wiring](signal_wiring.md) | Complete signal emit/connect wiring map, audit findings, fixes applied, remaining gaps |
+| 54 | [Audit Logs](audit_logs.md) | Audit log viewer: permission gating, paginated fetch, action type filter, client-side search, row rendering with user/target resolution |
+| 55 | [GDPR & Data Privacy](gdpr.md) | Account deletion, password change, error reporting consent & PII scrubbing, profile export, local data cleanup, data portability gaps |
+| 56 | [Theming](theming.md) | Global theme resource, appearance settings (reduce motion, UI scale, skin tone), 202 hardcoded colors, proposed base64 theme sharing |
+| 57 | [End-to-End Encryption](e2ee.md) | Voice/video E2EE via LiveKit frame encryption: godot-livekit E2EE classes (conditional compile), key provider/ratcheting, missing integration in daccord |
+| 58 | [URL Protocol](url_protocol.md) | Custom `daccord://` deep link scheme: connect/invite/navigate routes, platform registration (Windows/Linux/macOS), IPC for running instances, security model |
+| 59 | [Role-Based Permissions](role_based_permissions.md) | 39-permission RBAC system, role CRUD/reorder/hierarchy, Discord-style channel overwrites, UI gating across 16+ permission types, imposter mode |

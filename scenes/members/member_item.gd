@@ -56,8 +56,8 @@ func _show_context_menu(pos: Vector2i) -> void:
 	if user_id == Client.current_user.get("id", ""):
 		return
 
-	var guild_id: String = AppState.current_guild_id
-	if guild_id.is_empty():
+	var space_id: String = AppState.current_space_id
+	if space_id.is_empty():
 		return
 
 	_context_menu.clear()
@@ -67,26 +67,26 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.add_item("Message", idx)
 	idx += 1
 
-	if Client.has_permission(guild_id, AccordPermission.KICK_MEMBERS):
+	if Client.has_permission(space_id, AccordPermission.KICK_MEMBERS):
 		_context_menu.add_item("Kick", idx)
 		idx += 1
 
-	if Client.has_permission(guild_id, AccordPermission.BAN_MEMBERS):
+	if Client.has_permission(space_id, AccordPermission.BAN_MEMBERS):
 		_context_menu.add_item("Ban", idx)
 		idx += 1
 
-	if Client.has_permission(guild_id, AccordPermission.MODERATE_MEMBERS):
+	if Client.has_permission(space_id, AccordPermission.MODERATE_MEMBERS):
 		_context_menu.add_item("Moderate", idx)
 		idx += 1
 
-	if Client.has_permission(guild_id, AccordPermission.MANAGE_NICKNAMES):
+	if Client.has_permission(space_id, AccordPermission.MANAGE_NICKNAMES):
 		_context_menu.add_item("Edit Nickname", idx)
 		idx += 1
 
-	if Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES):
-		var roles: Array = Client.get_roles_for_guild(guild_id)
+	if Client.has_permission(space_id, AccordPermission.MANAGE_ROLES):
+		var roles: Array = Client.get_roles_for_space(space_id)
 		var member_roles: Array = _member_data.get("roles", [])
-		var my_highest: int = Client.get_my_highest_role_position(guild_id)
+		var my_highest: int = Client.get_my_highest_role_position(space_id)
 		if roles.size() > 0:
 			_context_menu.add_separator("Roles")
 			idx += 1
@@ -115,13 +115,13 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.popup()
 
 func _on_context_menu_id_pressed(id: int) -> void:
-	var guild_id: String = AppState.current_guild_id
+	var space_id: String = AppState.current_space_id
 	var user_id: String = _member_data.get("id", "")
 	var dname: String = _member_data.get("display_name", "Unknown")
 
 	# Check if this is a role toggle
 	if _role_start_index != -1 and id >= _role_start_index:
-		_toggle_role(guild_id, user_id, id)
+		_toggle_role(space_id, user_id, id)
 		return
 
 	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
@@ -138,26 +138,35 @@ func _on_context_menu_id_pressed(id: int) -> void:
 				true
 			)
 			dialog.confirmed.connect(func():
-				Client.admin.kick_member(guild_id, user_id)
+				var result: RestResult = await Client.admin.kick_member(
+					space_id, user_id
+				)
+				if result == null or not result.ok:
+					var err: String = "unknown error"
+					if result != null and result.error:
+						err = result.error.message
+					push_warning(
+						"[Kick] Failed to kick member: ", err
+					)
 			)
 		"Ban":
 			var dialog := BanDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(guild_id, user_id, dname)
+			dialog.setup(space_id, user_id, dname)
 		"Moderate":
 			var dialog := ModerateMemberDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(guild_id, user_id, dname, _member_data)
+			dialog.setup(space_id, user_id, dname, _member_data)
 		"Edit Nickname":
 			var dialog := NicknameDialogScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(
-				guild_id, user_id, dname,
+				space_id, user_id, dname,
 				_member_data.get("nickname", "")
 			)
 
-func _toggle_role(guild_id: String, user_id: String, id: int) -> void:
-	var roles: Array = Client.get_roles_for_guild(guild_id)
+func _toggle_role(space_id: String, user_id: String, id: int) -> void:
+	var roles: Array = Client.get_roles_for_space(space_id)
 	var role_idx: int = id - _role_start_index
 	# Filter out @everyone to match the menu ordering
 	var assignable_roles: Array = []
@@ -176,9 +185,9 @@ func _toggle_role(guild_id: String, user_id: String, id: int) -> void:
 
 	var result: RestResult
 	if role_id in member_roles:
-		result = await Client.admin.remove_member_role(guild_id, user_id, role_id)
+		result = await Client.admin.remove_member_role(space_id, user_id, role_id)
 	else:
-		result = await Client.admin.add_member_role(guild_id, user_id, role_id)
+		result = await Client.admin.add_member_role(space_id, user_id, role_id)
 
 	_context_menu.set_item_disabled(item_index, false)
 

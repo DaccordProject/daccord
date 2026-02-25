@@ -266,8 +266,8 @@ func _on_post_context_menu(pos: Vector2i, post_data: Dictionary) -> void:
 	var author: Dictionary = post_data.get("author", {})
 	var my_id: String = Client.current_user.get("id", "")
 	var is_own: bool = author.get("id", "") == my_id
-	var guild_id: String = Client._channel_to_guild.get(_channel_id, "")
-	var can_manage: bool = Client.has_permission(guild_id, "MANAGE_THREADS")
+	var space_id: String = Client._channel_to_space.get(_channel_id, "")
+	var can_manage: bool = Client.has_permission(space_id, AccordPermission.MANAGE_THREADS)
 	_context_menu.set_item_disabled(
 		_context_menu.get_item_index(1),
 		not is_own and not can_manage
@@ -283,12 +283,12 @@ func _on_context_menu_pressed(id: int) -> void:
 		1: # Delete Post
 			Client.remove_message(msg_id)
 
-func _on_channels_updated(guild_id: String) -> void:
+func _on_channels_updated(space_id: String) -> void:
 	if _channel_id.is_empty():
 		return
-	# Check if this forum channel's guild matches
-	var ch_guild: String = Client._channel_to_guild.get(_channel_id, "")
-	if ch_guild != guild_id:
+	# Check if this forum channel's space matches
+	var ch_space: String = Client._channel_to_space.get(_channel_id, "")
+	if ch_space != space_id:
 		return
 	# Update channel name if it changed
 	var ch: Dictionary = Client._channel_cache.get(_channel_id, {})

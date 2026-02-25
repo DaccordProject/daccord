@@ -13,7 +13,7 @@ const UncategorizedDropTargetScene := preload(
 var channel_item_nodes: Dictionary = {}
 var active_channel_id: String = ""
 var pending_channel_id: String = ""
-var _current_guild_id: String = ""
+var _current_space_id: String = ""
 
 @onready var banner: Control = $VBox/Banner
 @onready var channel_vbox: VBoxContainer = $VBox/ScrollContainer/ChannelVBox
@@ -21,11 +21,12 @@ var _current_guild_id: String = ""
 
 func _ready() -> void:
 	AppState.channels_updated.connect(_on_channels_updated)
+	AppState.spaces_updated.connect(_on_spaces_updated)
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 	AppState.channel_selected.connect(_on_app_channel_selected)
 
-func load_guild(guild_id: String) -> void:
-	_current_guild_id = guild_id
+func load_space(space_id: String) -> void:
+	_current_space_id = space_id
 	# Clear existing (keep the persistent EmptyState node)
 	for child in channel_vbox.get_children():
 		if child == empty_state:
@@ -34,13 +35,13 @@ func load_guild(guild_id: String) -> void:
 	channel_item_nodes.clear()
 	active_channel_id = ""
 
-	var guild_data := Client.get_guild_by_id(guild_id)
-	banner.setup(guild_data)
+	var space_data := Client.get_space_by_id(space_id)
+	banner.setup(space_data)
 
-	var channels := Client.get_channels_for_guild(guild_id)
+	var channels := Client.get_channels_for_space(space_id)
 
 	# Imposter mode: filter out channels the impersonated role can't view
-	if AppState.is_imposter_mode and guild_id == AppState.imposter_guild_id:
+	if AppState.is_imposter_mode and space_id == AppState.imposter_space_id:
 		var filtered: Array = []
 		for ch in channels:
 			if ch["type"] == ClientModels.ChannelType.CATEGORY:
@@ -57,7 +58,7 @@ func load_guild(guild_id: String) -> void:
 			selectable_channels += 1
 
 	# Show/hide empty state
-	var can_manage: bool = Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS)
+	var can_manage: bool = Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS)
 	if selectable_channels == 0:
 		empty_state.visible = true
 		var empty_title: Label = empty_state.get_node("EmptyTitle")
@@ -70,7 +71,7 @@ func load_guild(guild_id: String) -> void:
 			# Disconnect old signals to avoid duplicates
 			for conn in empty_create_btn.pressed.get_connections():
 				empty_create_btn.pressed.disconnect(conn["callable"])
-			empty_create_btn.pressed.connect(_on_create_channel_pressed.bind(guild_id, channels))
+			empty_create_btn.pressed.connect(_on_create_channel_pressed.bind(space_id, channels))
 		else:
 			empty_title.text = "No channels yet"
 			empty_desc.text = "This space doesn't have any channels yet. Check back soon!"
@@ -136,7 +137,7 @@ func load_guild(guild_id: String) -> void:
 	if can_manage and uncategorized.is_empty() and not sorted_categories.is_empty():
 		var drop_target = UncategorizedDropTargetScene.instantiate()
 		channel_vbox.add_child(drop_target)
-		drop_target.setup(guild_id)
+		drop_target.setup(space_id)
 		drop_target.channel_dropped.connect(_on_uncategorized_drop)
 
 	# Add categories with their children
@@ -160,7 +161,7 @@ func load_guild(guild_id: String) -> void:
 		create_btn.custom_minimum_size = Vector2(0, 36)
 		create_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		create_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
-		create_btn.pressed.connect(_on_create_channel_pressed.bind(guild_id, channels))
+		create_btn.pressed.connect(_on_create_channel_pressed.bind(space_id, channels))
 		channel_vbox.add_child(create_btn)
 
 	# Auto-select: pending channel if it exists, otherwise first non-voice/non-category channel
@@ -184,7 +185,7 @@ func load_guild(guild_id: String) -> void:
 func _on_channel_pressed(channel_id: String) -> void:
 	# Check if this is a voice channel
 	var ch_data: Dictionary = {}
-	for ch in Client.get_channels_for_guild(_current_guild_id):
+	for ch in Client.get_channels_for_space(_current_space_id):
 		if ch.get("id", "") == channel_id:
 			ch_data = ch
 			break
@@ -200,16 +201,23 @@ func _on_channel_pressed(channel_id: String) -> void:
 
 	channel_selected.emit(channel_id)
 
-func _on_channels_updated(guild_id: String) -> void:
-	if guild_id == _current_guild_id:
-		load_guild(guild_id)
+func _on_spaces_updated() -> void:
+	if _current_space_id.is_empty():
+		return
+	var space_data := Client.get_space_by_id(_current_space_id)
+	if not space_data.is_empty():
+		banner.setup(space_data)
+
+func _on_channels_updated(space_id: String) -> void:
+	if space_id == _current_space_id:
+		load_space(space_id)
 
 func _on_imposter_mode_changed(_active: bool) -> void:
-	if not _current_guild_id.is_empty():
-		load_guild(_current_guild_id)
+	if not _current_space_id.is_empty():
+		load_space(_current_space_id)
 
 func _on_app_channel_selected(channel_id: String) -> void:
-	if _current_guild_id.is_empty():
+	if _current_space_id.is_empty():
 		return
 	if not channel_item_nodes.has(channel_id):
 		return
@@ -224,10 +232,10 @@ func _set_active_channel(channel_id: String) -> void:
 	if channel_item_nodes.has(channel_id):
 		channel_item_nodes[channel_id].set_active(true)
 
-func _on_create_channel_pressed(guild_id: String, channels: Array) -> void:
+func _on_create_channel_pressed(space_id: String, channels: Array) -> void:
 	var dialog := CreateChannelDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
-	dialog.setup(guild_id, "", channels)
+	dialog.setup(space_id, "", channels)
 
 func _on_uncategorized_drop(channel_data: Dictionary) -> void:
 	var channel_id: String = channel_data.get("id", "")

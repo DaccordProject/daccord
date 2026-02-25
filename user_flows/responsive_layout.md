@@ -23,12 +23,12 @@ MEDIUM mode interactions:
 2. Sidebar toggle button toggles channel panel visibility
 3. Member list forced hidden on mode entry, toggle available to re-show
 4. Search toggle shows/hides search panel
-5. Guild/DM selection shows channel panel; channel selection hides it (via sidebar.gd)
+5. Space/DM selection shows channel panel; channel selection hides it (via sidebar.gd)
 
 COMPACT mode interactions:
 1. User taps hamburger button (44x44px) in content header, or swipes right from left edge (20px zone, 80px threshold)
 2. Drawer slides in from left (sidebar + backdrop fade); drawer width adapts to viewport (max 308px, min 48px tap target preserved)
-3. User selects guild -> channel list appears inside drawer
+3. User selects space -> channel list appears inside drawer
 4. User selects channel -> drawer auto-closes, messages load
 5. Member list, search panel, and their toggles are all hidden
 
@@ -83,7 +83,7 @@ Search toggle (FULL/MEDIUM):
             -> search_toggled.emit(is_open)
     -> main_window._on_search_toggled(is_open)
         -> search_panel.visible = is_open
-        -> if opening: search_panel.activate(current_guild_id)
+        -> if opening: search_panel.activate(current_space_id)
 
 Hamburger button (COMPACT only):
     -> main_window._on_hamburger_pressed()
@@ -108,8 +108,8 @@ DM mode entered:
         -> member_toggle hidden, member_list hidden
         -> search_toggle hidden, search closed
 
-Guild selected:
-    -> main_window._on_guild_selected()
+Space selected:
+    -> main_window._on_space_selected()
         -> _update_member_list_visibility()
         -> _update_search_visibility()
         -> AppState.close_search()
@@ -122,10 +122,10 @@ Guild selected:
 | `scripts/autoload/app_state.gd` | `LayoutMode` enum, `COMPACT_BREAKPOINT`/`MEDIUM_BREAKPOINT` constants, layout state vars (incl. `is_landscape`), `update_layout_mode()` (with landscape detection), `toggle_sidebar_drawer()`, `close_sidebar_drawer()`, `toggle_channel_panel()`, `toggle_member_list()`, `toggle_search()`, `close_search()` |
 | `scenes/main/main_window.gd` | Layout orchestration, sidebar reparenting, drawer animations, panel toggle wiring |
 | `scenes/main/main_window.tscn` | Scene structure: LayoutHBox, ContentHeader (HamburgerButton, SidebarToggle, TabBar, SearchToggle, MemberListToggle), TopicBar, ContentBody (MessageView, MemberList, SearchPanel), DrawerBackdrop, DrawerContainer |
-| `scenes/sidebar/sidebar.gd` | MEDIUM mode channel panel auto-show/hide on guild/channel selection, `set_channel_panel_visible()` (animated), `set_channel_panel_visible_immediate()` (for mode transitions) |
+| `scenes/sidebar/sidebar.gd` | MEDIUM mode channel panel auto-show/hide on space/channel selection, `set_channel_panel_visible()` (animated), `set_channel_panel_visible_immediate()` (for mode transitions) |
 | `scenes/messages/collapsed_message.gd` | Responsive timestamp: always visible in COMPACT, hover-only in MEDIUM/FULL |
 | `scenes/members/member_list.gd` | Member list panel with virtualized scrolling, status grouping |
-| `scenes/search/search_panel.gd` | Search panel with `activate(guild_id)` entry point |
+| `scenes/search/search_panel.gd` | Search panel with `activate(space_id)` entry point |
 
 ## Implementation Details
 
@@ -221,7 +221,7 @@ Guild selected:
 - Invisible by default, shown only in COMPACT mode
 
 ### MEDIUM Mode Channel Panel Auto-Toggle (sidebar.gd)
-- `_on_guild_selected()`: Shows channel_panel (animated) and sets `AppState.channel_panel_visible = true` in MEDIUM mode
+- `_on_space_selected()`: Shows channel_panel (animated) and sets `AppState.channel_panel_visible = true` in MEDIUM mode
 - `_on_dm_selected()`: Shows channel_panel (animated) and sets `AppState.channel_panel_visible = true` in MEDIUM mode
 - `_on_channel_selected()`: Hides channel_panel (animated) and sets `AppState.channel_panel_visible = false` in MEDIUM mode
 - `_on_dm_selected_channel()`: Hides channel_panel (animated) and sets `AppState.channel_panel_visible = false` in MEDIUM mode
@@ -230,7 +230,7 @@ Guild selected:
 
 ### DM Mode Panel Hiding (main_window.gd:170-174)
 - On `dm_mode_entered`: member_toggle hidden, member_list hidden, search_toggle hidden, search closed
-- Guild selection restores visibility via `_update_member_list_visibility()` and `_update_search_visibility()` (lines 176-179)
+- Space selection restores visibility via `_update_member_list_visibility()` and `_update_search_visibility()` (lines 176-179)
 
 ### Collapsed Message Responsive Timestamp (collapsed_message.gd)
 - In COMPACT mode: timestamp always visible (line 69-70)
@@ -249,7 +249,7 @@ Guild selected:
 - [x] Backdrop click/touch to close drawer
 - [x] Auto-close drawer on channel/DM selection
 - [x] Sidebar toggle button (FULL/MEDIUM) to show/hide channel panel
-- [x] MEDIUM mode: channel panel auto-show on guild selection, auto-hide on channel selection
+- [x] MEDIUM mode: channel panel auto-show on space selection, auto-hide on channel selection
 - [x] Member list toggle (FULL/MEDIUM) with per-mode visibility
 - [x] Search panel toggle (FULL/MEDIUM) with per-mode visibility
 - [x] Topic bar display for channels with topics

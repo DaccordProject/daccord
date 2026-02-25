@@ -4,13 +4,13 @@ Last touched: 2026-02-19
 
 ## Overview
 
-The member list displays all members of the currently selected guild, grouped by online status (Online, Idle, Do Not Disturb, Offline) or by role, and sorted alphabetically within each group. To handle guilds with many members without creating hundreds of scene tree nodes, it uses a **virtual scrolling** architecture: a fixed pool of `MemberItem` and `MemberHeader` nodes is recycled as the user scrolls, with only the visible rows rendered at any time.
+The member list displays all members of the currently selected space, grouped by online status (Online, Idle, Do Not Disturb, Offline) or by role, and sorted alphabetically within each group. To handle spaces with many members without creating hundreds of scene tree nodes, it uses a **virtual scrolling** architecture: a fixed pool of `MemberItem` and `MemberHeader` nodes is recycled as the user scrolls, with only the visible rows rendered at any time.
 
 A search bar filters members by display name, and a toggle button switches between status grouping and role-based grouping. Single-member gateway events (join, leave, presence change) are handled incrementally without a full rebuild when possible.
 
 ## User Steps
 
-1. User selects a guild — the member list loads all cached members for that guild.
+1. User selects a space — the member list loads all cached members for that space.
 2. The list groups members by status (or by role if toggled) and sorts each group alphabetically.
 3. As the user scrolls, only the visible rows are rendered using pooled node instances.
 4. Single-member gateway events (joins, leaves, presence changes) update the row data incrementally — inserting, removing, or moving a single member within `_row_data`.
@@ -34,9 +34,9 @@ Gateway event (single-member: presence_update / member_join / member_leave)
         │           ├── _adjust_pool_size()
         │           └── _update_visible_items()
         │
-        └─► AppState.members_updated.emit(guild_id)
+        └─► AppState.members_updated.emit(space_id)
               │
-              └─► member_list.gd._on_members_updated(guild_id)
+              └─► member_list.gd._on_members_updated(space_id)
                     │ (skipped if incremental handler already ran)
                     └─► _debounce_timer.start() → _rebuild_row_data()
 
@@ -44,9 +44,9 @@ Gateway event (bulk: member_chunk / member_update / full fetch)
   │
   └─► client_gateway.gd updates _member_cache
         │
-        └─► AppState.members_updated.emit(guild_id)
+        └─► AppState.members_updated.emit(space_id)
               │
-              └─► member_list.gd._on_members_updated(guild_id)
+              └─► member_list.gd._on_members_updated(space_id)
                     │
                     └─► _debounce_timer.start() → _rebuild_row_data()
                           ├── _build_status_groups() or _build_role_groups()
@@ -71,7 +71,7 @@ ScrollContainer.value_changed
 | `scenes/members/member_item.tscn` | Member row layout: 32px avatar, display name, 10x10 status dot |
 | `scenes/members/member_header.gd` | Status/role group header with label (e.g. "ONLINE — 5") |
 | `scenes/members/member_header.tscn` | Header row layout: uppercase label, 44px height |
-| `scripts/autoload/client.gd` | `_member_cache` storage (line 81), `get_members_for_guild()` (line 302), `get_roles_for_guild()` (line 305) |
+| `scripts/autoload/client.gd` | `_member_cache` storage (line 81), `get_members_for_space()` (line 302), `get_roles_for_space()` (line 305) |
 | `scripts/autoload/client_fetch.gd` | `fetch_members()` REST call with paginated `limit=1000` (line 268), deduplicated user fetch (line 311) |
 | `scripts/autoload/client_gateway.gd` | Gateway handlers: `on_member_chunk` (line 335), `on_member_join` (line 375), `on_member_leave` (line 401), `on_member_update` (line 418), `on_presence_update` (line 300). Emits fine-grained signals: `member_joined` (line 398), `member_left` (line 415), `member_status_changed` (line 319) |
 | `scripts/autoload/client_models.gd` | `member_to_dict()` conversion, `UserStatus` enum, `status_color()` |
@@ -95,7 +95,7 @@ The core performance optimization is **object pooling with positional recycling*
 
 ### Row Data Rebuild (`_rebuild_row_data`, line 106)
 
-Triggered by debounced `members_updated` signal, `guild_selected`, search text changes, or grouping toggle:
+Triggered by debounced `members_updated` signal, `space_selected`, search text changes, or grouping toggle:
 
 1. Clears `_row_data` and delegates to `_build_status_groups()` (line 118) or `_build_role_groups()` (line 170) based on `_group_by_role`.
 2. Both builders filter members against `_search_text` (case-insensitive substring match, line 19).
@@ -136,21 +136,21 @@ For single-member events (join, leave, presence change), the member list avoids 
 
 - **`_group_by_role`** (line 20): Boolean toggle.
 - **`group_toggle`**: `Button` in the header bar. Clicking it toggles `_group_by_role` and updates the button text ("Status" / "Roles"), then triggers a full rebuild.
-- **`_build_role_groups()`** (line 170): Groups members by their highest role's position. Uses `Client.get_roles_for_guild()` to get role data. @everyone (position 0) is skipped. Roles are ordered by position descending (highest first). Members with no assignable roles go in "No Role".
+- **`_build_role_groups()`** (line 170): Groups members by their highest role's position. Uses `Client.get_roles_for_space()` to get role data. @everyone (position 0) is skipped. Roles are ordered by position descending (highest first). Members with no assignable roles go in "No Role".
 - Listens to `AppState.roles_updated` to rebuild when roles change.
 
 ### Member Cache (`client.gd`)
 
-- **`_member_cache: Dictionary`** (line 81) — maps `guild_id → Array[Dictionary]`. Each dictionary is a member dict produced by `ClientModels.member_to_dict()`.
-- **`_member_id_index: Dictionary`** (line 94) — maps `guild_id → { user_id → array_index }` for O(1) lookups via `_member_index_for()`.
-- **`get_members_for_guild(gid)`** (line 302) — returns `_member_cache.get(gid, [])`, direct reference (not a copy).
-- **`get_roles_for_guild(gid)`** (line 305) — returns `_role_cache.get(gid, [])`.
+- **`_member_cache: Dictionary`** (line 81) — maps `space_id → Array[Dictionary]`. Each dictionary is a member dict produced by `ClientModels.member_to_dict()`.
+- **`_member_id_index: Dictionary`** (line 94) — maps `space_id → { user_id → array_index }` for O(1) lookups via `_member_index_for()`.
+- **`get_members_for_space(gid)`** (line 302) — returns `_member_cache.get(gid, [])`, direct reference (not a copy).
+- **`get_roles_for_space(gid)`** (line 305) — returns `_role_cache.get(gid, [])`.
 
 ### Initial Fetch (`client_fetch.gd`, line 268)
 
 - Uses paginated fetch with `limit=1000` and cursor-based pagination (line 278).
 - Collects unique missing user IDs upfront (deduplicated, line 301), then fetches each sequentially (line 311).
-- Stores the full array in `_member_cache[guild_id]` and rebuilds the member ID index.
+- Stores the full array in `_member_cache[space_id]` and rebuilds the member ID index.
 
 ### Gateway Updates (`client_gateway.gd`)
 

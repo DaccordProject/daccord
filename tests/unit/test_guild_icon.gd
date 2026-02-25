@@ -11,7 +11,7 @@ func before_each() -> void:
 		"status": 0, "avatar": null, "is_admin": false,
 	}
 	Client._connections = []
-	Client._guild_to_conn = {}
+	Client._space_to_conn = {}
 	component = load("res://scenes/sidebar/guild_bar/guild_icon.tscn").instantiate()
 	add_child(component)
 	await get_tree().process_frame
@@ -24,10 +24,10 @@ func after_each() -> void:
 		await get_tree().process_frame
 
 
-func _guild_data(overrides: Dictionary = {}) -> Dictionary:
+func _space_data(overrides: Dictionary = {}) -> Dictionary:
 	var d := {
 		"id": "g_1",
-		"name": "Test Guild",
+		"name": "Test Space",
 		"icon_color": Color(0.3, 0.5, 0.7),
 		"icon": null,
 		"unread": false,
@@ -40,50 +40,50 @@ func _guild_data(overrides: Dictionary = {}) -> Dictionary:
 # --- setup ---
 
 func test_setup_stores_ids() -> void:
-	component.setup(_guild_data())
-	assert_eq(component.guild_id, "g_1")
-	assert_eq(component.guild_name, "Test Guild")
+	component.setup(_space_data())
+	assert_eq(component.space_id, "g_1")
+	assert_eq(component.space_name, "Test Space")
 
 
 func test_setup_sets_tooltip() -> void:
-	component.setup(_guild_data())
-	assert_eq(component.icon_button.tooltip_text, "Test Guild")
+	component.setup(_space_data())
+	assert_eq(component.icon_button.tooltip_text, "Test Space")
 
 
 func test_setup_avatar_letter() -> void:
-	component.setup(_guild_data({"name": "MyGuild"}))
+	component.setup(_space_data({"name": "MySpace"}))
 	# The avatar_rect is a custom shader-based node; test that
 	# set_letter was called (it stores the letter internally)
-	# Just verify setup didn't crash and guild_name was set
-	assert_eq(component.guild_name, "MyGuild")
+	# Just verify setup didn't crash and space_name was set
+	assert_eq(component.space_name, "MySpace")
 
 
 func test_setup_unread_pill_state() -> void:
-	component.setup(_guild_data({"unread": true}))
+	component.setup(_space_data({"unread": true}))
 	assert_eq(component.pill.pill_state, component.pill.PillState.UNREAD)
 
 
 func test_setup_no_unread_pill_hidden() -> void:
-	component.setup(_guild_data({"unread": false}))
+	component.setup(_space_data({"unread": false}))
 	assert_eq(component.pill.pill_state, component.pill.PillState.HIDDEN)
 
 
 func test_setup_mention_badge() -> void:
-	component.setup(_guild_data({"mentions": 3}))
+	component.setup(_space_data({"mentions": 3}))
 	assert_eq(component.mention_badge.count, 3)
 
 
 # --- set_active ---
 
 func test_set_active_true() -> void:
-	component.setup(_guild_data())
+	component.setup(_space_data())
 	component.set_active(true)
 	assert_true(component.is_active)
 	assert_eq(component.pill.pill_state, component.pill.PillState.ACTIVE)
 
 
 func test_set_active_false_with_unread() -> void:
-	component.setup(_guild_data({"unread": true}))
+	component.setup(_space_data({"unread": true}))
 	component.set_active(true)
 	component.set_active(false)
 	assert_false(component.is_active)
@@ -91,7 +91,7 @@ func test_set_active_false_with_unread() -> void:
 
 
 func test_set_active_false_no_unread() -> void:
-	component.setup(_guild_data({"unread": false}))
+	component.setup(_space_data({"unread": false}))
 	component.set_active(true)
 	component.set_active(false)
 	assert_eq(component.pill.pill_state, component.pill.PillState.HIDDEN)
@@ -103,5 +103,5 @@ func test_initial_state_not_active() -> void:
 
 # --- signal ---
 
-func test_has_guild_pressed_signal() -> void:
-	assert_true(component.has_signal("guild_pressed"))
+func test_has_space_pressed_signal() -> void:
+	assert_true(component.has_signal("space_pressed"))

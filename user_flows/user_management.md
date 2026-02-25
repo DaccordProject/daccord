@@ -22,8 +22,8 @@ User management covers authentication (sign-in/register), the current-user data 
 4. User can set a custom status message via "Set Custom Status" in the same menu.
 
 ### Viewing Members
-1. User opens a guild channel.
-2. The member list panel on the right shows all guild members grouped by status (Online, Idle, DND, Offline).
+1. User opens a space channel.
+2. The member list panel on the right shows all space members grouped by status (Online, Idle, DND, Offline).
 3. Right-clicking a member shows a context menu with Message (DM), Kick, Ban, and Role assignment options (permission-gated).
 
 ## Signal Flow
@@ -40,7 +40,7 @@ Authentication:
       -> ClientModels.user_to_dict()
       -> _user_cache[id] = dict
       -> current_user = dict
-      -> AppState.guilds_updated
+      -> AppState.spaces_updated
 
 Status Update:
   user_bar._on_menu_id_pressed(0-3)
@@ -51,15 +51,15 @@ Status Update:
       -> Config.set_user_status(status)
       -> AccordClient.update_presence() (all servers)
       -> AppState.user_updated(my_id)
-      -> AppState.members_updated(guild_id) (all guilds)
+      -> AppState.members_updated(space_id) (all spaces)
 
 Incoming Presence:
   Gateway PRESENCE_UPDATE
     -> ClientGateway.on_presence_update()
       -> _user_cache[user_id]["status"] = enum
-      -> _member_cache[guild_id] status update
+      -> _member_cache[space_id] status update
       -> AppState.user_updated(user_id)
-      -> AppState.members_updated(guild_id)
+      -> AppState.members_updated(space_id)
 
 Incoming User Update:
   Gateway USER_UPDATE
@@ -90,7 +90,6 @@ Incoming User Update:
 | `addons/accordkit/rest/endpoints/users_api.gd` | `get_me()`, `update_me()`, `fetch()`, `list_spaces()`, `list_channels()`, `create_dm()` |
 | `addons/accordkit/rest/endpoints/auth_api.gd` | `register()`, `login()`, `change_password()`, `enable_2fa()`, `verify_2fa()`, `disable_2fa()`, `get_backup_codes()`, token parsing |
 | `addons/accordkit/rest/endpoints/users_api.gd` | `get_me()`, `update_me()`, `fetch()`, `list_spaces()`, `list_channels()`, `create_dm()`, `delete_me()`, `list_connections()` |
-| `scenes/user/profile_edit_dialog.gd` | Profile edit modal — avatar upload/remove, display name, bio, accent color, dirty tracking |
 | `scenes/user/profile_card.gd` | Floating profile card — avatar, status, bio, roles, badges, activities, per-device status, Message button |
 | `scenes/user/user_settings.gd` | Full settings panel — 9 pages (My Account, Profile, Voice, Sound, Notifications, Password, Delete, 2FA, Connections) |
 
@@ -158,11 +157,11 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 **Cache structure** (`client.gd`):
 - `_user_cache: Dictionary` (line 37): maps `user_id -> user_dict`. Populated on login (`connect_server()`, line 199), message receipt (when author unknown), member chunks, and presence updates.
 - `USER_CACHE_CAP := 500` (line 13): maximum cache size.
-- `trim_user_cache()` (line 726): evicts users not in the keep set (current user, current guild members, current channel message authors).
+- `trim_user_cache()` (line 726): evicts users not in the keep set (current user, current space members, current channel message authors).
 - `current_user: Dictionary` (line 16): the authenticated user's dict, set during `connect_server()` (line 200-201).
 
 **Member cache** (`client.gd:42`):
-- `_member_cache: Dictionary` maps `guild_id -> Array[member_dict]`. Members include user fields plus `roles` and `joined_at` via `ClientModels.member_to_dict()` (line 318 of `client_models.gd`).
+- `_member_cache: Dictionary` maps `space_id -> Array[member_dict]`. Members include user fields plus `roles` and `joined_at` via `ClientModels.member_to_dict()` (line 318 of `client_models.gd`).
 
 ### Presence Management
 
@@ -172,11 +171,11 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 3. Persists via `Config.set_user_status()` (line 280).
 4. Converts to server string and sends to all connected servers via `AccordClient.update_presence()` (lines 282-286).
 5. Emits `AppState.user_updated(my_id)` (line 287).
-6. Updates `_member_cache` status for every guild and emits `AppState.members_updated()` (lines 288-293).
+6. Updates `_member_cache` status for every space and emits `AppState.members_updated()` (lines 288-293).
 
 **Incoming presence** (`client_gateway.gd:269`):
 - Updates `_user_cache` status via `_status_string_to_enum()` (line 271).
-- Updates `_member_cache` for the source guild (lines 275-280).
+- Updates `_member_cache` for the source space (lines 275-280).
 - Emits `user_updated` and `members_updated` signals.
 
 **Incoming user update** (`client_gateway.gd:282`):
@@ -196,7 +195,6 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 **Menu**: MenuButton with items:
 - IDs 0-3: Status changes (Online, Idle, DND, Invisible)
 - ID 4: Custom status dialog
-- ID 5: Edit Profile (opens `ProfileEditDialog`)
 - ID 6: Settings (opens `UserSettings` panel)
 - ID 10: About dialog
 - ID 11: Quit
@@ -206,7 +204,7 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 
 **Custom status dialog** (line 155): Creates an `AcceptDialog` with a `LineEdit` and "Clear Status" button. On confirm, saves to `Config.set_custom_status()` and sends presence update with activity name (lines 174-186).
 
-**Signal connections** (lines 49-50): Listens to `AppState.guilds_updated` and `AppState.user_updated` to refresh display when user data changes.
+**Signal connections** (lines 49-50): Listens to `AppState.spaces_updated` and `AppState.user_updated` to refresh display when user data changes.
 
 **Avatar hover animation** (lines 100-104): Tweens the shader `radius` parameter between 0.5 (circle) and 0.3 (rounded square).
 
@@ -226,7 +224,7 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 - **Status grouping** (lines 49-87): Members are grouped into ONLINE, IDLE, DND, OFFLINE buckets, each sorted alphabetically by display name. Headers show status label and count (e.g., "ONLINE — 5").
 - **Virtual scrolling** (lines 96-157): Uses pooled `member_item` and `member_header` instances repositioned during scroll, with `ROW_HEIGHT = 44` (line 6).
 - **Invite button** (line 41): Visible only if user has `CREATE_INVITES` permission.
-- **Refresh triggers** (lines 31-32): `guild_selected` and `members_updated` signals.
+- **Refresh triggers** (lines 31-32): `space_selected` and `members_updated` signals.
 
 ### Member Item
 
@@ -244,7 +242,7 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 
 `scripts/autoload/config.gd` stores user-related settings in an encrypted `ConfigFile` at `user://config.cfg`:
 
-- **Server credentials** (lines 35-47): `base_url`, `token`, `guild_name`, `username`, `password` per server section.
+- **Server credentials** (lines 35-47): `base_url`, `token`, `space_name`, `username`, `password` per server section.
 - **User status** (lines 146-151): `get_user_status()` / `set_user_status()` — persists UserStatus enum int.
 - **Custom status** (lines 153-158): `get_custom_status()` / `set_custom_status()` — persists string.
 - **Error reporting consent** (lines 160-172): `get_error_reporting_enabled()`, `set_error_reporting_enabled()`, `has_error_reporting_preference()`.

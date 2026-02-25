@@ -40,7 +40,7 @@ func join_voice_channel(channel_id: String) -> bool:
 		)
 		AppState.voice_error.emit("No connection found")
 		return false
-	var guild_id: String = _c._channel_to_guild.get(
+	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
 	var result: RestResult = await client.voice.join(
@@ -105,7 +105,7 @@ func join_voice_channel(channel_id: String) -> bool:
 			"Voice join failed — server returned unexpected data"
 		)
 		return false
-	AppState.join_voice(channel_id, guild_id)
+	AppState.join_voice(channel_id, space_id)
 	_c.fetch.fetch_voice_states(channel_id)
 	return true
 
@@ -144,8 +144,8 @@ func leave_voice_channel() -> bool:
 	_c._voice_session.disconnect_voice()
 	# Notify the server we're leaving (best-effort).
 	# If the connection is down or missing, skip the REST call.
-	var guild_id: String = _c._channel_to_guild.get(channel_id, "")
-	var conn = _c._conn_for_guild(guild_id) if not guild_id.is_empty() else null
+	var space_id: String = _c._channel_to_space.get(channel_id, "")
+	var conn = _c._conn_for_space(space_id) if not space_id.is_empty() else null
 	var conn_alive: bool = conn != null \
 		and conn.get("status", "") == "connected" \
 		and conn.get("client") != null
@@ -250,15 +250,15 @@ func stop_screen_share() -> void:
 	_send_voice_state_update()
 
 func _send_voice_state_update() -> void:
-	var guild_id := AppState.voice_guild_id
+	var space_id := AppState.voice_space_id
 	var channel_id := AppState.voice_channel_id
-	if guild_id.is_empty() or channel_id.is_empty():
+	if space_id.is_empty() or channel_id.is_empty():
 		return
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
 		return
 	client.update_voice_state(
-		guild_id, channel_id,
+		space_id, channel_id,
 		AppState.is_voice_muted,
 		AppState.is_voice_deafened,
 		AppState.is_video_enabled,
@@ -268,6 +268,7 @@ func _send_voice_state_update() -> void:
 # --- Voice session callbacks ---
 
 func on_session_state_changed(state: int) -> void:
+	AppState.voice_session_state_changed.emit(state)
 	match state:
 		LiveKitAdapter.State.CONNECTING:
 			_voice_log("session_state: CONNECTING")
@@ -345,7 +346,7 @@ func on_audio_level_changed(
 		if uid.is_empty():
 			return
 	var now: float = Time.get_ticks_msec() / 1000.0
-	if level > 0.001:
+	if level > Config.voice.get_speaking_threshold():
 		var was_speaking: bool = _c._speaking_users.has(uid)
 		_c._speaking_users[uid] = now
 		if not was_speaking:

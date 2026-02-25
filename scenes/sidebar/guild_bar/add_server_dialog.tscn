@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/guild_bar/add_server_dialog.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/browse_servers_panel.tscn" id="2"]
@@ -47,6 +47,38 @@ content_margin_top = 4.0
 content_margin_right = 12.0
 content_margin_bottom = 4.0
 
+[sub_resource type="StyleBoxFlat" id="url_input_normal"]
+bg_color = Color(0.125, 0.133, 0.145, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.23, 0.255, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+
+[sub_resource type="StyleBoxFlat" id="url_input_focus"]
+bg_color = Color(0.125, 0.133, 0.145, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.345, 0.396, 0.949, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+
 [node name="AddServerDialog" type="ColorRect"]
 anchors_preset = 15
 anchor_right = 1.0
@@ -91,35 +123,48 @@ flat = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 340)
 
-[node name="Enter URL" type="VBoxContainer" parent="CenterContainer/Panel/VBox/TabContainer"]
+[node name="Enter URL" type="MarginContainer" parent="CenterContainer/Panel/VBox/TabContainer"]
+layout_mode = 2
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Description" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
+[node name="Description" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 layout_mode = 2
 text = "Enter a server URL or invite link"
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
-[node name="ServerUrlLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
+[node name="UrlField" type="VBoxContainer" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ServerUrlLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/UrlField"]
 layout_mode = 2
 text = "SERVER URL"
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
-[node name="ServerUrlInput" type="LineEdit" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
+[node name="ServerUrlInput" type="LineEdit" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/UrlField"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 40)
 placeholder_text = "example.com or example.com?invite=CODE"
+theme_override_styles/normal = SubResource("url_input_normal")
+theme_override_styles/focus = SubResource("url_input_focus")
 
-[node name="AddButton" type="Button" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
+[node name="AddButton" type="Button" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 40)
 text = "Add"
 theme_override_styles/normal = SubResource("add_btn_normal")
 theme_override_styles/hover = SubResource("add_btn_hover")
 theme_override_styles/pressed = SubResource("add_btn_pressed")
 
-[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
+[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 visible = false
 layout_mode = 2
 horizontal_alignment = 1
@@ -127,7 +172,7 @@ theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 12
 autowrap_mode = 2
 
-[node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL"]
+[node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)

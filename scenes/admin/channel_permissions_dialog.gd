@@ -24,7 +24,7 @@ const TEXT_ONLY_PERMS := [
 ]
 
 var _channel: Dictionary = {}
-var _guild_id: String = ""
+var _space_id: String = ""
 var _selected_role_id: String = ""
 # entity_id -> { perm_name -> OverwriteState }
 var _overwrite_data: Dictionary = {}
@@ -53,9 +53,9 @@ func _ready() -> void:
 	_save_btn.pressed.connect(_on_save)
 	_reset_btn.pressed.connect(_on_reset)
 
-func setup(channel: Dictionary, guild_id: String) -> void:
+func setup(channel: Dictionary, space_id: String) -> void:
 	_channel = channel
-	_guild_id = guild_id
+	_space_id = space_id
 	_title.text = "Permissions: #%s" % channel.get("name", "")
 	_load_overwrites()
 	# Snapshot for dirty tracking
@@ -92,7 +92,7 @@ func _rebuild_role_list() -> void:
 	_role_buttons.clear()
 
 	# Role overwrites
-	var roles: Array = Client.get_roles_for_guild(_guild_id)
+	var roles: Array = Client.get_roles_for_space(_space_id)
 	roles.sort_custom(func(a: Dictionary, b: Dictionary):
 		return a.get("position", 0) > b.get("position", 0)
 	)
@@ -159,7 +159,7 @@ func _add_member_button(user_id: String) -> void:
 	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	btn.custom_minimum_size = Vector2(140, 28)
 
-	var members: Array = Client.get_members_for_guild(_guild_id)
+	var members: Array = Client.get_members_for_space(_space_id)
 	var display_name: String = user_id
 	for m in members:
 		if m.get("id", "") == user_id:
@@ -225,7 +225,7 @@ func _on_add_member_overwrite() -> void:
 	popup.add_child(vbox)
 	add_child(popup)
 
-	var members: Array = Client.get_members_for_guild(_guild_id)
+	var members: Array = Client.get_members_for_space(_space_id)
 
 	var build_list := func(query: String) -> void:
 		for child in member_list.get_children():

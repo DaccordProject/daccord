@@ -155,7 +155,7 @@ func test_create_profile_with_password() -> void:
 
 func test_create_profile_copy() -> void:
 	# Add a server to the current config
-	config.add_server("http://host:3000", "tok", "guild")
+	config.add_server("http://host:3000", "tok", "space")
 	var slug: String = profiles.create("Personal", "", true)
 	# The copied config file should exist
 	var cfg_path := "user://profiles/" + slug + "/config.cfg"

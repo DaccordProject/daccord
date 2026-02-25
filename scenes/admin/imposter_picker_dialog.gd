@@ -1,6 +1,6 @@
 extends ColorRect
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _selected_role: Dictionary = {}
 var _is_custom: bool = false
 var _custom_perm_checks: Dictionary = {} # perm_name -> CheckBox
@@ -26,8 +26,8 @@ func _ready() -> void:
 			_close()
 	)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_build_role_list()
 	_build_perm_checkboxes()
 	custom_scroll.visible = false
@@ -36,7 +36,7 @@ func _build_role_list() -> void:
 	for child in role_list.get_children():
 		child.queue_free()
 
-	var roles: Array = Client.get_roles_for_guild(_guild_id)
+	var roles: Array = Client.get_roles_for_space(_space_id)
 	# Sort by position descending (highest first)
 	roles.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return a.get("position", 0) > b.get("position", 0)
@@ -125,13 +125,13 @@ func _on_preview() -> void:
 		role_data = {
 			"name": "Custom",
 			"permissions": perms,
-			"guild_id": _guild_id,
+			"space_id": _space_id,
 		}
 	elif not _selected_role.is_empty():
 		role_data = {
 			"name": _selected_role.get("name", "Unknown"),
 			"permissions": _selected_role.get("permissions", []),
-			"guild_id": _guild_id,
+			"space_id": _space_id,
 		}
 	else:
 		return

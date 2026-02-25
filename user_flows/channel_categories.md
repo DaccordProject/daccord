@@ -2,13 +2,13 @@
 
 
 ## Overview
-Channel categories are collapsible groups that organize channels within a guild's sidebar. Categories are a special channel type (`ChannelType.CATEGORY`) that act as containers — other channels reference a category via their `parent_id` field. Users with `MANAGE_CHANNELS` permission can create, rename, delete, and reorder categories, as well as create channels directly within them. Collapse state persists across sessions via `Config`.
+Channel categories are collapsible groups that organize channels within a space's sidebar. Categories are a special channel type (`ChannelType.CATEGORY`) that act as containers — other channels reference a category via their `parent_id` field. Users with `MANAGE_CHANNELS` permission can create, rename, delete, and reorder categories, as well as create channels directly within them. Collapse state persists across sessions via `Config`.
 
 ## User Steps
 
 ### Viewing categories
-1. User selects a guild from the guild bar.
-2. The channel list loads all channels for the guild.
+1. User selects a space from the space bar.
+2. The channel list loads all channels for the space.
 3. Channels are sorted by `position` then `name`, grouped into uncategorized (shown first) and categories (sorted by `position` then `name`). Children within each category are also sorted by `position` then `name`.
 4. User clicks a category header to collapse/expand its children. A channel count badge appears when collapsed.
 
@@ -40,7 +40,7 @@ Channel categories are collapsible groups that organize channels within a guild'
 1. User clicks a category header to toggle collapse.
 2. When collapsed: child channels are hidden, chevron changes to right-pointing, channel count badge appears.
 3. When expanded: child channels are visible, chevron points down, count badge hides.
-4. Collapse state is persisted to `Config` and restored when the guild reloads or the app restarts.
+4. Collapse state is persisted to `Config` and restored when the space reloads or the app restarts.
 
 ### Reordering via drag-and-drop
 1. User with `MANAGE_CHANNELS` permission clicks and drags a channel item or category header.
@@ -52,9 +52,9 @@ Channel categories are collapsible groups that organize channels within a guild'
 
 ## Signal Flow
 ```
-Guild selected
-  → channel_list.load_guild(guild_id)
-    → Client.get_channels_for_guild(guild_id)
+Space selected
+  → channel_list.load_space(space_id)
+    → Client.get_channels_for_space(space_id)
       → Returns all channels from _channel_cache (including categories)
     → First pass: collect categories (type == CATEGORY) into dictionary keyed by id
     → Second pass: assign child channels to categories via parent_id
@@ -69,20 +69,20 @@ Category header clicked
     → channel_container.visible set to !is_collapsed
     → chevron texture swapped (DOWN ↔ RIGHT)
     → _count_label.visible set to is_collapsed
-    → Config.set_category_collapsed(guild_id, cat_id, is_collapsed)
+    → Config.set_category_collapsed(space_id, cat_id, is_collapsed)
 
 Category "+" button / context menu → "Create Channel"
   → category_item._on_create_channel()
     → CreateChannelDialogScene instantiated — parent_id pre-set to category id
       → Type dropdown includes Category option (line 44)
-      → User fills name + type → Client.create_channel(guild_id, data)
+      → User fills name + type → Client.create_channel(space_id, data)
         → If type is "category", parent_id is skipped (line 66)
-        → REST: POST /spaces/{guild_id}/channels
+        → REST: POST /spaces/{space_id}/channels
           → Gateway: channel_create event
             → client_gateway.on_channel_create()
               → _channel_cache updated
-              → AppState.channels_updated.emit(guild_id)
-                → channel_list._on_channels_updated() → load_guild() rebuilds list
+              → AppState.channels_updated.emit(space_id)
+                → channel_list._on_channels_updated() → load_space() rebuilds list
 
 Category context menu → "Edit Category"
   → category_item._on_edit_category()
@@ -90,7 +90,7 @@ Category context menu → "Edit Category"
       → User edits name → Client.update_channel(category_id, data)
         → REST: PATCH /channels/{id}
           → Gateway: channel_update event
-            → AppState.channels_updated.emit(guild_id)
+            → AppState.channels_updated.emit(space_id)
 
 Category context menu → "Delete Category"
   → category_item._on_delete_category()
@@ -99,11 +99,11 @@ Category context menu → "Delete Category"
       → User confirms → Client.delete_channel(category_id)
         → REST: DELETE /channels/{id}
           → Gateway: channel_delete event
-            → AppState.channels_updated.emit(guild_id)
+            → AppState.channels_updated.emit(space_id)
 
 Channel/category drag-and-drop
   → channel_item._get_drag_data() / category_item._get_drag_data()
-    → Permission check: Client.has_permission(guild_id, MANAGE_CHANNELS)
+    → Permission check: Client.has_permission(space_id, MANAGE_CHANNELS)
     → Returns {"type": "channel"/"category", ..., "source_node": self}
   → Header.set_drag_forwarding() provides _get_drag_data for category drags
   → channel_list inserts UncategorizedDropTarget when uncategorized list is empty
@@ -123,10 +123,10 @@ Channel/category drag-and-drop
     → Channel drop: _move_channel_to_category(ch_id, cat_id)
       → await Client.admin.update_channel() with error logging
         → REST: PATCH /channels/{id} with {"parent_id": cat_id}
-        → On success: fetch_channels(guild_id) → channels_updated → load_guild()
+        → On success: fetch_channels(space_id) → channels_updated → load_space()
     → Category drop: container.move_child(source, target_idx) for visual feedback
       → Builds position array from new child order
-      → Client.admin.reorder_channels(guild_id, positions)
+      → Client.admin.reorder_channels(space_id, positions)
         → REST: PATCH /spaces/{space_id}/channels with [{"id": ..., "position": N}, ...]
   → _notification(DRAG_END) restores all mouse_filter = STOP, clears indicators
 ```
@@ -142,7 +142,7 @@ Channel/category drag-and-drop
 | `scenes/sidebar/channels/uncategorized_drop_target.gd` | Drop target that clears `parent_id` when uncategorized list is empty |
 | `scenes/sidebar/channels/uncategorized_drop_target.tscn` | Scene: 8px-tall control used as the uncategorized drop target |
 | `scenes/admin/create_channel_dialog.gd` | Create channel/category dialog with parent_id handling and Category type support in both contexts |
-| `scripts/autoload/config.gd` | `set_category_collapsed()` (line 74), `is_category_collapsed()` (line 79) — persists collapse state per guild/category |
+| `scripts/autoload/config.gd` | `set_category_collapsed()` (line 74), `is_category_collapsed()` (line 79) — persists collapse state per space/category |
 | `scripts/autoload/client_models.gd` | `ChannelType.CATEGORY` enum (line 7), `channel_to_dict()` conversion (line 135) |
 | `scripts/autoload/client.gd` | `create_channel()` (line 634), `update_channel()` (line 641), `delete_channel()` (line 648), `reorder_channels()` (line 772), `has_permission()` (line 587) |
 | `scripts/autoload/client_gateway.gd` | `on_channel_create()` (line 170), `on_channel_update()` (line 191), `on_channel_delete()` (line 212) — update cache and emit `channels_updated` |
@@ -154,11 +154,11 @@ Channel/category drag-and-drop
 ### ChannelType enum and data model
 `ClientModels` defines `ChannelType.CATEGORY` as value `4` (line 7). The `_channel_type_to_enum()` function (line 42) maps the server string `"category"` to this enum. The `channel_to_dict()` function (line 135) converts `AccordChannel` to a dictionary with `parent_id` extracted from the model:
 ```
-{"id", "guild_id", "name", "type": 4, "parent_id": "<category_id>", "position": N, "unread": false, ...}
+{"id", "space_id", "name", "type": 4, "parent_id": "<category_id>", "position": N, "unread": false, ...}
 ```
 
 ### Channel list grouping and sorting (`channel_list.gd`)
-`load_guild()` (line 25) fetches channels via `Client.get_channels_for_guild()` and performs a two-pass grouping followed by sorting:
+`load_space()` (line 25) fetches channels via `Client.get_channels_for_space()` and performs a two-pass grouping followed by sorting:
 
 1. **First pass** (lines 83-85): Identifies categories by checking `type == ChannelType.CATEGORY`. Stores them in a `categories` dictionary keyed by channel ID, with `data` and empty `children` array.
 2. **Second pass** (lines 87-94): Non-category channels are assigned to their parent category via `parent_id`, or added to the `uncategorized` array if `parent_id` is empty or doesn't match a known category.
@@ -173,7 +173,7 @@ The channel list auto-selects the first non-category channel after loading (line
 ### Category item component (`category_item.gd`)
 Each category is a `VBoxContainer` with a header `Button` and a `ChannelContainer` VBox for children.
 
-**Setup** (line 42): Takes `(data: Dictionary, child_channels: Array)`. Sets the category name to uppercase (line 45), creates a channel count label (lines 47-54) that's initially hidden, instantiates `ChannelItemScene` for each child (lines 56-60), and conditionally adds a "+" button for creating channels (lines 62-75). The "+" button only appears if `Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS)` returns true.
+**Setup** (line 42): Takes `(data: Dictionary, child_channels: Array)`. Sets the category name to uppercase (line 45), creates a channel count label (lines 47-54) that's initially hidden, instantiates `ChannelItemScene` for each child (lines 56-60), and conditionally adds a "+" button for creating channels (lines 62-75). The "+" button only appears if `Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS)` returns true.
 
 **Channel count label** (lines 47-54): A 10px gray label showing the number of child channels. Created in `setup()` and added to `$Header/HBox` before the "+" button. Initially hidden; shown only when the category is collapsed.
 
@@ -192,26 +192,26 @@ Each category is a `VBoxContainer` with a header `Button` and a `ChannelContaine
 **Drag-and-drop** (lines 197-312): The Header button uses `set_drag_forwarding(_get_drag_data, ...)` (line 44) so category drags can start from the header. During drags, `_notification(NOTIFICATION_DRAG_BEGIN)` sets both `header.mouse_filter` and `channel_container.mouse_filter` to `MOUSE_FILTER_IGNORE` so all drop events reach the CategoryItem VBoxContainer directly — bypassing the Header button and its children (including the dynamically added `_plus_btn`). This is restored on `NOTIFICATION_DRAG_END`. `_can_drop_data()` accepts both channel drops (re-parent via `update_channel()`) and category drops (reorder via midpoint check using `header.size.y`). For channel drops, the indicator is a `StyleBoxFlat` override applied directly to the Header button (blue background + border), ensuring it renders visibly above all header content. `_drop_data()` delegates channel re-parenting to `_move_channel_to_category()`, an async helper that awaits the API result and logs a warning on failure. Category reordering uses immediate `move_child()` for visual feedback followed by `Client.admin.reorder_channels()`.
 
 ### Channel item drag-and-drop (`channel_item.gd`)
-Channels support D&D reordering within the same parent container and cross-category moves. `_get_drag_data()` is gated on `MANAGE_CHANNELS` and returns `{"type": "channel", ...}` with a "# name" label preview. `_can_drop_data()` validates same type and same guild. `_drop_data()` checks if the source and target share the same parent — if so, it reorders within the container; if not, it performs a cross-category move by calling `Client.admin.update_channel()` to change `parent_id`. A blue line indicator is drawn at the drop position via `_draw()`. The same cross-category logic exists in `voice_channel_item.gd`.
+Channels support D&D reordering within the same parent container and cross-category moves. `_get_drag_data()` is gated on `MANAGE_CHANNELS` and returns `{"type": "channel", ...}` with a "# name" label preview. `_can_drop_data()` validates same type and same space. `_drop_data()` checks if the source and target share the same parent — if so, it reorders within the container; if not, it performs a cross-category move by calling `Client.admin.update_channel()` to change `parent_id`. A blue line indicator is drawn at the drop position via `_draw()`. The same cross-category logic exists in `voice_channel_item.gd`.
 
 ### Uncategorized root drop target (`uncategorized_drop_target.gd`)
-When the uncategorized list is empty and there are categories, `channel_list` inserts an `UncategorizedDropTarget` (line 133). It accepts channel drops from the same guild (lines 14-24) and emits `channel_dropped`, which `channel_list` handles by clearing the channel's `parent_id` (lines 230-236). The control draws a blue horizontal line on hover to indicate a valid drop target (lines 44-49).
+When the uncategorized list is empty and there are categories, `channel_list` inserts an `UncategorizedDropTarget` (line 133). It accepts channel drops from the same space (lines 14-24) and emits `channel_dropped`, which `channel_list` handles by clearing the channel's `parent_id` (lines 230-236). The control draws a blue horizontal line on hover to indicate a valid drop target (lines 44-49).
 
 ### Create channel dialog (`create_channel_dialog.gd`)
 The dialog (`setup()`, line 20) always adds Text/Voice/Announcement/Forum types (lines 25-28). The "Category" type (item id `4`) is added in both contexts: when called from `channel_list` (line 32) and when called from a category's context menu (line 44). When `parent_id` is set and the selected type is "category", the `parent_id` is skipped in `_on_create()` (line 66) since categories are always top-level. The parent dropdown is shown only when called from `channel_list` (lines 33-41).
 
 ### Collapse state persistence (`config.gd`)
 Two methods added (lines 74-81):
-- `set_category_collapsed(guild_id, category_id, collapsed)`: Stores under ConfigFile section `[collapsed_GUILD_ID]` with category IDs as keys. Calls `save()` immediately.
-- `is_category_collapsed(guild_id, category_id)`: Returns the stored bool, defaulting to `false` (expanded).
+- `set_category_collapsed(space_id, category_id, collapsed)`: Stores under ConfigFile section `[collapsed_SPACE_ID]` with category IDs as keys. Calls `save()` immediately.
+- `is_category_collapsed(space_id, category_id)`: Returns the stored bool, defaulting to `false` (expanded).
 
 ### Gateway event handling (`client_gateway.gd`)
 All three channel events handle categories the same as regular channels:
 - `on_channel_create()` (line 170): Adds to `_channel_cache`, emits `channels_updated`.
 - `on_channel_update()` (line 191): Replaces entry in `_channel_cache`, emits `channels_updated`.
-- `on_channel_delete()` (line 212): Erases from `_channel_cache` and `_channel_to_guild`, emits `channels_updated`.
+- `on_channel_delete()` (line 212): Erases from `_channel_cache` and `_channel_to_space`, emits `channels_updated`.
 
-On any of these events, `channel_list._on_channels_updated()` (line 201) calls `load_guild()` to fully rebuild the list. This natural rebuild also serves as the rollback mechanism for failed D&D reorder operations.
+On any of these events, `channel_list._on_channels_updated()` (line 201) calls `load_space()` to fully rebuild the list. This natural rebuild also serves as the rollback mechanism for failed D&D reorder operations.
 
 ### Styling
 - Category name: uppercase, 11px font size, gray `Color(0.58, 0.608, 0.643)` (lines 31-32).
@@ -235,7 +235,7 @@ Category CRUD and reorder operations are gated behind `AccordPermission.MANAGE_C
 - [x] Sorting — uncategorized, category children, and categories sorted by `position` then `name`
 - [x] Collapsible categories — toggle visibility with chevron animation
 - [x] Channel count label — shown when collapsed, displays child count
-- [x] Collapse state persistence — saved to `Config` per guild/category, restored on load
+- [x] Collapse state persistence — saved to `Config` per space/category, restored on load
 - [x] Create category — via channel list "Create Channel" dialog or category context menu
 - [x] Create channel in category — via "+" button or context menu on category header
 - [x] Category type in category-scoped dialog — Category type available in both create dialog contexts

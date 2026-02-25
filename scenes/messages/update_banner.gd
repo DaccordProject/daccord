@@ -23,7 +23,7 @@ func _ready() -> void:
 func _on_update_available(info: Dictionary) -> void:
 	_version_info = info
 	var version: String = info.get("version", "unknown")
-	version_label.text = "daccord v%s is available" % version
+	version_label.text = "Daccord v%s is available" % version
 	visible = true
 
 func _on_view_changes() -> void:

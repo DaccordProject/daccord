@@ -54,6 +54,7 @@ func _ready() -> void:
 	)
 	AppState.message_fetch_failed.connect(_on_message_fetch_failed)
 	AppState.message_delete_failed.connect(_on_message_delete_failed)
+	AppState.user_updated.connect(_on_user_updated)
 	_scroll = MessageViewScrollScript.new(self)
 	scroll_container.get_v_scroll_bar().changed.connect(_scroll.on_scrollbar_changed)
 	scroll_container.get_v_scroll_bar().value_changed.connect(_scroll.on_scroll_value_changed)
@@ -74,7 +75,7 @@ func _ready() -> void:
 		banner_status_label,
 		banner_retry_button,
 		_banner_hide_timer,
-		_guild_for_current_channel,
+		_space_for_current_channel,
 	)
 	AppState.server_disconnected.connect(_banner.on_server_disconnected)
 	AppState.server_reconnecting.connect(_banner.on_server_reconnecting)
@@ -157,13 +158,17 @@ func _on_channel_selected(channel_id: String) -> void:
 	var cached := Client.get_messages_for_channel(channel_id)
 	if not cached.is_empty():
 		_is_loading = false
-		_scroll._old_message_count = 0
+		_scroll._old_message_count = cached.size()
 		_message_node_index.clear()
 		_load_messages(channel_id)
 	else:
 		_is_loading = true
 		_scroll._old_message_count = 0
 		_message_node_index.clear()
+		# Clear old message nodes before showing loading state
+		for child in message_list.get_children():
+			if not _is_persistent_node(child):
+				child.queue_free()
 		_update_empty_state([])
 		# Reset loading label style (used for error/timeout states)
 		loading_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
@@ -230,6 +235,11 @@ func _update_empty_state(messages: Array) -> void:
 func _load_messages(channel_id: String) -> void:
 	_hover.hide_action_bar()
 	_loading_timeout_timer.stop()
+
+	# Reset scroll container visibility (kills any in-progress channel transition)
+	if _channel_transition_tween and _channel_transition_tween.is_valid():
+		_channel_transition_tween.kill()
+	scroll_container.modulate.a = 1.0
 
 	# Save editing state before clearing
 	var editing_id := AppState.editing_message_id
@@ -539,6 +549,18 @@ func _on_reactions_updated(channel_id: String, message_id: String) -> void:
 				mc.reaction_bar.setup(reactions, channel_id, message_id)
 			break
 
+func _on_user_updated(user_id: String) -> void:
+	var user_dict: Dictionary = Client._user_cache.get(user_id, {})
+	if user_dict.is_empty():
+		return
+	for node in _message_node_index.values():
+		if not is_instance_valid(node):
+			continue
+		var author: Dictionary = node._message_data.get("author", {})
+		if author.get("id", "") == user_id:
+			if node.has_method("update_author"):
+				node.update_author(user_dict)
+
 func _on_typing_started(channel_id: String, username: String) -> void:
 	if channel_id == current_channel_id and not _is_forum_channel:
 		typing_indicator.show_typing(username)
@@ -554,17 +576,17 @@ func _on_context_menu_requested(
 
 # --- Reconnect ---
 
-func _on_server_reconnected(guild_id: String) -> void:
-	_banner.on_server_reconnected(guild_id)
-	# Refetch messages for the currently viewed channel if it belongs to this guild
+func _on_server_reconnected(space_id: String) -> void:
+	_banner.on_server_reconnected(space_id)
+	# Refetch messages for the currently viewed channel if it belongs to this space
 	if current_channel_id.is_empty():
 		return
-	var ch_guild: String = Client._channel_to_guild.get(current_channel_id, "")
-	if ch_guild != guild_id:
+	var ch_space: String = Client._channel_to_space.get(current_channel_id, "")
+	if ch_space != space_id:
 		return
-	# Clear stale forum post and thread caches for this guild's channels
-	for ch_id in Client._channel_to_guild:
-		if Client._channel_to_guild[ch_id] == guild_id:
+	# Clear stale forum post and thread caches for this space's channels
+	for ch_id in Client._channel_to_space:
+		if Client._channel_to_space[ch_id] == space_id:
 			Client._forum_post_cache.erase(ch_id)
 			# Clear thread caches for messages in this channel
 			if Client._message_cache.has(ch_id):
@@ -579,8 +601,8 @@ func _on_server_reconnected(guild_id: String) -> void:
 
 # --- Connection Banner ---
 
-func _guild_for_current_channel() -> String:
-	return Client._channel_to_guild.get(current_channel_id, "")
+func _space_for_current_channel() -> String:
+	return Client._channel_to_space.get(current_channel_id, "")
 
 # --- Fetch Failure & Loading Timeout ---
 

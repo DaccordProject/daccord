@@ -3,7 +3,7 @@ extends ColorRect
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const RoleRowScene := preload("res://scenes/admin/role_row.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _selected_role: Dictionary = {}
 var _perm_checks: Dictionary = {} # perm_string -> CheckBox
 var _all_roles: Array = []
@@ -52,8 +52,8 @@ func _ready() -> void:
 	_hoist_check.toggled.connect(func(_b: bool): _dirty = true)
 	_mentionable_check.toggled.connect(func(_b: bool): _dirty = true)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_rebuild_role_list()
 
 func _build_perm_checkboxes() -> void:
@@ -71,7 +71,7 @@ func _rebuild_role_list() -> void:
 	for child in _role_list.get_children():
 		child.queue_free()
 
-	_all_roles = Client.get_roles_for_guild(_guild_id)
+	_all_roles = Client.get_roles_for_space(_space_id)
 	_all_roles.sort_custom(func(a: Dictionary, b: Dictionary):
 		return a.get("position", 0) > b.get("position", 0)
 	)
@@ -96,7 +96,7 @@ func _build_role_buttons(roles: Array) -> void:
 
 func _compute_role_member_counts() -> Dictionary:
 	var counts: Dictionary = {}
-	var members: Array = Client.get_members_for_guild(_guild_id)
+	var members: Array = Client.get_members_for_space(_space_id)
 	for member in members:
 		var roles: Array = member.get("roles", [])
 		for role_id in roles:
@@ -133,7 +133,7 @@ func _on_move_role(role: Dictionary, direction: int) -> void:
 		return
 
 	# Role hierarchy enforcement
-	var my_highest: int = Client.get_my_highest_role_position(_guild_id)
+	var my_highest: int = Client.get_my_highest_role_position(_space_id)
 	if my_highest != 999999:
 		if role.get("position", 0) >= my_highest \
 				or _all_roles[swap_idx].get("position", 0) >= my_highest:
@@ -149,7 +149,7 @@ func _on_move_role(role: Dictionary, direction: int) -> void:
 		{"id": _all_roles[swap_idx].get("id", ""), "position": pos_a},
 	]
 
-	var result: RestResult = await Client.admin.reorder_roles(_guild_id, data)
+	var result: RestResult = await Client.admin.reorder_roles(_space_id, data)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to reorder roles"
 		if result != null and result.error:
@@ -182,7 +182,7 @@ func _select_role(role: Dictionary) -> void:
 	_delete_btn.visible = role.get("position", 0) != 0
 
 	# Role hierarchy enforcement
-	var my_highest: int = Client.get_my_highest_role_position(_guild_id)
+	var my_highest: int = Client.get_my_highest_role_position(_space_id)
 	var above_me: bool = role.get("position", 0) >= my_highest \
 		and my_highest != 999999
 	_name_input.editable = not above_me
@@ -203,7 +203,7 @@ func _select_role(role: Dictionary) -> void:
 func _on_new_role() -> void:
 	_new_role_btn.disabled = true
 	_error_label.visible = false
-	var result: RestResult = await Client.admin.create_role(_guild_id, {"name": "New Role"})
+	var result: RestResult = await Client.admin.create_role(_space_id, {"name": "New Role"})
 	_new_role_btn.disabled = false
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to create role"
@@ -234,7 +234,7 @@ func _on_save() -> void:
 	}
 
 	var result: RestResult = await Client.admin.update_role(
-		_guild_id, _selected_role.get("id", ""), data
+		_space_id, _selected_role.get("id", ""), data
 	)
 	_save_btn.disabled = false
 	_save_btn.text = "Save"
@@ -262,7 +262,7 @@ func _on_delete() -> void:
 	)
 	dialog.confirmed.connect(func():
 		var result: RestResult = await Client.admin.delete_role(
-			_guild_id, _selected_role.get("id", "")
+			_space_id, _selected_role.get("id", "")
 		)
 		if result != null and result.ok:
 			_selected_role = {}
@@ -270,8 +270,8 @@ func _on_delete() -> void:
 			_dirty = false
 	)
 
-func _on_roles_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_roles_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_rebuild_role_list()
 
 func _try_close() -> void:

@@ -47,7 +47,7 @@ User toggle → Config.set_reduced_motion() → checked at each animation site
 | `scenes/messages/message_action_bar.tscn` | Tooltips on Add Reaction, Reply, Edit, Delete buttons |
 | `scenes/messages/reaction_pill.gd` | Bounce animation on toggle with reduced motion check |
 | `scenes/messages/composer/emoji_picker.gd` | Escape-to-close, emoji cell tooltips with human-readable names |
-| `scenes/sidebar/guild_bar/guild_icon.gd` | Dynamic tooltip set to guild name, muted state indicator |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Dynamic tooltip set to space name, muted state indicator |
 | `scenes/sidebar/guild_bar/guild_folder.gd` | Folder expand/collapse animation with reduced motion check |
 | `scenes/sidebar/guild_bar/pill.gd` | Pill height animation with reduced motion check |
 | `scenes/sidebar/guild_bar/add_server_button.gd` | Pulse animation with reduced motion check |
@@ -77,7 +77,7 @@ Tooltips are set on interactive buttons across 10+ `.tscn` files and assigned dy
 
 **Voice bar** (`voice_bar.tscn`): "Soundboard", "Voice Settings".
 
-**Guild icons** (`guild_icon.gd`, line 64): Tooltip dynamically set to guild name. Updated to include "(Muted)" suffix when server is muted (line 345) and "(Disconnected)" when disconnected (line 87).
+**Space icons** (`guild_icon.gd`, line 64): Tooltip dynamically set to space name. Updated to include "(Muted)" suffix when server is muted (line 345) and "(Disconnected)" when disconnected (line 87).
 
 **Channel items** (`channel_item.gd`, line 40): Tooltip set to channel name. Gear edit button has "Edit Channel" tooltip (line 88).
 
@@ -108,9 +108,9 @@ When enabled, `Config.get_reduced_motion()` is checked at 14 animation sites acr
 | CTA button pulse | `welcome_screen.gd:100` | Looping modulate pulse | Skip (no pulse) |
 | Welcome screen dismiss | `welcome_screen.gd:111` | 0.3s fade out | Instant queue_free |
 | Avatar radius morph | `avatar.gd:111` | 0.15s tween via `tween_radius()` | Instant `set_radius(to)` |
-| Guild folder expand/collapse | `guild_folder.gd:134` | 0.15s opacity tween | Instant show/hide |
+| Space folder expand/collapse | `guild_folder.gd:134` | 0.15s opacity tween | Instant show/hide |
 | Add server button pulse | `add_server_button.gd:34` | Looping modulate pulse | Skip (no pulse) |
-| Guild pill height | `pill.gd:31` | 0.15s height tween | Instant `_update_pill()` |
+| Space pill height | `pill.gd:31` | 0.15s height tween | Instant `_update_pill()` |
 | Channel panel slide | `sidebar.gd:99` | 0.15s width tween | Delegates to `set_channel_panel_visible_immediate()` |
 | User bar toast | `user_bar.gd:326` | 3s delay then 1s fade out | 3s delay then instant remove |
 | Message action bar show/hide | `message_action_bar.gd:36-49` | 0.1s fade in/out | Instant visible toggle |
@@ -121,7 +121,7 @@ When enabled, `Config.get_reduced_motion()` is checked at 14 animation sites acr
 | Member flash feedback | `member_item.gd:195` | 0.15s+0.3s modulate flash | Skip (no flash) |
 | Reaction pill bounce | `reaction_pill.gd:52` | 0.15s scale bounce | Skip (no bounce) |
 
-The `tween_radius()` method in `avatar.gd` (line 109) serves as a single checkpoint for all avatar radius animations -- guild icon hover/press (`guild_icon.gd`, lines 114-126) and user bar avatar hover (`user_bar.gd`, lines 105-109) both call it, so they are all covered by one check.
+The `tween_radius()` method in `avatar.gd` (line 109) serves as a single checkpoint for all avatar radius animations -- space icon hover/press (`guild_icon.gd`, lines 114-126) and user bar avatar hover (`user_bar.gd`, lines 105-109) both call it, so they are all covered by one check.
 
 ### Keyboard Navigation
 
@@ -215,7 +215,7 @@ Sound effects are configurable per-event through `Config` (lines 353-367) with a
 ## Implementation Status
 
 - [x] Tooltips on interactive buttons (header, composer, message actions, voice bar, DM close)
-- [x] Dynamic tooltips on guild icons, emoji cells, channel items, category headers, member items, DM items
+- [x] Dynamic tooltips on space icons, emoji cells, channel items, category headers, member items, DM items
 - [x] Tooltip on channel edit gear button ("Edit Channel")
 - [x] Tooltip on category create channel button ("Create Channel")
 - [x] Keyboard shortcuts for core messaging (Enter/Escape/Up/Shift+Enter)
@@ -243,10 +243,10 @@ Sound effects are configurable per-event through `Config` (lines 353-367) with a
 |-----|----------|-------|
 | Focus indicators suppressed globally | High | `no_focus` StyleBoxEmpty applied to all 10 widget types in `discord_dark.tres` (line 2). Keyboard-only users cannot see which element is focused. Need a visible focus ring style, ideally toggled when keyboard navigation is detected. |
 | No focus order defined | High | Zero `focus_mode` or `focus_neighbor_*` properties set in any `.tscn` file. Tab key navigation follows scene tree order which may not match visual layout. Need explicit focus chains for sidebar -> channels -> messages -> composer flow. |
-| No screen reader support | High | No `accessible_name` or `accessible_description` properties set on any node. Messages, channels, and guilds lack semantic labels. Godot 4.x has limited screen reader support, but accessible names on key elements would help. |
+| No screen reader support | High | No `accessible_name` or `accessible_description` properties set on any node. Messages, channels, and spaces lack semantic labels. Godot 4.x has limited screen reader support, but accessible names on key elements would help. |
 | No high-contrast theme | Medium | Single dark theme (`discord_dark.tres`) with no alternative. Placeholder text color `#949BA4` on `#2F3136` may not meet WCAG AA 4.5:1 contrast ratio for small text. Need at least a high-contrast dark variant. |
 | No font size scaling | Medium | Default font size hardcoded to 14px (`discord_dark.tres`, line 107). Individual overrides (e.g., edit hint at 11px on `message_content.gd:174`) are also fixed. Need a font scale multiplier in Config. |
 | Status indicators rely on color alone | Medium | Connection status dots, online/offline presence, and unread indicators use color as the sole differentiator. Color-blind users may not distinguish states. Add icons or patterns alongside color. |
 | No keyboard shortcut reference | Low | Keyboard shortcuts (Enter, Escape, Up, Shift+Enter) exist but are only documented in the edit hint label. No discoverable shortcut panel or help dialog. |
 | No voice/video captions | Low | Voice channels and video chat have no captioning or transcription support. Would require server-side speech-to-text integration. |
-| Context menu items lack tooltips | Low | PopupMenu entries in channel, category, guild, folder, and member context menus have no tooltips. Godot's `set_item_tooltip()` could provide descriptions of each action. |
+| Context menu items lack tooltips | Low | PopupMenu entries in channel, category, space, folder, and member context menus have no tooltips. Godot's `set_item_tooltip()` could provide descriptions of each action. |

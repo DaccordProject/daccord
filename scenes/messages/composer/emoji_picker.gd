@@ -44,8 +44,8 @@ func _build_category_bar() -> void:
 	_recent_btn.pressed.connect(_on_recent_category_pressed)
 	category_bar.add_child(_recent_btn)
 
-	# Add Custom tab if a guild is selected
-	if not AppState.current_guild_id.is_empty():
+	# Add Custom tab if a space is selected
+	if not AppState.current_space_id.is_empty():
 		_custom_btn = Button.new()
 		_custom_btn.flat = true
 		_custom_btn.custom_minimum_size = Vector2(36, 36)
@@ -118,10 +118,10 @@ func _load_category(cat: EmojiData.Category) -> void:
 
 func _load_custom_category() -> void:
 	_clear_grid()
-	var guild_id := AppState.current_guild_id
-	if guild_id.is_empty():
+	var space_id := AppState.current_space_id
+	if space_id.is_empty():
 		return
-	var result: RestResult = await Client.admin.get_emojis(guild_id)
+	var result: RestResult = await Client.admin.get_emojis(space_id)
 	if result == null or not result.ok:
 		return
 	_custom_emojis = result.data if result.data is Array else []
@@ -177,7 +177,7 @@ func _add_custom_emoji_cell(emoji) -> void:
 		if not emoji_image_url.is_empty():
 			url = emoji_image_url
 		else:
-			url = Client.admin.get_emoji_url(AppState.current_guild_id, emoji_id)
+			url = Client.admin.get_emoji_url(AppState.current_space_id, emoji_id)
 		var http := HTTPRequest.new()
 		cell.add_child(http)
 		http.request_completed.connect(func(
@@ -193,7 +193,7 @@ func _add_custom_emoji_cell(emoji) -> void:
 				return
 			var tex := ImageTexture.create_from_image(img)
 			_custom_emoji_cache[emoji_id] = {"name": emoji_name, "texture": tex}
-			Client.register_custom_emoji(AppState.current_guild_id, emoji_id, emoji_name)
+			Client.register_custom_emoji(AppState.current_space_id, emoji_id, emoji_name)
 			Client.register_custom_emoji_texture(emoji_name, tex)
 			if is_instance_valid(cell):
 				cell.icon = tex
@@ -207,8 +207,8 @@ func _add_custom_emoji_cell(emoji) -> void:
 		emoji_picked.emit(custom_key)
 	)
 
-func _on_emojis_updated(guild_id: String) -> void:
-	if guild_id != AppState.current_guild_id:
+func _on_emojis_updated(space_id: String) -> void:
+	if space_id != AppState.current_space_id:
 		return
 	# Invalidate custom emoji cache so next open fetches fresh data
 	_custom_emoji_cache.clear()

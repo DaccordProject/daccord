@@ -11,18 +11,25 @@ var _profile_bio_input: TextEdit
 var _profile_accent_picker: ColorPickerButton
 var _profile_error: Label
 var _profile_save_btn: Button
-var _profile_avatar_base64: String = ""
+var _pending_avatar_data_uri: String = ""
 var _profile_avatar_removed: bool = false
 var _settings_panel: Control # parent panel for adding file dialog
+var _accord_client: AccordClient = null
+var _user_override: Dictionary = {}
 
 func build(
 	page_vbox: VBoxContainer,
 	section_label_fn: Callable,
 	error_label_fn: Callable,
 	settings_panel: Control,
+	accord_client: AccordClient = null,
+	user: Dictionary = {},
 ) -> void:
 	_settings_panel = settings_panel
-	var user: Dictionary = Client.current_user
+	_accord_client = accord_client
+	_user_override = user
+	if user.is_empty():
+		user = Client.current_user
 
 	# Avatar
 	_profile_avatar = AvatarScene.instantiate()
@@ -105,6 +112,7 @@ func _on_avatar_upload() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.use_native_dialog = true
 	fd.filters = PackedStringArray([
 		"*.png ; PNG Images",
 		"*.jpg, *.jpeg ; JPEG Images",
@@ -116,7 +124,7 @@ func _on_avatar_upload() -> void:
 			return
 		var bytes := file.get_buffer(file.get_length())
 		file.close()
-		_profile_avatar_base64 = Marshalls.raw_to_base64(bytes)
+		_pending_avatar_data_uri = AccordCDN.build_data_uri(bytes, path)
 		_profile_avatar_removed = false
 		var img := Image.new()
 		if img.load(path) == OK:
@@ -130,7 +138,7 @@ func _on_avatar_upload() -> void:
 
 func _on_avatar_remove() -> void:
 	_profile_avatar_removed = true
-	_profile_avatar_base64 = ""
+	_pending_avatar_data_uri = ""
 	_profile_avatar.letter_label.visible = true
 	if _profile_avatar._texture_rect != null:
 		_profile_avatar._texture_rect.queue_free()
@@ -138,7 +146,7 @@ func _on_avatar_remove() -> void:
 
 func _on_save() -> void:
 	_profile_error.visible = false
-	var user: Dictionary = Client.current_user
+	var user: Dictionary = _user_override if not _user_override.is_empty() else Client.current_user
 	var data := {}
 	var new_dn: String = _profile_dn_input.text.strip_edges()
 	if new_dn != user.get("display_name", ""):
@@ -153,14 +161,19 @@ func _on_save() -> void:
 			data["accent_color"] = null
 	elif accent_int != orig_accent:
 		data["accent_color"] = accent_int
-	if not _profile_avatar_base64.is_empty():
-		data["avatar"] = _profile_avatar_base64
+	if not _pending_avatar_data_uri.is_empty():
+		data["avatar"] = _pending_avatar_data_uri
 	elif _profile_avatar_removed:
-		data["avatar"] = null
+		data["avatar"] = ""
 	if data.is_empty():
 		return
 	_profile_save_btn.disabled = true
-	var ok: bool = await Client.update_profile(data)
+	var ok: bool
+	if _accord_client != null:
+		var result: RestResult = await _accord_client.users.update_me(data)
+		ok = result.ok
+	else:
+		ok = await Client.update_profile(data)
 	_profile_save_btn.disabled = false
 	if not ok:
 		_profile_error.text = "Failed to save profile"

@@ -3,27 +3,27 @@
 
 ## Overview
 
-Users access direct messages by clicking the DM button in the guild bar. This switches the sidebar from the channel list to the DM list. DM channels show recipient avatar, display name, last message preview, and unread indicator. A search field filters DMs by username/display name. Selecting a DM channel loads its messages in the message view.
+Users access direct messages by clicking the DM button in the space bar. This switches the sidebar from the channel list to the DM list. DM channels show recipient avatar, display name, last message preview, and unread indicator. A search field filters DMs by username/display name. Selecting a DM channel loads its messages in the message view.
 
 ## User Steps
 
-1. User clicks DM button (top of guild bar)
+1. User clicks DM button (top of space bar)
 2. Sidebar switches: channel list hidden, DM list shown
 3. DM list populated from `Client.dm_channels`
 4. User can search DMs by typing in search field (filters by display_name/username)
 5. Click a DM -> messages load in message view, tab created
-6. Sending messages works the same as in guild channels
+6. Sending messages works the same as in space channels
 
 ## Signal Flow
 
 ```
 User clicks DM button
-    -> guild_bar.dm_selected signal emitted
+    -> space_bar.dm_selected signal emitted
     -> sidebar._on_dm_selected()
         -> channel_list.visible = false
         -> dm_list.visible = true
         -> AppState.enter_dm_mode()
-            -> is_dm_mode = true, current_guild_id = ""
+            -> is_dm_mode = true, current_space_id = ""
             -> AppState.dm_mode_entered emitted
 
 User clicks DM channel item
@@ -47,7 +47,7 @@ User clicks DM channel item
 | `scenes/sidebar/direct/dm_list.gd` | DM list container, search filtering, dm_selected signal |
 | `scenes/sidebar/direct/dm_channel_item.gd` | Individual DM: avatar, username, last message, unread dot |
 | `scenes/sidebar/sidebar.gd` | Toggles between channel_list and dm_list |
-| `scenes/sidebar/guild_bar/guild_bar.gd` | DM button emits dm_selected signal |
+| `scenes/sidebar/guild_bar/guild_bar.gd` | DM button emits dm_selected signal (space bar) |
 | `scripts/autoload/client.gd` | `fetch_dm_channels()`, `dm_channels` property |
 | `scripts/autoload/client_models.gd` | `dm_channel_to_dict()` conversion |
 | `scripts/autoload/app_state.gd` | `enter_dm_mode()`, `dm_mode_entered` signal |
@@ -106,7 +106,7 @@ DM Channel Routing (client.gd):
 
 ## Implementation Status
 
-- [x] DM button in guild bar
+- [x] DM button in space bar
 - [x] DM list with channel items
 - [x] DM channel item display (avatar, name, last message, unread)
 - [x] Circle avatar shader on DM items

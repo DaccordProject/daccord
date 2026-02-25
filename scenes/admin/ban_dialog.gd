@@ -2,7 +2,7 @@ extends ColorRect
 
 signal ban_confirmed(user_id: String, reason: String)
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _user_id: String = ""
 var _display_name: String = ""
 var _confirmed: bool = false
@@ -19,8 +19,8 @@ func _ready() -> void:
 	_ban_btn.pressed.connect(_on_ban_pressed)
 	_reason_input.text_submitted.connect(func(_t: String): _on_ban_pressed())
 
-func setup(guild_id: String, user_id: String, display_name: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String, user_id: String, display_name: String) -> void:
+	_space_id = space_id
 	_user_id = user_id
 	_display_name = display_name
 	if _title_label:
@@ -50,7 +50,7 @@ func _on_ban_pressed() -> void:
 	if not reason.is_empty():
 		data["reason"] = reason
 
-	var result: RestResult = await Client.admin.ban_member(_guild_id, _user_id, data)
+	var result: RestResult = await Client.admin.ban_member(_space_id, _user_id, data)
 
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to ban user"

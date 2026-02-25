@@ -1,16 +1,16 @@
 # Test Coverage
 
-Last touched: 2026-02-21
+Last touched: 2026-02-25
 
 ## Overview
 
-daccord uses the GUT (Godot Unit Test) framework for automated testing. The test suite spans three tiers: unit tests for autoloads and UI components, AccordKit integration tests that hit a live accordserver, and LiveKit tests for WebRTC/voice APIs. A Bash runner (`test.sh`) orchestrates server lifecycle and suite selection, while GitHub Actions CI runs unit tests, lint, and integration tests on every push.
+daccord uses the GUT (Godot Unit Test) framework for automated testing. The test suite spans three tiers: unit tests for autoloads and UI components, AccordKit integration tests that hit a live accordserver, and LiveKit adapter tests for the voice/video bridge. A Bash runner (`test.sh`) orchestrates server lifecycle and suite selection, while GitHub Actions CI runs unit tests, lint, and integration tests on every PR.
 
 ## User Steps
 
 1. Developer runs `./test.sh` (or `./test.sh unit`, `./test.sh integration`, etc.) from the project root.
 2. The runner resolves which test directories to include and whether an accordserver instance is needed.
-3. If a server is needed, the runner builds accordserver, clears the test database, starts the server in `ACCORD_TEST_MODE`, and polls `:39099` until ready.
+3. If a server is needed, the runner builds accordserver, clears the test database, starts the server in `ACCORD_TEST_MODE`, and polls `:39099` until ready. Alternatively, `ACCORD_TEST_URL` can point to a remote server.
 4. GUT runs each suite directory via `godot --headless -s addons/gut/gut_cmdln.gd`.
 5. Results print to stdout; server logs go to `test_server.log`.
 6. On exit, the runner kills the server and removes the test database.
@@ -19,38 +19,38 @@ daccord uses the GUT (Godot Unit Test) framework for automated testing. The test
 
 ```
 Developer
-  │
-  ▼
+  |
+  v
 test.sh
-  ├── resolve_dirs() ──► NEEDS_SERVER flag + GUT_DIRS
-  ├── start_server()  ──► cargo build + cargo run (ACCORD_TEST_MODE=true)
-  │       └── poll /api/v1/gateway until 200
-  └── run_tests()
-        └── for each dir in GUT_DIRS:
+  +-- resolve_dirs() --> NEEDS_SERVER flag + GUT_DIRS
+  +-- start_server()  --> cargo build + cargo run (ACCORD_TEST_MODE=true)
+  |       +-- poll /api/v1/gateway until 200
+  +-- run_tests()
+        +-- for each dir in GUT_DIRS:
               godot --headless -s gut_cmdln.gd -gdir=<dir>
-                ├── GutTest.before_all()  (AccordTestBase calls /test/seed)
-                ├── GutTest.before_each() (creates fresh AccordClient instances)
-                ├── test_*() methods
-                ├── GutTest.after_each()  (queue_free clients)
-                └── GutTest.after_all()
-  ▼
-cleanup() ──► kill server + rm accord_test.db
+                +-- GutTest.before_all()  (AccordTestBase calls /test/seed)
+                +-- GutTest.before_each() (creates fresh AccordClient instances)
+                +-- test_*() methods
+                +-- GutTest.after_each()  (queue_free clients)
+                +-- GutTest.after_all()
+  v
+cleanup() --> kill server + rm accord_test.db
 ```
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `test.sh` | Bash test runner — suite selection, server lifecycle, GUT invocation |
-| `.gutconfig.json` | GUT framework config — dirs, prefix, suffix, log level |
-| `.github/workflows/ci.yml` | CI pipeline — lint + unit tests + integration tests on push/PR to master |
-| `.github/workflows/release.yml` | Release pipeline — cross-platform export + GitHub Release |
+| `test.sh` | Bash test runner -- suite selection, server lifecycle, GUT invocation |
+| `.gutconfig.json` | GUT framework config -- dirs, prefix, suffix, log level |
+| `.github/workflows/ci.yml` | CI pipeline -- lint + unit tests + integration tests on PR to master |
+| `.github/workflows/release.yml` | Release pipeline -- cross-platform export + GitHub Release |
 | `tests/unit/test_app_state.gd` | Unit tests for AppState signal bus (37 tests) |
-| `tests/unit/test_config.gd` | Unit tests for Config persistence, credentials, export/import (21 tests) |
+| `tests/unit/test_config.gd` | Unit tests for Config persistence, credentials, export/import, secret stripping, password migration (24 tests) |
 | `tests/unit/test_markdown.gd` | Unit tests for markdown-to-BBCode renderer (11 tests) |
 | `tests/unit/test_auth_dialog.gd` | Unit tests for auth dialog UI (13 tests) |
 | `tests/unit/test_add_server_dialog.gd` | Unit tests for add-server dialog + URL parser (18 tests) |
-| `tests/unit/test_security.gd` | Security tests — BBCode sanitization, URL scheme blocking, state integrity (28 tests) |
+| `tests/unit/test_security.gd` | Security tests -- BBCode sanitization, URL scheme blocking, state integrity (28 tests) |
 | `tests/unit/test_client_models.gd` | Unit tests for ClientModels *_to_dict() conversions + helpers (75 tests) |
 | `tests/unit/test_message_content.gd` | Unit tests for message content rendering + edit mode (10 tests) |
 | `tests/unit/test_cozy_message.gd` | Unit tests for cozy message layout + context menu (8 tests) |
@@ -59,22 +59,24 @@ cleanup() ──► kill server + rm accord_test.db
 | `tests/unit/test_typing_indicator.gd` | Unit tests for typing indicator show/hide + animation (6 tests) |
 | `tests/unit/test_reaction_pill.gd` | Unit tests for reaction pill setup + optimistic update (7 tests) |
 | `tests/unit/test_dm_channel_item.gd` | Unit tests for DM channel item setup + active state (9 tests) |
-| `tests/unit/test_client_startup.gd` | Smoke tests for Client `_ready()` startup — sub-module creation, AccordVoiceSession, signal wiring (6 tests) |
-| `tests/unit/test_client.gd` | Unit tests for Client autoload — data access, routing, permissions, unread tracking (60 tests) |
-| `tests/unit/test_client_gateway.gd` | Unit tests for ClientGateway — event handlers, cache mutation, signal routing (36 tests) |
-| `tests/unit/test_channel_item.gd` | Unit tests for channel_item — setup, type icons, NSFW, unread, active state (15 tests) |
-| `tests/unit/test_category_item.gd` | Unit tests for category_item — setup, collapse, channel items (10 tests) |
-| `tests/unit/test_guild_icon.gd` | Unit tests for guild_icon — setup, pill state, mention badge, active (11 tests) |
-| `tests/unit/test_guild_folder.gd` | Unit tests for guild_folder — setup, expand/collapse, set_active, notifications, context menu (24 tests) |
-| `tests/unit/test_reaction_bar.gd` | Unit tests for reaction_bar — setup, pill creation, ID injection (5 tests) |
+| `tests/unit/test_client_startup.gd` | Smoke tests for Client `_ready()` startup -- sub-module creation, AccordVoiceSession, signal wiring (6 tests) |
+| `tests/unit/test_client.gd` | Unit tests for Client autoload -- data access, routing, permissions, unread tracking (60 tests) |
+| `tests/unit/test_client_gateway.gd` | Unit tests for ClientGateway -- event handlers, cache mutation, signal routing (36 tests) |
+| `tests/unit/test_channel_item.gd` | Unit tests for channel_item -- setup, type icons, NSFW, unread, active state (15 tests) |
+| `tests/unit/test_category_item.gd` | Unit tests for category_item -- setup, collapse, channel items (10 tests) |
+| `tests/unit/test_guild_icon.gd` | Unit tests for guild_icon -- setup, pill state, mention badge, active (11 tests) |
+| `tests/unit/test_guild_folder.gd` | Unit tests for guild_folder -- setup, expand/collapse, set_active, notifications, context menu (24 tests) |
+| `tests/unit/test_reaction_bar.gd` | Unit tests for reaction_bar -- setup, pill creation, ID injection (5 tests) |
 | `tests/unit/test_updater.gd` | Unit tests for Updater semver parsing, comparison, is_newer, parse_release, and instance state (34 tests) |
-| `tests/unit/test_user_bar.gd` | Unit tests for user_bar — avatar handling, display name, username, status icon (12 tests) |
-| `tests/unit/test_error_reporting.gd` | Unit tests for ErrorReporting — guard clauses, signal handlers, PII scrubbing (20 tests) |
-| `tests/unit/test_config_profiles.gd` | Unit tests for Config profiles — slugify, password hashing, CRUD, ordering (22 tests) |
-| `tests/unit/test_embed.gd` | Unit tests for embed component — setup, title/URL, author, fields, footer, color, type (12 tests) |
-| `tests/unit/test_user_settings.gd` | Smoke tests for user settings panel — script loading, instantiation, page building, navigation, Escape close (10 tests) |
-| `tests/accordkit/helpers/test_base.gd` | AccordTestBase — seeds server, creates clients per test |
-| `tests/accordkit/helpers/seed_client.gd` | SeedClient — POSTs to `/test/seed` for test data |
+| `tests/unit/test_user_bar.gd` | Unit tests for user_bar -- avatar handling, display name, username, status icon (12 tests) |
+| `tests/unit/test_error_reporting.gd` | Unit tests for ErrorReporting -- guard clauses, signal handlers, PII scrubbing (20 tests) |
+| `tests/unit/test_config_profiles.gd` | Unit tests for Config profiles -- slugify, password hashing, CRUD, ordering (22 tests) |
+| `tests/unit/test_embed.gd` | Unit tests for embed component -- setup, title/URL, author, fields, footer, color, type (12 tests) |
+| `tests/unit/test_user_settings.gd` | Smoke tests for settings panels -- script loading, instantiation, page building, navigation, input sensitivity, Escape close (16 tests) |
+| `tests/unit/test_message_view_scroll.gd` | Unit tests for MessageViewScroll -- old_message_count, auto_scroll, is_loading_older, get_last_message_child (8 tests) |
+| `tests/unit/helpers/mock_message_view.gd` | Minimal mock of MessageView for testing MessageViewScroll |
+| `tests/accordkit/helpers/test_base.gd` | AccordTestBase -- seeds server, creates clients per test |
+| `tests/accordkit/helpers/seed_client.gd` | SeedClient -- POSTs to `/test/seed` for test data |
 | `tests/accordkit/unit/test_snowflake.gd` | AccordSnowflake encode/decode (9 tests) |
 | `tests/accordkit/unit/test_rest_result.gd` | RestResult value object (8 tests) |
 | `tests/accordkit/unit/test_intents.gd` | GatewayIntents sets (8 tests) |
@@ -95,32 +97,29 @@ cleanup() ──► kill server + rm accord_test.db
 | `tests/accordkit/gateway/test_gateway_connect.gd` | WebSocket connect/disconnect lifecycle (3 tests) |
 | `tests/accordkit/gateway/test_gateway_events.gd` | Real-time gateway event delivery (1 test) |
 | `tests/accordkit/e2e/test_full_lifecycle.gd` | Full login-to-logout lifecycle (1 test) |
-| `tests/accordkit/e2e/test_add_server.gd` | Full invite flow — create space, create invite, bot accepts, gateway event, REST verify, send message (1 test) |
-| `tests/livekit/integration/test_device_enumeration.gd` | Device listing APIs (34 tests) |
-| `tests/livekit/integration/test_media_tracks.gd` | Media track create/enable/stop (25 tests) |
-| `tests/livekit/integration/test_peer_connection.gd` | WebRTC peer connection API (51 tests) |
-| `tests/livekit/integration/test_voice_session.gd` | Voice session state machine (39 tests) |
-| `tests/livekit/integration/test_end_to_end.gd` | Multi-step WebRTC workflows (8 tests) |
+| `tests/accordkit/e2e/test_add_server.gd` | Full invite flow -- create space, create invite, bot accepts, gateway event, REST verify, send message (1 test) |
+| `tests/accordkit/e2e/test_voice_auth_handshake.gd` | Voice REST join/leave flow -- backend probe, channel creation, LiveKit credential validation, mute/deaf flags, graceful leave (5 tests) |
+| `tests/livekit/unit/test_livekit_adapter.gd` | Unit tests for LiveKitAdapter -- state machine, mute/deafen, signal surface, disconnect, unpublish (10 tests) |
 
 ## Implementation Details
 
 ### Test Runner (`test.sh`)
 
-The runner (lines 1-250) uses `set -euo pipefail` for strict error handling. Suite resolution (lines 51-79) maps CLI arguments to `res://` paths and a `NEEDS_SERVER` boolean:
+The runner (lines 1-271) uses `set -euo pipefail` for strict error handling. Suite resolution (lines 61-89) maps CLI arguments to `res://` paths and a `NEEDS_SERVER` boolean:
 
 | Argument | Directories | Server needed |
 |----------|-------------|---------------|
 | `unit` | `res://tests/unit` | No |
 | `accordkit` | `res://tests/accordkit` | Yes |
 | `livekit` | `res://tests/livekit` | No |
-| `integration` | `res://tests/accordkit`, `res://tests/livekit` | Yes |
+| `integration` | `res://tests/accordkit` | Yes |
 | `all` (default) | All three | Yes |
 
-Server startup (lines 84-138): builds with `cargo build --quiet`, removes stale `accord_test.db*` files, starts with `ACCORD_TEST_MODE=true` and `DATABASE_URL=sqlite:accord_test.db?mode=rwc`, then polls `GET /api/v1/gateway` up to 30 times at 1s intervals. If the server is already running on `:39099`, it reuses the existing instance (line 221).
+Server startup (lines 94-148): builds with `cargo build --quiet`, removes stale `accord_test.db*` files, starts with `ACCORD_TEST_MODE=true` and `DATABASE_URL=sqlite:accord_test.db?mode=rwc`, then polls `GET /api/v1/gateway` up to 30 times at 1s intervals. If the server is already running on `:39099`, it reuses the existing instance (line 242). The `ACCORD_TEST_URL` environment variable allows running against a remote server instead of starting one locally (lines 232-239).
 
-Each suite directory runs as a separate `godot --headless` invocation (lines 164-183). If any suite fails, the runner aborts immediately (`return 1` at line 181).
+Each suite directory runs as a separate `godot --headless` invocation (lines 196-211). If any suite fails, the runner aborts immediately (`return 1` at line 208).
 
-Cleanup (lines 152-159) runs via `trap cleanup EXIT INT TERM` — kills the server process and removes the test database.
+Cleanup (lines 162-168) runs via `trap cleanup EXIT INT TERM` -- kills the server process and removes the test database.
 
 ### GUT Configuration (`.gutconfig.json`)
 
@@ -142,128 +141,128 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 ### Unit Tests (`tests/unit/`)
 
-**test_app_state.gd** — 37 tests covering `AppState` signals and state mutations. Tests guild/channel selection, DM mode entry, message send/reply/edit/delete signals, layout mode breakpoints (COMPACT <500px, MEDIUM <768px, FULL >=768px), sidebar drawer toggle, and state transition sequences. Uses `watch_signals()` + `assert_signal_emitted_with_parameters()`.
+**test_app_state.gd** -- 37 tests covering `AppState` signals and state mutations. Tests space/channel selection, DM mode entry, message send/reply/edit/delete signals, layout mode breakpoints (COMPACT <500px, MEDIUM <768px, FULL >=768px), sidebar drawer toggle, and state transition sequences. Uses `watch_signals()` + `assert_signal_emitted_with_parameters()`.
 
-**test_config.gd** — 21 tests for `Config` in-memory behavior (no disk I/O). Tests `add_server`, `remove_server`, `clear`, `has_servers`, `get_servers`, and edge cases (invalid/negative indices, empty state). Also covers `_load_ok` guard (default false, save/add guarded), `update_server_credentials` (valid index, invalid, negative), and `export_config` / `import_config` round-trip.
+**test_config.gd** -- 24 tests for `Config` in-memory behavior (no disk I/O). Tests `add_server`, `remove_server`, `clear`, `has_servers`, `get_servers`, and edge cases (invalid/negative indices, empty state). Also covers `_load_ok` guard (default false, save/add guarded), `update_server_credentials` (valid index, invalid, negative), `export_config` / `import_config` round-trip, `export_strips_secrets` (verifies tokens and passwords are excluded from exported config), `_migrate_clear_passwords` (removes legacy password keys while preserving other fields), and `add_server_no_password_key` (verifies new servers never store password keys).
 
-**test_markdown.gd** — 11 tests for `ClientModels.markdown_to_bbcode()`. Covers bold, italic, strikethrough, underline, inline code, code blocks (with/without language), spoiler, links, blockquotes, and plain passthrough.
+**test_markdown.gd** -- 11 tests for `ClientModels.markdown_to_bbcode()`. Covers bold, italic, strikethrough, underline, inline code, code blocks (with/without language), spoiler, links, blockquotes, and plain passthrough.
 
-**test_auth_dialog.gd** — 13 tests for the auth dialog scene. Verifies UI elements exist (username/password/display_name inputs, submit button, error label), initial sign-in mode, mode toggle (sign-in/register), validation (empty username/password shows error), signal existence, and dialog close behavior.
+**test_auth_dialog.gd** -- 13 tests for the auth dialog scene. Verifies UI elements exist (username/password/display_name inputs, submit button, error label), initial sign-in mode, mode toggle (sign-in/register), validation (empty username/password shows error), signal existence, and dialog close behavior.
 
-**test_add_server_dialog.gd** — 18 tests for the add-server dialog and URL parser. Tests UI elements, validation (empty/whitespace), URL parsing (bare host, port, protocol, fragment `#guild`, query `?token=`, `?invite=`, full URL, whitespace stripping, empty fragment defaults), signal existence, and dialog close.
+**test_add_server_dialog.gd** -- 18 tests for the add-server dialog and URL parser. Tests UI elements, validation (empty/whitespace), URL parsing (bare host, port, protocol, fragment `#space`, query `?token=`, `?invite=`, full URL, whitespace stripping, empty fragment defaults), signal existence, and dialog close.
 
-**test_security.gd** — 28 tests verifying security properties. BBCode sanitization tests (8) verify that raw BBCode tags injected via user content are escaped with `[lb]` (unknown tags) or allowed through (converter-produced tags like `[color=`, `[url=`), while code blocks preserve raw tags. Malicious URL scheme tests (4) verify that `javascript:`, `data:`, `file:`, `vbscript:` schemes in markdown links are replaced with `#blocked`. Input boundary tests (5) verify no crash on empty, very long (100K chars), whitespace, null bytes, and RTL override characters. Regex abuse tests (4) verify no hang on deeply nested markdown, overlapping delimiters, unclosed delimiters, and repeated special chars. State integrity tests (7) verify signals emit even with empty/whitespace inputs and survive rapid state transitions.
+**test_security.gd** -- 28 tests verifying security properties. BBCode sanitization tests (8) verify that raw BBCode tags injected via user content are escaped with `[lb]` (unknown tags) or allowed through (converter-produced tags like `[color=`, `[url=`), while code blocks preserve raw tags. Malicious URL scheme tests (4) verify that `javascript:`, `data:`, `file:`, `vbscript:` schemes in markdown links are replaced with `#blocked`. Input boundary tests (5) verify no crash on empty, very long (100K chars), whitespace, null bytes, and RTL override characters. Regex abuse tests (4) verify no hang on deeply nested markdown, overlapping delimiters, unclosed delimiters, and repeated special chars. State integrity tests (7) verify signals emit even with empty/whitespace inputs and survive rapid state transitions.
 
-**test_client_models.gd** — 75 tests for `ClientModels` static conversion functions. Covers `_color_from_id` (determinism, uniqueness), `_status_string_to_enum` / `_status_enum_to_string` (roundtrip for all statuses), `_channel_type_to_enum` (all channel types + unknown default), `_format_timestamp` (empty, no-T, AM/PM, midnight, noon), `user_to_dict` (basic fields, display_name fallback, avatar URL, null avatar, color, status), `space_to_guild_dict` (basic fields, null description, public from features, icon URL), `channel_to_dict` (basic fields, type mapping, null parent_id, guild_id from space_id, position, nsfw), `message_to_dict` (basic fields, author from cache, unknown author, edited flag, reactions, reply_to, system type), `member_to_dict` (from cache, unknown user, nickname override, joined_at), `dm_channel_to_dict` (single recipient, group, no recipients, last_message_id), `role_to_dict` (all fields, defaults), `invite_to_dict` (full, nulls), `emoji_to_dict` (full, null id), `sound_to_dict` (full, null id), `voice_state_to_dict` (from cache, unknown user, all flags).
+**test_client_models.gd** -- 75 tests for `ClientModels` static conversion functions. Covers `_color_from_id` (determinism, uniqueness), `_status_string_to_enum` / `_status_enum_to_string` (roundtrip for all statuses), `_channel_type_to_enum` (all channel types + unknown default), `_format_timestamp` (empty, no-T, AM/PM, midnight, noon), `user_to_dict` (basic fields, display_name fallback, avatar URL, null avatar, color, status), `space_to_dict` (basic fields, null description, public from features, icon URL), `channel_to_dict` (basic fields, type mapping, null parent_id, space_id from space_id, position, nsfw), `message_to_dict` (basic fields, author from cache, unknown author, edited flag, reactions, reply_to, system type), `member_to_dict` (from cache, unknown user, nickname override, joined_at), `dm_channel_to_dict` (single recipient, group, no recipients, last_message_id), `role_to_dict` (all fields, defaults), `invite_to_dict` (full, nulls), `emoji_to_dict` (full, null id), `sound_to_dict` (full, null id), `voice_state_to_dict` (from cache, unknown user, all flags), `embed_to_dict` (author extraction, fields extraction, URL extraction, type extraction, no-author/no-fields, empty fields not included).
 
-**test_message_content.gd** — 10 tests for the message content component. Covers plain text rendering, edited indicator (present/absent), system message italic styling, `_format_file_size` static method (bytes/KB/MB), edit mode (hides text content, `is_editing` state).
+**test_message_content.gd** -- 10 tests for the message content component. Covers plain text rendering, edited indicator (present/absent), system message italic styling, `_format_file_size` static method (bytes/KB/MB), edit mode (hides text content, `is_editing` state).
 
-**test_cozy_message.gd** — 8 tests for the cozy (full) message layout. Covers author name, timestamp, avatar initialization, author color override, reply reference visibility, context menu items (4 items: Reply/Edit/Delete/Add Reaction), and message data storage.
+**test_cozy_message.gd** -- 8 tests for the cozy (full) message layout. Covers author name, timestamp, avatar initialization, author color override, reply reference visibility, context menu items (4 items: Reply/Edit/Delete/Add Reaction), and message data storage.
 
-**test_collapsed_message.gd** — 6 tests for the collapsed (follow-up) message layout. Covers content setup, timestamp extraction from "Today at 10:31 AM" -> "10:31", context menu (4 items), timestamp initially hidden, and message data storage.
+**test_collapsed_message.gd** -- 6 tests for the collapsed (follow-up) message layout. Covers content setup, timestamp extraction from "Today at 10:31 AM" -> "10:31", context menu (4 items), timestamp initially hidden, and message data storage.
 
-**test_composer.gd** — 8 tests for the message composer. Covers UI element existence (text_input, send_button, emoji_button, upload_button), initial state (reply_bar hidden, error_label hidden), `set_channel_name` placeholder update, and reply cancel behavior.
+**test_composer.gd** -- 8 tests for the message composer. Covers UI element existence (text_input, send_button, emoji_button, upload_button), initial state (reply_bar hidden, error_label hidden), `set_channel_name` placeholder update, and reply cancel behavior.
 
-**test_typing_indicator.gd** — 6 tests for the typing indicator component. Covers initial processing state (off), `show_typing` (visible, text, processing enabled, anim_time reset), and `hide_typing` (hidden, processing disabled).
+**test_typing_indicator.gd** -- 6 tests for the typing indicator component. Covers initial processing state (off), `show_typing` (visible, text, processing enabled, anim_time reset), and `hide_typing` (hidden, processing disabled).
 
-**test_reaction_pill.gd** — 7 tests for the reaction pill button. Covers `setup` (emoji_key, count label, active true/false, channel/message IDs, zero count), and optimistic toggle count increment.
+**test_reaction_pill.gd** -- 7 tests for the reaction pill button. Covers `setup` (emoji_key, count label, active true/false, channel/message IDs, zero count), and optimistic toggle count increment.
 
-**test_dm_channel_item.gd** — 9 tests for the DM channel list item. Covers `setup` (dm_id, username, last_message, unread dot visible/hidden), `set_active` (applies/removes style), and signal existence (dm_pressed, dm_closed).
+**test_dm_channel_item.gd** -- 9 tests for the DM channel list item. Covers `setup` (dm_id, username, last_message, unread dot visible/hidden), `set_active` (applies/removes style), and signal existence (dm_pressed, dm_closed).
 
-**test_client_startup.gd** — 6 smoke tests for the Client `_ready()` startup path. Verifies `ClientVoice` instantiation (the sub-module most likely to break from GDExtension changes), full `_ready()` sub-module creation (ClientGateway, ClientFetch, ClientAdmin, ClientVoice, ClientMutations), AccordVoiceSession GDExtension construction and parent attachment, voice session signal wiring (session_state_changed, peer_joined, peer_left, signal_outgoing → ClientVoice callbacks), AppState.channel_selected connection, and post-_ready() initial state (CONNECTING mode, empty current_user). Uses `add_child_autofree` to trigger `_ready()`, unlike `test_client.gd` which skips it.
+**test_client_startup.gd** -- 6 smoke tests for the Client `_ready()` startup path. Verifies `ClientVoice` instantiation (the sub-module most likely to break from GDExtension changes), full `_ready()` sub-module creation (ClientGateway, ClientFetch, ClientAdmin, ClientVoice, ClientMutations), AccordVoiceSession GDExtension construction and parent attachment, voice session signal wiring (session_state_changed, peer_joined, peer_left, signal_outgoing -> ClientVoice callbacks), AppState.channel_selected connection, and post-_ready() initial state (CONNECTING mode, empty current_user). Uses `add_child_autofree` to trigger `_ready()`, unlike `test_client.gd` which skips it.
 
-**test_client.gd** — 60 tests for the Client autoload's pure logic (no network). Tests URL derivation (HTTPS→WSS, HTTP→WS, CDN), cache getters (`get_channels_for_guild`, `get_messages_for_channel`, `get_user_by_id`, `get_guild_by_id`, `get_members_for_guild`, `get_roles_for_guild`, `get_message_by_id` with index hit/fallback/miss), routing helpers (`_conn_for_guild`, `_client_for_guild`, `_cdn_for_guild`, `_cdn_for_channel`, `_first_connected_client/cdn`), permission checking (admin bypass, owner bypass, role-based grant/deny, everyone role, no members), unread tracking (`mark_channel_unread` for channels/DMs/mentions, `_on_channel_selected_clear_unread`, `_update_guild_unread` aggregation), user cache trimming (below cap no-op, preserves current user + guild members), guild folder update, connection state helpers (`is_server_connected`, `is_guild_connected`, `get_guild_connection_status`), and `_find_channel_for_message` (indexed/fallback/miss). Uses `load().new()` without `add_child` to skip `_ready()` and avoid AccordVoiceSession dependency.
+**test_client.gd** -- 60 tests for the Client autoload's pure logic (no network). Tests URL derivation (HTTPS->WSS, HTTP->WS, CDN), cache getters (`get_channels_for_space`, `get_messages_for_channel`, `get_user_by_id`, `get_space_by_id`, `get_members_for_space`, `get_roles_for_space`, `get_message_by_id` with index hit/fallback/miss), routing helpers (`_conn_for_space`, `_client_for_space`, `_cdn_for_space`, `_cdn_for_channel`, `_first_connected_client/cdn`), permission checking (admin bypass, owner bypass, role-based grant/deny, everyone role, no members), unread tracking (`mark_channel_unread` for channels/DMs/mentions, `_on_channel_selected_clear_unread`, `_update_space_unread` aggregation), user cache trimming (below cap no-op, preserves current user + space members), space folder update, connection state helpers (`is_server_connected`, `is_space_connected`, `get_space_connection_status`), and `_find_channel_for_message` (indexed/fallback/miss). Uses `load().new()` without `add_child` to skip `_ready()` and avoid AccordVoiceSession dependency.
 
-**test_client_gateway.gd** — 36 tests for ClientGateway event handlers. Calls `on_*` methods directly with `AccordMessage.from_dict()` etc. Tests message create (append, index update, bucket creation, MESSAGE_CAP eviction, unread marking), message update (in-place replacement), message delete (single + bulk), typing (signal emission, own-user skip), presence/user updates (user cache status, member cache status, current_user update), space CRUD (preserves unread/mentions/folder on update, delete removes, create adds), channel CRUD (text vs DM, preserves unread/voice_users on update), role CRUD (create/update/delete), reactions via `gw._reactions` (add new emoji, increment existing, active flag for current user, remove decrement, remove at zero, clear all, clear specific emoji), voice state via `gw._events` (add user, move user between channels), and gateway lifecycle (reconnected sets status, disconnected non-fatal).
+**test_client_gateway.gd** -- 36 tests for ClientGateway event handlers. Calls `on_*` methods directly with `AccordMessage.from_dict()` etc. Tests message create (append, index update, bucket creation, MESSAGE_CAP eviction, unread marking), message update (in-place replacement), message delete (single + bulk), typing (signal emission, own-user skip), presence/user updates (user cache status, member cache status, current_user update), space CRUD (preserves unread/mentions/folder on update, delete removes, create adds), channel CRUD (text vs DM, preserves unread/voice_users on update), role CRUD (create/update/delete), reactions via `gw._reactions` (add new emoji, increment existing, active flag for current user, remove decrement, remove at zero, clear all, clear specific emoji), voice state via `gw._events` (add user, move user between channels), and gateway lifecycle (reconnected sets status, disconnected non-fatal).
 
-**test_user_bar.gd** — 12 tests for the user bar sidebar component. Covers `setup` with null/missing/empty avatar (no crash), avatar URL handling, display name and username from dict (with defaults when missing), avatar letter from display name, and status icon color (online/offline via `ClientModels.status_color()`).
+**test_user_bar.gd** -- 12 tests for the user bar sidebar component. Covers `setup` with null/missing/empty avatar (no crash), avatar URL handling, display name and username from dict (with defaults when missing), avatar letter from display name, and status icon color (online/offline via `ClientModels.status_color()`).
 
-**test_error_reporting.gd** — 20 tests for the ErrorReporting autoload. Guard clause tests (4) verify `_initialized` is false by default and that `_add_breadcrumb`, `update_context`, and `report_problem` return early without crashing when Sentry is not initialized. Signal handler tests (9) verify that `_on_guild_selected`, `_on_channel_selected`, `_on_dm_mode_entered`, `_on_message_sent`, `_on_reply_initiated`, `_on_layout_mode_changed` (COMPACT/MEDIUM/FULL), and `_on_sidebar_drawer_toggled` do not crash when uninitialized. PII scrubbing tests (7) verify that `scrub_pii_text` redacts Bearer tokens (single and multiple), `token=` query parameters, URLs with ports (HTTPS and HTTP), preserves plain text, and handles combined PII in a single string.
+**test_error_reporting.gd** -- 20 tests for the ErrorReporting autoload. Guard clause tests (4) verify `_initialized` is false by default and that `_add_breadcrumb`, `update_context`, and `report_problem` return early without crashing when Sentry is not initialized. Signal handler tests (9) verify that `_on_space_selected`, `_on_channel_selected`, `_on_dm_mode_entered`, `_on_message_sent`, `_on_reply_initiated`, `_on_layout_mode_changed` (COMPACT/MEDIUM/FULL), and `_on_sidebar_drawer_toggled` do not crash when uninitialized. PII scrubbing tests (7) verify that `scrub_pii_text` redacts Bearer tokens (single and multiple), `token=` query parameters, URLs with ports (HTTPS and HTTP), preserves plain text, and handles combined PII in a single string.
 
-**test_config_profiles.gd** — 22 tests for Config multi-profile management. Covers `_slugify` (basic, special chars, truncation to 32 chars, collision appends `-2`, empty input becomes "profile"), `_hash_password` (deterministic, different slugs produce different hashes, different passwords produce different hashes), `create_profile` (fresh, with password, copy from current), `delete_profile` (default blocked, removes from registry), `rename_profile`, `set_profile_password` / `verify_profile_password` (set and verify, wrong old password fails, remove by setting empty), `get_profiles` ordering, `get_active_profile_slug`, and `move_profile_up` / `move_profile_down` (swap, no-op at boundaries).
+**test_config_profiles.gd** -- 22 tests for Config multi-profile management. Covers `_slugify` (basic, special chars, truncation to 32 chars, collision appends `-2`, empty input becomes "profile"), `_hash_password` (deterministic, different slugs produce different hashes, different passwords produce different hashes), `create_profile` (fresh, with password, copy from current), `delete_profile` (default blocked, removes from registry), `rename_profile`, `set_profile_password` / `verify_profile_password` (set and verify, wrong old password fails, remove by setting empty), `get_profiles` ordering, `get_active_profile_slug`, and `move_profile_up` / `move_profile_down` (swap, no-op at boundaries).
 
-**test_embed.gd** — 12 tests for the embed message component. Covers `setup` with empty data (hides embed), title only (shows title, hides author/fields/image/thumbnail/footer), title with URL (BBCode link in title_rtl), description only, author with/without URL (author_row visibility, name rendering), fields (container visible with fields, hidden without), footer (visible with text, hidden without), custom color (border_color on StyleBoxFlat), and type "image" (hides title/description, shows image_rect).
+**test_embed.gd** -- 12 tests for the embed message component. Covers `setup` with empty data (hides embed), title only (shows title, hides author/fields/image/thumbnail/footer), title with URL (BBCode link in title_rtl), description only, author with/without URL (author_row visibility, name rendering), fields (container visible with fields, hidden without), footer (visible with text, hidden without), custom color (border_color on StyleBoxFlat), and type "image" (hides title/description, shows image_rect).
 
-**test_user_settings.gd** — 10 smoke tests for the user settings panel. Script loading tests (4) verify `user_settings.gd`, `user_settings_profile.gd`, `user_settings_danger.gd`, and `user_settings_twofa.gd` load without parse errors. Instantiation test (1) verifies the panel can be added to the scene tree. Profile type tests (2) verify `get_profiles()` returns Array containing "default" and `get_active_slug()` returns String. Page building tests (2) verify all 9 pages are created and page navigation switches visibility. Escape key test (1) verifies `_unhandled_input` with `KEY_ESCAPE` queues the panel for deletion. Sets up an in-memory `Config` with profiles and voice sub-objects and a mock `Client.current_user` dict in `before_each()`.
+**test_user_settings.gd** -- 16 smoke tests for the settings panels. Script loading tests (6) verify `settings_base.gd`, `app_settings.gd`, `server_settings.gd`, `user_settings_profile.gd`, `user_settings_danger.gd`, and `user_settings_twofa.gd` load without parse errors. Instantiation test (1) verifies the app settings panel can be added to the scene tree. Profile type tests (2) verify `get_profiles()` returns Array containing "default" and `get_active_slug()` returns String. Page building tests (2) verify all 6 pages are created and page navigation switches visibility. Input sensitivity tests (4) verify default sensitivity (50), set/get persistence, boundary thresholds (0% -> ~0.1, 100% -> ~0.0001), and 50% threshold (~0.003). Escape key test (1) verifies `_unhandled_input` with `KEY_ESCAPE` queues the panel for deletion. Sets up an in-memory `Config` with profiles and voice sub-objects and a mock `Client.current_user` dict in `before_each()`.
 
-**test_channel_item.gd** — 15 tests for the channel item sidebar component. Covers `setup` (stores IDs, sets name text), type icon selection (TEXT/VOICE/ANNOUNCEMENT/FORUM), NSFW red tint vs default, unread dot visibility and font color, `set_active` (adds/removes style override), signal existence, and data storage.
+**test_message_view_scroll.gd** -- 8 tests for the `MessageViewScroll` helper class. Covers `_old_message_count` (initial value 0, type is int, set/read, reassignment), `auto_scroll` (default true), `is_loading_older` (default false), and `get_last_message_child` (returns null when empty, returns last child). Uses a mock `MessageView` (`tests/unit/helpers/mock_message_view.gd`) with `scroll_container` and `message_list` fields.
 
-**test_category_item.gd** — 10 tests for the category item sidebar component. Covers `setup` (stores guild_id, uppercases name, creates count label, instantiates text + voice channel items), collapse toggle (hides channels, shows count label, restores on double-toggle), `get_category_id`, and signal existence.
+**test_channel_item.gd** -- 15 tests for the channel item sidebar component. Covers `setup` (stores IDs, sets name text), type icon selection (TEXT/VOICE/ANNOUNCEMENT/FORUM), NSFW red tint vs default, unread dot visibility and font color, `set_active` (adds/removes style override), signal existence, and data storage.
 
-**test_guild_icon.gd** — 11 tests for the guild icon sidebar component. Covers `setup` (stores IDs, tooltip, avatar letter), pill state (UNREAD/HIDDEN based on unread flag), mention badge count, `set_active` (ACTIVE/UNREAD/HIDDEN transitions), initial state, and signal existence.
+**test_category_item.gd** -- 10 tests for the category item sidebar component. Covers `setup` (stores space_id, uppercases name, creates count label, instantiates text + voice channel items), collapse toggle (hides channels, shows count label, restores on double-toggle), `get_category_id`, and signal existence.
 
-**test_guild_folder.gd** — 24 tests for the guild folder sidebar component. Covers `setup` (stores folder name, tooltip, mini grid swatches, guild icon creation), expand/collapse toggle (visibility, mini grid hidden when expanded, double-toggle restores), `set_active` / `set_active_guild` (pill state transitions, child icon activation, deactivation clears children, restores unread pill), notification aggregation (mention badge sum, unread pill, hidden when no unread, active overrides unread), context menu (exists, has Rename/Change Color/Delete items), and signal existence (guild_pressed, folder_changed).
+**test_guild_icon.gd** -- 11 tests for the guild icon sidebar component. Covers `setup` (stores IDs, tooltip, avatar letter), pill state (UNREAD/HIDDEN based on unread flag), mention badge count, `set_active` (ACTIVE/UNREAD/HIDDEN transitions), initial state, and signal existence.
 
-**test_reaction_bar.gd** — 5 tests for the reaction bar container. Covers empty reactions (hidden), non-empty pill creation (count verification), channel/message ID injection into reaction data, setup clears previous children, and single reaction creates single pill.
+**test_guild_folder.gd** -- 24 tests for the guild folder sidebar component. Covers `setup` (stores folder name, tooltip, mini grid swatches, space icon creation), expand/collapse toggle (visibility, mini grid hidden when expanded, double-toggle restores), `set_active` / `set_active_space` (pill state transitions, child icon activation, deactivation clears children, restores unread pill), notification aggregation (mention badge sum, unread pill, hidden when no unread, active overrides unread), context menu (exists, has Rename/Change Color/Delete items), and signal existence (space_pressed, folder_changed).
 
-**test_updater.gd** — 34 tests for the Updater semver utilities. Covers `parse_semver` (basic version, v-prefix, prerelease tag, combined v-prefix + prerelease, invalid too-few-parts, non-numeric, empty string, whitespace stripping), `compare_semver` (equal, major/minor/patch greater/less, release beats prerelease, prerelease less than release, prerelease lexicographic ordering, prerelease equal, v-prefix, invalid returns zero), `is_newer` (true, false-equal, false-older, prerelease not newer than release, release newer than prerelease, next-version prerelease is newer), `parse_release` (valid release with Linux asset, missing tag, invalid tag, no Linux asset, prerelease tag), and instance state (`is_downloading` default false, `is_update_ready` default false).
+**test_reaction_bar.gd** -- 5 tests for the reaction bar container. Covers empty reactions (hidden), non-empty pill creation (count verification), channel/message ID injection into reaction data, setup clears previous children, and single reaction creates single pill.
+
+**test_updater.gd** -- 34 tests for the Updater semver utilities. Covers `parse_semver` (basic version, v-prefix, prerelease tag, combined v-prefix + prerelease, invalid too-few-parts, non-numeric, empty string, whitespace stripping), `compare_semver` (equal, major/minor/patch greater/less, release beats prerelease, prerelease less than release, prerelease lexicographic ordering, prerelease equal, v-prefix, invalid returns zero), `is_newer` (true, false-equal, false-older, prerelease not newer than release, release newer than prerelease, next-version prerelease is newer), `parse_release` (valid release with Linux asset, missing tag, invalid tag, no Linux asset, prerelease tag), and instance state (`is_downloading` default false, `is_update_ready` default false).
 
 ### AccordKit Unit Tests (`tests/accordkit/unit/`)
 
 Eleven test files covering AccordKit's utility classes and model layer:
 
-- **test_snowflake.gd** (9 tests) — Encode/decode roundtrip, epoch constant (`1704067200000`), nonce uniqueness (100 nonces), datetime conversion.
-- **test_rest_result.gd** (8 tests) — Success/failure construction, cursor/has_more, null data (204), array data.
-- **test_intents.gd** (8 tests) — Default/all/privileged/unprivileged intent sets, counts (3 privileged, 11 unprivileged), union property.
-- **test_cdn.gd** (12 tests) — URL generation for avatars, default avatars, space icons/banners, emojis (static + gif), attachments, animated hash detection.
-- **test_permissions.gd** (7 tests) — All permissions count (39), has/has-not, administrator grants all, empty set, uniqueness.
-- **test_multipart_form.gd** (8 tests) — Content-type boundary, field/JSON/file parts, closing boundary, empty form, multiple parts.
-- **test_model_*.gd** (5 files, 77 tests total) — `from_dict` (full/minimal), `to_dict` roundtrip, null field omission, field aliases (`guild_id`/`space_id`, `nick`/`nickname`), nested dict extraction for user/member fields.
+- **test_snowflake.gd** (9 tests) -- Encode/decode roundtrip, epoch constant (`1704067200000`), nonce uniqueness (100 nonces), datetime conversion.
+- **test_rest_result.gd** (8 tests) -- Success/failure construction, cursor/has_more, null data (204), array data.
+- **test_intents.gd** (8 tests) -- Default/all/privileged/unprivileged intent sets, counts (3 privileged, 11 unprivileged), union property.
+- **test_cdn.gd** (12 tests) -- URL generation for avatars, default avatars, space icons/banners, emojis (static + gif), attachments, animated hash detection.
+- **test_permissions.gd** (7 tests) -- All permissions count (39), has/has-not, administrator grants all, empty set, uniqueness.
+- **test_multipart_form.gd** (8 tests) -- Content-type boundary, field/JSON/file parts, closing boundary, empty form, multiple parts.
+- **test_model_*.gd** (5 files, 77 tests total) -- `from_dict` (full/minimal), `to_dict` roundtrip, null field omission, field aliases (`space_id`/`space_id`, `nick`/`nickname`), nested dict extraction for user/member fields.
 
 ### AccordKit Integration Tests (`tests/accordkit/integration/`)
 
 Six test files, all extending `AccordTestBase`:
 
-- **test_users_api.gd** (6 tests) — `get_me` for bot and user, `get_user` by ID, 404 for nonexistent, `list_spaces`, `update_me`.
-- **test_spaces_api.gd** (5 tests) — `get_space`, `create_space` (checks `owner_id`), `update_space`, `list_channels`, `create_channel`.
-- **test_channels_api.gd** (3 tests) — `get_channel`, get general channel, `update_channel` topic.
-- **test_messages_api.gd** (6 tests) — Create, list, get, edit, delete (verify 404 after), typing indicator.
-- **test_members_api.gd** (4 tests) — List members (>=2), get member (handles nested `user.id`), get bot member, update nickname.
-- **test_permissions_api.gd** (23 tests) — Verifies server-enforced permissions: bot (regular member) gets 403 for space/channel/role/ban/member-role/invite/emoji management; owner succeeds. Includes an escalation test where owner grants `manage_channels` role to bot, then bot creates a channel successfully.
+- **test_users_api.gd** (6 tests) -- `get_me` for bot and user, `get_user` by ID, 404 for nonexistent, `list_spaces`, `update_me`.
+- **test_spaces_api.gd** (5 tests) -- `get_space`, `create_space` (checks `owner_id`), `update_space`, `list_channels`, `create_channel`.
+- **test_channels_api.gd** (3 tests) -- `get_channel`, get general channel, `update_channel` topic.
+- **test_messages_api.gd** (6 tests) -- Create, list, get, edit, delete (verify 404 after), typing indicator.
+- **test_members_api.gd** (4 tests) -- List members (>=2), get member (handles nested `user.id`), get bot member, update nickname.
+- **test_permissions_api.gd** (23 tests) -- Verifies server-enforced permissions: bot (regular member) gets 403 for space/channel/role/ban/member-role/invite/emoji management; owner succeeds. Includes an escalation test where owner grants `manage_channels` role to bot, then bot creates a channel successfully.
 
 ### AccordKit Gateway Tests (`tests/accordkit/gateway/`)
 
-- **test_gateway_connect.gd** (3 tests) — Bot and user connect, poll for `ready_received` signal (up to 10s with 0.1s timer), verify `ready_data` contains `user` or `session_id`, clean disconnect.
-- **test_gateway_events.gd** (1 test) — Bot connects, user sends message via REST, bot waits up to 5s for `message_create` signal with matching content and channel_id.
+- **test_gateway_connect.gd** (3 tests) -- Bot and user connect, poll for `ready_received` signal (up to 10s with 0.1s timer), verify `ready_data` contains `user` or `session_id`, clean disconnect.
+- **test_gateway_events.gd** (1 test) -- Bot connects, user sends message via REST, bot waits up to 5s for `message_create` signal with matching content and channel_id.
 
 ### AccordKit E2E Tests (`tests/accordkit/e2e/`)
 
-- **test_full_lifecycle.gd** (1 test) — 7-step sequential flow: bot login, get_me verification, user creates space, list channels, send+fetch message, cross-client gateway event (user sends, bot receives `message_create`), bot logout.
-- **test_add_server.gd** (1 test) — 8-step invite flow: user creates space, user creates invite, bot connects gateway and waits for ready, bot accepts invite, user verifies `member_join` gateway event with bot's user ID, REST verification that bot appears in member list, bot sends message in the new space's general channel to prove access, bot logs out.
+- **test_full_lifecycle.gd** (1 test) -- 7-step sequential flow: bot login, get_me verification, user creates space, list channels, send+fetch message, cross-client gateway event (user sends, bot receives `message_create`), bot logout.
+- **test_add_server.gd** (1 test) -- 8-step invite flow: user creates space, user creates invite, bot connects gateway and waits for ready, bot accepts invite, user verifies `member_join` gateway event with bot's user ID, REST verification that bot appears in member list, bot sends message in the new space's general channel to prove access, bot logs out.
+- **test_voice_auth_handshake.gd** (5 tests) -- Voice REST join/leave flow. Probes the server's voice backend in `before_all()` (tests that require LiveKit credentials skip gracefully when backend is "none"). Tests: `test_voice_info_reports_backend` (GET /voice/info returns backend field), `test_create_voice_channel` (creates a voice channel via REST), `test_voice_join_returns_livekit_credentials` (joins voice, validates AccordVoiceServerUpdate with livekit_url, JWT token, voice_state, then leaves), `test_voice_join_with_mute_and_deaf_flags` (joins with self_mute=true/self_deaf=true, validates flags in voice_state), `test_voice_leave_without_join_fails_gracefully` (leave without join does not crash).
 
-### LiveKit Tests (`tests/livekit/integration/`)
+### LiveKit Tests (`tests/livekit/unit/`)
 
-Four test files plus an end-to-end file, no server needed:
+One test file, no server needed:
 
-- **test_device_enumeration.gd** (34 tests) — Singleton access, camera/microphone/screen/window listing, dict key validation, uniqueness. Skips gracefully if no hardware available.
-- **test_media_tracks.gd** (25 tests) — Create camera/mic/screen/window tracks, initial state (LIVE), enable/disable toggle, stop emits `state_changed` with `TRACK_STATE_ENDED`, invalid device handling, idempotent stop.
-- **test_peer_connection.gd** (51 tests) — Creation with various ICE configs, initial state checks, stats dict, senders/receivers, add/remove track, SDP offer creation (contains `m=audio`/`m=video`), set descriptions, ICE candidates, close lifecycle, enum constants.
-- **test_voice_session.gd** (39 tests) — Initial state (DISCONNECTED), mute/deafen toggle and interaction, disconnect idempotency, poll interval, enum constants, `handle_voice_signal` resilience, LiveKit stub, signal existence, `connect_custom_sfu` state transitions.
-- **test_end_to_end.gd** (8 tests) — Publish audio/video/screen flows, two-PC offer-answer loopback, add-remove-add cycle, rapid create-close (10x), kitchen-sink (all device types + all tracks + single offer).
+- **test_livekit_adapter.gd** (10 tests) -- Tests the `LiveKitAdapter` autoload's state machine, mute/deafen logic, and signal surface without requiring a real LiveKit server or audio hardware. Uses `add_child_autofree` for lifecycle. Tests: initial state (DISCONNECTED), `is_muted`/`is_deafened` defaults (false), `set_muted`/`set_deafened` toggle, `disconnect_voice` from DISCONNECTED (idempotent), signal existence (session_state_changed, peer_joined, peer_left, track_received, audio_level_changed), `disconnect_voice` emits DISCONNECTED state signal, `unpublish_camera`/`unpublish_screen` without room (no crash).
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 
-Three jobs on push/PR to `master`:
+Three jobs on PR to `master` (also callable via `workflow_call`):
 
-1. **lint** — Python 3.12 + `gdtoolkit`, runs `gdlint scripts/ scenes/` (line 33). Also runs code complexity analysis via `gdradon cc scripts/ scenes/` (lines 35-46), emitting a warning annotation for functions graded C-F.
-2. **test** — Checks out project + livekit addon, installs Godot 4.5 via `chickensoft-games/setup-godot@v2`, caches GUT and Sentry SDK, imports project, runs unit tests (`res://tests/unit`) with 5-minute timeout (lines 130-141). Also runs LiveKit tests with `continue-on-error: true` (lines 143-155). Generates a test result summary to `$GITHUB_STEP_SUMMARY` (lines 157-168).
-3. **integration-test** — Checks out project + livekit + accordserver, installs Rust with `sccache` caching, builds accordserver with fallback if sccache fails (lines 256-265), starts in test mode, polls `/health` until ready (lines 274-286). Runs AccordKit suites individually: unit tests (lines 307-318), REST integration tests (lines 320-331), and gateway + e2e tests with `continue-on-error: true` (lines 333-353). Uploads server log as artifact on failure (lines 375-381).
+1. **lint** -- Python 3.12 + `gdtoolkit`, runs `gdlint scripts/ scenes/` (line 31). Also runs code complexity analysis via `gdradon cc scripts/ scenes/` (lines 33-44), emitting a warning annotation for functions graded C-F.
+2. **test** -- Checks out project + livekit addon, installs Godot 4.5 via `chickensoft-games/setup-godot@v2`, caches GUT and Sentry SDK, imports project, runs unit tests (`res://tests/unit`) with 5-minute timeout (lines 127-138). Also runs LiveKit tests with `continue-on-error: true` (lines 140-151). Generates a test result summary to `$GITHUB_STEP_SUMMARY` (lines 154-165).
+3. **integration-test** -- Checks out project + livekit + accordserver, installs Rust with `sccache` caching, builds accordserver with fallback if sccache fails (lines 253-261), starts in test mode, polls `/health` until ready (lines 270-282). Runs AccordKit suites individually: unit tests (lines 303-314), REST integration tests (lines 316-327), and gateway + e2e tests with `continue-on-error: true` (lines 329-349). Uploads server log as artifact (lines 371-377).
 
 ### Test Count Summary
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 28 | 534 | No |
+| Unit (`tests/unit/`) | 29 | 551 | No |
 | AccordKit unit (`tests/accordkit/unit/`) | 11 | 129 | No |
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
-| AccordKit e2e (`tests/accordkit/e2e/`) | 2 | 2 | Yes |
-| LiveKit (`tests/livekit/integration/`) | 5 | 157 | No |
-| **Total** | **54** | **873** | |
+| AccordKit e2e (`tests/accordkit/e2e/`) | 3 | 7 | Yes |
+| LiveKit (`tests/livekit/unit/`) | 1 | 10 | No |
+| **Total** | **52** | **748** | |
 
 ## Implementation Status
 
 - [x] Test runner with suite selection (`unit`, `integration`, `accordkit`, `livekit`, `all`)
+- [x] Remote server support via `ACCORD_TEST_URL` environment variable
 - [x] Automatic server lifecycle (build, start, poll, cleanup)
 - [x] Fresh database per test run (removes stale `accord_test.db*`)
 - [x] Reuse of existing server instance if already running
@@ -273,11 +272,11 @@ Three jobs on push/PR to `master`:
 - [x] CI integration test job (accordserver + AccordKit tests, `continue-on-error`)
 - [x] Release pipeline (cross-platform export + GitHub Release)
 - [x] Unit tests for AppState (37 tests)
-- [x] Unit tests for Config (21 tests)
+- [x] Unit tests for Config (24 tests)
 - [x] Unit tests for markdown rendering (11 tests)
 - [x] Unit tests for auth dialog (13 tests)
 - [x] Unit tests for add-server dialog + URL parser (18 tests)
-- [x] Security tests — BBCode sanitization, URL scheme blocking, state integrity (28 tests)
+- [x] Security tests -- BBCode sanitization, URL scheme blocking, state integrity (28 tests)
 - [x] Unit tests for ClientModels conversions (75 tests)
 - [x] Unit tests for message content rendering (10 tests)
 - [x] Unit tests for cozy message layout (8 tests)
@@ -287,32 +286,29 @@ Three jobs on push/PR to `master`:
 - [x] Unit tests for reaction pill (7 tests)
 - [x] Unit tests for DM channel item (9 tests)
 - [x] AccordKit model serialization tests (77 tests across 5 files)
-- [x] AccordKit utility tests — snowflake, REST result, intents, CDN, permissions, multipart (52 tests)
-- [x] AccordKit REST integration tests — users, spaces, channels, messages, members (24 tests)
+- [x] AccordKit utility tests -- snowflake, REST result, intents, CDN, permissions, multipart (52 tests)
+- [x] AccordKit REST integration tests -- users, spaces, channels, messages, members (24 tests)
 - [x] AccordKit permission enforcement tests (23 tests)
 - [x] AccordKit gateway connect/event tests (4 tests)
 - [x] AccordKit full lifecycle e2e test (1 test)
 - [x] AccordKit invite flow e2e test (1 test)
-- [x] LiveKit device enumeration tests (34 tests)
-- [x] LiveKit media track tests (25 tests)
-- [x] LiveKit peer connection tests (51 tests)
-- [x] LiveKit voice session tests (39 tests)
-- [x] LiveKit e2e workflow tests (8 tests)
-- [x] Unit tests for Client autoload — data access, routing, permissions, unread (60 tests)
-- [x] Unit tests for ClientGateway — event dispatch, cache mutation (36 tests)
+- [x] AccordKit voice auth handshake e2e tests (5 tests)
+- [x] LiveKit adapter unit tests -- state machine, mute/deafen, signals (10 tests)
+- [x] Unit tests for Client autoload -- data access, routing, permissions, unread (60 tests)
+- [x] Unit tests for ClientGateway -- event dispatch, cache mutation (36 tests)
 - [x] Unit tests for channel_item sidebar component (15 tests)
 - [x] Unit tests for category_item sidebar component (10 tests)
 - [x] Unit tests for guild_icon sidebar component (11 tests)
 - [x] Unit tests for guild_folder sidebar component (24 tests)
 - [x] Unit tests for reaction_bar container (5 tests)
 - [x] Unit tests for Updater semver + parse_release + instance state (34 tests)
-- [x] Unit tests for user_bar — avatar, display name, status icon (12 tests)
-- [x] Unit tests for ErrorReporting — guard clauses, signal handlers, PII scrubbing (20 tests)
-- [x] Unit tests for Config profiles — slugify, CRUD, passwords, ordering (22 tests)
-- [x] Unit tests for embed component — setup, title, author, fields, footer, color, type (12 tests)
-- [x] Smoke tests for Client `_ready()` startup — sub-modules, AccordVoiceSession, signal wiring (6 tests)
-- [x] Smoke tests for user settings panel — script loading, pages, navigation (10 tests)
-- [ ] LiveKit tests in CI (require media hardware)
+- [x] Unit tests for user_bar -- avatar, display name, status icon (12 tests)
+- [x] Unit tests for ErrorReporting -- guard clauses, signal handlers, PII scrubbing (20 tests)
+- [x] Unit tests for Config profiles -- slugify, CRUD, passwords, ordering (22 tests)
+- [x] Unit tests for embed component -- setup, title, author, fields, footer, color, type (12 tests)
+- [x] Smoke tests for Client `_ready()` startup -- sub-modules, AccordVoiceSession, signal wiring (6 tests)
+- [x] Smoke tests for settings panels -- script loading, pages, navigation, input sensitivity (16 tests)
+- [x] Unit tests for MessageViewScroll -- old_message_count, auto_scroll, get_last_message_child (8 tests)
 - [ ] No mock/stub/double usage anywhere (real objects only)
 
 ## Gaps / TODO
@@ -323,16 +319,15 @@ Three jobs on push/PR to `master`:
 | No tests for `ClientAdmin` | Medium | `scripts/autoload/client_admin.gd` handles admin operations. No unit tests. |
 | No tests for `ClientMutations` | Medium | `scripts/autoload/client_mutations.gd` handles message send/edit/delete, reactions, typing. No unit tests. |
 | No tests for `ClientConnection` | Medium | `scripts/autoload/client_connection.gd` handles server connect/disconnect/reconnect lifecycle. No unit tests. |
-| No tests for message_view | Medium | `scenes/messages/message_view.gd` (the scroll container / message list manager) is untested due to heavy `Client` dependency. Individual message components (cozy, collapsed, content) are tested. |
+| No tests for message_view | Medium | `scenes/messages/message_view.gd` (the scroll container / message list manager) is untested due to heavy `Client` dependency. `MessageViewScroll` (the scroll helper) now has basic tests, and individual message components (cozy, collapsed, content) are tested. |
 | No tests for sidebar containers | Medium | Parent containers (`sidebar.gd`, `channel_list.gd`, `guild_bar.gd`) are untested due to heavy `Client` dependency. Leaf components (channel_item, category_item, guild_icon, guild_folder) are tested. |
-| No tests for member_list | Low | `scenes/members/member_list.gd` — member panel display untested. |
-| No tests for admin dialogs | Medium | 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. User settings panel now has smoke tests (`test_user_settings.gd`). |
-| No tests for emoji_picker | Low | `scenes/messages/composer/emoji_picker.gd` — emoji search, category filtering, insertion untested. |
-| No tests for search_panel | Low | `scenes/search/search_panel.gd` — search UI untested. |
-| No tests for `SoundManager` autoload | Low | `scripts/autoload/sound_manager.gd` — sound event playback and volume control have no tests. |
-| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 334). LiveKit tests also use `continue-on-error: true` (line 144). AccordKit unit and REST integration tests are blocking. |
-| LiveKit tests skip in headless CI | Medium | Tests guard with `pass_test("No X available — skipping")` when no hardware is detected. Most tests will be skipped in headless environments. |
-| `test_disconnect_clean_state` is a smoke test | Low | `tests/accordkit/gateway/test_gateway_connect.gd` — the disconnect test just asserts `true` after logout; does not verify internal connection state. |
+| No tests for member_list | Low | `scenes/members/member_list.gd` -- member panel display untested. |
+| No tests for admin dialogs | Medium | 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. Settings panels now have smoke tests (`test_user_settings.gd`). |
+| No tests for emoji_picker | Low | `scenes/messages/composer/emoji_picker.gd` -- emoji search, category filtering, insertion untested. |
+| No tests for search_panel | Low | `scenes/search/search_panel.gd` -- search UI untested. |
+| No tests for `SoundManager` autoload | Low | `scripts/autoload/sound_manager.gd` -- sound event playback and volume control have no tests. |
+| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 330). LiveKit tests also use `continue-on-error: true` (line 141). AccordKit unit and REST integration tests are blocking. |
+| `test_disconnect_clean_state` is a smoke test | Low | `tests/accordkit/gateway/test_gateway_connect.gd` -- the disconnect test just asserts `true` after logout; does not verify internal connection state. |
 | No mock/stub/double usage | Medium | All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree. |
 | GDExtension binary staleness undetected | Medium | LiveKit source changes (e.g., adding `set_output_device()`) are not automatically rebuilt. Stale binaries cause GDScript parse errors that cascade through dependent scripts. CI doesn't verify that the binary matches the source. |
 | No tests for responsive layout behavior | Low | Layout mode breakpoints are tested in `test_app_state.gd`, but the actual UI response (sidebar drawer, hamburger button, panel visibility) in `main_window.gd` is untested. |

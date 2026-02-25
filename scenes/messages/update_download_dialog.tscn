@@ -55,7 +55,7 @@ flat = true
 
 [node name="StatusLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
-text = "Downloading daccord v0.0.0..."
+text = "Downloading Daccord v0.0.0..."
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 

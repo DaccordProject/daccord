@@ -1,6 +1,6 @@
 extends ColorRect
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _parent_id: String = ""
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
@@ -17,8 +17,8 @@ func _ready() -> void:
 	_cancel_btn.pressed.connect(_close)
 	_create_btn.pressed.connect(_on_create)
 
-func setup(guild_id: String, parent_id: String = "", channels: Array = []) -> void:
-	_guild_id = guild_id
+func setup(space_id: String, parent_id: String = "", channels: Array = []) -> void:
+	_space_id = space_id
 	_parent_id = parent_id
 
 	# Always add base channel types
@@ -74,7 +74,7 @@ func _on_create() -> void:
 			if pid is String and not pid.is_empty():
 				data["parent_id"] = pid
 
-	var result: RestResult = await Client.admin.create_channel(_guild_id, data)
+	var result: RestResult = await Client.admin.create_channel(_space_id, data)
 	_create_btn.disabled = false
 	_create_btn.text = "Create"
 

@@ -11,18 +11,68 @@ const MUTED_GRAY := Color(0.58, 0.608, 0.643)
 
 var _pulse_tween: Tween
 var _features_vbox: VBoxContainer
+var _update_btn: Button
 
 @onready var logo_label: Label = $ContentCenter/ContentVBox/LogoLabel
 @onready var tagline_label: Label = $ContentCenter/ContentVBox/TaglineLabel
 @onready var features_hbox: HBoxContainer = $ContentCenter/ContentVBox/FeaturesHBox
 @onready var cta_button: Button = $ContentCenter/ContentVBox/CTAButton
 @onready var particles: CPUParticles2D = $ParticlesLayer/FloatingParticles
+@onready var settings_button: Button = $SettingsButton
 
 
 func _ready() -> void:
 	cta_button.pressed.connect(_on_cta_pressed)
+	settings_button.pressed.connect(_on_settings_pressed)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	resized.connect(_on_resized)
+
+	# Update indicator next to settings button
+	_update_btn = Button.new()
+	_update_btn.text = "Update Available"
+	_update_btn.flat = true
+	_update_btn.icon = preload(
+		"res://assets/theme/icons/update.svg"
+	)
+	_update_btn.add_theme_color_override(
+		"font_color", Color(0.92, 0.26, 0.27)
+	)
+	_update_btn.add_theme_color_override(
+		"font_hover_color", Color(1.0, 0.35, 0.36)
+	)
+	_update_btn.add_theme_color_override(
+		"icon_normal_color", Color(0.92, 0.26, 0.27)
+	)
+	_update_btn.add_theme_color_override(
+		"icon_hover_color", Color(1.0, 0.35, 0.36)
+	)
+	_update_btn.add_theme_font_size_override("font_size", 14)
+	_update_btn.visible = false
+	_update_btn.pressed.connect(_on_update_pressed)
+	# Position next to settings button (bottom-left)
+	_update_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_update_btn.anchor_top = 1.0
+	_update_btn.anchor_bottom = 1.0
+	_update_btn.offset_left = 120.0
+	_update_btn.offset_top = -48.0
+	_update_btn.offset_right = 300.0
+	_update_btn.offset_bottom = -12.0
+	_update_btn.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	add_child(_update_btn)
+
+	AppState.update_available.connect(_on_update_available)
+	AppState.update_download_complete.connect(_on_update_ready)
+
+	# Show if an update is already known
+	if Updater.is_update_ready():
+		_update_btn.text = "Update Ready"
+		_update_btn.visible = true
+	elif not Updater.get_latest_version_info().is_empty():
+		if Updater.is_newer(
+			Updater.get_latest_version_info().get("version", ""),
+			Client.app_version,
+		):
+			_update_btn.visible = true
 
 	# Apply initial responsive layout
 	_apply_layout(AppState.current_layout_mode)
@@ -42,8 +92,11 @@ func _on_resized() -> void:
 
 
 func _start_entrance_deferred() -> void:
-	# Wait one frame for the VBoxContainer to lay out its children,
-	# so position.y values reflect the real layout (not default 0).
+	# Wait two frames for the full container hierarchy (CenterContainer ->
+	# VBoxContainer) to resolve layout.  A single frame is not enough because
+	# parent containers may still be sizing on the first pass, leaving all
+	# VBox children at position.y == 0 which causes them to overlap.
+	await get_tree().process_frame
 	await get_tree().process_frame
 	_animate_entrance()
 
@@ -52,13 +105,21 @@ func _animate_entrance() -> void:
 	if Config.get_reduced_motion():
 		return
 
-	# Prepare: hide all content, offset downward
 	var elements: Array[Control] = [
 		logo_label, tagline_label, features_hbox, cta_button,
 	]
+
+	# Save layout-resolved positions before offsetting so animation targets
+	# are correct even if the container hasn't fully settled.
+	var target_y: Array[float] = []
 	for el in elements:
+		target_y.append(el.position.y)
 		el.modulate.a = 0.0
 		el.position.y += 30.0
+
+	# Settings + update buttons fade in from transparent
+	settings_button.modulate.a = 0.0
+	_update_btn.modulate.a = 0.0
 
 	# Staggered fade in + slide up
 	var tween := create_tween()
@@ -69,7 +130,7 @@ func _animate_entrance() -> void:
 		logo_label, "modulate:a", 1.0, 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	tween.tween_property(
-		logo_label, "position:y", logo_label.position.y - 30.0, 0.4
+		logo_label, "position:y", target_y[0], 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 	# Tagline: 0.15 – 0.55s
@@ -77,7 +138,7 @@ func _animate_entrance() -> void:
 		tagline_label, "modulate:a", 1.0, 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.15)
 	tween.tween_property(
-		tagline_label, "position:y", tagline_label.position.y - 30.0, 0.4
+		tagline_label, "position:y", target_y[1], 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.15)
 
 	# Features: 0.3 – 0.7s
@@ -85,7 +146,7 @@ func _animate_entrance() -> void:
 		features_hbox, "modulate:a", 1.0, 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.3)
 	tween.tween_property(
-		features_hbox, "position:y", features_hbox.position.y - 30.0, 0.4
+		features_hbox, "position:y", target_y[2], 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.3)
 
 	# CTA button: 0.5 – 0.9s with scale bounce
@@ -95,11 +156,19 @@ func _animate_entrance() -> void:
 		cta_button, "modulate:a", 1.0, 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.5)
 	tween.tween_property(
-		cta_button, "position:y", cta_button.position.y - 30.0, 0.4
+		cta_button, "position:y", target_y[3], 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.5)
 	tween.tween_property(
 		cta_button, "scale", Vector2(1.0, 1.0), 0.4
 	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK).set_delay(0.5)
+
+	# Settings + update buttons: fade in at 0.5s
+	tween.tween_property(
+		settings_button, "modulate:a", 1.0, 0.4
+	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.5)
+	tween.tween_property(
+		_update_btn, "modulate:a", 1.0, 0.4
+	).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC).set_delay(0.5)
 
 	# After entrance, start pulse glow on CTA
 	tween.chain().tween_callback(_start_cta_pulse)
@@ -142,6 +211,37 @@ func dismiss() -> void:
 func _on_cta_pressed() -> void:
 	var dialog: ColorRect = AddServerDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
+
+
+func _on_settings_pressed() -> void:
+	_open_app_settings()
+
+
+func _on_update_available(_info: Dictionary) -> void:
+	_update_btn.text = "Update Available"
+	_update_btn.visible = true
+	_update_btn.modulate.a = 1.0
+
+
+func _on_update_ready(_path: String) -> void:
+	_update_btn.text = "Update Ready"
+	_update_btn.visible = true
+	_update_btn.modulate.a = 1.0
+
+
+func _on_update_pressed() -> void:
+	_open_app_settings(5) # Updates page
+
+
+func _open_app_settings(initial_page: int = -1) -> void:
+	var AppSettingsScene: PackedScene = load(
+		"res://scenes/user/app_settings.tscn"
+	)
+	if AppSettingsScene:
+		var settings: ColorRect = AppSettingsScene.instantiate()
+		if initial_page >= 0:
+			settings.initial_page = initial_page
+		get_tree().root.add_child(settings)
 
 
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:

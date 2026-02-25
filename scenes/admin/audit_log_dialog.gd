@@ -4,7 +4,7 @@ const AuditLogRowScene := preload("res://scenes/admin/audit_log_row.tscn")
 
 const PAGE_SIZE := 25
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_entries: Array = []
 var _last_entry_id: String = ""
 var _has_more: bool = false
@@ -39,8 +39,8 @@ func _ready() -> void:
 	_filter_option.add_item("Message Delete", 13)
 	_filter_option.add_item("Space Update", 14)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_load_entries()
 
 func _load_entries() -> void:
@@ -64,7 +64,7 @@ func _fetch_page() -> void:
 		query["action_type"] = action_filter
 
 	var result: RestResult = await Client.admin.get_audit_log(
-		_guild_id, query
+		_space_id, query
 	)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load audit log"

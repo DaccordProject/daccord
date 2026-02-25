@@ -1,39 +1,39 @@
-# Guild & Channel Navigation
+# Space & Channel Navigation
 
 Last touched: 2026-02-19
 
 ## Overview
 
-After connecting to a server, users navigate through guilds (spaces) and channels. The guild bar on the far left shows guild icons, guild folders, and a DM button. Selecting a guild loads its channel list in the channel panel. Channels are grouped into collapsible categories. Selecting a channel opens it in the message view and creates a tab in the tab bar.
+After connecting to a server, users navigate through spaces and channels. The space bar on the far left shows space icons, space folders, and a DM button. Selecting a space loads its channel list in the channel panel. Channels are grouped into collapsible categories. Selecting a channel opens it in the message view and creates a tab in the tab bar.
 
 ## User Steps
 
-1. User sees guild icons in the guild bar (left strip)
-2. Click a guild icon -> channel list loads for that guild
+1. User sees space icons in the space bar (left strip)
+2. Click a space icon -> channel list loads for that space
 3. Channels are grouped under category headers (collapsible)
 4. Click a channel -> messages load, tab appears in tab bar
 5. Click another channel -> new tab opens (or switches to existing tab)
 6. Click tab "x" to close a tab (minimum 1 tab required)
 7. Tab bar hidden when only 1 tab exists
-8. Guild folders group multiple guilds (collapsible in sidebar)
-9. Right-click guild icon -> context menu with admin tools, folder management, reconnect, remove
+8. Space folders group multiple spaces (collapsible in sidebar)
+9. Right-click space icon -> context menu with admin tools, folder management, reconnect, remove
 
 ## Signal Flow
 
 ```
-User clicks guild icon
-    -> guild_bar._on_guild_pressed(guild_id)
-    -> guild_bar.guild_selected signal emitted
-    -> sidebar._on_guild_selected(guild_id)
+User clicks space icon
+    -> guild_bar._on_space_pressed(space_id)
+    -> guild_bar.space_selected signal emitted
+    -> sidebar._on_space_selected(space_id)
         -> channel_list.visible = true, dm_list.visible = false
-        -> channel_list.load_guild(guild_id)
-            -> Client.get_channels_for_guild(guild_id)
+        -> channel_list.load_space(space_id)
+            -> Client.get_channels_for_space(space_id)
             -> Clears existing channel nodes
             -> Groups channels by category (parent_id)
             -> Instantiates CategoryItemScene / ChannelItemScene / VoiceChannelItemScene
-        -> AppState.select_guild(guild_id)
-            -> Sets current_guild_id, is_dm_mode = false
-            -> AppState.guild_selected emitted
+        -> AppState.select_space(space_id)
+            -> Sets current_space_id, is_dm_mode = false
+            -> AppState.space_selected emitted
 
 User clicks channel
     -> channel_item.channel_pressed signal(channel_id)
@@ -62,78 +62,78 @@ Unread tracking (on new message via gateway)
             -> Client.mark_channel_unread(channel_id, is_mention)
                 -> Sets _unread_channels[cid] = true
                 -> Updates _channel_cache[cid]["unread"] = true
-                -> Calls _update_guild_unread(guild_id)
-                    -> Aggregates unread/mentions across guild channels
-                    -> Updates _guild_cache[gid]["unread"] and ["mentions"]
-                -> Emits channels_updated, guilds_updated
+                -> Calls _update_space_unread(space_id)
+                    -> Aggregates unread/mentions across space channels
+                    -> Updates _space_cache[gid]["unread"] and ["mentions"]
+                -> Emits channels_updated, spaces_updated
     -> channel_list reloads (channels_updated)
         -> channel_item shows unread dot + white text
-    -> guild_bar reloads (guilds_updated)
-        -> guild_icon shows unread pill + mention badge
+    -> guild_bar reloads (spaces_updated)
+        -> space icon shows unread pill + mention badge
 
 Clearing unread (on channel selection)
     -> Client._on_channel_selected_clear_unread(cid)
         -> Erases from _unread_channels and _channel_mention_counts
         -> Sets _channel_cache[cid]["unread"] = false
-        -> Recalculates guild unread via _update_guild_unread()
+        -> Recalculates space unread via _update_space_unread()
 ```
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `scenes/sidebar/guild_bar/guild_bar.gd` | Guild bar container, emits guild_selected/dm_selected |
-| `scenes/sidebar/guild_bar/guild_icon.gd` | Individual guild icon with selection pill, mentions badge, context menu, folder management |
-| `scenes/sidebar/guild_bar/guild_folder.gd` | Collapsible group of guild icons with mini-grid preview |
+| `scenes/sidebar/guild_bar/guild_bar.gd` | Space bar container, emits space_selected/dm_selected |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Individual space icon with selection pill, mentions badge, context menu, folder management |
+| `scenes/sidebar/guild_bar/guild_folder.gd` | Collapsible group of space icons with mini-grid preview |
 | `scenes/sidebar/channels/channel_list.gd` | Channel list, groups by category, emits channel_selected |
 | `scenes/sidebar/channels/channel_item.gd` | Individual text/announcement/forum channel with type icon, unread dot, `set_active()`, drag-and-drop |
 | `scenes/sidebar/channels/voice_channel_item.gd` | Voice channel with live participant list, mute/deaf/video/stream indicators |
 | `scenes/sidebar/channels/category_item.gd` | Collapsible category header with chevron |
-| `scenes/sidebar/channels/banner.gd` | Guild banner (color + name) above channel list, admin dropdown |
-| `scenes/sidebar/sidebar.gd` | Orchestrates guild bar, channel list, DM list |
+| `scenes/sidebar/channels/banner.gd` | Space banner (color + name) above channel list, admin dropdown |
+| `scenes/sidebar/sidebar.gd` | Orchestrates space bar, channel list, DM list |
 | `scenes/main/main_window.gd` | Tab management (lines 98-157) |
-| `scripts/autoload/app_state.gd` | guild_selected, channel_selected signals |
-| `scripts/autoload/client.gd` | get_channels_for_guild(), mark_channel_unread(), update_guild_folder() |
+| `scripts/autoload/app_state.gd` | space_selected, channel_selected signals |
+| `scripts/autoload/client.gd` | get_channels_for_space(), mark_channel_unread(), update_space_folder() |
 | `scripts/autoload/client_gateway.gd` | Gateway event handlers that preserve unread/folder state on updates |
-| `scripts/autoload/client_models.gd` | space_to_guild_dict(), channel_to_dict() conversions |
-| `scripts/autoload/config.gd` | Guild folder persistence (get/set_guild_folder) |
+| `scripts/autoload/client_models.gd` | space_to_dict(), channel_to_dict() conversions |
+| `scripts/autoload/config.gd` | Space folder persistence (get/set_space_folder) |
 
 ## Implementation Details
 
-### Guild Bar (guild_bar.gd)
+### Space Bar (guild_bar.gd)
 
-- Contains guild icons in a VBoxContainer with scroll
+- Contains space icons in a VBoxContainer with scroll
 - DM button at top, Add Server "+" button at bottom
-- Selection tracking: `active_guild_id` and `guild_icon_nodes` dictionary (line 10-11)
-- `guild_icon_nodes` stores both `guild_icon` and `guild_folder` nodes
+- Selection tracking: `active_space_id` and `space_icon_nodes` dictionary (line 10-11)
+- `space_icon_nodes` stores both `guild_icon` and `guild_folder` nodes
 - Uses `has_method("set_active")` check since both types are stored in same dict (line 67, 76)
-- `_populate_guilds()` (line 23): Groups guilds by `folder` field — standalone guilds rendered individually, guilds sharing the same folder name are grouped into a `GuildFolderScene`
-- Listens to `AppState.guilds_updated` to rebuild the entire guild list (line 20, 81-85)
+- `_populate_spaces()` (line 23): Groups spaces by `folder` field -- standalone spaces rendered individually, spaces sharing the same folder name are grouped into a `GuildFolderScene`
+- Listens to `AppState.spaces_updated` to rebuild the entire space list (line 20, 81-85)
 
-### Guild Icon (guild_icon.gd)
+### Space Icon (guild_icon.gd)
 
-- AvatarRect with colored background and first letter of guild name
-- `setup(data)` (line 53): Sets icon_color, guild name initial, tooltip; loads guild icon image via `avatar_rect.set_avatar_url(icon_url)` if the server provides one (lines 64-66)
+- AvatarRect with colored background and first letter of space name
+- `setup(data)` (line 53): Sets icon_color, space name initial, tooltip; loads space icon image via `avatar_rect.set_avatar_url(icon_url)` if the server provides one (lines 64-66)
 - `set_active(bool)` (line 79): Animates selection pill between ACTIVE/UNREAD/HIDDEN states
 - Hover effects: avatar radius tweens between 0.5 (circle) and 0.3 (rounded square) (lines 92-104)
-- Unread pill: shows UNREAD state when `_has_unread` is true and guild is not active (line 74-75)
+- Unread pill: shows UNREAD state when `_has_unread` is true and space is not active (line 74-75)
 - Mention badge: `PanelContainer` with count, set from `data.mentions` (line 69-71)
 - **Context menu** (right-click, line 111): Permission-gated items for Space Settings, Channels, Roles, Bans, Invites, Emojis. Also includes Reconnect (when disconnected/error), Move to Folder / Remove from Folder, and Remove Server.
 - **Folder management**: "Move to Folder" opens a dialog showing existing folder names as quick-select buttons plus a text field for new folder names. "Remove from Folder" clears the assignment immediately.
 - Connection status dot: yellow for disconnected/reconnecting, red for error (lines 212-223)
 
-### Guild Folder (guild_folder.gd)
+### Space Folder (guild_folder.gd)
 
-- Collapsible container for multiple guild icons
+- Collapsible container for multiple space icons
 - Header button with mini-grid preview (up to 4 color swatches, line 40-45)
-- `setup(p_name, guilds, folder_color)` (line 28): Creates mini-grid preview and full guild icon list
+- `setup(p_name, spaces, folder_color)` (line 28): Creates mini-grid preview and full space icon list
 - Folder color: darkened version of provided color on button background (line 34)
 - `_toggle_expanded()` (line 57): Animated expand/collapse with alpha tween
-- Does not implement `set_active()`; `guild_bar` checks `has_method("set_active")` before calling, so folders are skipped gracefully
+- Does not implement `set_active()`; space_bar checks `has_method("set_active")` before calling, so folders are skipped gracefully
 
 ### Channel List (channel_list.gd)
 
-- `load_guild(guild_id)` (line 22): Fetches and renders channels
+- `load_space(space_id)` (line 22): Fetches and renders channels
 - Groups channels: first pass finds categories (type == CATEGORY), second pass assigns children via parent_id (lines 66-80)
 - Channels and categories sorted by position then name (lines 83-104)
 - Uncategorized channels rendered first, then categories with children
@@ -141,7 +141,7 @@ Clearing unread (on channel selection)
 - Tracks `channel_item_nodes` dict and `active_channel_id` for selection state
 - Listens to `AppState.channels_updated` to reload on gateway events (line 20)
 - Auto-select: pending channel if set, otherwise first non-voice/non-category channel (lines 143-157)
-- **Empty state** (lines 44-63): When a guild has 0 non-category channels, shows a centered `EmptyState` VBoxContainer with title, description, and a prominent "Create Channel" button (for users with `MANAGE_CHANNELS` permission). Non-admins see "This space doesn't have any channels yet. Check back soon!" with no button. The `+ Create Channel` text link at the bottom only appears when channels already exist.
+- **Empty state** (lines 44-63): When a space has 0 non-category channels, shows a centered `EmptyState` VBoxContainer with title, description, and a prominent "Create Channel" button (for users with `MANAGE_CHANNELS` permission). Non-admins see "This space doesn't have any channels yet. Check back soon!" with no button. The `+ Create Channel` text link at the bottom only appears when channels already exist.
 
 ### Channel Item (channel_item.gd)
 
@@ -185,35 +185,35 @@ Clearing unread (on channel selection)
 
 ### Banner (banner.gd)
 
-- Displays guild name (white, 16px) on darkened icon_color background
-- `setup(guild_data)`: Sets name and color from guild dict, shows/hides dropdown icon based on admin permissions
+- Displays space name (white, 16px) on darkened icon_color background
+- `setup(space_data)`: Sets name and color from space dict, shows/hides dropdown icon based on admin permissions
 - **Clickable admin dropdown**: The entire banner is clickable (left-click) for users with any admin permission. Opens a `PopupMenu` with permission-gated items: Space Settings (`manage_space`), Channels (`manage_channels`), Roles (`manage_roles`), Bans (`ban_members`), Invites (`create_invites`), Emojis (`manage_emojis`). A small `▼` icon in the bottom-right corner indicates the dropdown is available. Cursor changes to pointing hand on hover.
-- This provides a discoverable alternative to the guild icon right-click context menu for accessing admin tools.
+- This provides a discoverable alternative to the space icon right-click context menu for accessing admin tools.
 
 ### Unread & Mention Tracking (client.gd)
 
 - `_unread_channels: Dictionary` and `_channel_mention_counts: Dictionary` track per-channel unread state (lines 48-49)
-- `mark_channel_unread(cid, is_mention)` (line 564): Sets channel and guild cache unread flags, emits `channels_updated` and `guilds_updated`
+- `mark_channel_unread(cid, is_mention)` (line 564): Sets channel and space cache unread flags, emits `channels_updated` and `spaces_updated`
 - `_on_channel_selected_clear_unread(cid)` (line 549): Clears unread state when user views a channel
-- `_update_guild_unread(gid)` (line 582): Aggregates per-channel unread/mentions into guild-level totals
+- `_update_space_unread(gid)` (line 582): Aggregates per-channel unread/mentions into space-level totals
 - Gateway events (`on_message_create`, line 180-184 in client_gateway.gd): Calls `mark_channel_unread()` for messages arriving on non-active channels from other users
 - **State preservation**: `on_channel_update()` and `on_space_update()` in `client_gateway.gd` preserve existing `unread`, `mentions`, `voice_users`, and `folder` values when rebuilding cache entries from gateway events (lines 430-458, 392-401)
 
-### Guild Folder Persistence (config.gd, client.gd)
+### Space Folder Persistence (config.gd, client.gd)
 
-- `Config.get_guild_folder(guild_id)` / `Config.set_guild_folder(guild_id, folder_name)`: Persists folder assignment per guild in the encrypted config file
+- `Config.get_space_folder(space_id)` / `Config.set_space_folder(space_id, folder_name)`: Persists folder assignment per space in the encrypted config file
 - `Config.get_all_folder_names()`: Returns deduplicated list of all folder names in use
-- `Client.update_guild_folder(gid, folder_name)` (line 536): Updates the guild cache and emits `guilds_updated`
-- On initial connection, `Client.connect_server()` applies `Config.get_guild_folder()` to each guild dict after conversion
-- `guild_bar._populate_guilds()` groups guilds by `folder` field — guilds sharing the same folder name are grouped into a `GuildFolderScene`
+- `Client.update_space_folder(gid, folder_name)` (line 536): Updates the space cache and emits `spaces_updated`
+- On initial connection, `Client.connect_server()` applies `Config.get_space_folder()` to each space dict after conversion
+- guild_bar `_populate_spaces()` groups spaces by `folder` field -- spaces sharing the same folder name are grouped into a `GuildFolderScene`
 
 ## Implementation Status
 
-- [x] Guild bar with icons for each connected guild
-- [x] Guild selection with active pill indicator
-- [x] Guild icon images loaded from server when available (AccordCDN URL)
-- [x] Guild folders (collapsible groups with mini-grid preview)
-- [x] Guild folder assignment via context menu (client-side persistence in Config)
+- [x] Space bar with icons for each connected space
+- [x] Space selection with active pill indicator
+- [x] Space icon images loaded from server when available (AccordCDN URL)
+- [x] Space folders (collapsible groups with mini-grid preview)
+- [x] Space folder assignment via context menu (client-side persistence in Config)
 - [x] Channel list grouped by categories
 - [x] Category headers (collapsible with chevron, collapse state persisted)
 - [x] Channel type icons (text, voice, announcement, forum)
@@ -221,25 +221,25 @@ Clearing unread (on channel selection)
 - [x] Tab bar for open channels (dynamic, no hardcoded initial tab)
 - [x] Tab creation on channel select
 - [x] Tab close with minimum-1-tab safety
-- [x] Guild banner with name and color
+- [x] Space banner with name and color
 - [x] Banner dropdown menu for admin settings (clickable, permission-gated)
 - [x] Channel list empty state (admin CTA vs non-admin message)
 - [x] NSFW channel indicator (red-tinted icon)
 - [x] Voice channel with live participant list (avatar, name, mute/deaf/video/stream indicators)
-- [x] Mention badge on guild icons
-- [x] Unread indicators on channels (dot + white text) and guilds (pill + mention count)
+- [x] Mention badge on space icons
+- [x] Unread indicators on channels (dot + white text) and spaces (pill + mention count)
 - [x] Unread state preserved across gateway channel/space update events
 - [x] Unread cleared on channel selection
 - [x] Voice channel click toggles join/leave (no tab or message view)
 - [x] Drag-to-reorder channels and categories (calls Client.admin.reorder_channels())
 - [x] Channel edit/delete via context menu and gear button (MANAGE_CHANNELS permission)
-- [x] Guild icon connection status dot (yellow for disconnected, red for error)
-- [x] Guild icon context menu (admin tools, reconnect, folder management, remove server)
+- [x] Space icon connection status dot (yellow for disconnected, red for error)
+- [x] Space icon context menu (admin tools, reconnect, folder management, remove server)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | No server-side read state | Medium | Unread tracking is client-side only (starts fresh each session); the server doesn't provide a "last read" marker per channel, so unreads reset on reconnect |
-| Guild folder color not configurable from UI | Low | `Config.get/set_guild_folder_color()` exists but the folder dialog only sets the name; color defaults to `Color(0.212, 0.224, 0.247)` |
-| Guild folder drag-to-reorder | Low | Guilds can't be dragged between folders or reordered within folders; assignment is only via context menu |
+| Space folder color not configurable from UI | Low | `Config.get/set_space_folder_color()` exists but the folder dialog only sets the name; color defaults to `Color(0.212, 0.224, 0.247)` |
+| Space folder drag-to-reorder | Low | Spaces can't be dragged between folders or reordered within folders; assignment is only via context menu |

@@ -153,14 +153,14 @@ Config.switch_profile(slug)
     v
 Client._on_profile_switched()
     |
-    +-> clear all in-memory state (guilds, channels, users, messages)
+    +-> clear all in-memory state (spaces, channels, users, messages)
     +-> Config.has_servers()? --yes--> connect_server(i) for each
     |                            |
     |                            v
-    |                        normal startup flow (auth, guild match, gateway)
+    |                        normal startup flow (auth, space match, gateway)
     |                            |
     |                            v
-    |                        AppState.guilds_updated.emit()
+    |                        AppState.spaces_updated.emit()
     |
     +-> no servers: stay in CONNECTING mode (empty UI)
 
@@ -294,10 +294,10 @@ The `CONFIG_PATH` constant is replaced by these dynamic methods. All existing ca
 
 Switching profiles is a disruptive operation -- the app effectively "restarts" without quitting:
 
-1. **Disconnect**: `Client.disconnect_all()` closes all WebSocket connections, clears `_connections`, `_guild_to_conn`, and all cached data (guilds, channels, users, messages, emoji textures).
+1. **Disconnect**: `Client.disconnect_all()` closes all WebSocket connections, clears `_connections`, `_space_to_conn`, and all cached data (spaces, channels, users, messages, emoji textures).
 2. **Reload config**: `Config.switch_profile(slug)` updates the registry, loads the new profile's `config.cfg`, and emits `AppState.profile_switched`.
 3. **Reconnect**: `Client._on_profile_switched()` runs the same logic as `_ready()` -- checks `has_servers()`, calls `connect_server()` for each, etc.
-4. **UI reset**: Components listening to `profile_switched` clear their state. `guilds_updated` then fires as servers reconnect, triggering the normal startup selection flow.
+4. **UI reset**: Components listening to `profile_switched` clear their state. `spaces_updated` then fires as servers reconnect, triggering the normal startup selection flow.
 
 ### Default profile protection
 

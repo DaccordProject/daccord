@@ -45,8 +45,8 @@ func _format_action(action: String) -> String:
 func _resolve_user(user_id: String) -> String:
 	if user_id.is_empty():
 		return "System"
-	var members: Array = Client.get_members_for_guild(
-		AppState.current_guild_id
+	var members: Array = Client.get_members_for_space(
+		AppState.current_space_id
 	)
 	for m in members:
 		if str(m.get("user_id", "")) == user_id:

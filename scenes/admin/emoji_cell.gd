@@ -11,7 +11,7 @@ var _emoji_data: Dictionary = {}
 func _ready() -> void:
 	_delete_btn.pressed.connect(func(): delete_requested.emit(_emoji_data))
 
-func setup(emoji: Dictionary, guild_id: String) -> void:
+func setup(emoji: Dictionary, space_id: String) -> void:
 	_emoji_data = emoji
 	_name_label.text = ":%s:" % emoji.get("name", "")
 	_placeholder.color = Color.from_hsv(
@@ -21,7 +21,7 @@ func setup(emoji: Dictionary, guild_id: String) -> void:
 	# Load emoji image from CDN
 	var emoji_id: String = emoji.get("id", "")
 	if not emoji_id.is_empty():
-		var url := Client.admin.get_emoji_url(guild_id, emoji_id, emoji.get("animated", false))
+		var url := Client.admin.get_emoji_url(space_id, emoji_id, emoji.get("animated", false))
 		var http := HTTPRequest.new()
 		add_child(http)
 		http.request_completed.connect(func(

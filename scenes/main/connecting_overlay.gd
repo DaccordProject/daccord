@@ -25,7 +25,7 @@ func _ready() -> void:
 		_dots.append(dot)
 
 	AppState.server_connecting.connect(_on_server_connecting)
-	AppState.guilds_updated.connect(_on_server_done)
+	AppState.spaces_updated.connect(_on_server_done)
 	AppState.server_connection_failed.connect(_on_server_failed)
 
 	# Fade in
@@ -59,7 +59,7 @@ func _on_server_done() -> void:
 	_check_dismiss()
 
 func _on_server_failed(
-	_guild_id: String, _reason: String,
+	_space_id: String, _reason: String,
 ) -> void:
 	_completed += 1
 	_check_dismiss()

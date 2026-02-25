@@ -14,23 +14,23 @@ func after_each() -> void:
 	app_state.free()
 
 
-# --- select_guild ---
+# --- select_space ---
 
-func test_select_guild_sets_current_guild_id() -> void:
-	app_state.select_guild("guild_1")
-	assert_eq(app_state.current_guild_id, "guild_1")
+func test_select_space_sets_current_space_id() -> void:
+	app_state.select_space("space_1")
+	assert_eq(app_state.current_space_id, "space_1")
 
 
-func test_select_guild_clears_dm_mode() -> void:
+func test_select_space_clears_dm_mode() -> void:
 	app_state.is_dm_mode = true
-	app_state.select_guild("guild_1")
-	assert_false(app_state.is_dm_mode, "DM mode should be cleared after selecting a guild")
+	app_state.select_space("space_1")
+	assert_false(app_state.is_dm_mode, "DM mode should be cleared after selecting a space")
 
 
-func test_select_guild_emits_signal() -> void:
-	app_state.select_guild("guild_1")
-	assert_signal_emitted(app_state, "guild_selected")
-	assert_signal_emitted_with_parameters(app_state, "guild_selected", ["guild_1"])
+func test_select_space_emits_signal() -> void:
+	app_state.select_space("space_1")
+	assert_signal_emitted(app_state, "space_selected")
+	assert_signal_emitted_with_parameters(app_state, "space_selected", ["space_1"])
 
 
 # --- select_channel ---
@@ -53,10 +53,10 @@ func test_enter_dm_mode_sets_flag() -> void:
 	assert_true(app_state.is_dm_mode)
 
 
-func test_enter_dm_mode_clears_guild_id() -> void:
-	app_state.current_guild_id = "guild_1"
+func test_enter_dm_mode_clears_space_id() -> void:
+	app_state.current_space_id = "space_1"
 	app_state.enter_dm_mode()
-	assert_eq(app_state.current_guild_id, "")
+	assert_eq(app_state.current_space_id, "")
 
 
 func test_enter_dm_mode_emits_signal() -> void:
@@ -141,11 +141,11 @@ func test_delete_message_emits_signal() -> void:
 
 # --- State transitions ---
 
-func test_select_guild_then_dm_mode_clears_guild() -> void:
-	app_state.select_guild("guild_2")
-	assert_eq(app_state.current_guild_id, "guild_2")
+func test_select_space_then_dm_mode_clears_space() -> void:
+	app_state.select_space("space_2")
+	assert_eq(app_state.current_space_id, "space_2")
 	app_state.enter_dm_mode()
-	assert_eq(app_state.current_guild_id, "")
+	assert_eq(app_state.current_space_id, "")
 	assert_true(app_state.is_dm_mode)
 
 
