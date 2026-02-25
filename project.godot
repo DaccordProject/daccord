@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Daccord"
-config/version="0.1.2"
+config/version="0.1.3"
 run/main_scene="res://scenes/main/main_window.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 run/low_processor_mode=true
