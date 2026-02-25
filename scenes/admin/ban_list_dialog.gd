@@ -5,7 +5,7 @@ const BanRowScene := preload("res://scenes/admin/ban_row.tscn")
 
 const PAGE_SIZE := 25
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_bans: Array = []
 var _selected_user_ids: Array = []
 var _last_ban_id: String = ""
@@ -30,8 +30,8 @@ func _ready() -> void:
 	_load_more_btn.pressed.connect(_on_load_more)
 	AppState.bans_updated.connect(_on_bans_updated)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_load_bans()
 
 func _load_bans() -> void:
@@ -53,7 +53,7 @@ func _fetch_page() -> void:
 		query["after"] = _last_ban_id
 
 	var result: RestResult = await Client.admin.get_bans(
-		_guild_id, query
+		_space_id, query
 	)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load bans"
@@ -160,7 +160,7 @@ func _on_bulk_unban() -> void:
 	dialog.confirmed.connect(func():
 		var failed := 0
 		for uid in _selected_user_ids.duplicate():
-			var result: RestResult = await Client.admin.unban_member(_guild_id, uid)
+			var result: RestResult = await Client.admin.unban_member(_space_id, uid)
 			if result == null or not result.ok:
 				failed += 1
 		_selected_user_ids.clear()
@@ -180,7 +180,7 @@ func _on_unban(user_id: String, username: String) -> void:
 		false
 	)
 	dialog.confirmed.connect(func():
-		await Client.admin.unban_member(_guild_id, user_id)
+		await Client.admin.unban_member(_space_id, user_id)
 	)
 
 func _on_load_more() -> void:
@@ -190,8 +190,8 @@ func _on_load_more() -> void:
 	_load_more_btn.disabled = false
 	_load_more_btn.text = "Load More"
 
-func _on_bans_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_bans_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_load_bans()
 
 func _close() -> void:

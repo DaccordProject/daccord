@@ -29,7 +29,7 @@ func _ready() -> void:
 
 func setup(
 	ch: Dictionary, selected: bool,
-	guild_id: String = "",
+	space_id: String = "",
 ) -> void:
 	_channel_data = ch
 	var ch_id: String = ch.get("id", "")
@@ -42,9 +42,9 @@ func setup(
 	_down_btn.text = "\u25bc"
 
 	# Hide Perms button if user lacks manage_roles
-	if not guild_id.is_empty():
+	if not space_id.is_empty():
 		var can_manage: bool = Client.has_permission(
-			guild_id, AccordPermission.MANAGE_ROLES
+			space_id, AccordPermission.MANAGE_ROLES
 		)
 		_perms_btn.visible = can_manage
 

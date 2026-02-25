@@ -125,18 +125,32 @@ func _fetch_reply_reference(reply_to: String, channel_id: String) -> void:
 	else:
 		reply_preview.text = "[original message unavailable]"
 
+func update_author(user: Dictionary) -> void:
+	_message_data["author"] = user
+	author_label.text = user.get("display_name", "Unknown")
+	author_label.add_theme_color_override("font_color", user.get("color", Color.WHITE))
+	avatar.set_avatar_color(user.get("color", Color(0.345, 0.396, 0.949)))
+	var display_name: String = user.get("display_name", "")
+	if display_name.length() > 0:
+		avatar.set_letter(display_name[0].to_upper())
+	else:
+		avatar.set_letter("")
+	var avatar_url = user.get("avatar", null)
+	if avatar_url is String and not avatar_url.is_empty():
+		avatar.set_avatar_url(avatar_url)
+
 func update_data(data: Dictionary) -> void:
 	_message_data = data
 	message_content.update_content(data)
 
 func _get_current_user_roles() -> Array:
-	var guild_id: String = Client._channel_to_guild.get(
+	var space_id: String = Client._channel_to_space.get(
 		AppState.current_channel_id, ""
 	)
-	if guild_id.is_empty():
+	if space_id.is_empty():
 		return []
 	var my_id: String = Client.current_user.get("id", "")
-	for member in Client.get_members_for_guild(guild_id):
+	for member in Client.get_members_for_space(space_id):
 		if member.get("id", "") == my_id:
 			return member.get("roles", [])
 	return []

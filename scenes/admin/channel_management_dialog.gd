@@ -5,7 +5,7 @@ const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 const ChannelPermissionsScene := preload("res://scenes/admin/channel_permissions_dialog.tscn")
 const ChannelRowScene := preload("res://scenes/admin/channel_row.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_channels: Array = []
 var _selected_ids: Array = []
 
@@ -42,13 +42,13 @@ func _ready() -> void:
 
 	AppState.channels_updated.connect(_on_channels_updated)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_rebuild_list()
 	_rebuild_parent_options()
 
 func _rebuild_list() -> void:
-	_all_channels = Client.get_channels_for_guild(_guild_id)
+	_all_channels = Client.get_channels_for_space(_space_id)
 	_all_channels.sort_custom(func(a: Dictionary, b: Dictionary):
 		var pos_a: int = a.get("position", 0) if a.has("position") else 0
 		var pos_b: int = b.get("position", 0) if b.has("position") else 0
@@ -70,7 +70,7 @@ func _build_channel_rows(channels: Array) -> void:
 		_channel_list.add_child(row)
 		row.setup(
 			ch, ch.get("id", "") in _selected_ids,
-			_guild_id,
+			_space_id,
 		)
 		row.toggled.connect(_on_row_toggled)
 		row.move_requested.connect(_on_move_channel)
@@ -156,7 +156,7 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 	# Rebuild rows immediately so the user sees the change
 	_build_channel_rows(_all_channels)
 
-	var result: RestResult = await Client.admin.reorder_channels(_guild_id, data)
+	var result: RestResult = await Client.admin.reorder_channels(_space_id, data)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to reorder channels"
 		if result != null and result.error:
@@ -168,7 +168,7 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 func _rebuild_parent_options() -> void:
 	_create_parent.clear()
 	_create_parent.add_item("None", 0)
-	var channels: Array = Client.get_channels_for_guild(_guild_id)
+	var channels: Array = Client.get_channels_for_space(_space_id)
 	var idx: int = 1
 	for ch in channels:
 		if ch.get("type", 0) == ClientModels.ChannelType.CATEGORY:
@@ -202,7 +202,7 @@ func _on_create() -> void:
 		if parent_id is String and not parent_id.is_empty():
 			data["parent_id"] = parent_id
 
-	var result: RestResult = await Client.admin.create_channel(_guild_id, data)
+	var result: RestResult = await Client.admin.create_channel(_space_id, data)
 	_create_btn.disabled = false
 	_create_btn.text = "Create"
 
@@ -224,7 +224,7 @@ func _on_edit_channel(ch: Dictionary) -> void:
 func _on_permissions_channel(ch: Dictionary) -> void:
 	var dialog := ChannelPermissionsScene.instantiate()
 	get_tree().root.add_child(dialog)
-	dialog.setup(ch, _guild_id)
+	dialog.setup(ch, _space_id)
 
 func _on_delete_channel(ch: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
@@ -239,8 +239,8 @@ func _on_delete_channel(ch: Dictionary) -> void:
 		Client.admin.delete_channel(ch.get("id", ""))
 	)
 
-func _on_channels_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_channels_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_rebuild_list()
 		_rebuild_parent_options()
 

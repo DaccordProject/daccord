@@ -1,6 +1,6 @@
 # User Configuration
 
-Last touched: 2026-02-19
+Last touched: 2026-02-25
 
 ## Overview
 
@@ -42,23 +42,23 @@ The user-facing term for what was previously called "config" is now **profile**.
 2. User can also toggle via Settings > Notifications > "Send anonymous crash and error reports" checkbox.
 3. Preference is saved to the `[error_reporting]` config section.
 
-### Managing guild folders
-1. User right-clicks a guild icon, selects "Move to Folder".
+### Managing space folders
+1. User right-clicks a space icon, selects "Move to Folder".
 2. A dialog shows existing folder names and a text input for a new name.
 3. User picks or types a folder name and clicks "Move".
-4. Guild-to-folder mapping is saved in the `[folders]` config section.
+4. Space-to-folder mapping is saved in the `[folders]` config section.
 
 ### Exporting a profile
 1. User clicks their avatar in the user bar, selects "Export Profile".
 2. A native file-save dialog opens, defaulting to `.daccord-profile` extension.
-3. The active profile's `config.cfg` is saved as a plaintext `ConfigFile` to the chosen path.
+3. The active profile's config is saved as a sanitized plaintext `ConfigFile` to the chosen path. **Tokens and passwords are stripped** — the export contains only preferences, server URLs, space names, and usernames.
 4. Emoji cache is **not** included (it can be re-downloaded).
 
 ### Importing a profile
 1. User clicks their avatar in the user bar, selects "Import Profile".
 2. A native file-open dialog opens, filtering for `.daccord-profile` files.
 3. A dialog asks for a profile name (pre-filled from the file name) and optional password.
-4. A new profile is created with the imported config data.
+4. A new profile is created with the imported config data. Any password keys are stripped, and the config is saved encrypted (not plain text).
 5. The user can then switch to the imported profile from the Profiles section in Settings.
 
 ## Signal Flow
@@ -132,19 +132,19 @@ App startup (Client._ready)
 Config.has_servers()? --yes--> connect_server(i) for each
     |                              |
     no                             v
-    |                          Config.get_servers()[i]  --> read base_url, token, guild_name
+    |                          Config.get_servers()[i]  --> read base_url, token, space_name
     v                              |
 Mode stays CONNECTING              v
-(empty UI)                     Auth + guild lookup + gateway connect
+(empty UI)                     Auth + space lookup + gateway connect
                                    |
                                    v
-                               Mode = LIVE, guilds_updated emitted
+                               Mode = LIVE, spaces_updated emitted
                                    |
                                    v
-                               Sidebar._on_guilds_updated()
+                               Sidebar._on_spaces_updated()
                                    |
                                    v
-                               Config.get_last_selection() --> restore guild + channel
+                               Config.get_last_selection() --> restore space + channel
 ```
 
 ```
@@ -184,14 +184,14 @@ Config.switch_profile(slug)
     v
 Client._on_profile_switched()
     |
-    +-> clear all in-memory state (guilds, channels, users, messages)
+    +-> clear all in-memory state (spaces, channels, users, messages)
     +-> Config.has_servers()? --yes--> connect_server(i) for each
     |                            |
     |                            v
-    |                        normal startup flow (auth, guild match, gateway)
+    |                        normal startup flow (auth, space match, gateway)
     |                            |
     |                            v
-    |                        AppState.guilds_updated.emit()
+    |                        AppState.spaces_updated.emit()
     |
     +-> no servers: stay in CONNECTING mode (empty UI)
 ```
@@ -206,11 +206,11 @@ Client._on_profile_switched()
 | `scripts/autoload/client_mutations.gd` | Saves user status to Config on presence change |
 | `scenes/sidebar/user_bar.gd` | User menu: status, custom status, sound settings, error reporting, export/import profile |
 | `scenes/user/user_settings.gd` | User Settings panel -- Voice & Video (page 2), Sound (page 3), and Notifications (page 4) preferences |
-| `scenes/sidebar/sidebar.gd` | Reads/writes last guild+channel selection |
+| `scenes/sidebar/sidebar.gd` | Reads/writes last space+channel selection |
 | `scenes/sidebar/channels/category_item.gd` | Reads/writes category collapsed state |
-| `scenes/sidebar/guild_bar/guild_icon.gd` | Reads/writes guild folder assignment |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Reads/writes space folder assignment |
 | `scenes/sidebar/guild_bar/add_server_dialog.gd` | Adds server entries to Config |
-| `scenes/sidebar/guild_bar/auth_dialog.gd` | Provides username+password for credential storage |
+| `scenes/sidebar/guild_bar/auth_dialog.gd` | Authentication dialog; accepts optional username pre-fill for re-auth flows |
 | `scenes/messages/composer/emoji_picker.gd` | Reads/writes recently used emoji |
 | `scenes/main/main_window.gd` | Error reporting consent dialog on first launch |
 | `scenes/user/user_settings.gd` | Full settings panel with Profiles section |
@@ -251,8 +251,8 @@ Sections and keys within each profile's `config.cfg`:
 | Section | Key(s) | Type | Default | Written by |
 |---------|--------|------|---------|------------|
 | `servers` | `count` | int | `0` | `add_server()`, `remove_server()` |
-| `server_0` .. `server_N` | `base_url`, `token`, `guild_name`, `username`, `password` | String | `""` | `add_server()`, `update_server_url()`, `update_server_token()` |
-| `state` | `last_guild_id`, `last_channel_id` | String | `""` | `sidebar.gd` on guild/channel selection |
+| `server_0` .. `server_N` | `base_url`, `token`, `space_name`, `username`, `display_name` | String | `""` | `add_server()`, `update_server_url()`, `update_server_token()`, `update_server_username()` |
+| `state` | `last_space_id`, `last_channel_id` | String | `""` | `sidebar.gd` on space/channel selection |
 | `state` | `user_status` | int | `0` (ONLINE) | `client_mutations.gd` on presence change |
 | `state` | `custom_status` | String | `""` | `user_bar.gd` custom status dialog |
 | `voice` | `input_device`, `output_device`, `video_device` | String | `""` | `user_settings.gd` (Voice & Video page) |
@@ -261,12 +261,12 @@ Sections and keys within each profile's `config.cfg`:
 | `sounds` | `volume` | float | `1.0` | `user_settings.gd` (Sound page) |
 | `sounds` | `<event_name>` | bool | `true` (except `message_sent` = `false`) | `user_settings.gd` (Sound page) |
 | `notifications` | `suppress_everyone` | bool | `false` | Settings > Notifications |
-| `muted_servers` | `<guild_id>` | bool | `false` | Settings > Notifications |
+| `muted_servers` | `<space_id>` | bool | `false` | Settings > Notifications |
 | `error_reporting` | `enabled` | bool | `false` | `user_bar.gd`, `main_window.gd` consent dialog |
 | `error_reporting` | `consent_shown` | bool | (absent) | `main_window.gd` |
-| `folders` | `<guild_id>` | String | `""` | `guild_icon.gd` folder dialog |
-| `folder_colors` | `<guild_id>` | Color | `Color(0.212, 0.224, 0.247)` | `guild_icon.gd` |
-| `collapsed_<guild_id>` | `<category_id>` | bool | `false` | `category_item.gd` |
+| `folders` | `<space_id>` | String | `""` | `guild_icon.gd` space folder dialog |
+| `folder_colors` | `<space_id>` | Color | `Color(0.212, 0.224, 0.247)` | `guild_icon.gd` |
+| `collapsed_<space_id>` | `<category_id>` | bool | `false` | `category_item.gd` |
 | `emoji` | `recent` | Array | `[]` | `emoji_picker.gd` |
 | `updates` | `auto_check` | bool | `true` | Settings |
 | `updates` | `skipped_version` | String | `""` | Update dialog |
@@ -295,15 +295,15 @@ The migration is atomic in intent -- if the move fails partway, the next launch 
 
 ### Server credential storage
 
-When a server is added, the base URL, auth token, guild name, and optionally username + password are stored in sections `server_0`, `server_1`, etc. The `servers` section tracks the count. Credentials are only stored when the user authenticates via the auth dialog (sign-in or register flow) -- when a raw `?token=...` URL is used, `username` and `password` are stored as empty strings, which prevents automatic re-authentication if the token expires.
+When a server is added, the base URL, auth token, space name, and optionally username are stored in sections `server_0`, `server_1`, etc. The `servers` section tracks the count. **Passwords are never stored.** When a token expires, the re-authentication dialog is shown with the username pre-filled so the user can re-enter their password. A migration (`_migrate_clear_passwords()`) runs on config load to erase any password keys left by older versions.
 
 ### Server removal and index shifting
 
-`remove_server()` shifts all subsequent server sections down to fill the gap and erases the last section. This renumbers all connections, so `Client.disconnect_server()` also rebuilds `_guild_to_conn` after removing the config entry.
+`remove_server()` shifts all subsequent server sections down to fill the gap and erases the last section. This renumbers all connections, so `Client.disconnect_server()` also rebuilds `_space_to_conn` after removing the config entry.
 
 ### Session restore
 
-On startup, after the first `guilds_updated` signal fires, `sidebar._on_guilds_updated()` reads `Config.get_last_selection()` and attempts to restore the previously-viewed guild and channel. If the saved guild no longer exists, it falls back to the first guild.
+On startup, after the first `spaces_updated` signal fires, `sidebar._on_spaces_updated()` reads `Config.get_last_selection()` and attempts to restore the previously-viewed space and channel. If the saved space no longer exists, it falls back to the first space.
 
 Separately, `Client.connect_server()` restores the saved user status: if the user's last status was not ONLINE, it calls `update_presence()` to broadcast the saved status to all servers.
 
@@ -311,10 +311,10 @@ Separately, `Client.connect_server()` restores the saved user status: if the use
 
 Switching profiles is a disruptive operation -- the app effectively "restarts" without quitting:
 
-1. **Disconnect**: `Client.disconnect_all()` closes all WebSocket connections, clears `_connections`, `_guild_to_conn`, and all cached data (guilds, channels, users, messages, emoji textures).
+1. **Disconnect**: `Client.disconnect_all()` closes all WebSocket connections, clears `_connections`, `_space_to_conn`, and all cached data (spaces, channels, users, messages, emoji textures).
 2. **Reload config**: `Config.switch_profile(slug)` updates the registry, loads the new profile's `config.cfg`, and emits `AppState.profile_switched`.
 3. **Reconnect**: `Client._on_profile_switched()` runs the same logic as `_ready()` -- checks `has_servers()`, calls `connect_server()` for each, etc.
-4. **UI reset**: Components listening to `profile_switched` clear their state. `guilds_updated` then fires as servers reconnect, triggering the normal startup selection flow.
+4. **UI reset**: Components listening to `profile_switched` clear their state. `spaces_updated` then fires as servers reconnect, triggering the normal startup selection flow.
 
 ### Default profile protection
 
@@ -339,7 +339,7 @@ The Sound page (page 3) in User Settings lists sound events with per-event check
 
 ### Custom emoji cache
 
-Custom guild emoji are downloaded and cached as PNG files in `user://profiles/<slug>/emoji_cache/<emoji_id>.png` (per-profile). This is a write-once disk cache -- emoji are checked on disk before downloading. Each profile has its own emoji cache directory so switching profiles and connecting to different servers won't have stale emoji from other profiles' servers.
+Custom space emoji are downloaded and cached as PNG files in `user://profiles/<slug>/emoji_cache/<emoji_id>.png` (per-profile). This is a write-once disk cache -- emoji are checked on disk before downloading. Each profile has its own emoji cache directory so switching profiles and connecting to different servers won't have stale emoji from other profiles' servers.
 
 ### Notification preferences
 
@@ -347,14 +347,14 @@ Custom guild emoji are downloaded and cached as PNG files in `user://profiles/<s
 
 ### Category collapse state
 
-Each category tracks its collapsed state in a per-guild Config section `collapsed_<guild_id>`. On toggle, the state is saved. On channel list load, `restore_collapse_state()` reads the saved state.
+Each category tracks its collapsed state in a per-space Config section `collapsed_<space_id>`. On toggle, the state is saved. On channel list load, `restore_collapse_state()` reads the saved state.
 
 ### Export / import as profile operations
 
 The existing `export_config()` and `import_config()` methods are preserved but reframed in the UI:
 
-- **Export Profile**: Calls `Config.export_config(path)` on the active profile. The file extension is `.daccord-profile` (a plaintext `ConfigFile`). Credentials are included in the export since the user explicitly chose to export.
-- **Import Profile**: Creates a new profile, then calls `Config.import_config(path)` to load the data into it. The user is prompted for a profile name before import.
+- **Export Profile**: Calls `Config.export_config(path)` on the active profile. The file extension is `.daccord-profile` (a plaintext `ConfigFile`). **Secrets (tokens and passwords) are stripped** from server sections before writing — the export only contains preferences, server URLs, space names, and usernames.
+- **Import Profile**: Creates a new profile, strips any leftover password keys from the imported data, then saves the config encrypted with `save_encrypted_pass()`. The user is prompted for a profile name before import.
 
 ### Password hashing
 
@@ -398,17 +398,17 @@ Legacy paths (pre-profile migration):
 ## Implementation Status
 
 - [x] Encrypted config file with plaintext migration fallback
-- [x] Server connection storage (URL, token, guild name, credentials)
+- [x] Server connection storage (URL, token, space name, username)
 - [x] Server removal with index shifting
-- [x] Session restore (last guild + channel selection)
+- [x] Session restore (last space + channel selection)
 - [x] User status persistence across sessions
 - [x] Custom status text persistence
 - [x] Voice device preferences (mic, speaker, camera)
 - [x] Video resolution and FPS preferences
 - [x] SFX volume and per-event sound toggles
 - [x] Error reporting opt-in with first-launch consent
-- [x] Guild folder assignments and colors
-- [x] Category collapse state per guild
+- [x] Space folder assignments and colors
+- [x] Category collapse state per space
 - [x] Recently used emoji (16 max)
 - [x] Custom emoji disk cache
 - [x] Notification preference storage (suppress @everyone, server mute)
@@ -417,7 +417,10 @@ Legacy paths (pre-profile migration):
 - [x] Config export/import
 - [x] Config backup before overwrite
 - [x] Emit `server_connection_failed` on initial auth failure
-- [x] Token-only re-auth signal (`reauth_needed`) with auth dialog
+- [x] Token-only re-auth signal (`reauth_needed`) with auth dialog and username pre-fill
+- [x] Password removal from config storage with migration for existing configs
+- [x] Sanitized exports (no tokens or passwords in exported files)
+- [x] Encrypted import saving (imported profiles saved with `save_encrypted_pass`)
 - [x] Profile registry file (`user://profile_registry.cfg`)
 - [x] Migration from legacy `user://config.cfg` to `user://profiles/default/`
 - [x] Default profile auto-creation on fresh install
@@ -455,5 +458,4 @@ Legacy paths (pre-profile migration):
 | `save()` called on every individual setter | Low | Each `Config.set_*()` calls `save_encrypted_pass()` immediately. Rapid successive changes (e.g., applying all sound settings) trigger multiple disk writes. A deferred/batched save would be more efficient. |
 | SHA-256 is fast to brute-force | Low | Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model. |
 | No profile lock-on-idle | Low | Once a password-protected profile is unlocked, it stays unlocked for the session. No idle timeout that re-locks the profile. |
-| Export includes credentials in plaintext | Medium | `export_config()` saves the `ConfigFile` in plaintext, including server tokens and passwords. A warning dialog before export would be prudent. |
 | No multi-instance guard | Low | Two daccord instances could run with the same profile simultaneously, causing config write conflicts. A lockfile would prevent this but isn't planned for v1. |

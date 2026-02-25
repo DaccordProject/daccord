@@ -7,7 +7,7 @@ const DURATION_LABELS := [
 	"1 hour", "1 day", "1 week"
 ]
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _user_id: String = ""
 
 @onready var _title_label: Label = \
@@ -35,10 +35,10 @@ func _ready() -> void:
 		_duration_option.add_item(label)
 
 func setup(
-	guild_id: String, user_id: String,
+	space_id: String, user_id: String,
 	display_name: String, member_data: Dictionary
 ) -> void:
-	_guild_id = guild_id
+	_space_id = space_id
 	_user_id = user_id
 	if _title_label:
 		_title_label.text = "Moderate %s" % display_name
@@ -72,7 +72,7 @@ func _on_apply() -> void:
 			]
 
 	var result: RestResult = await Client.admin.update_member(
-		_guild_id, _user_id, data
+		_space_id, _user_id, data
 	)
 	_apply_btn.disabled = false
 	_apply_btn.text = "Apply"
@@ -94,7 +94,7 @@ func _on_remove_timeout() -> void:
 		"communication_disabled_until": "",
 	}
 	var result: RestResult = await Client.admin.update_member(
-		_guild_id, _user_id, data
+		_space_id, _user_id, data
 	)
 	_remove_timeout_btn.disabled = false
 

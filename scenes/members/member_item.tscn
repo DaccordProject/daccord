@@ -1,7 +1,11 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/members/member_item.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="2"]
+[ext_resource type="Shader" path="res://assets/theme/status_circle.gdshader" id="3"]
+
+[sub_resource type="ShaderMaterial" id="status_circle_mat"]
+shader = ExtResource("3")
 
 [node name="MemberItem" type="Control"]
 custom_minimum_size = Vector2(0, 44)
@@ -39,6 +43,7 @@ text = "User"
 text_overrun_behavior = 3
 
 [node name="StatusDot" type="ColorRect" parent="HBox"]
+material = SubResource("status_circle_mat")
 custom_minimum_size = Vector2(10, 10)
 layout_mode = 2
 size_flags_vertical = 4

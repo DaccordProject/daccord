@@ -50,30 +50,30 @@ func test_has_servers_false_when_empty() -> void:
 
 
 func test_has_servers_true_after_add() -> void:
-	config.add_server("http://localhost:3000", "tok_abc", "my-guild")
+	config.add_server("http://localhost:3000", "tok_abc", "my-space")
 	assert_true(config.has_servers())
 
 
 # --- add_server / get_servers ---
 
 func test_add_server_stores_entry() -> void:
-	config.add_server("http://localhost:3000", "tok_abc", "my-guild")
+	config.add_server("http://localhost:3000", "tok_abc", "my-space")
 	var servers = config.get_servers()
 	assert_eq(servers.size(), 1)
 	assert_eq(servers[0]["base_url"], "http://localhost:3000")
 	assert_eq(servers[0]["token"], "tok_abc")
-	assert_eq(servers[0]["guild_name"], "my-guild")
+	assert_eq(servers[0]["space_name"], "my-space")
 
 
 func test_add_multiple_servers() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
-	config.add_server("http://host2:4000", "tok_2", "guild-b")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
+	config.add_server("http://host2:4000", "tok_2", "space-b")
 	var servers = config.get_servers()
 	assert_eq(servers.size(), 2)
 	assert_eq(servers[0]["base_url"], "http://host1:3000")
 	assert_eq(servers[1]["base_url"], "http://host2:4000")
-	assert_eq(servers[0]["guild_name"], "guild-a")
-	assert_eq(servers[1]["guild_name"], "guild-b")
+	assert_eq(servers[0]["space_name"], "space-a")
+	assert_eq(servers[1]["space_name"], "space-b")
 
 
 func test_get_servers_empty_by_default() -> void:
@@ -84,26 +84,26 @@ func test_get_servers_empty_by_default() -> void:
 # --- remove_server ---
 
 func test_remove_server_by_index() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
-	config.add_server("http://host2:4000", "tok_2", "guild-b")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
+	config.add_server("http://host2:4000", "tok_2", "space-b")
 	config.remove_server(0)
 	var servers = config.get_servers()
 	assert_eq(servers.size(), 1)
 	assert_eq(servers[0]["base_url"], "http://host2:4000")
-	assert_eq(servers[0]["guild_name"], "guild-b")
+	assert_eq(servers[0]["space_name"], "space-b")
 
 
 func test_remove_last_server() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
 	config.remove_server(0)
 	assert_false(config.has_servers())
 	assert_eq(config.get_servers().size(), 0)
 
 
 func test_remove_middle_server_shifts_remaining() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
-	config.add_server("http://host2:4000", "tok_2", "guild-b")
-	config.add_server("http://host3:5000", "tok_3", "guild-c")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
+	config.add_server("http://host2:4000", "tok_2", "space-b")
+	config.add_server("http://host3:5000", "tok_3", "space-c")
 	config.remove_server(1)
 	var servers = config.get_servers()
 	assert_eq(servers.size(), 2)
@@ -112,13 +112,13 @@ func test_remove_middle_server_shifts_remaining() -> void:
 
 
 func test_remove_server_invalid_index_no_op() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
 	config.remove_server(5)
 	assert_eq(config.get_servers().size(), 1)
 
 
 func test_remove_server_negative_index_no_op() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
 	config.remove_server(-1)
 	assert_eq(config.get_servers().size(), 1)
 
@@ -126,8 +126,8 @@ func test_remove_server_negative_index_no_op() -> void:
 # --- clear ---
 
 func test_clear_removes_all_servers() -> void:
-	config.add_server("http://host1:3000", "tok_1", "guild-a")
-	config.add_server("http://host2:4000", "tok_2", "guild-b")
+	config.add_server("http://host1:3000", "tok_1", "space-a")
+	config.add_server("http://host2:4000", "tok_2", "space-b")
 	config._clear()
 	assert_false(config.has_servers())
 	assert_eq(config.get_servers().size(), 0)
@@ -155,32 +155,31 @@ func test_save_allowed_when_load_ok_true() -> void:
 
 func test_add_server_works_when_load_ok_true() -> void:
 	config._load_ok = true
-	config.add_server("http://host:3000", "tok", "guild")
+	config.add_server("http://host:3000", "tok", "space")
 	assert_true(config.has_servers())
 
 
-# --- update_server_credentials ---
+# --- update_server_username ---
 
-func test_update_server_credentials() -> void:
+func test_update_server_username() -> void:
 	config._load_ok = true
-	config.add_server("http://host:3000", "tok", "guild")
-	config.update_server_credentials(0, "alice", "pass123")
+	config.add_server("http://host:3000", "tok", "space")
+	config.update_server_username(0, "alice")
 	var servers = config.get_servers()
 	assert_eq(servers[0]["username"], "alice")
-	assert_eq(servers[0]["password"], "pass123")
 
-func test_update_server_credentials_invalid_index() -> void:
+func test_update_server_username_invalid_index() -> void:
 	config._load_ok = true
-	config.add_server("http://host:3000", "tok", "guild")
+	config.add_server("http://host:3000", "tok", "space")
 	# Should be a no-op for out-of-range index
-	config.update_server_credentials(5, "alice", "pass")
+	config.update_server_username(5, "alice")
 	var servers = config.get_servers()
 	assert_eq(servers[0]["username"], "")
 
-func test_update_server_credentials_negative_index() -> void:
+func test_update_server_username_negative_index() -> void:
 	config._load_ok = true
-	config.add_server("http://host:3000", "tok", "guild")
-	config.update_server_credentials(-1, "alice", "pass")
+	config.add_server("http://host:3000", "tok", "space")
+	config.update_server_username(-1, "alice")
 	var servers = config.get_servers()
 	assert_eq(servers[0]["username"], "")
 
@@ -189,7 +188,7 @@ func test_update_server_credentials_negative_index() -> void:
 
 func test_export_config_succeeds() -> void:
 	config._load_ok = true
-	config.add_server("http://host:3000", "tok", "guild")
+	config.add_server("http://host:3000", "tok", "space")
 	var path := "user://test_export_config.cfg"
 	var err: int = config.export_config(path)
 	assert_eq(err, OK)
@@ -207,7 +206,8 @@ func test_import_config_invalid_path() -> void:
 
 func test_import_config_round_trip() -> void:
 	config._load_ok = true
-	config.add_server("http://host:3000", "tok", "guild")
+	config.add_server("http://host:3000", "tok", "space")
+	config._config.set_value("state", "user_status", 2)
 	var path := "user://test_import_config.cfg"
 	config.export_config(path)
 	# Create a fresh config and import
@@ -220,8 +220,63 @@ func test_import_config_round_trip() -> void:
 	var servers = config2.get_servers()
 	assert_eq(servers.size(), 1)
 	assert_eq(servers[0]["base_url"], "http://host:3000")
+	# Export strips secrets, so token should be empty after import
+	assert_eq(servers[0]["token"], "")
+	# Non-secret data should survive the round trip
+	var status: int = config2._config.get_value("state", "user_status", 0)
+	assert_eq(status, 2)
 	config2.free()
 	# Cleanup
 	DirAccess.remove_absolute(
 		ProjectSettings.globalize_path(path)
 	)
+
+func test_export_strips_secrets() -> void:
+	config._load_ok = true
+	config.add_server("http://host:3000", "tok_secret", "space", "alice")
+	# Manually set a password key to simulate a pre-migration config
+	config._config.set_value("server_0", "password", "hunter2")
+	var path := "user://test_export_secrets.cfg"
+	var err: int = config.export_config(path)
+	assert_eq(err, OK)
+	# Read the exported file and verify no secrets
+	var exported := ConfigFile.new()
+	exported.load(path)
+	assert_false(exported.has_section_key("server_0", "token"))
+	assert_false(exported.has_section_key("server_0", "password"))
+	# Non-secret fields should be present
+	assert_eq(exported.get_value("server_0", "base_url", ""), "http://host:3000")
+	assert_eq(exported.get_value("server_0", "username", ""), "alice")
+	# Cleanup
+	DirAccess.remove_absolute(
+		ProjectSettings.globalize_path(path)
+	)
+
+func test_migrate_clears_passwords() -> void:
+	config._load_ok = true
+	# Simulate a pre-migration config with password keys
+	config._config.set_value("servers", "count", 2)
+	config._config.set_value("server_0", "base_url", "http://host1:3000")
+	config._config.set_value("server_0", "token", "tok1")
+	config._config.set_value("server_0", "space_name", "space-a")
+	config._config.set_value("server_0", "username", "alice")
+	config._config.set_value("server_0", "password", "secret1")
+	config._config.set_value("server_1", "base_url", "http://host2:3000")
+	config._config.set_value("server_1", "token", "tok2")
+	config._config.set_value("server_1", "space_name", "space-b")
+	config._config.set_value("server_1", "username", "bob")
+	config._config.set_value("server_1", "password", "secret2")
+	# Run migration
+	config._migrate_clear_passwords()
+	# Passwords should be gone
+	assert_false(config._config.has_section_key("server_0", "password"))
+	assert_false(config._config.has_section_key("server_1", "password"))
+	# Other fields should remain
+	assert_eq(config._config.get_value("server_0", "username", ""), "alice")
+	assert_eq(config._config.get_value("server_1", "username", ""), "bob")
+
+func test_add_server_no_password_key() -> void:
+	config._load_ok = true
+	config.add_server("http://host:3000", "tok", "space", "alice")
+	# Verify no password key is stored
+	assert_false(config._config.has_section_key("server_0", "password"))

@@ -3,12 +3,12 @@
 
 ## Overview
 
-Admins manage their space (server) through a set of privileged operations: editing space settings, creating/updating/deleting channels, managing roles and permissions, kicking/banning members, generating invites, and managing custom emojis. The server enforces a 37-permission model with role hierarchy and per-channel permission overwrites (Discord-style resolution), while the client exposes the full REST API through AccordKit. The client provides admin dialogs for all major management features, accessible via right-click context menus on guild icons, the channel list banner dropdown, and member items. All admin dialogs include search/filter, bulk operations (where applicable), reordering controls, unsaved changes warnings, and visual feedback for async actions. The `Client` autoload routes API calls, caches roles, handles gateway events for roles/bans/invites/emojis, and exposes permission checking via `has_permission()`.
+Admins manage their space (server) through a set of privileged operations: editing space settings, creating/updating/deleting channels, managing roles and permissions, kicking/banning members, generating invites, and managing custom emojis. The server enforces a 37-permission model with role hierarchy and per-channel permission overwrites (Discord-style resolution), while the client exposes the full REST API through AccordKit. The client provides admin dialogs for all major management features, accessible via right-click context menus on space icons, the channel list banner dropdown, and member items. All admin dialogs include search/filter, bulk operations (where applicable), reordering controls, unsaved changes warnings, and visual feedback for async actions. The `Client` autoload routes API calls, caches roles, handles gateway events for roles/bans/invites/emojis, and exposes permission checking via `has_permission()`.
 
 ## User Steps
 
 ### Accessing Admin Tools
-1. Admin right-clicks guild icon in the guild bar to see permission-gated menu items
+1. Admin right-clicks space icon in the space bar to see permission-gated menu items
 2. **Or** admin clicks the channel list banner (visible dropdown chevron when user has any admin permission) to see the same permission-gated menu
 3. Available menu items depend on permissions: Space Settings (`manage_space`), Channels (`manage_channels`), Roles (`manage_roles`), Bans (`ban_members`), Invites (`create_invites`), Emojis (`manage_emojis`)
 
@@ -91,7 +91,7 @@ Admins manage their space (server) through a set of privileged operations: editi
 ## Signal Flow
 
 ```
-Admin action (guild icon context menu / banner dropdown / member context menu / member list invite button)
+Admin action (space icon context menu / banner dropdown / member context menu / member list invite button)
   │
   ├─ Space settings ─────► Client.update_space() ──► PATCH /spaces/{id}
   │                        Client.delete_space() ──► DELETE /spaces/{id}
@@ -102,7 +102,7 @@ Admin action (guild icon context menu / banner dropdown / member context menu / 
   │                                                        │
   │                                              Client._on_space_update() (line 705)
   │                                                        │
-  │                                              AppState.guilds_updated
+  │                                              AppState.spaces_updated
   │
   ├─ Channel CRUD ───────► Client.create_channel()           ──► POST /spaces/{id}/channels
   │                        Client.update_channel()           ──► PATCH /channels/{id}
@@ -195,12 +195,12 @@ Admin action (guild icon context menu / banner dropdown / member context menu / 
 | File | Role |
 |------|------|
 | `scripts/autoload/client.gd` | Routes API calls, caches members + roles, handles all gateway events, permission helpers, admin API wrappers (`reorder_channels`, `reorder_roles`, `update_channel_overwrites`, `get_emoji_url`), `disconnect_server()` |
-| `scripts/autoload/app_state.gd` | Signal bus: `members_updated`, `guilds_updated`, `channels_updated`, `roles_updated`, `bans_updated`, `invites_updated`, `emojis_updated` |
+| `scripts/autoload/app_state.gd` | Signal bus: `members_updated`, `spaces_updated`, `channels_updated`, `roles_updated`, `bans_updated`, `invites_updated`, `emojis_updated` |
 | `scripts/autoload/client_models.gd` | `member_to_dict()`, `role_to_dict()`, `invite_to_dict()`, `emoji_to_dict()`, `channel_to_dict()` converters. `channel_to_dict()` now includes `position` and `permission_overwrites` fields |
 | `scripts/autoload/config.gd` | Persists server configs; `add_server()`, `remove_server()`, `clear()` |
 | `scenes/members/member_list.gd` | Virtual-scrolling member list grouped by status; "Invite People" button (gated to `create_invites`) |
 | `scenes/members/member_item.gd` | Member display with right-click context menu (kick, ban, role assignment with visual feedback) |
-| `scenes/sidebar/channels/banner.gd` | Channel list banner with admin dropdown menu (permission-gated, same items as guild icon context menu) |
+| `scenes/sidebar/channels/banner.gd` | Channel list banner with admin dropdown menu (permission-gated, same items as space icon context menu) |
 
 ### Admin Dialogs
 | File | Role |
@@ -405,15 +405,15 @@ Server-side `emojis.rs`:
 `Client` autoload connects gateway signals in `connect_server()` (lines 207-222):
 
 **Connected signals (with handlers):**
-- `space_create` → `_on_space_create()` (line 698) -- updates `_guild_cache` if space matches connection's guild_id, emits `guilds_updated`
-- `space_update` → `_on_space_update()` (line 705) -- updates `_guild_cache`, emits `guilds_updated`
-- `space_delete` → `_on_space_delete()` (line 710) -- removes from `_guild_cache` and `_guild_to_conn`, emits `guilds_updated`
+- `space_create` → `_on_space_create()` (line 698) -- updates `_space_cache` if space matches connection's space_id, emits `spaces_updated`
+- `space_update` → `_on_space_update()` (line 705) -- updates `_space_cache`, emits `spaces_updated`
+- `space_delete` → `_on_space_delete()` (line 710) -- removes from `_space_cache` and `_space_to_conn`, emits `spaces_updated`
 - `member_join` → `_on_member_join()` (line 642) -- fetches user if not cached, appends to `_member_cache`, emits `members_updated`
 - `member_leave` → `_on_member_leave()` (line 664) -- removes from `_member_cache`, emits `members_updated`
 - `member_update` → `_on_member_update()` (line 681) -- updates in `_member_cache`, emits `members_updated`
 - `channel_create` → `_on_channel_create()` (line 716) -- handles both DM and space channels; updates `_channel_cache` or `_dm_channel_cache`, emits `channels_updated` or `dm_channels_updated`
 - `channel_update` → `_on_channel_update()` (line 737) -- same DM/space routing as create
-- `channel_delete` → `_on_channel_delete()` (line 758) -- removes from cache, cleans up `_channel_to_guild` map
+- `channel_delete` → `_on_channel_delete()` (line 758) -- removes from cache, cleans up `_channel_to_space` map
 
 **Also connected (with handlers):**
 - `role_create` → `_on_role_create()` -- adds role to `_role_cache`, emits `roles_updated`
@@ -431,11 +431,11 @@ Server-side `emojis.rs`:
 ### Member List UI
 
 `member_list.gd` displays a virtual-scrolling member panel:
-- Connects to `AppState.guild_selected` (line 31) and `AppState.members_updated` (line 32)
+- Connects to `AppState.space_selected` (line 31) and `AppState.members_updated` (line 32)
 - `_rebuild_row_data()` (line 49) groups members by status (ONLINE, IDLE, DND, OFFLINE) and sorts alphabetically within each group
 - Uses a fixed `ROW_HEIGHT` of 44px (line 6) with object pooling for performance (`_ensure_pool_size()` at line 96)
-- Data source: `Client.get_members_for_guild()` (line 51) which reads from `_member_cache`
-- **Invite People button**: An "Invite People" button (blue, centered) appears between the "MEMBERS" header and the member scroll area when the user has `CREATE_INVITES` permission. Clicking it opens the Invite Management dialog for the current guild.
+- Data source: `Client.get_members_for_space()` (line 51) which reads from `_member_cache`
+- **Invite People button**: An "Invite People" button (blue, centered) appears between the "MEMBERS" header and the member scroll area when the user has `CREATE_INVITES` permission. Clicking it opens the Invite Management dialog for the current space.
 
 `member_item.gd` renders each member:
 - Avatar with circle shader, display name, and colored status dot (lines 14-27)
@@ -445,7 +445,7 @@ Server-side `emojis.rs`:
 
 The `AccordMember` model (lines 1-69 of `member.gd`) includes a `roles` array (line 10) that is populated from the API response (lines 33-36). `ClientModels.member_to_dict()` now copies user fields + nickname override + `roles` array + `joined_at` string. The roles array is used by the member context menu for role toggle checkboxes.
 
-The `AccordSpace` model (lines 1-137 of `space.gd`) includes `roles` (line 17) and `emojis` (line 18) arrays. `ClientModels.space_to_guild_dict()` now extracts id, name, icon_color, owner_id, description, verification_level, default_notifications, preferred_locale, and public flag. The admin settings dialog reads these fields.
+The `AccordSpace` model (lines 1-137 of `space.gd`) includes `roles` (line 17) and `emojis` (line 18) arrays. `ClientModels.space_to_dict()` now extracts id, name, icon_color, owner_id, description, verification_level, default_notifications, preferred_locale, and public flag. The admin settings dialog reads these fields.
 
 ### Admin Dialog UX Features
 
@@ -454,7 +454,7 @@ The following cross-cutting UX improvements are implemented across all admin dia
 **Banner Admin Dropdown** (`banner.gd`):
 - Caches `_has_admin` (line 12) by checking all six admin permissions in `_has_any_admin_perm()` (line 35)
 - Shows a dropdown chevron (`$DropdownIcon`) when user has any admin permission (line 33)
-- Clicking the banner opens a `PopupMenu` (line 53) with permission-gated items matching the guild icon context menu
+- Clicking the banner opens a `PopupMenu` (line 53) with permission-gated items matching the space icon context menu
 - Each menu item instantiates the corresponding admin dialog scene (line 88)
 
 **Search/Filter** (all admin list dialogs):
@@ -567,10 +567,10 @@ The following cross-cutting UX improvements are implemented across all admin dia
 - [x] Client-side emoji gateway event handler (emoji_update emits emojis_updated)
 - [x] Client-side role cache (`_role_cache` populated on gateway ready via `fetch_roles()`)
 - [x] Client-side permission checking (`has_permission()`, `is_space_owner()`) gates admin UI
-- [x] Server removal UI (guild icon context menu "Remove Server" with confirm dialog)
+- [x] Server removal UI (space icon context menu "Remove Server" with confirm dialog)
 - [x] Reusable ConfirmDialog (title, message, confirm text, danger mode)
-- [x] Guild icon right-click context menu as entry point for all admin dialogs
-- [x] Guild banner clickable dropdown as additional admin entry point
+- [x] Space icon right-click context menu as entry point for all admin dialogs
+- [x] Space banner clickable dropdown as additional admin entry point
 - [x] "Invite People" button in member list (gated to `create_invites`, opens invite management dialog)
 - [x] Channel reordering UI (up/down buttons calling `Client.reorder_channels()`)
 - [x] Role reordering UI (up/down buttons calling `Client.reorder_roles()`)
@@ -587,7 +587,7 @@ The following cross-cutting UX improvements are implemented across all admin dia
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | `fetch_members()` uses hardcoded limit of 1000 | Low | May miss members in large spaces. The server supports cursor-based pagination but the client does not follow cursors. |
-| No audit log support | Low | `AccordPermission.VIEW_AUDIT_LOG` exists and the Admin default role includes it, but no audit log API endpoints or UI exist. |
+| Audit log gaps (change diffs, real-time updates) | Low | Audit log viewer and API exist (see [audit_logs.md](audit_logs.md)). Remaining gaps: no change diff display, no gateway events for live updates, target names not resolved. |
 | Channel permission overwrite editor only supports role overwrites | Low | The dialog builds all overwrites as `"type": "role"` (line 184 of `channel_permissions_dialog.gd`). Member-specific overwrites are supported by the server but not exposed in the UI. |
 | Emoji CDN GIF loading uses `load_png_from_buffer()` | Low | Animated emojis (`.gif`) are loaded using `load_png_from_buffer()` (line 103 of `emoji_management_dialog.gd`), which won't decode GIF frames correctly. Requires a GIF decoder or sprite sheet approach. |
 | Bulk operations are sequential | Low | Bulk delete/revoke/unban calls `await` in a loop for each item. Could be parallelized or batched for better performance on large selections. |

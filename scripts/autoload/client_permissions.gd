@@ -8,13 +8,13 @@ func _init(client: Node) -> void:
 
 
 func has_permission(gid: String, perm: String) -> bool:
-	if AppState.is_imposter_mode and gid == AppState.imposter_guild_id:
+	if AppState.is_imposter_mode and gid == AppState.imposter_space_id:
 		return AccordPermission.has(AppState.imposter_permissions, perm)
 	var my_id: String = _c.current_user.get("id", "")
 	if _c.current_user.get("is_admin", false):
 		return true
-	var guild: Dictionary = _c._guild_cache.get(gid, {})
-	if guild.get("owner_id", "") == my_id:
+	var space: Dictionary = _c._space_cache.get(gid, {})
+	if space.get("owner_id", "") == my_id:
 		return true
 	var my_roles: Array = []
 	var mi: int = _c._member_index_for(gid, my_id)
@@ -36,7 +36,7 @@ func has_channel_permission(
 ) -> bool:
 	# Imposter mode override
 	if AppState.is_imposter_mode \
-			and gid == AppState.imposter_guild_id:
+			and gid == AppState.imposter_space_id:
 		return AccordPermission.has(
 			AppState.imposter_permissions, perm
 		)
@@ -44,8 +44,8 @@ func has_channel_permission(
 	# Instance admin / space owner bypass
 	if _c.current_user.get("is_admin", false):
 		return true
-	var guild: Dictionary = _c._guild_cache.get(gid, {})
-	if guild.get("owner_id", "") == my_id:
+	var space: Dictionary = _c._space_cache.get(gid, {})
+	if space.get("owner_id", "") == my_id:
 		return true
 
 	# Gather user's role IDs
@@ -133,8 +133,8 @@ func has_channel_permission(
 
 
 func is_space_owner(gid: String) -> bool:
-	var guild: Dictionary = _c._guild_cache.get(gid, {})
-	return guild.get("owner_id", "") == _c.current_user.get(
+	var space: Dictionary = _c._space_cache.get(gid, {})
+	return space.get("owner_id", "") == _c.current_user.get(
 		"id", ""
 	)
 

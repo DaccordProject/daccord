@@ -25,7 +25,7 @@ This flow describes how daccord reports crashes, script errors, and diagnostic d
    - GDScript stack trace with file paths and line numbers.
    - Breadcrumbs (recent user actions leading up to the error).
    - Environment info: OS, Godot version, app version, renderer.
-   - Current context: connected server count, active guild/channel IDs (no message content).
+   - Current context: connected server count, active space/channel IDs (no message content).
 4. The `_before_send` callback (line 33 of `error_reporting.gd`) checks consent, suppresses editor events, and scrubs PII patterns from the event message.
 5. The event is sent to the GlitchTip server via the DSN.
 6. The user is not interrupted. No popup or toast appears for automatic captures.
@@ -42,7 +42,7 @@ This flow describes how daccord reports crashes, script errors, and diagnostic d
 1. User encounters a bug and wants to report it manually.
 2. User opens the user bar menu and selects "Report a Problem" (menu id 13).
 3. A dialog appears with a text field: "Describe what happened (optional):" and buttons [Send Report] [Cancel].
-4. **Send Report:** `ErrorReporting.report_problem(description)` calls `SentrySDK.capture_feedback()` with a `SentryFeedback` object. Context tags (server_count, guild_id, channel_id) are updated first. Toast: "Report sent. Thank you!"
+4. **Send Report:** `ErrorReporting.report_problem(description)` calls `SentrySDK.capture_feedback()` with a `SentryFeedback` object. Context tags (server_count, space_id, channel_id) are updated first. Toast: "Report sent. Thank you!"
 5. **Cancel:** Dialog closes. No event is sent.
 
 ### Toggling Error Reporting (User Bar Menu)
@@ -95,7 +95,7 @@ Manual Report:
     -> _show_feedback_dialog()  (line 213)
     -> User enters description, clicks [Send Report]
     -> ErrorReporting.report_problem(description)  (line 131)
-      -> update_context() sets server_count, guild_id, channel_id tags  (line 115)
+      -> update_context() sets server_count, space_id, channel_id tags  (line 115)
       -> SentrySDK.capture_feedback(SentryFeedback)  (line 137)
     -> _show_report_sent_toast()  (line 276)
 
@@ -115,7 +115,7 @@ Toggle Setting:
 | `project.godot:60-73` | Sentry SDK configuration: DSN, `auto_init=false`, `send_default_pii=false`, logger masks, `logger/include_source=true`. |
 | `scripts/autoload/error_reporting.gd` | Dedicated autoload for Sentry lifecycle: manual init, `before_send` PII gate, breadcrumb hooks on `AppState` signals, `report_problem()` for user feedback, `update_context()` for runtime tags. |
 | `scripts/autoload/config.gd:160-172` | Persists `error_reporting_enabled` and `consent_shown` under `[error_reporting]` config section. |
-| `scripts/autoload/app_state.gd:3-14` | Breadcrumb source signals: `guild_selected`, `channel_selected`, `dm_mode_entered`, `message_sent`, `reply_initiated`, `layout_mode_changed`, `sidebar_drawer_toggled`. |
+| `scripts/autoload/app_state.gd:3-14` | Breadcrumb source signals: `space_selected`, `channel_selected`, `dm_mode_entered`, `message_sent`, `reply_initiated`, `layout_mode_changed`, `sidebar_drawer_toggled`. |
 | `scenes/main/main_window.gd:57-65` | First-launch consent dialog trigger and crash recovery toast trigger. |
 | `scenes/main/main_window.gd:338-395` | `_show_consent_dialog()` and `_show_crash_toast()` implementations. |
 | `scenes/sidebar/user_bar.gd:40-45` | "Report a Problem" (id 13) and "Send Error Reports" check item (id 14) menu entries. |
@@ -221,7 +221,7 @@ This ordering ensures `Config` is available when `ErrorReporting._ready()` check
 
 **`_add_breadcrumb(message, category)`** (line 102): Creates a `SentryBreadcrumb`, sets `message`, `category`, and `type = "default"`, then calls `SentrySDK.add_breadcrumb()`.
 
-**`update_context()`** (line 115): Sets `server_count`, `guild_id`, and `channel_id` tags on the Sentry scope. Called before manual reports.
+**`update_context()`** (line 115): Sets `server_count`, `space_id`, and `channel_id` tags on the Sentry scope. Called before manual reports.
 
 **`report_problem(description)`** (line 131): Creates a `SentryFeedback` with the description, calls `SentrySDK.capture_feedback()`.
 
@@ -231,7 +231,7 @@ Breadcrumbs provide the "trail of actions" leading to an error. Hooked in `error
 
 | Signal | Breadcrumb | Category |
 |--------|------------|----------|
-| `guild_selected` | `"Switched guild: {guild_id}"` | `navigation` |
+| `space_selected` | `"Switched space: {space_id}"` | `navigation` |
 | `channel_selected` | `"Opened channel: {channel_id}"` | `navigation` |
 | `dm_mode_entered` | `"Entered DM mode"` | `navigation` |
 | `message_sent` | `"Sent message"` (no content) | `action` |

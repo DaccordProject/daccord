@@ -8,7 +8,7 @@ const ROW_HEIGHT := 44
 const DEBOUNCE_MS := 100
 const POOL_SHRINK_HYSTERESIS := 8
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _row_data: Array = []
 var _item_pool: Array = []
 var _header_pool: Array = []
@@ -55,7 +55,7 @@ func _ready() -> void:
 	_debounce_timer.timeout.connect(_rebuild_row_data)
 	add_child(_debounce_timer)
 
-	AppState.guild_selected.connect(_on_guild_selected)
+	AppState.space_selected.connect(_on_space_selected)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.members_updated.connect(_on_members_updated)
 	AppState.dm_channels_updated.connect(
@@ -79,26 +79,26 @@ func _process(_delta: float) -> void:
 		scroll_container.get_v_scroll_bar().value
 	)
 
-func _on_guild_selected(guild_id: String) -> void:
-	_guild_id = guild_id
+func _on_space_selected(space_id: String) -> void:
+	_space_id = space_id
 	_row_data.clear()
 	_search_text = ""
 	search_bar.text = ""
 	_update_virtual_height()
 	_hide_all_pool_nodes()
 	_update_invite_btn_visibility()
-	if not Client.get_members_for_guild(guild_id).is_empty():
+	if not Client.get_members_for_space(space_id).is_empty():
 		_rebuild_row_data()
 
 func _update_invite_btn_visibility() -> void:
-	if _guild_id.is_empty():
+	if _space_id.is_empty():
 		invite_btn.visible = false
 		return
 	var has_perm: bool = Client.has_permission(
-		_guild_id, AccordPermission.CREATE_INVITES
+		_space_id, AccordPermission.CREATE_INVITES
 	)
-	var member_count: int = Client.get_members_for_guild(
-		_guild_id
+	var member_count: int = Client.get_members_for_space(
+		_space_id
 	).size()
 	invite_btn.visible = has_perm and member_count <= 2
 
@@ -124,8 +124,8 @@ func _on_dm_channels_updated() -> void:
 			_build_dm_participants(dm)
 			return
 
-func _on_members_updated(guild_id: String) -> void:
-	if guild_id != _guild_id:
+func _on_members_updated(space_id: String) -> void:
+	if space_id != _space_id:
 		return
 	_update_invite_btn_visibility()
 	if _incremental_handled:
@@ -133,8 +133,8 @@ func _on_members_updated(guild_id: String) -> void:
 		return
 	_debounce_timer.start()
 
-func _on_roles_updated(guild_id: String) -> void:
-	if guild_id == _guild_id and _group_by_role:
+func _on_roles_updated(space_id: String) -> void:
+	if space_id == _space_id and _group_by_role:
 		_rebuild_row_data()
 
 func _on_search_changed(text: String) -> void:
@@ -162,7 +162,7 @@ func _rebuild_row_data() -> void:
 	set_process(true)
 
 func _build_status_groups() -> void:
-	var members: Array = Client.get_members_for_guild(_guild_id)
+	var members: Array = Client.get_members_for_space(_space_id)
 
 	var groups: Dictionary = {
 		ClientModels.UserStatus.ONLINE: [],
@@ -214,8 +214,8 @@ func _build_status_groups() -> void:
 			_row_data.append({"type": "member", "data": member})
 
 func _build_role_groups() -> void:
-	var members: Array = Client.get_members_for_guild(_guild_id)
-	var roles: Array = Client.get_roles_for_guild(_guild_id)
+	var members: Array = Client.get_members_for_space(_space_id)
+	var roles: Array = Client.get_roles_for_space(_space_id)
 
 	var role_lookup: Dictionary = {}
 	for role in roles:
@@ -286,7 +286,7 @@ func _build_role_groups() -> void:
 
 func _build_dm_participants(dm: Dictionary) -> void:
 	_row_data.clear()
-	_guild_id = ""
+	_space_id = ""
 	invite_btn.visible = false
 	group_toggle.visible = false
 
@@ -335,9 +335,9 @@ func _can_incremental() -> bool:
 	return _search_text.is_empty() and not _group_by_role
 
 func _on_member_joined(
-	guild_id: String, member_data: Dictionary,
+	space_id: String, member_data: Dictionary,
 ) -> void:
-	if guild_id != _guild_id or not _can_incremental():
+	if space_id != _space_id or not _can_incremental():
 		return
 	_incremental_handled = true
 	var user_id: String = member_data.get("id", "")
@@ -349,9 +349,9 @@ func _on_member_joined(
 	_after_incremental_change()
 
 func _on_member_left(
-	guild_id: String, user_id: String,
+	space_id: String, user_id: String,
 ) -> void:
-	if guild_id != _guild_id or not _can_incremental():
+	if space_id != _space_id or not _can_incremental():
 		return
 	_incremental_handled = true
 	_remove_member_row(user_id)
@@ -359,9 +359,9 @@ func _on_member_left(
 	_after_incremental_change()
 
 func _on_member_status_changed(
-	guild_id: String, user_id: String, new_status: int,
+	space_id: String, user_id: String, new_status: int,
 ) -> void:
-	if guild_id != _guild_id or not _can_incremental():
+	if space_id != _space_id or not _can_incremental():
 		return
 	_incremental_handled = true
 	var member_data: Dictionary = _remove_member_row(user_id)
@@ -607,4 +607,4 @@ func _update_visible_items(scroll_value: float) -> void:
 func _on_invite_pressed() -> void:
 	var dialog := InviteMgmtScene.instantiate()
 	get_tree().root.add_child(dialog)
-	dialog.setup(_guild_id)
+	dialog.setup(_space_id)

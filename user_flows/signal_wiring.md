@@ -11,10 +11,10 @@ From a user's perspective, signal wiring determines whether the UI stays in sync
 1. User changes a setting (e.g., mute a server) in User Settings
 2. Config writes the value to disk
 3. Config emits `AppState.config_changed(section, key)`
-4. All UI components connected to `config_changed` react (e.g., guild icon updates muted visual)
+4. All UI components connected to `config_changed` react (e.g., space icon updates muted visual)
 5. If a component is NOT connected, the UI is stale until a full refresh
 
-The same pattern applies to every gateway event (message received, member joined, reaction added) and every user action (select guild, send message, toggle sidebar).
+The same pattern applies to every gateway event (message received, member joined, reaction added) and every user action (select space, send message, toggle sidebar).
 
 ## Signal Flow
 
@@ -52,11 +52,11 @@ Gateway WebSocket event arrives
       → message_view.gd._on_messages_updated() re-renders message list
       → thread_panel.gd._on_thread_messages_updated() re-renders thread
 
-User clicks guild icon
-  → guild_bar.gd calls AppState.select_guild(id)
-    → AppState sets current_guild_id, emits guild_selected(id)
+User clicks space icon
+  → guild_bar.gd calls AppState.select_space(id)
+    → AppState sets current_space_id, emits space_selected(id)
       → sidebar.gd switches to channel list
-      → channel_list.gd calls load_guild()
+      → channel_list.gd calls load_space()
       → member_list.gd reloads members
       → main_window.gd updates header
       → user_bar.gd updates display
@@ -81,8 +81,8 @@ Config setting changed
 | `scripts/autoload/client.gd` | Data cache layer — 12+ cache dictionaries accessed by listeners |
 | `scenes/messages/message_view.gd` | Top listener — 14+ signal connections |
 | `scenes/main/main_window.gd` | Top listener — 10+ signal connections |
-| `scenes/sidebar/sidebar.gd` | Listener — guild/channel/DM/layout signals |
-| `scenes/members/member_list.gd` | Listener — member/channel/guild/voice signals |
+| `scenes/sidebar/sidebar.gd` | Listener — space/channel/DM/layout signals |
+| `scenes/members/member_list.gd` | Listener — member/channel/space/voice signals |
 | `scripts/autoload/error_reporting.gd` | Listener — breadcrumb signals for crash reporting |
 
 ## Implementation Details
@@ -93,10 +93,10 @@ All signals are declared in `app_state.gd` (lines 3-146). Most use `@warning_ign
 
 ```gdscript
 @warning_ignore("unused_signal")
-signal guilds_updated()
+signal spaces_updated()
 ```
 
-Signals emitted directly by AppState methods (like `guild_selected`, `channel_selected`) don't need the annotation.
+Signals emitted directly by AppState methods (like `space_selected`, `channel_selected`) don't need the annotation.
 
 ### Complete Signal Wiring Map
 
@@ -104,7 +104,7 @@ Signals emitted directly by AppState methods (like `guild_selected`, `channel_se
 
 | Signal | Emits | Connects | Emit Files | Connect Files | Status |
 |--------|-------|----------|-----------|---------------|--------|
-| `guild_selected` | 2 | 6 | app_state, guild_bar | search_panel, main_window, member_list, user_bar, sidebar, error_reporting | OK |
+| `space_selected` | 2 | 6 | app_state, guild_bar | search_panel, main_window, member_list, user_bar, sidebar, error_reporting | OK |
 | `channel_selected` | 2 | 9 | app_state, channel_list | main_window, member_list, channel_list, user_bar, sidebar, composer, message_view, error_reporting, client | OK |
 | `dm_mode_entered` | 1 | 4 | app_state | search_panel, main_window, user_bar, error_reporting | OK |
 | `search_toggled` | 2 | 1 | app_state | sidebar | OK |
@@ -131,7 +131,7 @@ Signals emitted directly by AppState methods (like `guild_selected`, `channel_se
 
 | Signal | Emits | Connects | Emit Files | Connect Files | Status |
 |--------|-------|----------|-----------|---------------|--------|
-| `guilds_updated` | 10 | 8 | guild_icon, guild_folder, client_connection, client, client_fetch, client_gateway | connecting_overlay, main_window, add_server_button, guild_bar, user_bar, sidebar, updater | OK |
+| `spaces_updated` | 10 | 8 | guild_icon, guild_folder, client_connection, client, client_fetch, client_gateway | connecting_overlay, main_window, add_server_button, guild_bar, user_bar, sidebar, updater | OK |
 | `channels_updated` | 18 | 5 | client_mutations_dm, client, client_fetch, client_gateway | channel_management_dialog, member_list, dm_list, channel_list, forum_view | OK |
 | `dm_channels_updated` | 12 | 2 | client_mutations_dm, client, client_fetch, client_gateway | member_list, dm_list | UNDER-CONNECTED |
 | `user_updated` | 5 | 2 | client_mutations, client_fetch, client_gateway | dm_list, user_bar | OK |
@@ -206,13 +206,13 @@ Signals emitted directly by AppState methods (like `guild_selected`, `channel_se
 
 | Signal | Emits | Connects | Emit Files | Connect Files | Status |
 |--------|-------|----------|-----------|---------------|--------|
-| `update_available` | 1 | 2 | updater | user_bar, update_banner | OK |
-| `update_check_complete` | 2 | 1 | updater | user_bar | OK |
-| `update_check_failed` | 4 | 1 | updater | user_bar | OK |
-| `update_download_started` | 1 | 1 | updater | update_download_dialog | OK |
-| `update_download_progress` | 1 | 1 | updater | update_download_dialog | OK |
-| `update_download_complete` | 1 | 3 | updater | main_window, user_bar, update_download_dialog | OK |
-| `update_download_failed` | 5 | 1 | updater | update_download_dialog | OK |
+| `update_available` | 1 | 1 | updater | app_settings | OK |
+| `update_check_complete` | 2 | 1 | updater | app_settings | OK |
+| `update_check_failed` | 4 | 1 | updater | app_settings | OK |
+| `update_download_started` | 1 | 1 | updater | app_settings | OK |
+| `update_download_progress` | 1 | 1 | updater | app_settings | OK |
+| `update_download_complete` | 1 | 1 | updater | app_settings | OK |
+| `update_download_failed` | 5 | 1 | updater | app_settings | OK |
 
 #### UI & Config Signals
 
@@ -249,7 +249,7 @@ Connected consumers: `guild_icon.gd` (mute visual), `user_bar.gd` (suppress @eve
 - Connected in `message_view.gd` — shows error text on the message via `show_edit_error()`
 
 **`update_download_started`** (1 emit, was 0 connections):
-- Connected in `update_download_dialog.gd` — switches to downloading state with version text
+- Connected in `app_settings.gd` — shows inline download progress on Updates page
 
 #### 3. Under-Connected Signal Fixes
 **`user_updated`** (5 emits, was 1 connection → now 2):
@@ -267,7 +267,7 @@ Connected consumers: `guild_icon.gd` (mute visual), `user_bar.gd` (suppress @eve
 #### 4. Data Cache Propagation Fix
 **Problem:** `on_user_update` in `client_gateway.gd` updated `_user_cache` but NOT `_member_cache`. When a user changed their display name or avatar, the member list showed stale data.
 
-**Fix:** After updating `_user_cache`, the handler now iterates `_member_cache` entries and propagates `display_name`, `avatar`, and `username` changes. Emits `members_updated` for each affected guild.
+**Fix:** After updating `_user_cache`, the handler now iterates `_member_cache` entries and propagates `display_name`, `avatar`, and `username` changes. Emits `members_updated` for each affected space.
 
 #### 5. Voice Error Propagation
 **Problem:** `voice_error` had 8 emit sites but only `main_window.gd` listened (showing a toast). The voice bar had no error indication, and voice errors weren't logged in crash reports.
@@ -303,7 +303,7 @@ Only `message_view.gd` and `thread_panel.gd` listen. Search results and pinned m
 #### `dm_channels_updated` — 12 emits, 2 connections
 Only `dm_list.gd` and `member_list.gd` listen. Sidebar badge counts might benefit.
 
-**Acceptable:** The DM list and member list are the primary DM consumers. Guild bar already derives unread state from `_unread_channels`.
+**Acceptable:** The DM list and member list are the primary DM consumers. Space bar already derives unread state from `_unread_channels`.
 
 #### `config_changed` — 10 emits, 2 connections
 Only `guild_icon.gd` and `user_bar.gd` listen. Many config settings (reduced motion, UI scale, sound volume) affect more components.
@@ -338,5 +338,5 @@ Emitted in `app_state.gd` (line 236) when aspect ratio crosses 1.5. Nothing list
 |-----|----------|-------|
 | `config_changed` has only 2 consumers | Low | Most config values are read on-demand (e.g., sound_manager reads volume each play), so reactive updates aren't critical for all settings |
 | `members_updated` has 1 consumer | Low | member_list.gd is the only member roster renderer. Acceptable unless member info is displayed elsewhere |
-| `dm_channels_updated` has 2 consumers | Low | dm_list and member_list cover the DM UI. Guild bar unread badges derive from `_unread_channels` separately |
-| No signal for permission changes | Medium | Permission updates arrive via gateway but don't have a dedicated signal — components re-derive permissions on guild/channel select |
+| `dm_channels_updated` has 2 consumers | Low | dm_list and member_list cover the DM UI. Space bar unread badges derive from `_unread_channels` separately |
+| No signal for permission changes | Medium | Permission updates arrive via gateway but don't have a dedicated signal — components re-derive permissions on space/channel select |

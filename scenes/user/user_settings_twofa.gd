@@ -12,12 +12,15 @@ var _secret_label: Label
 var _backup_label: Label
 var _error: Label
 var _pw_input: LineEdit
+var _accord_client: AccordClient = null
 
 func build(
 	page_vbox: VBoxContainer,
 	section_label_fn: Callable,
 	error_label_fn: Callable,
+	accord_client: AccordClient = null,
 ) -> void:
+	_accord_client = accord_client
 	_status_label = Label.new()
 	_status_label.text = "Two-factor authentication is not enabled."
 	page_vbox.add_child(_status_label)
@@ -70,10 +73,15 @@ func build(
 	_error = error_label_fn.call()
 	page_vbox.add_child(_error)
 
+func _get_client() -> AccordClient:
+	if _accord_client != null:
+		return _accord_client
+	return Client._first_connected_client()
+
 func _on_enable() -> void:
 	_error.visible = false
 	_enable_btn.disabled = true
-	var client: AccordClient = Client._first_connected_client()
+	var client: AccordClient = _get_client()
 	if client == null:
 		_error.text = "Not connected"
 		_error.visible = true
@@ -103,7 +111,7 @@ func _on_verify() -> void:
 		_error.visible = true
 		return
 	_verify_btn.disabled = true
-	var client: AccordClient = Client._first_connected_client()
+	var client: AccordClient = _get_client()
 	if client == null:
 		_error.text = "Not connected"
 		_error.visible = true
@@ -148,7 +156,7 @@ func _on_disable() -> void:
 		_error.visible = true
 		return
 	_disable_btn.disabled = true
-	var client: AccordClient = Client._first_connected_client()
+	var client: AccordClient = _get_client()
 	if client == null:
 		_error.text = "Not connected"
 		_error.visible = true

@@ -59,7 +59,7 @@ func scrub_pii_text(msg: String) -> String:
 	return msg
 
 func _connect_breadcrumbs() -> void:
-	AppState.guild_selected.connect(_on_guild_selected)
+	AppState.space_selected.connect(_on_space_selected)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.dm_mode_entered.connect(_on_dm_mode_entered)
 	AppState.message_sent.connect(_on_message_sent)
@@ -72,9 +72,9 @@ func _connect_breadcrumbs() -> void:
 	)
 	AppState.voice_error.connect(_on_voice_error)
 
-func _on_guild_selected(guild_id: String) -> void:
+func _on_space_selected(space_id: String) -> void:
 	_add_breadcrumb(
-		"Switched guild: %s" % guild_id, "navigation"
+		"Switched space: %s" % space_id, "navigation"
 	)
 
 func _on_channel_selected(channel_id: String) -> void:
@@ -125,9 +125,9 @@ func update_context() -> void:
 		"server_count",
 		str(Config.get_servers().size())
 	)
-	if not AppState.current_guild_id.is_empty():
+	if not AppState.current_space_id.is_empty():
 		SentrySDK.set_tag(
-			"guild_id", AppState.current_guild_id
+			"space_id", AppState.current_space_id
 		)
 	if not AppState.current_channel_id.is_empty():
 		SentrySDK.set_tag(

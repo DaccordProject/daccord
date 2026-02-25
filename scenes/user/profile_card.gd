@@ -12,7 +12,7 @@ const _ACTIVITY_PREFIXES := {
 }
 
 var _user_data: Dictionary = {}
-var _guild_id: String = ""
+var _space_id: String = ""
 
 var _banner_rect: ColorRect
 var _avatar: ColorRect
@@ -192,9 +192,9 @@ func _ready() -> void:
 	_message_btn.visible = false
 	content.add_child(_message_btn)
 
-func setup(user_data: Dictionary, guild_id: String = "") -> void:
+func setup(user_data: Dictionary, space_id: String = "") -> void:
 	_user_data = user_data
-	_guild_id = guild_id
+	_space_id = space_id
 
 	var dn: String = user_data.get("display_name", "Unknown")
 	_display_name_label.text = dn
@@ -259,15 +259,15 @@ func setup(user_data: Dictionary, guild_id: String = "") -> void:
 				)
 				_device_status_hbox.add_child(dev_label)
 
-	# Roles (guild context)
-	if not guild_id.is_empty():
+	# Roles (space context)
+	if not space_id.is_empty():
 		var user_id: String = user_data.get("id", "")
 		var member_roles: Array = []
-		for member in Client.get_members_for_guild(guild_id):
+		for member in Client.get_members_for_space(space_id):
 			if member.get("id", "") == user_id:
 				member_roles = member.get("roles", [])
 				break
-		var all_roles: Array = Client.get_roles_for_guild(guild_id)
+		var all_roles: Array = Client.get_roles_for_space(space_id)
 		var displayed_roles: Array = []
 		for role in all_roles:
 			if role.get("id", "") in member_roles and role.get("position", 0) != 0:

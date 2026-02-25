@@ -67,3 +67,48 @@ func get_video_fps() -> int:
 func set_video_fps(fps: int) -> void:
 	_parent._config.set_value("voice", "video_fps", fps)
 	_parent._save()
+
+
+func get_input_sensitivity() -> int:
+	return _parent._config.get_value(
+		"voice", "input_sensitivity", 50
+	)
+
+
+func set_input_sensitivity(value: int) -> void:
+	_parent._config.set_value(
+		"voice", "input_sensitivity", clampi(value, 0, 100)
+	)
+	_parent._save()
+
+
+func get_input_volume() -> int:
+	return _parent._config.get_value(
+		"voice", "input_volume", 100
+	)
+
+
+func set_input_volume(value: int) -> void:
+	_parent._config.set_value(
+		"voice", "input_volume", clampi(value, 0, 200)
+	)
+	_parent._save()
+
+
+func get_output_volume() -> int:
+	return _parent._config.get_value(
+		"voice", "output_volume", 100
+	)
+
+
+func set_output_volume(value: int) -> void:
+	_parent._config.set_value(
+		"voice", "output_volume", clampi(value, 0, 200)
+	)
+	_parent._save()
+
+
+func get_speaking_threshold() -> float:
+	var sensitivity: int = get_input_sensitivity()
+	# Logarithmic mapping: 0% → 0.1, 50% → ~0.003, 100% → 0.0001
+	return pow(10.0, -1.0 - 3.0 * sensitivity / 100.0)

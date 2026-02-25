@@ -10,7 +10,7 @@ var _c: Node # Client autoload
 func _init(client_node: Node) -> void:
 	_c = client_node
 
-func fetch_guilds() -> void:
+func fetch_spaces() -> void:
 	for conn in _c._connections:
 		if conn == null \
 				or conn["status"] != "connected" \
@@ -22,33 +22,33 @@ func fetch_guilds() -> void:
 		if result.ok:
 			for space in result.data:
 				var s: AccordSpace = space
-				if s.id == conn["guild_id"]:
-					var d := ClientModels.space_to_guild_dict(
+				if s.id == conn["space_id"]:
+					var d := ClientModels.space_to_dict(
 						s, cdn_url
 					)
-					_c._guild_cache[d["id"]] = d
-	AppState.guilds_updated.emit()
+					_c._space_cache[d["id"]] = d
+	AppState.spaces_updated.emit()
 
-func fetch_channels(guild_id: String) -> void:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func fetch_channels(space_id: String) -> void:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
 		return
 	var result: RestResult = await client.spaces.list_channels(
-		guild_id
+		space_id
 	)
 	if result.ok:
 		var to_remove: Array = []
 		for ch_id in _c._channel_cache:
-			if _c._channel_cache[ch_id].get("guild_id", "") == guild_id:
+			if _c._channel_cache[ch_id].get("space_id", "") == space_id:
 				to_remove.append(ch_id)
 		for ch_id in to_remove:
 			_c._channel_cache.erase(ch_id)
-			_c._channel_to_guild.erase(ch_id)
+			_c._channel_to_space.erase(ch_id)
 		for channel in result.data:
 			var d := ClientModels.channel_to_dict(channel)
 			_c._channel_cache[d["id"]] = d
-			_c._channel_to_guild[d["id"]] = guild_id
-		AppState.channels_updated.emit(guild_id)
+			_c._channel_to_space[d["id"]] = space_id
+		AppState.channels_updated.emit(space_id)
 	else:
 		var err_msg: String = (
 			result.error.message
@@ -378,11 +378,11 @@ func fetch_active_threads(channel_id: String) -> Array:
 		return msgs
 	return []
 
-func fetch_members(guild_id: String) -> void:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func fetch_members(space_id: String) -> void:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
 		return
-	var cdn_url: String = _c._cdn_for_guild(guild_id)
+	var cdn_url: String = _c._cdn_for_space(space_id)
 	var all_members: Array = []
 	var cursor: String = ""
 
@@ -392,7 +392,7 @@ func fetch_members(guild_id: String) -> void:
 		if not cursor.is_empty():
 			params["after"] = cursor
 		var result: RestResult = await client.members.list(
-			guild_id, params
+			space_id, params
 		)
 		if not result.ok:
 			var err_msg: String = (
@@ -438,7 +438,7 @@ func fetch_members(guild_id: String) -> void:
 			var accord_member: AccordMember = member
 			all_members.append(
 				ClientModels.member_to_dict(
-					accord_member, _c._user_cache
+					accord_member, _c._user_cache, cdn_url
 				)
 			)
 
@@ -448,21 +448,21 @@ func fetch_members(guild_id: String) -> void:
 		var last_member: AccordMember = page[page.size() - 1]
 		cursor = last_member.user_id
 
-	_c._member_cache[guild_id] = all_members
-	_c._rebuild_member_index(guild_id)
-	AppState.members_updated.emit(guild_id)
+	_c._member_cache[space_id] = all_members
+	_c._rebuild_member_index(space_id)
+	AppState.members_updated.emit(space_id)
 
-func fetch_roles(guild_id: String) -> void:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func fetch_roles(space_id: String) -> void:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
 		return
-	var result: RestResult = await client.roles.list(guild_id)
+	var result: RestResult = await client.roles.list(space_id)
 	if result.ok:
 		var roles: Array = []
 		for role in result.data:
 			roles.append(ClientModels.role_to_dict(role))
-		_c._role_cache[guild_id] = roles
-		AppState.roles_updated.emit(guild_id)
+		_c._role_cache[space_id] = roles
+		AppState.roles_updated.emit(space_id)
 	else:
 		var err_msg: String = (
 			result.error.message
@@ -532,9 +532,9 @@ func refresh_current_user(conn_index: int) -> void:
 			_c.current_user = user_dict
 		AppState.user_updated.emit(user.id)
 
-func resync_voice_states(guild_id: String) -> void:
+func resync_voice_states(space_id: String) -> void:
 	for ch_id in _c._channel_cache:
-		if _c._channel_to_guild.get(ch_id, "") != guild_id:
+		if _c._channel_to_space.get(ch_id, "") != space_id:
 			continue
 		if _c._channel_cache[ch_id].get("type", -1) \
 				== ClientModels.ChannelType.VOICE:

@@ -19,8 +19,8 @@ See user_flows/README.md. If a user flow is out of date, update it.
 ## Architecture
 
 **Autoloads (singletons):**
-- `AppState` (`scripts/autoload/app_state.gd`) -- Central signal bus. Emits `guild_selected`, `channel_selected`, `dm_mode_entered`, `message_sent`, `reply_initiated`, `reply_cancelled`, `message_edited`, `message_deleted`, `guilds_updated`, `channels_updated`, `dm_channels_updated`, `messages_updated`, `user_updated`, `typing_started`, `typing_stopped`, `layout_mode_changed`, `sidebar_drawer_toggled`, `profile_switched`. Tracks `current_guild_id`, `current_channel_id`, `is_dm_mode`, `replying_to_message_id`, `editing_message_id`, `current_layout_mode`, `sidebar_drawer_open`. All cross-component communication goes through here.
-- `Client` (`scripts/autoload/client.gd`) -- Manages server connections and data access. Has `LIVE` and `CONNECTING` modes. Maintains an array of server connections (each with an `AccordClient`, guild ID, CDN URL, and status). Routes API calls to the correct server based on guild/channel ID. Provides a unified data access API (`guilds`, `channels`, `dm_channels`, `get_messages_for_channel()`, etc.). Also hosts shared constants (`MESSAGE_CAP`, dimension constants), `emoji_textures`, and `markdown_to_bbcode()`. Handles gateway events (message create/update/delete, typing, presence, space/channel changes).
+- `AppState` (`scripts/autoload/app_state.gd`) -- Central signal bus. Emits `space_selected`, `channel_selected`, `dm_mode_entered`, `message_sent`, `reply_initiated`, `reply_cancelled`, `message_edited`, `message_deleted`, `spaces_updated`, `channels_updated`, `dm_channels_updated`, `messages_updated`, `user_updated`, `typing_started`, `typing_stopped`, `layout_mode_changed`, `sidebar_drawer_toggled`, `profile_switched`. Tracks `current_space_id`, `current_channel_id`, `is_dm_mode`, `replying_to_message_id`, `editing_message_id`, `current_layout_mode`, `sidebar_drawer_open`. All cross-component communication goes through here.
+- `Client` (`scripts/autoload/client.gd`) -- Manages server connections and data access. Has `LIVE` and `CONNECTING` modes. Maintains an array of server connections (each with an `AccordClient`, space ID, CDN URL, and status). Routes API calls to the correct server based on space/channel ID. Provides a unified data access API (`spaces`, `channels`, `dm_channels`, `get_messages_for_channel()`, etc.). Also hosts shared constants (`MESSAGE_CAP`, dimension constants), `emoji_textures`, and `markdown_to_bbcode()`. Handles gateway events (message create/update/delete, typing, presence, space/channel changes).
 - `Config` (`scripts/autoload/config.gd`) -- Multi-profile config manager. Each profile stores its data under `user://profiles/<slug>/config.cfg` (encrypted). Manages a `user://profile_registry.cfg` for profile metadata (names, order, password hashes). Supports profile CRUD (`create_profile()`, `delete_profile()`, `switch_profile()`, `rename_profile()`), password protection (`set_profile_password()`, `verify_profile_password()`), and per-profile emoji cache paths. On first run, migrates legacy `user://config.cfg` to `user://profiles/default/`. Supports `--profile <slug>` CLI override. Also provides server connection config (`add_server()`, `remove_server()`, `get_servers()`, `has_servers()`) and all user preferences.
 - `ClientModels` (`scripts/autoload/client_models.gd`) -- Static helper class that converts AccordKit typed models (`AccordUser`, `AccordSpace`, `AccordChannel`, `AccordMessage`) into the dictionary shapes UI components expect. Also defines `ChannelType` and `UserStatus` enums used by both AccordKit conversion and UI components.
 
@@ -29,14 +29,14 @@ See user_flows/README.md. If a user flow is out of date, update it.
 - `godot-livekit` -- GDExtension wrapping the LiveKit C++ SDK for room-based voice/video. Provides `LiveKitRoom`, `LiveKitVideoStream`, `LiveKitAudioStream`, and related classes. Wrapped by `LiveKitAdapter` (`scripts/autoload/livekit_adapter.gd`) which bridges the room-based API to the signal surface `client.gd` expects.
 - `gut` -- GUT (Godot Unit Test) framework for testing.
 
-**Server connection flow:** On startup, `Client._ready()` checks `Config.has_servers()`. If servers exist, it calls `connect_server()` for each. Each connection authenticates with a Bearer token, fetches the current user via `GET /users/@me`, lists the user's spaces (guilds) via `GET /users/@me/spaces`, matches the configured guild name, connects the WebSocket gateway, and enters `LIVE` mode. If no servers are configured, the client stays in `CONNECTING` mode (UI is empty until a server is added).
+**Server connection flow:** On startup, `Client._ready()` checks `Config.has_servers()`. If servers exist, it calls `connect_server()` for each. Each connection authenticates with a Bearer token, fetches the current user via `GET /users/@me`, lists the user's spaces via `GET /users/@me/spaces`, matches the configured space name, connects the WebSocket gateway, and enters `LIVE` mode. If no servers are configured, the client stays in `CONNECTING` mode (UI is empty until a server is added).
 
-**Adding a server:** The "Add Server" dialog (`sidebar/guild_bar/add_server_dialog`) parses URLs in the format `[protocol://]host[:port][#guild-name][?token=value]` (defaults: HTTPS, port 39099, guild "general"). It saves the config via `Config.add_server()` and calls `Client.connect_server()`.
+**Adding a server:** The "Add Server" dialog (`sidebar/guild_bar/add_server_dialog`) parses URLs in the format `[protocol://]host[:port][#space-name][?token=value]` (defaults: HTTPS, port 39099, space "general"). It saves the config via `Config.add_server()` and calls `Client.connect_server()`.
 
 **Scene hierarchy:**
 - `main/main_window` -- Root HBoxContainer. Holds sidebar + content area. Manages a TabBar for open channels. Collapses sidebar on narrow viewports (<500px).
-- `sidebar/sidebar` -- Orchestrates guild bar, channel list, and DM list. Switches between channel list and DM list based on selection.
-  - `sidebar/guild_bar/` -- Vertical icon strip. Guild icons, guild folders (collapsible groups), DM button, pills (selection indicators), mention badges.
+- `sidebar/sidebar` -- Orchestrates space bar, channel list, and DM list. Switches between channel list and DM list based on selection.
+  - `sidebar/guild_bar/` -- Vertical icon strip. Space icons, space folders (collapsible groups), DM button, pills (selection indicators), mention badges.
   - `sidebar/channels/` -- Channel panel with banner, categories (collapsible), and channel items (text/voice/announcement/forum).
   - `sidebar/direct/` -- DM channel list.
   - `sidebar/user_bar` -- Bottom user info bar.
@@ -46,7 +46,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
   - `messages/message_content` -- Renders text via `markdown_to_bbcode` in RichTextLabel, plus optional embed and reaction bar. Supports inline edit mode (Enter to save, Escape to cancel).
   - `messages/composer/` -- Message input with send button and reply bar. Enter sends, Shift+Enter for newline.
 
-**Signal flow:** User clicks guild icon -> `guild_bar` emits `guild_selected` -> `sidebar` calls `channel_list.load_guild()` and `AppState.select_guild()` -> `AppState` emits `guild_selected`. Channel click -> similar chain -> `AppState.channel_selected` -> `message_view` loads messages, `main_window` manages tabs. `Client` fetches data from the server and emits `AppState` signals (`messages_updated`, `channels_updated`, etc.) when gateway events arrive.
+**Signal flow:** User clicks space icon -> `guild_bar` emits `space_selected` -> `sidebar` calls `channel_list.load_space()` and `AppState.select_space()` -> `AppState` emits `space_selected`. Channel click -> similar chain -> `AppState.channel_selected` -> `message_view` loads messages, `main_window` manages tabs. `Client` fetches data from the server and emits `AppState` signals (`messages_updated`, `channels_updated`, etc.) when gateway events arrive.
 
 **Responsive layout:** `AppState` tracks a `LayoutMode` enum (`COMPACT` <500px, `MEDIUM` <768px, `FULL` >=768px). In compact mode, the sidebar becomes a drawer overlay toggled by a hamburger button.
 
@@ -67,9 +67,9 @@ GDScript's `:=` operator infers the type from the right-hand side. This **fails 
 
 - Each scene (`.tscn`) has a corresponding `.gd` script in the same directory.
 - Components expose a `setup(data: Dictionary)` method to initialize from mock data dictionaries. Exception: `category_item.setup()` takes `(data: Dictionary, children: Array)`.
-- Selection state uses `set_active(bool)` methods on interactive items (guild icons, channel items). Guild bar uses `has_method("set_active")` checks since both `guild_icon` and `guild_folder` are stored in the same lookup dictionary.
+- Selection state uses `set_active(bool)` methods on interactive items (space icons, channel items). The space bar uses `has_method("set_active")` checks since both `guild_icon` and `guild_folder` are stored in the same lookup dictionary.
 - Scene references use `preload()` constants at class level, not dynamic `load()`.
-- Dictionary shapes (users, guilds, channels, messages) serve as the data contract between components. `ClientModels` converts AccordKit typed models into these shapes so the UI layer doesn't depend on AccordKit types directly.
+- Dictionary shapes (users, spaces, channels, messages) serve as the data contract between components. `ClientModels` converts AccordKit typed models into these shapes so the UI layer doesn't depend on AccordKit types directly.
 - UI components should read data through `Client` to stay decoupled from the network layer.
 - License: MIT.
 

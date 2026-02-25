@@ -33,7 +33,7 @@ func setup(version_info: Dictionary) -> void:
 	_version_info = version_info
 	_total_size = version_info.get("download_size", 0)
 	var version: String = version_info.get("version", "unknown")
-	_status_label.text = "Downloading daccord v%s..." % version
+	_status_label.text = "Downloading Daccord v%s..." % version
 
 func _set_downloading_state() -> void:
 	_progress_bar.visible = true
@@ -48,7 +48,7 @@ func _set_downloading_state() -> void:
 func _on_started() -> void:
 	_set_downloading_state()
 	var version: String = _version_info.get("version", "unknown")
-	_status_label.text = "Downloading daccord v%s..." % version
+	_status_label.text = "Downloading Daccord v%s..." % version
 
 func _on_progress(percent: float) -> void:
 	_progress_bar.value = percent
@@ -88,7 +88,7 @@ func _on_cancel() -> void:
 func _on_retry() -> void:
 	_set_downloading_state()
 	var version: String = _version_info.get("version", "unknown")
-	_status_label.text = "Downloading daccord v%s..." % version
+	_status_label.text = "Downloading Daccord v%s..." % version
 	Updater.download_update(_version_info)
 
 func _on_restart() -> void:

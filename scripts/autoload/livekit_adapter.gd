@@ -188,26 +188,27 @@ func _process(_delta: float) -> void:
 		if player != null and player.playing:
 			level = _estimate_audio_level(player)
 		var uid: String = _identity_to_user.get(identity, identity)
-		if level > 0.001:
+		if level > Config.voice.get_speaking_threshold():
 			audio_level_changed.emit(uid, level)
 	# Local mic: capture frames → push to LiveKit + compute speaking level
 	if _mic_effect != null and _local_audio_source != null and not _muted:
 		var frames_avail: int = _mic_effect.get_frames_available()
 		if frames_avail > 0:
 			var buf: PackedVector2Array = _mic_effect.get_buffer(frames_avail)
-			# Convert stereo capture to mono and push to LiveKit
+			# Convert stereo capture to mono, apply input volume, push to LiveKit
+			var gain: float = Config.voice.get_input_volume() / 100.0
 			var mono := PackedFloat32Array()
 			mono.resize(buf.size())
 			var rms: float = 0.0
 			for i in buf.size():
-				var sample: float = (buf[i].x + buf[i].y) * 0.5
+				var sample: float = (buf[i].x + buf[i].y) * 0.5 * gain
 				mono[i] = sample
 				rms += sample * sample
 			_local_audio_source.capture_frame(mono, 48000, 1, mono.size())
 			# Compute level for speaking indicator
 			if buf.size() > 0:
 				rms = sqrt(rms / buf.size())
-			if rms > 0.001:
+			if rms > Config.voice.get_speaking_threshold():
 				audio_level_changed.emit("@local", rms)
 
 # --- Room signal handlers ---

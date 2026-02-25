@@ -1,6 +1,6 @@
 extends PanelContainer
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_sounds: Array = []
 
 @onready var _close_btn: Button = $VBox/TitleRow/CloseBtn
@@ -14,8 +14,8 @@ func _ready() -> void:
 	AppState.soundboard_updated.connect(_on_soundboard_updated)
 	AppState.voice_left.connect(func(_ch: String) -> void: close())
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_load_sounds()
 
 func _load_sounds() -> void:
@@ -25,7 +25,7 @@ func _load_sounds() -> void:
 	_all_sounds.clear()
 
 	var result: RestResult = await Client.admin.get_sounds(
-		_guild_id
+		_space_id
 	)
 	if result == null or not result.ok:
 		_empty_label.text = "Failed to load sounds."
@@ -89,10 +89,10 @@ func _on_search_changed(text: String) -> void:
 	_rebuild_list(filtered)
 
 func _on_play_pressed(sound_id: String) -> void:
-	Client.admin.play_sound(_guild_id, sound_id)
+	Client.admin.play_sound(_space_id, sound_id)
 
-func _on_soundboard_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_soundboard_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_load_sounds()
 
 func close() -> void:
