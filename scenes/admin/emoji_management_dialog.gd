@@ -3,7 +3,7 @@ extends ColorRect
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const EmojiCellScene := preload("res://scenes/admin/emoji_cell.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_emojis: Array = []
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
@@ -23,8 +23,8 @@ func _ready() -> void:
 	_search_input.text_changed.connect(_on_search_changed)
 	AppState.emojis_updated.connect(_on_emojis_updated)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_load_emojis()
 
 func _load_emojis() -> void:
@@ -34,7 +34,7 @@ func _load_emojis() -> void:
 	_error_label.visible = false
 	_all_emojis.clear()
 
-	var result: RestResult = await Client.admin.get_emojis(_guild_id)
+	var result: RestResult = await Client.admin.get_emojis(_space_id)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load emojis"
 		if result != null and result.error:
@@ -72,7 +72,7 @@ func _rebuild_grid(emojis: Array) -> void:
 	for emoji_dict in emojis:
 		var cell := EmojiCellScene.instantiate()
 		_emoji_grid.add_child(cell)
-		cell.setup(emoji_dict, _guild_id)
+		cell.setup(emoji_dict, _space_id)
 		cell.delete_requested.connect(_on_delete_emoji)
 
 func _on_search_changed(text: String) -> void:
@@ -137,7 +137,7 @@ func _on_file_selected(path: String) -> void:
 		"image": data_uri,
 	}
 
-	var result: RestResult = await Client.admin.create_emoji(_guild_id, data)
+	var result: RestResult = await Client.admin.create_emoji(_space_id, data)
 	_upload_btn.disabled = false
 	_upload_btn.text = "Upload Emoji"
 
@@ -160,11 +160,11 @@ func _on_delete_emoji(emoji: Dictionary) -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		Client.admin.delete_emoji(_guild_id, emoji.get("id", ""))
+		Client.admin.delete_emoji(_space_id, emoji.get("id", ""))
 	)
 
-func _on_emojis_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_emojis_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_load_emojis()
 
 func _close() -> void:

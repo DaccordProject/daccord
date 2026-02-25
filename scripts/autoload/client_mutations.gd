@@ -16,15 +16,15 @@ func _init(client_node: Node) -> void:
 # --- Search API ---
 
 func search_messages(
-	guild_id: String, query_str: String,
+	space_id: String, query_str: String,
 	filters: Dictionary = {},
 ) -> Dictionary:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
 		return {"results": [], "has_more": false}
-	var cdn_url: String = _c._cdn_for_guild(guild_id)
+	var cdn_url: String = _c._cdn_for_space(space_id)
 	var result: RestResult = await client.messages.search(
-		guild_id, query_str, filters
+		space_id, query_str, filters
 	)
 	if not result.ok:
 		var err: String = (
@@ -68,9 +68,9 @@ func send_message_to_channel(
 	title: String = ""
 ) -> bool:
 	# Queue message if server is disconnected/reconnecting
-	var gid: String = _c._channel_to_guild.get(cid, "")
-	if not gid.is_empty() and not _c.is_guild_connected(gid):
-		var status: String = _c.get_guild_connection_status(gid)
+	var gid: String = _c._channel_to_space.get(cid, "")
+	if not gid.is_empty() and not _c.is_space_connected(gid):
+		var status: String = _c.get_space_connection_status(gid)
 		if status in ["disconnected", "reconnecting"]:
 			if _c._message_queue.size() < Client.MESSAGE_QUEUE_CAP:
 				_c._message_queue.append({
@@ -401,6 +401,21 @@ func update_profile(data: Dictionary) -> bool:
 	var conn = _c._conn_for_active_view()
 	if conn != null and conn.get("user_id", "") == user.id:
 		conn["user"] = user_dict
+	# Propagate display_name/avatar changes to member_cache (matches gateway on_user_update)
+	for gid in _c._member_cache:
+		var idx: int = _c._member_index_for(gid, user.id)
+		if idx != -1:
+			var member: Dictionary = _c._member_cache[gid][idx]
+			member["display_name"] = user_dict.get("display_name", member.get("display_name", ""))
+			member["avatar"] = user_dict.get("avatar", member.get("avatar", ""))
+			member["username"] = user_dict.get("username", member.get("username", ""))
+			AppState.members_updated.emit(gid)
+	# Update author dicts in cached messages so they stay in sync
+	for ch_id in _c._message_cache:
+		for msg in _c._message_cache[ch_id]:
+			var author: Dictionary = msg.get("author", {})
+			if author.get("id", "") == user.id:
+				msg["author"] = user_dict
 	AppState.user_updated.emit(user.id)
 	return true
 

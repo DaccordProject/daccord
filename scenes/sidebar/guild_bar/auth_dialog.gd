@@ -10,6 +10,7 @@ enum Mode { SIGN_IN, REGISTER }
 
 var _mode: Mode = Mode.SIGN_IN
 var _base_url: String = ""
+var _prefill_username: String = ""
 var _prev_username: String = ""
 
 @onready var _sign_in_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/SignInBtn
@@ -37,12 +38,20 @@ func _ready() -> void:
 
 	_set_mode(Mode.SIGN_IN)
 
+	if not _prefill_username.is_empty():
+		_username_input.text = _prefill_username
+		_prev_username = _prefill_username
+
 	await get_tree().process_frame
-	_username_input.grab_focus()
+	if not _prefill_username.is_empty():
+		_password_input.grab_focus()
+	else:
+		_username_input.grab_focus()
 
 
-func setup(base_url: String) -> void:
+func setup(base_url: String, prefill_username: String = "") -> void:
 	_base_url = base_url
+	_prefill_username = prefill_username
 
 
 func _set_mode(m: Mode) -> void:

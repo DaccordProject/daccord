@@ -16,7 +16,7 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 
 1. User clicks the smiley-face emoji button in the composer toolbar
 2. Emoji picker panel appears above the button (352x360px, dark background with rounded corners)
-3. Category bar at the top shows tabs; if a guild is selected, the first tab is "Custom" (star icon), followed by the 9 built-in category tabs (including Flags). "Smileys & Emotion" is selected by default
+3. Category bar at the top shows tabs; if a space is selected, the first tab is "Custom" (star icon), followed by the 9 built-in category tabs (including Flags). "Smileys & Emotion" is selected by default
 4. User browses the 8x-column grid of emoji for the current category (20 per built-in category, 30 for Flags). Hand/gesture emoji display with the user's preferred skin tone
 5. Optionally, user types in the search bar to filter emoji by name across all categories (including cached custom emoji)
 6. User clicks an emoji cell
@@ -26,8 +26,8 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 
 ### Custom Emoji Tab
 
-1. User clicks the "Custom" tab (star icon, first tab when a guild is selected)
-2. Picker fetches the current guild's custom emoji via `Client.get_emojis(guild_id)`
+1. User clicks the "Custom" tab (star icon, first tab when a space is selected)
+2. Picker fetches the current space's custom emoji via `Client.get_emojis(space_id)`
 3. Emoji textures are loaded from the CDN using HTTPRequest and cached
 4. Custom emoji appear in the grid with their loaded textures
 5. Clicking a custom emoji inserts `:name:` into the composer, or adds it as a reaction
@@ -177,7 +177,7 @@ Gateway reaction events:
 ### Emoji Picker Panel (emoji_picker.gd)
 
 - Extends `PanelContainer`, starts hidden (`visible = false` in .tscn)
-- **Custom tab**: If `AppState.current_guild_id` is set (line 28), a "Custom" tab (star icon) is prepended to the category bar. Clicking it loads custom emoji from the server via `Client.get_emojis()` (line 92) and renders them with CDN-loaded textures. Textures are cached in `_custom_emoji_cache` (line 11) to avoid re-fetching
+- **Custom tab**: If `AppState.current_space_id` is non-empty (line 28), a "Custom" tab (star icon) is prepended to the category bar. Clicking it loads custom emoji from the server via `Client.get_emojis()` (line 92) and renders them with CDN-loaded textures. Textures are cached in `_custom_emoji_cache` (line 11) to avoid re-fetching
 - **Category bar**: `_build_category_bar()` (line 26) creates a flat `Button` (36x36px) per category with the category's representative emoji as icon and category name as tooltip. Active category highlighted white, inactive dimmed to `Color(0.58, 0.608, 0.643)` (line 64)
 - **Search**: `_on_search_changed(query)` (line 145) clears grid, then searches both built-in emoji and cached custom emoji by name. Empty query reloads the current category
 - **Grid population**: `_load_category(cat)` (line 81) clears grid, then calls `_add_emoji_cell()` for each entry

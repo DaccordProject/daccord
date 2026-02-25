@@ -180,7 +180,11 @@ static func user_to_dict(
 
 	var avatar_url = null
 	if user.avatar != null and not str(user.avatar).is_empty():
-		avatar_url = AccordCDN.avatar(user.id, str(user.avatar), "png", cdn_url)
+		var av: String = str(user.avatar)
+		if av.begins_with("/"):
+			avatar_url = AccordCDN.resolve_path(av, cdn_url)
+		else:
+			avatar_url = AccordCDN.avatar(user.id, av, "png", cdn_url)
 
 	var bio_str: String = ""
 	if user.bio != null:
@@ -188,9 +192,13 @@ static func user_to_dict(
 
 	var banner_url = null
 	if user.banner != null and not str(user.banner).is_empty():
-		banner_url = AccordCDN.space_banner(
-			user.id, str(user.banner), "png", cdn_url
-		)
+		var bn: String = str(user.banner)
+		if bn.begins_with("/"):
+			banner_url = AccordCDN.resolve_path(bn, cdn_url)
+		else:
+			banner_url = AccordCDN.space_banner(
+				user.id, bn, "png", cdn_url
+			)
 
 	var accent: int = 0
 	if user.accent_color != null:
@@ -215,7 +223,7 @@ static func user_to_dict(
 		"activities": [],
 	}
 
-static func space_to_guild_dict(
+static func space_to_dict(
 	space: AccordSpace, cdn_url: String = ""
 ) -> Dictionary:
 	var desc: String = ""
@@ -225,9 +233,13 @@ static func space_to_guild_dict(
 
 	var icon_url = null
 	if space.icon != null and not str(space.icon).is_empty():
-		icon_url = AccordCDN.space_icon(
-			space.id, str(space.icon), "png", cdn_url
-		)
+		var ic: String = str(space.icon)
+		if ic.begins_with("/"):
+			icon_url = AccordCDN.resolve_path(ic, cdn_url)
+		else:
+			icon_url = AccordCDN.space_icon(
+				space.id, ic, "png", cdn_url
+			)
 
 	return {
 		"id": space.id,
@@ -250,16 +262,16 @@ static func channel_to_dict(channel: AccordChannel) -> Dictionary:
 	var parent: String = ""
 	if channel.parent_id != null:
 		parent = str(channel.parent_id)
-	var guild_id: String = ""
+	var space_id: String = ""
 	if channel.space_id != null:
-		guild_id = str(channel.space_id)
+		space_id = str(channel.space_id)
 	var topic_str: String = ""
 	if channel.topic != null:
 		topic_str = str(channel.topic)
 
 	var d := {
 		"id": channel.id,
-		"guild_id": guild_id,
+		"space_id": space_id,
 		"name": str(channel.name) if channel.name != null else "",
 		"type": ch_type,
 		"parent_id": parent,
@@ -427,7 +439,10 @@ static func is_user_mentioned(
 ) -> bool:
 	return Secondary.is_user_mentioned(data, user_id, user_roles)
 
-static func member_to_dict(member: AccordMember, user_cache: Dictionary) -> Dictionary:
+static func member_to_dict(
+	member: AccordMember, user_cache: Dictionary,
+	cdn_url: String = "",
+) -> Dictionary:
 	var user_dict: Dictionary = {}
 	if user_cache.has(member.user_id):
 		user_dict = user_cache[member.user_id].duplicate()
@@ -445,6 +460,15 @@ static func member_to_dict(member: AccordMember, user_cache: Dictionary) -> Dict
 		nick_str = str(member.nickname)
 		user_dict["display_name"] = nick_str
 	user_dict["nickname"] = nick_str
+	# Per-server member avatar overrides user avatar
+	if member.avatar != null and not str(member.avatar).is_empty():
+		var mav: String = str(member.avatar)
+		if mav.begins_with("/"):
+			user_dict["avatar"] = AccordCDN.resolve_path(mav, cdn_url)
+		else:
+			user_dict["avatar"] = AccordCDN.resolve_path(
+				"/cdn/avatars/" + mav, cdn_url
+			)
 	user_dict["roles"] = member.roles.duplicate()
 	user_dict["joined_at"] = member.joined_at
 	user_dict["mute"] = member.mute

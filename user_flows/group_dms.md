@@ -51,7 +51,7 @@ Gateway delivers channel_create (type = "group_dm", 3 recipients)
         -> AppState.dm_channels_updated emitted
 
 User enters DM mode (clicks DM button)
-    -> guild_bar.dm_selected -> sidebar._on_dm_selected()
+    -> space_bar.dm_selected -> sidebar._on_dm_selected()
         -> AppState.enter_dm_mode() -> dm_mode_entered emitted
 
 dm_channels_updated signal

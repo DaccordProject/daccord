@@ -34,22 +34,22 @@ message.update             -> on_message_update()            -> messages_updated
 message.delete             -> on_message_delete()            -> messages_updated(channel_id)
 message.delete_bulk        -> on_message_delete_bulk()       -> messages_updated(channel_id)
 typing.start               -> on_typing_start()              -> typing_started(channel_id, username) + typing_stopped (10s timeout)
-presence.update            -> on_presence_update()           -> user_updated(user_id) + members_updated(guild_id)
+presence.update            -> on_presence_update()           -> user_updated(user_id) + members_updated(space_id)
 user.update                -> on_user_update()               -> user_updated(user_id)
-space.create               -> on_space_create()              -> guilds_updated()
-space.update               -> on_space_update()              -> guilds_updated()
-space.delete               -> on_space_delete()              -> guilds_updated()
-channel.create             -> on_channel_create()            -> channels_updated(guild_id) or dm_channels_updated()
-channel.update             -> on_channel_update()            -> channels_updated(guild_id) or dm_channels_updated()
-channel.delete             -> on_channel_delete()            -> channels_updated(guild_id) or dm_channels_updated()
+space.create               -> on_space_create()              -> spaces_updated()
+space.update               -> on_space_update()              -> spaces_updated()
+space.delete               -> on_space_delete()              -> spaces_updated()
+channel.create             -> on_channel_create()            -> channels_updated(space_id) or dm_channels_updated()
+channel.update             -> on_channel_update()            -> channels_updated(space_id) or dm_channels_updated()
+channel.delete             -> on_channel_delete()            -> channels_updated(space_id) or dm_channels_updated()
 channel.pins_update        -> on_channel_pins_update()       -> messages_updated(channel_id)
-member.join                -> on_member_join()               -> members_updated(guild_id)
-member.leave               -> on_member_leave()              -> members_updated(guild_id)
-member.update              -> on_member_update()             -> members_updated(guild_id)
-member.chunk               -> on_member_chunk()              -> members_updated(guild_id)
-role.create                -> on_role_create()               -> roles_updated(guild_id)
-role.update                -> on_role_update()               -> roles_updated(guild_id)
-role.delete                -> on_role_delete()               -> roles_updated(guild_id)
+member.join                -> on_member_join()               -> members_updated(space_id)
+member.leave               -> on_member_leave()              -> members_updated(space_id)
+member.update              -> on_member_update()             -> members_updated(space_id)
+member.chunk               -> on_member_chunk()              -> members_updated(space_id)
+role.create                -> on_role_create()               -> roles_updated(space_id)
+role.update                -> on_role_update()               -> roles_updated(space_id)
+role.delete                -> on_role_delete()               -> roles_updated(space_id)
 reaction.add               -> on_reaction_add()              -> messages_updated(channel_id)
 reaction.remove            -> on_reaction_remove()           -> messages_updated(channel_id)
 reaction.clear             -> on_reaction_clear()            -> messages_updated(channel_id)
@@ -57,20 +57,20 @@ reaction.clear_emoji       -> on_reaction_clear_emoji()      -> messages_updated
 voice.state_update         -> on_voice_state_update()        -> voice_state_updated(channel_id)
 voice.server_update        -> on_voice_server_update()       -> (stores voice server info)
 voice.signal               -> on_voice_signal()              -> (forwards to AccordVoiceSession)
-ban.create                 -> on_ban_create()                -> bans_updated(guild_id)
-ban.delete                 -> on_ban_delete()                -> bans_updated(guild_id)
-invite.create              -> on_invite_create()             -> invites_updated(guild_id)
-invite.delete              -> on_invite_delete()             -> invites_updated(guild_id)
-emoji.update               -> on_emoji_update()              -> emojis_updated(guild_id)
+ban.create                 -> on_ban_create()                -> bans_updated(space_id)
+ban.delete                 -> on_ban_delete()                -> bans_updated(space_id)
+invite.create              -> on_invite_create()             -> invites_updated(space_id)
+invite.delete              -> on_invite_delete()             -> invites_updated(space_id)
+emoji.update               -> on_emoji_update()              -> emojis_updated(space_id)
 interaction.create         -> on_interaction_create()        -> (no-op, no interaction UI)
-soundboard.create          -> on_soundboard_create()         -> soundboard_updated(guild_id)
-soundboard.update          -> on_soundboard_update()         -> soundboard_updated(guild_id)
-soundboard.delete          -> on_soundboard_delete()         -> soundboard_updated(guild_id)
-soundboard.play            -> on_soundboard_play()           -> soundboard_played(guild_id, sound_id, user_id)
+soundboard.create          -> on_soundboard_create()         -> soundboard_updated(space_id)
+soundboard.update          -> on_soundboard_update()         -> soundboard_updated(space_id)
+soundboard.delete          -> on_soundboard_delete()         -> soundboard_updated(space_id)
+soundboard.play            -> on_soundboard_play()           -> soundboard_played(space_id, sound_id, user_id)
 ─────────────────────────────────────────────────────────────────────────────────
-(disconnected)             -> on_gateway_disconnected()      -> server_disconnected(guild_id, code, reason)
-(reconnecting)             -> on_gateway_reconnecting()      -> server_reconnecting(guild_id, attempt, max)
-(resumed)                  -> on_gateway_reconnected()       -> server_reconnected(guild_id)
+(disconnected)             -> on_gateway_disconnected()      -> server_disconnected(space_id, code, reason)
+(reconnecting)             -> on_gateway_reconnecting()      -> server_reconnecting(space_id, attempt, max)
+(resumed)                  -> on_gateway_reconnected()       -> server_reconnected(space_id)
 ```
 
 ## Key Files
@@ -159,7 +159,7 @@ Each handler follows the pattern: receive typed model -> update cache -> emit Ap
 `on_gateway_ready(data, conn_index)` (line 13):
 - Clears `_auto_reconnect_attempted` for this connection
 - If reconnecting after disconnect, emits `server_reconnected`
-- Fetches channels, members, and roles for the connection's guild
+- Fetches channels, members, and roles for the connection's space
 - Fetches DM channels
 
 `on_gateway_disconnected(code, reason, conn_index)` (line 30):
@@ -214,7 +214,7 @@ Each handler follows the pattern: receive typed model -> update cache -> emit Ap
 `on_presence_update(presence, conn_index)` (line 152):
 - Updates `_user_cache[user_id].status` via `_status_string_to_enum()`
 - Emits `user_updated(user_id)`
-- Also updates matching member dict in `_member_cache` and emits `members_updated(guild_id)`
+- Also updates matching member dict in `_member_cache` and emits `members_updated(space_id)`
 
 **User:**
 
@@ -228,50 +228,50 @@ Each handler follows the pattern: receive typed model -> update cache -> emit Ap
 
 `on_member_join(member, conn_index)` (line 165):
 - Fetches unknown user from REST if not in `_user_cache`
-- Converts to dict via `ClientModels.member_to_dict()`, appends to `_member_cache[guild_id]`
-- Emits `members_updated(guild_id)`
+- Converts to dict via `ClientModels.member_to_dict()`, appends to `_member_cache[space_id]`
+- Emits `members_updated(space_id)`
 
 `on_member_leave(data, conn_index)` (line 187):
 - Extracts user_id (tries `user_id` field, then `user.id` nested field)
-- Removes from `_member_cache[guild_id]` by user_id
-- Emits `members_updated(guild_id)`
+- Removes from `_member_cache[space_id]` by user_id
+- Emits `members_updated(space_id)`
 
 `on_member_update(member, conn_index)` (line 204):
-- Converts to dict, finds and replaces in `_member_cache[guild_id]`
+- Converts to dict, finds and replaces in `_member_cache[space_id]`
 - If not found, appends (handles late-arriving member data)
-- Emits `members_updated(guild_id)`
+- Emits `members_updated(space_id)`
 
 `on_member_chunk(data, conn_index)`:
 - Processes bulk member data from `request_members()` responses
 - Extracts embedded user dicts and populates `_user_cache` via `AccordUser.from_dict()`
 - Deduplicates against existing members using an ID index
-- Updates or appends each member in `_member_cache[guild_id]`
-- Emits `members_updated(guild_id)`
+- Updates or appends each member in `_member_cache[space_id]`
+- Emits `members_updated(space_id)`
 
 **Spaces:**
 
 `on_space_create(space, conn_index)` (line 221):
-- Only processes if space.id matches connection's guild_id
-- Updates `_guild_cache`, emits `guilds_updated`
+- Only processes if space.id matches connection's space_id
+- Updates `_space_cache`, emits `spaces_updated`
 
 `on_space_update(space)` (line 229):
-- Updates `_guild_cache` if space exists, emits `guilds_updated`
+- Updates `_space_cache` if space exists, emits `spaces_updated`
 
 `on_space_delete(data)` (line 235):
-- Erases from `_guild_cache` and `_guild_to_conn`, emits `guilds_updated`
+- Erases from `_space_cache` and `_space_to_conn`, emits `spaces_updated`
 
 **Channels:**
 
 `on_channel_create(channel, conn_index)` (line 241):
 - If DM/group_dm: caches recipients, adds to `_dm_channel_cache`, emits `dm_channels_updated`
-- Else: adds to `_channel_cache` and `_channel_to_guild`, emits `channels_updated(guild_id)`
+- Else: adds to `_channel_cache` and `_channel_to_space`, emits `channels_updated(space_id)`
 
 `on_channel_update(channel, conn_index)` (line 262):
-- Same DM vs guild channel logic as create
+- Same DM vs space channel logic as create
 
 `on_channel_delete(channel)` (line 283):
 - If DM/group_dm: erases from `_dm_channel_cache`, emits `dm_channels_updated`
-- Else: erases from `_channel_cache` and `_channel_to_guild`, emits `channels_updated(guild_id)`
+- Else: erases from `_channel_cache` and `_channel_to_space`, emits `channels_updated(space_id)`
 
 `on_channel_pins_update(data)`:
 - Extracts channel_id from raw dict
@@ -287,51 +287,51 @@ Each handler follows the pattern: receive typed model -> update cache -> emit Ap
 
 `on_role_create(data, conn_index)` (line 293):
 - Parses `AccordRole` from data (tries `data.role` then `data` itself)
-- Converts via `ClientModels.role_to_dict()`, appends to `_role_cache[guild_id]`
-- Emits `roles_updated(guild_id)`
+- Converts via `ClientModels.role_to_dict()`, appends to `_role_cache[space_id]`
+- Emits `roles_updated(space_id)`
 
 `on_role_update(data, conn_index)` (line 304):
-- Parses role, finds and replaces in `_role_cache[guild_id]` by ID
-- Emits `roles_updated(guild_id)`
+- Parses role, finds and replaces in `_role_cache[space_id]` by ID
+- Emits `roles_updated(space_id)`
 
 `on_role_delete(data, conn_index)` (line 318):
-- Extracts role_id (tries `role_id` then `id`), removes from `_role_cache[guild_id]`
-- Emits `roles_updated(guild_id)`
+- Extracts role_id (tries `role_id` then `id`), removes from `_role_cache[space_id]`
+- Emits `roles_updated(space_id)`
 
 **Bans:**
 
 `on_ban_create(data, conn_index)` (line 331):
-- Emits `bans_updated(guild_id)` (no local cache mutation)
+- Emits `bans_updated(space_id)` (no local cache mutation)
 
 `on_ban_delete(data, conn_index)` (line 337):
-- Emits `bans_updated(guild_id)` (no local cache mutation)
+- Emits `bans_updated(space_id)` (no local cache mutation)
 
 **Invites:**
 
 `on_invite_create(invite, conn_index)` (line 343):
-- Emits `invites_updated(guild_id)` (no local cache mutation)
+- Emits `invites_updated(space_id)` (no local cache mutation)
 
 `on_invite_delete(data, conn_index)` (line 349):
-- Emits `invites_updated(guild_id)` (no local cache mutation)
+- Emits `invites_updated(space_id)` (no local cache mutation)
 
 **Soundboard:**
 
 `on_soundboard_create(sound, conn_index)` (line 355):
-- Emits `soundboard_updated(guild_id)` (triggers re-fetch)
+- Emits `soundboard_updated(space_id)` (triggers re-fetch)
 
 `on_soundboard_update(sound, conn_index)` (line 361):
-- Emits `soundboard_updated(guild_id)` (triggers re-fetch)
+- Emits `soundboard_updated(space_id)` (triggers re-fetch)
 
 `on_soundboard_delete(data, conn_index)` (line 367):
-- Emits `soundboard_updated(guild_id)` (triggers re-fetch)
+- Emits `soundboard_updated(space_id)` (triggers re-fetch)
 
 `on_soundboard_play(data, conn_index)` (line 373):
-- Extracts sound_id and user_id, emits `soundboard_played(guild_id, sound_id, user_id)`
+- Extracts sound_id and user_id, emits `soundboard_played(space_id, sound_id, user_id)`
 
 **Emojis:**
 
 `on_emoji_update(data, conn_index)` (line 381):
-- Emits `emojis_updated(guild_id)` (triggers re-fetch)
+- Emits `emojis_updated(space_id)` (triggers re-fetch)
 
 **Voice:**
 
@@ -437,7 +437,7 @@ client.resumed         -> _gw.on_gateway_reconnected.bind(idx)
 - [x] Presence update -> user cache + member cache + signal
 - [x] User update -> user cache + current_user + signal
 - [x] Space create/update/delete -> cache + signal
-- [x] Channel create/update/delete -> cache + signal (DM vs guild routing)
+- [x] Channel create/update/delete -> cache + signal (DM vs space routing)
 - [x] Member join/leave/update/chunk -> member cache + signal
 - [x] Role create/update/delete -> role cache + signal
 - [x] Reaction add/remove/clear/clear_emoji -> message cache + signal

@@ -11,42 +11,42 @@ func _init(client_node: Node) -> void:
 	_c = client_node
 
 func update_space(
-	guild_id: String, data: Dictionary
+	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.spaces.update(guild_id, data)
+	var result: RestResult = await client.spaces.update(space_id, data)
 	if result.ok:
-		await _c.fetch.fetch_guilds()
+		await _c.fetch.fetch_spaces()
 	return result
 
-func delete_space(guild_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func delete_space(space_id: String) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.spaces.delete(guild_id)
+	return await client.spaces.delete(space_id)
 
 func create_channel(
-	guild_id: String, data: Dictionary
+	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.spaces.create_channel(
-		guild_id, data
+		space_id, data
 	)
 	if result.ok:
-		await _c.fetch.fetch_channels(guild_id)
+		await _c.fetch.fetch_channels(space_id)
 	return result
 
 func update_channel(
 	channel_id: String, data: Dictionary
 ) -> RestResult:
-	var guild_id: String = _c._channel_to_guild.get(
+	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
 	var client: AccordClient = _c._client_for_channel(channel_id)
@@ -56,12 +56,12 @@ func update_channel(
 		)
 		return null
 	var result: RestResult = await client.channels.update(channel_id, data)
-	if result.ok and not guild_id.is_empty():
-		await _c.fetch.fetch_channels(guild_id)
+	if result.ok and not space_id.is_empty():
+		await _c.fetch.fetch_channels(space_id)
 	return result
 
 func delete_channel(channel_id: String) -> RestResult:
-	var guild_id: String = _c._channel_to_guild.get(
+	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
 	var client: AccordClient = _c._client_for_channel(channel_id)
@@ -71,329 +71,329 @@ func delete_channel(channel_id: String) -> RestResult:
 		)
 		return null
 	var result: RestResult = await client.channels.delete(channel_id)
-	if result.ok and not guild_id.is_empty():
-		await _c.fetch.fetch_channels(guild_id)
+	if result.ok and not space_id.is_empty():
+		await _c.fetch.fetch_channels(space_id)
 	return result
 
 func create_role(
-	guild_id: String, data: Dictionary
+	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.roles.create(guild_id, data)
+	var result: RestResult = await client.roles.create(space_id, data)
 	if result.ok:
-		await _c.fetch.fetch_roles(guild_id)
+		await _c.fetch.fetch_roles(space_id)
 	return result
 
 func update_role(
-	guild_id: String, role_id: String, data: Dictionary
+	space_id: String, role_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.roles.update(
-		guild_id, role_id, data
+		space_id, role_id, data
 	)
 	if result.ok:
-		await _c.fetch.fetch_roles(guild_id)
+		await _c.fetch.fetch_roles(space_id)
 	return result
 
 func delete_role(
-	guild_id: String, role_id: String
+	space_id: String, role_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.roles.delete(guild_id, role_id)
+	var result: RestResult = await client.roles.delete(space_id, role_id)
 	if result.ok:
-		await _c.fetch.fetch_roles(guild_id)
+		await _c.fetch.fetch_roles(space_id)
 	return result
 
 func kick_member(
-	guild_id: String, user_id: String
+	space_id: String, user_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.members.kick(guild_id, user_id)
+	var result: RestResult = await client.members.kick(space_id, user_id)
 	if result.ok:
-		await _c.fetch.fetch_members(guild_id)
+		await _c.fetch.fetch_members(space_id)
 	return result
 
 func ban_member(
-	guild_id: String, user_id: String,
+	space_id: String, user_id: String,
 	data: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.bans.create(
-		guild_id, user_id, data
+		space_id, user_id, data
 	)
 	if result.ok:
-		await _c.fetch.fetch_members(guild_id)
-		AppState.bans_updated.emit(guild_id)
+		await _c.fetch.fetch_members(space_id)
+		AppState.bans_updated.emit(space_id)
 	return result
 
 func unban_member(
-	guild_id: String, user_id: String
+	space_id: String, user_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.bans.remove(guild_id, user_id)
+	var result: RestResult = await client.bans.remove(space_id, user_id)
 	if result.ok:
-		AppState.bans_updated.emit(guild_id)
+		AppState.bans_updated.emit(space_id)
 	return result
 
 func add_member_role(
-	guild_id: String, user_id: String, role_id: String
+	space_id: String, user_id: String, role_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.add_role(
-		guild_id, user_id, role_id
+		space_id, user_id, role_id
 	)
 	if result.ok:
-		await _c.fetch.fetch_members(guild_id)
+		await _c.fetch.fetch_members(space_id)
 	return result
 
 func remove_member_role(
-	guild_id: String, user_id: String, role_id: String
+	space_id: String, user_id: String, role_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.remove_role(
-		guild_id, user_id, role_id
+		space_id, user_id, role_id
 	)
 	if result.ok:
-		await _c.fetch.fetch_members(guild_id)
+		await _c.fetch.fetch_members(space_id)
 	return result
 
 func update_member(
-	guild_id: String, user_id: String, data: Dictionary
+	space_id: String, user_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.update(
-		guild_id, user_id, data
+		space_id, user_id, data
 	)
 	if result.ok:
-		await _c.fetch.fetch_members(guild_id)
+		await _c.fetch.fetch_members(space_id)
 	return result
 
 func get_audit_log(
-	guild_id: String, query: Dictionary = {}
+	space_id: String, query: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.audit_logs.list(guild_id, query)
+	return await client.audit_logs.list(space_id, query)
 
 func get_bans(
-	guild_id: String, query: Dictionary = {}
+	space_id: String, query: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.bans.list(guild_id, query)
+	return await client.bans.list(space_id, query)
 
-func get_invites(guild_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func get_invites(space_id: String) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.invites.list_space(guild_id)
+	return await client.invites.list_space(space_id)
 
 func create_invite(
-	guild_id: String, data: Dictionary = {}
+	space_id: String, data: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.invites.create_space(
-		guild_id, data
+		space_id, data
 	)
 	if result.ok:
-		AppState.invites_updated.emit(guild_id)
+		AppState.invites_updated.emit(space_id)
 	return result
 
 func delete_invite(
-	code: String, guild_id: String
+	code: String, space_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.invites.delete(code)
 	if result.ok:
-		AppState.invites_updated.emit(guild_id)
+		AppState.invites_updated.emit(space_id)
 	return result
 
-func get_emojis(guild_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func get_emojis(space_id: String) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.emojis.list(guild_id)
+	return await client.emojis.list(space_id)
 
 func create_emoji(
-	guild_id: String, data: Dictionary
+	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.emojis.create(guild_id, data)
+	var result: RestResult = await client.emojis.create(space_id, data)
 	if result.ok:
-		AppState.emojis_updated.emit(guild_id)
+		AppState.emojis_updated.emit(space_id)
 	return result
 
 func update_emoji(
-	guild_id: String, emoji_id: String, data: Dictionary
+	space_id: String, emoji_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.emojis.update(
-		guild_id, emoji_id, data
+		space_id, emoji_id, data
 	)
 	if result.ok:
-		AppState.emojis_updated.emit(guild_id)
+		AppState.emojis_updated.emit(space_id)
 	return result
 
 func delete_emoji(
-	guild_id: String, emoji_id: String
+	space_id: String, emoji_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.emojis.delete(
-		guild_id, emoji_id
+		space_id, emoji_id
 	)
 	if result.ok:
-		AppState.emojis_updated.emit(guild_id)
+		AppState.emojis_updated.emit(space_id)
 	return result
 
 func get_emoji_url(
-	guild_id: String, emoji_id: String,
+	space_id: String, emoji_id: String,
 	animated: bool = false
 ) -> String:
-	var cdn_url: String = _c._cdn_for_guild(guild_id)
+	var cdn_url: String = _c._cdn_for_space(space_id)
 	var fmt := "gif" if animated else "png"
 	return AccordCDN.emoji(emoji_id, fmt, cdn_url)
 
-func get_sounds(guild_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+func get_sounds(space_id: String) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.soundboard.list(guild_id)
+	return await client.soundboard.list(space_id)
 
 func create_sound(
-	guild_id: String, data: Dictionary
+	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.soundboard.create(guild_id, data)
+	var result: RestResult = await client.soundboard.create(space_id, data)
 	if result.ok:
-		AppState.soundboard_updated.emit(guild_id)
+		AppState.soundboard_updated.emit(space_id)
 	return result
 
 func update_sound(
-	guild_id: String, sound_id: String, data: Dictionary
+	space_id: String, sound_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.soundboard.update(
-		guild_id, sound_id, data
+		space_id, sound_id, data
 	)
 	if result.ok:
-		AppState.soundboard_updated.emit(guild_id)
+		AppState.soundboard_updated.emit(space_id)
 	return result
 
 func delete_sound(
-	guild_id: String, sound_id: String
+	space_id: String, sound_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.soundboard.delete(
-		guild_id, sound_id
+		space_id, sound_id
 	)
 	if result.ok:
-		AppState.soundboard_updated.emit(guild_id)
+		AppState.soundboard_updated.emit(space_id)
 	return result
 
 func play_sound(
-	guild_id: String, sound_id: String
+	space_id: String, sound_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.soundboard.play(guild_id, sound_id)
+	return await client.soundboard.play(space_id, sound_id)
 
 func get_sound_url(
-	guild_id: String, audio_url: String
+	space_id: String, audio_url: String
 ) -> String:
-	var cdn_url: String = _c._cdn_for_guild(guild_id)
+	var cdn_url: String = _c._cdn_for_space(space_id)
 	return AccordCDN.sound(audio_url, cdn_url)
 
 func reorder_channels(
-	guild_id: String, data: Array
+	space_id: String, data: Array
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.spaces.reorder_channels(
-		guild_id, data
+		space_id, data
 	)
 	if result.ok:
-		await _c.fetch.fetch_channels(guild_id)
+		await _c.fetch.fetch_channels(space_id)
 	return result
 
 func reorder_roles(
-	guild_id: String, data: Array
+	space_id: String, data: Array
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_guild(guild_id)
+	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for guild: ", guild_id)
+		push_error("[Client] No connection for space:", space_id)
 		return null
-	var result: RestResult = await client.roles.reorder(guild_id, data)
+	var result: RestResult = await client.roles.reorder(space_id, data)
 	if result.ok:
-		await _c.fetch.fetch_roles(guild_id)
+		await _c.fetch.fetch_roles(space_id)
 	return result
 
 func update_channel_overwrites(
 	channel_id: String, overwrites: Array,
 	deleted_ids: Array = [],
 ) -> RestResult:
-	var guild_id: String = _c._channel_to_guild.get(
+	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
 	var client: AccordClient = _c._client_for_channel(channel_id)
@@ -425,8 +425,8 @@ func update_channel_overwrites(
 		if not last_result.ok:
 			return last_result
 
-	if not guild_id.is_empty():
-		await _c.fetch.fetch_channels(guild_id)
+	if not space_id.is_empty():
+		await _c.fetch.fetch_channels(space_id)
 
 	# Return a successful result even if no operations ran
 	if last_result == null:

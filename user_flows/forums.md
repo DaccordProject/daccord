@@ -9,7 +9,7 @@ Currently, the `FORUM` channel type is recognized throughout the codebase (enum,
 ## User Steps
 
 ### Browsing a Forum
-1. User selects a guild in the sidebar.
+1. User selects a space in the sidebar.
 2. User clicks a forum channel (identified by the forum icon).
 3. Instead of a flat message feed, the content area shows a **post list** — each row displays the post title, author, reply count, last activity timestamp, and a content preview.
 4. User can scroll through posts; older posts load on demand.

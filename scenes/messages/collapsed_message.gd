@@ -50,13 +50,13 @@ func update_data(data: Dictionary) -> void:
 	message_content.update_content(data)
 
 func _get_current_user_roles() -> Array:
-	var guild_id: String = Client._channel_to_guild.get(
+	var space_id: String = Client._channel_to_space.get(
 		AppState.current_channel_id, ""
 	)
-	if guild_id.is_empty():
+	if space_id.is_empty():
 		return []
 	var my_id: String = Client.current_user.get("id", "")
-	for member in Client.get_members_for_guild(guild_id):
+	for member in Client.get_members_for_space(space_id):
 		if member.get("id", "") == my_id:
 			return member.get("roles", [])
 	return []

@@ -9,7 +9,7 @@ func _init(client_node: Node) -> void:
 	_c = client_node
 
 func register(
-	guild_id: String, emoji_id: String,
+	space_id: String, emoji_id: String,
 	emoji_name: String,
 ) -> void:
 	if emoji_id.is_empty() or emoji_name.is_empty():
@@ -25,7 +25,7 @@ func register(
 	_c._emoji_download_pending[emoji_id] = true
 	# Ensure cache directory exists
 	DirAccess.make_dir_recursive_absolute(Config._profile_emoji_cache_dir())
-	var url: String = _c.admin.get_emoji_url(guild_id, emoji_id)
+	var url: String = _c.admin.get_emoji_url(space_id, emoji_id)
 	var http := HTTPRequest.new()
 	_c.add_child(http)
 	http.request_completed.connect(func(
@@ -55,7 +55,7 @@ func register_texture(
 
 ## Trims the user cache if it exceeds the cap.
 ## Preserves the current user and users referenced by current
-## guild members; evicts the rest.
+## space members; evicts the rest.
 func trim_user_cache() -> void:
 	if _c._user_cache.size() <= _c.USER_CACHE_CAP:
 		return
@@ -63,7 +63,7 @@ func trim_user_cache() -> void:
 	var my_id: String = _c.current_user.get("id", "")
 	if not my_id.is_empty():
 		keep[my_id] = true
-	var gid: String = AppState.current_guild_id
+	var gid: String = AppState.current_space_id
 	if _c._member_cache.has(gid):
 		for m in _c._member_cache[gid]:
 			keep[m.get("id", "")] = true

@@ -29,8 +29,8 @@ User selects status from status popup
                 -> Config.set_user_status(status) persists to disk
                 -> Status string + activity sent to all connected servers via AccordClient.update_presence()
                 -> AppState.user_updated.emit(my_id)
-                -> Client._member_cache updated for all guilds
-                -> AppState.members_updated.emit(guild_id) for each guild
+                -> Client._member_cache updated for all spaces
+                -> AppState.members_updated.emit(space_id) for each space
         -> setup(Client.current_user) refreshes indicator color
 
 User sets custom status
@@ -55,8 +55,8 @@ Presence update received from gateway
     -> ClientGateway.on_presence_update(presence, conn_index)
         -> Client._user_cache[user_id]["status"] updated (string -> enum)
         -> AppState.user_updated.emit(user_id)
-        -> Client._member_cache[guild_id] updated
-        -> AppState.members_updated.emit(guild_id)
+        -> Client._member_cache[space_id] updated
+        -> AppState.members_updated.emit(space_id)
     -> user_bar._on_user_updated(user_id)
         -> If user_id matches current user, calls setup(Client.current_user)
         -> Status indicator color refreshed
@@ -83,7 +83,7 @@ Presence update received from gateway
 
 - Displays: avatar (ColorRect with circle shader + CDN image), display_name label, username label (gray, 11px), status indicator (14x14 clickable ColorRect), voice indicator, MenuButton ("...")
 - Avatar: loads image via `set_avatar_url()` from user dict's `"avatar"` key; falls back to colored circle if no URL
-- Avatar hover: tweens radius 0.5->0.3 on mouse enter, 0.3->0.5 on mouse exit (same pattern as guild icons)
+- Avatar hover: tweens radius 0.5->0.3 on mouse enter, 0.3->0.5 on mouse exit (same pattern as space icons)
 - Custom status: displayed as tooltip on the user bar PanelContainer
 - Status indicator: clickable colored dot with pointing hand cursor and "Change status" tooltip
   - Online: green, Idle: yellow, DND: red, Offline/Invisible: gray
@@ -98,7 +98,7 @@ Presence update received from gateway
 - `_on_status_id_pressed(id)`: calls `Client.update_presence()` for status items 0-3, custom status dialog for 4
 - MenuButton ("...") popup provides: Edit Profile, Settings, Suppress @everyone, Export/Import Profile, Report a Problem, Check for Updates, About, Quit
 - Signal connections:
-  - `AppState.guilds_updated` -> `_on_guilds_updated()` -> refreshes from `Client.current_user`
+  - `AppState.spaces_updated` -> `_on_spaces_updated()` -> refreshes from `Client.current_user`
   - `AppState.user_updated` -> `_on_user_updated(user_id)` -> refreshes if ID matches current user
   - `AppState.voice_joined` / `voice_left` -> toggles voice indicator visibility
   - `avatar.mouse_entered` / `mouse_exited` -> hover radius animation
@@ -125,24 +125,24 @@ Presence update received from gateway
   4. Converts enum to string via `ClientModels._status_enum_to_string()`
   5. Sends to all connected servers: `conn["client"].update_presence(status_string, activity)`
   6. Emits `AppState.user_updated(my_id)`
-  7. Updates `Client._member_cache` for all guilds where user is a member
-  8. Emits `AppState.members_updated(guild_id)` for each guild
+  7. Updates `Client._member_cache` for all spaces where user is a member
+  8. Emits `AppState.members_updated(space_id)` for each space
 
 ### Gateway Presence Handler (client_gateway.gd)
 
 - `on_presence_update(presence, conn_index)`:
   1. Updates `Client._user_cache[user_id]["status"]` (string -> enum via `_status_string_to_enum`)
   2. Emits `AppState.user_updated(user_id)`
-  3. Updates `Client._member_cache[guild_id]` for the connection's guild
-  4. Emits `AppState.members_updated(guild_id)`
+  3. Updates `Client._member_cache[space_id]` for the connection's space
+  4. Emits `AppState.members_updated(space_id)`
 
 ### Avatar Circle Shader (theme/avatar_circle.gdshader)
 
 - Fragment shader that clips a ColorRect into a rounded shape
 - `uniform float radius : hint_range(0.0, 0.5) = 0.5` parameter
 - radius = 0.5 -> perfect circle; radius = 0.3 -> rounded square
-- Used by: user_bar, cozy_message avatars, dm_channel_item avatars, guild icons
-- Hover animation: tweens radius from 0.5 to 0.3 on guild icons and user bar avatar
+- Used by: user_bar, cozy_message avatars, dm_channel_item avatars, space icons
+- Hover animation: tweens radius from 0.5 to 0.3 on space icons and user bar avatar
 
 ### User Status Colors (user_bar.gd)
 

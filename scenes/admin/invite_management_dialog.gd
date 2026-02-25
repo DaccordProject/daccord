@@ -3,7 +3,7 @@ extends ColorRect
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const InviteRowScene := preload("res://scenes/admin/invite_row.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_invites: Array = []
 var _selected_codes: Array = []
 
@@ -48,8 +48,8 @@ func _ready() -> void:
 
 	AppState.invites_updated.connect(_on_invites_updated)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_load_invites()
 
 func _load_invites() -> void:
@@ -61,7 +61,7 @@ func _load_invites() -> void:
 	_selected_codes.clear()
 	_update_bulk_ui()
 
-	var result: RestResult = await Client.admin.get_invites(_guild_id)
+	var result: RestResult = await Client.admin.get_invites(_space_id)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load invites"
 		if result != null and result.error:
@@ -153,7 +153,7 @@ func _on_bulk_revoke() -> void:
 	dialog.confirmed.connect(func():
 		var failed := 0
 		for code in _selected_codes.duplicate():
-			var result: RestResult = await Client.admin.delete_invite(code, _guild_id)
+			var result: RestResult = await Client.admin.delete_invite(code, _space_id)
 			if result == null or not result.ok:
 				failed += 1
 		_selected_codes.clear()
@@ -179,7 +179,7 @@ func _on_create() -> void:
 		"temporary": _temporary_check.button_pressed,
 	}
 
-	var result: RestResult = await Client.admin.create_invite(_guild_id, data)
+	var result: RestResult = await Client.admin.create_invite(_space_id, data)
 	_create_btn.disabled = false
 	_create_btn.text = "Create"
 
@@ -204,11 +204,11 @@ func _on_revoke(code: String) -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		await Client.admin.delete_invite(code, _guild_id)
+		await Client.admin.delete_invite(code, _space_id)
 	)
 
-func _on_invites_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_invites_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_load_invites()
 
 func _close() -> void:

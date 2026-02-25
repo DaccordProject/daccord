@@ -25,7 +25,7 @@ func _ready() -> void:
 	# Pulse animation when no servers are configured
 	if not Config.has_servers():
 		_start_pulse()
-		AppState.guilds_updated.connect(_stop_pulse, CONNECT_ONE_SHOT)
+		AppState.spaces_updated.connect(_stop_pulse, CONNECT_ONE_SHOT)
 
 func _on_pressed() -> void:
 	add_server_pressed.emit()

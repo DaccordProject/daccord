@@ -1,6 +1,6 @@
 extends ColorRect
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _user_id: String = ""
 
 @onready var _title_label: Label = \
@@ -25,10 +25,10 @@ func _ready() -> void:
 	)
 
 func setup(
-	guild_id: String, user_id: String,
+	space_id: String, user_id: String,
 	display_name: String, current_nick: String
 ) -> void:
-	_guild_id = guild_id
+	_space_id = space_id
 	_user_id = user_id
 	if _title_label:
 		_title_label.text = "Nickname: %s" % display_name
@@ -45,7 +45,7 @@ func _on_save() -> void:
 	var data: Dictionary = {"nick": nick if not nick.is_empty() else ""}
 
 	var result: RestResult = await Client.admin.update_member(
-		_guild_id, _user_id, data
+		_space_id, _user_id, data
 	)
 	_save_btn.disabled = false
 	_save_btn.text = "Save"

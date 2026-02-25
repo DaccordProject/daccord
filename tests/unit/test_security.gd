@@ -194,11 +194,11 @@ func test_send_whitespace_only_message_still_emits() -> void:
 		"Whitespace-only message is accepted without validation")
 
 
-func test_select_guild_empty_id_still_emits() -> void:
-	app_state.select_guild("")
-	assert_eq(app_state.current_guild_id, "",
-		"Empty guild ID is accepted without validation")
-	assert_signal_emitted(app_state, "guild_selected")
+func test_select_space_empty_id_still_emits() -> void:
+	app_state.select_space("")
+	assert_eq(app_state.current_space_id, "",
+		"Empty space ID is accepted without validation")
+	assert_signal_emitted(app_state, "space_selected")
 
 
 func test_select_channel_empty_id_still_emits() -> void:
@@ -224,12 +224,12 @@ func test_delete_message_empty_id_still_emits() -> void:
 
 
 func test_rapid_state_transitions_no_crash() -> void:
-	app_state.select_guild("guild_1")
+	app_state.select_space("space_1")
 	app_state.select_channel("chan_3")
 	app_state.enter_dm_mode()
-	app_state.select_guild("guild_2")
+	app_state.select_space("space_2")
 	app_state.enter_dm_mode()
-	app_state.select_guild("guild_1")
+	app_state.select_space("space_1")
 	app_state.enter_dm_mode()
 	assert_true(app_state.is_dm_mode, "Should end in DM mode after rapid transitions")
-	assert_eq(app_state.current_guild_id, "", "Guild should be cleared after DM mode")
+	assert_eq(app_state.current_space_id, "", "Space should be cleared after DM mode")

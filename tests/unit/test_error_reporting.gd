@@ -45,8 +45,8 @@ func test_report_problem_returns_early_when_not_initialized() -> void:
 # 2. Signal handlers -- should not crash when not initialized
 # =============================================================================
 
-func test_on_guild_selected_no_crash() -> void:
-	er._on_guild_selected("guild_123")
+func test_on_space_selected_no_crash() -> void:
+	er._on_space_selected("space_123")
 	pass_test("No crash")
 
 

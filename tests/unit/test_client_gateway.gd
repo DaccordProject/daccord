@@ -21,13 +21,13 @@ func before_each() -> void:
 	gw = client_node._gw
 	# Set up a mock connection
 	client_node._connections = [{
-		"guild_id": "g_1",
+		"space_id": "g_1",
 		"cdn_url": "http://cdn",
 		"client": null,
 		"status": "connected",
 		"config": {"base_url": "http://test"},
 	}]
-	client_node._guild_to_conn = {"g_1": 0}
+	client_node._space_to_conn = {"g_1": 0}
 	client_node.current_user = {"id": "me_1", "display_name": "Me"}
 	client_node._user_cache["me_1"] = client_node.current_user
 	watch_signals(AppState)
@@ -123,8 +123,8 @@ func test_on_message_create_enforces_message_cap() -> void:
 
 func test_on_message_create_marks_unread_other_channel() -> void:
 	AppState.current_channel_id = "c_other"
-	client_node._channel_cache["c_1"] = {"id": "c_1", "guild_id": "g_1", "unread": false}
-	client_node._guild_cache["g_1"] = {"id": "g_1", "unread": false, "mentions": 0}
+	client_node._channel_cache["c_1"] = {"id": "c_1", "space_id": "g_1", "unread": false}
+	client_node._space_cache["g_1"] = {"id": "g_1", "unread": false, "mentions": 0}
 	var msg := _make_message()
 	gw.on_message_create(msg, 0)
 	await get_tree().process_frame
@@ -233,11 +233,11 @@ func test_on_user_update_updates_current_user() -> void:
 
 
 # ------------------------------------------------------------------
-# Space / Guild
+# Space
 # ------------------------------------------------------------------
 
 func test_on_space_update_preserves_unread() -> void:
-	client_node._guild_cache["g_1"] = {
+	client_node._space_cache["g_1"] = {
 		"id": "g_1", "name": "Old", "unread": true,
 		"mentions": 5, "folder": "MyFolder",
 	}
@@ -245,24 +245,24 @@ func test_on_space_update_preserves_unread() -> void:
 		"id": "g_1", "name": "NewName", "slug": "new",
 	})
 	gw.on_space_update(space)
-	assert_eq(client_node._guild_cache["g_1"]["name"], "NewName")
-	assert_true(client_node._guild_cache["g_1"]["unread"])
-	assert_eq(client_node._guild_cache["g_1"]["mentions"], 5)
-	assert_eq(client_node._guild_cache["g_1"]["folder"], "MyFolder")
+	assert_eq(client_node._space_cache["g_1"]["name"], "NewName")
+	assert_true(client_node._space_cache["g_1"]["unread"])
+	assert_eq(client_node._space_cache["g_1"]["mentions"], 5)
+	assert_eq(client_node._space_cache["g_1"]["folder"], "MyFolder")
 
 
 func test_on_space_delete_removes() -> void:
-	client_node._guild_cache["g_1"] = {"id": "g_1"}
+	client_node._space_cache["g_1"] = {"id": "g_1"}
 	gw.on_space_delete({"id": "g_1"})
-	assert_false(client_node._guild_cache.has("g_1"))
+	assert_false(client_node._space_cache.has("g_1"))
 
 
 func test_on_space_create_adds() -> void:
 	var space := AccordSpace.from_dict({
-		"id": "g_1", "name": "NewGuild", "slug": "new",
+		"id": "g_1", "name": "NewSpace", "slug": "new",
 	})
 	gw.on_space_create(space, 0)
-	assert_true(client_node._guild_cache.has("g_1"))
+	assert_true(client_node._space_cache.has("g_1"))
 
 
 # ------------------------------------------------------------------
@@ -276,7 +276,7 @@ func test_on_channel_create_text() -> void:
 	})
 	gw.on_channel_create(channel, 0)
 	assert_true(client_node._channel_cache.has("c_new"))
-	assert_eq(client_node._channel_to_guild.get("c_new", ""), "g_1")
+	assert_eq(client_node._channel_to_space.get("c_new", ""), "g_1")
 
 
 func test_on_channel_create_dm() -> void:
@@ -290,7 +290,7 @@ func test_on_channel_create_dm() -> void:
 
 func test_on_channel_update_preserves_unread() -> void:
 	client_node._channel_cache["c_1"] = {
-		"id": "c_1", "guild_id": "g_1", "unread": true, "voice_users": 3,
+		"id": "c_1", "space_id": "g_1", "unread": true, "voice_users": 3,
 	}
 	var channel := AccordChannel.from_dict({
 		"id": "c_1", "type": "text", "name": "updated",
@@ -302,14 +302,14 @@ func test_on_channel_update_preserves_unread() -> void:
 
 
 func test_on_channel_delete_text() -> void:
-	client_node._channel_cache["c_1"] = {"id": "c_1", "guild_id": "g_1"}
-	client_node._channel_to_guild["c_1"] = "g_1"
+	client_node._channel_cache["c_1"] = {"id": "c_1", "space_id": "g_1"}
+	client_node._channel_to_space["c_1"] = "g_1"
 	var channel := AccordChannel.from_dict({
 		"id": "c_1", "type": "text", "space_id": "g_1",
 	})
 	gw.on_channel_delete(channel)
 	assert_false(client_node._channel_cache.has("c_1"))
-	assert_false(client_node._channel_to_guild.has("c_1"))
+	assert_false(client_node._channel_to_space.has("c_1"))
 
 
 func test_on_channel_delete_dm() -> void:

@@ -51,12 +51,12 @@ func _on_send() -> void:
 	_pending_files.clear()
 	_update_attachment_bar()
 	# Check if we're queueing (disconnected but can queue)
-	var guild_id: String = Client._channel_to_guild.get(
+	var space_id: String = Client._channel_to_space.get(
 		AppState.current_channel_id, ""
 	)
 	var is_queuing := false
-	if not guild_id.is_empty() and not Client.is_guild_connected(guild_id):
-		var status: String = Client.get_guild_connection_status(guild_id)
+	if not space_id.is_empty() and not Client.is_space_connected(space_id):
+		var status: String = Client.get_space_connection_status(space_id)
 		is_queuing = status in ["disconnected", "reconnecting"]
 	AppState.send_message(text)
 	text_input.text = ""
@@ -109,12 +109,12 @@ func _check_everyone_permission() -> void:
 		if error_label.text.begins_with("You don't have"):
 			error_label.visible = false
 		return
-	var guild_id: String = Client._channel_to_guild.get(
+	var space_id: String = Client._channel_to_space.get(
 		AppState.current_channel_id, ""
 	)
-	if guild_id.is_empty():
+	if space_id.is_empty():
 		return
-	if not Client.has_permission(guild_id, AccordPermission.MENTION_EVERYONE):
+	if not Client.has_permission(space_id, AccordPermission.MENTION_EVERYONE):
 		error_label.text = "You don't have permission to mention @everyone"
 		error_label.visible = true
 	else:
@@ -144,6 +144,7 @@ func _on_upload_button() -> void:
 		_file_dialog = FileDialog.new()
 		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
 		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_file_dialog.use_native_dialog = true
 		_file_dialog.title = "Select files to attach"
 		_file_dialog.files_selected.connect(_on_files_selected)
 		add_child(_file_dialog)
@@ -294,11 +295,11 @@ func _on_message_send_failed(channel_id: String, content: String, error: String)
 # --- State ---
 
 func update_enabled_state() -> void:
-	var guild_id: String = Client._channel_to_guild.get(AppState.current_channel_id, "")
-	var connected := Client.is_guild_connected(guild_id) if not guild_id.is_empty() else true
+	var space_id: String = Client._channel_to_space.get(AppState.current_channel_id, "")
+	var connected := Client.is_space_connected(space_id) if not space_id.is_empty() else true
 
 	# Imposter mode: always disable sending (view-only preview)
-	if AppState.is_imposter_mode and guild_id == AppState.imposter_guild_id:
+	if AppState.is_imposter_mode and space_id == AppState.imposter_space_id:
 		text_input.editable = false
 		send_button.disabled = true
 		upload_button.disabled = true
@@ -320,13 +321,13 @@ func update_enabled_state() -> void:
 
 	# Syncing: connected but data not yet refreshed
 	var is_syncing := false
-	if connected and not guild_id.is_empty():
-		is_syncing = Client.is_guild_syncing(guild_id)
+	if connected and not space_id.is_empty():
+		is_syncing = Client.is_space_syncing(space_id)
 
 	# Check if we can queue messages while disconnected
 	var can_queue := false
-	if not connected and not guild_id.is_empty():
-		var status: String = Client.get_guild_connection_status(guild_id)
+	if not connected and not space_id.is_empty():
+		var status: String = Client.get_space_connection_status(space_id)
 		can_queue = status in ["disconnected", "reconnecting"]
 
 	text_input.editable = (connected and not is_syncing) or can_queue

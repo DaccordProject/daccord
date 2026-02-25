@@ -1,7 +1,12 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/user_bar.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="2"]
+[ext_resource type="Shader" path="res://assets/theme/status_circle.gdshader" id="3"]
+
+[sub_resource type="ShaderMaterial" id="status_circle_mat"]
+shader = ExtResource("3")
+shader_parameter/circle_radius = 0.21875
 
 [sub_resource type="StyleBoxFlat" id="user_bar_bg"]
 bg_color = Color(0.114, 0.118, 0.129, 1)
@@ -41,8 +46,9 @@ layout_mode = 2
 text = "cooldev"
 
 [node name="StatusIcon" type="ColorRect" parent="HBox"]
+material = SubResource("status_circle_mat")
 layout_mode = 2
-custom_minimum_size = Vector2(14, 14)
+custom_minimum_size = Vector2(32, 32)
 size_flags_vertical = 4
 color = Color(0.231, 0.647, 0.365, 1)
 mouse_filter = 0

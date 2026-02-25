@@ -3,7 +3,7 @@ extends ColorRect
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const SoundRowScene := preload("res://scenes/admin/sound_row.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _all_sounds: Array = []
 var _can_manage: bool = false
 var _volume_debounce: Dictionary = {}
@@ -29,10 +29,10 @@ func _ready() -> void:
 	_search_input.text_changed.connect(_on_search_changed)
 	AppState.soundboard_updated.connect(_on_soundboard_updated)
 
-func setup(guild_id: String) -> void:
-	_guild_id = guild_id
+func setup(space_id: String) -> void:
+	_space_id = space_id
 	_can_manage = Client.has_permission(
-		guild_id, AccordPermission.MANAGE_SOUNDBOARD
+		space_id, AccordPermission.MANAGE_SOUNDBOARD
 	)
 	_upload_btn.visible = _can_manage
 	_load_sounds()
@@ -44,7 +44,7 @@ func _load_sounds() -> void:
 	_error_label.visible = false
 	_all_sounds.clear()
 
-	var result: RestResult = await Client.admin.get_sounds(_guild_id)
+	var result: RestResult = await Client.admin.get_sounds(_space_id)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to load sounds"
 		if result != null and result.error:
@@ -152,7 +152,7 @@ func _on_file_selected(path: String) -> void:
 		"audio": data_uri,
 	}
 
-	var result: RestResult = await Client.admin.create_sound(_guild_id, data)
+	var result: RestResult = await Client.admin.create_sound(_space_id, data)
 	_upload_btn.disabled = false
 	_upload_btn.text = "Upload Sound"
 
@@ -175,15 +175,15 @@ func _on_delete_sound(sound: Dictionary) -> void:
 		true
 	)
 	dialog.confirmed.connect(func():
-		Client.admin.delete_sound(_guild_id, sound.get("id", ""))
+		Client.admin.delete_sound(_space_id, sound.get("id", ""))
 	)
 
 func _on_play_sound(sound: Dictionary) -> void:
-	Client.admin.play_sound(_guild_id, sound.get("id", ""))
+	Client.admin.play_sound(_space_id, sound.get("id", ""))
 
 func _on_rename_sound(sound: Dictionary, new_name: String) -> void:
 	var result: RestResult = await Client.admin.update_sound(
-		_guild_id, sound.get("id", ""), {"name": new_name}
+		_space_id, sound.get("id", ""), {"name": new_name}
 	)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to rename sound"
@@ -205,7 +205,7 @@ func _on_volume_changed(sound: Dictionary, new_volume: float) -> void:
 		return
 	_volume_debounce.erase(sound_id)
 	var result: RestResult = await Client.admin.update_sound(
-		_guild_id, sound_id, {"volume": new_volume}
+		_space_id, sound_id, {"volume": new_volume}
 	)
 	if result == null or not result.ok:
 		var err_msg: String = "Failed to update volume"
@@ -214,8 +214,8 @@ func _on_volume_changed(sound: Dictionary, new_volume: float) -> void:
 		_error_label.text = err_msg
 		_error_label.visible = true
 
-func _on_soundboard_updated(guild_id: String) -> void:
-	if guild_id == _guild_id:
+func _on_soundboard_updated(space_id: String) -> void:
+	if space_id == _space_id:
 		_load_sounds()
 
 func _close() -> void:

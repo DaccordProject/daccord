@@ -8,9 +8,9 @@ Daccord uses tween-based animations, shader-driven effects, per-frame `_process`
 ## User Steps
 
 1. **Sidebar drawer (compact mode):** User taps the hamburger button → sidebar slides in from the left with a backdrop fade. Tapping the backdrop or navigating closes it with a reverse slide. Edge-swiping from the left tracks the finger in real-time, snapping open or closed on release.
-2. **Channel panel expand/collapse (medium mode):** User clicks a guild icon → channel panel width animates from 0 → 240px. Selecting a channel collapses it back.
-3. **Guild icon hover:** User hovers over a guild icon → avatar morphs from circle to rounded square via shader. Moving away reverses the morph.
-4. **Pill indicator:** Selecting a guild animates the left-side pill from hidden to active height (20px). Switching away shrinks it back.
+2. **Channel panel expand/collapse (medium mode):** User clicks a space icon → channel panel width animates from 0 → 240px. Selecting a channel collapses it back.
+3. **Space icon hover:** User hovers over a space icon → avatar morphs from circle to rounded square via shader. Moving away reverses the morph.
+4. **Pill indicator:** Selecting a space animates the left-side pill from hidden to active height (20px). Switching away shrinks it back.
 5. **Typing indicator:** When another user types, three dots pulse with a sine wave alpha animation.
 6. **Message hover:** Hovering a message highlights it and shows an action bar. Moving away hides both after a 0.1s debounce.
 7. **Role assignment feedback:** Toggling a role on a member flashes the row green (success) or red (failure).
@@ -32,11 +32,11 @@ User action
     │              _open_drawer()      _close_drawer()
     │              tween slide+fade    tween slide+fade
     │
-    ├─ Guild click ───────► sidebar.set_channel_panel_visible(true)
+    ├─ Space click ───────► sidebar.set_channel_panel_visible(true)
     │                              │
     │                    tween custom_minimum_size:x → 240
     │
-    ├─ Guild hover ───────► guild_icon._on_hover_enter()
+    ├─ Space hover ───────► guild_icon._on_hover_enter()
     │                              │
     │                    avatar_rect.tween_radius(0.5, 0.3)
     │                              │
@@ -44,7 +44,7 @@ User action
     │                              │
     │                    shader uniform "radius" updated
     │
-    ├─ Guild select ──────► guild_icon.set_active(true)
+    ├─ Space select ──────► guild_icon.set_active(true)
     │                              │
     │                    pill.set_state_animated(ACTIVE)
     │                              │
@@ -152,7 +152,7 @@ The avatar shader (`avatar_circle.gdshader`) uses a `radius` uniform (range 0.0�
 
 `avatar.gd` exposes `tween_radius(from, to, duration)` (line 99) which uses `tween_method()` to animate the shader parameter. Default duration is 0.15s. The method returns the `Tween` object (or `null` if no shader material is set).
 
-### Guild Icon Hover Morphing (guild_icon.gd)
+### Space Icon Hover Morphing (guild_icon.gd)
 
 Four signal connections (lines 29–32) drive the avatar shape:
 
@@ -293,9 +293,9 @@ The `_process()` loop increments `shimmer_offset` each frame. `set_process(false
 - `_on_loading_label_input()` (retry): Hides error label, shows skeleton again.
 - All message list iteration loops skip the skeleton node alongside `older_btn`, `empty_state`, and `loading_label`.
 
-### Guild Folder Expand/Collapse (guild_folder.gd)
+### Space Folder Expand/Collapse (guild_folder.gd)
 
-Toggling a guild folder (`_toggle_expanded`) swaps between a mini-grid preview and the full guild list with a fade animation. The mini-grid swap stays instant (it's the collapsed preview), but the guild list fades in/out:
+Toggling a space folder (`_toggle_expanded`) swaps between a mini-grid preview and the full space list with a fade animation. The mini-grid swap stays instant (it's the collapsed preview), but the space list fades in/out:
 
 - **Expand:** Makes `guild_list` visible, sets `modulate.a = 0`, tweens to 1.0 over 0.15s with `EASE_OUT` / `TRANS_CUBIC`.
 - **Collapse:** Tweens `modulate.a` to 0.0 over 0.15s with `EASE_IN` / `TRANS_CUBIC`, then hides via tween callback.
@@ -306,15 +306,15 @@ Toggling a guild folder (`_toggle_expanded`) swaps between a mini-grid preview a
 - [x] Drawer slide + backdrop fade animation
 - [x] Channel panel width expand/collapse animation
 - [x] Avatar circle ↔ rounded-square shader morph
-- [x] Guild icon hover/press/active avatar transitions
-- [x] Pill height animation for guild selection indicator
+- [x] Space icon hover/press/active avatar transitions
+- [x] Pill height animation for space selection indicator
 - [x] Typing indicator sine wave dot animation
 - [x] Message hover highlight with `_draw()` overlay
 - [x] Action bar hover debounce state machine
 - [x] Role assignment flash feedback
 - [x] Instant hover effects for secondary UI elements (gear, plus, close, timestamp)
 - [x] Search result hover highlight
-- [x] Guild folder expand/collapse fade animation
+- [x] Space folder expand/collapse fade animation
 - [x] Scroll-to-bottom smooth tween animation
 - [x] Channel selection transition fade-in
 - [x] Message appear fade-in animation (single new messages)

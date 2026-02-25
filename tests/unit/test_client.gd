@@ -52,22 +52,22 @@ func test_derive_cdn_url() -> void:
 # Cache getters
 # ------------------------------------------------------------------
 
-func test_get_channels_for_guild_returns_matching() -> void:
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1", "name": "general"}
-	client._channel_cache["c2"] = {"id": "c2", "guild_id": "g1", "name": "random"}
-	client._channel_cache["c3"] = {"id": "c3", "guild_id": "g2", "name": "other"}
-	var result: Array = client.get_channels_for_guild("g1")
+func test_get_channels_for_space_returns_matching() -> void:
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "name": "general"}
+	client._channel_cache["c2"] = {"id": "c2", "space_id": "g1", "name": "random"}
+	client._channel_cache["c3"] = {"id": "c3", "space_id": "g2", "name": "other"}
+	var result: Array = client.get_channels_for_space("g1")
 	assert_eq(result.size(), 2)
 
 
-func test_get_channels_for_guild_no_match() -> void:
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1", "name": "general"}
-	var result: Array = client.get_channels_for_guild("g_none")
+func test_get_channels_for_space_no_match() -> void:
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "name": "general"}
+	var result: Array = client.get_channels_for_space("g_none")
 	assert_eq(result.size(), 0)
 
 
-func test_get_channels_for_guild_empty_cache() -> void:
-	var result: Array = client.get_channels_for_guild("g1")
+func test_get_channels_for_space_empty_cache() -> void:
+	var result: Array = client.get_channels_for_space("g1")
 	assert_eq(result.size(), 0)
 
 
@@ -94,21 +94,21 @@ func test_get_user_by_id_miss() -> void:
 	assert_true(result.is_empty())
 
 
-func test_get_guild_by_id() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "name": "TestGuild"}
-	var result: Dictionary = client.get_guild_by_id("g1")
-	assert_eq(result["name"], "TestGuild")
+func test_get_space_by_id() -> void:
+	client._space_cache["g1"] = {"id": "g1", "name": "TestSpace"}
+	var result: Dictionary = client.get_space_by_id("g1")
+	assert_eq(result["name"], "TestSpace")
 
 
-func test_get_members_for_guild() -> void:
+func test_get_members_for_space() -> void:
 	client._member_cache["g1"] = [{"id": "u1"}, {"id": "u2"}]
-	var result: Array = client.get_members_for_guild("g1")
+	var result: Array = client.get_members_for_space("g1")
 	assert_eq(result.size(), 2)
 
 
-func test_get_roles_for_guild() -> void:
+func test_get_roles_for_space() -> void:
 	client._role_cache["g1"] = [{"id": "r1", "name": "Admin"}]
-	var result: Array = client.get_roles_for_guild("g1")
+	var result: Array = client.get_roles_for_space("g1")
 	assert_eq(result.size(), 1)
 	assert_eq(result[0]["name"], "Admin")
 
@@ -140,52 +140,52 @@ func test_get_message_by_id_miss() -> void:
 # Routing helpers
 # ------------------------------------------------------------------
 
-func test_conn_for_guild_valid() -> void:
-	var conn := {"guild_id": "g1", "cdn_url": "http://cdn", "client": null, "status": "connected"}
+func test_conn_for_space_valid() -> void:
+	var conn := {"space_id": "g1", "cdn_url": "http://cdn", "client": null, "status": "connected"}
 	client._connections = [conn]
-	client._guild_to_conn = {"g1": 0}
-	var result = client._conn_for_guild("g1")
+	client._space_to_conn = {"g1": 0}
+	var result = client._conn_for_space("g1")
 	assert_eq(result, conn)
 
 
-func test_conn_for_guild_invalid() -> void:
+func test_conn_for_space_invalid() -> void:
 	client._connections = []
-	client._guild_to_conn = {}
-	var result = client._conn_for_guild("g_none")
+	client._space_to_conn = {}
+	var result = client._conn_for_space("g_none")
 	assert_null(result)
 
 
-func test_conn_for_guild_out_of_bounds() -> void:
+func test_conn_for_space_out_of_bounds() -> void:
 	client._connections = []
-	client._guild_to_conn = {"g1": 5}
-	var result = client._conn_for_guild("g1")
+	client._space_to_conn = {"g1": 5}
+	var result = client._conn_for_space("g1")
 	assert_null(result)
 
 
-func test_client_for_guild_returns_null_when_no_conn() -> void:
+func test_client_for_space_returns_null_when_no_conn() -> void:
 	client._connections = []
-	client._guild_to_conn = {}
-	var result: AccordClient = client._client_for_guild("g1")
+	client._space_to_conn = {}
+	var result: AccordClient = client._client_for_space("g1")
 	assert_null(result)
 
 
-func test_cdn_for_guild() -> void:
-	client._connections = [{"guild_id": "g1", "cdn_url": "http://cdn.test", "client": null, "status": "connected"}]
-	client._guild_to_conn = {"g1": 0}
-	var result: String = client._cdn_for_guild("g1")
+func test_cdn_for_space() -> void:
+	client._connections = [{"space_id": "g1", "cdn_url": "http://cdn.test", "client": null, "status": "connected"}]
+	client._space_to_conn = {"g1": 0}
+	var result: String = client._cdn_for_space("g1")
 	assert_eq(result, "http://cdn.test")
 
 
-func test_cdn_for_channel_via_guild() -> void:
-	client._connections = [{"guild_id": "g1", "cdn_url": "http://cdn.test", "client": null, "status": "connected"}]
-	client._guild_to_conn = {"g1": 0}
-	client._channel_to_guild = {"c1": "g1"}
+func test_cdn_for_channel_via_space() -> void:
+	client._connections = [{"space_id": "g1", "cdn_url": "http://cdn.test", "client": null, "status": "connected"}]
+	client._space_to_conn = {"g1": 0}
+	client._channel_to_space = {"c1": "g1"}
 	var result: String = client._cdn_for_channel("c1")
 	assert_eq(result, "http://cdn.test")
 
 
 func test_cdn_for_channel_via_dm() -> void:
-	client._connections = [{"guild_id": "g1", "cdn_url": "http://cdn.test", "client": null, "status": "connected"}]
+	client._connections = [{"space_id": "g1", "cdn_url": "http://cdn.test", "client": null, "status": "connected"}]
 	client._dm_channel_cache["dm1"] = {"id": "dm1"}
 	client._dm_to_conn = {"dm1": 0}
 	var result: String = client._cdn_for_channel("dm1")
@@ -211,8 +211,8 @@ func test_first_connected_cdn_returns_empty_when_none() -> void:
 
 func test_first_connected_cdn_skips_error() -> void:
 	client._connections = [
-		{"guild_id": "g1", "cdn_url": "http://bad", "client": null, "status": "error"},
-		{"guild_id": "g2", "cdn_url": "http://good", "client": null, "status": "connected"},
+		{"space_id": "g1", "cdn_url": "http://bad", "client": null, "status": "error"},
+		{"space_id": "g2", "cdn_url": "http://good", "client": null, "status": "connected"},
 	]
 	var result: String = client._first_connected_cdn()
 	assert_eq(result, "http://good")
@@ -228,12 +228,12 @@ func test_has_permission_admin_bypass() -> void:
 
 
 func test_has_permission_owner_bypass() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "me_1"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "me_1"}
 	assert_true(client.has_permission("g1", AccordPermission.MANAGE_CHANNELS))
 
 
 func test_has_permission_role_based_grant() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "other"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "other"}
 	client._member_cache["g1"] = [{"id": "me_1", "roles": ["r1"]}]
 	client._rebuild_member_index("g1")
 	client._role_cache["g1"] = [
@@ -243,7 +243,7 @@ func test_has_permission_role_based_grant() -> void:
 
 
 func test_has_permission_role_based_deny() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "other"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "other"}
 	client._member_cache["g1"] = [{"id": "me_1", "roles": ["r1"]}]
 	client._rebuild_member_index("g1")
 	client._role_cache["g1"] = [
@@ -254,7 +254,7 @@ func test_has_permission_role_based_deny() -> void:
 
 func test_has_permission_everyone_role() -> void:
 	# Position 0 roles apply to everyone regardless of membership
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "other"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "other"}
 	client._member_cache["g1"] = [{"id": "me_1", "roles": []}]
 	client._role_cache["g1"] = [
 		{"id": "everyone", "position": 0, "permissions": [AccordPermission.SEND_MESSAGES]},
@@ -263,19 +263,19 @@ func test_has_permission_everyone_role() -> void:
 
 
 func test_has_permission_no_members() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "other"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "other"}
 	client._member_cache["g1"] = []
 	client._role_cache["g1"] = []
 	assert_false(client.has_permission("g1", AccordPermission.MANAGE_CHANNELS))
 
 
 func test_is_space_owner_match() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "me_1"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "me_1"}
 	assert_true(client.is_space_owner("g1"))
 
 
 func test_is_space_owner_no_match() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "owner_id": "someone_else"}
+	client._space_cache["g1"] = {"id": "g1", "owner_id": "someone_else"}
 	assert_false(client.is_space_owner("g1"))
 
 
@@ -284,8 +284,8 @@ func test_is_space_owner_no_match() -> void:
 # ------------------------------------------------------------------
 
 func test_mark_channel_unread_channel() -> void:
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1", "unread": false}
-	client._guild_cache["g1"] = {"id": "g1", "unread": false, "mentions": 0}
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "unread": false}
+	client._space_cache["g1"] = {"id": "g1", "unread": false, "mentions": 0}
 	client.mark_channel_unread("c1")
 	assert_true(client._unread_channels.has("c1"))
 	assert_true(client._channel_cache["c1"]["unread"])
@@ -299,8 +299,8 @@ func test_mark_channel_unread_dm() -> void:
 
 
 func test_mark_channel_unread_with_mention() -> void:
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1", "unread": false}
-	client._guild_cache["g1"] = {"id": "g1", "unread": false, "mentions": 0}
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "unread": false}
+	client._space_cache["g1"] = {"id": "g1", "unread": false, "mentions": 0}
 	client.mark_channel_unread("c1", true)
 	assert_eq(client._channel_mention_counts.get("c1", 0), 1)
 	# Second mention increments
@@ -309,8 +309,8 @@ func test_mark_channel_unread_with_mention() -> void:
 
 
 func test_on_channel_selected_clear_unread_channel() -> void:
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1", "unread": true}
-	client._guild_cache["g1"] = {"id": "g1", "unread": true, "mentions": 1}
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "unread": true}
+	client._space_cache["g1"] = {"id": "g1", "unread": true, "mentions": 1}
 	client._unread_channels["c1"] = true
 	client._channel_mention_counts["c1"] = 1
 	client._on_channel_selected_clear_unread("c1")
@@ -328,22 +328,22 @@ func test_on_channel_selected_clear_unread_dm() -> void:
 
 
 func test_on_channel_selected_clear_unread_noop_not_unread() -> void:
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1", "unread": false}
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "unread": false}
 	# Should be a no-op when channel is not in _unread_channels
 	client._on_channel_selected_clear_unread("c1")
 	assert_false(client._channel_cache["c1"]["unread"])
 
 
-func test_update_guild_unread_aggregates() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "unread": false, "mentions": 0}
-	client._channel_cache["c1"] = {"id": "c1", "guild_id": "g1"}
-	client._channel_cache["c2"] = {"id": "c2", "guild_id": "g1"}
+func test_update_space_unread_aggregates() -> void:
+	client._space_cache["g1"] = {"id": "g1", "unread": false, "mentions": 0}
+	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1"}
+	client._channel_cache["c2"] = {"id": "c2", "space_id": "g1"}
 	client._unread_channels["c1"] = true
 	client._channel_mention_counts["c1"] = 2
 	client._channel_mention_counts["c2"] = 3
-	client._update_guild_unread("g1")
-	assert_true(client._guild_cache["g1"]["unread"])
-	assert_eq(client._guild_cache["g1"]["mentions"], 5)
+	client._update_space_unread("g1")
+	assert_true(client._space_cache["g1"]["unread"])
+	assert_eq(client._space_cache["g1"]["mentions"], 5)
 
 
 # ------------------------------------------------------------------
@@ -364,39 +364,39 @@ func test_trim_user_cache_preserves_current_user() -> void:
 	# Fill cache above cap
 	for i in 510:
 		client._user_cache["u_%d" % i] = {"id": "u_%d" % i}
-	AppState.current_guild_id = ""
+	AppState.current_space_id = ""
 	AppState.current_channel_id = ""
 	client.trim_user_cache()
 	assert_true(client._user_cache.has("me_1"), "Current user should be preserved")
 
 
-func test_trim_user_cache_preserves_guild_members() -> void:
+func test_trim_user_cache_preserves_space_members() -> void:
 	client._member_cache["g1"] = [{"id": "member_1"}, {"id": "member_2"}]
-	AppState.current_guild_id = "g1"
+	AppState.current_space_id = "g1"
 	AppState.current_channel_id = ""
 	for i in 510:
 		client._user_cache["u_%d" % i] = {"id": "u_%d" % i}
 	client._user_cache["member_1"] = {"id": "member_1"}
 	client._user_cache["member_2"] = {"id": "member_2"}
 	client.trim_user_cache()
-	assert_true(client._user_cache.has("member_1"), "Guild member should be preserved")
-	assert_true(client._user_cache.has("member_2"), "Guild member should be preserved")
+	assert_true(client._user_cache.has("member_1"), "Space member should be preserved")
+	assert_true(client._user_cache.has("member_2"), "Space member should be preserved")
 
 
 # ------------------------------------------------------------------
-# Guild folder
+# Space folder
 # ------------------------------------------------------------------
 
-func test_update_guild_folder() -> void:
-	client._guild_cache["g1"] = {"id": "g1", "folder": ""}
-	client.update_guild_folder("g1", "MyFolder")
-	assert_eq(client._guild_cache["g1"]["folder"], "MyFolder")
+func test_update_space_folder() -> void:
+	client._space_cache["g1"] = {"id": "g1", "folder": ""}
+	client.update_space_folder("g1", "MyFolder")
+	assert_eq(client._space_cache["g1"]["folder"], "MyFolder")
 
 
-func test_update_guild_folder_missing_guild_noop() -> void:
-	# Should not crash when guild doesn't exist
-	client.update_guild_folder("g_none", "MyFolder")
-	assert_false(client._guild_cache.has("g_none"))
+func test_update_space_folder_missing_space_noop() -> void:
+	# Should not crash when space doesn't exist
+	client.update_space_folder("g_none", "MyFolder")
+	assert_false(client._space_cache.has("g_none"))
 
 
 # ------------------------------------------------------------------
@@ -404,7 +404,7 @@ func test_update_guild_folder_missing_guild_noop() -> void:
 # ------------------------------------------------------------------
 
 func test_is_server_connected_valid() -> void:
-	client._connections = [{"guild_id": "g1", "status": "connected", "client": null}]
+	client._connections = [{"space_id": "g1", "status": "connected", "client": null}]
 	assert_true(client.is_server_connected(0))
 
 
@@ -415,32 +415,32 @@ func test_is_server_connected_invalid_index() -> void:
 
 
 func test_is_server_connected_error_status() -> void:
-	client._connections = [{"guild_id": "g1", "status": "error", "client": null}]
+	client._connections = [{"space_id": "g1", "status": "error", "client": null}]
 	assert_false(client.is_server_connected(0))
 
 
-func test_is_guild_connected() -> void:
-	client._connections = [{"guild_id": "g1", "cdn_url": "", "status": "connected", "client": null}]
-	client._guild_to_conn = {"g1": 0}
-	assert_true(client.is_guild_connected("g1"))
+func test_is_space_connected() -> void:
+	client._connections = [{"space_id": "g1", "cdn_url": "", "status": "connected", "client": null}]
+	client._space_to_conn = {"g1": 0}
+	assert_true(client.is_space_connected("g1"))
 
 
-func test_get_guild_connection_status_connected() -> void:
-	client._connections = [{"guild_id": "g1", "cdn_url": "", "status": "connected", "client": null}]
-	client._guild_to_conn = {"g1": 0}
-	assert_eq(client.get_guild_connection_status("g1"), "connected")
+func test_get_space_connection_status_connected() -> void:
+	client._connections = [{"space_id": "g1", "cdn_url": "", "status": "connected", "client": null}]
+	client._space_to_conn = {"g1": 0}
+	assert_eq(client.get_space_connection_status("g1"), "connected")
 
 
-func test_get_guild_connection_status_none() -> void:
+func test_get_space_connection_status_none() -> void:
 	client._connections = []
-	client._guild_to_conn = {}
-	assert_eq(client.get_guild_connection_status("g_none"), "none")
+	client._space_to_conn = {}
+	assert_eq(client.get_space_connection_status("g_none"), "none")
 
 
-func test_get_guild_connection_status_error() -> void:
-	client._connections = [{"guild_id": "g1", "cdn_url": "", "status": "error", "client": null}]
-	client._guild_to_conn = {"g1": 0}
-	assert_eq(client.get_guild_connection_status("g1"), "error")
+func test_get_space_connection_status_error() -> void:
+	client._connections = [{"space_id": "g1", "cdn_url": "", "status": "error", "client": null}]
+	client._space_to_conn = {"g1": 0}
+	assert_eq(client.get_space_connection_status("g1"), "error")
 
 
 # ------------------------------------------------------------------
@@ -467,10 +467,10 @@ func test_find_channel_for_message_miss() -> void:
 # Data access properties
 # ------------------------------------------------------------------
 
-func test_guilds_property_returns_values() -> void:
-	client._guild_cache["g1"] = {"id": "g1"}
-	client._guild_cache["g2"] = {"id": "g2"}
-	assert_eq(client.guilds.size(), 2)
+func test_spaces_property_returns_values() -> void:
+	client._space_cache["g1"] = {"id": "g1"}
+	client._space_cache["g2"] = {"id": "g2"}
+	assert_eq(client.spaces.size(), 2)
 
 
 func test_channels_property_returns_values() -> void:

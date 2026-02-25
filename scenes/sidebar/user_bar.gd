@@ -1,10 +1,5 @@
 extends PanelContainer
 
-const ProfileEditDialog := preload(
-	"res://scenes/user/profile_edit_dialog.tscn"
-)
-
-var _update_ready_label: Label = null
 var _status_popup: PopupMenu = null
 
 @onready var avatar: ColorRect = $HBox/Avatar
@@ -38,9 +33,8 @@ func _ready() -> void:
 	status_icon.gui_input.connect(_on_status_icon_input)
 	# Setup menu
 	var popup := menu_button.get_popup()
-	popup.add_item("Edit Profile", 5)
-	popup.add_separator()
-	popup.add_item("Settings", 6)
+	popup.add_item("App Settings", 6)
+	popup.add_item("Server Settings", 20)
 	popup.add_separator()
 	popup.add_check_item("Suppress @everyone", 15)
 	var se_idx: int = popup.get_item_index(15)
@@ -53,17 +47,18 @@ func _ready() -> void:
 	popup.add_separator()
 	popup.add_item("Report a Problem", 13)
 	popup.add_separator()
-	popup.add_item("Check for Updates", 16)
 	popup.add_item("About", 10)
 	popup.add_item("Quit", 11)
 	popup.id_pressed.connect(_on_menu_id_pressed)
-	AppState.update_download_complete.connect(_on_update_ready)
+	_update_server_settings_state()
+	AppState.space_selected.connect(_on_server_settings_state_changed)
+	AppState.dm_mode_entered.connect(_on_server_settings_state_changed)
 	# Load current user (active view)
 	_refresh_active_user()
 	# Refresh when a server connection completes
-	AppState.guilds_updated.connect(_on_guilds_updated)
+	AppState.spaces_updated.connect(_on_spaces_updated)
 	AppState.user_updated.connect(_on_user_updated)
-	AppState.guild_selected.connect(_on_active_view_changed)
+	AppState.space_selected.connect(_on_active_view_changed)
 	AppState.dm_mode_entered.connect(_on_active_view_changed)
 	AppState.channel_selected.connect(_on_active_view_changed)
 	AppState.config_changed.connect(_on_config_changed)
@@ -100,7 +95,7 @@ func _on_config_changed(section: String, _key: String) -> void:
 		var se_idx: int = popup.get_item_index(15)
 		popup.set_item_checked(se_idx, Config.get_suppress_everyone())
 
-func _on_guilds_updated() -> void:
+func _on_spaces_updated() -> void:
 	_refresh_active_user()
 
 func _on_user_updated(user_id: String) -> void:
@@ -160,10 +155,10 @@ func _on_status_id_pressed(id: int) -> void:
 
 func _on_menu_id_pressed(id: int) -> void:
 	match id:
-		5:
-			_show_profile_edit_dialog()
 		6:
-			_show_user_settings()
+			_show_app_settings()
+		20:
+			_show_server_settings()
 		10:
 			_show_about_dialog()
 		11:
@@ -172,38 +167,52 @@ func _on_menu_id_pressed(id: int) -> void:
 			_show_feedback_dialog()
 		15:
 			_toggle_suppress_everyone()
-		16:
-			if Updater.is_update_ready():
-				Updater.apply_update_and_restart()
-			else:
-				_check_for_updates()
 		18:
 			_show_export_dialog()
 		19:
 			_show_import_dialog()
 
-func _show_profile_edit_dialog() -> void:
-	var dlg: ColorRect = ProfileEditDialog.instantiate()
-	get_tree().root.add_child(dlg)
-
-func _show_user_settings() -> void:
-	var UserSettingsScene: PackedScene = load(
-		"res://scenes/user/user_settings.tscn"
+func _show_app_settings() -> void:
+	var AppSettingsScene: PackedScene = load(
+		"res://scenes/user/app_settings.tscn"
 	)
-	if UserSettingsScene:
-		var settings: ColorRect = UserSettingsScene.instantiate()
+	if AppSettingsScene:
+		var settings: ColorRect = AppSettingsScene.instantiate()
 		get_tree().root.add_child(settings)
+
+func _show_server_settings() -> void:
+	var gid: String = AppState.current_space_id
+	if gid.is_empty() or AppState.is_dm_mode:
+		return
+	var ServerSettingsScene: PackedScene = load(
+		"res://scenes/user/server_settings.tscn"
+	)
+	if ServerSettingsScene:
+		var settings: ColorRect = ServerSettingsScene.instantiate()
+		settings.setup(gid)
+		get_tree().root.add_child(settings)
+
+func _on_server_settings_state_changed(_id: String = "") -> void:
+	_update_server_settings_state()
+
+func _update_server_settings_state() -> void:
+	var popup := menu_button.get_popup()
+	var idx: int = popup.get_item_index(20)
+	if idx == -1:
+		return
+	var disabled: bool = AppState.current_space_id.is_empty() or AppState.is_dm_mode
+	popup.set_item_disabled(idx, disabled)
 
 func _show_about_dialog() -> void:
 	var version: String = Client.app_version
 	var dlg := AcceptDialog.new()
-	dlg.title = "About daccord"
+	dlg.title = "About Daccord"
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
 	var title_label := Label.new()
-	title_label.text = "daccord v%s" % version
+	title_label.text = "Daccord v%s" % version
 	title_label.add_theme_font_size_override("font_size", 18)
 	vbox.add_child(title_label)
 
@@ -359,68 +368,11 @@ func _toggle_suppress_everyone() -> void:
 	var idx: int = popup.get_item_index(15)
 	popup.set_item_checked(idx, suppressed)
 
-func _check_for_updates() -> void:
-	_show_toast("Checking for updates...")
-
-	var on_complete: Callable
-	var on_failed: Callable
-	var on_available: Callable
-
-	var cleanup := func() -> void:
-		if AppState.update_check_complete.is_connected(on_complete):
-			AppState.update_check_complete.disconnect(on_complete)
-		if AppState.update_check_failed.is_connected(on_failed):
-			AppState.update_check_failed.disconnect(on_failed)
-		if AppState.update_available.is_connected(on_available):
-			AppState.update_available.disconnect(on_available)
-
-	on_complete = func(_info: Variant) -> void:
-		cleanup.call()
-		_show_toast(
-			"You're on the latest version (v%s)." % Client.app_version
-		)
-
-	on_failed = func(error: String) -> void:
-		cleanup.call()
-		_show_toast("Couldn't check for updates: %s" % error)
-
-	on_available = func(info: Dictionary) -> void:
-		cleanup.call()
-		var version: String = info.get("version", "")
-		_show_toast("Update available: v%s" % version)
-
-	AppState.update_check_complete.connect(on_complete, CONNECT_ONE_SHOT)
-	AppState.update_check_failed.connect(on_failed, CONNECT_ONE_SHOT)
-	AppState.update_available.connect(on_available, CONNECT_ONE_SHOT)
-	Updater.check_for_updates(true)
-
-func _on_update_ready(_path: String) -> void:
-	# Update menu item text
-	var popup := menu_button.get_popup()
-	var idx: int = popup.get_item_index(16)
-	popup.set_item_text(idx, "Restart to Update")
-
-	# Show persistent "Update ready" label
-	if _update_ready_label == null:
-		_update_ready_label = Label.new()
-		_update_ready_label.text = "Update ready"
-		_update_ready_label.add_theme_font_size_override("font_size", 11)
-		_update_ready_label.add_theme_color_override(
-			"font_color", Color(0.345, 0.396, 0.949)
-		)
-		_update_ready_label.mouse_filter = Control.MOUSE_FILTER_STOP
-		_update_ready_label.tooltip_text = "Click to restart and apply update"
-		_update_ready_label.gui_input.connect(func(event: InputEvent) -> void:
-			if event is InputEventMouseButton and event.pressed:
-				Updater.apply_update_and_restart()
-		)
-		var info_vbox: VBoxContainer = $HBox/Info
-		info_vbox.add_child(_update_ready_label)
-
 func _show_export_dialog() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.use_native_dialog = true
 	fd.title = "Export Profile"
 	fd.add_filter("*.daccord-profile", "daccord Profile")
 	fd.file_selected.connect(func(path: String) -> void:
@@ -439,6 +391,7 @@ func _show_import_dialog() -> void:
 	var fd := FileDialog.new()
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.use_native_dialog = true
 	fd.title = "Import Profile"
 	fd.add_filter(
 		"*.daccord-profile; *.cfg", "Profile Files"
@@ -469,10 +422,18 @@ func _show_import_name_dialog(
 		var new_cfg := ConfigFile.new()
 		var err := new_cfg.load(import_path)
 		if err == OK:
+			# Strip any stored passwords from server sections
+			var count: int = new_cfg.get_value("servers", "count", 0)
+			for i in count:
+				var section := "server_%d" % i
+				if new_cfg.has_section_key(section, "password"):
+					new_cfg.set_value(section, "password", null)
 			var cfg_path := (
 				"user://profiles/" + slug + "/config.cfg"
 			)
-			new_cfg.save(cfg_path)
+			new_cfg.save_encrypted_pass(
+				cfg_path, Config._derive_key()
+			)
 			_show_toast("Profile imported successfully.")
 		else:
 			_show_toast(

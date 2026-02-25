@@ -10,12 +10,12 @@ const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 
-var _guild_id: String = ""
+var _space_id: String = ""
 var _admin_menu: PopupMenu
 var _has_admin: bool = false
 
 @onready var banner_rect: ColorRect = $BannerRect
-@onready var guild_name_label: Label = $GuildName
+@onready var space_name_label: Label = $GuildName
 @onready var dropdown_icon: Label = $DropdownIcon
 
 func _ready() -> void:
@@ -26,29 +26,29 @@ func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 
-func setup(guild_data: Dictionary) -> void:
-	_guild_id = guild_data.get("id", "")
-	guild_name_label.text = guild_data.get("name", "")
-	guild_name_label.add_theme_font_size_override("font_size", 16)
-	guild_name_label.add_theme_color_override("font_color", Color.WHITE)
-	banner_rect.color = guild_data.get("icon_color", Color(0.184, 0.192, 0.212)).darkened(0.3)
+func setup(space_data: Dictionary) -> void:
+	_space_id = space_data.get("id", "")
+	space_name_label.text = space_data.get("name", "")
+	space_name_label.add_theme_font_size_override("font_size", 16)
+	space_name_label.add_theme_color_override("font_color", Color.WHITE)
+	banner_rect.color = space_data.get("icon_color", Color(0.184, 0.192, 0.212)).darkened(0.3)
 
 	_has_admin = _has_any_admin_perm()
 	dropdown_icon.visible = _has_admin
 
 func _has_any_admin_perm() -> bool:
-	if _guild_id.is_empty():
+	if _space_id.is_empty():
 		return false
 	return (
-		Client.has_permission(_guild_id, AccordPermission.MANAGE_SPACE) or
-		Client.has_permission(_guild_id, AccordPermission.MANAGE_CHANNELS) or
-		Client.has_permission(_guild_id, AccordPermission.MANAGE_ROLES) or
-		Client.has_permission(_guild_id, AccordPermission.BAN_MEMBERS) or
-		Client.has_permission(_guild_id, AccordPermission.CREATE_INVITES) or
-		Client.has_permission(_guild_id, AccordPermission.MANAGE_EMOJIS) or
-		Client.has_permission(_guild_id, AccordPermission.VIEW_AUDIT_LOG) or
-		Client.has_permission(_guild_id, AccordPermission.MANAGE_SOUNDBOARD) or
-		Client.has_permission(_guild_id, AccordPermission.USE_SOUNDBOARD)
+		Client.has_permission(_space_id, AccordPermission.MANAGE_SPACE) or
+		Client.has_permission(_space_id, AccordPermission.MANAGE_CHANNELS) or
+		Client.has_permission(_space_id, AccordPermission.MANAGE_ROLES) or
+		Client.has_permission(_space_id, AccordPermission.BAN_MEMBERS) or
+		Client.has_permission(_space_id, AccordPermission.CREATE_INVITES) or
+		Client.has_permission(_space_id, AccordPermission.MANAGE_EMOJIS) or
+		Client.has_permission(_space_id, AccordPermission.VIEW_AUDIT_LOG) or
+		Client.has_permission(_space_id, AccordPermission.MANAGE_SOUNDBOARD) or
+		Client.has_permission(_space_id, AccordPermission.USE_SOUNDBOARD)
 	)
 
 func _on_banner_input(event: InputEvent) -> void:
@@ -61,41 +61,41 @@ func _show_admin_menu() -> void:
 	_admin_menu.clear()
 	var idx: int = 0
 
-	if Client.has_permission(_guild_id, AccordPermission.MANAGE_SPACE):
+	if Client.has_permission(_space_id, AccordPermission.MANAGE_SPACE):
 		_admin_menu.add_item("Space Settings", idx)
 		idx += 1
 
-	if Client.has_permission(_guild_id, AccordPermission.MANAGE_CHANNELS):
+	if Client.has_permission(_space_id, AccordPermission.MANAGE_CHANNELS):
 		_admin_menu.add_item("Channels", idx)
 		idx += 1
 
-	if Client.has_permission(_guild_id, AccordPermission.MANAGE_ROLES):
+	if Client.has_permission(_space_id, AccordPermission.MANAGE_ROLES):
 		_admin_menu.add_item("Roles", idx)
 		idx += 1
 
-	if Client.has_permission(_guild_id, AccordPermission.BAN_MEMBERS):
+	if Client.has_permission(_space_id, AccordPermission.BAN_MEMBERS):
 		_admin_menu.add_item("Bans", idx)
 		idx += 1
 
-	if Client.has_permission(_guild_id, AccordPermission.CREATE_INVITES):
+	if Client.has_permission(_space_id, AccordPermission.CREATE_INVITES):
 		_admin_menu.add_item("Invites", idx)
 		idx += 1
 
-	if Client.has_permission(_guild_id, AccordPermission.MANAGE_EMOJIS):
+	if Client.has_permission(_space_id, AccordPermission.MANAGE_EMOJIS):
 		_admin_menu.add_item("Emojis", idx)
 		idx += 1
 
-	if Client.has_permission(_guild_id, AccordPermission.VIEW_AUDIT_LOG):
+	if Client.has_permission(_space_id, AccordPermission.VIEW_AUDIT_LOG):
 		_admin_menu.add_item("Audit Log", idx)
 		idx += 1
 
-	if (Client.has_permission(_guild_id, AccordPermission.MANAGE_SOUNDBOARD)
-			or Client.has_permission(_guild_id, AccordPermission.USE_SOUNDBOARD)):
+	if (Client.has_permission(_space_id, AccordPermission.MANAGE_SOUNDBOARD)
+			or Client.has_permission(_space_id, AccordPermission.USE_SOUNDBOARD)):
 		_admin_menu.add_item("Soundboard", idx)
 		idx += 1
 
 	var can_manage: bool = Client.has_permission(
-		_guild_id, AccordPermission.MANAGE_ROLES
+		_space_id, AccordPermission.MANAGE_ROLES
 	)
 	if not AppState.is_imposter_mode and can_manage:
 		_admin_menu.add_item("View As...", idx)
@@ -114,39 +114,39 @@ func _on_admin_menu_pressed(id: int) -> void:
 		"Space Settings":
 			var dialog := SpaceSettingsScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Channels":
 			var dialog := ChannelMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Roles":
 			var dialog := RoleMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Bans":
 			var dialog := BanListScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Invites":
 			var dialog := InviteMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Emojis":
 			var dialog := EmojiMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Audit Log":
 			var dialog := AuditLogScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"Soundboard":
 			var dialog := SoundboardMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 		"View As...":
 			var dialog := ImposterPickerScene.instantiate()
 			get_tree().root.add_child(dialog)
-			dialog.setup(_guild_id)
+			dialog.setup(_space_id)
 
 func _on_imposter_mode_changed(_active: bool) -> void:
 	_has_admin = _has_any_admin_perm()

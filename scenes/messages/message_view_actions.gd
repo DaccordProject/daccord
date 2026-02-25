@@ -85,16 +85,21 @@ func on_context_menu_requested(
 		author.get("id", "")
 		== Client.current_user.get("id", "")
 	)
-	_context_menu.set_item_disabled(1, not is_own)
-	_context_menu.set_item_disabled(2, not is_own)
-	var guild_id: String = Client._channel_to_guild.get(
-		msg_data.get("channel_id", ""), ""
+	var channel_id: String = msg_data.get("channel_id", "")
+	var space_id: String = Client._channel_to_space.get(
+		channel_id, ""
+	)
+	var can_manage: bool = Client.has_channel_permission(
+		space_id, channel_id, AccordPermission.MANAGE_MESSAGES
+	)
+	_context_menu.set_item_disabled(
+		1, not (is_own or can_manage)
+	)
+	_context_menu.set_item_disabled(
+		2, not (is_own or can_manage)
 	)
 	var has_reactions: bool = (
 		msg_data.get("reactions", []).size() > 0
-	)
-	var can_manage: bool = Client.has_permission(
-		guild_id, "MANAGE_MESSAGES"
 	)
 	_context_menu.set_item_disabled(
 		4, not (can_manage and has_reactions)

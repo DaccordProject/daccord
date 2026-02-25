@@ -7,7 +7,7 @@ Channel permission management allows server admins to set per-role permission ov
 
 ## User Steps
 
-1. Right-click the guild icon or click the banner dropdown and select **Channels** (requires `manage_channels` permission).
+1. Right-click the space icon or click the banner dropdown and select **Channels** (requires `manage_channels` permission).
 2. In the Channel Management dialog, find the target channel row and click the **Perms** button (only visible if user has `manage_roles` permission).
 3. The Channel Permissions dialog opens, showing a role list on the left and a permission grid on the right. The permission grid is filtered by channel type (text channels hide voice perms, voice channels hide text perms).
 4. Click a role in the left panel to view/edit its overwrites for this channel. The selected role is highlighted with a dark background.
@@ -24,10 +24,10 @@ channel_row "Perms" click (button hidden if user lacks manage_roles)
   → permissions_requested signal emitted (channel_row.gd:26)
     → channel_management_dialog._on_permissions_channel() (line 213)
       → Instantiates ChannelPermissionsScene, adds to root
-        → channel_permissions_dialog.setup(channel, guild_id)
+        → channel_permissions_dialog.setup(channel, space_id)
           → _load_overwrites() reads channel.permission_overwrites, records _original_overwrite_ids
           → Snapshots _original_overwrite_data and _original_overwrite_types for dirty tracking
-          → _rebuild_role_list() calls Client.get_roles_for_guild(), stores _role_buttons
+          → _rebuild_role_list() calls Client.get_roles_for_space(), stores _role_buttons
 
 User clicks role or member
   → _on_entity_selected(entity_id, entity_type)
@@ -77,7 +77,7 @@ User closes dialog with unsaved changes
 | `addons/accordkit/models/channel.gd` | `AccordChannel` with `permission_overwrites` array field |
 | `addons/accordkit/rest/endpoints/channels_api.gd` | `upsert_overwrite()`, `delete_overwrite()`, `list_overwrites()` for dedicated overwrite routes |
 | `scripts/autoload/client_models.gd` | `channel_to_dict()` converts `permission_overwrites` to dict array (line 217) |
-| `scripts/autoload/client.gd` | `has_permission()` — space-level permission check, `has_channel_permission()` — channel-level with overwrite resolution, `get_roles_for_guild()` |
+| `scripts/autoload/client.gd` | `has_permission()` — space-level permission check, `has_channel_permission()` — channel-level with overwrite resolution, `get_roles_for_space()` |
 | `accordserver/src/routes/channels.rs` | Server-side overwrite CRUD routes (list, upsert, delete) |
 | `accordserver/src/db/permission_overwrites.rs` | DB layer: list/upsert/delete permission overwrites |
 | `accordserver/src/middleware/permissions.rs` | `resolve_channel_permissions()` — Discord-style overwrite resolution algorithm |
@@ -112,7 +112,7 @@ Original overwrite IDs are recorded in `_original_overwrite_ids` so that roles r
 
 ### Role List
 
-`_rebuild_role_list()` (line 62) fetches roles via `Client.get_roles_for_guild(_guild_id)` and sorts them by descending position. Each role is rendered as a flat Button colored with the role's color (hex decoded from an integer). Clicking a role calls `_on_role_selected()`. Button references are stored in `_role_buttons` keyed by role ID.
+`_rebuild_role_list()` (line 62) fetches roles via `Client.get_roles_for_space(_space_id)` and sorts them by descending position. Each role is rendered as a flat Button colored with the role's color (hex decoded from an integer). Clicking a role calls `_on_role_selected()`. Button references are stored in `_role_buttons` keyed by role ID.
 
 ### Selected Role Highlighting
 
@@ -202,16 +202,16 @@ The server exposes dedicated overwrite REST routes:
 
 Two permission check methods exist:
 
-- **`Client.has_permission(guild_id, perm)`** — checks space-level permissions only. Merges @everyone permissions with assigned role permissions. Instance admins and space owners bypass all checks.
-- **`Client.has_channel_permission(guild_id, channel_id, perm)`** — resolves channel-level permissions using the Discord-style algorithm: base role perms → administrator bypass → @everyone channel overwrite → role overwrites (union, allow wins) → member overwrite. Uses `permission_overwrites` from the cached channel dictionary.
+- **`Client.has_permission(space_id, perm)`** — checks space-level permissions only. Merges @everyone permissions with assigned role permissions. Instance admins and space owners bypass all checks.
+- **`Client.has_channel_permission(space_id, channel_id, perm)`** — resolves channel-level permissions using the Discord-style algorithm: base role perms → administrator bypass → @everyone channel overwrite → role overwrites (union, allow wins) → member overwrite. Uses `permission_overwrites` from the cached channel dictionary.
 
 ### Entry Point Gating
 
 The channel management dialog is accessible via:
-- **Guild icon context menu**: gated by `Client.has_permission(guild_id, AccordPermission.MANAGE_CHANNELS)` at `guild_icon.gd:119`
+- **Space icon context menu**: gated by `Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS)` at `guild_icon.gd:119`
 - **Banner dropdown**: gated by the same check at `banner.gd:64`
 
-Within the channel management dialog, the "Perms" button on each `channel_row` is hidden if the user lacks `manage_roles` permission. The `channel_row.setup()` method accepts a `guild_id` parameter and checks `Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES)` to control visibility. The server also enforces `manage_roles` permission on the overwrite CRUD endpoints as a second layer of protection.
+Within the channel management dialog, the "Perms" button on each `channel_row` is hidden if the user lacks `manage_roles` permission. The `channel_row.setup()` method accepts a `space_id` parameter and checks `Client.has_permission(space_id, AccordPermission.MANAGE_ROLES)` to control visibility. The server also enforces `manage_roles` permission on the overwrite CRUD endpoints as a second layer of protection.
 
 ### Dirty State Tracking
 

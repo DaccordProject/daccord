@@ -98,9 +98,12 @@ func _apply_texture(tex: ImageTexture) -> void:
 		# Keep letter label on top
 		move_child(letter_label, get_child_count() - 1)
 	_texture_rect.texture = tex
+	# Make background transparent so avatar image transparency is preserved
+	color = Color.TRANSPARENT
 	letter_label.visible = false
 	# Preserve ring state on the new material
-	var current_ring: float = _shader_material.get_shader_parameter("ring_opacity")
+	var ring_val = _shader_material.get_shader_parameter("ring_opacity")
+	var current_ring: float = ring_val if ring_val != null else 0.0
 	if current_ring > 0.0 and _texture_rect.material is ShaderMaterial:
 		_texture_rect.material.set_shader_parameter("ring_opacity", current_ring)
 

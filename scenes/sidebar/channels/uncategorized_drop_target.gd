@@ -2,11 +2,11 @@ extends Control
 
 signal channel_dropped(channel_data: Dictionary)
 
-var guild_id: String = ""
+var space_id: String = ""
 var _drop_hovered: bool = false
 
-func setup(new_guild_id: String) -> void:
-	guild_id = new_guild_id
+func setup(new_space_id: String) -> void:
+	space_id = new_space_id
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -16,7 +16,7 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 		_clear_drop_indicator()
 		return false
 	var ch_data: Dictionary = data.get("channel_data", {})
-	if ch_data.get("guild_id", "") != guild_id:
+	if ch_data.get("space_id", "") != space_id:
 		_clear_drop_indicator()
 		return false
 	_drop_hovered = true

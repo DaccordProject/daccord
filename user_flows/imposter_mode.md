@@ -4,7 +4,7 @@
 Imposter mode lets a space admin temporarily preview the client as if they had a different set of permissions — for example, viewing the space as a regular member, a moderator, or a user with a specific role. The admin's actual permissions are swapped out for the impersonated role's permissions, so the entire UI (context menus, channel visibility, admin panels, composer restrictions) reflects what that role would experience. No data is modified; the mode is purely a client-side preview.
 
 ## User Steps
-1. Admin right-clicks a guild icon or opens the channel banner dropdown.
+1. Admin right-clicks a space icon or opens the channel banner dropdown.
 2. Admin selects **"View As…"** from the context menu.
 3. A role picker dialog appears listing all roles in the space (sorted by position, descending).
 4. Admin selects a role (e.g. "@everyone", "Moderator") or picks **"Custom…"** to hand-pick individual permissions.
@@ -18,13 +18,13 @@ Imposter mode lets a space admin temporarily preview the client as if they had a
 ## Signal Flow
 ```
 Admin clicks "View As…"
-  └─► guild_icon / banner opens ImposterPickerDialog
+  └─► guild_icon / banner opens (space icon) ImposterPickerDialog
         └─► admin selects role
               └─► ImposterPickerDialog calls AppState.enter_imposter_mode(role_data)
                     └─► AppState.imposter_mode_changed.emit(true)
                           ├─► Client._on_imposter_mode_changed()
                           │     └─► swaps permission source to impersonated role
-                          ├─► guild_icon._on_imposter_mode_changed()
+                          ├─► guild_icon._on_imposter_mode_changed() (space icon)
                           │     └─► rebuilds context menu with reduced items
                           ├─► banner._on_imposter_mode_changed()
                           │     └─► rebuilds admin dropdown with reduced items
@@ -95,11 +95,11 @@ This single change propagates through the entire UI because every component alre
 
 ### ImposterPickerDialog: Role selection
 A modal dialog similar in structure to `role_management_dialog.gd`:
-- Fetches roles via `Client.get_roles_for_guild(guild_id)`, sorted by position descending
+- Fetches roles via `Client.get_roles_for_space(space_id)`, sorted by position descending
 - Each role is a selectable row (radio-button style) showing the role name with its color
 - A **"Custom…"** option at the bottom opens a permission checklist (reusing the 37-checkbox pattern from `role_management_dialog.gd` line 59)
 - **"Preview"** button calls `AppState.enter_imposter_mode()` with the selected role data
-- Gated: only shown if `Client.has_permission(guild_id, AccordPermission.MANAGE_ROLES)` — only users who can manage roles should preview other roles
+- Gated: only shown if `Client.has_permission(space_id, AccordPermission.MANAGE_ROLES)` — only users who can manage roles should preview other roles
 
 ### ImposterBanner: Visual indicator
 A thin bar at the top of `message_view` (inserted above the scroll container):
@@ -110,7 +110,7 @@ A thin bar at the top of `message_view` (inserted above the scroll container):
 - The banner should be visually prominent so the admin never forgets they're in imposter mode
 
 ### Channel visibility filtering
-`channel_list.gd` currently shows all channels for the selected guild. In imposter mode, channels where the impersonated role lacks `view_channel` (accounting for channel permission overwrites) should be hidden.
+`channel_list.gd` currently shows all channels for the selected space. In imposter mode, channels where the impersonated role lacks `view_channel` (accounting for channel permission overwrites) should be hidden.
 
 This requires extending the permission check to consider channel-level overwrites:
 1. For each channel, check `permission_overwrites` for the impersonated role
@@ -138,7 +138,7 @@ For the "Custom…" option, reuse the checkbox grid pattern from `role_managemen
 - [ ] Channel-level permission overwrite resolution in imposter mode
 - [ ] Write-protection guard (block mutations during imposter mode)
 - [ ] Escape key shortcut to exit imposter mode
-- [ ] "View As…" menu item in guild icon context menu
+- [ ] "View As…" menu item in space icon context menu
 - [ ] "View As…" menu item in banner admin dropdown
 
 ## Gaps / TODO

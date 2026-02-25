@@ -37,7 +37,7 @@ voice_channel_item.gd          AppState                    Client / ClientVoice
      |                              |                              |-- VoiceApi.join(id)
      |                              |                              |-- validate backend info
      |                              |                              |-- LiveKitAdapter.connect_to_room()
-     |                              |<- join_voice(id, guild_id) --|
+     |                              |<- join_voice(id, space_id) --|
      |                              |                              |-- fetch.fetch_voice_states(id)
      |                              |                              |
      |<-- voice_joined(id) --------|                              |
@@ -195,7 +195,7 @@ Dedicated scene for voice channels (distinct from `channel_item.gd`). Used by bo
   - Applies current speaking state on rebuild via `Client.is_user_speaking()` -> `av.set_ring_opacity(1.0)` (lines 150-151)
 - `_on_speaking_changed(user_id, is_speaking)` (line 204): updates Avatar speaking ring animation for the affected participant
 - Gear button + context menu for channel edit/delete (requires `MANAGE_CHANNELS` permission) (lines 62-75)
-- Drag-and-drop reordering within the same guild (lines 257-314)
+- Drag-and-drop reordering within the same space (lines 257-314)
 
 ### Voice Bar (voice_bar.gd)
 
@@ -203,7 +203,7 @@ Bottom panel in the channel sidebar that appears when connected to voice. Instan
 
 - Hidden by default (`visible = false`, line 20)
 - Connects to `AppState.voice_joined`, `voice_left`, `voice_mute_changed`, `voice_deafen_changed`, `video_enabled_changed`, `screen_share_changed` (lines 28-33)
-- `_on_voice_joined()` (line 35): shows bar, looks up channel name from `Client.get_channels_for_guild()`, sets green status dot color `(0.231, 0.647, 0.365)`, checks `USE_SOUNDBOARD` permission for SFX button visibility
+- `_on_voice_joined()` (line 35): shows bar, looks up channel name from `Client.get_channels_for_space()`, sets green status dot color `(0.231, 0.647, 0.365)`, checks `USE_SOUNDBOARD` permission for SFX button visibility
 - `_on_voice_left()` (line 52): hides bar, closes soundboard panel
 - Button handlers:
   - Mute (line 56): `Client.set_voice_muted(not AppState.is_voice_muted)`
@@ -276,14 +276,14 @@ Signals:
 
 State variables:
 - `voice_channel_id: String` (line 160) -- currently connected voice channel ID (empty if not in voice)
-- `voice_guild_id: String` (line 161) -- guild of the connected voice channel
+- `voice_space_id: String` (line 161) -- space of the connected voice channel
 - `is_voice_muted: bool` (line 162) -- whether local user is muted
 - `is_voice_deafened: bool` (line 163) -- whether local user is deafened
 - `is_video_enabled: bool` (line 164) -- whether camera is active
 - `is_screen_sharing: bool` (line 165) -- whether screen share is active
 
 Methods:
-- `join_voice(channel_id, guild_id)` (line 260) -- sets state vars, emits `voice_joined`
+- `join_voice(channel_id, space_id)` (line 260) -- sets state vars, emits `voice_joined`
 - `leave_voice()` (line 265) -- clears state vars, resets mute/deaf/video/screen, emits `voice_left`
 - `set_voice_muted(muted)` (line 276) / `set_voice_deafened(deafened)` (line 280) -- update flags, emit change signals
 - `set_video_enabled(enabled)` (line 284) / `set_screen_sharing(sharing)` (line 288) -- update flags, emit change signals
@@ -416,7 +416,7 @@ Native binary addon wrapping the LiveKit C++ SDK for room-based voice/video. Loc
 
 ### Server Disconnect Voice Cleanup (client.gd)
 
-- `disconnect_server()` checks if user is in voice on the disconnecting server (`AppState.voice_guild_id == guild_id`) and calls `AppState.leave_voice()`
+- `disconnect_server()` checks if user is in voice on the disconnecting server (`AppState.voice_space_id == space_id`) and calls `AppState.leave_voice()`
 - Erases voice state cache entries for all channels belonging to the disconnected server
 
 ### Voice Connection Indicator (user_bar.gd)

@@ -7,11 +7,11 @@ const DEBUG_VOICE_LOGS := true
 const VOICE_LOG_PATH := "user://voice_debug.log"
 
 # Dimension constants
-const GUILD_ICON_SIZE := 48
+const SPACE_ICON_SIZE := 48
 const AVATAR_SIZE := 42
 const CHANNEL_ICON_SIZE := 32
 const CHANNEL_PANEL_WIDTH := 240
-const GUILD_BAR_WIDTH := 68
+const SPACE_BAR_WIDTH := 68
 const MESSAGE_CAP := 50
 const MAX_CHANNEL_MESSAGES := 200
 const MESSAGE_QUEUE_CAP := 20
@@ -35,8 +35,8 @@ var connection: ClientConnection
 
 # --- Data access API (properties) ---
 
-var guilds: Array:
-	get: return _guild_cache.values()
+var spaces: Array:
+	get: return _space_cache.values()
 
 var channels: Array:
 	get: return _channel_cache.values()
@@ -53,12 +53,17 @@ var pending_servers: Array:
 				var conn: Dictionary = _connections[i]
 				if conn["status"] == "connected":
 					continue
+				# Skip if the space is already in the cache (connection
+				# in progress but space data already fetched).
+				var sid: String = conn.get("space_id", "")
+				if not sid.is_empty() and _space_cache.has(sid):
+					continue
 				if conn["status"] == "error" \
 						or conn["status"] == "connecting":
 					result.append({
 						"id": "__pending_%d" % i,
 						"name": servers[i].get(
-							"guild_name", "Unknown"
+							"space_name", "Unknown"
 						),
 						"icon": "",
 						"disconnected": true,
@@ -68,7 +73,7 @@ var pending_servers: Array:
 				result.append({
 					"id": "__pending_%d" % i,
 					"name": servers[i].get(
-						"guild_name", "Unknown"
+						"space_name", "Unknown"
 					),
 					"icon": "",
 					"disconnected": true,
@@ -81,7 +86,7 @@ var _connections: Array = []
 
 # Caches (keyed by ID)
 var _user_cache: Dictionary = {}
-var _guild_cache: Dictionary = {}
+var _space_cache: Dictionary = {}
 var _channel_cache: Dictionary = {}
 var _dm_channel_cache: Dictionary = {}
 var _message_cache: Dictionary = {}
@@ -100,12 +105,12 @@ var _channel_mention_counts: Dictionary = {} # channel_id -> int
 # Message ID -> channel_id index for O(1) lookup
 var _message_id_index: Dictionary = {}
 
-# Member ID index: guild_id -> { user_id -> array_index }
+# Member ID index: space_id -> { user_id -> array_index }
 var _member_id_index: Dictionary = {}
 
 # Routing maps
-var _guild_to_conn: Dictionary = {}
-var _channel_to_guild: Dictionary = {}
+var _space_to_conn: Dictionary = {}
+var _channel_to_space: Dictionary = {}
 var _dm_to_conn: Dictionary = {}  # dm_channel_id -> conn index
 
 # Tracks whether auto-reconnect (with re-auth) has been attempted
@@ -243,8 +248,8 @@ func connect_server(
 
 # --- Client routing ---
 
-func _conn_for_guild(guild_id: String):
-	var idx = _guild_to_conn.get(guild_id, -1)
+func _conn_for_space(space_id: String):
+	var idx = _space_to_conn.get(space_id, -1)
 	if idx == -1 or idx >= _connections.size():
 		return null
 	return _connections[idx]
@@ -265,15 +270,15 @@ func _conn_for_active_view():
 				var dm_conn = _connections[conn_idx]
 				if dm_conn != null:
 					return dm_conn
-	var gid: String = AppState.current_guild_id
+	var gid: String = AppState.current_space_id
 	if not gid.is_empty():
-		var guild_conn = _conn_for_guild(gid)
-		if guild_conn != null:
-			return guild_conn
+		var space_conn = _conn_for_space(gid)
+		if space_conn != null:
+			return space_conn
 	return _first_connected_conn()
 
-func _client_for_guild(gid: String) -> AccordClient:
-	var conn = _conn_for_guild(gid)
+func _client_for_space(gid: String) -> AccordClient:
+	var conn = _conn_for_space(gid)
 	if conn == null: return null
 	return conn["client"]
 
@@ -284,10 +289,10 @@ func _client_for_active_view() -> AccordClient:
 	return conn.get("client", null)
 
 func _client_for_channel(cid: String) -> AccordClient:
-	var gid: String = _channel_to_guild.get(cid, "")
+	var gid: String = _channel_to_space.get(cid, "")
 	if not gid.is_empty():
-		return _client_for_guild(gid)
-	# DM channels aren't in _channel_to_guild — route via
+		return _client_for_space(gid)
+	# DM channels aren't in _channel_to_space — route via
 	# _dm_to_conn if available, else first connected client
 	if _dm_channel_cache.has(cid):
 		var conn_idx: int = _dm_to_conn.get(cid, -1)
@@ -298,8 +303,8 @@ func _client_for_channel(cid: String) -> AccordClient:
 		return _first_connected_client()
 	return null
 
-func _cdn_for_guild(guild_id: String) -> String:
-	var conn = _conn_for_guild(guild_id)
+func _cdn_for_space(space_id: String) -> String:
+	var conn = _conn_for_space(space_id)
 	if conn == null: return ""
 	return conn["cdn_url"]
 
@@ -310,9 +315,9 @@ func _cdn_for_active_view() -> String:
 	return conn.get("cdn_url", "")
 
 func _cdn_for_channel(channel_id: String) -> String:
-	var gid: String = _channel_to_guild.get(channel_id, "")
+	var gid: String = _channel_to_space.get(channel_id, "")
 	if not gid.is_empty():
-		return _cdn_for_guild(gid)
+		return _cdn_for_space(gid)
 	# DM channels — route via _dm_to_conn or first connected CDN
 	if _dm_channel_cache.has(channel_id):
 		var conn_idx: int = _dm_to_conn.get(channel_id, -1)
@@ -351,10 +356,10 @@ func _first_connected_cdn() -> String:
 
 # --- Data access API ---
 
-func get_channels_for_guild(gid: String) -> Array:
+func get_channels_for_space(gid: String) -> Array:
 	var result: Array = []
 	for ch in _channel_cache.values():
-		if ch.get("guild_id", "") == gid:
+		if ch.get("space_id", "") == gid:
 			result.append(ch)
 	return result
 
@@ -375,13 +380,22 @@ func get_active_user() -> Dictionary:
 			return user
 	return current_user
 
-func get_guild_by_id(gid: String) -> Dictionary:
-	return _guild_cache.get(gid, {})
+func get_space_by_id(gid: String) -> Dictionary:
+	return _space_cache.get(gid, {})
 
-func get_members_for_guild(gid: String) -> Array:
+func get_user_for_space(space_id: String) -> Dictionary:
+	var conn = _conn_for_space(space_id)
+	if conn == null:
+		return {}
+	var uid: String = conn.get("user_id", "")
+	if not uid.is_empty() and _user_cache.has(uid):
+		return _user_cache[uid]
+	return conn.get("user", {})
+
+func get_members_for_space(gid: String) -> Array:
 	return _member_cache.get(gid, [])
 
-func get_roles_for_guild(gid: String) -> Array:
+func get_roles_for_space(gid: String) -> Array:
 	return _role_cache.get(gid, [])
 
 func get_messages_for_thread(parent_id: String) -> Array:
@@ -577,10 +591,10 @@ func has_channel_permission(
 ) -> bool:
 	return permissions.has_channel_permission(gid, channel_id, perm)
 
-func update_guild_folder(gid: String, folder_name: String) -> void:
-	if _guild_cache.has(gid):
-		_guild_cache[gid]["folder"] = folder_name
-		AppState.guilds_updated.emit()
+func update_space_folder(gid: String, folder_name: String) -> void:
+	if _space_cache.has(gid):
+		_space_cache[gid]["folder"] = folder_name
+		AppState.spaces_updated.emit()
 
 func is_space_owner(gid: String) -> bool:
 	return permissions.is_space_owner(gid)
@@ -598,8 +612,8 @@ func _on_channel_selected_clear_unread(cid: String) -> void:
 	# Update the cached channel dict
 	if _channel_cache.has(cid):
 		_channel_cache[cid]["unread"] = false
-		var gid: String = _channel_cache[cid].get("guild_id", "")
-		_update_guild_unread(gid)
+		var gid: String = _channel_cache[cid].get("space_id", "")
+		_update_space_unread(gid)
 		AppState.channels_updated.emit(gid)
 	elif _dm_channel_cache.has(cid):
 		_dm_channel_cache[cid]["unread"] = false
@@ -615,73 +629,68 @@ func mark_channel_unread(
 	# Update channel dict
 	if _channel_cache.has(cid):
 		_channel_cache[cid]["unread"] = true
-		var gid: String = _channel_cache[cid].get("guild_id", "")
-		_update_guild_unread(gid)
+		var gid: String = _channel_cache[cid].get("space_id", "")
+		_update_space_unread(gid)
 		AppState.channels_updated.emit(gid)
-		AppState.guilds_updated.emit()
+		AppState.spaces_updated.emit()
 	elif _dm_channel_cache.has(cid):
 		_dm_channel_cache[cid]["unread"] = true
 		AppState.dm_channels_updated.emit()
 
-func _update_guild_unread(gid: String) -> void:
-	if gid.is_empty() or not _guild_cache.has(gid):
+func _update_space_unread(gid: String) -> void:
+	if gid.is_empty() or not _space_cache.has(gid):
 		return
 	var has_unread := false
 	var total_mentions := 0
 	for ch_id in _channel_cache:
 		var ch: Dictionary = _channel_cache[ch_id]
-		if ch.get("guild_id", "") != gid:
+		if ch.get("space_id", "") != gid:
 			continue
 		if _unread_channels.has(ch_id):
 			has_unread = true
 		total_mentions += _channel_mention_counts.get(ch_id, 0)
-	_guild_cache[gid]["unread"] = has_unread
-	_guild_cache[gid]["mentions"] = total_mentions
+	_space_cache[gid]["unread"] = has_unread
+	_space_cache[gid]["mentions"] = total_mentions
 
 # --- Server management ---
 
 func disconnect_all() -> void:
 	connection.disconnect_all()
 
-func disconnect_server(guild_id: String) -> void:
-	connection.disconnect_server(guild_id)
+func disconnect_server(space_id: String) -> void:
+	connection.disconnect_server(space_id)
 
 # --- Connection status helpers ---
 
-func is_guild_connected(gid: String) -> bool:
-	var conn = _conn_for_guild(gid)
+func is_space_connected(gid: String) -> bool:
+	var conn = _conn_for_space(gid)
 	return conn != null and conn["status"] == "connected"
 
-func get_guild_connection_status(gid: String) -> String:
-	var conn = _conn_for_guild(gid)
+func get_space_connection_status(gid: String) -> String:
+	var conn = _conn_for_space(gid)
 	if conn == null: return "none"
 	return conn.get("status", "none")
 
-func is_guild_syncing(gid: String) -> bool:
-	var conn = _conn_for_guild(gid)
+func is_space_syncing(gid: String) -> bool:
+	var conn = _conn_for_space(gid)
 	if conn == null:
 		return false
 	return conn.get("_syncing", false)
 
-func get_conn_index_for_guild(gid: String) -> int:
-	return _guild_to_conn.get(gid, -1)
-
-func pending_server_index(pending_id: String) -> int:
-	if not pending_id.begins_with("__pending_"):
-		return -1
-	return int(pending_id.trim_prefix("__pending_"))
+func get_conn_index_for_space(gid: String) -> int:
+	return _space_to_conn.get(gid, -1)
 
 func reconnect_server(index: int) -> void:
 	connection.reconnect_server(index)
 
-func _flush_message_queue(guild_id: String) -> void:
+func _flush_message_queue(space_id: String) -> void:
 	var to_send: Array = []
 	var remaining: Array = []
 	for entry in _message_queue:
-		var gid: String = _channel_to_guild.get(
+		var gid: String = _channel_to_space.get(
 			entry["channel_id"], ""
 		)
-		if gid == guild_id:
+		if gid == space_id:
 			to_send.append(entry)
 		else:
 			remaining.append(entry)
@@ -715,10 +724,10 @@ func _find_channel_for_message(mid: String) -> String:
 # --- Custom emoji caching (delegates to ClientEmoji) ---
 
 func register_custom_emoji(
-	guild_id: String, emoji_id: String,
+	space_id: String, emoji_id: String,
 	emoji_name: String,
 ) -> void:
-	emoji.register(guild_id, emoji_id, emoji_name)
+	emoji.register(space_id, emoji_id, emoji_name)
 
 func register_custom_emoji_texture(
 	emoji_name: String, texture: Texture2D,
@@ -730,22 +739,22 @@ func trim_user_cache() -> void:
 
 # --- Member index helpers ---
 
-func _rebuild_member_index(guild_id: String) -> void:
+func _rebuild_member_index(space_id: String) -> void:
 	var index: Dictionary = {}
-	var members: Array = _member_cache.get(guild_id, [])
+	var members: Array = _member_cache.get(space_id, [])
 	for i in members.size():
 		index[members[i].get("id", "")] = i
-	_member_id_index[guild_id] = index
+	_member_id_index[space_id] = index
 
-func _member_index_for(guild_id: String, user_id: String) -> int:
-	var index: Dictionary = _member_id_index.get(guild_id, {})
+func _member_index_for(space_id: String, user_id: String) -> int:
+	var index: Dictionary = _member_id_index.get(space_id, {})
 	return index.get(user_id, -1)
 
 func _on_profile_switched() -> void:
 	disconnect_all()
 	_forum_post_cache.clear()
 	# Reset AppState navigation state
-	AppState.current_guild_id = ""
+	AppState.current_space_id = ""
 	AppState.current_channel_id = ""
 	AppState.is_dm_mode = false
 	AppState.replying_to_message_id = ""

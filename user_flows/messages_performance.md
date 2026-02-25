@@ -131,7 +131,7 @@ Reaction update (O(1) path):
 ### User Cache Management (client.gd, client_emoji.gd)
 
 - **User cache**: `_user_cache` maps user ID to user dictionary (line 43). Cap is 500 (line 13). Trimming runs after `fetch_messages()` (client_fetch.gd line 183).
-- **Trim strategy** (client_emoji.gd lines 59-80): Builds a `keep` set of the current user, current guild members, and current channel message authors. Erases all others. This is O(members + messages + cache_size).
+- **Trim strategy** (client_emoji.gd lines 59-80): Builds a `keep` set of the current user, current space members, and current channel message authors. Erases all others. This is O(members + messages + cache_size).
 - **Parallel author fetches**: `_fetch_unknown_authors_parallel()` collects unique uncached author IDs, fires all fetch coroutines simultaneously, then awaits them all. 10 unknown authors load in ~1 round-trip instead of 10 sequential round-trips.
 
 ### Reply Reference Lookup (cozy_message.gd)

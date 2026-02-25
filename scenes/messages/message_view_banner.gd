@@ -10,7 +10,7 @@ var _style_warning: StyleBoxFlat
 var _style_error: StyleBoxFlat
 var _style_success: StyleBoxFlat
 
-var _get_guild_for_channel: Callable
+var _get_space_for_channel: Callable
 
 
 func _init(
@@ -18,13 +18,13 @@ func _init(
 	p_status_label: Label,
 	p_retry_button: Button,
 	hide_timer: Timer,
-	get_guild: Callable,
+	get_space: Callable,
 ) -> void:
 	connection_banner = banner
 	status_label = p_status_label
 	retry_button = p_retry_button
 	_hide_timer = hide_timer
-	_get_guild_for_channel = get_guild
+	_get_space_for_channel = get_space
 
 	_style_warning = StyleBoxFlat.new()
 	_style_warning.bg_color = Color(0.75, 0.55, 0.1, 0.9)
@@ -43,9 +43,9 @@ func _init(
 
 
 func on_server_disconnected(
-	guild_id: String, code: int, reason: String
+	space_id: String, code: int, reason: String
 ) -> void:
-	if guild_id != _get_guild_for_channel.call():
+	if space_id != _get_space_for_channel.call():
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
@@ -71,9 +71,9 @@ static func _code_to_message(code: int) -> String:
 
 
 func on_server_reconnecting(
-	guild_id: String, attempt: int, max_attempts: int
+	space_id: String, attempt: int, max_attempts: int
 ) -> void:
-	if guild_id != _get_guild_for_channel.call():
+	if space_id != _get_space_for_channel.call():
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
@@ -84,8 +84,8 @@ func on_server_reconnecting(
 	connection_banner.visible = true
 
 
-func on_server_reconnected(guild_id: String) -> void:
-	if guild_id != _get_guild_for_channel.call():
+func on_server_reconnected(space_id: String) -> void:
+	if space_id != _get_space_for_channel.call():
 		return
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
 	status_label.text = "Reconnected \u2014 syncing data..."
@@ -93,8 +93,8 @@ func on_server_reconnected(guild_id: String) -> void:
 	connection_banner.visible = true
 
 
-func on_server_synced(guild_id: String) -> void:
-	if guild_id != _get_guild_for_channel.call():
+func on_server_synced(space_id: String) -> void:
+	if space_id != _get_space_for_channel.call():
 		return
 	connection_banner.add_theme_stylebox_override("panel", _style_success)
 	status_label.text = "Reconnected!"
@@ -104,9 +104,9 @@ func on_server_synced(guild_id: String) -> void:
 
 
 func on_server_version_warning(
-	guild_id: String, server_version: String, client_version: String
+	space_id: String, server_version: String, client_version: String
 ) -> void:
-	if guild_id != _get_guild_for_channel.call():
+	if space_id != _get_space_for_channel.call():
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
@@ -119,9 +119,9 @@ func on_server_version_warning(
 
 
 func on_server_connection_failed(
-	guild_id: String, reason: String
+	space_id: String, reason: String
 ) -> void:
-	if guild_id != _get_guild_for_channel.call():
+	if space_id != _get_space_for_channel.call():
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_error)
@@ -132,11 +132,11 @@ func on_server_connection_failed(
 
 func sync_to_connection() -> void:
 	_hide_timer.stop()
-	var guild_id: String = _get_guild_for_channel.call()
-	if guild_id.is_empty():
+	var space_id: String = _get_space_for_channel.call()
+	if space_id.is_empty():
 		connection_banner.visible = false
 		return
-	var status: String = Client.get_guild_connection_status(guild_id)
+	var status: String = Client.get_space_connection_status(space_id)
 	match status:
 		"connected", "none":
 			connection_banner.visible = false
@@ -164,8 +164,8 @@ func sync_to_connection() -> void:
 
 
 func on_retry_pressed() -> void:
-	var guild_id: String = _get_guild_for_channel.call()
-	var idx := Client.get_conn_index_for_guild(guild_id)
+	var space_id: String = _get_space_for_channel.call()
+	var idx := Client.get_conn_index_for_space(space_id)
 	if idx >= 0:
 		connection_banner.add_theme_stylebox_override(
 			"panel", _style_warning

@@ -3,16 +3,15 @@
 
 ## Overview
 
-The accord master server (`accordmasterserver`) is a lightweight registry that aggregates public spaces from multiple accordserver instances into a single searchable directory. Server operators opt in by registering their accordserver URL with the master server. The master server periodically polls each registered instance's `GET /spaces/public` endpoint, caches the results, and exposes a unified API for browsing, searching, and joining public servers. The daccord client adds a "Discover Servers" panel accessible from the guild bar, where users can browse the directory and join servers with one click.
+The accord master server (`accordmasterserver`) is a lightweight registry that aggregates public spaces from multiple accordserver instances into a single searchable directory. Server operators opt in by registering their accordserver URL with the master server. The master server periodically polls each registered instance's `GET /spaces/public` endpoint, caches the results, and exposes a unified API for browsing, searching, and joining public servers. The daccord client adds a "Discover Servers" panel accessible from the space bar, where users can browse the directory and join servers with one click.
 
 This flow is analogous to Discord's Server Discovery or Matrix's room directory -- a federated index of public communities.
-
 
 ## User Steps
 
 ### Browse Public Servers (Client)
 
-1. User clicks the "Discover" button in the guild bar (compass icon, below the Add Server button).
+1. User clicks the "Discover" button in the space bar (compass icon, below the Add Server button).
 2. A full-width discovery panel replaces the message view area.
 3. The panel fetches `GET /directory` from the master server.
 4. Server cards are displayed in a scrollable grid: icon, name, description, member count, tags.
@@ -26,8 +25,8 @@ This flow is analogous to Discord's Server Discovery or Matrix's room directory 
 2. Client checks if user already has an account on the target accordserver:
    - **Has account**: Client uses stored credentials to call `POST /spaces/{space_id}/join` on the target server.
    - **No account**: Client opens the auth dialog (register or sign-in) for the target server URL. After auth, calls `POST /spaces/{space_id}/join`.
-3. On success, `Config.add_server()` saves the connection and `Client.connect_server()` adds the guild to the sidebar.
-4. Discovery panel closes; the new guild appears in the guild bar.
+3. On success, `Config.add_server()` saves the connection and `Client.connect_server()` adds the space to the sidebar.
+4. Discovery panel closes; the new space appears in the space bar.
 
 ### Register a Server (Server Operator)
 
@@ -114,7 +113,7 @@ Indexer polls each registered accordserver:
 | `accordmasterserver/src/indexer.rs` | Background poller that fetches public spaces from registered servers |
 | `accordmasterserver/src/db/` | Database layer (server registry, space directory) |
 | `accordmasterserver/migrations/` | SQLite schema migrations |
-| `daccord: scenes/sidebar/guild_bar/discover_button.gd` | Compass icon button in guild bar |
+| `daccord: scenes/sidebar/guild_bar/discover_button.gd` | Compass icon button in space bar |
 | `daccord: scenes/discovery/discovery_panel.gd` | Discovery panel UI (search, grid, detail view) |
 | `daccord: scenes/discovery/server_card.gd` | Individual server card in the discovery grid |
 | `daccord: addons/accordkit/rest/endpoints/directory.gd` | AccordKit REST client for master server directory API |
@@ -317,12 +316,12 @@ discovery_panel: user clicks "Join Server"
   → auth complete (existing or new account)
   → client: POST /api/v1/spaces/{space_id}/join on target accordserver
     → On 200: space joined
-  → Config.add_server(base_url, token, guild_name)
+  → Config.add_server(base_url, token, space_name)
   → Client.connect_server(server_config)
     → Fetches space, connects gateway
-    → AppState.guilds_updated.emit()
+    → AppState.spaces_updated.emit()
   → discovery_panel closes
-  → Guild appears in guild bar
+  → Space appears in space bar
 ```
 
 ### Security Considerations
@@ -367,7 +366,7 @@ discovery_panel: user clicks "Join Server"
 - [ ] Master server: space detail endpoint (`GET /directory/{space_id}`)
 - [ ] Master server: pagination for directory results
 - [ ] Master server: rate limiting
-- [ ] daccord: "Discover" button in guild bar
+- [ ] daccord: "Discover" button in space bar
 - [ ] daccord: discovery panel scene (search, tag filter, card grid)
 - [ ] daccord: server card scene
 - [ ] daccord: server detail view with "Join Server" button
