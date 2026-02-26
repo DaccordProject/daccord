@@ -6,6 +6,26 @@ extends GutTest
 ## - LiveKitAdapter instantiation failures
 ## - Signal wiring errors between voice session and ClientVoice
 ## - Sub-module construction failures in _ready()
+##
+## Tests that instantiate Client require the LiveKit GDExtension to be
+## loaded (LiveKitRoom must exist) because client.gd depends on
+## LiveKitAdapter which references GDExtension types. When the extension
+## is missing (e.g. CI without native binaries), these tests are skipped.
+
+
+func _has_livekit() -> bool:
+	return ClassDB.class_exists(&"LiveKitRoom")
+
+
+func _create_client() -> Node:
+	var script: GDScript = load(
+		"res://scripts/autoload/client.gd"
+	)
+	if not script.can_instantiate():
+		return null
+	var client: Node = script.new()
+	add_child_autofree(client)
+	return client
 
 
 # ClientVoice is the sub-module most likely to break when
@@ -22,10 +42,13 @@ func test_client_voice_instantiates() -> void:
 # Core smoke test: add_child triggers _ready() which creates
 # all sub-modules and wires up LiveKitAdapter signals.
 func test_client_ready_creates_sub_modules() -> void:
-	var client = load(
-		"res://scripts/autoload/client.gd"
-	).new()
-	add_child_autofree(client)
+	if not _has_livekit():
+		pending("LiveKit GDExtension not available")
+		return
+	var client := _create_client()
+	assert_not_null(client, "Client failed to instantiate")
+	if client == null:
+		return
 	assert_not_null(
 		client._gw, "ClientGateway not created"
 	)
@@ -45,10 +68,13 @@ func test_client_ready_creates_sub_modules() -> void:
 
 # Verify LiveKitAdapter is created and attached as child.
 func test_client_ready_creates_voice_session() -> void:
-	var client = load(
-		"res://scripts/autoload/client.gd"
-	).new()
-	add_child_autofree(client)
+	if not _has_livekit():
+		pending("LiveKit GDExtension not available")
+		return
+	var client := _create_client()
+	assert_not_null(client, "Client failed to instantiate")
+	if client == null:
+		return
 	assert_not_null(
 		client._voice_session,
 		"Voice session is null",
@@ -65,10 +91,13 @@ func test_client_ready_creates_voice_session() -> void:
 
 # Verify voice session signals are connected to ClientVoice.
 func test_client_ready_wires_voice_signals() -> void:
-	var client = load(
-		"res://scripts/autoload/client.gd"
-	).new()
-	add_child_autofree(client)
+	if not _has_livekit():
+		pending("LiveKit GDExtension not available")
+		return
+	var client := _create_client()
+	assert_not_null(client, "Client failed to instantiate")
+	if client == null:
+		return
 	var session: LiveKitAdapter = client._voice_session
 	assert_true(
 		session.session_state_changed.is_connected(
@@ -104,10 +133,13 @@ func test_client_ready_wires_voice_signals() -> void:
 
 # Verify AppState.channel_selected is connected.
 func test_client_ready_connects_app_state() -> void:
-	var client = load(
-		"res://scripts/autoload/client.gd"
-	).new()
-	add_child_autofree(client)
+	if not _has_livekit():
+		pending("LiveKit GDExtension not available")
+		return
+	var client := _create_client()
+	assert_not_null(client, "Client failed to instantiate")
+	if client == null:
+		return
 	assert_true(
 		AppState.channel_selected.is_connected(
 			client._on_channel_selected_clear_unread
@@ -118,10 +150,13 @@ func test_client_ready_connects_app_state() -> void:
 
 # Verify post-_ready() initial state.
 func test_client_ready_initial_state() -> void:
-	var client = load(
-		"res://scripts/autoload/client.gd"
-	).new()
-	add_child_autofree(client)
+	if not _has_livekit():
+		pending("LiveKit GDExtension not available")
+		return
+	var client := _create_client()
+	assert_not_null(client, "Client failed to instantiate")
+	if client == null:
+		return
 	assert_eq(
 		client.mode,
 		client.Mode.CONNECTING,
