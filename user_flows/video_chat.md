@@ -275,7 +275,7 @@ Both forward to `_voice_session.set_muted()` / `set_deafened()` and `AppState`.
 
 **LiveKitAdapter video publishing** (`livekit_adapter.gd`):
 - `publish_camera(res: Vector2i, fps: int) -> RefCounted` (line 111): creates `LiveKitVideoSource.create(w, h)`, `LiveKitLocalVideoTrack.create("camera", source)`, publishes via `LiveKitLocalParticipant.publish_track()` with `SOURCE_CAMERA`, returns `LiveKitVideoStream.from_track()` for local preview
-- `publish_screen() -> RefCounted` (line 134): creates screen source at 1920x1080, `LiveKitLocalVideoTrack.create("screen", source)`, publishes with `SOURCE_SCREENSHARE`, returns `LiveKitVideoStream.from_track()` for local preview
+- `publish_screen() -> RefCounted` (line 134): creates screen source at 1920x1080, `LiveKitLocalVideoTrack.create("screen", source)`, publishes with `SOURCE_SCREENSHARE`, returns `LiveKitVideoStream.from_track()` for local preview. **Note:** does not yet use `LiveKitScreenCapture` for actual frame capture -- the `LiveKitScreenCapture` API (monitor/window enumeration, native frame capture) is now available in the addon but not integrated
 - `unpublish_camera()` / `unpublish_screen()` (lines 131, 154): unpublishes track via `LiveKitLocalParticipant.unpublish_track()`, clears local refs
 
 **AccordKit gateway** (`accord_client.gd`):
@@ -415,7 +415,8 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 - [ ] **Active speaker detection in video view** (green border or focus on speaking user's tile)
 - [ ] **Double-click to spotlight** (focusing a specific participant)
 - [ ] Bandwidth adaptation for video streams
-- [ ] Window sharing (screen picker currently only shows screens, not individual windows)
+- [ ] Window sharing via `LiveKitScreenCapture.get_windows()` + `create_for_window()` (API now available in godot-livekit)
+- [ ] Actual screen/window frame capture via `LiveKitScreenCapture` piped to `LiveKitVideoSource` (API now available)
 - [ ] Camera device selection applied at publish time (Config value persisted but not routed to LiveKit source)
 
 ## Gaps / TODO
@@ -435,7 +436,7 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No window sharing | Medium | Screen picker (`screen_picker_dialog.gd`) only enumerates screens via `DisplayServer.get_screen_count()`. No window tab or window enumeration. `start_screen_share()` source_type and source_id params are currently unused -- `publish_screen()` always publishes at default 1920x1080 |
+| No window sharing | Medium | Screen picker (`screen_picker_dialog.gd`) only enumerates screens via `DisplayServer.get_screen_count()`. No window tab or window enumeration. `start_screen_share()` source_type and source_id params are currently unused -- `publish_screen()` always publishes at default 1920x1080. **Now unblocked:** `LiveKitScreenCapture.get_windows()` and `create_for_window()` enable window-level capture |
 | Camera device not routed to publish | Medium | `Config.voice.get_video_device()` is persisted but `toggle_video()` doesn't pass the device ID to `LiveKitAdapter.publish_camera()`. The adapter creates a `LiveKitVideoSource` with no device selection |
 | No bandwidth adaptation | Low | Fixed video parameters with no dynamic quality adjustment based on network conditions |
 | No video track hot-swap | Low | Switching cameras requires stopping the old track and creating a new one. No seamless hot-swap mechanism |
