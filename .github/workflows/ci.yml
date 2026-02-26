@@ -53,21 +53,22 @@ jobs:
         with:
           lfs: true
 
-      - name: Checkout godot-livekit
-        uses: actions/checkout@v4
-        with:
-          repository: NodotProject/godot-livekit
-          path: .godot_livekit_repo
-          lfs: true
-
       - name: Install audio libraries
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
 
-      - name: Symlink addons
+      - name: Install godot-livekit addon (latest release)
         run: |
-          ln -sf $GITHUB_WORKSPACE/.godot_livekit_repo/addons/godot-livekit addons/godot-livekit
+          TMPDIR=$(mktemp -d)
+          gh release download --repo NodotProject/godot-livekit \
+            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
+          rm -rf addons/godot-livekit
+          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
+          rm -rf "$TMPDIR"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Cache GUT
         uses: actions/cache@v4
@@ -174,13 +175,6 @@ jobs:
         with:
           lfs: true
 
-      - name: Checkout godot-livekit
-        uses: actions/checkout@v4
-        with:
-          repository: NodotProject/godot-livekit
-          path: .godot_livekit_repo
-          lfs: true
-
       - name: Checkout accordserver
         uses: actions/checkout@v4
         with:
@@ -193,9 +187,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
 
-      - name: Symlink addons
+      - name: Install godot-livekit addon (latest release)
         run: |
-          ln -sf $GITHUB_WORKSPACE/.godot_livekit_repo/addons/godot-livekit addons/godot-livekit
+          TMPDIR=$(mktemp -d)
+          gh release download --repo NodotProject/godot-livekit \
+            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
+          rm -rf addons/godot-livekit
+          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
+          rm -rf "$TMPDIR"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Cache GUT
         uses: actions/cache@v4
