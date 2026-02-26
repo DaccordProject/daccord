@@ -2,9 +2,9 @@ extends Node
 
 enum Mode { LIVE, CONNECTING }
 
-# Toggle verbose voice diagnostics in the editor/console.
-const DEBUG_VOICE_LOGS := true
+# Voice debug logging (configurable via settings, default off).
 const VOICE_LOG_PATH := "user://voice_debug.log"
+const VOICE_LOG_MAX_SIZE := 1048576 # 1 MB
 
 # Dimension constants
 const SPACE_ICON_SIZE := 48
@@ -21,6 +21,7 @@ const USER_CACHE_CAP := 500
 var app_version: String = ProjectSettings.get_setting(
 	"application/config/version", "0.0.0"
 )
+var debug_voice_logs: bool = false
 
 var mode: Mode = Mode.CONNECTING
 var is_shutting_down: bool = false
@@ -135,7 +136,9 @@ var _speaking_users: Dictionary = {} # user_id -> last_active timestamp (float)
 var _speaking_timer: Timer
 
 func _ready() -> void:
-	if DEBUG_VOICE_LOGS:
+	debug_voice_logs = Config.voice.get_debug_logging()
+	if debug_voice_logs:
+		_rotate_voice_log()
 		var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.WRITE)
 		if f:
 			f.store_line("=== Voice debug start ===")
@@ -175,7 +178,7 @@ func _ready() -> void:
 	_voice_session.audio_level_changed.connect(
 		voice.on_audio_level_changed
 	)
-	if DEBUG_VOICE_LOGS:
+	if debug_voice_logs:
 		_voice_log("LiveKitAdapter ready")
 	# Speaking debounce timer (checks every 200ms for 300ms silence)
 	_speaking_timer = Timer.new()
@@ -436,20 +439,41 @@ func _check_speaking_timeouts() -> void:
 			expired.append(uid)
 	for uid in expired:
 		_speaking_users.erase(uid)
-		if DEBUG_VOICE_LOGS:
+		if debug_voice_logs:
 			_voice_log("speaking_stop uid=%s" % uid)
 		AppState.speaking_changed.emit(uid, false)
 
 func _voice_log(message: String) -> void:
-	if not DEBUG_VOICE_LOGS:
+	if not debug_voice_logs:
 		return
 	var line := "[VoiceDebug] " + message
 	print(line)
+	# Rotate if file exceeds max size
+	if FileAccess.file_exists(VOICE_LOG_PATH):
+		var check := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ)
+		if check:
+			var size := check.get_length()
+			check.close()
+			if size > VOICE_LOG_MAX_SIZE:
+				_rotate_voice_log()
 	var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ_WRITE)
 	if f:
 		f.seek_end()
 		f.store_line(line)
 		f.close()
+
+
+func _rotate_voice_log() -> void:
+	if not FileAccess.file_exists(VOICE_LOG_PATH):
+		return
+	var bak_path := VOICE_LOG_PATH + ".1"
+	var bak_global := ProjectSettings.globalize_path(bak_path)
+	if FileAccess.file_exists(bak_path):
+		DirAccess.remove_absolute(bak_global)
+	DirAccess.rename_absolute(
+		ProjectSettings.globalize_path(VOICE_LOG_PATH),
+		bak_global
+	)
 
 # --- Search (delegates to ClientMutations) ---
 
@@ -521,10 +545,8 @@ func set_voice_deafened(deafened: bool) -> void:
 func toggle_video() -> void:
 	voice.toggle_video()
 
-func start_screen_share(
-	source_type: String, source_id: int,
-) -> void:
-	voice.start_screen_share(source_type, source_id)
+func start_screen_share(source: Dictionary) -> void:
+	voice.start_screen_share(source)
 
 func stop_screen_share() -> void:
 	voice.stop_screen_share()

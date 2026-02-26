@@ -202,23 +202,13 @@ func _on_add_pressed() -> void:
 
 
 ## Makes a lightweight request to verify the server is reachable.
-## Tries HTTPS first, then falls back to HTTP. Returns true if the server
-## responded (any HTTP status is fine -- we just need a connection).
+## Returns true if the server responded (any HTTP status is fine).
 func _probe_server(url: String) -> bool:
 	var api_url := url + AccordConfig.API_BASE_PATH
 	var rest := AccordRest.new(api_url)
 	add_child(rest)
 
-	# Try a GET to /auth/login -- doesn't need auth, will return 405 or similar
-	# but any HTTP response means the server is there.
 	var result := await rest.make_request("GET", "/auth/login")
-
-	if not result.ok and result.status_code == 0 and url.begins_with("https://"):
-		# Connection-level failure with HTTPS -- retry with HTTP (local dev servers)
-		var http_url := url.replace("https://", "http://")
-		rest.base_url = http_url + AccordConfig.API_BASE_PATH
-		result = await rest.make_request("GET", "/auth/login")
-
 	rest.queue_free()
 
 	# status_code > 0 means we got an HTTP response (server is reachable)
@@ -246,13 +236,37 @@ func _connect_with_token(
 
 	Config.add_server(url, token, space_name, username, display_name)
 
-	var result: Dictionary = await Client.connect_server(Config.get_servers().size() - 1, invite_code)
+	var server_index: int = Config.get_servers().size() - 1
+	var result: Dictionary = await Client.connect_server(server_index, invite_code)
 	AppState.connection_step.disconnect(step_cb)
 	_status_label.visible = false
 	_add_btn.disabled = false
 	_add_btn.text = "Add"
 
-	if result.has("error"):
+	if result.get("https_failed", false):
+		var http_url: String = result.get("http_url", "")
+		var confirmed := await _show_http_warning(http_url)
+		if confirmed and not http_url.is_empty():
+			Config.update_server_url(server_index, http_url)
+			_add_btn.disabled = true
+			_add_btn.text = "Connecting..."
+			_status_label.visible = true
+			var step_cb2 := func(step: String): _status_label.text = step
+			AppState.connection_step.connect(step_cb2)
+			result = await Client.connect_server(server_index, invite_code)
+			AppState.connection_step.disconnect(step_cb2)
+			_status_label.visible = false
+			_add_btn.disabled = false
+			_add_btn.text = "Add"
+			if result.has("error"):
+				_show_error(result["error"])
+			else:
+				server_added.emit(result.get("space_id", ""))
+				_close()
+		else:
+			Config.remove_server(server_index)
+			_show_error("HTTPS connection failed. Connection cancelled.")
+	elif result.has("error"):
 		_show_error(result["error"])
 	else:
 		server_added.emit(result.get("space_id", ""))
@@ -269,6 +283,36 @@ static func _urls_match(a: String, b: String) -> bool:
 	elif alt.begins_with("http://"):
 		alt = alt.replace("http://", "https://")
 	return a == alt
+
+
+func _show_http_warning(http_url: String) -> bool:
+	var dialog := ConfirmationDialog.new()
+	dialog.dialog_text = (
+		"HTTPS connection failed. Do you want to connect over insecure HTTP?\n\n"
+		+ "URL: %s\n\n"
+		+ "WARNING: Your authentication token will be sent in plaintext. "
+		+ "Only use this for trusted local networks."
+	) % http_url
+	dialog.title = "Insecure Connection"
+	dialog.ok_button_text = "Connect Anyway"
+	dialog.cancel_button_text = "Cancel"
+	add_child(dialog)
+	dialog.popup_centered()
+	var confirmed := false
+	var result_signal = dialog.confirmed
+	var cancel_signal = dialog.canceled
+	# Await whichever fires first
+	confirmed = await _await_dialog(dialog)
+	dialog.queue_free()
+	return confirmed
+
+
+func _await_dialog(dialog: ConfirmationDialog) -> bool:
+	var result := [false]
+	dialog.confirmed.connect(func(): result[0] = true)
+	dialog.canceled.connect(func(): result[0] = false)
+	await dialog.visibility_changed
+	return result[0]
 
 
 func _show_error(msg: String) -> void:

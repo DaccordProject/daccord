@@ -190,9 +190,9 @@ func _on_channel_pressed(channel_id: String) -> void:
 			ch_data = ch
 			break
 	if ch_data.get("type", 0) == ClientModels.ChannelType.VOICE:
-		# Voice channels toggle join/leave instead of selecting
 		if AppState.voice_channel_id == channel_id:
-			Client.leave_voice_channel()
+			# Already in this voice channel — open the video view
+			AppState.open_voice_view()
 		else:
 			Client.join_voice_channel(channel_id)
 		return

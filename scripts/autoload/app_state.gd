@@ -73,6 +73,12 @@ signal remote_track_removed(user_id: String)
 @warning_ignore("unused_signal")
 signal speaking_changed(user_id: String, is_speaking: bool)
 @warning_ignore("unused_signal")
+signal voice_view_opened(channel_id: String)
+@warning_ignore("unused_signal")
+signal voice_view_closed()
+@warning_ignore("unused_signal")
+signal spotlight_changed(user_id: String)
+@warning_ignore("unused_signal")
 signal profile_card_requested(user_id: String, position: Vector2)
 signal member_list_toggled(is_visible: bool)
 signal channel_panel_toggled(is_visible: bool)
@@ -146,6 +152,10 @@ signal reauth_needed(server_index: int, base_url: String, username: String)
 @warning_ignore("unused_signal")
 signal config_changed(section: String, key: String)
 
+# Config encrypted save failed (error code)
+@warning_ignore("unused_signal")
+signal config_save_failed(error_code: int)
+
 enum LayoutMode { COMPACT, MEDIUM, FULL }
 
 const COMPACT_BREAKPOINT: float = 500.0
@@ -167,6 +177,8 @@ var is_voice_muted: bool = false
 var is_voice_deafened: bool = false
 var is_video_enabled: bool = false
 var is_screen_sharing: bool = false
+var is_voice_view_open: bool = false
+var spotlight_user_id: String = ""
 var pending_attachments: Array = []
 var current_thread_id: String = ""
 var thread_panel_visible: bool = false
@@ -267,6 +279,12 @@ func leave_voice() -> void:
 	is_voice_deafened = false
 	is_video_enabled = false
 	is_screen_sharing = false
+	if is_voice_view_open:
+		is_voice_view_open = false
+		voice_view_closed.emit()
+	if not spotlight_user_id.is_empty():
+		spotlight_user_id = ""
+		spotlight_changed.emit("")
 	if not old_channel.is_empty():
 		voice_left.emit(old_channel)
 
@@ -285,6 +303,28 @@ func set_video_enabled(enabled: bool) -> void:
 func set_screen_sharing(sharing: bool) -> void:
 	is_screen_sharing = sharing
 	screen_share_changed.emit(sharing)
+
+func open_voice_view() -> void:
+	if voice_channel_id.is_empty():
+		return
+	is_voice_view_open = true
+	voice_view_opened.emit(voice_channel_id)
+
+func close_voice_view() -> void:
+	if not is_voice_view_open:
+		return
+	is_voice_view_open = false
+	voice_view_closed.emit()
+
+func set_spotlight(user_id: String) -> void:
+	spotlight_user_id = user_id
+	spotlight_changed.emit(user_id)
+
+func clear_spotlight() -> void:
+	if spotlight_user_id.is_empty():
+		return
+	spotlight_user_id = ""
+	spotlight_changed.emit("")
 
 func open_thread(parent_message_id: String) -> void:
 	current_thread_id = parent_message_id

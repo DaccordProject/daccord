@@ -110,24 +110,57 @@ func test_slugify_empty_becomes_profile() -> void:
 	assert_eq(slug, "profile")
 
 
-# --- _hash_password ---
+# --- _hash_password_legacy ---
 
-func test_hash_password_deterministic() -> void:
-	var h1: String = profiles._hash_password("test", "pass123")
-	var h2: String = profiles._hash_password("test", "pass123")
+func test_hash_password_legacy_deterministic() -> void:
+	var h1: String = profiles._hash_password_legacy("test", "pass123")
+	var h2: String = profiles._hash_password_legacy("test", "pass123")
 	assert_eq(h1, h2)
 
 
-func test_hash_password_different_slugs() -> void:
-	var h1: String = profiles._hash_password("slug-a", "pass")
-	var h2: String = profiles._hash_password("slug-b", "pass")
+func test_hash_password_legacy_different_slugs() -> void:
+	var h1: String = profiles._hash_password_legacy("slug-a", "pass")
+	var h2: String = profiles._hash_password_legacy("slug-b", "pass")
 	assert_ne(h1, h2)
 
 
-func test_hash_password_different_passwords() -> void:
-	var h1: String = profiles._hash_password("test", "pass1")
-	var h2: String = profiles._hash_password("test", "pass2")
+func test_hash_password_legacy_different_passwords() -> void:
+	var h1: String = profiles._hash_password_legacy("test", "pass1")
+	var h2: String = profiles._hash_password_legacy("test", "pass2")
 	assert_ne(h1, h2)
+
+
+# --- _hash_password_pbkdf2 ---
+
+func test_hash_password_pbkdf2_format() -> void:
+	var h: String = profiles._hash_password_pbkdf2("abcdef1234", "pw")
+	assert_true(h.begins_with("pbkdf2:10000:abcdef1234:"))
+
+
+func test_hash_password_pbkdf2_deterministic() -> void:
+	var h1: String = profiles._hash_password_pbkdf2("salt1", "pw1")
+	var h2: String = profiles._hash_password_pbkdf2("salt1", "pw1")
+	assert_eq(h1, h2)
+
+
+func test_hash_password_pbkdf2_different_salts() -> void:
+	var h1: String = profiles._hash_password_pbkdf2("aaa", "pw")
+	var h2: String = profiles._hash_password_pbkdf2("bbb", "pw")
+	assert_ne(h1, h2)
+
+
+# --- _constant_time_compare ---
+
+func test_constant_time_compare_equal() -> void:
+	assert_true(profiles._constant_time_compare("abc", "abc"))
+
+
+func test_constant_time_compare_not_equal() -> void:
+	assert_false(profiles._constant_time_compare("abc", "abd"))
+
+
+func test_constant_time_compare_different_lengths() -> void:
+	assert_false(profiles._constant_time_compare("abc", "abcd"))
 
 
 # --- create ---

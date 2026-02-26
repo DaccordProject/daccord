@@ -12,6 +12,7 @@ var _speaking_style: StyleBoxFlat
 
 func _ready() -> void:
 	AppState.speaking_changed.connect(_on_speaking_changed)
+	gui_input.connect(_on_gui_input)
 
 func setup_local(
 	stream, user: Dictionary,
@@ -64,6 +65,15 @@ func _on_speaking_changed(user_id: String, is_speaking: bool) -> void:
 		add_theme_stylebox_override("panel", _speaking_style)
 	else:
 		remove_theme_stylebox_override("panel")
+
+func _on_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.double_click:
+		if _user_id.is_empty():
+			return
+		if AppState.spotlight_user_id == _user_id:
+			AppState.clear_spotlight()
+		else:
+			AppState.set_spotlight(_user_id)
 
 func _process(_delta: float) -> void:
 	if not _is_live or _stream == null:

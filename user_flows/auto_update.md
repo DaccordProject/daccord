@@ -33,7 +33,7 @@ This flow describes how daccord checks for new versions, notifies the user, and 
 4. **Restart to Update:** App saves any draft message text in the composer, quits, and launches the new version.
 5. **Cancel:** User can cancel the download at any time. Partial file is deleted. The download button reappears.
 6. **Download fails:** Error text shown with the download button available to retry.
-7. On non-Linux platforms, "Download & Install" opens the GitHub release page in the browser via `OS.shell_open()`.
+7. If no downloadable asset is found for the platform, "Download & Install" opens the GitHub release page in the browser.
 
 ### Skipping a Version
 
@@ -130,8 +130,9 @@ When the settings page opens, it checks `Updater.get_latest_version_info()` and 
 
 ### Download & Install
 
-- On Linux: downloads tar.gz from GitHub release assets, extracts to `user://update_staging`, replaces the current binary, and relaunches.
-- On Windows/macOS: opens the GitHub release page in the browser via `OS.shell_open()`.
+- On Linux: downloads tar.gz, extracts via `tar`, replaces the current binary, and relaunches.
+- On Windows: downloads zip, extracts via Godot's `ZIPReader`, replaces the current `.exe`, and relaunches. Windows allows renaming a running executable.
+- On macOS: downloads zip, extracts via `unzip` (preserving symlinks), replaces the entire `.app` bundle (rename→`cp -R`→relaunch), and strips the quarantine attribute via `xattr -cr`.
 
 ### Config Persistence
 
@@ -159,7 +160,7 @@ Keys in `user://config.cfg` under `[updates]` section:
 - [x] Draft message preservation on restart
 - [x] Config persistence for update preferences (`auto_check`, `skipped_version`, `last_check_timestamp`)
 - [x] Update signals in AppState (`update_available`, `update_check_complete`, `update_check_failed`, `update_download_started`, `update_download_progress`, `update_download_complete`, `update_download_failed`)
-- [x] Platform-specific update strategies (Linux: in-place binary replacement; Windows/macOS: fallback to `OS.shell_open()`)
+- [x] Platform-specific update strategies (Linux/Windows: binary replacement; macOS: full `.app` bundle replacement with quarantine strip)
 
 ## Removed UI Surfaces
 

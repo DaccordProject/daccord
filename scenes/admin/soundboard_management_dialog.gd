@@ -162,8 +162,6 @@ func _on_file_selected(path: String) -> void:
 			err_msg = result.error.message
 		_error_label.text = err_msg
 		_error_label.visible = true
-	else:
-		_load_sounds()
 
 func _on_delete_sound(sound: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
@@ -179,7 +177,11 @@ func _on_delete_sound(sound: Dictionary) -> void:
 	)
 
 func _on_play_sound(sound: Dictionary) -> void:
-	Client.admin.play_sound(_space_id, sound.get("id", ""))
+	var audio_url: String = sound.get("audio_url", "")
+	if audio_url.is_empty():
+		return
+	var full_url: String = Client.admin.get_sound_url(_space_id, audio_url)
+	SoundManager.play_preview(full_url, sound.get("volume", 1.0))
 
 func _on_rename_sound(sound: Dictionary, new_name: String) -> void:
 	var result: RestResult = await Client.admin.update_sound(

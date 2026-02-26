@@ -3,6 +3,8 @@ extends PanelContainer
 const EmojiPickerScene := preload("res://scenes/messages/composer/emoji_picker.tscn")
 const MAX_FILE_SIZE := 25 * 1024 * 1024 # 25 MB
 
+const _SEND_COOLDOWN_MS := 500
+var _last_send_time: int = 0
 var _last_typing_time: int = 0
 var _emoji_picker: PanelContainer = null
 var _saved_placeholder: String = ""
@@ -43,6 +45,10 @@ func set_channel_name(channel_name: String) -> void:
 	text_input.placeholder_text = "Message #" + channel_name
 
 func _on_send() -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_send_time < _SEND_COOLDOWN_MS:
+		return
+	_last_send_time = now
 	var text := text_input.text.strip_edges()
 	if text.is_empty() and _pending_files.is_empty():
 		return

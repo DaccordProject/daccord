@@ -65,3 +65,5 @@ Ordered by natural user journey:
 | 57 | [End-to-End Encryption](e2ee.md) | Voice/video E2EE via LiveKit frame encryption: godot-livekit E2EE classes (conditional compile), key provider/ratcheting, missing integration in daccord |
 | 58 | [URL Protocol](url_protocol.md) | Custom `daccord://` deep link scheme: connect/invite/navigate routes, platform registration (Windows/Linux/macOS), IPC for running instances, security model |
 | 59 | [Role-Based Permissions](role_based_permissions.md) | 39-permission RBAC system, role CRUD/reorder/hierarchy, Discord-style channel overwrites, UI gating across 16+ permission types, imposter mode |
+| 60 | [Security Testing](security_testing.md) | Client-side security surface: token storage, encrypted config, HTTPS downgrade, BBCode injection, PII scrubbing, permission gating, credential exposure, rate limiting |
+| 61 | [Android Release](android_release.md) | Android build/release plan: export preset, CI pipeline, touch UX foundations, Sentry/LiveKit status, updater gaps, Play Store distribution |

@@ -69,11 +69,7 @@ static func markdown_to_bbcode(text: String) -> String:
 		var lm := link_matches[i]
 		var link_text := lm.get_string(1)
 		var link_url := lm.get_string(2)
-		var lower_url := link_url.strip_edges().to_lower()
-		if lower_url.begins_with("javascript:") \
-				or lower_url.begins_with("data:") \
-				or lower_url.begins_with("file:") \
-				or lower_url.begins_with("vbscript:"):
+		if _is_dangerous_scheme(link_url):
 			link_url = "#blocked"
 		var replacement := "[url=%s]%s[/url]" % [link_url, link_text]
 		result = result.substr(0, lm.get_start()) + replacement + result.substr(lm.get_end())
@@ -96,12 +92,25 @@ static func markdown_to_bbcode(text: String) -> String:
 			result = result.substr(0, m.get_start()) + img_tag + result.substr(m.get_end())
 		elif ClientModels.custom_emoji_paths.has(ename):
 			var path: String = ClientModels.custom_emoji_paths[ename]
-			var img_tag := "[img=20x20]" + path + "[/img]"
-			result = result.substr(0, m.get_start()) + img_tag + result.substr(m.get_end())
+			# Only allow safe schemes for custom emoji paths
+			if path.begins_with("http://") or path.begins_with("https://") \
+					or path.begins_with("user://profiles/") \
+					or path.begins_with("res://"):
+				var safe_path := path.replace("[", "[lb]")
+				var img_tag := "[img=20x20]" + safe_path + "[/img]"
+				result = result.substr(0, m.get_start()) + img_tag + result.substr(m.get_end())
 	# Sanitize raw BBCode tags that were NOT produced by the converter.
 	# Tags inside [code]...[/code] are left alone (RichTextLabel ignores them).
 	result = _sanitize_bbcode_tags(result)
 	return result
+
+static func _is_dangerous_scheme(url: String) -> bool:
+	var lower := url.strip_edges().to_lower()
+	return lower.begins_with("javascript:") \
+		or lower.begins_with("data:") \
+		or lower.begins_with("file:") \
+		or lower.begins_with("vbscript:")
+
 
 static func _sanitize_bbcode_tags(text: String) -> String:
 	_ensure_compiled()
@@ -149,6 +158,13 @@ static func _sanitize_bbcode_tags(text: String) -> String:
 					if after.begins_with(prefix):
 						is_allowed = true
 						break
+				# Block [url=] tags with dangerous URL schemes
+				if is_allowed and after.begins_with("url="):
+					var close_bracket := after.find("]")
+					if close_bracket != -1:
+						var url_value := after.substr(4, close_bracket - 4)
+						if _is_dangerous_scheme(url_value):
+							is_allowed = false
 				if is_allowed:
 					sanitized += "["
 				else:

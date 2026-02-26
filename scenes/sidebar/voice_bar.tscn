@@ -27,6 +27,7 @@ theme_override_constants/separation = 4
 
 [node name="StatusRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
+mouse_filter = 0
 theme_override_constants/separation = 6
 
 [node name="StatusDot" type="ColorRect" parent="VBox/StatusRow"]

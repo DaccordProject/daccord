@@ -100,10 +100,14 @@ func _on_submit() -> void:
 
 	var result := await _try_auth(username, password)
 
-	# HTTPS failed -- retry with HTTP (common for local dev servers)
-	if not result.ok and _base_url.begins_with("https://"):
-		_base_url = _base_url.replace("https://", "http://")
-		result = await _try_auth(username, password)
+	# HTTPS connection-level failure -- prompt user before downgrading to HTTP
+	if not result.ok and result.status_code == 0 and _base_url.begins_with("https://"):
+		var http_url := _base_url.replace("https://", "http://")
+		var confirmed := await _show_http_warning(http_url)
+		if confirmed:
+			_base_url = http_url
+			result = await _try_auth(username, password)
+		# If not confirmed, fall through to the error handler below
 
 	_submit_btn.disabled = false
 	_submit_btn.text = "Sign In" if _mode == Mode.SIGN_IN else "Register"
@@ -127,9 +131,11 @@ func _on_submit() -> void:
 
 func _on_generate_password() -> void:
 	const CHARS := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*"
+	# Use CSPRNG for password generation (minor modular bias from byte % length is acceptable)
+	var random_bytes := Crypto.new().generate_random_bytes(12)
 	var password := ""
 	for i in 12:
-		password += CHARS[randi() % CHARS.length()]
+		password += CHARS[random_bytes[i] % CHARS.length()]
 	_password_input.text = password
 	_password_input.secret = false
 	_view_btn.text = "Hide"
@@ -168,6 +174,27 @@ func _try_auth(username: String, password: String) -> RestResult:
 
 	rest.queue_free()
 	return result
+
+
+func _show_http_warning(http_url: String) -> bool:
+	var dialog := ConfirmationDialog.new()
+	dialog.dialog_text = (
+		"HTTPS connection failed. Do you want to connect over insecure HTTP?\n\n"
+		+ "URL: %s\n\n"
+		+ "WARNING: Your credentials will be sent in plaintext. "
+		+ "Only use this for trusted local networks."
+	) % http_url
+	dialog.title = "Insecure Connection"
+	dialog.ok_button_text = "Connect Anyway"
+	dialog.cancel_button_text = "Cancel"
+	add_child(dialog)
+	dialog.popup_centered()
+	var result := [false]
+	dialog.confirmed.connect(func(): result[0] = true)
+	dialog.canceled.connect(func(): result[0] = false)
+	await dialog.visibility_changed
+	dialog.queue_free()
+	return result[0]
 
 
 func _show_error(msg: String) -> void:
