@@ -4,6 +4,8 @@
 
 Screen sharing in daccord lets users broadcast their display to other participants in a voice channel. The flow uses the godot-livekit GDExtension to publish a `LiveKitLocalVideoTrack` with `SOURCE_SCREENSHARE`, and a screen picker dialog that enumerates available screens via Godot's `DisplayServer`. The published stream renders both as a local preview tile and as a live remote tile for other participants in the voice channel.
 
+**Available but not yet integrated:** The godot-livekit addon now provides `LiveKitScreenCapture` -- a native screen/window capture class backed by the **frametap** library. It supports enumerating monitors (`get_monitors()`) and individual application windows (`get_windows()`), permission checking (`check_permissions()`), and continuous frame capture (`start()` / `poll()` / `get_image()` / `get_texture()`). This class can replace the current `DisplayServer`-based enumeration and fill the missing frame capture gap, and enables window-level sharing. See the Gaps section for integration details.
+
 ## User Steps
 
 1. User joins a voice channel (prerequisite -- must already be in voice)
@@ -281,10 +283,12 @@ Screen share tracks are cleaned up in three scenarios:
 - [x] Blue "S" indicator in voice channel participant list for screen sharers
 - [x] Track cleanup on stop, voice leave, and disconnect
 - [x] Escape / backdrop click / close button to dismiss screen picker
-- [ ] Source type and source ID parameters passed through to LiveKit
-- [ ] Window sharing (only screens, not individual windows)
+- [ ] Migrate screen picker to use `LiveKitScreenCapture.get_monitors()` and `get_windows()` instead of `DisplayServer`
+- [ ] Add window sharing tab using `LiveKitScreenCapture.get_windows()` and `create_for_window()`
+- [ ] Add permission check via `LiveKitScreenCapture.check_permissions()` before showing picker
+- [ ] Use `LiveKitScreenCapture` for actual frame capture (`start()` / `poll()` / `get_image()`) piped to `LiveKitVideoSource.capture_frame()`
+- [ ] Use actual monitor/window resolution from `LiveKitScreenCapture` source metadata instead of hardcoded 1920x1080
 - [ ] Screen share spotlight layout (large dominant view)
-- [ ] Actual screen capture piped to LiveKitVideoSource (resolution tied to selected screen)
 - [ ] Screen share audio (system audio capture alongside video)
 - [ ] Mini PiP preview when navigating away from voice channel
 
@@ -292,10 +296,12 @@ Screen share tracks are cleaned up in three scenarios:
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Source selection parameters unused | High | `start_screen_share(source_type, source_id)` at `client_voice.gd:226` receives `_source_type` and `_source_id` (underscore-prefixed = unused). `publish_screen()` at `livekit_adapter.gd:142` takes no arguments and always creates a 1920x1080 source. The selected screen index is discarded |
-| Hardcoded 1920x1080 resolution | Medium | `LiveKitVideoSource.create(1920, 1080)` at `livekit_adapter.gd:147` ignores the actual selected screen's resolution. Should use `DisplayServer.screen_get_size(source_id)` to match the source |
-| No window sharing | Medium | `screen_picker_dialog.gd` only enumerates screens via `DisplayServer.get_screen_count()` (line 23). No window enumeration -- Godot's `DisplayServer` doesn't expose window listing for other applications. Would need OS-level APIs or an extension |
+| Source selection parameters unused | High | `start_screen_share(source_type, source_id)` at `client_voice.gd:226` receives `_source_type` and `_source_id` (underscore-prefixed = unused). `publish_screen()` at `livekit_adapter.gd:142` takes no arguments and always creates a 1920x1080 source. The selected screen index is discarded. **Now unblocked:** `LiveKitScreenCapture.create_for_monitor()` and `create_for_window()` accept the source dict directly |
+| Hardcoded 1920x1080 resolution | Medium | `LiveKitVideoSource.create(1920, 1080)` at `livekit_adapter.gd:147` ignores the actual selected screen's resolution. **Now unblocked:** `LiveKitScreenCapture.get_monitors()` returns `width`/`height`/`scale` per monitor, which should be used for `LiveKitVideoSource.create()` |
+| No window sharing | Medium | `screen_picker_dialog.gd` only enumerates screens via `DisplayServer.get_screen_count()` (line 23). **Now unblocked:** `LiveKitScreenCapture.get_windows()` returns all application windows with `id`, `name`, `x`, `y`, `width`, `height`. Use `LiveKitScreenCapture.create_for_window(window_dict)` to capture a specific window |
+| No actual frame capture | High | `LiveKitVideoSource` is created but no frames are ever pushed to it -- the screen share track publishes blank video. **Now unblocked:** `LiveKitScreenCapture.start()` + `poll()` + `get_image()` in `_process()` provides continuous frame capture that can be piped to `LiveKitVideoSource.capture_frame()` |
+| No permission check | Medium | Screen sharing starts without checking OS-level permissions (macOS requires Screen Recording permission). **Now unblocked:** `LiveKitScreenCapture.check_permissions()` returns `status` (`PERMISSION_OK`, `PERMISSION_WARNING`, `PERMISSION_ERROR`), `summary`, and `details` |
 | No spotlight layout for screen shares | Medium | `video_grid.gd:73` treats screen share tiles identically to camera tiles in a uniform `GridContainer`. Discord shows screen shares as a large dominant view with participants as a small strip. Covered in the Video Chat user flow |
 | No screen share audio | Low | Only the video track is published. System audio capture is not included in the screen share. Would require a separate `LiveKitAudioSource` capturing desktop audio |
-| Screen picker shows no thumbnails | Low | Each screen is a text-only button (`"Screen N (WxH)"`). No preview thumbnail of the screen content. Godot's `DisplayServer` doesn't provide screen capture for thumbnails |
+| Screen picker shows no thumbnails | Low | Each screen is a text-only button (`"Screen N (WxH)"`). No preview thumbnail of the screen content. **Now unblocked:** `LiveKitScreenCapture.screenshot()` can take a one-shot screenshot of a monitor or window for use as a preview thumbnail in the picker |
 | No confirmation before sharing | Low | Clicking a screen immediately starts sharing with no confirmation step. Discord shows a preview before the user commits |
