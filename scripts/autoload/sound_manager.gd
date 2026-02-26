@@ -255,5 +255,36 @@ func _get_sound_meta(space_id: String) -> Array:
 	_sound_meta_cache[space_id] = dicts
 	return dicts
 
+func play_preview(url: String, volume: float = 1.0) -> void:
+	if _audio_cache.has(url):
+		_play_cached_sound(_audio_cache[url], volume)
+		return
+
+	if _soundboard_download_pending.has(url):
+		return
+	_soundboard_download_pending[url] = true
+
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(
+		func(
+			_result_code: int, response_code: int,
+			headers: PackedStringArray,
+			body: PackedByteArray,
+		) -> void:
+			http.queue_free()
+			_soundboard_download_pending.erase(url)
+			if response_code != 200:
+				return
+			var stream: AudioStream = _decode_audio(
+				body, url, headers
+			)
+			if stream == null:
+				return
+			_audio_cache[url] = stream
+			_play_cached_sound(stream, volume)
+	)
+	http.request(url)
+
 func _on_soundboard_updated(space_id: String) -> void:
 	_sound_meta_cache.erase(space_id)

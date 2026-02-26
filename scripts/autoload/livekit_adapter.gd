@@ -37,6 +37,7 @@ var _local_video_pub: RefCounted     # LiveKitLocalTrackPublication
 var _local_screen_source: RefCounted # LiveKitVideoSource
 var _local_screen_track: RefCounted  # LiveKitLocalVideoTrack
 var _local_screen_pub: RefCounted    # LiveKitLocalTrackPublication
+var _screen_capture: LiveKitScreenCapture  # null when not capturing
 
 # Remote playback: identity -> { stream, player, playback, generator }
 var _remote_audio: Dictionary = {}
@@ -80,6 +81,9 @@ func disconnect_voice() -> void:
 	_local_video_pub = null
 	_local_video_track = null
 	_local_video_source = null
+	if _screen_capture != null:
+		_screen_capture.close()
+		_screen_capture = null
 	_local_screen_pub = null
 	_local_screen_track = null
 	_local_screen_source = null
@@ -139,12 +143,20 @@ func publish_camera(res: Vector2i, _fps: int) -> RefCounted:
 func unpublish_camera() -> void:
 	_cleanup_local_video()
 
-func publish_screen() -> RefCounted:
+func publish_screen(source: Dictionary) -> RefCounted:
 	if _room == null:
 		return null
 	_cleanup_local_screen()
-	# Use a reasonable default resolution for screen share
-	_local_screen_source = LiveKitVideoSource.create(1920, 1080)
+	# Create native screen capture from source dict
+	var source_type: String = source.get("_type", "monitor")
+	if source_type == "window":
+		_screen_capture = LiveKitScreenCapture.create_for_window(source)
+	else:
+		_screen_capture = LiveKitScreenCapture.create_for_monitor(source)
+	_screen_capture.start()
+	var width: int = source.get("width", 1920)
+	var height: int = source.get("height", 1080)
+	_local_screen_source = LiveKitVideoSource.create(width, height)
 	_local_screen_track = LiveKitLocalVideoTrack.create(
 		"screen", _local_screen_source
 	)
@@ -190,6 +202,12 @@ func _process(_delta: float) -> void:
 		var uid: String = _identity_to_user.get(identity, identity)
 		if level > Config.voice.get_speaking_threshold():
 			audio_level_changed.emit(uid, level)
+	# Screen capture: grab frame from native capturer → push to LiveKit
+	if _screen_capture != null and _local_screen_source != null:
+		if _screen_capture.poll():
+			var image: Image = _screen_capture.get_image()
+			if image != null:
+				_local_screen_source.capture_frame(image, Time.get_ticks_usec(), 0)
 	# Local mic: capture frames → push to LiveKit + compute speaking level
 	if _mic_effect != null and _local_audio_source != null and not _muted:
 		var frames_avail: int = _mic_effect.get_frames_available()
@@ -400,6 +418,9 @@ func _cleanup_local_video() -> void:
 	_local_video_source = null
 
 func _cleanup_local_screen() -> void:
+	if _screen_capture != null:
+		_screen_capture.close()
+		_screen_capture = null
 	if _local_screen_pub != null and _room != null:
 		var local_part: LiveKitLocalParticipant = _room.get_local_participant()
 		if local_part != null and _local_screen_track != null:

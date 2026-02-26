@@ -183,13 +183,13 @@ static func _parse_release(data: Dictionary) -> Dictionary:
 			if fallback_asset.is_empty():
 				fallback_asset = asset
 		elif platform_key == "windows":
-			if aname.contains("setup"):
+			if aname.ends_with(".zip"):
 				best_asset = asset
 				break
 			if fallback_asset.is_empty():
 				fallback_asset = asset
 		elif platform_key == "macos":
-			if aname.ends_with(".dmg"):
+			if aname.ends_with(".zip"):
 				best_asset = asset
 				break
 			if fallback_asset.is_empty():
@@ -257,8 +257,8 @@ func download_update(version_info: Dictionary) -> void:
 	var download_url: String = version_info.get("download_url", "")
 	var version: String = version_info.get("version", "")
 
-	# Non-Linux platforms fall back to browser
-	if OS.get_name() != "Linux" or download_url.is_empty():
+	# No downloadable asset: open release page in browser
+	if download_url.is_empty():
 		var url: String = version_info.get("release_url", "")
 		if not url.is_empty():
 			OS.shell_open(url)
@@ -266,7 +266,8 @@ func download_update(version_info: Dictionary) -> void:
 
 	_downloading = true
 	_download_version = version
-	_download_path = "user://daccord-update-%s.tar.gz" % version
+	var ext: String = ".tar.gz" if OS.get_name() == "Linux" else ".zip"
+	_download_path = "user://daccord-update-%s%s" % [version, ext]
 	var global_path: String = ProjectSettings.globalize_path(_download_path)
 
 	_download_http = HTTPRequest.new()
@@ -351,47 +352,96 @@ func _extract_update(archive_path: String) -> Dictionary:
 	# Create staging directory
 	DirAccess.make_dir_recursive_absolute(staging_dir)
 
-	# Extract tar.gz
+	# Extract archive
 	var output: Array = []
-	var exit_code: int = OS.execute(
-		"tar", ["xzf", global_archive, "-C", staging_dir], output
-	)
-	if exit_code != 0:
-		return {"error": "Failed to extract update (exit code %d)" % exit_code}
+	if OS.get_name() == "Linux":
+		var exit_code: int = OS.execute(
+			"tar", ["xzf", global_archive, "-C", staging_dir], output
+		)
+		if exit_code != 0:
+			return {
+				"error": "Failed to extract update (exit code %d)" % exit_code
+			}
+	elif OS.get_name() == "macOS":
+		# Use unzip command to preserve symlinks in .app bundle
+		var exit_code: int = OS.execute(
+			"unzip", ["-o", global_archive, "-d", staging_dir], output
+		)
+		if exit_code != 0:
+			return {
+				"error": "Failed to extract update (exit code %d)" % exit_code
+			}
+	else:
+		var zip_err := _extract_zip(global_archive, staging_dir)
+		if zip_err != OK:
+			return {"error": "Failed to extract update (error %d)" % zip_err}
 
-	# Find the binary in staging
-	var binary_path: String = _find_binary_in_dir(staging_dir)
-	if binary_path.is_empty():
+	# Find the update payload (binary on Linux/Windows, .app on macOS)
+	var payload_path: String = _find_update_payload(staging_dir)
+	if payload_path.is_empty():
 		return {"error": "Could not find binary in extracted update"}
 
-	# Make it executable
-	OS.execute("chmod", ["+x", binary_path])
+	if OS.get_name() == "Linux":
+		OS.execute("chmod", ["+x", payload_path])
 
-	return {"binary_path": binary_path}
+	return {"binary_path": payload_path}
 
 
-func _find_binary_in_dir(dir_path: String) -> String:
+func _extract_zip(zip_path: String, dest_dir: String) -> int:
+	var reader := ZIPReader.new()
+	var err := reader.open(zip_path)
+	if err != OK:
+		return err
+	for file_path in reader.get_files():
+		if file_path.ends_with("/"):
+			DirAccess.make_dir_recursive_absolute(dest_dir + "/" + file_path)
+			continue
+		var dir_part: String = file_path.get_base_dir()
+		if not dir_part.is_empty():
+			DirAccess.make_dir_recursive_absolute(dest_dir + "/" + dir_part)
+		var data: PackedByteArray = reader.read_file(file_path)
+		var f := FileAccess.open(
+			dest_dir + "/" + file_path, FileAccess.WRITE
+		)
+		if f == null:
+			reader.close()
+			return FileAccess.get_open_error()
+		f.store_buffer(data)
+		f.close()
+	reader.close()
+	return OK
+
+
+func _find_update_payload(dir_path: String) -> String:
 	var dir := DirAccess.open(dir_path)
 	if dir == null:
 		return ""
+	# Match the expected name per platform
+	var expected_name: String
+	var match_dir: bool = false
+	if OS.get_name() == "Windows":
+		expected_name = "daccord.exe"
+	elif OS.get_name() == "macOS":
+		expected_name = "daccord.app"
+		match_dir = true
+	else:
+		var arch: String = Engine.get_architecture_name()
+		expected_name = "daccord.%s" % arch
 	dir.list_dir_begin()
 	var fname := dir.get_next()
 	while not fname.is_empty():
 		var full_path: String = dir_path + "/" + fname
 		if dir.current_is_dir():
-			# Recurse into subdirectories
-			var found := _find_binary_in_dir(full_path)
+			if match_dir and fname == expected_name:
+				dir.list_dir_end()
+				return full_path
+			var found := _find_update_payload(full_path)
 			if not found.is_empty():
 				dir.list_dir_end()
 				return found
-		else:
-			# Look for the daccord binary (not .tar.gz, not .so, not .txt)
-			var lower: String = fname.to_lower()
-			if lower.begins_with("daccord") and not lower.ends_with(".tar.gz") \
-					and not lower.ends_with(".so") and not lower.ends_with(".txt") \
-					and not lower.ends_with(".md") and not lower.ends_with(".pck"):
-				dir.list_dir_end()
-				return full_path
+		elif not match_dir and fname == expected_name:
+			dir.list_dir_end()
+			return full_path
 		fname = dir.get_next()
 	dir.list_dir_end()
 	return ""
@@ -401,13 +451,18 @@ func apply_update_and_restart() -> void:
 	if not _update_ready or _staged_binary_path.is_empty():
 		return
 
-	# Save any draft messages
 	_save_draft_messages()
 
+	if OS.get_name() == "macOS":
+		_apply_macos_update()
+	else:
+		_apply_binary_update()
+
+
+func _apply_binary_update() -> void:
 	var current_binary: String = OS.get_executable_path()
 	var old_binary: String = current_binary + ".old"
 
-	# Rename current binary to .old
 	var rename_err: int = DirAccess.rename_absolute(
 		current_binary, old_binary
 	)
@@ -418,12 +473,10 @@ func apply_update_and_restart() -> void:
 		)
 		return
 
-	# Copy new binary into place
 	var copy_err: int = DirAccess.copy_absolute(
 		_staged_binary_path, current_binary
 	)
 	if copy_err != OK:
-		# Restore old binary
 		DirAccess.rename_absolute(old_binary, current_binary)
 		push_error("[Updater] Failed to copy new binary: %d" % copy_err)
 		AppState.update_download_failed.emit(
@@ -431,12 +484,57 @@ func apply_update_and_restart() -> void:
 		)
 		return
 
-	# Make executable
-	OS.execute("chmod", ["+x", current_binary])
+	if OS.get_name() == "Linux":
+		OS.execute("chmod", ["+x", current_binary])
 
-	# Launch new binary and quit
 	var args: PackedStringArray = OS.get_cmdline_args()
 	OS.create_process(current_binary, args)
+	get_tree().quit()
+
+
+func _apply_macos_update() -> void:
+	# Derive .app bundle path from executable path
+	# e.g. /Applications/daccord.app/Contents/MacOS/daccord
+	var current_exe: String = OS.get_executable_path()
+	var app_bundle: String = current_exe.get_base_dir() \
+			.get_base_dir().get_base_dir()
+	var old_bundle: String = app_bundle + ".old"
+
+	# Remove previous .old bundle if it exists
+	if DirAccess.dir_exists_absolute(old_bundle):
+		OS.execute("rm", ["-rf", old_bundle])
+
+	# Rename current bundle to .old (macOS allows this while running)
+	var rename_err: int = DirAccess.rename_absolute(
+		app_bundle, old_bundle
+	)
+	if rename_err != OK:
+		push_error("[Updater] Failed to rename app bundle: %d" % rename_err)
+		AppState.update_download_failed.emit(
+			"Failed to replace app bundle (error %d)" % rename_err
+		)
+		return
+
+	# Copy new bundle preserving symlinks and permissions
+	var output: Array = []
+	var exit_code: int = OS.execute(
+		"cp", ["-R", _staged_binary_path, app_bundle], output
+	)
+	if exit_code != 0:
+		# Restore old bundle
+		DirAccess.rename_absolute(old_bundle, app_bundle)
+		push_error("[Updater] Failed to copy new app bundle")
+		AppState.update_download_failed.emit(
+			"Failed to copy new app bundle"
+		)
+		return
+
+	# Remove quarantine attribute so Gatekeeper doesn't block the update
+	OS.execute("xattr", ["-cr", app_bundle])
+
+	# Relaunch from the new bundle
+	var new_exe: String = app_bundle + "/Contents/MacOS/daccord"
+	OS.create_process(new_exe, OS.get_cmdline_args())
 	get_tree().quit()
 
 

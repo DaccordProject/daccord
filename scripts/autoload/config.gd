@@ -5,6 +5,8 @@ const _SALT := "daccord-config-v1"
 const _PROFILE_SALT := "daccord-profile-v1"
 const _RECENT_EMOJI_MAX := 16
 const _BACKUP_THROTTLE_SEC := 60
+## Keys that are never imported from external config files.
+const _IMPORT_BLOCKED_KEYS: Array[String] = ["token", "password"]
 const ConfigProfilesScript := preload(
 	"res://scripts/autoload/config_profiles.gd"
 )
@@ -281,14 +283,12 @@ func _save() -> void:
 	var path := _config_path()
 	var err := _config.save_encrypted_pass(path, _derive_key())
 	if err != OK:
-		push_warning(
-			"[Config] Encrypted save failed (error %d), falling back to plain save" % err
+		push_error(
+			"[Config] Encrypted save failed (error %d). "
+			% err
+			+ "Data remains in memory — will retry on next save."
 		)
-		var plain_err := _config.save(path)
-		if plain_err != OK:
-			push_error(
-				"[Config] Plain save also failed (error %d) — data may be lost!" % plain_err
-			)
+		AppState.config_save_failed.emit(err)
 		return
 
 func set_last_selection(space_id: String, channel_id: String) -> void:
@@ -608,7 +608,22 @@ func import_config(path: String) -> Error:
 			ProjectSettings.globalize_path(cur_path),
 			ProjectSettings.globalize_path(pre_import)
 		)
-	_config = new_cfg
+	# Selectively copy sections/keys, stripping sensitive keys
+	var stripped_count := 0
+	for section in new_cfg.get_sections():
+		for key in new_cfg.get_section_keys(section):
+			if key in _IMPORT_BLOCKED_KEYS:
+				stripped_count += 1
+				continue
+			_config.set_value(
+				section, key,
+				new_cfg.get_value(section, key)
+			)
+	if stripped_count > 0:
+		push_warning(
+			"[Config] Import: stripped %d blocked key(s) (token/password)"
+			% stripped_count
+		)
 	_load_ok = true
 	_save()
 	return OK

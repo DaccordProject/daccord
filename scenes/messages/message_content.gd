@@ -33,7 +33,9 @@ func setup(data: Dictionary) -> void:
 	_is_system = data.get("system", false)
 
 	if _is_system:
-		text_content.text = "[i][color=#8a8e94]" + raw_text + "[/color][/i]"
+		# Escape BBCode in system messages -- they render as plain italic text
+		var safe_text := raw_text.replace("[", "[lb]")
+		text_content.text = "[i][color=#8a8e94]" + safe_text + "[/color][/i]"
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
@@ -82,9 +84,10 @@ func setup(data: Dictionary) -> void:
 		att_label.scroll_active = false
 		att_label.mouse_filter = Control.MOUSE_FILTER_PASS
 		var size_str := _format_file_size(size_bytes)
+		var safe_fname := fname.replace("[", "[lb]")
 		att_label.text = (
 			"[color=#00aaff][url=%s]%s[/url][/color]"
-			% [url, fname]
+			% [url, safe_fname]
 			+ " [font_size=11][color=#8a8e94](%s)[/color][/font_size]"
 			% size_str
 		)
@@ -120,7 +123,8 @@ func update_content(data: Dictionary) -> void:
 	var raw_text: String = data.get("content", "")
 	_is_system = data.get("system", false)
 	if _is_system:
-		text_content.text = "[i][color=#8a8e94]" + raw_text + "[/color][/i]"
+		var safe_text := raw_text.replace("[", "[lb]")
+		text_content.text = "[i][color=#8a8e94]" + safe_text + "[/color][/i]"
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):

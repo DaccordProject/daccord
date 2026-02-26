@@ -9,6 +9,7 @@ const BanListScene := preload("res://scenes/admin/ban_list_dialog.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn")
 const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
+const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 
@@ -180,6 +181,11 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Audit Log", idx)
 		idx += 1
 
+	if (Client.has_permission(space_id, AccordPermission.MANAGE_SOUNDBOARD)
+			or Client.has_permission(space_id, AccordPermission.USE_SOUNDBOARD)):
+		_context_menu.add_item("Soundboard", idx)
+		idx += 1
+
 	var can_manage_roles: bool = Client.has_permission(
 		space_id, AccordPermission.MANAGE_ROLES
 	)
@@ -250,6 +256,10 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			dialog.setup(space_id)
 		"Audit Log":
 			var dialog := AuditLogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(space_id)
+		"Soundboard":
+			var dialog := SoundboardMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(space_id)
 		"View As...":

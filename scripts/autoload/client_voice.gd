@@ -5,8 +5,6 @@ extends RefCounted
 ## Receives a reference to the Client autoload node so it can
 ## access caches, routing helpers, and emit AppState signals.
 
-const DEBUG_VOICE_LOGS := true
-const VOICE_LOG_PATH := "user://voice_debug.log"
 
 var _c: Node # Client autoload
 
@@ -223,9 +221,8 @@ func toggle_video() -> void:
 		AppState.set_video_enabled(true)
 	_send_voice_state_update()
 
-func start_screen_share(
-	_source_type: String, _source_id: int,
-) -> void:
+func start_screen_share(source: Dictionary) -> void:
+	_voice_log("start_screen_share source=%s" % str(source))
 	if AppState.voice_channel_id.is_empty():
 		return
 	# Stop existing screen track if any
@@ -233,15 +230,17 @@ func start_screen_share(
 		_c._screen_track.close()
 		_c._screen_track = null
 		_c._voice_session.unpublish_screen()
-	var stream = _c._voice_session.publish_screen()
+	var stream = _c._voice_session.publish_screen(source)
 	if stream == null:
 		AppState.voice_error.emit("Failed to share screen")
 		return
 	_c._screen_track = stream
+	_voice_log("start_screen_share success")
 	AppState.set_screen_sharing(true)
 	_send_voice_state_update()
 
 func stop_screen_share() -> void:
+	_voice_log("stop_screen_share")
 	if _c._screen_track != null:
 		_c._screen_track.close()
 		_c._screen_track = null
@@ -350,7 +349,7 @@ func on_audio_level_changed(
 		var was_speaking: bool = _c._speaking_users.has(uid)
 		_c._speaking_users[uid] = now
 		if not was_speaking:
-			if DEBUG_VOICE_LOGS:
+			if _c.debug_voice_logs:
 				_voice_log(
 					"speaking_start uid=%s raw=%s level=%.3f" % [
 						uid, user_id, level
@@ -391,11 +390,4 @@ func _validate_backend_info(
 	return {"ok": true, "backend": "livekit", "reason": ""}
 
 func _voice_log(message: String) -> void:
-	if DEBUG_VOICE_LOGS:
-		var line := "[VoiceDebug] " + message
-		print(line)
-		var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ_WRITE)
-		if f:
-			f.seek_end()
-			f.store_line(line)
-			f.close()
+	_c._voice_log(message)

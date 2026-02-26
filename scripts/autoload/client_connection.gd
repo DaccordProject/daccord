@@ -53,21 +53,23 @@ func connect_server(
 	# Fetch current user
 	AppState.connection_step.emit("Authenticating...")
 	var me_result: RestResult = await client.users.get_me()
-	if not me_result.ok and base_url.begins_with("https://"):
-		print(
-			"[Client] HTTPS failed for ", base_url,
-			", falling back to HTTP"
+	if not me_result.ok and base_url.begins_with("https://") \
+			and me_result.status_code == 0:
+		# HTTPS connection-level failure -- inform caller instead of silently downgrading
+		var http_url := base_url.replace("https://", "http://")
+		push_warning(
+			"[Client] HTTPS failed for %s (status_code=0). HTTP alternative: %s"
+			% [base_url, http_url]
 		)
+		conn["status"] = "error"
 		client.queue_free()
-		base_url = base_url.replace("https://", "http://")
-		gw_url = str(_c._derive_gateway_url(base_url))
-		cdn_url = str(_c._derive_cdn_url(base_url))
-		conn["cdn_url"] = cdn_url
-		client = _make_client(
-			token, base_url, gw_url, cdn_url
-		)
-		conn["client"] = client
-		me_result = await client.users.get_me()
+		conn["client"] = null
+		return {
+			"error": "HTTPS connection failed",
+			"https_failed": true,
+			"http_url": http_url,
+			"server_index": index,
+		}
 
 	if not me_result.ok:
 		var err_msg: String = (
@@ -90,9 +92,6 @@ func connect_server(
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
-
-	if base_url != cfg["base_url"]:
-		Config.update_server_url(index, base_url)
 
 	# Check server version compatibility (non-blocking)
 	var ver_result: RestResult = await client.rest.make_request(

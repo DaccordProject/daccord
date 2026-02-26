@@ -147,8 +147,6 @@ func _on_file_selected(path: String) -> void:
 			err_msg = result.error.message
 		_error_label.text = err_msg
 		_error_label.visible = true
-	else:
-		_load_emojis()
 
 func _on_delete_emoji(emoji: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()

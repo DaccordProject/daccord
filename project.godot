@@ -66,7 +66,7 @@ textures/vram_compression/import_etc2_astc=true
 
 [sentry]
 
-config/dsn="http://d4fe8b2c21184ae6aed88a521956241c@192.168.1.144:8070/1"
+config/dsn="https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1"
 config/auto_init=false
 config/debug=false
 config/sample_rate=1.0
