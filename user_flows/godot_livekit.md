@@ -115,13 +115,14 @@ The addon is a native C++ GDExtension, compiled against `godot-cpp` (Godot's C++
 
 **Class registration** (`register_types.cpp`): On `MODULE_INITIALIZATION_LEVEL_SCENE`, the extension calls `livekit::initialize()` and registers all classes with `ClassDB`. On shutdown, it calls `livekit::shutdown()`.
 
-**Registered classes** (15 core + 4 E2EE):
+**Registered classes** (16 core + 4 E2EE):
 - Room: `LiveKitRoom`
 - Participants: `LiveKitParticipant`, `LiveKitLocalParticipant`, `LiveKitRemoteParticipant`
 - Tracks: `LiveKitTrack`, `LiveKitLocalAudioTrack`, `LiveKitLocalVideoTrack`, `LiveKitRemoteAudioTrack`, `LiveKitRemoteVideoTrack`
 - Publications: `LiveKitTrackPublication`, `LiveKitLocalTrackPublication`, `LiveKitRemoteTrackPublication`
 - Streams: `LiveKitVideoStream`, `LiveKitAudioStream`
 - Sources: `LiveKitVideoSource`, `LiveKitAudioSource`
+- Screen capture: `LiveKitScreenCapture`
 - E2EE (conditional): `LiveKitE2eeOptions`, `LiveKitKeyProvider`, `LiveKitFrameCryptor`, `LiveKitE2eeManager`
 
 ### LiveKitRoom (livekit_room.h)
@@ -220,6 +221,60 @@ Base `LiveKitParticipant`:
 1. `LiveKitVideoSource.create(1920, 1080)` -- hardcoded 1080p (line 147)
 2. `LiveKitLocalVideoTrack.create("screen", source)` -- creates a track
 3. `LocalParticipant.publish_track(track, {"source": SOURCE_SCREENSHARE})` -- publishes
+
+### Screen Capture (LiveKitScreenCapture)
+
+`LiveKitScreenCapture` captures screen or window content using the native **frametap** library, delivering frames as `ImageTexture`/`Image` objects for publishing via `LiveKitVideoSource`.
+
+**Static query methods:**
+- `get_monitors() -> Array` -- returns available monitors, each with properties: `id`, `name`, `x`, `y`, `width`, `height`, `scale`
+- `get_windows() -> Array` -- returns available windows, each with properties: `id`, `name`, `x`, `y`, `width`, `height`
+- `check_permissions() -> Dictionary` -- validates screen capture permissions; returns `status` (int), `summary` (String), `details` (Array)
+
+**Factory methods:**
+- `create() -> LiveKitScreenCapture` -- creates capture for the default monitor
+- `create_for_monitor(monitor: Dictionary) -> LiveKitScreenCapture` -- targets a specific monitor from `get_monitors()`
+- `create_for_window(window: Dictionary) -> LiveKitScreenCapture` -- targets a specific window from `get_windows()`
+
+**Lifecycle:**
+- `start()` -- initiates asynchronous capture
+- `stop()` -- halts capture
+- `pause()` -- suspends without terminating
+- `resume()` -- resumes paused capture
+- `is_paused() -> bool` -- checks pause status
+
+**Frame access:**
+- `poll() -> bool` -- retrieves new frames; call in `_process()`, returns `true` on new frame
+- `get_texture() -> ImageTexture` -- latest captured frame as texture
+- `get_image() -> Image` -- latest frame as `Image`
+- `screenshot() -> Image` -- single immediate screenshot (no `start()` required)
+- `close()` -- stops and releases resources
+
+**Signal:**
+- `frame_received` -- emitted after `poll()` detects a new frame
+
+**Enum `PermissionLevel`:**
+- `PERMISSION_OK = 0`, `PERMISSION_WARNING = 1`, `PERMISSION_ERROR = 2`
+
+**Usage pattern:**
+```gdscript
+# Enumerate sources
+var monitors = LiveKitScreenCapture.get_monitors()
+var windows = LiveKitScreenCapture.get_windows()
+
+# Create capture for a specific monitor or window
+var capture = LiveKitScreenCapture.create_for_monitor(monitors[0])
+# or: var capture = LiveKitScreenCapture.create_for_window(windows[0])
+
+capture.start()
+
+# In _process():
+if capture.poll():
+    var image = capture.get_image()
+    video_source.capture_frame(image, timestamp, 0)
+```
+
+This class replaces the need for Godot's `DisplayServer.get_screen_count()` / `screen_get_size()` for screen enumeration, and provides actual frame capture that was previously missing. It also enables window-level sharing (not just full screens).
 
 **Receiving video**:
 1. `track_subscribed` fires with a video track
@@ -362,6 +417,7 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - [x] Local audio track publishing via LiveKitAudioSource + LiveKitLocalAudioTrack
 - [x] Local video track publishing via LiveKitVideoSource + LiveKitLocalVideoTrack
 - [x] Screen share publishing via SOURCE_SCREENSHARE
+- [x] LiveKitScreenCapture class for native screen/window capture via frametap
 - [x] Remote audio reception via LiveKitAudioStream with background reader thread
 - [x] Remote video reception via LiveKitVideoStream with background reader thread
 - [x] Audio playback via Godot AudioStreamGenerator pipeline
@@ -399,7 +455,7 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 | Data channels unused | Low | `publish_data()` and `data_received` signal are available but daccord uses the WebSocket gateway for all messaging. Could be useful for low-latency in-call features (e.g., cursor sharing, annotations). |
 | RPC unused | Low | `perform_rpc()` / `register_rpc_method()` are available. Could enable peer-to-peer features without gateway round-trips. |
 | No WebRTC stats UI | Low | `LiveKitTrack.get_stats()` returns detailed WebRTC metrics but they are not exposed in any settings or debug panel. |
-| Screen share resolution hardcoded | Low | `publish_screen()` uses 1920x1080 (line 147 of `livekit_adapter.gd`). Should use the actual screen/window resolution. |
+| Screen share resolution hardcoded | Low | `publish_screen()` uses 1920x1080 (line 147 of `livekit_adapter.gd`). Should use `LiveKitScreenCapture.get_monitors()` to get the actual resolution and `LiveKitScreenCapture` for frame capture. |
 | No ARM64 builds | Medium | Build script only supports x86_64 for Linux/Windows. macOS builds are universal (x86_64 + arm64) but Linux ARM is missing. |
 | No web platform | High | GDExtension native libraries cannot load in Godot Web exports. See `web_export.md` for the planned Web API approach. |
 | Input/output device selection not applied | Low | `Config.voice` persists device preferences but `LiveKitAdapter` always uses the default `AudioStreamMicrophone` and default audio bus. Need to route selected devices through to LiveKit audio source and playback. |
