@@ -108,6 +108,19 @@ func set_output_volume(value: int) -> void:
 	_parent._save()
 
 
+func get_debug_logging() -> bool:
+	return _parent._config.get_value(
+		"voice", "debug_logging", false
+	)
+
+
+func set_debug_logging(enabled: bool) -> void:
+	_parent._config.set_value(
+		"voice", "debug_logging", enabled
+	)
+	_parent._save()
+
+
 func get_speaking_threshold() -> float:
 	var sensitivity: int = get_input_sensitivity()
 	# Logarithmic mapping: 0% → 0.1, 50% → ~0.003, 100% → 0.0001

@@ -301,9 +301,10 @@ jobs:
           rm -rf "$TMPDIR"
           mkdir -p "$TMPDIR"
           unzip -o ${{ matrix.artifact }}.zip -d "$TMPDIR"
+          ln -s /Applications "$TMPDIR/Applications"
           hdiutil create \
             -volname "daccord" \
-            -srcfolder "$TMPDIR/daccord.app" \
+            -srcfolder "$TMPDIR" \
             -ov -format UDZO \
             "$GITHUB_WORKSPACE/${{ matrix.artifact }}.dmg"
           rm -rf "$TMPDIR"

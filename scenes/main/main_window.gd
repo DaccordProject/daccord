@@ -7,7 +7,7 @@ const PANEL_MIN_MEMBER := 180.0
 const PANEL_MIN_SEARCH := 240.0
 const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
 const PanelResizeHandle := preload("res://scenes/main/panel_resize_handle.gd")
-const AvatarScript := preload("res://scenes/common/avatar.gd")
+const MainWindowTabs := preload("res://scenes/main/main_window_tabs.gd")
 const ProfileCardScene := preload(
 	"res://scenes/user/profile_card.tscn"
 )
@@ -20,10 +20,14 @@ const ConnectingOverlayScene := preload(
 const ImageLightboxScene := preload(
 	"res://scenes/messages/image_lightbox.tscn"
 )
+const VideoPipScene := preload(
+	"res://scenes/video/video_pip.tscn"
+)
+const ToastScene := preload(
+	"res://scenes/main/toast.tscn"
+)
 
-var tabs: Array[Dictionary] = []
-
-var _space_icon_cache: Dictionary = {}
+var _tabs: RefCounted
 var _drawer: MainWindowDrawer
 var _active_profile_card: PanelContainer = null
 var _welcome_screen: Control = null
@@ -34,7 +38,10 @@ var _member_handle: Control
 var _search_handle: Control
 var _clamping_panels: bool = false
 var _update_indicator: Button = null
+var _pip: PanelContainer = null
 
+@onready var video_grid: PanelContainer = $LayoutHBox/ContentArea/VideoGrid
+@onready var content_header: HBoxContainer = $LayoutHBox/ContentArea/ContentHeader
 @onready var layout_hbox: HBoxContainer = $LayoutHBox
 @onready var sidebar: HBoxContainer = $LayoutHBox/Sidebar
 @onready var content_area: VBoxContainer = $LayoutHBox/ContentArea
@@ -53,6 +60,7 @@ var _update_indicator: Button = null
 @onready var drawer_container: Control = $DrawerContainer
 
 func _ready() -> void:
+	_tabs = MainWindowTabs.new(tab_bar, self)
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
@@ -64,9 +72,9 @@ func _ready() -> void:
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.sidebar_drawer_toggled.connect(_drawer.on_sidebar_drawer_toggled)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
-	tab_bar.tab_changed.connect(_on_tab_changed)
-	tab_bar.tab_close_pressed.connect(_on_tab_close)
-	tab_bar.active_tab_rearranged.connect(_on_tab_rearranged)
+	tab_bar.tab_changed.connect(_tabs.on_tab_changed)
+	tab_bar.tab_close_pressed.connect(_tabs.on_tab_close)
+	tab_bar.active_tab_rearranged.connect(_tabs.on_tab_rearranged)
 	hamburger_button.pressed.connect(_on_hamburger_pressed)
 	sidebar_toggle.pressed.connect(_on_sidebar_toggle_pressed)
 	member_toggle.pressed.connect(_on_member_toggle_pressed)
@@ -86,6 +94,9 @@ func _ready() -> void:
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
 	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
 	AppState.voice_error.connect(_on_voice_error)
+	AppState.voice_view_opened.connect(_on_voice_view_opened)
+	AppState.voice_view_closed.connect(_on_voice_view_closed)
+	AppState.voice_left.connect(_on_voice_left_pip)
 	AppState.update_available.connect(_on_update_indicator_show)
 	AppState.update_download_complete.connect(_on_update_indicator_ready)
 
@@ -146,7 +157,7 @@ func _ready() -> void:
 	_sync_handle_visibility()
 	content_body.resized.connect(_clamp_panel_widths)
 
-	_update_tab_visibility()
+	_tabs.update_visibility()
 
 	# Apply initial layout
 	_on_viewport_resized()
@@ -196,6 +207,10 @@ func _input(event: InputEvent) -> void:
 	_gestures.handle_input(event)
 
 func _on_channel_selected(channel_id: String) -> void:
+	# Close voice view if open (triggers PiP spawn via _on_voice_view_closed)
+	if AppState.is_voice_view_open:
+		AppState.close_voice_view()
+
 	# Find channel name and topic
 	var channel_name := channel_id
 	var topic := ""
@@ -227,49 +242,12 @@ func _on_channel_selected(channel_id: String) -> void:
 	var space_id: String = Client._channel_to_space.get(channel_id, "")
 
 	# Check if tab already exists
-	for i in tabs.size():
-		if tabs[i]["channel_id"] == channel_id:
-			tab_bar.current_tab = i
-			return
-
-	_add_tab(channel_name, channel_id, space_id)
-
-func _add_tab(tab_name: String, channel_id: String, space_id: String) -> void:
-	tabs.append({"name": tab_name, "channel_id": channel_id, "space_id": space_id})
-	tab_bar.add_tab(tab_name)
-	tab_bar.current_tab = tabs.size() - 1
-	_update_tab_visibility()
-	_update_tab_icons()
-
-func _on_tab_changed(tab_index: int) -> void:
-	if tab_index >= 0 and tab_index < tabs.size():
-		var channel_id: String = tabs[tab_index]["channel_id"]
-		AppState.select_channel(channel_id)
-
-func _on_tab_close(tab_index: int) -> void:
-	if tabs.size() <= 1:
+	var existing: int = _tabs.find_tab(channel_id)
+	if existing >= 0:
+		tab_bar.current_tab = existing
 		return
-	tabs.remove_at(tab_index)
-	tab_bar.remove_tab(tab_index)
-	if tab_bar.current_tab >= 0 and tab_bar.current_tab < tabs.size():
-		var channel_id: String = tabs[tab_bar.current_tab]["channel_id"]
-		AppState.select_channel(channel_id)
-	_update_tab_visibility()
-	_update_tab_icons()
 
-func _on_tab_rearranged(idx_to: int) -> void:
-	var active_channel_id: String = AppState.current_channel_id
-	var idx_from: int = -1
-	for i in tabs.size():
-		if tabs[i]["channel_id"] == active_channel_id:
-			idx_from = i
-			break
-	if idx_from == -1 or idx_from == idx_to:
-		return
-	var tab_data: Dictionary = tabs[idx_from]
-	tabs.remove_at(idx_from)
-	tabs.insert(idx_to, tab_data)
-	_update_tab_icons()
+	_tabs.add_tab(channel_name, channel_id, space_id)
 
 func _on_server_removed(space_id: String) -> void:
 	var was_active: bool = AppState.current_space_id == space_id
@@ -285,116 +263,27 @@ func _on_server_removed(space_id: String) -> void:
 		AppState.exit_imposter_mode()
 
 	# Remove tabs belonging to the disconnected server
-	var i: int = tabs.size() - 1
-	while i >= 0:
-		if tabs[i].get("space_id", "") == space_id:
-			tabs.remove_at(i)
-			tab_bar.remove_tab(i)
-		i -= 1
+	_tabs.remove_tabs_for_space(space_id)
 
-	if tabs.is_empty():
+	if _tabs.tabs.is_empty():
 		# Reset navigation state
 		AppState.current_space_id = ""
 		AppState.current_channel_id = ""
 		get_window().title = "Daccord"
 		topic_bar.visible = false
-		_update_tab_visibility()
+		_tabs.update_visibility()
 		if not Config.has_servers():
 			_show_welcome_screen()
 		return
 
 	# Ensure a valid tab is selected
-	var current: int = clampi(tab_bar.current_tab, 0, tabs.size() - 1)
-	tab_bar.current_tab = current
-	AppState.select_channel(tabs[current]["channel_id"])
-	_update_tab_visibility()
-	_update_tab_icons()
-
-func _update_tab_visibility() -> void:
-	# Hide tab bar when only one tab
-	tab_bar.visible = tabs.size() > 1
-
-func _update_tab_icons() -> void:
-	# Count name occurrences
-	var name_count: Dictionary = {}
-	for tab in tabs:
-		var n: String = tab["name"]
-		name_count[n] = name_count.get(n, 0) + 1
-
-	for i in tabs.size():
-		if name_count[tabs[i]["name"]] > 1:
-			_set_space_icon_for_tab(i)
-		else:
-			tab_bar.set_tab_icon(i, null)
-
-func _set_space_icon_for_tab(tab_index: int) -> void:
-	var space_id: String = tabs[tab_index].get("space_id", "")
-	if space_id.is_empty():
-		tab_bar.set_tab_icon(tab_index, null)
-		return
-
-	# Already cached locally
-	if _space_icon_cache.has(space_id):
-		tab_bar.set_tab_icon(tab_index, _space_icon_cache[space_id])
-		return
-
-	var space: Dictionary = Client.get_space_by_id(space_id)
-	if space.is_empty():
-		tab_bar.set_tab_icon(tab_index, null)
-		return
-
-	var icon_url_value = space.get("icon", "")
-	var icon_url: String = icon_url_value if icon_url_value != null else ""
-	if icon_url.is_empty():
-		# Fallback: solid-color swatch
-		var tex: ImageTexture = _create_color_swatch(
-			space.get("icon_color", Color.GRAY)
-		)
-		_space_icon_cache[space_id] = tex
-		tab_bar.set_tab_icon(tab_index, tex)
-		return
-
-	# Check avatar's shared cache
-	if AvatarScript._image_cache.has(icon_url):
-		var tex: ImageTexture = AvatarScript._image_cache[icon_url]
-		_space_icon_cache[space_id] = tex
-		tab_bar.set_tab_icon(tab_index, tex)
-		return
-
-	# Fetch asynchronously
-	var http := HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(
-		_on_tab_icon_loaded.bind(space_id, http)
+	var current: int = clampi(
+		tab_bar.current_tab, 0, _tabs.tabs.size() - 1,
 	)
-	http.request(icon_url)
-
-func _on_tab_icon_loaded(
-	result: int, response_code: int,
-	_headers: PackedStringArray, body: PackedByteArray,
-	space_id: String, http: HTTPRequest,
-) -> void:
-	http.queue_free()
-	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
-		return
-	var image := Image.new()
-	var err := image.load_png_from_buffer(body)
-	if err != OK:
-		err = image.load_jpg_from_buffer(body)
-	if err != OK:
-		err = image.load_webp_from_buffer(body)
-	if err != OK:
-		return
-	image.resize(16, 16)
-	var tex := ImageTexture.create_from_image(image)
-	_space_icon_cache[space_id] = tex
-	# Apply to any tabs that need this space's icon
-	_update_tab_icons()
-
-func _create_color_swatch(c: Color, px: int = 16) -> ImageTexture:
-	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
-	img.fill(c)
-	return ImageTexture.create_from_image(img)
+	tab_bar.current_tab = current
+	_tabs.select_current()
+	_tabs.update_visibility()
+	_tabs.update_icons()
 
 func _on_viewport_resized() -> void:
 	var vp_size := get_viewport().get_visible_rect().size
@@ -404,6 +293,32 @@ func _on_viewport_resized() -> void:
 		sidebar.offset_right = _drawer.get_drawer_width()
 
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
+	# When voice view is open, skip content visibility management
+	if AppState.is_voice_view_open:
+		# Still handle sidebar/drawer transitions
+		match mode:
+			AppState.LayoutMode.FULL:
+				_drawer.move_sidebar_to_layout()
+				sidebar.visible = true
+				sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
+				hamburger_button.visible = false
+				sidebar_toggle.visible = true
+				_drawer.close_drawer_immediate()
+			AppState.LayoutMode.MEDIUM:
+				_drawer.move_sidebar_to_layout()
+				sidebar.visible = true
+				sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
+				hamburger_button.visible = false
+				sidebar_toggle.visible = true
+				_drawer.close_drawer_immediate()
+			AppState.LayoutMode.COMPACT:
+				_drawer.move_sidebar_to_drawer()
+				sidebar.set_channel_panel_visible_immediate(true)
+				hamburger_button.visible = true
+				sidebar_toggle.visible = false
+				_drawer.close_drawer_immediate()
+		return
+
 	match mode:
 		AppState.LayoutMode.FULL:
 			_drawer.move_sidebar_to_layout()
@@ -680,45 +595,68 @@ func _show_crash_toast() -> void:
 	)
 
 func _show_toast(text: String, is_error: bool = false) -> void:
-	var toast := Label.new()
-	toast.text = text
-	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toast.add_theme_font_size_override("font_size", 13)
-	var text_color := Color(0.92, 0.92, 0.92)
-	if is_error:
-		text_color = Color(1.0, 0.86, 0.86)
-	toast.add_theme_color_override("font_color", text_color)
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = (
-		Color(0.28, 0.12, 0.12, 0.95)
-		if is_error
-		else Color(0.18, 0.19, 0.21, 0.95)
+	var toast: PanelContainer = ToastScene.instantiate()
+	toast.setup(text, is_error)
+	add_child(toast)
+
+func _on_voice_view_opened(_channel_id: String) -> void:
+	_remove_pip()
+	content_header.visible = false
+	topic_bar.visible = false
+	content_body.visible = false
+	video_grid.set_full_area(true)
+
+func _on_voice_view_closed() -> void:
+	content_header.visible = true
+	content_body.visible = true
+	# Restore topic bar based on current channel
+	var topic := ""
+	for ch in Client.channels:
+		if ch["id"] == AppState.current_channel_id:
+			topic = ch.get("topic", "")
+			break
+	topic_bar.visible = topic != ""
+	video_grid.set_full_area(false)
+	# Spawn PiP if still in voice with active video
+	_maybe_spawn_pip()
+
+func _on_voice_left_pip(_channel_id: String) -> void:
+	_remove_pip()
+
+func _maybe_spawn_pip() -> void:
+	if AppState.voice_channel_id.is_empty():
+		return
+	# Only spawn PiP if there's any video content
+	var has_video := (
+		Client.get_camera_track() != null
+		or Client.get_screen_track() != null
 	)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	style.content_margin_left = 16.0
-	style.content_margin_right = 16.0
-	style.content_margin_top = 10.0
-	style.content_margin_bottom = 10.0
-	panel.add_theme_stylebox_override("panel", style)
-	panel.add_child(toast)
-	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	panel.anchor_bottom = 1.0
-	panel.anchor_top = 1.0
-	panel.offset_top = -60.0
-	panel.offset_bottom = -20.0
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	add_child(panel)
-	var tween := create_tween()
-	tween.tween_interval(4.0)
-	if Config.get_reduced_motion():
-		tween.tween_callback(panel.queue_free)
-	else:
-		tween.tween_property(panel, "modulate:a", 0.0, 1.0)
-		tween.tween_callback(panel.queue_free)
+	if not has_video:
+		# Check remote peers
+		var cid := AppState.voice_channel_id
+		var my_id: String = Client.current_user.get("id", "")
+		var states: Array = Client.get_voice_users(cid)
+		for state in states:
+			var uid: String = state.get("user_id", "")
+			if uid == my_id:
+				continue
+			if state.get("self_video", false) or state.get("self_stream", false):
+				has_video = true
+				break
+	if not has_video:
+		return
+	_pip = VideoPipScene.instantiate()
+	_pip.pip_clicked.connect(_on_pip_clicked)
+	add_child(_pip)
+
+func _remove_pip() -> void:
+	if _pip != null and is_instance_valid(_pip):
+		_pip.queue_free()
+		_pip = null
+
+func _on_pip_clicked() -> void:
+	_remove_pip()
+	AppState.open_voice_view()
 
 func _on_voice_error(error: String) -> void:
 	_show_toast("Voice error: %s" % error, true)
@@ -750,12 +688,7 @@ func _on_update_indicator_pressed() -> void:
 		get_tree().root.add_child(settings)
 
 func _on_profile_switched() -> void:
-	# Clear tabs
-	tabs.clear()
-	tab_bar.clear_tabs()
-	_update_tab_visibility()
-	_update_tab_icons()
-	_space_icon_cache.clear()
+	_tabs.clear_all()
 	# Reset window title
 	get_window().title = "Daccord"
 	# Reset topic bar

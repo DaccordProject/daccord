@@ -64,10 +64,13 @@ func create(
 	reg.set_value("order", "list", order)
 	var section := "profile_" + slug
 	reg.set_value(section, "name", pname)
+	# Generate a random per-profile salt for PBKDF2 hashing
+	var salt := Crypto.new().generate_random_bytes(16).hex_encode()
+	reg.set_value(section, "password_salt", salt)
 	if not pw.is_empty():
 		reg.set_value(
 			section, "password_hash",
-			_hash_password(slug, pw)
+			_hash_password_pbkdf2(salt, pw)
 		)
 	reg.save(REGISTRY_PATH)
 	return slug
@@ -124,14 +127,20 @@ func set_password(
 		var stored: String = reg.get_value(
 			section, "password_hash", ""
 		)
-		if _hash_password(slug, old_pw) != stored:
+		# Verify old password (handles both legacy and PBKDF2 formats)
+		if not _verify_hash(section, slug, old_pw, stored):
 			return false
+	# Ensure a salt exists (may be missing on legacy profiles)
+	var salt: String = reg.get_value(section, "password_salt", "")
+	if salt.is_empty():
+		salt = Crypto.new().generate_random_bytes(16).hex_encode()
+		reg.set_value(section, "password_salt", salt)
 	if new_pw.is_empty():
 		reg.set_value(section, "password_hash", null)
 	else:
 		reg.set_value(
 			section, "password_hash",
-			_hash_password(slug, new_pw),
+			_hash_password_pbkdf2(salt, new_pw),
 		)
 	reg.save(REGISTRY_PATH)
 	return true
@@ -145,7 +154,36 @@ func verify_password(slug: String, pw: String) -> bool:
 	var stored: String = reg.get_value(
 		section, "password_hash", ""
 	)
-	return _hash_password(slug, pw) == stored
+	return _verify_hash(section, slug, pw, stored)
+
+
+## Verifies a password against a stored hash (PBKDF2 or legacy SHA-256).
+## On successful legacy verification, upgrades the hash to PBKDF2 in-place.
+func _verify_hash(
+	section: String, slug: String,
+	pw: String, stored: String,
+) -> bool:
+	var reg: ConfigFile = _parent._registry
+	if stored.begins_with("pbkdf2:"):
+		var computed := _hash_password_pbkdf2(
+			reg.get_value(section, "password_salt", ""), pw
+		)
+		return _constant_time_compare(computed, stored)
+	# Legacy SHA-256 hash -- verify and upgrade
+	var legacy := _hash_password_legacy(slug, pw)
+	if not _constant_time_compare(legacy, stored):
+		return false
+	# Upgrade to PBKDF2 on successful legacy verification
+	var salt: String = reg.get_value(section, "password_salt", "")
+	if salt.is_empty():
+		salt = Crypto.new().generate_random_bytes(16).hex_encode()
+		reg.set_value(section, "password_salt", salt)
+	reg.set_value(
+		section, "password_hash",
+		_hash_password_pbkdf2(salt, pw)
+	)
+	reg.save(REGISTRY_PATH)
+	return true
 
 
 func move_up(slug: String) -> void:
@@ -202,7 +240,8 @@ func _slugify(pname: String) -> String:
 	return slug
 
 
-func _hash_password(slug: String, pw: String) -> String:
+## Legacy single-round SHA-256 hash (kept for migration only).
+func _hash_password_legacy(slug: String, pw: String) -> String:
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
 	var input := (
@@ -211,3 +250,51 @@ func _hash_password(slug: String, pw: String) -> String:
 	ctx.update(input)
 	var digest := ctx.finish()
 	return digest.hex_encode()
+
+
+## PBKDF2-HMAC-SHA256 with 10,000 iterations.
+## Returns format: "pbkdf2:10000:<salt_hex>:<hash_hex>"
+func _hash_password_pbkdf2(salt: String, pw: String) -> String:
+	const ITERATIONS := 10000
+	const DK_LEN := 32 # 256 bits
+	var salt_bytes := salt.to_utf8_buffer()
+	var pw_bytes := pw.to_utf8_buffer()
+	# PBKDF2 with a single block (DK_LEN <= HMAC output size of 32)
+	# U_1 = HMAC(pw, salt || INT(1))
+	var block_input := PackedByteArray()
+	block_input.append_array(salt_bytes)
+	block_input.append_array(PackedByteArray([0, 0, 0, 1]))
+	var u := _hmac_sha256(pw_bytes, block_input)
+	var result := u.duplicate()
+	for i in range(1, ITERATIONS):
+		u = _hmac_sha256(pw_bytes, u)
+		for j in DK_LEN:
+			result[j] = result[j] ^ u[j]
+	return "pbkdf2:%d:%s:%s" % [ITERATIONS, salt, result.hex_encode()]
+
+
+static func _hmac_sha256(
+	key: PackedByteArray, msg: PackedByteArray,
+) -> PackedByteArray:
+	var hmac := HMACContext.new()
+	hmac.start(HashingContext.HASH_SHA256, key)
+	hmac.update(msg)
+	return hmac.finish()
+
+
+## Constant-time string comparison to prevent timing attacks.
+static func _constant_time_compare(a: String, b: String) -> bool:
+	var a_bytes := a.to_utf8_buffer()
+	var b_bytes := b.to_utf8_buffer()
+	if a_bytes.size() != b_bytes.size():
+		# Still do a full comparison to avoid length-based timing leak
+		var dummy := PackedByteArray()
+		dummy.resize(a_bytes.size())
+		var xor_result: int = 1
+		for i in a_bytes.size():
+			xor_result |= a_bytes[i] ^ dummy[i]
+		return false
+	var xor_result: int = 0
+	for i in a_bytes.size():
+		xor_result |= a_bytes[i] ^ b_bytes[i]
+	return xor_result == 0

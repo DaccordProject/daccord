@@ -9,6 +9,7 @@ var _saved_channel_label: String = ""
 var _error_tween: Tween
 var _pulse_tween: Tween
 
+@onready var status_row: HBoxContainer = $VBox/StatusRow
 @onready var channel_label: Label = $VBox/StatusRow/ChannelLabel
 @onready var status_dot: ColorRect = $VBox/StatusRow/StatusDot
 @onready var mute_btn: Button = $VBox/ButtonRow/MuteBtn
@@ -21,6 +22,8 @@ var _pulse_tween: Tween
 
 func _ready() -> void:
 	visible = false
+	status_row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	status_row.gui_input.connect(_on_status_row_input)
 	mute_btn.pressed.connect(_on_mute_pressed)
 	deafen_btn.pressed.connect(_on_deafen_pressed)
 	video_btn.pressed.connect(_on_video_pressed)
@@ -59,6 +62,10 @@ func _on_voice_joined(channel_id: String) -> void:
 		AccordPermission.USE_SOUNDBOARD,
 	)
 	_update_button_visuals()
+
+func _on_status_row_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		AppState.open_voice_view()
 
 func _on_voice_left(_channel_id: String) -> void:
 	_stop_pulse()
@@ -141,10 +148,8 @@ func _on_share_pressed() -> void:
 		picker.source_selected.connect(_on_screen_source_selected)
 		get_tree().root.add_child(picker)
 
-func _on_screen_source_selected(
-	source_type: String, source_id: int,
-) -> void:
-	Client.start_screen_share(source_type, source_id)
+func _on_screen_source_selected(source: Dictionary) -> void:
+	Client.start_screen_share(source)
 
 func _on_sfx_pressed() -> void:
 	if _soundboard_panel != null and is_instance_valid(_soundboard_panel):

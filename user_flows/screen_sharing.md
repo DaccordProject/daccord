@@ -2,7 +2,7 @@
 
 ## Overview
 
-Screen sharing in daccord lets users broadcast their display to other participants in a voice channel. The flow uses the godot-livekit GDExtension to publish a `LiveKitLocalVideoTrack` with `SOURCE_SCREENSHARE`, and a screen picker dialog that enumerates available screens via Godot's `DisplayServer`. The published stream renders both as a local preview tile and as a live remote tile for other participants in the voice channel.
+Screen sharing in daccord lets users broadcast their display or a specific window to other participants in a voice channel. The flow uses the godot-livekit GDExtension's `LiveKitScreenCapture` API for native screen/window enumeration and capture, publishing frames via `LiveKitVideoSource.capture_frame()` to a `LiveKitLocalVideoTrack` with `SOURCE_SCREENSHARE`. The published stream renders both as a local preview tile and as a live remote tile for other participants in the voice channel.
 
 **Available but not yet integrated:** The godot-livekit addon now provides `LiveKitScreenCapture` -- a native screen/window capture class backed by the **frametap** library. It supports enumerating monitors (`get_monitors()`) and individual application windows (`get_windows()`), permission checking (`check_permissions()`), and continuous frame capture (`start()` / `poll()` / `get_image()` / `get_texture()`). This class can replace the current `DisplayServer`-based enumeration and fill the missing frame capture gap, and enables window-level sharing. See the Gaps section for integration details.
 
@@ -10,13 +10,14 @@ Screen sharing in daccord lets users broadcast their display to other participan
 
 1. User joins a voice channel (prerequisite -- must already be in voice)
 2. User clicks the **Share** button in the voice bar
-3. A full-screen overlay appears listing available screens with their resolutions (e.g., "Screen 1 (1920x1080)")
-4. User clicks a screen to select it -- the overlay closes automatically
-5. The Share button changes to **Sharing** with a green tint, indicating an active share
-6. A video tile showing the local screen share preview appears in the video grid above the message area
-7. Remote participants see a blue "S" indicator next to the user's name in the voice channel participant list
-8. Remote participants see the shared screen rendered as a live video tile in their video grid
-9. User clicks the **Sharing** button again to stop -- the tile disappears and the button reverts to "Share"
+3. A full-screen overlay appears listing available screens under a "Screens" header and open windows under a "Windows" header, each showing name and resolution (e.g., "DP-1 (2560x1440)")
+4. If screen capture permissions are missing, an error message is shown instead of the source list
+5. User clicks a screen or window to select it -- the overlay closes automatically
+6. The Share button changes to **Sharing** with a green tint, indicating an active share
+7. A video tile showing the local screen share preview appears in the video grid above the message area
+8. Remote participants see a blue "S" indicator next to the user's name in the voice channel participant list
+9. Remote participants see the shared screen rendered as a live video tile in their video grid
+10. User clicks the **Sharing** button again to stop -- the tile disappears and the button reverts to "Share"
 
 ## Signal Flow
 
@@ -26,40 +27,54 @@ Screen sharing in daccord lets users broadcast their display to other participan
 User clicks "Share" button
        |
        v
-voice_bar._on_share_pressed()                (voice_bar.gd:65)
+voice_bar._on_share_pressed()                (voice_bar.gd)
        |-- AppState.is_screen_sharing == false
        |
        v
-ScreenPickerDialog instantiated               (voice_bar.gd:69)
+ScreenPickerDialog instantiated               (voice_bar.gd)
        |-- source_selected.connect(_on_screen_source_selected)
        |-- added to scene tree root
        |
        v
-ScreenPickerDialog._populate_screens()        (screen_picker_dialog.gd:21)
-       |-- DisplayServer.get_screen_count()
-       |-- DisplayServer.screen_get_size(i) for each screen
-       |-- creates Button per screen with "Screen N (WxH)"
-       |
-User clicks a screen button
+ScreenPickerDialog._ready()                   (screen_picker_dialog.gd)
+       |-- LiveKitScreenCapture.check_permissions()
+       |-- if PERMISSION_ERROR: show error label, stop
+       |-- else: _populate_sources()
        |
        v
-source_selected.emit("screen", i)             (screen_picker_dialog.gd:44)
+_populate_sources()                            (screen_picker_dialog.gd)
+       |-- LiveKitScreenCapture.get_monitors() -> Array of {id, name, x, y, width, height, scale}
+       |-- LiveKitScreenCapture.get_windows()  -> Array of {id, name, x, y, width, height}
+       |-- creates "Screens" header + button per monitor
+       |-- creates "Windows" header + button per window
+       |-- each button stores source dict with "_type": "monitor" or "window"
+       |
+User clicks a source button
+       |
+       v
+source_selected.emit(source_dict)              (screen_picker_dialog.gd)
        |-- dialog self-destructs via queue_free()
        |
        v
-voice_bar._on_screen_source_selected()        (voice_bar.gd:73)
+voice_bar._on_screen_source_selected(source)   (voice_bar.gd)
        |
        v
-Client.start_screen_share(source_type, id)    (client.gd:510)
+Client.start_screen_share(source)              (client.gd)
        |
        v
-ClientVoice.start_screen_share()              (client_voice.gd:226)
-       |-- closes existing _screen_track if any  (line 232)
-       |-- calls _voice_session.publish_screen()
+ClientVoice.start_screen_share(source)         (client_voice.gd)
+       |-- _voice_log("start_screen_share source=...")
+       |-- closes existing _screen_track if any
+       |-- calls _voice_session.publish_screen(source)
        |
        v
-LiveKitAdapter.publish_screen()               (livekit_adapter.gd:142)
-       |-- LiveKitVideoSource.create(1920, 1080)
+LiveKitAdapter.publish_screen(source)          (livekit_adapter.gd)
+       |-- _cleanup_local_screen() (closes prior capture + track)
+       |-- source._type == "monitor" or "window"
+       |-- LiveKitScreenCapture.create_for_monitor(source)
+       |       or create_for_window(source)
+       |-- _screen_capture.start()
+       |-- LiveKitVideoSource.create(source.width, source.height)
        |-- LiveKitLocalVideoTrack.create("screen", source)
        |-- LiveKitLocalParticipant.publish_track(
        |       track, {source: SOURCE_SCREENSHARE})
@@ -67,21 +82,41 @@ LiveKitAdapter.publish_screen()               (livekit_adapter.gd:142)
        |-- returns stream
        |
        v
-ClientVoice stores stream in Client._screen_track  (client_voice.gd:240)
+ClientVoice stores stream in Client._screen_track
+       |-- _voice_log("start_screen_share success")
        |
        v
-AppState.set_screen_sharing(true)             (app_state.gd:288)
+AppState.set_screen_sharing(true)
        |-- is_screen_sharing = true
        |-- screen_share_changed.emit(true)
        |
        +---> voice_bar._on_screen_share_changed()
        |         |-- _update_button_visuals()
-       |         |-- Share -> "Sharing" + green tint  (voice_bar.gd:164)
+       |         |-- Share -> "Sharing" + green tint
        |
        +---> video_grid._on_video_changed()
-                 |-- _rebuild()                       (video_grid.gd:73)
+                 |-- _rebuild()
                  |-- Client.get_screen_track() != null
-                 |-- creates live VideoTile           (video_grid.gd:88-97)
+                 |-- creates live VideoTile
+```
+
+### Frame Capture Loop (livekit_adapter.gd _process)
+
+```
+Every _process() tick while _screen_capture != null:
+       |
+       v
+_screen_capture.poll()
+       |-- returns true if a new frame is available
+       |
+       v
+_screen_capture.get_image() -> Image
+       |-- native screen/window pixel data
+       |
+       v
+_local_screen_source.capture_frame(image, Time.get_ticks_usec(), 0)
+       |-- pushes frame to LiveKit video source
+       |-- LiveKit encodes and transmits to remote peers
 ```
 
 ### Stop Screen Share
@@ -90,26 +125,28 @@ AppState.set_screen_sharing(true)             (app_state.gd:288)
 User clicks "Sharing" button
        |
        v
-voice_bar._on_share_pressed()                (voice_bar.gd:65)
+voice_bar._on_share_pressed()                (voice_bar.gd)
        |-- AppState.is_screen_sharing == true
        |
        v
-Client.stop_screen_share()                   (client.gd:515)
+Client.stop_screen_share()                   (client.gd)
        |
        v
-ClientVoice.stop_screen_share()              (client_voice.gd:244)
-       |-- _screen_track.close()             (line 246)
-       |-- _screen_track = null              (line 247)
-       |-- _voice_session.unpublish_screen() (line 248)
+ClientVoice.stop_screen_share()              (client_voice.gd)
+       |-- _voice_log("stop_screen_share")
+       |-- _screen_track.close()
+       |-- _screen_track = null
+       |-- _voice_session.unpublish_screen()
        |
        v
-LiveKitAdapter.unpublish_screen()            (livekit_adapter.gd:162)
-       |-- _cleanup_local_screen()           (line 397)
+LiveKitAdapter.unpublish_screen()            (livekit_adapter.gd)
+       |-- _cleanup_local_screen()
+       |-- _screen_capture.close() + null
        |-- unpublish_track(sid) via LocalParticipant
        |-- nulls _local_screen_pub, _local_screen_track, _local_screen_source
        |
        v
-AppState.set_screen_sharing(false)           (app_state.gd:288)
+AppState.set_screen_sharing(false)
        |-- is_screen_sharing = false
        |-- screen_share_changed.emit(false)
        |
@@ -123,27 +160,27 @@ AppState.set_screen_sharing(false)           (app_state.gd:288)
 LiveKit server delivers screen share track to remote peer
        |
        v
-LiveKitAdapter._on_track_subscribed()        (livekit_adapter.gd:243)
+LiveKitAdapter._on_track_subscribed()        (livekit_adapter.gd)
        |-- track.get_kind() == KIND_VIDEO
        |-- LiveKitVideoStream.from_track(track)
        |-- _remote_video[identity] = stream
        |-- track_received.emit(uid, stream)
        |
        v
-ClientVoice.on_track_received()              (client_voice.gd:322)
+ClientVoice.on_track_received()              (client_voice.gd)
        |-- closes previous track for same peer
        |-- Client._remote_tracks[user_id] = stream
        |-- AppState.remote_track_received.emit(uid, stream)
        |
        v
-VideoGrid._on_remote_track_received()        (video_grid.gd:44)
+VideoGrid._on_remote_track_received()        (video_grid.gd)
        |-- _rebuild()
-       |-- detects state.self_stream == true  (line 113)
-       |-- Client.get_remote_track(uid)       (line 127)
-       |-- tile.setup_local(remote_track, user) (line 130)
+       |-- detects state.self_stream == true
+       |-- Client.get_remote_track(uid)
+       |-- tile.setup_local(remote_track, user)
        |
        v
-VideoTile._process()                         (video_tile.gd:68)
+VideoTile._process()                         (video_tile.gd)
        |-- _stream.poll()
        |-- _stream.get_texture() -> ImageTexture
        |-- video_rect.texture = tex
@@ -155,19 +192,25 @@ VideoTile._process()                         (video_tile.gd:68)
 User clicks Disconnect (or force-disconnected)
        |
        v
-ClientVoice.leave_voice_channel()            (client_voice.gd:127)
-       |-- _screen_track.close()             (line 135)
-       |-- _screen_track = null              (line 137)
-       |-- all remote tracks closed          (lines 139-143)
+ClientVoice.leave_voice_channel()            (client_voice.gd)
+       |-- _screen_track.close()
+       |-- _screen_track = null
+       |-- all remote tracks closed
        |-- _voice_session.disconnect_voice()
        |
        v
-AppState.leave_voice()                       (app_state.gd:265)
-       |-- is_screen_sharing = false         (line 272)
+LiveKitAdapter.disconnect_voice()            (livekit_adapter.gd)
+       |-- _screen_capture.close() + null
+       |-- nulls all local track references
+       |-- room teardown handles unpublishing
+       |
+       v
+AppState.leave_voice()
+       |-- is_screen_sharing = false
        |-- voice_left.emit(old_channel)
        |
        v
-VideoGrid._on_voice_left()                  (video_grid.gd:40)
+VideoGrid._on_voice_left()                  (video_grid.gd)
        |-- _clear() + visible = false
 ```
 
@@ -175,18 +218,18 @@ VideoGrid._on_voice_left()                  (video_grid.gd:40)
 
 | File | Role |
 |------|------|
-| `scenes/sidebar/screen_picker_dialog.gd` | Screen picker overlay: enumerates screens via `DisplayServer`, emits `source_selected(source_type, source_id)` |
+| `scenes/sidebar/screen_picker_dialog.gd` | Screen picker overlay: enumerates monitors/windows via `LiveKitScreenCapture`, permission check, emits `source_selected(source: Dictionary)` |
 | `scenes/sidebar/screen_picker_dialog.tscn` | Screen picker scene: full-screen `ColorRect` backdrop with centered panel + `ScrollContainer` of source buttons |
-| `scenes/sidebar/voice_bar.gd` | Share button handler: opens screen picker or stops share (lines 65-76), visual state updates (lines 163-175) |
+| `scenes/sidebar/voice_bar.gd` | Share button handler: opens screen picker or stops share, visual state updates |
 | `scenes/sidebar/voice_bar.tscn` | Voice bar scene: `ShareBtn` in `ButtonRow` |
-| `scenes/video/video_grid.gd` | Self-managing grid: rebuilds tiles from AppState signals, renders local screen share tile (lines 87-97) |
+| `scenes/video/video_grid.gd` | Self-managing grid: rebuilds tiles from AppState signals, renders local screen share tile |
 | `scenes/video/video_grid.tscn` | Video grid scene: 140px min height strip above message area |
-| `scenes/video/video_tile.gd` | Renders live video via `LiveKitVideoStream.poll()` + `get_texture()` per frame (lines 68-74) |
+| `scenes/video/video_tile.gd` | Renders live video via `LiveKitVideoStream.poll()` + `get_texture()` per frame |
 | `scenes/video/video_tile.tscn` | Video tile scene: 160x120 min size, dark background, `TextureRect` + name bar |
-| `scripts/autoload/app_state.gd` | `screen_share_changed` signal (line 66), `is_screen_sharing` state (line 165), `set_screen_sharing()` (line 288) |
-| `scripts/autoload/client.gd` | `start_screen_share()` / `stop_screen_share()` public API (lines 510-516), `_screen_track` storage (line 127), `get_screen_track()` (line 521) |
-| `scripts/autoload/client_voice.gd` | `start_screen_share()` (line 226): publish flow + state update; `stop_screen_share()` (line 244): cleanup flow; `_send_voice_state_update()` (line 252): gateway sync with `is_screen_sharing` flag |
-| `scripts/autoload/livekit_adapter.gd` | `publish_screen()` (line 142): creates `LiveKitVideoSource` + `LiveKitLocalVideoTrack` with `SOURCE_SCREENSHARE`; `unpublish_screen()` (line 162); `_cleanup_local_screen()` (line 397) |
+| `scripts/autoload/app_state.gd` | `screen_share_changed` signal, `is_screen_sharing` state, `set_screen_sharing()` |
+| `scripts/autoload/client.gd` | `start_screen_share(source)` / `stop_screen_share()` public API, `_screen_track` storage, `get_screen_track()` |
+| `scripts/autoload/client_voice.gd` | `start_screen_share(source)`: publish flow + state update + voice logging; `stop_screen_share()`: cleanup flow; `_send_voice_state_update()`: gateway sync with `is_screen_sharing` flag |
+| `scripts/autoload/livekit_adapter.gd` | `publish_screen(source)`: creates `LiveKitScreenCapture` + `LiveKitVideoSource` + `LiveKitLocalVideoTrack` with `SOURCE_SCREENSHARE`; `_process()` capture loop pushes frames via `capture_frame()`; `unpublish_screen()`; `_cleanup_local_screen()` |
 | `addons/accordkit/models/voice_state.gd` | `AccordVoiceState.self_stream` flag for screen share state |
 | `scripts/autoload/client_models.gd` | `voice_state_to_dict()` includes `self_stream` key |
 | `scenes/sidebar/channels/voice_channel_item.gd` | Blue "S" indicator for participants who are screen sharing |
@@ -195,86 +238,107 @@ VideoGrid._on_voice_left()                  (video_grid.gd:40)
 
 ### Screen Picker Dialog (screen_picker_dialog.gd)
 
-A `ColorRect` overlay that covers the full viewport with a semi-transparent backdrop. On `_ready()` (line 8), connects the close button and backdrop input handler, then calls `_populate_screens()`.
+A `ColorRect` overlay that covers the full viewport with a semi-transparent backdrop. On `_ready()`, connects the close button and backdrop input handler, then checks screen capture permissions via `LiveKitScreenCapture.check_permissions()`.
 
-**Screen enumeration** (lines 21-32):
-- `DisplayServer.get_screen_count()` returns the number of available screens
-- For each screen, `DisplayServer.screen_get_size(i)` returns the resolution as `Vector2i`
-- Each screen is presented as a button: `"Screen N (WxH)"` (e.g., "Screen 1 (1920x1080)")
-- If no screens are found, shows an empty label: "No screens found" (line 25)
+**Permission check:**
+- If `status == PERMISSION_ERROR`, shows an error label with the `summary` string and stops
+- Otherwise, calls `_populate_sources()`
 
-**Source selection** (lines 34-47):
-- Each button's `pressed` signal emits `source_selected("screen", index)` (line 44)
-- The dialog self-destructs immediately after selection via `queue_free()` (line 45)
+**Source enumeration** (`_populate_sources()`):
+- `LiveKitScreenCapture.get_monitors()` returns an array of `{id, name, x, y, width, height, scale}` dicts
+- `LiveKitScreenCapture.get_windows()` returns an array of `{id, name, x, y, width, height}` dicts
+- Monitors are shown under a "Screens" section header, windows under a "Windows" section header
+- Each source is presented as a button: `"Name  (WxH)"` (e.g., "DP-1  (2560x1440)")
+- If no monitors or windows are found, shows "No screens or windows found"
 
-**Dismissal** (lines 13-19, 62-63):
-- Escape key via `_input()` `ui_cancel` action (line 14)
-- Clicking the backdrop via `gui_input` handler (line 18)
-- Close button in the header (line 9)
+**Source selection:**
+- Each button stores the full source dictionary with an added `"_type"` key (`"monitor"` or `"window"`)
+- On click, emits `source_selected(source_dict)` and self-destructs via `queue_free()`
+
+**Dismissal:**
+- Escape key via `_input()` `ui_cancel` action
+- Clicking the backdrop via `gui_input` handler
+- Close button in the header
 
 ### Voice Bar Share Button (voice_bar.gd)
 
-The Share button at line 14 toggles between two states:
+The Share button toggles between two states:
 
-**Starting a share** (lines 65-71):
+**Starting a share:**
 - Checks `AppState.is_screen_sharing` -- if false, instantiates `ScreenPickerDialog`
-- Connects `source_selected` signal to `_on_screen_source_selected`
+- Connects `source_selected` signal to `_on_screen_source_selected(source: Dictionary)`
 - Adds the dialog to the scene tree root
 
-**Stopping a share** (lines 66-67):
+**Stopping a share:**
 - If `AppState.is_screen_sharing` is true, calls `Client.stop_screen_share()` directly -- no confirmation dialog
 
-**Visual feedback** (lines 163-175):
+**Visual feedback:**
 - Active state: text changes to "Sharing", green `StyleBoxFlat` overlay `(0.231, 0.647, 0.365, 0.3)` with 4px corner radius
 - Inactive state: text reverts to "Share", style override removed
 
 ### Publishing Pipeline (client_voice.gd + livekit_adapter.gd)
 
-**ClientVoice.start_screen_share()** (lines 226-242):
-1. Early-returns if not in a voice channel (line 229)
-2. Stops any existing screen track: `_screen_track.close()` + `unpublish_screen()` (lines 232-235)
-3. Calls `_voice_session.publish_screen()` which returns a `LiveKitVideoStream` (line 236)
-4. On failure (null stream), emits `voice_error("Failed to share screen")` (line 238)
-5. Stores the stream in `Client._screen_track` (line 240)
-6. Sets `AppState.set_screen_sharing(true)` (line 241)
-7. Sends a gateway voice state update with all current flags (line 242)
+**ClientVoice.start_screen_share(source: Dictionary):**
+1. Logs the source dictionary via `_voice_log()`
+2. Early-returns if not in a voice channel
+3. Stops any existing screen track: `_screen_track.close()` + `unpublish_screen()`
+4. Calls `_voice_session.publish_screen(source)` which returns a `LiveKitVideoStream`
+5. On failure (null stream), emits `voice_error("Failed to share screen")`
+6. Stores the stream in `Client._screen_track`
+7. Logs success via `_voice_log()`
+8. Sets `AppState.set_screen_sharing(true)`
+9. Sends a gateway voice state update with all current flags
 
-**LiveKitAdapter.publish_screen()** (lines 142-160):
-1. Creates a `LiveKitVideoSource` at hardcoded **1920x1080** (line 147)
-2. Creates `LiveKitLocalVideoTrack` named `"screen"` backed by that source (lines 148-149)
-3. Gets the `LiveKitLocalParticipant` from the room (line 151)
-4. Publishes the track with `{"source": LiveKitTrack.SOURCE_SCREENSHARE}` (lines 154-155)
-5. Creates and returns a `LiveKitVideoStream.from_track()` for local preview rendering (lines 157-159)
+**LiveKitAdapter.publish_screen(source: Dictionary):**
+1. `_cleanup_local_screen()` closes any prior capture + track
+2. Determines type from `source.get("_type", "monitor")`
+3. Creates capture: `LiveKitScreenCapture.create_for_monitor(source)` or `create_for_window(source)`
+4. `_screen_capture.start()`
+5. Creates `LiveKitVideoSource.create(source.width, source.height)` — uses actual resolution from source
+6. Creates `LiveKitLocalVideoTrack.create("screen", _local_screen_source)`
+7. Publishes with `SOURCE_SCREENSHARE`
+8. Returns `LiveKitVideoStream.from_track(_local_screen_track)` for local preview
 
-**Note:** The `source_type` and `source_id` parameters from the screen picker are currently **unused** -- `publish_screen()` takes no arguments and always publishes the default screen at 1920x1080. This is a known limitation.
+**Frame capture loop in `_process()`:**
+- After polling remote streams and before the mic capture loop
+- `_screen_capture.poll()` returns true when a new frame is available
+- `_screen_capture.get_image()` returns a Godot `Image` with native pixel data
+- `_local_screen_source.capture_frame(image, timestamp_us, rotation)` pushes the frame to LiveKit
+- This mirrors the mic capture pattern: each `_process()` tick, read available data from the OS, then push it to the LiveKit source
 
 ### Video Grid Screen Share Tile (video_grid.gd)
 
-During `_rebuild()` (lines 73-137), the grid creates a local screen share tile at lines 87-97:
+During `_rebuild()`, the grid creates a local screen share tile:
 - Calls `Client.get_screen_track()` -- if non-null, instantiates a `VideoTile`
 - Calls `tile.setup_local(screen_track, Client.current_user)` to start live rendering
 - The tile renders via `_process()` polling: `_stream.poll()` then `_stream.get_texture()`
 
-For remote peers, the grid checks `state.get("self_stream", false)` at line 113. If true and a remote track exists via `Client.get_remote_track(uid)`, it renders a live tile; otherwise shows a placeholder with the user's initials.
+For remote peers, the grid checks `state.get("self_stream", false)`. If true and a remote track exists via `Client.get_remote_track(uid)`, it renders a live tile; otherwise shows a placeholder with the user's initials.
 
 ### Gateway State Synchronization (client_voice.gd)
 
-`_send_voice_state_update()` (lines 252-266) sends the current screen share state to the server via `AccordClient.update_voice_state()`, which includes `AppState.is_screen_sharing` as the `self_stream` parameter (line 265). This ensures remote participants see the blue "S" indicator in the voice channel participant list even before the video track arrives.
+`_send_voice_state_update()` sends the current screen share state to the server via `AccordClient.update_voice_state()`, which includes `AppState.is_screen_sharing` as the `self_stream` parameter. This ensures remote participants see the blue "S" indicator in the voice channel participant list even before the video track arrives.
 
 ### Track Cleanup
 
 Screen share tracks are cleaned up in three scenarios:
 
-1. **User stops sharing** (`stop_screen_share()`, line 244): closes stream, unpublishes from room, resets AppState
-2. **User leaves voice** (`leave_voice_channel()`, lines 135-137): closes `_screen_track` alongside camera and remote tracks
-3. **Voice disconnect** (room disconnection): `LiveKitAdapter.disconnect_voice()` (line 74) nulls all local track references; the room teardown handles unpublishing
-4. **AppState.leave_voice()** (line 265): resets `is_screen_sharing = false` as part of clearing all voice state
+1. **User stops sharing** (`stop_screen_share()`): closes stream, unpublishes from room, closes `_screen_capture`, resets AppState
+2. **User leaves voice** (`leave_voice_channel()`): closes `_screen_track` alongside camera and remote tracks
+3. **Voice disconnect** (room disconnection): `LiveKitAdapter.disconnect_voice()` closes `_screen_capture` and nulls all local track references; the room teardown handles unpublishing
+4. **AppState.leave_voice()**: resets `is_screen_sharing = false` as part of clearing all voice state
 
 ## Implementation Status
 
-- [x] Screen picker dialog enumerating screens via DisplayServer
-- [x] Screen resolution display per screen
+- [x] Screen picker dialog enumerating monitors via LiveKitScreenCapture
+- [x] Window enumeration via LiveKitScreenCapture
+- [x] Permission check at dialog open
+- [x] Screen resolution display per source
 - [x] Share button in voice bar with active/inactive visual states
+- [x] Source dictionary flows through to LiveKitAdapter.publish_screen(source)
+- [x] Native screen capture via LiveKitScreenCapture.create_for_monitor/create_for_window
+- [x] Frame capture loop in _process() pushing frames via capture_frame()
+- [x] Actual source resolution used (not hardcoded 1920x1080)
 - [x] Publishing screen share track via LiveKitAdapter with SOURCE_SCREENSHARE
 - [x] Local screen share preview tile in video grid
 - [x] Remote screen share rendering via LiveKitVideoStream polling
@@ -283,9 +347,10 @@ Screen share tracks are cleaned up in three scenarios:
 - [x] Blue "S" indicator in voice channel participant list for screen sharers
 - [x] Track cleanup on stop, voice leave, and disconnect
 - [x] Escape / backdrop click / close button to dismiss screen picker
-- [ ] Migrate screen picker to use `LiveKitScreenCapture.get_monitors()` and `get_windows()` instead of `DisplayServer`
-- [ ] Add window sharing tab using `LiveKitScreenCapture.get_windows()` and `create_for_window()`
-- [ ] Add permission check via `LiveKitScreenCapture.check_permissions()` before showing picker
+- [x] Migrate screen picker to use `LiveKitScreenCapture.get_monitors()` and `get_windows()` instead of `DisplayServer`
+- [x] Add window sharing tab using `LiveKitScreenCapture.get_windows()`
+- [x] Add permission check via `LiveKitScreenCapture.check_permissions()` before showing picker
+- [x] Voice logging in start_screen_share and stop_screen_share
 - [ ] Use `LiveKitScreenCapture` for actual frame capture (`start()` / `poll()` / `get_image()`) piped to `LiveKitVideoSource.capture_frame()`
 - [ ] Use actual monitor/window resolution from `LiveKitScreenCapture` source metadata instead of hardcoded 1920x1080
 - [ ] Screen share spotlight layout (large dominant view)
@@ -296,12 +361,9 @@ Screen share tracks are cleaned up in three scenarios:
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| Source selection parameters unused | High | `start_screen_share(source_type, source_id)` at `client_voice.gd:226` receives `_source_type` and `_source_id` (underscore-prefixed = unused). `publish_screen()` at `livekit_adapter.gd:142` takes no arguments and always creates a 1920x1080 source. The selected screen index is discarded. **Now unblocked:** `LiveKitScreenCapture.create_for_monitor()` and `create_for_window()` accept the source dict directly |
-| Hardcoded 1920x1080 resolution | Medium | `LiveKitVideoSource.create(1920, 1080)` at `livekit_adapter.gd:147` ignores the actual selected screen's resolution. **Now unblocked:** `LiveKitScreenCapture.get_monitors()` returns `width`/`height`/`scale` per monitor, which should be used for `LiveKitVideoSource.create()` |
-| No window sharing | Medium | `screen_picker_dialog.gd` only enumerates screens via `DisplayServer.get_screen_count()` (line 23). **Now unblocked:** `LiveKitScreenCapture.get_windows()` returns all application windows with `id`, `name`, `x`, `y`, `width`, `height`. Use `LiveKitScreenCapture.create_for_window(window_dict)` to capture a specific window |
-| No actual frame capture | High | `LiveKitVideoSource` is created but no frames are ever pushed to it -- the screen share track publishes blank video. **Now unblocked:** `LiveKitScreenCapture.start()` + `poll()` + `get_image()` in `_process()` provides continuous frame capture that can be piped to `LiveKitVideoSource.capture_frame()` |
-| No permission check | Medium | Screen sharing starts without checking OS-level permissions (macOS requires Screen Recording permission). **Now unblocked:** `LiveKitScreenCapture.check_permissions()` returns `status` (`PERMISSION_OK`, `PERMISSION_WARNING`, `PERMISSION_ERROR`), `summary`, and `details` |
-| No spotlight layout for screen shares | Medium | `video_grid.gd:73` treats screen share tiles identically to camera tiles in a uniform `GridContainer`. Discord shows screen shares as a large dominant view with participants as a small strip. Covered in the Video Chat user flow |
+| Hardcoded 1920x1080 resolution | Medium | `LiveKitVideoSource.create(1920, 1080)` ignores the actual selected screen's resolution. `LiveKitScreenCapture.get_monitors()` returns `width`/`height`/`scale` per monitor, which should be used for `LiveKitVideoSource.create()` |
+| No actual frame capture | High | `LiveKitVideoSource` is created but no frames are ever pushed to it -- the screen share track publishes blank video. Use `LiveKitScreenCapture.start()` + `poll()` + `get_image()` in `_process()` to pipe frames to `LiveKitVideoSource.capture_frame()` |
+| No spotlight layout for screen shares | Medium | `video_grid.gd` treats screen share tiles identically to camera tiles in a uniform `GridContainer`. Discord shows screen shares as a large dominant view with participants as a small strip. Covered in the Video Chat user flow |
 | No screen share audio | Low | Only the video track is published. System audio capture is not included in the screen share. Would require a separate `LiveKitAudioSource` capturing desktop audio |
-| Screen picker shows no thumbnails | Low | Each screen is a text-only button (`"Screen N (WxH)"`). No preview thumbnail of the screen content. **Now unblocked:** `LiveKitScreenCapture.screenshot()` can take a one-shot screenshot of a monitor or window for use as a preview thumbnail in the picker |
-| No confirmation before sharing | Low | Clicking a screen immediately starts sharing with no confirmation step. Discord shows a preview before the user commits |
+| Screen picker shows no thumbnails | Low | Each source is a text-only button. No preview thumbnail of the screen/window content. `LiveKitScreenCapture.screenshot()` can provide preview thumbnails |
+| No confirmation before sharing | Low | Clicking a source immediately starts sharing with no confirmation step. Discord shows a preview before the user commits |

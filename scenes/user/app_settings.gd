@@ -698,8 +698,8 @@ func _on_download_pressed() -> void:
 	var download_url: String = _cached_version_info.get(
 		"download_url", ""
 	)
-	# Non-Linux or no asset: open in browser
-	if OS.get_name() != "Linux" or download_url.is_empty():
+	# No downloadable asset: open release page in browser
+	if download_url.is_empty():
 		var url: String = _cached_version_info.get("release_url", "")
 		if not url.is_empty():
 			OS.shell_open(url)

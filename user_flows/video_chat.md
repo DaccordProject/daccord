@@ -1,6 +1,6 @@
 # Video Chat
 
-Last touched: 2026-02-24 (LiveKitAdapter rewrite, addon migration)
+Last touched: 2026-02-26 (Discord-style video UX: full-area view, spotlight, PiP, adaptive grid)
 
 ## Overview
 
@@ -139,8 +139,10 @@ Video chat in daccord enables camera video and screen sharing within voice chann
 | `scenes/main/main_window.tscn` | VideoGrid placed between TopicBar and ContentBody |
 | `scenes/video/video_tile.gd` | Video frame rendering component: live feed via LiveKitVideoStream.poll() + get_texture(), or placeholder with initials, speaking border |
 | `scenes/video/video_tile.tscn` | Video tile scene: PanelContainer with TextureRect (160x120 min), InitialsLabel, NameBar |
-| `scenes/video/video_grid.gd` | Self-managing video grid: rebuilds tiles from AppState signals, responsive column layout, renders remote tracks live via `Client.get_remote_track()` |
-| `scenes/video/video_grid.tscn` | Video grid scene: PanelContainer (140px min height) > ScrollContainer > GridContainer |
+| `scenes/video/video_grid.gd` | Self-managing video grid: rebuilds tiles from AppState signals, responsive column layout, renders remote tracks live via `Client.get_remote_track()`. Supports INLINE (140px strip) and FULL_AREA modes with spotlight layout for screen shares |
+| `scenes/video/video_grid.tscn` | Video grid scene: PanelContainer > VBoxContainer with SpotlightArea (PanelContainer) + ParticipantArea (ScrollContainer > GridContainer) |
+| `scenes/video/video_pip.gd` | Picture-in-picture overlay: small floating video tile showing screen share or camera, click to return to full video view |
+| `scenes/video/video_pip.tscn` | PiP scene: PanelContainer anchored bottom-right (200x150) with single VideoTile slot |
 | `tests/livekit/unit/test_livekit_adapter.gd` | LiveKitAdapter tests: state machine, mute/deafen, signals, disconnect, unpublish |
 
 ## Implementation Details
@@ -150,33 +152,42 @@ Video chat in daccord enables camera video and screen sharing within voice chann
 Voice gateway events are fully wired through the data layer:
 
 **AppState signals** (`app_state.gd`):
-- `voice_state_updated(channel_id)` (line 52) -- emitted when voice participants change
-- `voice_joined(channel_id)` (line 54) -- emitted when local user joins voice
-- `voice_left(channel_id)` (line 56) -- emitted when local user leaves voice
-- `voice_error(error)` (line 58) -- emitted on voice connection failure
-- `voice_mute_changed(is_muted)` (line 60) -- emitted when mute state changes
-- `voice_deafen_changed(is_deafened)` (line 62) -- emitted when deafen state changes
-- `video_enabled_changed(is_enabled)` (line 64) -- emitted when camera state changes
-- `screen_share_changed(is_sharing)` (line 66) -- emitted when screen share state changes
-- `remote_track_received(user_id, track)` (line 68) -- emitted when a remote peer's video track arrives
-- `remote_track_removed(user_id)` (line 70) -- emitted when a remote peer's track is cleaned up
-- `speaking_changed(user_id, is_speaking)` (line 72) -- emitted when speaking state changes
+- `voice_state_updated(channel_id)` -- emitted when voice participants change
+- `voice_joined(channel_id)` -- emitted when local user joins voice
+- `voice_left(channel_id)` -- emitted when local user leaves voice
+- `voice_error(error)` -- emitted on voice connection failure
+- `voice_mute_changed(is_muted)` -- emitted when mute state changes
+- `voice_deafen_changed(is_deafened)` -- emitted when deafen state changes
+- `video_enabled_changed(is_enabled)` -- emitted when camera state changes
+- `screen_share_changed(is_sharing)` -- emitted when screen share state changes
+- `remote_track_received(user_id, track)` -- emitted when a remote peer's video track arrives
+- `remote_track_removed(user_id)` -- emitted when a remote peer's track is cleaned up
+- `speaking_changed(user_id, is_speaking)` -- emitted when speaking state changes
+- `voice_view_opened(channel_id)` -- emitted when full-area video view is opened
+- `voice_view_closed()` -- emitted when full-area video view is closed
+- `spotlight_changed(user_id)` -- emitted when spotlight target changes (empty string = cleared)
 
 **AppState state vars** (`app_state.gd`):
-- `voice_channel_id: String` (line 160) -- current voice channel (empty if not connected)
-- `voice_space_id: String` (line 161) -- space of current voice channel
-- `is_voice_muted: bool` (line 162) -- local mute state
-- `is_voice_deafened: bool` (line 163) -- local deafen state
-- `is_video_enabled: bool` (line 164) -- camera is active
-- `is_screen_sharing: bool` (line 165) -- screen share is active
+- `voice_channel_id: String` -- current voice channel (empty if not connected)
+- `voice_space_id: String` -- space of current voice channel
+- `is_voice_muted: bool` -- local mute state
+- `is_voice_deafened: bool` -- local deafen state
+- `is_video_enabled: bool` -- camera is active
+- `is_screen_sharing: bool` -- screen share is active
+- `is_voice_view_open: bool` -- full-area video view is displayed
+- `spotlight_user_id: String` -- user ID of manually spotlighted tile (empty = auto)
 
 **AppState helpers** (`app_state.gd`):
-- `join_voice(channel_id, space_id)` (line 260) -- sets state, emits `voice_joined`
-- `leave_voice()` (line 265) -- clears state, resets mute/deafen/video/screen, emits `voice_left`
-- `set_voice_muted(muted)` (line 276) -- updates state, emits `voice_mute_changed`
-- `set_voice_deafened(deafened)` (line 280) -- updates state, emits `voice_deafen_changed`
-- `set_video_enabled(enabled)` (line 284) -- updates state, emits `video_enabled_changed`
-- `set_screen_sharing(sharing)` (line 288) -- updates state, emits `screen_share_changed`
+- `join_voice(channel_id, space_id)` -- sets state, emits `voice_joined`
+- `leave_voice()` -- clears state, resets mute/deafen/video/screen, closes voice view, clears spotlight, emits `voice_left`
+- `set_voice_muted(muted)` -- updates state, emits `voice_mute_changed`
+- `set_voice_deafened(deafened)` -- updates state, emits `voice_deafen_changed`
+- `set_video_enabled(enabled)` -- updates state, emits `video_enabled_changed`
+- `set_screen_sharing(sharing)` -- updates state, emits `screen_share_changed`
+- `open_voice_view()` -- opens full-area video view, emits `voice_view_opened`
+- `close_voice_view()` -- closes full-area video view, emits `voice_view_closed`
+- `set_spotlight(user_id)` -- sets spotlight target, emits `spotlight_changed`
+- `clear_spotlight()` -- clears spotlight, emits `spotlight_changed("")`
 
 **ClientModels.voice_state_to_dict()** (line 535):
 Converts `AccordVoiceState` to dict with keys: `user_id`, `channel_id`, `session_id`, `self_mute`, `self_deaf`, `self_video`, `self_stream`, `mute`, `deaf`, `user` (user dict from cache).
@@ -220,7 +231,7 @@ Calls `VoiceApi.get_status(channel_id)`, converts each `AccordVoiceState` via `v
 **channel_list.gd** voice integration:
 - `VoiceChannelItemScene` preloaded
 - Uncategorized loop: checks `ch.get("type", 0) == ClientModels.ChannelType.VOICE`, instantiates `VoiceChannelItemScene` for voice, `ChannelItemScene` for others
-- `_on_channel_pressed()`: voice channels toggle `Client.join_voice_channel()` / `Client.leave_voice_channel()` instead of emitting `channel_selected`. Text channel message view stays in place
+- `_on_channel_pressed()`: voice channels join via `Client.join_voice_channel()`, or re-click opens video view via `AppState.open_voice_view()`. Users disconnect via voice bar button. Text channel message view stays in place
 - Auto-select: skips both `CATEGORY` and `VOICE` channel types
 
 ### Voice Connection Bar -- Implemented
@@ -304,13 +315,19 @@ Cleanup (`_exit_tree()`, line 76): calls `_stream.close()` if available.
 
 ### Video Grid -- Implemented (video_grid.gd / video_grid.tscn)
 
-**Current layout:** Self-managing `PanelContainer` > `ScrollContainer` > `GridContainer` placed in `main_window.tscn` between `TopicBar` and `ContentBody`. Fixed 140px minimum height. This behaves as an **inline strip** above the message area -- not Discord-style.
+**Layout:** Self-managing `PanelContainer` > `VBoxContainer` (MainLayout) with `SpotlightArea` (PanelContainer, hidden by default) + `ParticipantArea` (ScrollContainer > GridContainer). Placed in `main_window.tscn` between `TopicBar` and `ContentBody`.
 
-- Listens to `video_enabled_changed`, `screen_share_changed`, `voice_state_updated`, `voice_left`, `remote_track_received`, `remote_track_removed`, `layout_mode_changed` (lines 11-29)
-- Rebuilds tiles on any change: local camera tile, local screen share tile, remote peer tiles (lines 73-137)
-- Grid columns adapt to layout mode: 1 for COMPACT, 2 for MEDIUM/FULL (lines 60-67)
-- Self-hides when no tiles exist, self-shows when tiles are added (line 137)
-- Remote peers with `self_video` or `self_stream` flags get live tiles when a remote track is available via `Client.get_remote_track()`, otherwise placeholder tiles (lines 116-134)
+**Two modes** via `GridMode` enum:
+- `INLINE` (default) -- 140px min height strip above messages, columns based on layout mode (1 COMPACT, 2 MEDIUM/FULL)
+- `FULL_AREA` -- fills the content area (`size_flags_vertical = EXPAND_FILL`), adaptive columns based on tile count (1/2/3/4/5 columns), spotlight layout for screen shares or manual spotlight
+
+**Spotlight layout:** When `FULL_AREA` and a screen share exists (or `AppState.spotlight_user_id` is set), the spotlighted tile goes into `SpotlightArea` (large main view) and remaining tiles go into `ParticipantGrid` as a horizontal strip (columns=99).
+
+**Mode switching:** `set_full_area(full: bool)` called by `main_window.gd` when voice view opens/closes.
+
+- Listens to `video_enabled_changed`, `screen_share_changed`, `voice_state_updated`, `voice_left`, `remote_track_received`, `remote_track_removed`, `layout_mode_changed`, `spotlight_changed`
+- Rebuilds tiles on any change via `_collect_tiles()` -> `_rebuild_spotlight()` or `_rebuild_grid_only()`
+- Self-hides in INLINE mode when no tiles exist, always visible in FULL_AREA mode
 
 **Public track accessors** on `Client`:
 - `get_camera_track()` (line 518)
@@ -389,7 +406,7 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 - [x] ClientModels `voice_state_to_dict()` conversion
 - [x] ClientFetch `fetch_voice_states()` for REST-based voice state population
 - [x] Dedicated `voice_channel_item` scene with expandable participant list, drag-and-drop reorder, edit/delete context menu
-- [x] Voice channel click toggles join/leave (does not emit `channel_selected`)
+- [x] Voice channel click joins or opens video view (does not emit `channel_selected`)
 - [x] Auto-select skips voice channels
 - [x] Voice bar with mute/deafen/cam/share/sfx/settings/disconnect buttons
 - [x] Voice bar self-manages visibility via AppState signals
@@ -407,13 +424,13 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 - [x] Remote video rendering pipeline (LiveKitAdapter `track_received` -> ClientVoice cache -> VideoGrid live tiles)
 - [x] Speaking indicator on video tiles (green border when user is speaking)
 - [x] LiveKitAdapter unit tests (state machine, mute/deafen, signals, disconnect, unpublish)
-- [ ] **Full-area video view** (Discord-style: replaces message content when viewing voice channel)
-- [ ] **Screen share spotlight layout** (large main view + small participant strip)
-- [ ] **Mini PiP overlay** (floating preview when navigating away from voice channel)
-- [ ] **Adaptive grid sizing** (auto-layout based on participant count: 1=full, 2=halves, 3-4=2x2, etc.)
-- [ ] **Voice bar click to open video view** (clicking channel name in voice bar opens full-area view)
-- [ ] **Active speaker detection in video view** (green border or focus on speaking user's tile)
-- [ ] **Double-click to spotlight** (focusing a specific participant)
+- [x] **Full-area video view** (Discord-style: replaces message content when viewing voice channel)
+- [x] **Screen share spotlight layout** (large main view + small participant strip)
+- [x] **Mini PiP overlay** (floating preview when navigating away from voice channel)
+- [x] **Adaptive grid sizing** (auto-layout based on participant count: 1=full, 2=halves, 3-4=2x2, etc.)
+- [x] **Voice bar click to open video view** (clicking channel name in voice bar opens full-area view)
+- [x] **Active speaker detection in video view** (green border or focus on speaking user's tile)
+- [x] **Double-click to spotlight** (focusing a specific participant)
 - [ ] Bandwidth adaptation for video streams
 - [ ] Window sharing via `LiveKitScreenCapture.get_windows()` + `create_for_window()` (API now available in godot-livekit)
 - [ ] Actual screen/window frame capture via `LiveKitScreenCapture` piped to `LiveKitVideoSource` (API now available)
@@ -421,18 +438,7 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 
 ## Gaps / TODO
 
-### Discord-Style UI Redesign (High Priority)
-
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Video grid is an inline strip, not full-area | High | Currently `VideoGrid` sits between `TopicBar` and `ContentBody` in `main_window.tscn` with a fixed 140px min height. Discord shows video as a **full content area** that replaces the message view. Need to: (1) add `voice_view_opened` / `voice_view_closed` signals to `AppState`, (2) toggle visibility of `message_view` vs `video_grid` in `main_window.gd`, (3) make `video_grid` fill the full `ContentBody` area (`size_flags_vertical = SIZE_EXPAND_FILL`) |
-| No screen share spotlight layout | High | Discord shows the shared screen as the dominant large view with participants as a small strip alongside. Current grid treats all tiles equally (uniform `GridContainer`). Need: (1) an `HBoxContainer` or `VBoxContainer` layout with a large `FocusedTile` and a scrollable `ParticipantStrip`, (2) logic in `_rebuild()` to detect screen share tiles and assign them the spotlight role, (3) double-click on any tile to manually spotlight it |
-| No mini PiP (picture-in-picture) | Medium | When user navigates to a text channel while in voice, Discord shows a small floating video preview in the bottom-right corner. Need: (1) a `PiPOverlay` scene (small `PanelContainer` with a single `VideoTile`), (2) spawn it in `main_window.gd` when switching from voice view to text view while `voice_channel_id` is non-empty, (3) show active speaker or screen share in the PiP, (4) click PiP to return to full video view, (5) remove PiP on `voice_left` |
-| Voice bar doesn't open video view on click | Medium | Discord lets you click the voice channel name in the voice bar to jump to the video view. Currently `voice_bar.gd` only has controls (mute/cam/etc), the status row is not clickable. Need to make `channel_label` or `StatusRow` a `Button` that emits `voice_view_opened` |
-| Adaptive grid doesn't match Discord sizing | Low | Current grid is 1 column on COMPACT, 2 on MEDIUM/FULL. Discord dynamically sizes: 1 person fills the area, 2 split side-by-side, 3-4 are 2x2, 5-9 are 3x3, etc. Should calculate columns from participant count in `_update_grid_columns()` |
-| No tile interaction (double-click to focus) | Low | Discord allows clicking/double-clicking a participant tile to spotlight them (switch to focused layout). No input handling on `video_tile.gd` currently |
-
-### Existing Gaps
+### Remaining Gaps
 
 | Gap | Severity | Notes |
 |-----|----------|-------|

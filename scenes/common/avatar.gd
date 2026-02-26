@@ -53,7 +53,25 @@ func set_avatar_url(url: String) -> void:
 		_apply_texture(_image_cache[url])
 		return
 
-	# Fetch image via HTTP
+	# Defer HTTP fetch until we're in the scene tree
+	if not is_inside_tree():
+		if not tree_entered.is_connected(_fetch_deferred):
+			tree_entered.connect(_fetch_deferred, CONNECT_ONE_SHOT)
+		return
+
+	_do_fetch(url)
+
+func _fetch_deferred() -> void:
+	if _current_url.is_empty():
+		return
+	# Re-check cache in case it was populated while waiting
+	if _image_cache.has(_current_url):
+		_touch_cache(_current_url)
+		_apply_texture(_image_cache[_current_url])
+		return
+	_do_fetch(_current_url)
+
+func _do_fetch(url: String) -> void:
 	if _http != null:
 		_http.cancel_request()
 	else:
