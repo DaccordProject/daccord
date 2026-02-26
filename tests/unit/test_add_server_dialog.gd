@@ -55,7 +55,7 @@ func test_whitespace_only_url_shows_error() -> void:
 
 func test_parse_bare_host() -> void:
 	var r: Dictionary = dialog.parse_server_url("example.com")
-	assert_eq(r["base_url"], "https://example.com:39099")
+	assert_eq(r["base_url"], "https://example.com")
 	assert_eq(r["space_name"], "general")
 	assert_eq(r["token"], "")
 	assert_eq(r["invite_code"], "")
@@ -71,7 +71,7 @@ func test_parse_host_with_port() -> void:
 
 func test_parse_host_with_http_protocol() -> void:
 	var r: Dictionary = dialog.parse_server_url("http://example.com")
-	assert_eq(r["base_url"], "http://example.com:39099")
+	assert_eq(r["base_url"], "http://example.com")
 	assert_eq(r["space_name"], "general")
 	assert_eq(r["token"], "")
 	assert_eq(r["invite_code"], "")
@@ -87,7 +87,7 @@ func test_parse_host_with_https_protocol() -> void:
 
 func test_parse_host_with_space() -> void:
 	var r: Dictionary = dialog.parse_server_url("example.com#my-guild")
-	assert_eq(r["base_url"], "https://example.com:39099")
+	assert_eq(r["base_url"], "https://example.com")
 	assert_eq(r["space_name"], "my-guild")
 	assert_eq(r["token"], "")
 	assert_eq(r["invite_code"], "")
@@ -95,7 +95,7 @@ func test_parse_host_with_space() -> void:
 
 func test_parse_host_with_token() -> void:
 	var r: Dictionary = dialog.parse_server_url("example.com?token=abc123")
-	assert_eq(r["base_url"], "https://example.com:39099")
+	assert_eq(r["base_url"], "https://example.com")
 	assert_eq(r["space_name"], "general")
 	assert_eq(r["token"], "abc123")
 	assert_eq(r["invite_code"], "")
@@ -116,12 +116,12 @@ func test_parse_empty_fragment_defaults_to_general() -> void:
 
 func test_parse_strips_whitespace() -> void:
 	var r: Dictionary = dialog.parse_server_url("  example.com  ")
-	assert_eq(r["base_url"], "https://example.com:39099")
+	assert_eq(r["base_url"], "https://example.com")
 
 
 func test_parse_host_with_invite() -> void:
 	var r: Dictionary = dialog.parse_server_url("example.com?invite=ABCDEF")
-	assert_eq(r["base_url"], "https://example.com:39099")
+	assert_eq(r["base_url"], "https://example.com")
 	assert_eq(r["space_name"], "general")
 	assert_eq(r["token"], "")
 	assert_eq(r["invite_code"], "ABCDEF")
@@ -129,7 +129,7 @@ func test_parse_host_with_invite() -> void:
 
 func test_parse_host_with_token_and_invite() -> void:
 	var r: Dictionary = dialog.parse_server_url("example.com?token=abc123&invite=XYZ")
-	assert_eq(r["base_url"], "https://example.com:39099")
+	assert_eq(r["base_url"], "https://example.com")
 	assert_eq(r["space_name"], "general")
 	assert_eq(r["token"], "abc123")
 	assert_eq(r["invite_code"], "XYZ")
