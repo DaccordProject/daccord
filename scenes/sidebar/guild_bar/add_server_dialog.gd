@@ -66,13 +66,8 @@ static func parse_server_url(raw: String) -> Dictionary:
 	if not text.begins_with("http://") and not text.begins_with("https://"):
 		text = "https://" + text
 
-	# Add default port if not specified (check host portion only, before any /)
-	var proto_end := text.find("://") + 3
-	var after_proto := text.substr(proto_end)
-	var host_port := after_proto.split("/")[0]
-	if ":" not in host_port:
-		var host_end := proto_end + host_port.length()
-		text = text.substr(0, host_end) + ":39099" + text.substr(host_end)
+	# No default port -- HTTPS uses 443 implicitly.
+	# Users can still specify a port explicitly (e.g. localhost:39099).
 
 	return {
 		"base_url": text,
