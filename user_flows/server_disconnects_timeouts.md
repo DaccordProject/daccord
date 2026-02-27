@@ -185,14 +185,13 @@ Heartbeat Timeout:
 - `get_space_connection_status(space_id)`: Returns the current status string.
 - `reconnect_server(index)`: Tears down and re-establishes a connection by index.
 
-### HTTPS-to-HTTP Fallback (client.gd)
+### HTTPS-Only Connections
 
-- Only during initial `connect_server()` (lines 124-147): If `get_me()` fails with an HTTPS URL, the client creates a fresh `AccordClient` with HTTP and retries.
-- **No runtime fallback.** If a server switches from HTTPS to HTTP (or vice versa) mid-session, the connection fails permanently.
+- The client only connects over HTTPS. If TLS fails, the connection fails — there is no HTTP fallback.
 
 ### Existing Connection UX (add_server_dialog.gd)
 
-- **Server probe** (lines 127-151): Before connecting, makes a lightweight GET to `/auth/login`. Shows errors in `_error_label` if unreachable. Tries HTTPS then HTTP.
+- **Server probe** (lines 127-151): Before connecting, makes a lightweight GET to `/auth/login`. Shows errors in `_error_label` if unreachable.
 - **Connection attempt UI** (lines 154-172): Button text changes to "Connecting...", disabled during attempt. On failure, rolls back config and shows error.
 - Connection errors are also shown via message view banners, space icon status dots, and composer state.
 
@@ -215,7 +214,7 @@ Heartbeat Timeout:
 - [x] Server-requested reconnect (RECONNECT opcode)
 - [x] REST rate-limit retry (429 with exponential backoff, up to 3 retries)
 - [x] REST error message mapping (timeout, connection error, TLS failure, etc.)
-- [x] HTTPS-to-HTTP fallback on initial connection
+- [x] HTTPS-only connections (no HTTP fallback)
 - [x] Manual server removal via space icon context menu
 - [x] Connection error display in Add Server dialog
 - [x] Data re-fetch on gateway ready (channels, members, roles, DM channels)

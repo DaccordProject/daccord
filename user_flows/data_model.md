@@ -483,7 +483,7 @@ Methods:
 - `get_servers() -> Array` -- returns array of server config dicts
 - `add_server(base_url, token, space_name, username, password)` -- adds and saves
 - `remove_server(index)` -- removes by index and re-indexes remaining
-- `update_server_url(index, new_url)` -- updates base URL (e.g., after HTTPS->HTTP fallback)
+- `update_server_url(index, new_url)` -- updates base URL
 - `update_server_token(index, new_token)` -- updates token (e.g., after re-auth)
 - `has_servers() -> bool` -- checks if any servers configured
 - `set_last_selection(space_id, channel_id)` -- persists last selected space/channel

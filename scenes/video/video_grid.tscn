@@ -34,13 +34,10 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_styles/panel = SubResource("spotlight_bg")
 
-[node name="ParticipantArea" type="ScrollContainer" parent="MainLayout"]
-layout_mode = 2
-horizontal_scroll_mode = 0
-
-[node name="ParticipantGrid" type="GridContainer" parent="MainLayout/ParticipantArea"]
+[node name="ParticipantGrid" type="GridContainer" parent="MainLayout"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 2

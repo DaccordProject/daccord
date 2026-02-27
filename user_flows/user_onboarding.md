@@ -17,7 +17,7 @@ User onboarding covers the complete first-run experience: launching daccord with
 6. User clicks the "Add a Server" CTA button (or the "+" button in the space bar)
 6. Add Server dialog opens with a URL input field
 7. User enters a server URL (e.g. `example.com`, `example.com#my-space?token=abc123`)
-8. Dialog probes the server for reachability (HTTPS first, HTTP fallback)
+8. Dialog probes the server for reachability
 9. **If URL has `?token=`**: connects directly with that token
 10. **If no token**: auth dialog opens with Sign In / Register toggle
     - **Sign In**: user enters username + password
@@ -172,7 +172,7 @@ Config stores servers as indexed sections (`[server_0]`, `[server_1]`, ...) with
 
 The dialog (line 69, `_on_add_pressed()`) validates the URL is non-empty, checks for duplicates against existing configs (lines 84-104), and probes the server via a lightweight `GET /auth/login` request (line 134, `_probe_server()`). HTTPS is tried first; on connection-level failure (status_code 0), it falls back to HTTP (line 143-148). The button shows "Checking..." during the probe (line 108).
 
-URL parsing (`parse_server_url`, line 24) supports `[protocol://]host[:port][#space-name][?token=value&invite=code]` with defaults: HTTPS, port 39099, space "general".
+URL parsing (`parse_server_url`, line 24) supports `[protocol://]host[:port][#space-name][?token=value&invite=code]` with defaults: HTTPS, port 443, space "general".
 
 ### Auth dialog: sign-in and registration
 
@@ -236,7 +236,7 @@ The welcome screen (`welcome_screen.gd`) layers three visual elements:
 - [x] First-run detection via `has_servers()` (implicit -- no config file means no servers)
 - [x] Add Server dialog with URL parsing and server probing
 - [x] Auth dialog with Sign In / Register toggle
-- [x] HTTPS -> HTTP fallback (both auth dialog and client)
+- [x] HTTPS-only connections (no HTTP fallback)
 - [x] Token re-authentication with stored credentials on reconnect
 - [x] Invite code support in URL (`?invite=code`)
 - [x] Duplicate server detection with stale-entry cleanup

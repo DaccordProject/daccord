@@ -88,6 +88,10 @@ func test_has_required_signals() -> void:
 		"Missing track_received signal",
 	)
 	assert_true(
+		_adapter.has_signal("track_removed"),
+		"Missing track_removed signal",
+	)
+	assert_true(
 		_adapter.has_signal("audio_level_changed"),
 		"Missing audio_level_changed signal",
 	)

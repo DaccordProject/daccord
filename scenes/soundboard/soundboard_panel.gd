@@ -89,7 +89,23 @@ func _on_search_changed(text: String) -> void:
 	_rebuild_list(filtered)
 
 func _on_play_pressed(sound_id: String) -> void:
+	# Play locally immediately for instant feedback
+	_play_local(sound_id)
+	# Notify server so other users in the voice channel hear it too
 	Client.admin.play_sound(_space_id, sound_id)
+
+func _play_local(sound_id: String) -> void:
+	for sound_dict in _all_sounds:
+		if sound_dict.get("id", "") == sound_id:
+			var audio_url: String = sound_dict.get("audio_url", "")
+			if audio_url.is_empty():
+				return
+			var full_url: String = Client.admin.get_sound_url(
+				_space_id, audio_url
+			)
+			var volume: float = sound_dict.get("volume", 1.0)
+			SoundManager.play_preview(full_url, volume)
+			return
 
 func _on_soundboard_updated(space_id: String) -> void:
 	if space_id == _space_id:

@@ -51,11 +51,8 @@ When an HTTPS connection fails (any error), the client automatically retries wit
 
 | File | Role |
 |------|------|
-| `scripts/autoload/client_connection.gd:56-70` | HTTPS -> HTTP fallback during authentication |
-| `scripts/autoload/client_connection.gd:94-95` | `Config.update_server_url(index, base_url)` persists the downgraded URL |
-| `scenes/sidebar/guild_bar/add_server_dialog.gd:216-220` | HTTPS -> HTTP fallback in `_probe_server()` |
-| `scenes/sidebar/guild_bar/auth_dialog.gd:103-106` | HTTPS -> HTTP fallback in auth dialog |
-| `scripts/autoload/client.gd:233-237` | WebSocket URL derived from base URL -- HTTP base means `ws://` (unencrypted) |
+| `scripts/autoload/client_connection.gd` | HTTPS-only connections (no HTTP fallback) |
+| `scripts/autoload/client.gd` | WebSocket URL derived from base URL (always `wss://` for HTTPS) |
 
 **Test vectors:**
 
