@@ -1,7 +1,7 @@
 ---
 description: Edit godot-livekit C++ source, build, and update the addon in this repo
 argument-hint: <description of change>
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(cd "/home/krazy/Documents/GitHub/Godot Projects/godot-livekit" && ./build.sh:*), Bash(cp:*), Bash(ls:*), Bash(scons:*), Bash(gh:*), Bash(git:*), Bash(cd:*), Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(cd "/home/krazy/Documents/GitHub/godot-projects/godot-livekit" && ./build.sh:*), Bash(cp:*), Bash(ls:*), Bash(scons:*), Bash(gh:*), Bash(git:*), Bash(cd:*), Task
 ---
 
 You are editing the **godot-livekit** GDExtension — a C++ wrapper around the LiveKit SDK that exposes real-time voice, video, and data APIs to GDScript. After making changes, you will build the extension and copy the updated binaries into the daccord project.
@@ -12,7 +12,7 @@ You are editing the **godot-livekit** GDExtension — a C++ wrapper around the L
 
 ## Repository Layout
 
-**Source repo:** `/home/krazy/Documents/GitHub/Godot Projects/godot-livekit/`
+**Source repo:** `/home/krazy/Documents/GitHub/godot-projects/godot-livekit/`
 **GitHub:** https://github.com/NodotProject/godot-livekit (public, MIT)
 **Latest release:** v0.3.2
 
@@ -41,13 +41,14 @@ You are editing the **godot-livekit** GDExtension — a C++ wrapper around the L
 
 - **godot-cpp** (prebuilt): `godot-4.5-stable` from NodotProject/godot-cpp-builds
 - **LiveKit C++ SDK** (prebuilt): v0.3.1 from livekit/client-sdk-cpp
+- **frametap** (prebuilt or local): Screen capture library. `build.sh` downloads a prebuilt release by default. For local development, build frametap from source using the `/frametap` skill and copy artifacts to `frametap/lib/` and `frametap/include/`.
 
 ## Build Process
 
 ### Build for the current platform (Linux)
 
 ```bash
-cd "/home/krazy/Documents/GitHub/Godot Projects/godot-livekit" && ./build.sh linux
+cd "/home/krazy/Documents/GitHub/godot-projects/godot-livekit" && ./build.sh linux
 ```
 
 This runs `scons platform=linux arch=x86_64 target=template_release`, producing:
@@ -60,15 +61,15 @@ Other platforms: `./build.sh macos` (universal), `./build.sh windows` (x86_64 cr
 After a successful build, copy the `.so` and dependency libraries:
 
 ```bash
-cp "/home/krazy/Documents/GitHub/Godot Projects/godot-livekit/addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" \
+cp "/home/krazy/Documents/GitHub/godot-projects/godot-livekit/addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" \
    "/home/krazy/Documents/GitHub/daccord-projects/daccord/addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so"
 ```
 
 If the LiveKit shared libraries were also updated:
 ```bash
-cp "/home/krazy/Documents/GitHub/Godot Projects/godot-livekit/addons/godot-livekit/bin/liblivekit_ffi.so" \
+cp "/home/krazy/Documents/GitHub/godot-projects/godot-livekit/addons/godot-livekit/bin/liblivekit_ffi.so" \
    "/home/krazy/Documents/GitHub/daccord-projects/daccord/addons/godot-livekit/bin/liblivekit_ffi.so"
-cp "/home/krazy/Documents/GitHub/Godot Projects/godot-livekit/addons/godot-livekit/bin/liblivekit.so" \
+cp "/home/krazy/Documents/GitHub/godot-projects/godot-livekit/addons/godot-livekit/bin/liblivekit.so" \
    "/home/krazy/Documents/GitHub/daccord-projects/daccord/addons/godot-livekit/bin/liblivekit.so"
 ```
 
@@ -133,7 +134,7 @@ When adding new SDK calls, always consider whether they might block and should r
 
 1. Read the relevant source files in the godot-livekit repo
 2. Make the requested changes based on `$ARGUMENTS`
-3. Build: `cd "/home/krazy/Documents/GitHub/Godot Projects/godot-livekit" && ./build.sh linux`
+3. Build: `cd "/home/krazy/Documents/GitHub/godot-projects/godot-livekit" && ./build.sh linux`
 4. If the build fails, fix the errors and rebuild
 5. Copy the updated `.so` to the daccord project
 6. If the change affects the GDScript API surface, update `scripts/autoload/livekit_adapter.gd` in daccord

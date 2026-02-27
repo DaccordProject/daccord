@@ -113,6 +113,12 @@ func _on_file_selected(path: String) -> void:
 	file.close()
 
 	var ext := path.get_extension().to_lower()
+
+	# Godot only supports OGG Vorbis -- reject OGG Opus files.
+	if ext == "ogg" and _is_ogg_opus(bytes):
+		_error_label.text = "OGG Opus is not supported. Please use OGG Vorbis, MP3, or WAV."
+		_error_label.visible = true
+		return
 	var mime := "audio/ogg"
 	match ext:
 		"mp3":
@@ -179,8 +185,14 @@ func _on_delete_sound(sound: Dictionary) -> void:
 func _on_play_sound(sound: Dictionary) -> void:
 	var audio_url: String = sound.get("audio_url", "")
 	if audio_url.is_empty():
+		push_warning(
+			"[Soundboard] audio_url is empty for sound: ",
+			sound.get("name", "?"), " dict=", sound
+		)
 		return
-	var full_url: String = Client.admin.get_sound_url(_space_id, audio_url)
+	var full_url: String = Client.admin.get_sound_url(
+		_space_id, audio_url
+	)
 	SoundManager.play_preview(full_url, sound.get("volume", 1.0))
 
 func _on_rename_sound(sound: Dictionary, new_name: String) -> void:
@@ -219,6 +231,15 @@ func _on_volume_changed(sound: Dictionary, new_volume: float) -> void:
 func _on_soundboard_updated(space_id: String) -> void:
 	if space_id == _space_id:
 		_load_sounds()
+
+func _is_ogg_opus(bytes: PackedByteArray) -> bool:
+	# The OpusHead magic appears in the first OGG page payload (within ~200 bytes).
+	var opus_head := "OpusHead".to_utf8_buffer()
+	var search_len := mini(bytes.size(), 200)
+	for i in range(search_len - opus_head.size() + 1):
+		if bytes[i] == opus_head[0] and bytes.slice(i, i + opus_head.size()) == opus_head:
+			return true
+	return false
 
 func _close() -> void:
 	queue_free()

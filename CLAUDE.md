@@ -31,7 +31,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
 
 **Server connection flow:** On startup, `Client._ready()` checks `Config.has_servers()`. If servers exist, it calls `connect_server()` for each. Each connection authenticates with a Bearer token, fetches the current user via `GET /users/@me`, lists the user's spaces via `GET /users/@me/spaces`, matches the configured space name, connects the WebSocket gateway, and enters `LIVE` mode. If no servers are configured, the client stays in `CONNECTING` mode (UI is empty until a server is added).
 
-**Adding a server:** The "Add Server" dialog (`sidebar/guild_bar/add_server_dialog`) parses URLs in the format `[protocol://]host[:port][#space-name][?token=value]` (defaults: HTTPS, port 39099, space "general"). It saves the config via `Config.add_server()` and calls `Client.connect_server()`.
+**Adding a server:** The "Add Server" dialog (`sidebar/guild_bar/add_server_dialog`) parses URLs in the format `[protocol://]host[:port][#space-name][?token=value]` (defaults: HTTPS, port 443, space "general"). It saves the config via `Config.add_server()` and calls `Client.connect_server()`.
 
 **Scene hierarchy:**
 - `main/main_window` -- Root HBoxContainer. Holds sidebar + content area. Manages a TabBar for open channels. Collapses sidebar on narrow viewports (<500px).

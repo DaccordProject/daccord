@@ -175,6 +175,9 @@ func _ready() -> void:
 	_voice_session.track_received.connect(
 		voice.on_track_received
 	)
+	_voice_session.track_removed.connect(
+		voice.on_track_removed
+	)
 	_voice_session.audio_level_changed.connect(
 		voice.on_audio_level_changed
 	)

@@ -126,18 +126,20 @@ func leave_voice_channel() -> bool:
 	var channel_id := AppState.voice_channel_id
 	if channel_id.is_empty():
 		return true
-	# Clean up video/screen tracks
+	# Close streams before disconnecting so reader threads stop before
+	# the room is destroyed (same reason as toggle_video / stop_screen).
 	if _c._camera_track != null:
-		_c._camera_track.close()
-		_c._camera_track = null
+		if _c._camera_track.has_method("close"):
+			_c._camera_track.close()
 	if _c._screen_track != null:
-		_c._screen_track.close()
-		_c._screen_track = null
-	# Clean up remote tracks
+		if _c._screen_track.has_method("close"):
+			_c._screen_track.close()
 	for uid in _c._remote_tracks:
-		var rt = _c._remote_tracks[uid]
-		if rt != null:
-			rt.close()
+		var track = _c._remote_tracks[uid]
+		if track != null and track.has_method("close"):
+			track.close()
+	_c._camera_track = null
+	_c._screen_track = null
 	_c._remote_tracks.clear()
 	_c._voice_session.disconnect_voice()
 	# Notify the server we're leaving (best-effort).
@@ -195,10 +197,15 @@ func toggle_video() -> void:
 	if AppState.voice_channel_id.is_empty():
 		return
 	if _c._camera_track != null:
-		_c._camera_track.close()
+		# Close the native video stream's reader thread BEFORE
+		# unpublishing the track.  The stream blocks on read() in a
+		# background thread — if unpublish_track() destroys the native
+		# track first, the reader hits freed memory and segfaults.
+		if _c._camera_track.has_method("close"):
+			_c._camera_track.close()
 		_c._camera_track = null
-		_c._voice_session.unpublish_camera()
 		AppState.set_video_enabled(false)
+		_c._voice_session.unpublish_camera()
 	else:
 		var res_preset: int = Config.voice.get_video_resolution()
 		var width := 640
@@ -227,8 +234,10 @@ func start_screen_share(source: Dictionary) -> void:
 		return
 	# Stop existing screen track if any
 	if _c._screen_track != null:
-		_c._screen_track.close()
+		if _c._screen_track.has_method("close"):
+			_c._screen_track.close()
 		_c._screen_track = null
+		AppState.set_screen_sharing(false)
 		_c._voice_session.unpublish_screen()
 	var stream = _c._voice_session.publish_screen(source)
 	if stream == null:
@@ -241,11 +250,14 @@ func start_screen_share(source: Dictionary) -> void:
 
 func stop_screen_share() -> void:
 	_voice_log("stop_screen_share")
+	# Close the preview stream so video tiles release their reference
+	# before native resources are torn down.
 	if _c._screen_track != null:
-		_c._screen_track.close()
-		_c._screen_track = null
-	_c._voice_session.unpublish_screen()
+		if _c._screen_track.has_method("close"):
+			_c._screen_track.close()
+	_c._screen_track = null
 	AppState.set_screen_sharing(false)
+	_c._voice_session.unpublish_screen()
 	_send_voice_state_update()
 
 func _send_voice_state_update() -> void:
@@ -310,14 +322,16 @@ func on_peer_left(user_id: String) -> void:
 	if _c._speaking_users.has(user_id):
 		_c._speaking_users.erase(user_id)
 		AppState.speaking_changed.emit(user_id, false)
-	# Clean up remote track for this peer
+	# Release remote track reference (adapter already closed it)
 	if _c._remote_tracks.has(user_id):
-		var rt = _c._remote_tracks[user_id]
-		if rt != null:
-			rt.close()
 		_c._remote_tracks.erase(user_id)
 		AppState.remote_track_removed.emit(user_id)
 	AppState.voice_state_updated.emit(cid)
+
+func on_track_removed(user_id: String) -> void:
+	if _c._remote_tracks.has(user_id):
+		_c._remote_tracks.erase(user_id)
+		AppState.remote_track_removed.emit(user_id)
 
 func on_track_received(
 	user_id: String, stream,

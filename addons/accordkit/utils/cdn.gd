@@ -57,9 +57,7 @@ static func attachment(
 	)
 
 static func sound(audio_url: String, cdn_url: String = "") -> String:
-	if audio_url.begins_with("http://") or audio_url.begins_with("https://"):
-		return audio_url
-	return _resolve(cdn_url) + audio_url
+	return resolve_path(audio_url, cdn_url)
 
 ## Resolves a server-returned CDN path (e.g. "/cdn/avatars/123.png")
 ## to a full URL. Handles both absolute URLs and relative /cdn/ paths.

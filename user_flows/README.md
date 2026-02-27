@@ -6,7 +6,7 @@ Ordered by natural user journey:
 
 | # | Document | Description |
 |---|----------|-------------|
-| 1 | [Server Connection](server_connection.md) | Adding a server, URL parsing, auth (sign-in/register), token management, HTTPS/HTTP fallback, multi-server |
+| 1 | [Server Connection](server_connection.md) | Adding a server, URL parsing, auth (sign-in/register), token management, multi-server |
 | 2 | [Space & Channel Navigation](guild_channel_navigation.md) | Space bar, space icons/folders, channel categories/types, channel selection, tab management |
 | 3 | [Messaging](messaging.md) | Send/receive, cozy vs collapsed layout, reply/edit/delete, context menus, markdown, embeds, reactions, typing indicators |
 | 4 | [Direct Messages](direct_messages.md) | DM mode entry, DM list, DM channel items, search, sending DMs |
