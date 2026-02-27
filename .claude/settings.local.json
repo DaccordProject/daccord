@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo exit: $?:*)",
+      "Bash(ls:*)",
+      "Skill(godot-livekit)",
+      "Bash(./build.sh windows:*)",
+      "Bash(command:*)",
+      "Bash(gh release:*)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)",
+      "Bash(gh run:*)",
+      "Bash(git:*)"
+    ]
+  }
+}
