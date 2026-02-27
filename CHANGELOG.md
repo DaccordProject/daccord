@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-02-27
+
+### Added
+- Video picture-in-picture (PiP) mode
+- Screen capture support via LiveKitScreenCapture
+
+### Changed
+- Use prebuilt godot-livekit binaries in CI
+- Security hardening and UI refactors
+
+### Fixed
+- Use LiveKitScreenCapture constant for permission check
+- Remove default port 39099 so HTTPS uses standard port 443
+
 ## [0.1.3] - 2026-02-25
 
 ### Added
