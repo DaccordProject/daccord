@@ -190,10 +190,15 @@ func _process(_delta: float) -> void:
 				_screen_preview.update_frame(image)
 	if _room == null:
 		return
-	# Room and video streams use auto_poll (default true) — no manual
-	# poll_events() or stream.poll() needed.
+	# Drain the thread-safe event queue (connection results, participant
+	# joins/leaves, track subscriptions, etc.) on the main thread.
+	_room.poll_events()
+	# Poll remote video streams
+	for identity in _remote_video:
+		var stream: LiveKitVideoStream = _remote_video[identity]
+		if stream != null:
+			stream.poll()
 	# Poll remote audio streams and compute speaking levels.
-	# AudioStream has no auto_poll since it requires a playback buffer.
 	for identity in _remote_audio:
 		var entry: Dictionary = _remote_audio[identity]
 		var stream: LiveKitAudioStream = entry.get("stream")
