@@ -1,21 +1,14 @@
 class_name SentrySceneTree
-extends SceneTree
-## Custom SceneTree that initializes the Sentry SDK at the correct lifecycle
-## point (_initialize), before any autoloads run. Reads the user's consent
-## preference directly from the encrypted config on disk so we don't depend
-## on the Config autoload (which doesn't exist yet at this stage).
+extends RefCounted
+## Sentry SDK initialization helper. Provides consent reading from encrypted
+## config on disk, SDK initialization, before_send filtering, and PII
+## scrubbing. Called by the ErrorReporting autoload at startup or via the
+## consent dialog — not used as a custom MainLoop.
 
 const _SALT := "daccord-config-v1"
 const _REGISTRY_PATH := "user://profile_registry.cfg"
 
 static var initialized := false
-
-
-func _initialize() -> void:
-	if DisplayServer.get_name() == "headless":
-		return
-	if _read_consent_from_disk():
-		_init_sdk()
 
 
 static func late_init() -> void:

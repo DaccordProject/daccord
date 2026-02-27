@@ -55,21 +55,6 @@ This flow describes how daccord reports crashes, script errors, and diagnostic d
 ## Signal Flow
 
 ```
-Engine Startup (before autoloads):
-  SentrySceneTree._initialize()  (scripts/sentry_scene_tree.gd)
-    -> DisplayServer.get_name() == "headless"?  -> skip (safe for GUT tests)
-    -> _read_consent_from_disk():
-      -> Reads user://profile_registry.cfg to get active profile slug
-      -> Reads user://profiles/<slug>/config.cfg (encrypted, key = "daccord-config-v1" + OS.get_user_data_dir())
-      -> Returns config.get_value("error_reporting", "enabled", false)
-    -> If consent enabled:
-      -> _init_sdk():
-        -> SentrySDK.init() with before_send = _before_send
-        -> Sets tags: app_version, godot_version, os, renderer
-        -> SentrySceneTree.initialized = true
-    -> If consent disabled or read fails:
-      -> SDK stays uninitialized, initialized = false
-
 Autoload Startup:
   ErrorReporting._ready()
     -> DisplayServer.get_name() == "headless"?  -> return
@@ -77,7 +62,17 @@ Autoload Startup:
       -> If true: _on_sdk_ready()
         -> _initialized = true
         -> _connect_breadcrumbs() hooks AppState signals
-      -> If false: wait for late_init() via consent dialog
+      -> If false: _read_consent_from_disk()
+        -> Reads user://profile_registry.cfg to get active profile slug
+        -> Reads user://profiles/<slug>/config.cfg (encrypted, key = "daccord-config-v1" + OS.get_user_data_dir())
+        -> Returns config.get_value("error_reporting", "enabled", false)
+        -> If consent enabled: init_sentry()
+          -> SentrySceneTree.late_init()
+            -> SentrySDK.init() with before_send = _before_send
+            -> Sets tags: app_version, godot_version, os, renderer
+            -> SentrySceneTree.initialized = true
+          -> _on_sdk_ready() connects breadcrumbs
+        -> If consent disabled: wait for late_init() via consent dialog
 
 First Launch Consent:
   main_window._ready()
@@ -129,11 +124,10 @@ Toggle Setting:
 
 | File | Role |
 |------|------|
-| `scripts/sentry_scene_tree.gd` | Custom `SceneTree` subclass. Calls `SentrySDK.init()` in `_initialize()` (before autoloads) after reading consent from encrypted config on disk. Houses `_before_send` callback and PII scrubbing. Provides `late_init()` for deferred initialization via consent dialog. |
+| `scripts/sentry_scene_tree.gd` | Sentry SDK initialization helper. Houses `late_init()` for SDK initialization, `_before_send` callback, PII scrubbing, and `_read_consent_from_disk()` for reading consent from encrypted config. Called by `ErrorReporting` autoload at startup or via consent dialog. |
 | `addons/sentry/` | Sentry Godot SDK addon (GDExtension, gitignored). Provides `SentrySDK`, `SentryEvent`, `SentryBreadcrumb`, `SentryFeedback`, `SentryOptions` classes. |
 | `project.godot:67-80` | Sentry SDK configuration: DSN, `auto_init=false`, `send_default_pii=false`, logger masks. |
-| `project.godot:22` | `run/main_loop_type="SentrySceneTree"` — tells Godot to use the custom SceneTree. |
-| `scripts/autoload/error_reporting.gd` | Autoload for breadcrumb hooks, context tags, `report_problem()` for user feedback, and `scrub_pii_text()` utility. Delegates SDK initialization to `SentrySceneTree`. |
+| `scripts/autoload/error_reporting.gd` | Autoload for SDK initialization, breadcrumb hooks, context tags, `report_problem()` for user feedback, and `scrub_pii_text()` utility. Reads consent on startup and delegates SDK initialization to `SentrySceneTree.late_init()`. |
 | `scripts/autoload/config.gd:329-342` | Persists `error_reporting_enabled` and `consent_shown` under `[error_reporting]` config section. |
 | `scripts/autoload/app_state.gd` | Breadcrumb source signals: `space_selected`, `channel_selected`, `dm_mode_entered`, `message_sent`, `reply_initiated`, `layout_mode_changed`, `sidebar_drawer_toggled`. |
 | `scenes/main/main_window.gd` | First-launch consent dialog trigger and crash recovery toast trigger. |
@@ -212,28 +206,25 @@ logger/breadcrumb_mask=7
 ```
 
 Key choices:
-- **`auto_init = false`**: We manage initialization manually via `SentrySceneTree._initialize()` so we can check the user's consent preference first.
-- **`main_loop_type = "SentrySceneTree"`**: Godot instantiates our custom `SceneTree` subclass as the main loop, giving us the `_initialize()` hook that runs before any autoloads.
+- **`auto_init = false`**: We manage initialization manually via `ErrorReporting._ready()` so we can check the user's consent preference first.
 - **`send_default_pii = false`**: Never send PII automatically.
 - **`attach_log = true`**: Godot's log file is attached to events (useful for reproducing issues).
 - **`attach_screenshot = false`**: Screenshots could contain private messages. Disabled.
 - **`sample_rate = 1.0`**: Send all errors. For high user counts, reduce to 0.5 or lower.
 
-### Custom SceneTree (SentrySceneTree)
+### SentrySceneTree Helper
 
-The `SentrySceneTree` class (`scripts/sentry_scene_tree.gd`) is a `SceneTree` subclass registered via `project.godot`'s `run/main_loop_type`. Its `_initialize()` method runs before any autoloads, which is the correct lifecycle point for `SentrySDK.init()` when `auto_init=false`.
+The `SentrySceneTree` class (`scripts/sentry_scene_tree.gd`) provides static methods for SDK initialization and event filtering. It is **not** registered as a custom MainLoop — Godot uses the default `SceneTree`. Instead, `ErrorReporting._ready()` calls its methods during autoload startup.
 
-**Early consent read:** Since the `Config` autoload doesn't exist yet at `_initialize()` time, `SentrySceneTree` reads the user's consent preference directly from disk:
+**Consent read:** `_read_consent_from_disk()` reads the user's consent preference directly from the encrypted config:
 1. Reads `user://profile_registry.cfg` (plain `ConfigFile`) to get the active profile slug (default: `"default"`).
 2. Reads `user://profiles/<slug>/config.cfg` with encryption key `"daccord-config-v1" + OS.get_user_data_dir()` (matching `config.gd`'s `_derive_key()`).
 3. Checks `get_value("error_reporting", "enabled", false)`.
 4. If any read fails, defaults to disabled (safe).
 
-**Headless guard:** If `DisplayServer.get_name() == "headless"` (GUT tests, CI), `_initialize()` skips SDK init entirely. The `initialized` flag stays `false`.
+**`late_init()`:** A static method called by `ErrorReporting.init_sentry()`. Calls `SentrySDK.init()` if not already initialized.
 
-**`late_init()`:** A static method called by `ErrorReporting.init_sentry()` when the user enables error reporting via the consent dialog after startup. Calls `SentrySDK.init()` if not already initialized.
-
-**`_before_send()`:** The PII gate and scrubbing callback lives here (not in `ErrorReporting`) because it must exist before autoloads. At send time, it re-reads consent from the `Config` autoload if available, or falls back to reading from disk.
+**`_before_send()`:** The PII gate and scrubbing callback. At send time, it re-reads consent from the `Config` autoload if available, or falls back to reading from disk.
 
 ### ErrorReporting Autoload
 
@@ -245,7 +236,7 @@ ErrorReporting="*res://scripts/autoload/error_reporting.gd"
 Client="*res://scripts/autoload/client.gd"
 ```
 
-In `_ready()`, it checks `SentrySceneTree.initialized`. If the SDK was already initialized at startup (user had consent enabled), it immediately connects breadcrumbs and sets `_initialized = true`. Otherwise, it waits for `init_sentry()` to be called by the consent dialog flow.
+In `_ready()`, it checks `SentrySceneTree.initialized` (always false on fresh start), then reads consent from disk via `SentrySceneTree._read_consent_from_disk()`. If consent exists, it calls `init_sentry()` immediately to initialize the SDK and connect breadcrumbs. Otherwise, it waits for `init_sentry()` to be called by the consent dialog flow.
 
 **`init_sentry()`**: Delegates to `SentrySceneTree.late_init()`, then connects breadcrumbs if initialization succeeded.
 
