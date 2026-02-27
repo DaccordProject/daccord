@@ -9,6 +9,8 @@ func _ready() -> void:
 		return
 	if _SENTRY_TREE.initialized:
 		_on_sdk_ready()
+	elif _SENTRY_TREE._read_consent_from_disk():
+		init_sentry()
 
 ## Called by the consent dialog (main_window.gd) when the user enables error
 ## reporting after startup. Delegates to SentrySceneTree.late_init() which
