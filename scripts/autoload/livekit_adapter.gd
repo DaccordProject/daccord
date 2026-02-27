@@ -10,6 +10,7 @@ signal session_state_changed(state: int)
 signal peer_joined(user_id: String)
 signal peer_left(user_id: String)
 signal track_received(user_id: String, stream: RefCounted)
+signal track_removed(user_id: String)
 signal audio_level_changed(user_id: String, level: float)
 
 # --- State enum (matches what ClientVoice expects) ---
@@ -38,6 +39,7 @@ var _local_screen_source: RefCounted # LiveKitVideoSource
 var _local_screen_track: RefCounted  # LiveKitLocalVideoTrack
 var _local_screen_pub: RefCounted    # LiveKitLocalTrackPublication
 var _screen_capture: LiveKitScreenCapture  # null when not capturing
+var _screen_preview: LocalVideoPreview     # local preview for screen share
 
 # Remote playback: identity -> { stream, player, playback, generator }
 var _remote_audio: Dictionary = {}
@@ -62,6 +64,7 @@ func connect_to_room(url: String, token: String) -> void:
 	_room = LiveKitRoom.new()
 	_room.connected.connect(_on_connected)
 	_room.disconnected.connect(_on_disconnected)
+	_room.connection_failed.connect(_on_connection_failed)
 	_room.reconnecting.connect(_on_reconnecting)
 	_room.reconnected.connect(_on_reconnected)
 	_room.participant_connected.connect(_on_participant_connected)
@@ -84,6 +87,9 @@ func disconnect_voice() -> void:
 	if _screen_capture != null:
 		_screen_capture.close()
 		_screen_capture = null
+	if _screen_preview != null:
+		_screen_preview.close()
+		_screen_preview = null
 	_local_screen_pub = null
 	_local_screen_track = null
 	_local_screen_source = null
@@ -153,7 +159,6 @@ func publish_screen(source: Dictionary) -> RefCounted:
 		_screen_capture = LiveKitScreenCapture.create_for_window(source)
 	else:
 		_screen_capture = LiveKitScreenCapture.create_for_monitor(source)
-	_screen_capture.start()
 	var width: int = source.get("width", 1920)
 	var height: int = source.get("height", 1080)
 	_local_screen_source = LiveKitVideoSource.create(width, height)
@@ -166,10 +171,8 @@ func publish_screen(source: Dictionary) -> RefCounted:
 	_local_screen_pub = local_part.publish_track(
 		_local_screen_track, {"source": LiveKitTrack.SOURCE_SCREENSHARE}
 	)
-	var stream: LiveKitVideoStream = LiveKitVideoStream.from_track(
-		_local_screen_track
-	)
-	return stream
+	_screen_preview = LocalVideoPreview.new()
+	return _screen_preview
 
 func unpublish_screen() -> void:
 	_cleanup_local_screen()
@@ -177,17 +180,20 @@ func unpublish_screen() -> void:
 # --- Process loop: poll remote streams, compute audio levels ---
 
 func _process(_delta: float) -> void:
+	# Screen capture: use synchronous screenshot() each frame
+	# (start_async callback doesn't fire on X11).
+	if _screen_capture != null and _local_screen_source != null:
+		var image: Image = _screen_capture.screenshot()
+		if image != null and not image.is_empty():
+			_local_screen_source.capture_frame(image)
+			if _screen_preview != null:
+				_screen_preview.update_frame(image)
 	if _room == null:
 		return
-	# Drain the thread-safe event queue (connection results, participant
-	# joins/leaves, track subscriptions, etc.) on the main thread.
-	_room.poll_events()
-	# Poll remote video streams
-	for identity in _remote_video:
-		var stream: LiveKitVideoStream = _remote_video[identity]
-		if stream != null:
-			stream.poll()
-	# Poll remote audio streams and compute speaking levels
+	# Room and video streams use auto_poll (default true) — no manual
+	# poll_events() or stream.poll() needed.
+	# Poll remote audio streams and compute speaking levels.
+	# AudioStream has no auto_poll since it requires a playback buffer.
 	for identity in _remote_audio:
 		var entry: Dictionary = _remote_audio[identity]
 		var stream: LiveKitAudioStream = entry.get("stream")
@@ -202,12 +208,6 @@ func _process(_delta: float) -> void:
 		var uid: String = _identity_to_user.get(identity, identity)
 		if level > Config.voice.get_speaking_threshold():
 			audio_level_changed.emit(uid, level)
-	# Screen capture: grab frame from native capturer → push to LiveKit
-	if _screen_capture != null and _local_screen_source != null:
-		if _screen_capture.poll():
-			var image: Image = _screen_capture.get_image()
-			if image != null:
-				_local_screen_source.capture_frame(image, Time.get_ticks_usec(), 0)
 	# Local mic: capture frames → push to LiveKit + compute speaking level
 	if _mic_effect != null and _local_audio_source != null and not _muted:
 		var frames_avail: int = _mic_effect.get_frames_available()
@@ -236,6 +236,11 @@ func _on_connected() -> void:
 	session_state_changed.emit(State.CONNECTED)
 	# Publish local microphone audio
 	_publish_local_audio()
+
+func _on_connection_failed(error: String) -> void:
+	push_error("[LiveKitAdapter] Connection failed: ", error)
+	_state = State.FAILED
+	session_state_changed.emit(State.FAILED)
 
 func _on_disconnected() -> void:
 	_state = State.DISCONNECTED
@@ -284,9 +289,11 @@ func _on_track_unsubscribed(
 	participant: LiveKitRemoteParticipant,
 ) -> void:
 	var identity: String = participant.get_identity()
+	var uid: String = _identity_to_user.get(identity, identity)
 	var kind: int = track.get_kind()
 	if kind == LiveKitTrack.KIND_VIDEO:
 		_cleanup_remote_video(identity)
+		track_removed.emit(uid)
 	elif kind == LiveKitTrack.KIND_AUDIO:
 		_cleanup_remote_audio(identity)
 
@@ -400,34 +407,55 @@ func _cleanup_all_remote() -> void:
 # --- Local track cleanup ---
 
 func _cleanup_local_audio() -> void:
-	if _local_audio_pub != null and _room != null:
-		var local_part: LiveKitLocalParticipant = _room.get_local_participant()
-		if local_part != null and _local_audio_track != null:
-			local_part.unpublish_track(_local_audio_track.get_sid())
-	_local_audio_pub = null
-	_local_audio_track = null
+	var sid := ""
+	if _local_audio_pub != null:
+		sid = _local_audio_pub.get_sid()
 	_local_audio_source = null
+	_local_audio_track = null
+	_local_audio_pub = null
+	if not sid.is_empty() and _room != null:
+		var local_part: LiveKitLocalParticipant = _room.get_local_participant()
+		if local_part != null:
+			local_part.unpublish_track(sid)
 
 func _cleanup_local_video() -> void:
-	if _local_video_pub != null and _room != null:
-		var local_part: LiveKitLocalParticipant = _room.get_local_participant()
-		if local_part != null and _local_video_track != null:
-			local_part.unpublish_track(_local_video_track.get_sid())
-	_local_video_pub = null
-	_local_video_track = null
+	# Mute the track to signal the encoder to stop.
+	if _local_video_track != null and _local_video_track.has_method("mute"):
+		_local_video_track.mute()
+	# Destroy the video source — its C++ destructor joins the background
+	# capture thread so no more captureFrame() calls happen.
 	_local_video_source = null
+	# Skip unpublish_track() — the synchronous SDK call can segfault.
+	# Matches the disconnect_voice() pattern.
+	_local_video_track = null
+	_local_video_pub = null
 
 func _cleanup_local_screen() -> void:
-	if _screen_capture != null:
-		_screen_capture.close()
-		_screen_capture = null
-	if _local_screen_pub != null and _room != null:
-		var local_part: LiveKitLocalParticipant = _room.get_local_participant()
-		if local_part != null and _local_screen_track != null:
-			local_part.unpublish_track(_local_screen_track.get_sid())
-	_local_screen_pub = null
-	_local_screen_track = null
+	# 1. Stop the _process loop from capturing new screenshots.
+	var capture = _screen_capture
+	_screen_capture = null
+
+	# 2. Mute the track to signal the encoder to stop accepting frames.
+	if _local_screen_track != null and _local_screen_track.has_method("mute"):
+		_local_screen_track.mute()
+
+	# 3. Destroy the video source — its C++ destructor joins the background
+	#    capture thread so no more captureFrame() calls happen.
 	_local_screen_source = null
+
+	# Skip unpublish_track() — the synchronous SDK call segfaults when the
+	# WebRTC encoder still has frames in flight.  This matches the pattern
+	# in disconnect_voice() which also skips unpublish_track().  The voice
+	# state update (self_stream=false) tells other clients the share stopped.
+
+	# 4. Clean up remaining resources.
+	if capture != null:
+		capture.close()
+	if _screen_preview != null:
+		_screen_preview.close()
+		_screen_preview = null
+	_local_screen_track = null
+	_local_screen_pub = null
 
 # --- Audio level estimation ---
 
@@ -444,3 +472,30 @@ func _estimate_audio_level(player: AudioStreamPlayer) -> float:
 
 func _exit_tree() -> void:
 	disconnect_voice()
+
+
+## Lightweight preview stream for local tracks.  LiveKitVideoStream.from_track()
+## only works for remote tracks (the SDK reader blocks forever on local tracks).
+## This class is updated directly from the capture loop and exposes the same
+## get_texture() / frame_received interface that VideoTile expects.
+class LocalVideoPreview extends RefCounted:
+	signal frame_received
+
+	var _texture: ImageTexture
+
+	func get_texture() -> ImageTexture:
+		return _texture
+
+	func update_frame(image: Image) -> void:
+		if image.get_format() == Image.FORMAT_RGBA8:
+			image.convert(Image.FORMAT_RGB8)
+		if _texture == null \
+				or image.get_width() != _texture.get_width() \
+				or image.get_height() != _texture.get_height():
+			_texture = ImageTexture.create_from_image(image)
+		else:
+			_texture.update(image)
+		frame_received.emit()
+
+	func close() -> void:
+		_texture = null

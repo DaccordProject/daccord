@@ -81,7 +81,7 @@ Incoming User Update:
 | `scripts/autoload/config.gd` | `get_user_status()`/`set_user_status()` (lines 146-151), `get_custom_status()`/`set_custom_status()` (lines 153-158), server credential storage |
 | `scripts/autoload/app_state.gd` | `user_updated` (line 24), `members_updated` (line 30) signals |
 | `scenes/sidebar/user_bar.gd` | Status menu, custom status dialog, avatar display, About/Quit/Sound Settings/Error Reporting |
-| `scenes/sidebar/guild_bar/auth_dialog.gd` | Sign In / Register UI, password generation, HTTPS→HTTP fallback |
+| `scenes/sidebar/guild_bar/auth_dialog.gd` | Sign In / Register UI, password generation |
 | `scenes/members/member_list.gd` | Virtualized member list grouped by status, invite button |
 | `scenes/members/member_item.gd` | Member display with context menu (Message/Kick/Ban/Roles) |
 | `scenes/common/avatar.gd` | Image loading with cache, color fallback, circle shader, hover animation |
@@ -254,7 +254,7 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 - [x] User sign-in with username and password
 - [x] Bearer token storage in encrypted config
 - [x] Automatic token re-authentication with stored credentials
-- [x] HTTPS to HTTP fallback for authentication
+- [x] HTTPS-only authentication (no HTTP fallback)
 - [x] Current user display in user bar (avatar, name, status)
 - [x] Status selection (Online, Idle, DND, Invisible)
 - [x] Status persistence across sessions

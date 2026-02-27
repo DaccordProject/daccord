@@ -1,50 +1,29 @@
 extends Node
 
+const _SENTRY_TREE := preload("res://scripts/sentry_scene_tree.gd")
+
 var _initialized := false
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
-	if Config.get_error_reporting_enabled():
-		init_sentry()
+	if _SENTRY_TREE.initialized:
+		_on_sdk_ready()
 
+## Called by the consent dialog (main_window.gd) when the user enables error
+## reporting after startup. Delegates to SentrySceneTree.late_init() which
+## calls SentrySDK.init() if it wasn't already initialized at startup.
 func init_sentry() -> void:
 	if _initialized:
 		return
+	_SENTRY_TREE.late_init()
+	if _SENTRY_TREE.initialized:
+		_on_sdk_ready()
+
+func _on_sdk_ready() -> void:
 	_initialized = true
-	SentrySDK.init(func(options: SentryOptions) -> void:
-		options.dsn = ProjectSettings.get_setting(
-			"sentry/config/dsn", ""
-		)
-		options.before_send = _before_send
-	)
-	var version: String = ProjectSettings.get_setting(
-		"application/config/version", "unknown"
-	)
-	SentrySDK.set_tag("app_version", version)
-	SentrySDK.set_tag(
-		"godot_version", Engine.get_version_info().string
-	)
-	SentrySDK.set_tag("os", OS.get_name())
-	SentrySDK.set_tag("renderer", ProjectSettings.get_setting(
-		"rendering/renderer/rendering_method", "unknown"
-	))
 	_connect_breadcrumbs()
 	print("[ErrorReporting] Sentry SDK initialized")
-
-func _before_send(event: SentryEvent) -> SentryEvent:
-	if not Config.get_error_reporting_enabled():
-		return null
-	if event.environment.contains("editor"):
-		return null
-	_scrub_pii(event)
-	return event
-
-func _scrub_pii(event: SentryEvent) -> void:
-	var msg: String = event.message
-	if msg.is_empty():
-		return
-	event.message = scrub_pii_text(msg)
 
 func scrub_pii_text(msg: String) -> String:
 	var token_re := RegEx.new()

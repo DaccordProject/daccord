@@ -14,12 +14,12 @@ daccord://navigate/<space-id>[/<channel-id>]
 
 | Route | Purpose | Example |
 |-------|---------|---------|
-| `connect` | Open Add Server dialog pre-filled (or auto-connect if token present) | `daccord://connect/chat.example.com:39099/general?token=abc123` |
+| `connect` | Open Add Server dialog pre-filled (or auto-connect if token present) | `daccord://connect/chat.example.com/general?token=abc123` |
 | `invite` | Accept an invite on a specific server | `daccord://invite/ABCDEF@chat.example.com` |
 | `navigate` | Jump to a space/channel already connected | `daccord://navigate/123456/789012` |
 
 Defaults (matching existing `parse_server_url` behavior):
-- Port: `39099` when omitted
+- Port: `443` when omitted
 - Space slug: `"general"` when omitted
 - Protocol to server: HTTPS, falling back to HTTP (existing probe behavior)
 
@@ -159,7 +159,7 @@ Add a new method to `add_server_dialog.gd`:
 
 ```gdscript
 func open_prefilled(url_parts: Dictionary) -> void:
-    url_input.text = url_parts.get("host", "") + ":" + str(url_parts.get("port", 39099))
+    url_input.text = url_parts.get("host", "") + ":" + str(url_parts.get("port", 443))
     if url_parts.has("space_slug"):
         url_input.text += "#" + url_parts["space_slug"]
     popup_centered()
@@ -238,7 +238,7 @@ For completeness, the app should be able to **generate** `daccord://` links:
 Extend `tests/unit/test_add_server_dialog.gd` (currently 18 URL parsing tests) and add a new `tests/unit/test_uri_handler.gd`:
 
 - Parse `daccord://connect/host:port/space?token=abc` → correct Dictionary
-- Parse `daccord://connect/host` → defaults (port 39099, space "general")
+- Parse `daccord://connect/host` → defaults (port 443, space "general")
 - Parse `daccord://invite/CODE@host:port` → correct code + host
 - Parse `daccord://invite/CODE@host` → default port
 - Parse `daccord://navigate/123/456` → correct space_id + channel_id

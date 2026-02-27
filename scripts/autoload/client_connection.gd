@@ -53,24 +53,6 @@ func connect_server(
 	# Fetch current user
 	AppState.connection_step.emit("Authenticating...")
 	var me_result: RestResult = await client.users.get_me()
-	if not me_result.ok and base_url.begins_with("https://") \
-			and me_result.status_code == 0:
-		# HTTPS connection-level failure -- inform caller instead of silently downgrading
-		var http_url := base_url.replace("https://", "http://")
-		push_warning(
-			"[Client] HTTPS failed for %s (status_code=0). HTTP alternative: %s"
-			% [base_url, http_url]
-		)
-		conn["status"] = "error"
-		client.queue_free()
-		conn["client"] = null
-		return {
-			"error": "HTTPS connection failed",
-			"https_failed": true,
-			"http_url": http_url,
-			"server_index": index,
-		}
-
 	if not me_result.ok:
 		var err_msg: String = (
 			me_result.error.message

@@ -1,7 +1,6 @@
 extends PanelContainer
 
 var _stream  # LiveKitVideoStream
-var _is_live := false
 var _user_id: String = ""
 var _speaking_style: StyleBoxFlat
 
@@ -18,7 +17,6 @@ func setup_local(
 	stream, user: Dictionary,
 ) -> void:
 	_stream = stream
-	_is_live = true
 	_user_id = user.get("id", "")
 	name_label.text = user.get(
 		"display_name", "You"
@@ -26,11 +24,12 @@ func setup_local(
 	mute_label.visible = false
 	initials_label.visible = false
 	video_rect.visible = true
+	if _stream != null and _stream.has_signal("frame_received"):
+		_stream.frame_received.connect(_on_frame_received)
 
 func setup_placeholder(
 	user: Dictionary, voice_state: Dictionary,
 ) -> void:
-	_is_live = false
 	_stream = null
 	_user_id = user.get("id", "")
 	var dn: String = user.get("display_name", "?")
@@ -75,16 +74,26 @@ func _on_gui_input(event: InputEvent) -> void:
 		else:
 			AppState.set_spotlight(_user_id)
 
+func detach_stream() -> void:
+	if _stream != null:
+		if _stream.has_signal("frame_received") \
+				and _stream.frame_received.is_connected(_on_frame_received):
+			_stream.frame_received.disconnect(_on_frame_received)
+	_stream = null
+
 func _process(_delta: float) -> void:
-	if not _is_live or _stream == null:
+	if _stream == null:
 		return
-	_stream.poll()
+	var tex = _stream.get_texture()
+	if tex != null and tex.get_width() > 0:
+		video_rect.texture = tex
+
+func _on_frame_received() -> void:
+	if _stream == null:
+		return
 	var tex: ImageTexture = _stream.get_texture()
-	if tex != null:
+	if tex != null and tex.get_width() > 0:
 		video_rect.texture = tex
 
 func _exit_tree() -> void:
-	if _stream != null and _stream.has_method("close"):
-		_stream.close()
-	_stream = null
-	_is_live = false
+	detach_stream()

@@ -7,9 +7,10 @@ const VideoTileScene := preload(
 )
 
 var _mode: GridMode = GridMode.INLINE
+var _rebuild_pending: bool = false
 
 @onready var spotlight_area: PanelContainer = $MainLayout/SpotlightArea
-@onready var grid: GridContainer = $MainLayout/ParticipantArea/ParticipantGrid
+@onready var grid: GridContainer = $MainLayout/ParticipantGrid
 
 func _ready() -> void:
 	visible = false
@@ -50,12 +51,12 @@ func set_full_area(full: bool) -> void:
 	_rebuild()
 
 func _on_video_changed(_value: bool) -> void:
-	_rebuild()
+	_schedule_rebuild()
 
 func _on_voice_state_updated(_channel_id: String) -> void:
 	if AppState.voice_channel_id.is_empty():
 		return
-	_rebuild()
+	_schedule_rebuild()
 
 func _on_voice_left(_channel_id: String) -> void:
 	_clear()
@@ -65,12 +66,12 @@ func _on_remote_track_received(
 	_user_id: String,
 	_track,
 ) -> void:
-	_rebuild()
+	_schedule_rebuild()
 
 func _on_remote_track_removed(
 	_user_id: String,
 ) -> void:
-	_rebuild()
+	_schedule_rebuild()
 
 func _on_layout_mode_changed(
 	_layout_mode: AppState.LayoutMode,
@@ -78,7 +79,7 @@ func _on_layout_mode_changed(
 	_update_grid_columns()
 
 func _on_spotlight_changed(_user_id: String) -> void:
-	_rebuild()
+	_schedule_rebuild()
 
 func _update_grid_columns() -> void:
 	if _mode == GridMode.FULL_AREA:
@@ -143,8 +144,10 @@ func _count_tiles() -> int:
 
 func _clear() -> void:
 	for child in grid.get_children():
+		child.detach_stream()
 		child.queue_free()
 	for child in spotlight_area.get_children():
+		child.detach_stream()
 		child.queue_free()
 	spotlight_area.visible = false
 
@@ -196,6 +199,17 @@ func _collect_tiles() -> Array:
 					"voice_state": state,
 				})
 	return tiles
+
+func _schedule_rebuild() -> void:
+	if not _rebuild_pending:
+		_rebuild_pending = true
+		call_deferred("_do_rebuild")
+
+func _do_rebuild() -> void:
+	if not _rebuild_pending:
+		return
+	_rebuild_pending = false
+	_rebuild()
 
 func _rebuild() -> void:
 	_clear()

@@ -185,7 +185,14 @@ func _apply_ui_scale() -> void:
 		scale = _auto_ui_scale()
 	if scale <= 1.0:
 		return
-	get_window().content_scale_factor = scale
+	var win := get_window()
+	win.content_scale_factor = scale
+	# Grow the window to compensate so the effective viewport stays the same.
+	var base_size := Vector2i(
+		ProjectSettings.get_setting("display/window/size/viewport_width"),
+		ProjectSettings.get_setting("display/window/size/viewport_height"),
+	)
+	win.size = Vector2i(base_size * scale)
 
 func _auto_ui_scale() -> float:
 	var allow_hidpi: bool = ProjectSettings.get_setting(
