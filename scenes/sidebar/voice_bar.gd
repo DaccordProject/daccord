@@ -222,7 +222,10 @@ func _update_button_visuals() -> void:
 		deafen_btn.text = "Deaf"
 		deafen_btn.remove_theme_stylebox_override("normal")
 
-	# Video button (green when active)
+	# Video button (green when active, disabled when no camera)
+	var cam_available := _has_camera()
+	video_btn.disabled = not cam_available
+	video_btn.tooltip_text = "" if cam_available else "No camera detected"
 	if AppState.is_video_enabled:
 		video_btn.text = "Cam On"
 		var style := StyleBoxFlat.new()
@@ -249,3 +252,13 @@ func _update_button_visuals() -> void:
 	else:
 		share_btn.text = "Share"
 		share_btn.remove_theme_stylebox_override("normal")
+
+func _has_camera() -> bool:
+	if OS.get_name() == "Linux":
+		if not DirAccess.dir_exists_absolute("/sys/class/video4linux"):
+			return false
+		var entries: PackedStringArray = DirAccess.get_directories_at(
+			"/sys/class/video4linux"
+		)
+		return entries.size() > 0
+	return true
