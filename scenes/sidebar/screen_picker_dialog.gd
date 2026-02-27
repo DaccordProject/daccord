@@ -9,7 +9,7 @@ func _ready() -> void:
 	_close_btn.pressed.connect(_close)
 	gui_input.connect(_on_backdrop_input)
 	var status: Dictionary = LiveKitScreenCapture.check_permissions()
-	if status.get("status", "") == "PERMISSION_ERROR":
+	if status.get("status", -1) == LiveKitScreenCapture.PERMISSION_ERROR:
 		_add_error_label(status.get("summary", "Screen capture permission denied"))
 	else:
 		_populate_sources()
