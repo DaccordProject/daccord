@@ -122,8 +122,18 @@ jobs:
             godot-import-${{ env.GODOT_VERSION }}-
 
       - name: Import project
-        run: godot --headless --import . || true
+        run: godot --headless --import .
         timeout-minutes: 2
+
+      - name: Validate project startup
+        run: |
+          godot --headless --quit 2>&1 | tee /tmp/startup.log
+          if grep -q "MainLoop type doesn't exist" /tmp/startup.log; then
+            echo "::error::MainLoop type resolution failed"
+            grep "MainLoop" /tmp/startup.log
+            exit 1
+          fi
+        timeout-minutes: 1
 
       - name: Run unit tests
         run: |
@@ -299,8 +309,18 @@ jobs:
             godot-import-${{ env.GODOT_VERSION }}-
 
       - name: Import project
-        run: godot --headless --import . || true
+        run: godot --headless --import .
         timeout-minutes: 2
+
+      - name: Validate project startup
+        run: |
+          godot --headless --quit 2>&1 | tee /tmp/startup.log
+          if grep -q "MainLoop type doesn't exist" /tmp/startup.log; then
+            echo "::error::MainLoop type resolution failed"
+            grep "MainLoop" /tmp/startup.log
+            exit 1
+          fi
+        timeout-minutes: 1
 
       - name: Run AccordKit unit tests
         run: |

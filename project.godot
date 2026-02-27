@@ -17,7 +17,6 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="Daccord"
 config/version="0.1.4"
 run/main_scene="res://scenes/main/main_window.tscn"
-run/main_loop_type="SentrySceneTree"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 run/low_processor_mode=true
 config/icon="res://icon.svg"
@@ -68,7 +67,7 @@ textures/vram_compression/import_etc2_astc=true
 [sentry]
 
 config/dsn="https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1"
-config/auto_init=true
+config/auto_init=false
 config/debug=true
 config/max_breadcrumbs=100
 config/send_default_pii=false
