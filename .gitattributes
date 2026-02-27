@@ -3,3 +3,6 @@
 *.ttf filter=lfs diff=lfs merge=lfs -text
 *.otf filter=lfs diff=lfs merge=lfs -text
 *.woff filter=lfs diff=lfs merge=lfs -text
+
+# Godot auto-generated files — keep LF to avoid noisy diffs
+*.import text eol=lf
