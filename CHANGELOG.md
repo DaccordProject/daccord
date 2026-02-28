@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-02-28
+
+### Fixed
+- Force full opacity on screen share preview for 32-bit depth displays
+- Stop converting screen share preview to RGB8 to prevent intermittent transparency
+- Remove custom MainLoop to fix SentrySceneTree startup crash
+
+### Changed
+- Regenerate app icons from updated icon.svg
+
 ## [0.1.4] - 2026-02-27
 
 ### Added
