@@ -202,11 +202,32 @@ The context menu (`PopupMenu`) is created once in `_ready()` (line 16) and rebui
 - [x] Avatar, display name, and status dot recycled per `setup()` call
 - [ ] Lazy avatar image loading (only fetch visible avatar URLs)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| `_hide_all_pool_nodes()` called on every scroll tick | Low | `_update_visible_items()` iterates `_active_items` and `_active_headers` to hide them before re-showing visible ones. With typical pool sizes of ~30 items this is cheap. A dirty-tracking approach (only hide nodes that moved out of view) would be marginally more efficient. |
-| Sequential user fetch during `fetch_members` | Medium | `client_fetch.gd` (line 311) awaits a REST call per missing user in series. GDScript 4.5+ requires `await` on coroutine calls, preventing true parallelism at the language level. Deduplicated upfront to avoid redundant fetches. Best fix is for the server to include user data in the member list response. |
-| No avatar image caching across pool recycles | Low | `member_item.gd:setup()` calls `set_avatar_url()` on every recycle. Depends on `avatar.gd`'s internal caching behavior (currently has a 200-entry LRU cache, so this is largely mitigated). |
-| Incremental updates disabled during search/role grouping | Low | When a search filter is active or role grouping is enabled, single-member events fall back to a full debounced rebuild. Incremental updates for these modes would add significant complexity for minimal benefit. |
+### MLPERF-1: `_hide_all_pool_nodes()` called on every scroll tick
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, performance
+- **Notes:** `_update_visible_items()` iterates `_active_items` and `_active_headers` to hide them before re-showing visible ones. With typical pool sizes of ~30 items this is cheap. A dirty-tracking approach (only hide nodes that moved out of view) would be marginally more efficient.
+
+### MLPERF-2: Sequential user fetch during `fetch_members`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** api, gateway
+- **Notes:** `client_fetch.gd` (line 311) awaits a REST call per missing user in series. GDScript 4.5+ requires `await` on coroutine calls, preventing true parallelism at the language level. Deduplicated upfront to avoid redundant fetches. Best fix is for the server to include user data in the member list response.
+
+### MLPERF-3: No avatar image caching across pool recycles
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** performance
+- **Notes:** `member_item.gd:setup()` calls `set_avatar_url()` on every recycle. Depends on `avatar.gd`'s internal caching behavior (currently has a 200-entry LRU cache, so this is largely mitigated).
+
+### MLPERF-4: Incremental updates disabled during search/role grouping
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, gateway, permissions
+- **Notes:** When a search filter is active or role grouping is enabled, single-member events fall back to a full debounced rebuild. Incremental updates for these modes would add significant complexity for minimal benefit.

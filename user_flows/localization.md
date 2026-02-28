@@ -157,17 +157,74 @@ label.text = tr_n("%d member", "%d members", count) % count
 - [ ] Date/time formatting per locale
 - [ ] Number formatting per locale
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No PO/POT files exist | High | No translation infrastructure at all; need to create `i18n/` directory with `.pot` template and per-language `.po` files |
-| No `tr()` calls anywhere | High | Every dynamically set string across ~30+ script files needs wrapping; static `.tscn` strings auto-translate once PO files are registered |
-| No `[locale]` section in `project.godot` | High | Must register translation files for `TranslationServer` to load them |
-| No language selection UI | High | Users have no way to change language; need a dropdown in settings |
-| No locale persistence in Config | Medium | `config.gd` has no locale-related keys; need `set_locale()`/`get_locale()` methods |
-| Advanced text server disabled | Medium | RTL languages (Arabic, Hebrew) and complex scripts (Devanagari, Thai) cannot render; re-enabling increases binary size (`reducing_build_size.md`, lines 73-76) |
-| Format strings use concatenation | Medium | Strings like `"Message #" + channel_name` (`composer.gd`, line 40) need refactoring to `tr("Message #%s") % channel_name` for translator-friendly patterns |
-| No date/time locale formatting | Low | Timestamps in messages use hardcoded English formatting; should use locale-aware formatting |
-| No plural support | Low | Strings like "Delete Selected (%d)" need `tr_n()` for correct pluralization across languages |
-| `preferred_locale` from server unused | Low | `AccordSpace.preferred_locale` (line 24) is stored but never influences client locale; could offer "match server language" option |
+### L10N-1: No PO/POT files exist
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** l10n
+- **Notes:** No translation infrastructure at all; need to create `i18n/` directory with `.pot` template and per-language `.po` files
+
+### L10N-2: No `tr()` calls anywhere
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** l10n
+- **Notes:** Every dynamically set string across ~30+ script files needs wrapping; static `.tscn` strings auto-translate once PO files are registered
+
+### L10N-3: No `[locale]` section in `project.godot`
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 1
+- **Tags:** l10n
+- **Notes:** Must register translation files for `TranslationServer` to load them
+
+### L10N-4: No language selection UI
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** Users have no way to change language; need a dropdown in settings
+
+### L10N-5: No locale persistence in Config
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** config
+- **Notes:** `config.gd` has no locale-related keys; need `set_locale()`/`get_locale()` methods
+
+### L10N-6: Advanced text server disabled
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci
+- **Notes:** RTL languages (Arabic, Hebrew) and complex scripts (Devanagari, Thai) cannot render; re-enabling increases binary size (`reducing_build_size.md`, lines 73-76)
+
+### L10N-7: Format strings use concatenation
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** l10n
+- **Notes:** Strings like `"Message #" + channel_name` (`composer.gd`, line 40) need refactoring to `tr("Message #%s") % channel_name` for translator-friendly patterns
+
+### L10N-8: No date/time locale formatting
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Timestamps in messages use hardcoded English formatting; should use locale-aware formatting
+
+### L10N-9: No plural support
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Strings like "Delete Selected (%d)" need `tr_n()` for correct pluralization across languages
+
+### L10N-10: `preferred_locale` from server unused
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `AccordSpace.preferred_locale` (line 24) is stored but never influences client locale; could offer "match server language" option

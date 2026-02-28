@@ -385,12 +385,39 @@ Signing and notarization are conditional on GitHub secrets being configured. Wit
 - [x] macOS build (LiveKit `.gdextension` removed when `.dylib` missing; voice/video disabled gracefully)
 - [ ] Custom export templates for Linux ARM64, Windows, and macOS (referenced in presets but not yet built — stock fallback used)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| macOS LiveKit `.dylib` missing | Low | LiveKit GDExtension only has a Linux `.so` binary. macOS builds proceed without voice/video — the `.gdextension` file is removed at build time. Voice features will activate automatically once a `.dylib` is published. |
-| Windows code signing not yet active | Medium | Workflow steps exist for both the exe (via `osslsigncode`) and the installer (via `signtool`) but require `WINDOWS_CERT_BASE64` and `WINDOWS_CERT_PASSWORD` secrets. Users will see SmartScreen/Defender warnings until a certificate is purchased and configured. |
-| macOS signing/notarization not yet active | Medium | Workflow steps exist but require Apple Developer account secrets (`APPLE_CERTIFICATE_BASE64`, `APPLE_ID`, etc.). Gatekeeper will block the app until secrets are configured. |
-| Missing ARM64, Windows, and macOS custom templates | Medium | `export_presets.cfg` references custom templates for all platforms but only Linux x86_64 exists (`dist/templates/godot.linuxbsd.template_release.x86_64`). The workflow auto-clears missing paths so Godot falls back to stock templates, inflating those binaries. See [Reducing Build Size](reducing_build_size.md). |
-| ARM64 Linux cross-compilation | Low | ARM64 builds cross-compile from `ubuntu-latest` (x86_64). Godot handles this via export templates, but edge cases may surface. No ARM64 custom template exists yet. |
+### RELEASE-1: macOS LiveKit `.dylib` missing
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, video, voice
+- **Notes:** LiveKit GDExtension only has a Linux `.so` binary. macOS builds proceed without voice/video — the `.gdextension` file is removed at build time. Voice features will activate automatically once a `.dylib` is published.
+
+### RELEASE-2: Windows code signing not yet active
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** config, security
+- **Notes:** Workflow steps exist for both the exe (via `osslsigncode`) and the installer (via `signtool`) but require `WINDOWS_CERT_BASE64` and `WINDOWS_CERT_PASSWORD` secrets. Users will see SmartScreen/Defender warnings until a certificate is purchased and configured.
+
+### RELEASE-3: macOS signing/notarization not yet active
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** config
+- **Notes:** Workflow steps exist but require Apple Developer account secrets (`APPLE_CERTIFICATE_BASE64`, `APPLE_ID`, etc.). Gatekeeper will block the app until secrets are configured.
+
+### RELEASE-4: Missing ARM64, Windows, and macOS custom templates
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci
+- **Notes:** `export_presets.cfg` references custom templates for all platforms but only Linux x86_64 exists (`dist/templates/godot.linuxbsd.template_release.x86_64`). The workflow auto-clears missing paths so Godot falls back to stock templates, inflating those binaries. See [Reducing Build Size](reducing_build_size.md).
+
+### RELEASE-5: ARM64 Linux cross-compilation
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, testing
+- **Notes:** ARM64 builds cross-compile from `ubuntu-latest` (x86_64). Godot handles this via export templates, but edge cases may surface. No ARM64 custom template exists yet.

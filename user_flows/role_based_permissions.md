@@ -206,16 +206,74 @@ Permission checks gate admin UI elements across the application:
 - [ ] SEND_MESSAGES permission gating on the composer
 - [ ] Per-permission descriptions/tooltips in management dialogs
 
-## Gaps / TODO
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No VIEW_CHANNEL filtering for real users | High | `channel_list.gd:44-52` only filters channels in imposter mode; real users see all channels regardless of VIEW_CHANNEL permission |
-| No SEND_MESSAGES gating on composer | High | `composer.gd` only checks MENTION_EVERYONE (line 117); should disable input when user lacks SEND_MESSAGES for the current channel |
-| Role colors not applied to usernames | Medium | Role `color` is stored and editable but never rendered on member names in messages or the member list |
-| No hoist-based member list sections | Medium | `AccordRole.hoist` is stored and editable but the member list does not group members by hoisted roles |
-| VIEW_CHANNEL imposter filter is coarse | Medium | `channel_list.gd:50` checks if the role has VIEW_CHANNEL globally, not per-channel via overwrites -- so all channels are shown or hidden uniformly |
-| No drag-and-drop role reorder | Low | Role reordering uses up/down arrow buttons (`role_row.gd:14-15`); drag-and-drop would be more intuitive |
-| No permission descriptions | Low | Permission checkboxes show formatted names only (e.g., "Manage Channels"); no tooltip or description explains what each permission does |
-| No CONNECT permission check for voice | Medium | Voice channel join does not check `CONNECT` permission before attempting to join |
-| No ATTACH_FILES permission check | Low | File upload in composer does not check `ATTACH_FILES` permission |
-| No EMBED_LINKS permission check | Low | URL previews are not gated by `EMBED_LINKS` permission |
+## Tasks
+
+### RBAC-1: No VIEW_CHANNEL filtering for real users
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** permissions
+- **Notes:** `channel_list.gd:44-52` only filters channels in imposter mode; real users see all channels regardless of VIEW_CHANNEL permission
+
+### RBAC-2: No SEND_MESSAGES gating on composer
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `composer.gd` only checks MENTION_EVERYONE (line 117); should disable input when user lacks SEND_MESSAGES for the current channel
+
+### RBAC-3: Role colors not applied to usernames
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** permissions
+- **Notes:** Role `color` is stored and editable but never rendered on member names in messages or the member list
+
+### RBAC-4: No hoist-based member list sections
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** permissions
+- **Notes:** `AccordRole.hoist` is stored and editable but the member list does not group members by hoisted roles
+
+### RBAC-5: VIEW_CHANNEL imposter filter is coarse
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** permissions
+- **Notes:** `channel_list.gd:50` checks if the role has VIEW_CHANNEL globally, not per-channel via overwrites -- so all channels are shown or hidden uniformly
+
+### RBAC-6: No drag-and-drop role reorder
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** permissions, ui
+- **Notes:** Role reordering uses up/down arrow buttons (`role_row.gd:14-15`); drag-and-drop would be more intuitive
+
+### RBAC-7: No permission descriptions
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** permissions, ui
+- **Notes:** Permission checkboxes show formatted names only (e.g., "Manage Channels"); no tooltip or description explains what each permission does
+
+### RBAC-8: No CONNECT permission check for voice
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** permissions, voice
+- **Notes:** Voice channel join does not check `CONNECT` permission before attempting to join
+
+### RBAC-9: No ATTACH_FILES permission check
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** permissions
+- **Notes:** File upload in composer does not check `ATTACH_FILES` permission
+
+### RBAC-10: No EMBED_LINKS permission check
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** permissions
+- **Notes:** URL previews are not gated by `EMBED_LINKS` permission

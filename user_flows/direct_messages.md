@@ -124,13 +124,46 @@ DM Channel Routing (client.gd):
 - [x] DM close button (X on hover)
 - [x] Group DM display (comma-separated names)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Status | Notes |
-|-----|--------|-------|
-| ~~No UI to start a new DM~~ | Done | Right-click member -> "Message" creates/opens DM via `Client.create_dm()` |
-| ~~last_message always empty~~ | Done | `_fetch_dm_previews()` fetches last message content asynchronously after initial load |
-| ~~unread always false~~ | Done | Unread state preserved across re-fetches; `mark_channel_unread()` works for DM channels |
-| ~~No multi-server DM~~ | Done | `fetch_dm_channels()` iterates all connected servers; `_dm_to_conn` routes API calls |
-| ~~No DM close/leave~~ | Done | Close button (X) on hover in DM items, calls `Client.close_dm()` |
-| ~~No group DM support in UI~~ | Done | `dm_channel_to_dict()` extracts all recipients; group DMs show comma-separated names |
+### DM-1: No UI to start a new DM
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** dm, ui
+- **Notes:** Right-click member -> "Message" creates/opens DM via `Client.create_dm()`
+
+### DM-2: last_message always empty
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api
+- **Notes:** `_fetch_dm_previews()` fetches last message content asynchronously after initial load
+
+### DM-3: unread always false
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, dm
+- **Notes:** Unread state preserved across re-fetches; `mark_channel_unread()` works for DM channels
+
+### DM-4: No multi-server DM
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, dm
+- **Notes:** `fetch_dm_channels()` iterates all connected servers; `_dm_to_conn` routes API calls
+
+### DM-5: No DM close/leave
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** dm, ui
+- **Notes:** Close button (X) on hover in DM items, calls `Client.close_dm()`
+
+### DM-6: No group DM support in UI
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ci, dm, ui
+- **Notes:** `dm_channel_to_dict()` extracts all recipients; group DMs show comma-separated names

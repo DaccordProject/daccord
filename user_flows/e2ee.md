@@ -177,17 +177,74 @@ The key ratchet provides forward secrecy for voice sessions. When `ratchet_share
 - [ ] Error handling for mixed encrypted/unencrypted participants
 - [ ] Message-level E2EE (text messages over REST/gateway — not covered by LiveKit E2EE)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Release binaries not built with E2EE | High | `SConstruct` line 121 requires `e2ee=yes` build arg. Current release binaries from `build.sh` do not pass this flag. The LiveKit C++ SDK build must also include E2EE symbols. |
-| No key exchange protocol | High | The server (`AccordVoiceServerUpdate`) has no field for encryption keys. Without a key exchange mechanism, clients have no way to agree on a shared key. Options: (a) server distributes a per-channel ephemeral key in the join response, (b) channel creator sets a passphrase that others must enter, (c) SAS (Short Authentication String) verification between participants. |
-| `LiveKitAdapter` does not pass E2EE options | High | `connect_to_room()` (`livekit_adapter.gd`, line 72) passes `{"auto_reconnect": false}` — no `"e2ee"` key. Needs to construct `LiveKitE2eeOptions`, set the shared key, and include it in the options dictionary. |
-| `LiveKitAdapter` does not connect E2EE signals | High | The two E2EE signals (`e2ee_state_changed`, `participant_encryption_status_changed`) emitted by `LiveKitRoom` (lines 723-743 of `livekit_room.cpp`) are not connected in `connect_to_room()` (`livekit_adapter.gd`, lines 62-71). |
-| No E2EE config persistence | Medium | `config_voice.gd` has no `get_e2ee_enabled()` / `set_e2ee_enabled()` methods. User preference for E2EE should be persisted per-profile. |
-| No AppState E2EE signals | Medium | `app_state.gd` has no signals for E2EE status changes. UI components need `e2ee_status_changed(user_id, is_encrypted)` to render lock icons. |
-| No UI for encryption status | Medium | No lock icon on voice channel items, no per-participant encryption badge, no E2EE toggle in voice settings. |
-| No HTTP fallback (resolved) | N/A | The client no longer falls back from HTTPS to HTTP. Transport encryption is guaranteed for REST/gateway traffic. |
-| No message-level E2EE | Low | LiveKit E2EE covers only voice/video media. Text messages sent via REST and gateway WebSocket are protected by TLS in transit but are readable by the server. Message-level E2EE would require a separate encryption layer (e.g., Signal Protocol / Double Ratchet). |
-| `ClassDB.class_exists()` runtime guard needed | Medium | Since E2EE classes are conditionally compiled, daccord code must check `ClassDB.class_exists("LiveKitE2eeOptions")` at runtime before attempting to use them — same pattern as `test_e2ee.gd` line 7. Otherwise, the client crashes on non-E2EE builds. |
+### E2EE-1: Release binaries not built with E2EE
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** ci, security, voice
+- **Notes:** `SConstruct` line 121 requires `e2ee=yes` build arg. Current release binaries from `build.sh` do not pass this flag. The LiveKit C++ SDK build must also include E2EE symbols.
+
+### E2EE-2: No key exchange protocol
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 4
+- **Tags:** ci, security, voice
+- **Notes:** The server (`AccordVoiceServerUpdate`) has no field for encryption keys. Without a key exchange mechanism, clients have no way to agree on a shared key. Options: (a) server distributes a per-channel ephemeral key in the join response, (b) channel creator sets a passphrase that others must enter, (c) SAS (Short Authentication String) verification between participants.
+
+### E2EE-3: `LiveKitAdapter` does not pass E2EE options
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** security, voice
+- **Notes:** `connect_to_room()` (`livekit_adapter.gd`, line 72) passes `{"auto_reconnect": false}` — no `"e2ee"` key. Needs to construct `LiveKitE2eeOptions`, set the shared key, and include it in the options dictionary.
+
+### E2EE-4: `LiveKitAdapter` does not connect E2EE signals
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** ci, security, voice
+- **Notes:** The two E2EE signals (`e2ee_state_changed`, `participant_encryption_status_changed`) emitted by `LiveKitRoom` (lines 723-743 of `livekit_room.cpp`) are not connected in `connect_to_room()` (`livekit_adapter.gd`, lines 62-71).
+
+### E2EE-5: No E2EE config persistence
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** config, security, voice
+- **Notes:** `config_voice.gd` has no `get_e2ee_enabled()` / `set_e2ee_enabled()` methods. User preference for E2EE should be persisted per-profile.
+
+### E2EE-6: No AppState E2EE signals
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** security, ui
+- **Notes:** `app_state.gd` has no signals for E2EE status changes. UI components need `e2ee_status_changed(user_id, is_encrypted)` to render lock icons.
+
+### E2EE-7: No UI for encryption status
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** ci, config, security, ui, voice
+- **Notes:** No lock icon on voice channel items, no per-participant encryption badge, no E2EE toggle in voice settings.
+
+### E2EE-8: No HTTP fallback
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, gateway, security
+- **Notes:** The client no longer falls back from HTTPS to HTTP. Transport encryption is guaranteed for REST/gateway traffic.
+
+### E2EE-9: No message-level E2EE
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 5
+- **Tags:** api, gateway, security, video, voice
+- **Notes:** LiveKit E2EE covers only voice/video media. Text messages sent via REST and gateway WebSocket are protected by TLS in transit but are readable by the server. Message-level E2EE would require a separate encryption layer (e.g., Signal Protocol / Double Ratchet).
+
+### E2EE-10: `ClassDB.class_exists()` runtime guard needed
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, security, testing, voice
+- **Notes:** Since E2EE classes are conditionally compiled, daccord code must check `ClassDB.class_exists("LiveKitE2eeOptions")` at runtime before attempting to use them — same pattern as `test_e2ee.gd` line 7. Otherwise, the client crashes on non-E2EE builds.

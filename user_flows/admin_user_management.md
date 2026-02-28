@@ -295,8 +295,11 @@ The member context menu role toggle (`_toggle_role()`, line 120 of `member_item.
 - [x] Parallel bulk invite revoke with error tracking
 - [x] Role member count display in role management dialog
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Audit log depends on server endpoint | Medium | The client-side audit log viewer (`audit_log_dialog.gd`) calls `GET /spaces/{id}/audit-log` which must be implemented in accordserver. Until then, the dialog will show an error. |
+### AUSRMGMT-1: Audit log depends on server endpoint
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** api, ui
+- **Notes:** The client-side audit log viewer (`audit_log_dialog.gd`) calls `GET /spaces/{id}/audit-log` which must be implemented in accordserver. Until then, the dialog will show an error.

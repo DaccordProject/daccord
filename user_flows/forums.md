@@ -279,11 +279,32 @@ Gateway events for forum channels need special handling in `client_gateway.gd`:
 - [x] Responsive layout for forum view + thread panel
 - [ ] Server-side forum/thread support in accordserver
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| ~~Compact layout forum UX~~ | ~~Low~~ | ~~Resolved: forum_view adapts header (compact "+" button, smaller title), forum_post_row hides avatar/activity in compact, thread_panel shows "\u2190 Back" button and drops min-width.~~ |
-| No post pinning or archiving | Low | `AccordChannel` has `archived` and `auto_archive_after` fields (channel.gd lines 21-22) but no UI uses them. |
-| Server-side forum support missing | High | accordserver needs to support `title` field on messages and the `top_level=true` query param for listing forum posts. Until then, `list_posts()` falls back to listing all messages in the channel. |
-| Edit post UI | Low | No inline edit for forum post title+body. Users can edit content via the thread panel. |
+### FORUM-1: Compact layout forum UX
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** : forum_view adapts header (compact "+" button, smaller title), forum_post_row hides avatar/activity in compact, thread_panel shows "\u2190 Back" button and drops min-width.
+
+### FORUM-2: No post pinning or archiving
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** `AccordChannel` has `archived` and `auto_archive_after` fields (channel.gd lines 21-22) but no UI uses them.
+
+### FORUM-3: Server-side forum support missing
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** accordserver needs to support `title` field on messages and the `top_level=true` query param for listing forum posts. Until then, `list_posts()` falls back to listing all messages in the channel.
+
+### FORUM-4: Edit post UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** No inline edit for forum post title+body. Users can edit content via the thread panel.

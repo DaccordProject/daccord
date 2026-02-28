@@ -170,15 +170,60 @@ Built by `UserSettingsDanger.build_password_page()` (line 23). Three secret fiel
 - [ ] Per-server data deletion request
 - [ ] Message content purge confirmation (cascade behavior unclear)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No server-side data export | High | Users cannot download their messages, attachments, or profile data from the server. Only client config is exportable. GDPR Article 20 (data portability) requires export of personal data in a machine-readable format. |
-| No local cleanup after account deletion | Medium | `_on_delete_account()` calls `tree.quit()` (line 189) but does not clear `user://profiles/`, emoji cache, or the profile registry. Stale credentials and cached data remain on disk. |
-| No privacy policy display | Medium | No in-app privacy policy, terms of service, or data processing disclosure. Users have no way to review what data is collected or how it's processed. |
-| Message cascade behavior unknown | Medium | `DELETE /users/@me` deletes the account, but it's unclear whether server-side messages, reactions, and attachments are also purged. GDPR Article 17 requires erasure of all personal data. |
-| OAuth connections are read-only | Low | `server_settings.gd:139` lists connections but provides no disconnect/revoke button. Users cannot revoke third-party access from within daccord. |
-| No data retention policy | Low | No indication of how long server-side data is retained. No TTL on message cache, attachment storage, or audit logs. |
-| Error breadcrumbs include IDs | Low | `error_reporting.gd` sends space/channel IDs as breadcrumbs (lines 75-83) and Sentry tags (lines 124-135). While not PII, these are pseudonymous identifiers that could be cross-referenced. |
-| Exported profile includes credentials | Low | `Config.export_config()` writes the full ConfigFile including server tokens and stored username/password pairs (`config.gd:540-543`). The export file is unencrypted. |
+### GDPR-1: No server-side data export
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 4
+- **Tags:** ci, config, gdpr
+- **Notes:** Users cannot download their messages, attachments, or profile data from the server. Only client config is exportable. GDPR Article 20 (data portability) requires export of personal data in a machine-readable format.
+
+### GDPR-2: No local cleanup after account deletion
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** emoji, performance
+- **Notes:** `_on_delete_account()` calls `tree.quit()` (line 189) but does not clear `user://profiles/`, emoji cache, or the profile registry. Stale credentials and cached data remain on disk.
+
+### GDPR-3: No privacy policy display
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** gdpr
+- **Notes:** No in-app privacy policy, terms of service, or data processing disclosure. Users have no way to review what data is collected or how it's processed.
+
+### GDPR-4: Message cascade behavior unknown
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** emoji, gdpr
+- **Notes:** `DELETE /users/@me` deletes the account, but it's unclear whether server-side messages, reactions, and attachments are also purged. GDPR Article 17 requires erasure of all personal data.
+
+### GDPR-5: OAuth connections are read-only
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config, security, ui
+- **Notes:** `server_settings.gd:139` lists connections but provides no disconnect/revoke button. Users cannot revoke third-party access from within daccord.
+
+### GDPR-6: No data retention policy
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** performance
+- **Notes:** No indication of how long server-side data is retained. No TTL on message cache, attachment storage, or audit logs.
+
+### GDPR-7: Error breadcrumbs include IDs
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** security
+- **Notes:** `error_reporting.gd` sends space/channel IDs as breadcrumbs (lines 75-83) and Sentry tags (lines 124-135). While not PII, these are pseudonymous identifiers that could be cross-referenced.
+
+### GDPR-8: Exported profile includes credentials
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, config, security
+- **Notes:** `Config.export_config()` writes the full ConfigFile including server tokens and stored username/password pairs (`config.gd:540-543`). The export file is unencrypted.

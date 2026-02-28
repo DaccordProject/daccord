@@ -181,6 +181,6 @@ User drags standalone space onto folder center
 - [x] Drag-to-folder (drop standalone space onto folder to add it)
 - [x] Order maintenance on rename/delete/move-to-folder/remove-from-folder
 
-## Gaps / TODO
+## Tasks
 
-None.
+No open tasks.

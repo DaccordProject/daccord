@@ -258,12 +258,39 @@ Server-side URL unfurling:
 - [x] Image error state (red "Failed to load image" indicator)
 - [x] Audio attachment inline player (play/pause, progress slider)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No YouTube embed support | Medium | YouTube links get basic OpenGraph unfurling but not the rich video player experience. Would need oEmbed provider list and specialized rendering. |
-| No video host embeds | Medium | Vimeo, Twitch, Streamable need oEmbed integration for rich previews beyond basic OpenGraph. |
-| Max image size hardcoded | Low | 400x300 max dimensions are hardcoded. Not configurable or responsive to viewport width. |
-| Audio format support limited | Low | Only OGG and MP3 are attempted. WAV and other formats fall back to download link. |
-| GIF not rendered inline | Low | Godot 4 has limited GIF support; would need a GIF decoder addon or server-side conversion to WebP/APNG for inline animation. |
+### EMBED-1: No YouTube embed support
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, video
+- **Notes:** YouTube links get basic OpenGraph unfurling but not the rich video player experience. Would need oEmbed provider list and specialized rendering.
+
+### EMBED-2: No video host embeds
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** video
+- **Notes:** Vimeo, Twitch, Streamable need oEmbed integration for rich previews beyond basic OpenGraph.
+
+### EMBED-3: Max image size hardcoded
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config
+- **Notes:** 400x300 max dimensions are hardcoded. Not configurable or responsive to viewport width.
+
+### EMBED-4: Audio format support limited
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** audio
+- **Notes:** Only OGG and MP3 are attempted. WAV and other formats fall back to download link.
+
+### EMBED-5: GIF not rendered inline
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** Godot 4 has limited GIF support; would need a GIF decoder addon or server-side conversion to WebP/APNG for inline animation.

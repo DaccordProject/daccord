@@ -66,9 +66,25 @@ Disable 2FA
 - [ ] Retrieve backup codes after initial setup (using `get_backup_codes()`)
 - [ ] Copy affordance for secret and backup codes
 
-## Gaps / TODO
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| 2FA status not fetched on page open | High | `_status_label` defaults to "not enabled" and never queries server state (`user_settings_twofa.gd`, line 22). |
-| Backup codes only shown once | Medium | `AuthApi.get_backup_codes()` exists but is unused; there is no way to re-fetch codes after setup (`auth_api.gd`, line 59). |
-| No copy UI for secret or backup codes | Medium | Both are plain `Label` values with no clipboard action (`user_settings_twofa.gd`, lines 30-55, 130-133). |
+## Tasks
+
+### 2FA-1: 2FA status not fetched on page open
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** api, config, security
+- **Notes:** `_status_label` defaults to "not enabled" and never queries server state (`user_settings_twofa.gd`, line 22).
+
+### 2FA-2: Backup codes only shown once
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api, security
+- **Notes:** `AuthApi.get_backup_codes()` exists but is unused; there is no way to re-fetch codes after setup (`auth_api.gd`, line 59).
+
+### 2FA-3: No copy UI for secret or backup codes
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** config, ui
+- **Notes:** Both are plain `Label` values with no clipboard action (`user_settings_twofa.gd`, lines 30-55, 130-133).

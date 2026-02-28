@@ -251,8 +251,6 @@ Category CRUD and reorder operations are gated behind `AccordPermission.MANAGE_C
 - [x] Channel-to-category header drop — dropping a channel directly onto a category header to re-parent it
 - [x] Channel-to-uncategorized drop — drop onto the uncategorized root target when the root list is empty
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| None | - | - |
+No open tasks.

@@ -323,6 +323,6 @@ Toggling a space folder (`_toggle_expanded`) swaps between a mini-grid preview a
 - [x] Loading skeleton shimmer animation
 - [x] Gesture-driven drawer swipe (open + close)
 
-## Gaps / TODO
+## Tasks
 
-No remaining gaps.
+No open tasks.

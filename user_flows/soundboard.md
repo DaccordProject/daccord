@@ -186,9 +186,18 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 - [x] ClientModels `sound_to_dict()` converter
 - [x] Voice join/leave UI (implemented -- see `voice_channels.md`)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No server-side audio mixing | Low | Audio is played client-side when receiving the `soundboard.play` gateway event; server-side SFU mixing is not implemented and may not be needed |
-| No personal soundboard | Low | Design only covers server-wide sounds; personal/user-level soundboards are not planned |
+### SOUND-1: No server-side audio mixing
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** audio, gateway, voice
+- **Notes:** Audio is played client-side when receiving the `soundboard.play` gateway event; server-side SFU mixing is not implemented and may not be needed
+
+### SOUND-2: No personal soundboard
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** audio
+- **Notes:** Design only covers server-wide sounds; personal/user-level soundboards are not planned

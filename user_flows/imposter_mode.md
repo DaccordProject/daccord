@@ -141,13 +141,53 @@ For the "Custom…" option, reuse the checkbox grid pattern from `role_managemen
 - [ ] "View As…" menu item in space icon context menu
 - [ ] "View As…" menu item in banner admin dropdown
 
-## Gaps / TODO
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No `has_channel_permission()` utility | High | `has_permission()` (client.gd:438) only checks space-level role permissions. Channel overwrites are only read in `channel_permissions_dialog.gd` for editing, not for runtime evaluation. Imposter mode needs a channel-aware permission resolver to correctly hide channels and gate per-channel actions. |
-| No channel visibility filtering | High | `channel_list.gd` shows all channels unconditionally. Even outside imposter mode, channels the user can't view should arguably be hidden. This is a prerequisite for imposter mode's channel filtering. |
-| Write protection during preview | Medium | If the admin clicks "Send" while previewing @everyone, the message would actually send (with admin permissions on the server). Either disable all mutations client-side, or add a confirmation dialog warning that actions are performed with real permissions. Design decision needed. |
-| DM mode interaction | Medium | Imposter mode is scoped to a single space. Entering DM mode while in imposter mode should either exit imposter mode automatically or block the transition. |
-| Multiple role combination | Low | Real users can have multiple roles whose permissions merge. The role picker only previews one role at a time. A "multi-role" picker (select several roles to merge) would be more accurate but adds complexity. |
-| Voice channel restrictions | Low | Voice channels gated by `connect` / `speak` permissions should appear disabled or hidden in imposter mode. Currently voice permission checks happen in LiveKit, not through `Client.has_permission()`. |
-| Notification suppression | Low | In imposter mode, the admin may receive mention highlights or unread badges that a regular user in that role wouldn't see (e.g., admin-only channel mentions). Consider suppressing notifications for hidden channels. |
+## Tasks
+
+### IMPOSTER-1: No `has_channel_permission()` utility
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** permissions, ui
+- **Notes:** `has_permission()` (client.gd:438) only checks space-level role permissions. Channel overwrites are only read in `channel_permissions_dialog.gd` for editing, not for runtime evaluation. Imposter mode needs a channel-aware permission resolver to correctly hide channels and gate per-channel actions.
+
+### IMPOSTER-2: No channel visibility filtering
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** `channel_list.gd` shows all channels unconditionally. Even outside imposter mode, channels the user can't view should arguably be hidden. This is a prerequisite for imposter mode's channel filtering.
+
+### IMPOSTER-3: Write protection during preview
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, permissions, ui
+- **Notes:** If the admin clicks "Send" while previewing @everyone, the message would actually send (with admin permissions on the server). Either disable all mutations client-side, or add a confirmation dialog warning that actions are performed with real permissions. Design decision needed.
+
+### IMPOSTER-4: DM mode interaction
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** dm
+- **Notes:** Imposter mode is scoped to a single space. Entering DM mode while in imposter mode should either exit imposter mode automatically or block the transition.
+
+### IMPOSTER-5: Multiple role combination
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** permissions
+- **Notes:** Real users can have multiple roles whose permissions merge. The role picker only previews one role at a time. A "multi-role" picker (select several roles to merge) would be more accurate but adds complexity.
+
+### IMPOSTER-6: Voice channel restrictions
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, permissions, voice
+- **Notes:** Voice channels gated by `connect` / `speak` permissions should appear disabled or hidden in imposter mode. Currently voice permission checks happen in LiveKit, not through `Client.has_permission()`.
+
+### IMPOSTER-7: Notification suppression
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** permissions, ui
+- **Notes:** In imposter mode, the admin may receive mention highlights or unread badges that a regular user in that role wouldn't see (e.g., admin-only channel mentions). Consider suppressing notifications for hidden channels.

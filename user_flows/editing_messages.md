@@ -241,6 +241,6 @@ The `editing_message_id` and `replying_to_message_id` are mutually exclusive -- 
 - [x] Empty edit feedback ("Empty message not saved" hint)
 - [x] Keyboard hints below edit TextEdit (Enter/Escape/Shift+Enter)
 
-## Gaps / TODO
+## Tasks
 
-No known gaps.
+No open tasks.

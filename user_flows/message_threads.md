@@ -295,12 +295,39 @@ Default behavior ("default") follows the channel's notification settings.
 - [ ] Client-side permission checks for `CREATE_THREADS` / `SEND_IN_THREADS`
 - [ ] Thread mention tracking (separate from channel mention counts)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No thread list view UI | Medium | Backend `GET /channels/{cid}/threads` and client `fetch_active_threads()` exist, but no UI panel to browse active threads. Need a "Threads" button in channel header opening a list view. |
-| Thread permissions unused | Medium | `CREATE_THREADS` and `SEND_IN_THREADS` exist in permission.gd (lines 40-43) but no client code checks them before allowing thread creation or replies. |
-| No thread notification UI | Low | `Config.get_thread_notifications()` / `set_thread_notifications()` persist settings, but no bell icon or popup in the thread panel header exposes this to users. |
-| No thread mention tracking | Low | Thread replies that mention the current user are not tracked separately from channel mentions. The thread indicator could show a mention badge. |
-| No thread typing indicator | Low | Thread panel has no typing indicator for users typing in the thread. |
+### THREAD-1: No thread list view UI
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** api, ci, ui
+- **Notes:** Backend `GET /channels/{cid}/threads` and client `fetch_active_threads()` exist, but no UI panel to browse active threads. Need a "Threads" button in channel header opening a list view.
+
+### THREAD-2: Thread permissions unused
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** permissions
+- **Notes:** `CREATE_THREADS` and `SEND_IN_THREADS` exist in permission.gd (lines 40-43) but no client code checks them before allowing thread creation or replies.
+
+### THREAD-3: No thread notification UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** `Config.get_thread_notifications()` / `set_thread_notifications()` persist settings, but no bell icon or popup in the thread panel header exposes this to users.
+
+### THREAD-4: No thread mention tracking
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Thread replies that mention the current user are not tracked separately from channel mentions. The thread indicator could show a mention badge.
+
+### THREAD-5: No thread typing indicator
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** ui
+- **Notes:** Thread panel has no typing indicator for users typing in the thread.

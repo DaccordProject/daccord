@@ -311,23 +311,116 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - [x] Unit tests for MessageViewScroll -- old_message_count, auto_scroll, get_last_message_child (8 tests)
 - [ ] No mock/stub/double usage anywhere (real objects only)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No tests for `ClientFetch` | High | `scripts/autoload/client_fetch.gd` handles REST data fetching. No unit tests. |
-| No tests for `ClientAdmin` | Medium | `scripts/autoload/client_admin.gd` handles admin operations. No unit tests. |
-| No tests for `ClientMutations` | Medium | `scripts/autoload/client_mutations.gd` handles message send/edit/delete, reactions, typing. No unit tests. |
-| No tests for `ClientConnection` | Medium | `scripts/autoload/client_connection.gd` handles server connect/disconnect/reconnect lifecycle. No unit tests. |
-| No tests for message_view | Medium | `scenes/messages/message_view.gd` (the scroll container / message list manager) is untested due to heavy `Client` dependency. `MessageViewScroll` (the scroll helper) now has basic tests, and individual message components (cozy, collapsed, content) are tested. |
-| No tests for sidebar containers | Medium | Parent containers (`sidebar.gd`, `channel_list.gd`, `guild_bar.gd`) are untested due to heavy `Client` dependency. Leaf components (channel_item, category_item, guild_icon, guild_folder) are tested. |
-| No tests for member_list | Low | `scenes/members/member_list.gd` -- member panel display untested. |
-| No tests for admin dialogs | Medium | 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. Settings panels now have smoke tests (`test_user_settings.gd`). |
-| No tests for emoji_picker | Low | `scenes/messages/composer/emoji_picker.gd` -- emoji search, category filtering, insertion untested. |
-| No tests for search_panel | Low | `scenes/search/search_panel.gd` -- search UI untested. |
-| No tests for `SoundManager` autoload | Low | `scripts/autoload/sound_manager.gd` -- sound event playback and volume control have no tests. |
-| Gateway/e2e CI is non-blocking | Medium | `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 330). LiveKit tests also use `continue-on-error: true` (line 141). AccordKit unit and REST integration tests are blocking. |
-| `test_disconnect_clean_state` is a smoke test | Low | `tests/accordkit/gateway/test_gateway_connect.gd` -- the disconnect test just asserts `true` after logout; does not verify internal connection state. |
-| No mock/stub/double usage | Medium | All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree. |
-| GDExtension binary staleness undetected | Medium | LiveKit source changes (e.g., adding `set_output_device()`) are not automatically rebuilt. Stale binaries cause GDScript parse errors that cascade through dependent scripts. CI doesn't verify that the binary matches the source. |
-| No tests for responsive layout behavior | Low | Layout mode breakpoints are tested in `test_app_state.gd`, but the actual UI response (sidebar drawer, hamburger button, panel visibility) in `main_window.gd` is untested. |
+### TEST-1: No tests for `ClientFetch`
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 1
+- **Tags:** api, testing
+- **Notes:** `scripts/autoload/client_fetch.gd` handles REST data fetching. No unit tests.
+
+### TEST-2: No tests for `ClientAdmin`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** testing
+- **Notes:** `scripts/autoload/client_admin.gd` handles admin operations. No unit tests.
+
+### TEST-3: No tests for `ClientMutations`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** emoji, testing
+- **Notes:** `scripts/autoload/client_mutations.gd` handles message send/edit/delete, reactions, typing. No unit tests.
+
+### TEST-4: No tests for `ClientConnection`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** testing
+- **Notes:** `scripts/autoload/client_connection.gd` handles server connect/disconnect/reconnect lifecycle. No unit tests.
+
+### TEST-5: No tests for message_view
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** testing
+- **Notes:** `scenes/messages/message_view.gd` (the scroll container / message list manager) is untested due to heavy `Client` dependency. `MessageViewScroll` (the scroll helper) now has basic tests, and individual message components (cozy, collapsed, content) are tested.
+
+### TEST-6: No tests for sidebar containers
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** testing, ui
+- **Notes:** Parent containers (`sidebar.gd`, `channel_list.gd`, `guild_bar.gd`) are untested due to heavy `Client` dependency. Leaf components (channel_item, category_item, guild_icon, guild_folder) are tested.
+
+### TEST-7: No tests for member_list
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** testing, ui
+- **Notes:** `scenes/members/member_list.gd` -- member panel display untested.
+
+### TEST-8: No tests for admin dialogs
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** audio, config, emoji, permissions, testing, ui
+- **Notes:** 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. Settings panels now have smoke tests (`test_user_settings.gd`).
+
+### TEST-9: No tests for emoji_picker
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** emoji, testing
+- **Notes:** `scenes/messages/composer/emoji_picker.gd` -- emoji search, category filtering, insertion untested.
+
+### TEST-10: No tests for search_panel
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** testing, ui
+- **Notes:** `scenes/search/search_panel.gd` -- search UI untested.
+
+### TEST-11: No tests for `SoundManager` autoload
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** audio, gateway, testing
+- **Notes:** `scripts/autoload/sound_manager.gd` -- sound event playback and volume control have no tests.
+
+### TEST-12: Gateway/e2e CI is non-blocking
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** api, ci, gateway, testing, voice
+- **Notes:** `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 330). LiveKit tests also use `continue-on-error: true` (line 141). AccordKit unit and REST integration tests are blocking.
+
+### TEST-13: `test_disconnect_clean_state` is a smoke test
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** gateway, testing
+- **Notes:** `tests/accordkit/gateway/test_gateway_connect.gd` -- the disconnect test just asserts `true` after logout; does not verify internal connection state.
+
+### TEST-14: No mock/stub/double usage
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, testing
+- **Notes:** All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree.
+
+### TEST-15: GDExtension binary staleness undetected
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, voice
+- **Notes:** LiveKit source changes (e.g., adding `set_output_device()`) are not automatically rebuilt. Stale binaries cause GDScript parse errors that cascade through dependent scripts. CI doesn't verify that the binary matches the source.
+
+### TEST-16: No tests for responsive layout behavior
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** testing, ui
+- **Notes:** Layout mode breakpoints are tested in `test_app_state.gd`, but the actual UI response (sidebar drawer, hamburger button, panel visibility) in `main_window.gd` is untested.

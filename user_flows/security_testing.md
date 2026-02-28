@@ -269,23 +269,116 @@ Importing a `.daccord-profile` file replaces the entire in-memory config. While 
 - [x] Config import validation / key allowlisting (token/password stripped)
 - [x] Random per-profile salt for password hashing
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Status | Notes |
-|-----|----------|--------|-------|
-| HTTPS silently downgrades to HTTP | High | **FIXED** | User confirmation dialog required before downgrading. Downgraded URL no longer auto-persisted. |
-| System messages have no BBCode sanitization | High | **FIXED** | `[` characters escaped with `[lb]` in system messages. |
-| Silent fallback to plaintext config storage | High | **FIXED** | Plaintext fallback removed. On encrypted save failure, emits `config_save_failed` signal and keeps data in memory. |
-| Attachment filename BBCode injection | Medium | **FIXED** | `fname` escaped with `[lb]` before BBCode insertion. |
-| Custom emoji path unsanitized in BBCode | Medium | **FIXED** | Paths validated against scheme allowlist (`http://`, `https://`, `user://profiles/`, `res://`) and `[` characters escaped. |
-| `[img=` on sanitizer allowlist | Medium | Mitigated | Custom emoji paths now scheme-checked. `[img=` still on the allowlist for converter-produced tags; arbitrary `[img=res://` in user messages still possible but limited to valid Godot resource paths. |
-| Profile password hash uses SHA-256, no key-stretching | Medium | **FIXED** | PBKDF2-HMAC-SHA256 with 10,000 iterations and random per-profile salt. Legacy hashes auto-upgrade on successful verify. |
-| Config encryption key is deterministic | Medium | Open | `config.gd:_derive_key()` still uses `_SALT + OS.get_user_data_dir()`. Improving this requires platform-specific keychain integration. |
-| PII scrubbing only covers event.message | Medium | **FIXED** | Breadcrumb messages now scrubbed through `scrub_pii_text()` at input boundary. Stack trace scrubbing limited by SentryEvent API. |
-| Config import accepts arbitrary keys | Medium | **FIXED** | Import now strips `token` and `password` keys. |
-| `DEBUG_VOICE_LOGS` hardcoded true | Low | **FIXED** | Now configurable via settings (default off). Log rotation at 1MB. |
-| Password generation uses `randi()` (not CSPRNG) | Low | **FIXED** | Uses `Crypto.generate_random_bytes()`. |
-| URL scheme blocklist is incomplete | Low | Mitigated | `_is_dangerous_scheme()` checks applied to both markdown links and raw BBCode `[url=]` tags. `_on_meta_clicked` still restricts `OS.shell_open()` to `http(s)://`. |
-| Nonce generator exists but is unused | Low | Open | `snowflake.gd:generate_nonce()` uses `randi()` -- not used in production. |
-| No client-side message send rate limiting | Low | **FIXED** | 500ms cooldown between sends in composer. |
-| Profile registry saved unencrypted | Low | Mitigated | Registry contains password hashes (now PBKDF2 with random salt, not trivially reversible). No tokens stored. |
+### SEC-1: HTTPS silently downgrades to HTTP
+- **Status:** done
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** config, security, ui
+- **Notes:** User confirmation dialog required before downgrading. Downgraded URL no longer auto-persisted.
+
+### SEC-2: System messages have no BBCode sanitization
+- **Status:** done
+- **Impact:** 4
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** `[` characters escaped with `[lb]` in system messages.
+
+### SEC-3: Silent fallback to plaintext config storage
+- **Status:** done
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** config, security
+- **Notes:** Plaintext fallback removed. On encrypted save failure, emits `config_save_failed` signal and keeps data in memory.
+
+### SEC-4: Attachment filename BBCode injection
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** `fname` escaped with `[lb]` before BBCode insertion.
+
+### SEC-5: Custom emoji path unsanitized in BBCode
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** emoji, security
+- **Notes:** Paths validated against scheme allowlist (`http://`, `https://`, `user://profiles/`, `res://`) and `[` characters escaped.
+
+### SEC-6: `[img=` on sanitizer allowlist
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** emoji
+- **Notes:** Custom emoji paths now scheme-checked. `[img=` still on the allowlist for converter-produced tags; arbitrary `[img=res://` in user messages still possible but limited to valid Godot resource paths.
+
+### SEC-7: Profile password hash uses SHA-256, no key-stretching
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** security, voice
+- **Notes:** PBKDF2-HMAC-SHA256 with 10,000 iterations and random per-profile salt. Legacy hashes auto-upgrade on successful verify.
+
+### SEC-8: Config encryption key is deterministic
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, config, security
+- **Notes:** `config.gd:_derive_key()` still uses `_SALT + OS.get_user_data_dir()`. Improving this requires platform-specific keychain integration.
+
+### SEC-9: PII scrubbing only covers event.message
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api, gateway, security
+- **Notes:** Breadcrumb messages now scrubbed through `scrub_pii_text()` at input boundary. Stack trace scrubbing limited by SentryEvent API.
+
+### SEC-10: Config import accepts arbitrary keys
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** config, security
+- **Notes:** Import now strips `token` and `password` keys.
+
+### SEC-11: `DEBUG_VOICE_LOGS` hardcoded true
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** config, voice
+- **Notes:** Now configurable via settings (default off). Log rotation at 1MB.
+
+### SEC-12: Password generation uses `randi()` (not CSPRNG)
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** security
+- **Notes:** Uses `Crypto.generate_random_bytes()`.
+
+### SEC-13: URL scheme blocklist is incomplete
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api
+- **Notes:** `_is_dangerous_scheme()` checks applied to both markdown links and raw BBCode `[url=]` tags. `_on_meta_clicked` still restricts `OS.shell_open()` to `http(s)://`.
+
+### SEC-14: Nonce generator exists but is unused
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** `snowflake.gd:generate_nonce()` uses `randi()` -- not used in production.
+
+### SEC-15: No client-side message send rate limiting
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** 500ms cooldown between sends in composer.
+
+### SEC-16: Profile registry saved unencrypted
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** security
+- **Notes:** Registry contains password hashes (now PBKDF2 with random salt, not trivially reversible). No tokens stored.

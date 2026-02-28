@@ -320,6 +320,6 @@ The `AccordChannel` model has fields relevant to group DMs:
 - [x] Participant count badge on group DM list items
 - [x] Member list auto-updates on recipient changes via `dm_channels_updated` signal
 
-## Gaps / TODO
+## Tasks
 
-No known gaps — all group DM features are fully implemented.
+No open tasks.

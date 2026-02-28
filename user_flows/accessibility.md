@@ -237,16 +237,67 @@ Sound effects are configurable per-event through `Config` (lines 353-367) with a
 - [ ] Keyboard shortcut reference panel
 - [ ] Voice/video captions or transcription
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Focus indicators suppressed globally | High | `no_focus` StyleBoxEmpty applied to all 10 widget types in `discord_dark.tres` (line 2). Keyboard-only users cannot see which element is focused. Need a visible focus ring style, ideally toggled when keyboard navigation is detected. |
-| No focus order defined | High | Zero `focus_mode` or `focus_neighbor_*` properties set in any `.tscn` file. Tab key navigation follows scene tree order which may not match visual layout. Need explicit focus chains for sidebar -> channels -> messages -> composer flow. |
-| No screen reader support | High | No `accessible_name` or `accessible_description` properties set on any node. Messages, channels, and spaces lack semantic labels. Godot 4.x has limited screen reader support, but accessible names on key elements would help. |
-| No high-contrast theme | Medium | Single dark theme (`discord_dark.tres`) with no alternative. Placeholder text color `#949BA4` on `#2F3136` may not meet WCAG AA 4.5:1 contrast ratio for small text. Need at least a high-contrast dark variant. |
-| No font size scaling | Medium | Default font size hardcoded to 14px (`discord_dark.tres`, line 107). Individual overrides (e.g., edit hint at 11px on `message_content.gd:174`) are also fixed. Need a font scale multiplier in Config. |
-| Status indicators rely on color alone | Medium | Connection status dots, online/offline presence, and unread indicators use color as the sole differentiator. Color-blind users may not distinguish states. Add icons or patterns alongside color. |
-| No keyboard shortcut reference | Low | Keyboard shortcuts (Enter, Escape, Up, Shift+Enter) exist but are only documented in the edit hint label. No discoverable shortcut panel or help dialog. |
-| No voice/video captions | Low | Voice channels and video chat have no captioning or transcription support. Would require server-side speech-to-text integration. |
-| Context menu items lack tooltips | Low | PopupMenu entries in channel, category, space, folder, and member context menus have no tooltips. Godot's `set_item_tooltip()` could provide descriptions of each action. |
+### A11Y-1: Focus indicators suppressed globally
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 4
+- **Tags:** a11y
+- **Notes:** `no_focus` StyleBoxEmpty applied to all 10 widget types in `discord_dark.tres` (line 2). Keyboard-only users cannot see which element is focused. Need a visible focus ring style, ideally toggled when keyboard navigation is detected.
+
+### A11Y-2: No focus order defined
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** a11y, ci, ui
+- **Notes:** Zero `focus_mode` or `focus_neighbor_*` properties set in any `.tscn` file. Tab key navigation follows scene tree order which may not match visual layout. Need explicit focus chains for sidebar -> channels -> messages -> composer flow.
+
+### A11Y-3: No screen reader support
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** a11y
+- **Notes:** No `accessible_name` or `accessible_description` properties set on any node. Messages, channels, and spaces lack semantic labels. Godot 4.x has limited screen reader support, but accessible names on key elements would help.
+
+### A11Y-4: No high-contrast theme
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** a11y, ui
+- **Notes:** Single dark theme (`discord_dark.tres`) with no alternative. Placeholder text color `#949BA4` on `#2F3136` may not meet WCAG AA 4.5:1 contrast ratio for small text. Need at least a high-contrast dark variant.
+
+### A11Y-5: No font size scaling
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** Default font size hardcoded to 14px (`discord_dark.tres`, line 107). Individual overrides (e.g., edit hint at 11px on `message_content.gd:174`) are also fixed. Need a font scale multiplier in Config.
+
+### A11Y-6: Status indicators rely on color alone
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** Connection status dots, online/offline presence, and unread indicators use color as the sole differentiator. Color-blind users may not distinguish states. Add icons or patterns alongside color.
+
+### A11Y-7: No keyboard shortcut reference
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** a11y, ui
+- **Notes:** Keyboard shortcuts (Enter, Escape, Up, Shift+Enter) exist but are only documented in the edit hint label. No discoverable shortcut panel or help dialog.
+
+### A11Y-8: No voice/video captions
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** video, voice
+- **Notes:** Voice channels and video chat have no captioning or transcription support. Would require server-side speech-to-text integration.
+
+### A11Y-9: Context menu items lack tooltips
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** PopupMenu entries in channel, category, space, folder, and member context menus have no tooltips. Godot's `set_item_tooltip()` could provide descriptions of each action.

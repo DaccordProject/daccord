@@ -176,10 +176,11 @@ The Sound page (page 3) in User Settings (`scenes/user/user_settings.gd`) contai
 - [x] Window focus detection (suppresses `message_received` when focused)
 - [ ] Call ringing sound (blocked on DM call feature)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Call ringing sound | Low | DM calling does not exist yet, so call ringing is blocked on that feature. |
-
-Last touched: 2026-02-19
+### SFX-1: Call ringing sound
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** audio, dm
+- **Notes:** DM calling does not exist yet, so call ringing is blocked on that feature.

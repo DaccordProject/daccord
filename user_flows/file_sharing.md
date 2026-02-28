@@ -260,15 +260,60 @@ Message attachments use the multipart approach instead, since files can be much 
 - [ ] Image attachment click-to-expand (lightbox)
 - [ ] Server: image dimension detection for WebP/GIF formats
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No clipboard image paste | Medium | `composer.gd` `_on_text_input()` (line 55) only handles Enter/Up keys; no Ctrl+V interception for images via `DisplayServer.clipboard_get_image()` |
-| No large-text-to-file conversion | Medium | No threshold check on pasted text length; long pastes go directly into the message content field with no option to send as a `.txt` attachment |
-| No drag-and-drop onto composer | Medium | Drag-and-drop is only used for channel/category reordering; no file drop target in the composer or message view |
-| No upload progress indicator | Medium | `MultipartForm.build()` returns the complete body at once; no chunked upload or progress callback — large files will appear to hang |
-| No attachment count limit in composer UI | Low | The server enforces a max of 10 attachments per message (`MAX_ATTACHMENTS` in `messages.rs` line 18), but the composer has no visual limit — the user could queue more than 10 files and only get an error on send |
-| No image lightbox | Low | Clicking an inline image attachment opens the raw URL in the browser (`OS.shell_open`) rather than showing a zoomed view in-app |
-| Limited image format support | Low | `_load_image_attachment()` (lines 127-131) only tries PNG, JPG, WebP; GIF, SVG, and BMP are not handled |
-| Server image dimension detection limited | Low | `detect_image_dimensions()` only handles PNG and JPEG; WebP and GIF dimensions are not detected, so those image types will lack `width`/`height` in attachment data |
+### FILES-1: No clipboard image paste
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `composer.gd` `_on_text_input()` (line 55) only handles Enter/Up keys; no Ctrl+V interception for images via `DisplayServer.clipboard_get_image()`
+
+### FILES-2: No large-text-to-file conversion
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** No threshold check on pasted text length; long pastes go directly into the message content field with no option to send as a `.txt` attachment
+
+### FILES-3: No drag-and-drop onto composer
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Drag-and-drop is only used for channel/category reordering; no file drop target in the composer or message view
+
+### FILES-4: No upload progress indicator
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ci
+- **Notes:** `MultipartForm.build()` returns the complete body at once; no chunked upload or progress callback — large files will appear to hang
+
+### FILES-5: No attachment count limit in composer UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** The server enforces a max of 10 attachments per message (`MAX_ATTACHMENTS` in `messages.rs` line 18), but the composer has no visual limit — the user could queue more than 10 files and only get an error on send
+
+### FILES-6: No image lightbox
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Clicking an inline image attachment opens the raw URL in the browser (`OS.shell_open`) rather than showing a zoomed view in-app
+
+### FILES-7: Limited image format support
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `_load_image_attachment()` (lines 127-131) only tries PNG, JPG, WebP; GIF, SVG, and BMP are not handled
+
+### FILES-8: Server image dimension detection limited
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** `detect_image_dimensions()` only handles PNG and JPEG; WebP and GIF dimensions are not detected, so those image types will lack `width`/`height` in attachment data

@@ -168,19 +168,88 @@ android.arm64 = "res://addons/godot-livekit/bin/libgodot-livekit.android.arm64.s
 - [ ] Push notifications via FCM
 - [ ] LiveKit Android binary (voice/video on Android)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No Android export preset | High | `export_presets.cfg` has no Android entry. Godot needs this to produce APK/AAB output. Must define package name, SDK versions, permissions, and architecture. |
-| No Android CI pipeline entry | High | `release.yml` matrix (lines 29-49) only includes linux, linux-arm64, windows, macos. Needs an `android` entry with Java/SDK setup steps. |
-| Updater ignores Android | Medium | `_parse_release()` (updater.gd line 168) has no `"android"` branch in asset matching. `apply_update_and_restart()` (line 434) replaces the binary on disk, which is impossible on Android. Needs Play Store redirect or APK install intent. |
-| Single-instance guard may break | Medium | `single_instance.gd` line 38 uses `kill -0` to check PIDs, which may fail on Android's restricted process model. Should skip or use manifest `singleTask` launch mode. |
-| No Android back button handling | Medium | Android back button emits `ui_cancel` but no global handler maps it to close drawers, dialogs, or navigate back. |
-| No LiveKit Android binary | Medium | `godot-livekit.gdextension` has no Android entry. Voice and video will be unavailable. Extension is safely removed at build time. |
-| No keystore setup | Medium | Android APKs must be signed. Need to generate a release keystore, store it as a base64 GitHub secret, and decode it in CI. Unsigned APKs cannot be installed. |
-| No push notifications | Low | Messages only arrive while the gateway WebSocket is connected. Background delivery requires FCM on both client and server. |
-| No adaptive icon | Low | Android requires adaptive icons (foreground + background layers). Current icons in `dist/icons/` are standard PNGs. Need `res/mipmap-*` directories or Godot's icon override. |
-| No Play Store distribution | Low | Sideload via APK is sufficient initially. Play Store requires developer account, AAB format, and listing metadata. |
-| No F-Droid compliance | Low | F-Droid requires reproducible builds and no proprietary SDKs. Sentry may need to be optional. |
-| On-screen keyboard viewport handling | Low | Virtual keyboard may obscure the composer `TextEdit`. May need viewport resize or scroll-into-view logic. |
+### ANDROID-1: No Android export preset
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** ci, mobile, permissions
+- **Notes:** `export_presets.cfg` has no Android entry. Godot needs this to produce APK/AAB output. Must define package name, SDK versions, permissions, and architecture.
+
+### ANDROID-2: No Android CI pipeline entry
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** ci, mobile
+- **Notes:** `release.yml` matrix (lines 29-49) only includes linux, linux-arm64, windows, macos. Needs an `android` entry with Java/SDK setup steps.
+
+### ANDROID-3: Updater ignores Android
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** api, ci, mobile
+- **Notes:** `_parse_release()` (updater.gd line 168) has no `"android"` branch in asset matching. `apply_update_and_restart()` (line 434) replaces the binary on disk, which is impossible on Android. Needs Play Store redirect or APK install intent.
+
+### ANDROID-4: Single-instance guard may break
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** api, mobile
+- **Notes:** `single_instance.gd` line 38 uses `kill -0` to check PIDs, which may fail on Android's restricted process model. Should skip or use manifest `singleTask` launch mode.
+
+### ANDROID-5: No Android back button handling
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** mobile, ui
+- **Notes:** Android back button emits `ui_cancel` but no global handler maps it to close drawers, dialogs, or navigate back.
+
+### ANDROID-6: No LiveKit Android binary
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ci, mobile, video, voice
+- **Notes:** `godot-livekit.gdextension` has no Android entry. Voice and video will be unavailable. Extension is safely removed at build time.
+
+### ANDROID-7: No keystore setup
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, mobile
+- **Notes:** Android APKs must be signed. Need to generate a release keystore, store it as a base64 GitHub secret, and decode it in CI. Unsigned APKs cannot be installed.
+
+### ANDROID-8: No push notifications
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** gateway
+- **Notes:** Messages only arrive while the gateway WebSocket is connected. Background delivery requires FCM on both client and server.
+
+### ANDROID-9: No adaptive icon
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** mobile, ui
+- **Notes:** Android requires adaptive icons (foreground + background layers). Current icons in `dist/icons/` are standard PNGs. Need `res/mipmap-*` directories or Godot's icon override.
+
+### ANDROID-10: No Play Store distribution
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci
+- **Notes:** Sideload via APK is sufficient initially. Play Store requires developer account, AAB format, and listing metadata.
+
+### ANDROID-11: No F-Droid compliance
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci
+- **Notes:** F-Droid requires reproducible builds and no proprietary SDKs. Sentry may need to be optional.
+
+### ANDROID-12: On-screen keyboard viewport handling
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** a11y
+- **Notes:** Virtual keyboard may obscure the composer `TextEdit`. May need viewport resize or scroll-into-view logic.

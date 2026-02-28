@@ -104,14 +104,60 @@ Each `AuditLogRow` (line 103) is instantiated from `audit_log_row.tscn` and set 
 - [ ] Date range filtering
 - [ ] Export/download audit log
 
-## Gaps / TODO
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No gateway event for new audit log entries | Medium | The dialog fetches data on open but has no mechanism to receive real-time updates. A new entry created while the dialog is open won't appear until the user re-opens or changes filters. |
-| AccordAuditLogEntry model unused | Low | `audit_log_entry.gd` defines a typed model with `from_dict()`, but `audit_log_dialog.gd` works directly with raw dictionaries from `result.data` (line 84). The model could be used for type safety. |
-| Search is client-side only | Low | `_on_search_changed()` (audit_log_dialog.gd, line 119) filters the in-memory `_all_entries` array. If only one page was loaded, search can't find entries on unfetched pages. The `AuditLogsApi.list()` endpoint supports a `user_id` query param but the dialog doesn't use it for server-side search. |
-| User resolution falls back to raw ID | Low | `_resolve_user()` (audit_log_row.gd, line 45) only checks the current space's member cache. If the acting user has left the server, the row displays a raw snowflake ID instead of a username. |
-| Target names not resolved | Low | `_format_target()` (audit_log_row.gd, line 57) shows abbreviated IDs (e.g. `"role:1234"`) rather than resolving target names from cache (role names, channel names, usernames). |
-| No change diff display | Medium | The `AccordAuditLogEntry` model has a `changes` array field, but the row UI does not render it. Admins can't see what specifically changed (e.g. which role permission was toggled, what the channel name was changed to). |
-| No date range filter | Low | Only action type filtering is supported. There's no way to filter entries by date range (e.g. "last 24 hours", "last week"). |
-| `admin_server_management.md` gap entry is stale | Low | Line 590 of `admin_server_management.md` says "no audit log API endpoints or UI exist" but both now exist. The gap entry should be removed or updated. |
+## Tasks
+
+### AUDIT-1: No gateway event for new audit log entries
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** api, gateway, ui
+- **Notes:** The dialog fetches data on open but has no mechanism to receive real-time updates. A new entry created while the dialog is open won't appear until the user re-opens or changes filters.
+
+### AUDIT-2: AccordAuditLogEntry model unused
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** `audit_log_entry.gd` defines a typed model with `from_dict()`, but `audit_log_dialog.gd` works directly with raw dictionaries from `result.data` (line 84). The model could be used for type safety.
+
+### AUDIT-3: Search is client-side only
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, ui
+- **Notes:** `_on_search_changed()` (audit_log_dialog.gd, line 119) filters the in-memory `_all_entries` array. If only one page was loaded, search can't find entries on unfetched pages. The `AuditLogsApi.list()` endpoint supports a `user_id` query param but the dialog doesn't use it for server-side search.
+
+### AUDIT-4: User resolution falls back to raw ID
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** performance
+- **Notes:** `_resolve_user()` (audit_log_row.gd, line 45) only checks the current space's member cache. If the acting user has left the server, the row displays a raw snowflake ID instead of a username.
+
+### AUDIT-5: Target names not resolved
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** performance, permissions
+- **Notes:** `_format_target()` (audit_log_row.gd, line 57) shows abbreviated IDs (e.g. `"role:1234"`) rather than resolving target names from cache (role names, channel names, usernames).
+
+### AUDIT-6: No change diff display
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** ci, permissions, ui
+- **Notes:** The `AccordAuditLogEntry` model has a `changes` array field, but the row UI does not render it. Admins can't see what specifically changed (e.g. which role permission was toggled, what the channel name was changed to).
+
+### AUDIT-7: No date range filter
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Only action type filtering is supported. There's no way to filter entries by date range (e.g. "last 24 hours", "last week").
+
+### AUDIT-8: `admin_server_management.md` gap entry is stale
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, ui
+- **Notes:** Line 590 of `admin_server_management.md` says "no audit log API endpoints or UI exist" but both now exist. The gap entry should be removed or updated.

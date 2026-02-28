@@ -447,15 +447,60 @@ Legacy paths (pre-profile migration):
 - [ ] `--profile <slug>` command-line argument
 - [ ] Profile list ordering (drag-to-reorder or manual up/down)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Encryption key tied to `OS.get_user_data_dir()` | Low | The key derivation depends on Godot's user data directory path. If the project name changes in `project.godot` or the user data dir convention changes between Godot versions, old config files become unreadable. |
-| No emoji cache eviction | Low | Per-profile `emoji_cache/` directories grow unboundedly as custom emoji are encountered. No max-size or LRU eviction is implemented. |
-| Emoji cache duplication across profiles | Low | Profiles connecting to the same server will each download and store the same custom emoji. A shared cache with refcounting would save disk space but adds complexity. Not worth it unless storage becomes a concern. |
-| Video resolution presets are hardcoded | Low | Resolution options (480p, 720p, 1080p) and FPS options (15, 30, 60) are defined as literals rather than being data-driven or coming from LiveKit capabilities. |
-| `save()` called on every individual setter | Low | Each `Config.set_*()` calls `save_encrypted_pass()` immediately. Rapid successive changes (e.g., applying all sound settings) trigger multiple disk writes. A deferred/batched save would be more efficient. |
-| SHA-256 is fast to brute-force | Low | Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model. |
-| No profile lock-on-idle | Low | Once a password-protected profile is unlocked, it stays unlocked for the session. No idle timeout that re-locks the profile. |
-| No multi-instance guard | Low | Two daccord instances could run with the same profile simultaneously, causing config write conflicts. A lockfile would prevent this but isn't planned for v1. |
+### USRCFG-1: Encryption key tied to `OS.get_user_data_dir()`
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, security
+- **Notes:** The key derivation depends on Godot's user data directory path. If the project name changes in `project.godot` or the user data dir convention changes between Godot versions, old config files become unreadable.
+
+### USRCFG-2: No emoji cache eviction
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** emoji, performance
+- **Notes:** Per-profile `emoji_cache/` directories grow unboundedly as custom emoji are encountered. No max-size or LRU eviction is implemented.
+
+### USRCFG-3: Emoji cache duplication across profiles
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** emoji, performance
+- **Notes:** Profiles connecting to the same server will each download and store the same custom emoji. A shared cache with refcounting would save disk space but adds complexity. Not worth it unless storage becomes a concern.
+
+### USRCFG-4: Video resolution presets are hardcoded
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** video, voice
+- **Notes:** Resolution options (480p, 720p, 1080p) and FPS options (15, 30, 60) are defined as literals rather than being data-driven or coming from LiveKit capabilities.
+
+### USRCFG-5: `save()` called on every individual setter
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** api, audio, ci, config, security
+- **Notes:** Each `Config.set_*()` calls `save_encrypted_pass()` immediately. Rapid successive changes (e.g., applying all sound settings) trigger multiple disk writes. A deferred/batched save would be more efficient.
+
+### USRCFG-6: SHA-256 is fast to brute-force
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** security
+- **Notes:** Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model.
+
+### USRCFG-7: No profile lock-on-idle
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** security
+- **Notes:** Once a password-protected profile is unlocked, it stays unlocked for the session. No idle timeout that re-locks the profile.
+
+### USRCFG-8: No multi-instance guard
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, gateway
+- **Notes:** Two daccord instances could run with the same profile simultaneously, causing config write conflicts. A lockfile would prevent this but isn't planned for v1.

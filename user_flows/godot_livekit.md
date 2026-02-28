@@ -447,20 +447,95 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - [ ] ARM64 / Linux ARM builds
 - [ ] Web platform support (see web_export.md)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| E2EE not wired in daccord | Medium | `LiveKitE2eeManager`, `LiveKitKeyProvider`, `LiveKitFrameCryptor` are compiled and registered but daccord never enables encryption. Would need server-side key exchange and UI for shared key entry. |
-| Data channels unused | Low | `publish_data()` and `data_received` signal are available but daccord uses the WebSocket gateway for all messaging. Could be useful for low-latency in-call features (e.g., cursor sharing, annotations). |
-| RPC unused | Low | `perform_rpc()` / `register_rpc_method()` are available. Could enable peer-to-peer features without gateway round-trips. |
-| No WebRTC stats UI | Low | `LiveKitTrack.get_stats()` returns detailed WebRTC metrics but they are not exposed in any settings or debug panel. |
-| Screen share resolution hardcoded | Low | `publish_screen()` uses 1920x1080 (line 147 of `livekit_adapter.gd`). Should use `LiveKitScreenCapture.get_monitors()` to get the actual resolution and `LiveKitScreenCapture` for frame capture. |
-| No ARM64 builds | Medium | Build script only supports x86_64 for Linux/Windows. macOS builds are universal (x86_64 + arm64) but Linux ARM is missing. |
-| No web platform | High | GDExtension native libraries cannot load in Godot Web exports. See `web_export.md` for the planned Web API approach. |
-| Input/output device selection not applied | Low | `Config.voice` persists device preferences but `LiveKitAdapter` always uses the default `AudioStreamMicrophone` and default audio bus. Need to route selected devices through to LiveKit audio source and playback. |
-| No camera device selection | Low | `Config.voice.get_video_device()` is persisted but `publish_camera()` does not select a specific camera device -- it relies on LiveKit's default. |
-| Gateway tests all timeout | Medium | All 6 gateway-dependent tests fail because bot/user `ready_received` never fires within 15s. This blocks the `test_gateway_receives_voice_state_on_join` test that was removed from the e2e. Root cause is in the test server WebSocket handling, not the LiveKit integration. |
-| Linux RPATH missing in release binaries | Medium | The v0.3.2 release `.so` has no RPATH, so `liblivekit.so` in the same directory is not found by `dlopen`. Workaround: `patchelf --set-rpath '$ORIGIN'`. Should be fixed upstream in the build script's SCons config. |
-| Voice credential tests skip on local test server | Low | `test_voice_join_returns_livekit_credentials` and `test_voice_join_with_mute_and_deaf_flags` skip (pass) when the test server reports `backend: "none"`. To exercise these tests, run against a server with LiveKit configured: `ACCORD_TEST_URL=http://host:39099 ./test.sh accordkit`. |
-| No LiveKit room connection e2e test | Medium | The current e2e validates REST credentials but does not actually call `LiveKitAdapter.connect_to_room()` because GUT tests run headless and the GDExtension's `LiveKitRoom.connect_to_room()` requires a running LiveKit server. A future integration test could connect and verify `session_state_changed` fires `CONNECTED`. |
+### LIVEKIT-1: E2EE not wired in daccord
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** security, ui, voice
+- **Notes:** `LiveKitE2eeManager`, `LiveKitKeyProvider`, `LiveKitFrameCryptor` are compiled and registered but daccord never enables encryption. Would need server-side key exchange and UI for shared key entry.
+
+### LIVEKIT-2: Data channels unused
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** gateway
+- **Notes:** `publish_data()` and `data_received` signal are available but daccord uses the WebSocket gateway for all messaging. Could be useful for low-latency in-call features (e.g., cursor sharing, annotations).
+
+### LIVEKIT-3: RPC unused
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** gateway
+- **Notes:** `perform_rpc()` / `register_rpc_method()` are available. Could enable peer-to-peer features without gateway round-trips.
+
+### LIVEKIT-4: No WebRTC stats UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config, ui, voice
+- **Notes:** `LiveKitTrack.get_stats()` returns detailed WebRTC metrics but they are not exposed in any settings or debug panel.
+
+### LIVEKIT-5: Screen share resolution hardcoded
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** video, voice
+- **Notes:** `publish_screen()` uses 1920x1080 (line 147 of `livekit_adapter.gd`). Should use `LiveKitScreenCapture.get_monitors()` to get the actual resolution and `LiveKitScreenCapture` for frame capture.
+
+### LIVEKIT-6: No ARM64 builds
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ci
+- **Notes:** Build script only supports x86_64 for Linux/Windows. macOS builds are universal (x86_64 + arm64) but Linux ARM is missing.
+
+### LIVEKIT-7: No web platform
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** api, ci
+- **Notes:** GDExtension native libraries cannot load in Godot Web exports. See `web_export.md` for the planned Web API approach.
+
+### LIVEKIT-8: Input/output device selection not applied
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 4
+- **Tags:** audio, config, voice
+- **Notes:** `Config.voice` persists device preferences but `LiveKitAdapter` always uses the default `AudioStreamMicrophone` and default audio bus. Need to route selected devices through to LiveKit audio source and playback.
+
+### LIVEKIT-9: No camera device selection
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ci, config, video, voice
+- **Notes:** `Config.voice.get_video_device()` is persisted but `publish_camera()` does not select a specific camera device -- it relies on LiveKit's default.
+
+### LIVEKIT-10: Gateway tests all timeout
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** gateway, testing, voice
+- **Notes:** All 6 gateway-dependent tests fail because bot/user `ready_received` never fires within 15s. This blocks the `test_gateway_receives_voice_state_on_join` test that was removed from the e2e. Root cause is in the test server WebSocket handling, not the LiveKit integration.
+
+### LIVEKIT-11: Linux RPATH missing in release binaries
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, config, voice
+- **Notes:** The v0.3.2 release `.so` has no RPATH, so `liblivekit.so` in the same directory is not found by `dlopen`. Workaround: `patchelf --set-rpath '$ORIGIN'`. Should be fixed upstream in the build script's SCons config.
+
+### LIVEKIT-12: Voice credential tests skip on local test server
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** ci, config, testing, voice
+- **Notes:** `test_voice_join_returns_livekit_credentials` and `test_voice_join_with_mute_and_deaf_flags` skip (pass) when the test server reports `backend: "none"`. To exercise these tests, run against a server with LiveKit configured: `ACCORD_TEST_URL=http://host:39099 ./test.sh accordkit`.
+
+### LIVEKIT-13: No LiveKit room connection e2e test
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** api, testing, voice
+- **Notes:** The current e2e validates REST credentials but does not actually call `LiveKitAdapter.connect_to_room()` because GUT tests run headless and the GDExtension's `LiveKitRoom.connect_to_room()` requires a running LiveKit server. A future integration test could connect and verify `session_state_changed` fires `CONNECTED`.
