@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-02-28
+
+### Added
+- Voice auto-reconnect on unexpected disconnection with intentional-disconnect guard
+- Voice config hot-reload: camera republish on resolution/fps change, debug logging toggle
+- Audio device application on startup and on change via `apply_devices()`
+- Parse embedded user from member gateway events to avoid extra REST fetch
+- Voice channels user flow documentation with known issues and edge cases
+
+### Changed
+- Always reconnect voice backend on `voice.server_update` (not just when DISCONNECTED)
+- Prefer embedded user data in `on_member_join` over REST fetch when available
+
+### Fixed
+- Context menus: call `hide()` before `popup()` to prevent stale popup positioning
+- Audio capture uses `AudioServer.get_mix_rate()` instead of hardcoded 48000
+- Mic cleanup uses immediate `free()` instead of `queue_free()` to prevent silent capture
+- MicCapture bus lookup by name instead of cached index to handle shifted indices
+- Clean up stale MicCapture bus from previous sessions
+- Apply correct input device before starting mic test
+
 ## [0.1.5] - 2026-02-28
 
 ### Fixed
