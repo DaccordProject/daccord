@@ -127,3 +127,72 @@ func test_unpublish_screen_without_room() -> void:
 		LiveKitAdapter.State.DISCONNECTED,
 		"Should remain DISCONNECTED after unpublish_screen with no room",
 	)
+
+
+func test_connect_to_room_preserves_screen_capture() -> void:
+	# Reproduces the bug where starting a screen share triggers a
+	# voice_server_update from the gateway, which calls connect_to_room(),
+	# which calls disconnect_voice(), destroying the screen capture.
+	var monitors: Array = LiveKitScreenCapture.get_monitors()
+	if monitors.is_empty():
+		pending("No monitor available — skipping")
+		return
+
+	var capture: LiveKitScreenCapture = LiveKitScreenCapture.create_for_monitor(monitors[0])
+	var preview := LiveKitAdapter.LocalVideoPreview.new()
+	assert_not_null(capture, "capture should be created")
+
+	# Simulate an active screen share by setting the adapter's internal state.
+	_adapter._screen_capture = capture
+	_adapter._screen_preview = preview
+
+	# First connect_to_room creates the room (no prior room to disconnect).
+	_adapter.connect_to_room("ws://127.0.0.1:1/noop", "dummy")
+	assert_same(
+		_adapter._screen_capture, capture,
+		"Screen capture should survive first connect_to_room",
+	)
+	assert_same(
+		_adapter._screen_preview, preview,
+		"Screen preview should survive first connect_to_room",
+	)
+
+	# Second connect_to_room triggers disconnect_voice() on the existing room.
+	# This is the path that was destroying screen capture before the fix.
+	_adapter.connect_to_room("ws://127.0.0.1:1/noop", "dummy2")
+	assert_same(
+		_adapter._screen_capture, capture,
+		"Screen capture should survive reconnection",
+	)
+	assert_same(
+		_adapter._screen_preview, preview,
+		"Screen preview should survive reconnection",
+	)
+
+	# Clean up
+	_adapter.disconnect_voice()
+	capture.close()
+
+
+func test_disconnect_voice_destroys_screen_capture() -> void:
+	# Explicit disconnect_voice() (leaving voice) SHOULD destroy screen
+	# resources — only connect_to_room (reconnection) should preserve them.
+	var monitors: Array = LiveKitScreenCapture.get_monitors()
+	if monitors.is_empty():
+		pending("No monitor available — skipping")
+		return
+
+	var capture: LiveKitScreenCapture = LiveKitScreenCapture.create_for_monitor(monitors[0])
+	var preview := LiveKitAdapter.LocalVideoPreview.new()
+	_adapter._screen_capture = capture
+	_adapter._screen_preview = preview
+
+	_adapter.disconnect_voice()
+	assert_null(
+		_adapter._screen_capture,
+		"disconnect_voice should destroy screen capture",
+	)
+	assert_null(
+		_adapter._screen_preview,
+		"disconnect_voice should destroy screen preview",
+	)
