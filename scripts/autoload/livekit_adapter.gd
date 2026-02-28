@@ -260,12 +260,15 @@ func _process(_delta: float) -> void:
 				var sample: float = (buf[i].x + buf[i].y) * 0.5 * gain
 				mono[i] = sample
 				rms += sample * sample
-			var sr: int = int(AudioServer.get_mix_rate())
-			_local_audio_source.capture_frame(mono, sr, 1, mono.size())
-			# Compute level for speaking indicator
 			if buf.size() > 0:
 				rms = sqrt(rms / buf.size())
-			if rms > Config.voice.get_speaking_threshold():
+			# Noise gate: push silence when below speaking threshold
+			var thr: float = Config.voice.get_speaking_threshold()
+			if rms <= thr:
+				mono.fill(0.0)
+			var sr: int = int(AudioServer.get_mix_rate())
+			_local_audio_source.capture_frame(mono, sr, 1, mono.size())
+			if rms > thr:
 				audio_level_changed.emit("@local", rms)
 
 # --- Room signal handlers ---
@@ -416,7 +419,7 @@ func _setup_remote_audio(identity: String, track: LiveKitTrack) -> void:
 	var stream: LiveKitAudioStream = LiveKitAudioStream.from_track(track)
 	var generator := AudioStreamGenerator.new()
 	generator.mix_rate = stream.get_sample_rate()
-	generator.buffer_length = 0.1
+	generator.buffer_length = 0.3
 	var player := AudioStreamPlayer.new()
 	player.stream = generator
 	if _deafened:
