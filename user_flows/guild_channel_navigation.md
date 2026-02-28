@@ -236,10 +236,25 @@ Clearing unread (on channel selection)
 - [x] Space icon connection status dot (yellow for disconnected, red for error)
 - [x] Space icon context menu (admin tools, reconnect, folder management, remove server)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No server-side read state | Medium | Unread tracking is client-side only (starts fresh each session); the server doesn't provide a "last read" marker per channel, so unreads reset on reconnect |
-| Space folder color not configurable from UI | Low | `Config.get/set_space_folder_color()` exists but the folder dialog only sets the name; color defaults to `Color(0.212, 0.224, 0.247)` |
-| Space folder drag-to-reorder | Low | Spaces can't be dragged between folders or reordered within folders; assignment is only via context menu |
+### NAV-1: No server-side read state
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** Unread tracking is client-side only (starts fresh each session); the server doesn't provide a "last read" marker per channel, so unreads reset on reconnect
+
+### NAV-2: Space folder color not configurable from UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config, ui
+- **Notes:** `Config.get/set_space_folder_color()` exists but the folder dialog only sets the name; color defaults to `Color(0.212, 0.224, 0.247)`
+
+### NAV-3: Space folder drag-to-reorder
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Spaces can't be dragged between folders or reordered within folders; assignment is only via context menu

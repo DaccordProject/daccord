@@ -104,8 +104,11 @@ User clicks "+"
 - [x] Auto-reconnect on gateway failure (with re-auth, once per cycle)
 - [x] Graceful shutdown (logout all clients on window close)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| ~~No connection progress indicator~~ | ~~Low~~ | Resolved: Status label below Add button shows step-by-step progress ("Authenticating...", "Fetching spaces...", "Connecting to gateway...") via `AppState.connection_step` signal |
+### CONN-1: No connection progress indicator
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, gateway, security, ui
+- **Notes:** : Status label below Add button shows step-by-step progress ("Authenticating...", "Fetching spaces...", "Connecting to gateway...") via `AppState.connection_step` signal

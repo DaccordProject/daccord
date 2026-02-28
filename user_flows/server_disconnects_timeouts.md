@@ -234,6 +234,6 @@ Heartbeat Timeout:
 - [x] Edit failure re-enters edit mode with error message
 - [x] Delete failure shows inline error on the message
 
-## Gaps / TODO
+## Tasks
 
-No known gaps.
+No open tasks.

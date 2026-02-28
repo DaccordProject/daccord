@@ -113,12 +113,39 @@ The web implementation would use browser APIs via `JavaScriptBridge` and would l
 - [x] Voice signaling transport exists via gateway `VOICE_SIGNAL` (`send_voice_signal`, `on_voice_signal`)
 - [x] UI state/signals for voice + video exist in `AppState` (voice_* / video_enabled_changed)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No Web export preset | Medium | Add a Web preset to `export_presets.cfg` and (optionally) CI packaging. |
-| Voice “connects” in UI even when `_voice_session` is missing | High | `_connect_voice_backend()` returns early (client_voice.gd lines 120-123) but `AppState.join_voice()` still fires (line 113). Web builds need to block join or provide a web voice session. |
-| Voice/video depend on LiveKit APIs | High | Camera/screen tracks hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274); settings UI assumes LiveKit for full device enumeration (user_settings.gd line 192). |
-| `voice.signal` forwarding only targets `_voice_session` | Medium | `ClientGatewayEvents.on_voice_signal()` forwards to meta `_voice_session` only (client_gateway_events.gd lines 165-170). A web session needs the same hook. |
-| Screen/window picker is desktop-only | Low | `screen_picker_dialog.gd` assumes LiveKit screen/window enumeration (lines 31-59). Basic web voice/video can ship without screen sharing initially. |
+### WEB-1: No Web export preset
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** ci
+- **Notes:** Add a Web preset to `export_presets.cfg` and (optionally) CI packaging.
+
+### WEB-2: Voice “connects” in UI even when `_voice_session` is missing
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** ci, ui, voice
+- **Notes:** `_connect_voice_backend()` returns early (client_voice.gd lines 120-123) but `AppState.join_voice()` still fires (line 113). Web builds need to block join or provide a web voice session.
+
+### WEB-3: Voice/video depend on LiveKit APIs
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** api, config, ui, video, voice
+- **Notes:** Camera/screen tracks hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274); settings UI assumes LiveKit for full device enumeration (user_settings.gd line 192).
+
+### WEB-4: `voice.signal` forwarding only targets `_voice_session`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** gateway, voice
+- **Notes:** `ClientGatewayEvents.on_voice_signal()` forwards to meta `_voice_session` only (client_gateway_events.gd lines 165-170). A web session needs the same hook.
+
+### WEB-5: Screen/window picker is desktop-only
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui, video, voice
+- **Notes:** `screen_picker_dialog.gd` assumes LiveKit screen/window enumeration (lines 31-59). Basic web voice/video can ship without screen sharing initially.

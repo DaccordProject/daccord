@@ -359,13 +359,46 @@ For power users and automation, daccord accepts a `--profile <slug>` command-lin
 - [x] `--profile <slug>` command-line argument
 - [x] Profile list ordering (drag-to-reorder or manual up/down)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| SHA-256 is fast to brute-force | Low | Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model. If stronger protection is wanted later, switch to a KDF like scrypt or Argon2 (no GDScript built-in, would need GDExtension). |
-| No profile lock-on-idle | Low | Once a password-protected profile is unlocked, it stays unlocked for the session. There's no idle timeout that re-locks the profile. Could be added later with a timer that emits a lock signal. |
-| Export includes credentials in plaintext | Medium | `export_config()` saves the `ConfigFile` in plaintext, including server tokens and passwords. The user is exporting intentionally, but a warning dialog before export ("This file will contain your server credentials") would be prudent. |
-| No multi-instance guard | Low | Two daccord instances could run with the same profile simultaneously, causing config write conflicts. A lockfile (`user://profiles/<slug>/.lock`) would prevent this but isn't planned for v1. |
-| Emoji cache duplication across profiles | Low | Profiles connecting to the same server will each download and store the same custom emoji. A shared cache with refcounting would save disk space but adds complexity. Not worth it unless storage becomes a concern. |
-| No profile icon/avatar | Low | Profiles are identified only by name. A small color dot or user-chosen icon would make switching faster visually. |
+### PROFILE-1: SHA-256 is fast to brute-force
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 4
+- **Tags:** security
+- **Notes:** Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model. If stronger protection is wanted later, switch to a KDF like scrypt or Argon2 (no GDScript built-in, would need GDExtension).
+
+### PROFILE-2: No profile lock-on-idle
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** security
+- **Notes:** Once a password-protected profile is unlocked, it stays unlocked for the session. There's no idle timeout that re-locks the profile. Could be added later with a timer that emits a lock signal.
+
+### PROFILE-3: Export includes credentials in plaintext
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, config, security, ui
+- **Notes:** `export_config()` saves the `ConfigFile` in plaintext, including server tokens and passwords. The user is exporting intentionally, but a warning dialog before export ("This file will contain your server credentials") would be prudent.
+
+### PROFILE-4: No multi-instance guard
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, gateway
+- **Notes:** Two daccord instances could run with the same profile simultaneously, causing config write conflicts. A lockfile (`user://profiles/<slug>/.lock`) would prevent this but isn't planned for v1.
+
+### PROFILE-5: Emoji cache duplication across profiles
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** emoji, performance
+- **Notes:** Profiles connecting to the same server will each download and store the same custom emoji. A shared cache with refcounting would save disk space but adds complexity. Not worth it unless storage becomes a concern.
+
+### PROFILE-6: No profile icon/avatar
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Profiles are identified only by name. A small color dot or user-chosen icon would make switching faster visually.

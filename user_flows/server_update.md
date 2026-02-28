@@ -176,18 +176,88 @@ Both paths now call `_refetch_data()` which awaits all fetches before emitting `
 - [x] Server-side version announcement via gateway READY event
 - [x] Syncing state with `server_synced` signal (stale permission window addressed)
 
-## Gaps / TODO
-| Gap | Severity | Status | Notes |
-|-----|----------|--------|-------|
-| Messages not refetched on reconnect | Medium | **Fixed** | `message_view.gd` connects to `server_reconnected` and calls `fetch_messages()` for the current channel. Forum/thread caches are cleared for the reconnected space. |
-| Permission race window after reconnect | Medium | **Fixed** | All fetches are now awaited via `_refetch_data()`. The `conn["_syncing"]` flag + `server_synced` signal prevent permission-dependent actions during the refetch window. Composer is disabled while syncing. |
-| RESUME path skips all data refetch | Medium | **Fixed** | `on_gateway_reconnected()` now calls `_refetch_data()`, same as the IDENTIFY path. |
-| No API version negotiation | High | **Fixed** | `connect_server()` calls `GET /api/v1/version` and compares major versions. READY payload includes `api_version` and `server_version`. Mismatches trigger a persistent amber banner warning. |
-| Voice states not resynced on reconnect | Medium | **Fixed** | `resync_voice_states()` iterates cached voice channels for the space and refetches each via `fetch_voice_states()`. Called from `_refetch_data()`. |
-| User cache never bulk-refreshed | Low | **Fixed** | `refresh_current_user()` re-calls `GET /users/@me` on reconnect and updates user cache + connection dict. Other users still rely on gateway events. |
-| No server-side version/capability announcement | Medium | **Fixed** | READY payload now includes `api_version` and `server_version` (accordserver change). Client parses and stores them in the connection dict. |
-| Forum/thread caches not refreshed on reconnect | Low | **Fixed** | Forum post and thread message caches are cleared for the reconnected space's channels on `server_reconnected`. |
-| Space info not refetched on reconnect | Low | Open | Space metadata is only updated via `space.update` gateway events, not refetched on reconnect. |
-| Queued messages may fail after server update | Low | Open | Messages queued during disconnection are flushed on reconnect without re-validating against the updated server. |
-| Channel permission overwrites only update via full channel update | Low | Open | There is no granular `permission_overwrite.update` event. Overwrites change only when the entire channel is updated. |
-| No "server updated, please restart" notification | Medium | Open | The version warning banner addresses version mismatches, but there is no mechanism to prompt the user to update the client application itself. |
+## Tasks
+
+### SRVUPD-1: Messages not refetched on reconnect
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** api, performance
+- **Notes:** `message_view.gd` connects to `server_reconnected` and calls `fetch_messages()` for the current channel. Forum/thread caches are cleared for the reconnected space.
+
+### SRVUPD-2: Permission race window after reconnect
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** api, ci, gateway, permissions
+- **Notes:** All fetches are now awaited via `_refetch_data()`. The `conn["_syncing"]` flag + `server_synced` signal prevent permission-dependent actions during the refetch window. Composer is disabled while syncing.
+
+### SRVUPD-3: RESUME path skips all data refetch
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api, gateway
+- **Notes:** `on_gateway_reconnected()` now calls `_refetch_data()`, same as the IDENTIFY path.
+
+### SRVUPD-4: No API version negotiation
+- **Status:** done
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** api, config
+- **Notes:** `connect_server()` calls `GET /api/v1/version` and compares major versions. READY payload includes `api_version` and `server_version`. Mismatches trigger a persistent amber banner warning.
+
+### SRVUPD-5: Voice states not resynced on reconnect
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api, performance, voice
+- **Notes:** `resync_voice_states()` iterates cached voice channels for the space and refetches each via `fetch_voice_states()`. Called from `_refetch_data()`.
+
+### SRVUPD-6: User cache never bulk-refreshed
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** gateway, performance
+- **Notes:** `refresh_current_user()` re-calls `GET /users/@me` on reconnect and updates user cache + connection dict. Other users still rely on gateway events.
+
+### SRVUPD-7: No server-side version/capability announcement
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api
+- **Notes:** READY payload now includes `api_version` and `server_version` (accordserver change). Client parses and stores them in the connection dict.
+
+### SRVUPD-8: Forum/thread caches not refreshed on reconnect
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** performance
+- **Notes:** Forum post and thread message caches are cleared for the reconnected space's channels on `server_reconnected`.
+
+### SRVUPD-9: Space info not refetched on reconnect
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, gateway
+- **Notes:** Space metadata is only updated via `space.update` gateway events, not refetched on reconnect.
+
+### SRVUPD-10: Queued messages may fail after server update
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Messages queued during disconnection are flushed on reconnect without re-validating against the updated server.
+
+### SRVUPD-11: Channel permission overwrites only update via full channel update
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** gateway, permissions
+- **Notes:** There is no granular `permission_overwrite.update` event. Overwrites change only when the entire channel is updated.
+
+### SRVUPD-12: No "server updated, please restart" notification
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api
+- **Notes:** The version warning banner addresses version mismatches, but there is no mechanism to prompt the user to update the client application itself.

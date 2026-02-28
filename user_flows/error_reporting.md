@@ -370,13 +370,46 @@ The `before_send` callback enforces this as a safety net: `_scrub_pii()` redacts
 - [x] Settings toggle for enabling/disabling error reporting (check item in user bar menu)
 - [x] CI/CD: DSN injected at export time via `SENTRY_DSN` secret in `release.yml`
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| ~~DSN hardcoded in `project.godot`~~ | ~~Medium~~ | Resolved. `release.yml` now injects `SENTRY_DSN` secret at export time. The dev DSN remains in the repo for local testing. |
-| ~~`before_send` lacks deep PII scrubbing~~ | ~~Medium~~ | Resolved. `_scrub_pii()` redacts Bearer tokens, URLs with ports, and `token=` query parameters from event messages. |
-| ~~Double init / timing bug~~ | ~~High~~ | Resolved. `auto_init=false` with custom `SentrySceneTree._initialize()` ensures a single, correctly-timed `SentrySDK.init()` call. |
-| Offline event queuing | Low | If the user is offline, the Sentry SDK queues events locally and sends them when connectivity returns. GlitchTip handles this natively -- no extra work needed. |
-| Event volume at scale | Low | With `sample_rate=1.0`, a popular release with a common bug could flood GlitchTip. Set `GLITCHTIP_MAX_EVENT_LIFE_DAYS` and consider rate limiting or reducing `sample_rate` if needed. |
-| ~~Crash toast false positives~~ | ~~Low~~ | Resolved. Toast text changed to "error report" instead of "crash report," which is accurate for both crash and non-crash events. |
+### SENTRY-1: DSN hardcoded in `project.godot`
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ci, testing
+- **Notes:** `release.yml` now injects `SENTRY_DSN` secret at export time. The dev DSN remains in the repo for local testing.
+
+### SENTRY-2: `before_send` lacks deep PII scrubbing
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** gateway, security
+- **Notes:** `_scrub_pii()` redacts Bearer tokens, URLs with ports, and `token=` query parameters from event messages.
+
+### SENTRY-3: Double init / timing bug
+- **Status:** done
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `auto_init=false` with custom `SentrySceneTree._initialize()` ensures a single, correctly-timed `SentrySDK.init()` call.
+
+### SENTRY-4: Offline event queuing
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** gateway
+- **Notes:** If the user is offline, the Sentry SDK queues events locally and sends them when connectivity returns. GlitchTip handles this natively -- no extra work needed.
+
+### SENTRY-5: Event volume at scale
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, gateway
+- **Notes:** With `sample_rate=1.0`, a popular release with a common bug could flood GlitchTip. Set `GLITCHTIP_MAX_EVENT_LIFE_DAYS` and consider rate limiting or reducing `sample_rate` if needed.
+
+### SENTRY-6: Crash toast false positives
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** gateway
+- **Notes:** Toast text changed to "error report" instead of "crash report," which is accurate for both crash and non-crash events.

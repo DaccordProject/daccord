@@ -582,12 +582,39 @@ The following cross-cutting UX improvements are implemented across all admin dia
 - [x] Role toggle visual feedback (green/red flash, disabled during API call)
 - [ ] Audit log viewer
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| `fetch_members()` uses hardcoded limit of 1000 | Low | May miss members in large spaces. The server supports cursor-based pagination but the client does not follow cursors. |
-| Audit log gaps (change diffs, real-time updates) | Low | Audit log viewer and API exist (see [audit_logs.md](audit_logs.md)). Remaining gaps: no change diff display, no gateway events for live updates, target names not resolved. |
-| Channel permission overwrite editor only supports role overwrites | Low | The dialog builds all overwrites as `"type": "role"` (line 184 of `channel_permissions_dialog.gd`). Member-specific overwrites are supported by the server but not exposed in the UI. |
-| Emoji CDN GIF loading uses `load_png_from_buffer()` | Low | Animated emojis (`.gif`) are loaded using `load_png_from_buffer()` (line 103 of `emoji_management_dialog.gd`), which won't decode GIF frames correctly. Requires a GIF decoder or sprite sheet approach. |
-| Bulk operations are sequential | Low | Bulk delete/revoke/unban calls `await` in a loop for each item. Could be parallelized or batched for better performance on large selections. |
+### ADMIN-1: `fetch_members()` uses hardcoded limit of 1000
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api
+- **Notes:** May miss members in large spaces. The server supports cursor-based pagination but the client does not follow cursors.
+
+### ADMIN-2: Audit log gaps (change diffs, real-time updates)
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, gateway
+- **Notes:** Audit log viewer and API exist (see [audit_logs.md](audit_logs.md)). Remaining gaps: no change diff display, no gateway events for live updates, target names not resolved.
+
+### ADMIN-3: Channel permission overwrite editor only supports role overwrites
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, permissions, ui
+- **Notes:** The dialog builds all overwrites as `"type": "role"` (line 184 of `channel_permissions_dialog.gd`). Member-specific overwrites are supported by the server but not exposed in the UI.
+
+### ADMIN-4: Emoji CDN GIF loading uses `load_png_from_buffer()`
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** emoji, ui
+- **Notes:** Animated emojis (`.gif`) are loaded using `load_png_from_buffer()` (line 103 of `emoji_management_dialog.gd`), which won't decode GIF frames correctly. Requires a GIF decoder or sprite sheet approach.
+
+### ADMIN-5: Bulk operations are sequential
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** performance
+- **Notes:** Bulk delete/revoke/unban calls `await` in a loop for each item. Could be parallelized or batched for better performance on large selections.

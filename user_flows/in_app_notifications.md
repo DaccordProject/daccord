@@ -228,13 +228,32 @@ Sound preferences are managed via the Sound Settings dialog (accessible from the
 - [x] Notification sounds (see [Application Sound Effects](application_sound_effects.md))
 - [x] Composer-side warning for `@everyone` without `MENTION_EVERYONE` permission
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No per-channel notification overrides | Medium | Only a space-wide `default_notifications` setting exists. Users cannot mute individual channels or set per-channel notification levels. Requires new UI (per-channel settings dialog). |
-| No per-user notification overrides per space | Medium | The tooltip in Space Settings promises per-user overrides (`space_settings_dialog.tscn:131`) but no override mechanism exists. Currently only the space-wide default is enforced. |
-| No OS-level notifications | Low | No calls to OS notification APIs, no system tray integration. Notification sounds exist (see [Application Sound Effects](application_sound_effects.md)) but there are no desktop toasts or system tray badges. |
-| No server-side read-state ack | Low | Unread state is tracked client-side only. There is no `ack` API call or server-side last-read message ID. Unread state resets on app restart. |
+### NOTIF-1: No per-channel notification overrides
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 4
+- **Tags:** config, ui
+- **Notes:** Only a space-wide `default_notifications` setting exists. Users cannot mute individual channels or set per-channel notification levels. Requires new UI (per-channel settings dialog).
 
-*Last touched: 2026-02-19*
+### NOTIF-2: No per-user notification overrides per space
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** The tooltip in Space Settings promises per-user overrides (`space_settings_dialog.tscn:131`) but no override mechanism exists. Currently only the space-wide default is enforced.
+
+### NOTIF-3: No OS-level notifications
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, audio, ui
+- **Notes:** No calls to OS notification APIs, no system tray integration. Notification sounds exist (see [Application Sound Effects](application_sound_effects.md)) but there are no desktop toasts or system tray badges.
+
+### NOTIF-4: No server-side read-state ack
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api
+- **Notes:** Unread state is tracked client-side only. There is no `ack` API call or server-side last-read message ID. Unread state resets on app restart.

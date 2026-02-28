@@ -271,12 +271,14 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 - [x] Releases tagged (v0.1.0 through v0.1.3)
 - [x] Windows installer job in release workflow (Inno Setup)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Status | Notes |
-|-----|----------|--------|-------|
-| GUT 9.5.0 + Godot 4.5 compatibility | Low | Open | `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run). Monitor for upstream fix. |
-
+### CI-1: GUT 9.5.0 + Godot 4.5 compatibility
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** testing
+- **Notes:** `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run). Monitor for upstream fix.
 ## Key Files
 
 | File | Purpose |

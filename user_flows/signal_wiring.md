@@ -332,11 +332,32 @@ Emitted in `app_state.gd` (line 236) when aspect ratio crosses 1.5. Nothing list
 - [x] `orientation_changed` removed (dead signal, no consumers needed)
 - [x] Reduced motion audit — all 16 tween sites already check `Config.get_reduced_motion()` at animation time
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| `config_changed` has only 2 consumers | Low | Most config values are read on-demand (e.g., sound_manager reads volume each play), so reactive updates aren't critical for all settings |
-| `members_updated` has 1 consumer | Low | member_list.gd is the only member roster renderer. Acceptable unless member info is displayed elsewhere |
-| `dm_channels_updated` has 2 consumers | Low | dm_list and member_list cover the DM UI. Space bar unread badges derive from `_unread_channels` separately |
-| No signal for permission changes | Medium | Permission updates arrive via gateway but don't have a dedicated signal — components re-derive permissions on space/channel select |
+### SIGNAL-1: `config_changed` has only 2 consumers
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** audio, config
+- **Notes:** Most config values are read on-demand (e.g., sound_manager reads volume each play), so reactive updates aren't critical for all settings
+
+### SIGNAL-2: `members_updated` has 1 consumer
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** member_list.gd is the only member roster renderer. Acceptable unless member info is displayed elsewhere
+
+### SIGNAL-3: `dm_channels_updated` has 2 consumers
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** dm, ui
+- **Notes:** dm_list and member_list cover the DM UI. Space bar unread badges derive from `_unread_channels` separately
+
+### SIGNAL-4: No signal for permission changes
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** gateway, permissions
+- **Notes:** Permission updates arrive via gateway but don't have a dedicated signal — components re-derive permissions on space/channel select

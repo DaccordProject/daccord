@@ -242,8 +242,11 @@ When `AppState.reactions_updated(channel_id, message_id)` fires, `message_view._
 - [x] Prevent duplicate cache mutations (own reactions skip signal emission)
 - [x] Explicit inactive pill style (dark background with border)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Reaction tooltip only shows emoji name | Low | The pill tooltip shows `":emoji_name:"` but does not list which users reacted. The `ReactionsApi.list_users()` endpoint exists and could be called on hover, but this is deferred to avoid per-hover network calls. |
+### REACT-1: Reaction tooltip only shows emoji name
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** api, emoji, ui
+- **Notes:** The pill tooltip shows `":emoji_name:"` but does not list which users reacted. The `ReactionsApi.list_users()` endpoint exists and could be called on hover, but this is deferred to avoid per-hover network calls.

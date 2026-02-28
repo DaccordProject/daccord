@@ -479,10 +479,25 @@ Native binary addon wrapping the LiveKit C++ SDK for room-based voice/video. Loc
 - [x] Voice channel drag-and-drop reordering
 - [x] Voice channel edit/delete context menu (gated on `MANAGE_CHANNELS`)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No server-side validation/tests for voice join payloads | Low | Add server tests that assert `voice/join` returns credentials for configured backends. |
-| No input device selection applied at connect time | Low | `Config.voice.get_input_device()` is persisted but LiveKitAdapter always creates a default `AudioStreamMicrophone`. Need to route selected device to LiveKit audio source. |
-| No output device selection applied at connect time | Low | `Config.voice.get_output_device()` is persisted but remote audio players use the default bus. Need to route to the selected output device. |
+### VOICE-1: No server-side validation/tests for voice join payloads
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config, testing, voice
+- **Notes:** Add server tests that assert `voice/join` returns credentials for configured backends.
+
+### VOICE-2: No input device selection applied at connect time
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** audio, config, voice
+- **Notes:** `Config.voice.get_input_device()` is persisted but LiveKitAdapter always creates a default `AudioStreamMicrophone`. Need to route selected device to LiveKit audio source.
+
+### VOICE-3: No output device selection applied at connect time
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** audio, config, voice
+- **Notes:** `Config.voice.get_output_device()` is persisted but remote audio players use the default bus. Need to route to the selected output device.

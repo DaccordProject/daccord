@@ -209,15 +209,60 @@ Users would paste this string into the Import dialog, or the client could detect
 - [ ] Centralized color constants replacing 202 hardcoded Color() values
 - [ ] Shader color parameterization (blurple in welcome_bg, ring color in avatar)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No custom color scheme UI | High | Appearance page (line 193) only has reduce motion, UI scale, and skin tone — no color pickers or theme selector |
-| 202 hardcoded Color() across 60 files | High | All inline overrides use literal Color values; a theme system needs a shared palette lookup (e.g. `ThemeColors.ACCENT`) that every component reads |
-| No base64 theme export/import | High | `Marshalls.raw_to_base64()` is only used for avatar/emoji upload; no theme serialization exists |
-| UI scale requires restart | Medium | `_apply_ui_scale()` (line 168) runs once in `_ready()`; `config_changed` is emitted but nothing re-applies `content_scale_factor` at runtime |
-| Shader colors are hardcoded | Medium | `welcome_bg.gdshader` has blurple `vec3(0.345, 0.396, 0.949)` baked in; `avatar_circle.gdshader` defaults ring color to green — would need uniform overrides from GDScript |
-| Settings panel colors bypass theme | Medium | `settings_base.gd` sets panel bg `Color(0.188, 0.196, 0.212)` and nav bg `Color(0.153, 0.161, 0.176)` as literals (lines 16, 28) rather than reading from the theme resource |
-| No light mode | Low | Only `discord_dark.tres` exists; a light theme would need a second `.tres` plus all inline overrides swapped |
-| reduce_motion is polled, not reactive | Low | Components check `Config.get_reduced_motion()` at animation time; toggling the checkbox doesn't retroactively stop in-progress animations |
+### THEME-1: No custom color scheme UI
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Appearance page (line 193) only has reduce motion, UI scale, and skin tone — no color pickers or theme selector
+
+### THEME-2: 202 hardcoded Color() across 60 files
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** All inline overrides use literal Color values; a theme system needs a shared palette lookup (e.g. `ThemeColors.ACCENT`) that every component reads
+
+### THEME-3: No base64 theme export/import
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** ci, emoji, ui
+- **Notes:** `Marshalls.raw_to_base64()` is only used for avatar/emoji upload; no theme serialization exists
+
+### THEME-4: UI scale requires restart
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** api, config, ui
+- **Notes:** `_apply_ui_scale()` (line 168) runs once in `_ready()`; `config_changed` is emitted but nothing re-applies `content_scale_factor` at runtime
+
+### THEME-5: Shader colors are hardcoded
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci
+- **Notes:** `welcome_bg.gdshader` has blurple `vec3(0.345, 0.396, 0.949)` baked in; `avatar_circle.gdshader` defaults ring color to green — would need uniform overrides from GDScript
+
+### THEME-6: Settings panel colors bypass theme
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** `settings_base.gd` sets panel bg `Color(0.188, 0.196, 0.212)` and nav bg `Color(0.153, 0.161, 0.176)` as literals (lines 16, 28) rather than reading from the theme resource
+
+### THEME-7: No light mode
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** Only `discord_dark.tres` exists; a light theme would need a second `.tres` plus all inline overrides swapped
+
+### THEME-8: reduce_motion is polled, not reactive
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config
+- **Notes:** Components check `Config.get_reduced_motion()` at animation time; toggling the checkbox doesn't retroactively stop in-progress animations

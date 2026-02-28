@@ -146,16 +146,67 @@ Bots that call `POST /channels/{channel_id}/typing` trigger the same typing indi
 - [ ] Application command registration UI (admin panel)
 - [ ] Bot-specific context menu entries (e.g., "View Bot Info")
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No bot badge in message author display | Medium | `cozy_message.gd` line 40 sets author label text but does not check `user.get("bot", false)` to append a badge or tag |
-| No visual distinction for bot messages | Medium | Bot messages are indistinguishable from human messages; no colored pill, icon, or styling |
-| `webhook_id` not included in message dict | Low | `ClientModels.message_to_dict()` (lines 414-435) omits `webhook_id` — UI cannot tell if a message came from a webhook vs. direct bot post |
-| `components` field never rendered | High | `AccordMessage.components` (line 24) is parsed from server JSON but `message_to_dict()` does not pass it through and no UI renders buttons, select menus, or action rows |
-| Interaction events are silently dropped | High | `on_interaction_create()` (line 455) is a no-op; slash command responses and component interactions have no client-side handling |
-| No slash command input | High | Composer (`composer.gd`) has no "/" prefix detection, no command autocomplete, and no way to invoke application commands |
-| No ephemeral message support | Medium | Interaction responses can be ephemeral (only visible to invoking user) but the client has no concept of ephemeral messages |
-| Verified Bot flag unused | Low | `USER_FLAGS[65536] = "Verified Bot"` is defined in `ClientModels` (line 23) but `get_user_badges()` output is not displayed in message headers |
-| No application command management | Low | `InteractionsApi` supports command CRUD but no admin UI exposes it |
+### BOT-1: No bot badge in message author display
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** security, ui
+- **Notes:** `cozy_message.gd` line 40 sets author label text but does not check `user.get("bot", false)` to append a badge or tag
+
+### BOT-2: No visual distinction for bot messages
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Bot messages are indistinguishable from human messages; no colored pill, icon, or styling
+
+### BOT-3: `webhook_id` not included in message dict
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** `ClientModels.message_to_dict()` (lines 414-435) omits `webhook_id` — UI cannot tell if a message came from a webhook vs. direct bot post
+
+### BOT-4: `components` field never rendered
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** `AccordMessage.components` (line 24) is parsed from server JSON but `message_to_dict()` does not pass it through and no UI renders buttons, select menus, or action rows
+
+### BOT-5: Interaction events are silently dropped
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** gateway
+- **Notes:** `on_interaction_create()` (line 455) is a no-op; slash command responses and component interactions have no client-side handling
+
+### BOT-6: No slash command input
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Composer (`composer.gd`) has no "/" prefix detection, no command autocomplete, and no way to invoke application commands
+
+### BOT-7: No ephemeral message support
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Interaction responses can be ephemeral (only visible to invoking user) but the client has no concept of ephemeral messages
+
+### BOT-8: Verified Bot flag unused
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** ui
+- **Notes:** `USER_FLAGS[65536] = "Verified Bot"` is defined in `ClientModels` (line 23) but `get_user_badges()` output is not displayed in message headers
+
+### BOT-9: No application command management
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** api, ui
+- **Notes:** `InteractionsApi` supports command CRUD but no admin UI exposes it
