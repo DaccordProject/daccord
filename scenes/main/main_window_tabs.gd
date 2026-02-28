@@ -186,7 +186,7 @@ func _on_tab_icon_loaded(
 func _create_color_swatch(
 	c: Color, px: int = 16,
 ) -> ImageTexture:
-	var img := Image.create(
+	var img: Image = Image.create(
 		px, px, false, Image.FORMAT_RGBA8,
 	)
 	img.fill(c)
