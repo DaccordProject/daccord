@@ -2,10 +2,12 @@ extends GutTest
 
 ## Unit tests for LiveKitAdapter.LocalVideoPreview.
 ##
-## Verifies that update_frame() preserves RGBA8 format and full opacity
-## across multiple frame updates.  A previous bug converted images to RGB8
-## before calling ImageTexture.update(), which caused intermittent
-## transparency on some GL drivers.
+## Verifies that update_frame() produces RGBA8 textures with full opacity
+## across multiple frame updates.  Two bugs existed previously:
+## 1. Converting to RGB8 before ImageTexture.update() caused intermittent
+##    transparency on some GL drivers.
+## 2. X11 on 32-bit depth displays returns alpha=0 for most windows,
+##    so the preview must force alpha to 1.0 regardless of input.
 
 var _preview: LiveKitAdapter.LocalVideoPreview
 
@@ -21,6 +23,13 @@ func before_each() -> void:
 func _make_rgba8_image(w: int = 320, h: int = 240, color := Color.RED) -> Image:
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(color)
+	return img
+
+
+func _make_zero_alpha_image(w: int = 320, h: int = 240) -> Image:
+	## Simulates X11 on 32-bit depth displays where the alpha byte is 0.
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.5, 0.3, 0.8, 0.0))
 	return img
 
 
@@ -80,6 +89,44 @@ func test_texture_fully_opaque_after_multiple_updates() -> void:
 			1.0,
 			"Pixel at %s should be fully opaque" % pos,
 		)
+
+
+func test_zero_alpha_input_becomes_opaque() -> void:
+	# X11 on 32-bit depth displays returns alpha=0 for most windows.
+	# update_frame() must force alpha to 1.0 so the preview is visible.
+	var img := _make_zero_alpha_image()
+	assert_eq(img.get_pixelv(Vector2i(0, 0)).a, 0.0, "Precondition: input alpha is 0")
+
+	_preview.update_frame(img)
+
+	var tex_image := _preview.get_texture().get_image()
+	assert_eq(
+		tex_image.get_format(),
+		Image.FORMAT_RGBA8,
+		"Texture should be RGBA8",
+	)
+	for pos in [Vector2i(0, 0), Vector2i(160, 120), Vector2i(319, 239)]:
+		var pixel := tex_image.get_pixelv(pos)
+		assert_eq(
+			pixel.a,
+			1.0,
+			"Pixel at %s should be fully opaque despite zero-alpha input" % pos,
+		)
+
+
+func test_zero_alpha_sustained_across_frames() -> void:
+	# Verify opacity holds across many frames with zero-alpha input,
+	# covering both the create_from_image and update() code paths.
+	for i in 30:
+		_preview.update_frame(_make_zero_alpha_image())
+
+	var tex_image := _preview.get_texture().get_image()
+	var pixel := tex_image.get_pixelv(Vector2i(160, 120))
+	assert_eq(
+		pixel.a,
+		1.0,
+		"Pixel should be fully opaque after 30 zero-alpha frames",
+	)
 
 
 func test_texture_reused_when_resolution_unchanged() -> void:
