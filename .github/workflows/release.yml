@@ -7,6 +7,7 @@ on:
 
 env:
   GODOT_VERSION: "4.5.0"
+  GODOTLITE_TAG: "v4.5"
   GUT_VERSION: "9.5.0"
   SENTRY_VERSION: "1.3.2"
 
@@ -167,6 +168,34 @@ jobs:
         run: |
           sed -i.bak 's|config/dsn="[^"]*"|config/dsn="'"$SENTRY_DSN"'"|' project.godot
           rm -f project.godot.bak
+
+      - name: Download GodotLite template
+        if: matrix.platform != 'linux-arm64'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/templates
+          case "${{ matrix.platform }}" in
+            linux)
+              ASSET="godotlite-${GODOTLITE_TAG}-linux-x86_64"
+              DEST="dist/templates/godot.linuxbsd.template_release.x86_64"
+              ;;
+            windows)
+              ASSET="godotlite-${GODOTLITE_TAG}-windows-x86_64.exe"
+              DEST="dist/templates/godot.windows.template_release.x86_64.exe"
+              ;;
+            macos)
+              ASSET="godotlite-${GODOTLITE_TAG}-macos-universal"
+              DEST="dist/templates/godot.macos.template_release.universal"
+              ;;
+          esac
+          gh release download "${GODOTLITE_TAG}" \
+            --repo NodotProject/GodotLite \
+            --pattern "${ASSET}" \
+            --dir dist/templates
+          mv "dist/templates/${ASSET}" "${DEST}"
+          chmod +x "${DEST}"
+          echo "GodotLite template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
 
       - name: Clear missing custom templates
         run: |
