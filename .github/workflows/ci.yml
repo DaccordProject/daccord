@@ -6,7 +6,7 @@ on:
   workflow_call:
 
 env:
-  GODOT_VERSION: "4.5.0"
+  GODOTLITE_TAG: "v4.5"
   GUT_VERSION: "9.5.0"
   SENTRY_VERSION: "1.3.2"
 
@@ -103,23 +103,35 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
 
-      - name: Set up Godot
-        uses: chickensoft-games/setup-godot@v2
+      - name: Cache GodotLite
+        uses: actions/cache@v4
         with:
-          version: ${{ env.GODOT_VERSION }}
-          use-dotnet: false
-          include-templates: false
+          path: /tmp/godotlite
+          key: godotlite-${{ env.GODOTLITE_TAG }}-linux-x86_64
 
-      - name: Verify Godot
-        run: godot --version
+      - name: Set up GodotLite
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f /tmp/godotlite/godot ]; then
+            mkdir -p /tmp/godotlite
+            gh release download "${GODOTLITE_TAG}" \
+              --repo NodotProject/GodotLite \
+              --pattern "godotlite-${GODOTLITE_TAG}-linux-x86_64" \
+              --dir /tmp/godotlite
+            mv "/tmp/godotlite/godotlite-${GODOTLITE_TAG}-linux-x86_64" /tmp/godotlite/godot
+            chmod +x /tmp/godotlite/godot
+          fi
+          sudo cp /tmp/godotlite/godot /usr/local/bin/godot
+          godot --version
 
       - name: Cache Godot import
         uses: actions/cache@v4
         with:
           path: .godot/imported
-          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          key: godot-import-${{ env.GODOTLITE_TAG }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
           restore-keys: |
-            godot-import-${{ env.GODOT_VERSION }}-
+            godot-import-${{ env.GODOTLITE_TAG }}-
 
       - name: Import project
         run: godot --headless --import .
@@ -293,20 +305,35 @@ jobs:
           exit 1
         timeout-minutes: 1
 
-      - name: Set up Godot
-        uses: chickensoft-games/setup-godot@v2
+      - name: Cache GodotLite
+        uses: actions/cache@v4
         with:
-          version: ${{ env.GODOT_VERSION }}
-          use-dotnet: false
-          include-templates: false
+          path: /tmp/godotlite
+          key: godotlite-${{ env.GODOTLITE_TAG }}-linux-x86_64
+
+      - name: Set up GodotLite
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f /tmp/godotlite/godot ]; then
+            mkdir -p /tmp/godotlite
+            gh release download "${GODOTLITE_TAG}" \
+              --repo NodotProject/GodotLite \
+              --pattern "godotlite-${GODOTLITE_TAG}-linux-x86_64" \
+              --dir /tmp/godotlite
+            mv "/tmp/godotlite/godotlite-${GODOTLITE_TAG}-linux-x86_64" /tmp/godotlite/godot
+            chmod +x /tmp/godotlite/godot
+          fi
+          sudo cp /tmp/godotlite/godot /usr/local/bin/godot
+          godot --version
 
       - name: Cache Godot import
         uses: actions/cache@v4
         with:
           path: .godot/imported
-          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          key: godot-import-${{ env.GODOTLITE_TAG }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
           restore-keys: |
-            godot-import-${{ env.GODOT_VERSION }}-
+            godot-import-${{ env.GODOTLITE_TAG }}-
 
       - name: Import project
         run: godot --headless --import .
