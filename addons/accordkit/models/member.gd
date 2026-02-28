@@ -4,6 +4,7 @@ extends RefCounted
 ## Discord guild member object.
 
 var user_id: String = ""
+var user: AccordUser = null
 var space_id: String = ""
 var nickname = null
 var avatar = null
@@ -23,6 +24,7 @@ static func from_dict(d: Dictionary) -> AccordMember:
 	var raw_user = d.get("user", null)
 	if raw_user is Dictionary:
 		m.user_id = str(raw_user.get("id", ""))
+		m.user = AccordUser.from_dict(raw_user)
 	else:
 		m.user_id = str(d.get("user_id", ""))
 

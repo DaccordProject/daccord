@@ -105,6 +105,7 @@ func _show_admin_menu() -> void:
 		return
 
 	var pos := global_position + Vector2(0, size.y)
+	_admin_menu.hide()
 	_admin_menu.position = Vector2i(int(pos.x), int(pos.y))
 	_admin_menu.popup()
 

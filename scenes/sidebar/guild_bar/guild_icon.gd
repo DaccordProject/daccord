@@ -149,6 +149,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Reconnect", 0)
 		_context_menu.add_separator()
 		_context_menu.add_item("Remove Server", 2)
+		_context_menu.hide()
 		_context_menu.position = pos
 		_context_menu.popup()
 		return
@@ -224,6 +225,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 
 	_context_menu.add_item("Remove Server", idx)
 
+	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 

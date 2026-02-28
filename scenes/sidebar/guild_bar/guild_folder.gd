@@ -169,6 +169,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.add_item("Change Color", 1)
 	_context_menu.add_separator()
 	_context_menu.add_item("Delete Folder", 3)
+	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 

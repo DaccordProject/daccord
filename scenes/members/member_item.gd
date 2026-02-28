@@ -111,6 +111,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 	if _context_menu.item_count == 0:
 		return
 
+	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 
