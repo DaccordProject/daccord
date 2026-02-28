@@ -492,6 +492,15 @@ class LocalVideoPreview extends RefCounted:
 		return _texture
 
 	func update_frame(image: Image) -> void:
+		# Ensure full opacity — X11 on 32-bit depth displays returns
+		# alpha=0 for most windows.  Round-trip through RGB8 uses
+		# Godot's fast C++ bulk conversion to strip the bad alpha and
+		# re-add alpha=255, keeping the texture in RGBA8 (which
+		# avoids the intermittent transparency from GL drivers
+		# mishandling RGB8 in ImageTexture.update()).
+		if image.get_format() == Image.FORMAT_RGBA8:
+			image.convert(Image.FORMAT_RGB8)
+			image.convert(Image.FORMAT_RGBA8)
 		if _texture == null \
 				or image.get_width() != _texture.get_width() \
 				or image.get_height() != _texture.get_height():
