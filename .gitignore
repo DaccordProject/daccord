@@ -20,3 +20,4 @@ addons/sentry
 .xdg_data
 test_server.log
 .DS_Store
+.claude/settings.local.json
