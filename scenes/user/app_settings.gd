@@ -194,10 +194,11 @@ func _build_voice_page() -> VBoxContainer:
 	# Threshold marker (thin vertical line on the level bar)
 	_threshold_marker = ColorRect.new()
 	_threshold_marker.color = Color(1.0, 0.85, 0.2)
-	_threshold_marker.custom_minimum_size = Vector2(2, 0)
-	_threshold_marker.size = Vector2(2, 20)
+	_threshold_marker.custom_minimum_size = Vector2(3, 0)
+	_threshold_marker.size = Vector2(3, 20)
 	_threshold_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mic_test_bar.add_child(_threshold_marker)
+	_mic_test_bar.resized.connect(_update_threshold_position)
 	_update_threshold_position()
 
 	# Input sensitivity
@@ -311,7 +312,7 @@ func _update_threshold_position() -> void:
 	if _threshold_marker == null or _mic_test_bar == null:
 		return
 	var thr: float = Config.voice.get_speaking_threshold()
-	var thr_norm: float = pow(clampf(thr / 0.5, 0.0, 1.0), 0.4)
+	var thr_norm: float = pow(clampf(thr / 0.1, 0.0, 1.0), 0.4)
 	_threshold_marker.position.x = thr_norm * _mic_test_bar.size.x
 	_threshold_marker.size.y = _mic_test_bar.size.y
 
@@ -342,13 +343,20 @@ func _process(_delta: float) -> void:
 	# Scale by input volume gain
 	var gain: float = _input_vol_slider.value / 100.0
 	var display_rms: float = rms * gain
-	_mic_test_bar.value = pow(clampf(display_rms / 0.5, 0.0, 1.0), 0.4)
+	_mic_test_bar.value = pow(clampf(display_rms / 0.1, 0.0, 1.0), 0.4)
 	# Bar color: green when above threshold, gray when below
 	var thr: float = Config.voice.get_speaking_threshold()
-	if display_rms > thr:
+	var above_thr: bool = display_rms > thr
+	if above_thr:
 		_bar_fill.bg_color = Color(0.263, 0.694, 0.431)
 	else:
 		_bar_fill.bg_color = Color(0.35, 0.38, 0.42)
+	# Gate monitor output: mute when below threshold or monitor disabled
+	if _mic_test_bus_idx >= 0:
+		var should_mute: bool = (
+			not _mic_monitor_cb.button_pressed or not above_thr
+		)
+		AudioServer.set_bus_mute(_mic_test_bus_idx, should_mute)
 
 func _exit_tree() -> void:
 	_cleanup_mic_test()
