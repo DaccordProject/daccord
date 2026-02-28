@@ -65,6 +65,8 @@ func _ready() -> void:
 		_write_initial_registry("default", "Default")
 		DirAccess.make_dir_recursive_absolute(_profile_dir())
 		_load_ok = true
+	# Apply saved audio device selection to AudioServer
+	voice.apply_devices()
 
 func _migrate_legacy_config() -> void:
 	var dest_dir := "user://profiles/default"

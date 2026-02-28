@@ -260,7 +260,8 @@ func _process(_delta: float) -> void:
 				var sample: float = (buf[i].x + buf[i].y) * 0.5 * gain
 				mono[i] = sample
 				rms += sample * sample
-			_local_audio_source.capture_frame(mono, 48000, 1, mono.size())
+			var sr: int = int(AudioServer.get_mix_rate())
+			_local_audio_source.capture_frame(mono, sr, 1, mono.size())
 			# Compute level for speaking indicator
 			if buf.size() > 0:
 				rms = sqrt(rms / buf.size())
@@ -355,7 +356,8 @@ func _on_track_unmuted(
 func _publish_local_audio() -> void:
 	if _room == null:
 		return
-	_local_audio_source = LiveKitAudioSource.create(48000, 1, 200)
+	var mix_rate: int = int(AudioServer.get_mix_rate())
+	_local_audio_source = LiveKitAudioSource.create(mix_rate, 1, 200)
 	_local_audio_track = LiveKitLocalAudioTrack.create(
 		"microphone", _local_audio_source
 	)
@@ -370,6 +372,11 @@ func _publish_local_audio() -> void:
 	_setup_mic_capture()
 
 func _setup_mic_capture() -> void:
+	# Remove stale MicCapture bus if one still exists (e.g. from a
+	# previous session that wasn't fully cleaned up).
+	var stale_idx: int = AudioServer.get_bus_index("MicCapture")
+	if stale_idx >= 0:
+		AudioServer.remove_bus(stale_idx)
 	# Create an audio bus for mic capture with an AudioEffectCapture
 	_mic_bus_idx = AudioServer.bus_count
 	AudioServer.add_bus(_mic_bus_idx)
@@ -388,12 +395,19 @@ func _setup_mic_capture() -> void:
 func _cleanup_mic_capture() -> void:
 	if _mic_record != null:
 		_mic_record.stop()
-		_mic_record.queue_free()
+		# Use immediate free() instead of queue_free() so the
+		# AudioStreamMicrophone releases hardware before a new one
+		# is created — two competing mic instances cause silent capture.
+		remove_child(_mic_record)
+		_mic_record.free()
 		_mic_record = null
 	_mic_effect = null
-	if _mic_bus_idx >= 0 and _mic_bus_idx < AudioServer.bus_count:
-		AudioServer.remove_bus(_mic_bus_idx)
-		_mic_bus_idx = -1
+	# Look up bus by name — indices may have shifted if other buses
+	# were added/removed since _mic_bus_idx was cached.
+	var bus_idx: int = AudioServer.get_bus_index("MicCapture")
+	if bus_idx >= 0:
+		AudioServer.remove_bus(bus_idx)
+	_mic_bus_idx = -1
 
 # --- Remote audio playback ---
 

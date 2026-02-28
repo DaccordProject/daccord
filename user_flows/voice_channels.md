@@ -479,6 +479,93 @@ Native binary addon wrapping the LiveKit C++ SDK for room-based voice/video. Loc
 - [x] Voice channel drag-and-drop reordering
 - [x] Voice channel edit/delete context menu (gated on `MANAGE_CHANNELS`)
 
+## Known Issues & Edge Cases
+
+### Room Assignment (Why Users Should Always Be in the Same Room)
+
+The LiveKit room name is **always** `"channel_{channel_id}"`, derived deterministically from the channel ID on the server (`voice/livekit.rs:34`). The room name is baked into the JWT token via `VideoGrants.room` at generation time (`livekit.rs:44-50`). Both the REST join endpoint (`routes/voice.rs:99`) and the gateway voice join handler (`gateway/mod.rs:401`) call the same `generate_token()` function with the same channel ID. The `AccordVoiceServerUpdate` model handles the REST/gateway field name difference (`livekit_url` vs `url`) via fallback at `voice_server_update.gd:25`. All users joining the same voice channel receive tokens for the same LiveKit room, and the LiveKit server enforces room membership from the token grant.
+
+### ISSUE: Auto-Reconnect Uses Stale Stored Credentials
+
+**Location:** `client_voice.gd:385-401`
+
+When the LiveKit connection drops (state → DISCONNECTED), `_try_auto_reconnect()` replays the token stored in `_voice_server_info` rather than requesting a fresh one from the REST API.
+
+**Why this matters:**
+- LiveKit tokens have a TTL. If the user stays connected for hours and the connection drops, the stored token may be expired and LiveKit will reject it.
+- If the server moved the user to a different channel while disconnected, the stale token still targets the old room.
+- `_auto_reconnect_attempted` limits this to one retry, so a second drop after a successful reconnect is not retried.
+
+**Current mitigations:**
+- `_auto_reconnect_attempted = true` prevents infinite retry loops (line 397).
+- If a gateway `voice.server_update` arrives with fresh credentials, it overwrites `_voice_server_info` and calls `_connect_voice_backend()` directly (`client_gateway_events.gd:155-158`), bypassing the stale path.
+- The guard at line 392 (`_voice_server_info.is_empty()`) prevents reconnect if credentials were explicitly cleared during leave.
+
+**Fix:** `_try_auto_reconnect()` should call `VoiceApi.join()` to get a fresh token instead of replaying stored credentials.
+
+### ISSUE: `_intentional_disconnect` Flag Timing Around Async `connect_to_room()`
+
+**Location:** `client_voice.gd:126-130`, `livekit_adapter.gd:59-88`
+
+```
+_intentional_disconnect = true          # line 126
+_c._voice_session.connect_to_room(...)  # line 127 (async native call)
+_intentional_disconnect = false          # line 130
+```
+
+Inside `connect_to_room()`, the old room is torn down via `disconnect_voice()` (livekit_adapter.gd:70), which synchronously emits `session_state_changed(DISCONNECTED)` (livekit_adapter.gd:114). Because `_intentional_disconnect` is still `true` at this point, `_try_auto_reconnect()` correctly returns early.
+
+**However**, once `_intentional_disconnect` is set back to `false` (line 130), any subsequent DISCONNECTED signal from the **new** room's native connection attempt would trigger `_try_auto_reconnect()` with the stale stored credentials. This window exists because `connect_to_room()` fires off `_room.connect_to_room()` asynchronously (livekit_adapter.gd:88) — the native LiveKit SDK connects in a background thread, and a failure callback could arrive on a later frame after the flag is already false.
+
+**Practical risk:** Low — the DISCONNECTED callback from the new room would only fire if the connection attempt succeeds and then immediately drops. A connection failure fires `connection_failed` → FAILED state, which does NOT trigger auto-reconnect (client_voice.gd:300-305).
+
+### ISSUE: Double `_connect_voice_backend()` on Gateway `voice.server_update`
+
+**Location:** `client_voice.gd:97` and `client_gateway_events.gd:155-158`
+
+The REST join path calls `_connect_voice_backend()` directly from `join_voice_channel()` (line 97). The gateway `on_voice_server_update` handler also calls `_connect_voice_backend()` whenever `voice_channel_id` is non-empty (line 155-158).
+
+**In normal operation, this does NOT double-fire.** The REST `join_voice` endpoint (`routes/voice.rs`) does not send a `voice.server_update` via the gateway — it only broadcasts `voice.state_update` and returns the token in the REST response. The gateway only sends `voice.server_update` when a join is initiated via gateway opcode 9 (VOICE_STATE_UPDATE), which the client only uses for flag-only updates (video/screen state) via `_send_voice_state_update()`. Since those are same-channel updates, the server's `is_same_channel` check (`gateway/mod.rs:322`) skips the `voice.server_update`.
+
+**When double-fire could occur:**
+- If a server-side mechanism (admin move, load balancer migration) sends a `voice.server_update` while the user is already connected. This is actually correct behavior — the gateway handler tears down and reconnects with fresh credentials.
+- If a gateway reconnect replays a queued `voice.server_update` after the REST join already connected. This would cause a brief disconnect/reconnect cycle but end in the correct room.
+
+### Join Flow: REST-Only Token Path
+
+For clarity, the normal voice join uses **only** the REST response for the LiveKit token:
+
+```
+Client                          Server                      LiveKit
+  |                                |                            |
+  | POST /channels/{id}/voice/join |                            |
+  |------------------------------->|                            |
+  |                                | join_voice_channel()       |
+  |                                | ensure_room()              |
+  |                                |--------------------------->|
+  |                                | generate_token()           |
+  |                                |  room = "channel_{id}"     |
+  |                                |                            |
+  |    REST response               |                            |
+  |    {livekit_url, token}        |                            |
+  |<-------------------------------|                            |
+  |                                |                            |
+  | _connect_voice_backend()       |                            |
+  | LiveKitAdapter.connect_to_room(url, token)                  |
+  |------------------------------------------------------------>|
+  |                                |                            |
+  |                                | broadcast voice.state_update
+  |                                | (NO voice.server_update)   |
+  |    gateway: voice.state_update |                            |
+  |<-------------------------------|                            |
+  |    (updates cache only,        |                            |
+  |     does NOT reconnect)        |                            |
+```
+
+The gateway `voice.server_update` event is reserved for:
+1. Server-initiated reconnection (e.g., LiveKit server migration)
+2. Joins initiated via gateway opcode 9 (currently unused for initial joins)
+
 ## Tasks
 
 ### VOICE-1: No server-side validation/tests for voice join payloads
@@ -501,3 +588,17 @@ Native binary addon wrapping the LiveKit C++ SDK for room-based voice/video. Loc
 - **Effort:** 3
 - **Tags:** audio, config, voice
 - **Notes:** `Config.voice.get_output_device()` is persisted but remote audio players use the default bus. Need to route to the selected output device.
+
+### VOICE-4: Auto-reconnect should request fresh token instead of replaying stale credentials
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** voice, reliability
+- **Notes:** `_try_auto_reconnect()` replays the stored `_voice_server_info` token. Should call `VoiceApi.join()` to get a fresh token, handling token expiry and server-side channel moves. See "ISSUE: Auto-Reconnect Uses Stale Stored Credentials" above.
+
+### VOICE-5: `_intentional_disconnect` flag does not cover async connection failures
+- **Status:** open
+- **Impact:** 1
+- **Effort:** 1
+- **Tags:** voice, reliability
+- **Notes:** The flag is set/unset synchronously around an async `connect_to_room()` call. A native DISCONNECTED callback from the new room arriving after the flag is cleared could trigger auto-reconnect with stale credentials. Low practical risk since connection failures fire FAILED (not DISCONNECTED). See "ISSUE: `_intentional_disconnect` Flag Timing" above.

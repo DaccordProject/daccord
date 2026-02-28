@@ -48,16 +48,21 @@ func on_member_join(member: AccordMember, conn_index: int) -> void:
 	var space_id: String = conn["space_id"]
 	var cdn_url: String = conn["cdn_url"]
 	if not _c._user_cache.has(member.user_id):
-		var client: AccordClient = conn["client"]
-		if client != null:
-			var user_result: RestResult = await client.users.fetch(member.user_id)
-			if user_result.ok:
-				_c._user_cache[member.user_id] = ClientModels.user_to_dict(
-					user_result.data,
-					ClientModels.UserStatus.OFFLINE,
-					cdn_url
-				)
-	var member_dict := ClientModels.member_to_dict(member, _c._user_cache)
+		if member.user != null:
+			_c._user_cache[member.user_id] = ClientModels.user_to_dict(
+				member.user, ClientModels.UserStatus.OFFLINE, cdn_url
+			)
+		else:
+			var client: AccordClient = conn["client"]
+			if client != null:
+				var user_result: RestResult = await client.users.fetch(member.user_id)
+				if user_result.ok:
+					_c._user_cache[member.user_id] = ClientModels.user_to_dict(
+						user_result.data,
+						ClientModels.UserStatus.OFFLINE,
+						cdn_url
+					)
+	var member_dict := ClientModels.member_to_dict(member, _c._user_cache, cdn_url)
 	if not _c._member_cache.has(space_id):
 		_c._member_cache[space_id] = []
 	_c._member_cache[space_id].append(member_dict)

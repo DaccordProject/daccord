@@ -147,14 +147,15 @@ func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> v
 				str(info.livekit_url)
 			]
 		)
-	# If we're already in a voice channel and disconnected,
-	# connect the backend now (server may send update asynchronously).
+	# If we're already in a voice channel, (re)connect the backend with
+	# the new credentials.  _connect_voice_backend() handles tearing down
+	# any existing room, so this works whether the session is still
+	# CONNECTED (gateway event arrived before LiveKit disconnected) or
+	# already DISCONNECTED (the old race-condition path).
 	if not AppState.voice_channel_id.is_empty() and _c._voice_session != null:
-		var state: int = _c._voice_session.get_session_state()
-		if state == LiveKitAdapter.State.DISCONNECTED:
-			if _c.has_method("_voice_log"):
-				_c._voice_log("voice_server_update connecting backend now")
-			_c.voice._connect_voice_backend(info)
+		if _c.has_method("_voice_log"):
+			_c._voice_log("voice_server_update connecting backend now")
+		_c.voice._connect_voice_backend(info)
 
 func on_voice_signal(_data: Dictionary, _conn_index: int) -> void:
 	pass # LiveKit handles signaling internally

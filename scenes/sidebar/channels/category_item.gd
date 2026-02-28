@@ -148,6 +148,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.add_item("Create Channel", 0)
 	_context_menu.add_item("Edit Category", 1)
 	_context_menu.add_item("Delete Category", 2)
+	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 

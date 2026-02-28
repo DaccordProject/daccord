@@ -272,6 +272,7 @@ func _on_post_context_menu(pos: Vector2i, post_data: Dictionary) -> void:
 		_context_menu.get_item_index(1),
 		not is_own and not can_manage
 	)
+	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 

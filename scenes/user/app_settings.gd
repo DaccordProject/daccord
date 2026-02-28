@@ -276,6 +276,7 @@ func _on_mic_monitor_toggled(pressed: bool) -> void:
 func _start_mic_test() -> void:
 	_mic_testing = true
 	_mic_test_btn.text = "Stop Test"
+	Config.voice.apply_devices()
 	_mic_test_bus_idx = AudioServer.bus_count
 	AudioServer.add_bus(_mic_test_bus_idx)
 	AudioServer.set_bus_name(_mic_test_bus_idx, "MicTest")

@@ -192,6 +192,7 @@ func _ready() -> void:
 	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
 	AppState.profile_switched.connect(_on_profile_switched)
 	AppState.server_reconnected.connect(_flush_message_queue)
+	AppState.config_changed.connect(voice.on_voice_config_changed)
 	# Idle timer setup
 	_last_input_time = Time.get_ticks_msec() / 1000.0
 	_idle_timer = Timer.new()

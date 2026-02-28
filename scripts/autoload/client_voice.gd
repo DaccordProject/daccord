@@ -7,6 +7,8 @@ extends RefCounted
 
 
 var _c: Node # Client autoload
+var _intentional_disconnect: bool = false
+var _auto_reconnect_attempted: bool = false
 
 func _init(client_node: Node) -> void:
 	_c = client_node
@@ -118,9 +120,14 @@ func _connect_voice_backend(
 		_voice_log("connect backend: missing livekit credentials")
 		return
 	_voice_log("connect backend: livekit url=%s" % str(info.livekit_url))
+	# Flag intentional so the intermediate DISCONNECTED state from
+	# connect_to_room() tearing down the old room doesn't trigger
+	# auto-reconnect.
+	_intentional_disconnect = true
 	_c._voice_session.connect_to_room(
 		str(info.livekit_url), str(info.token)
 	)
+	_intentional_disconnect = false
 
 func leave_voice_channel() -> bool:
 	var channel_id := AppState.voice_channel_id
@@ -141,7 +148,9 @@ func leave_voice_channel() -> bool:
 	_c._camera_track = null
 	_c._screen_track = null
 	_c._remote_tracks.clear()
+	_intentional_disconnect = true
 	_c._voice_session.disconnect_voice()
+	_intentional_disconnect = false
 	# Notify the server we're leaving (best-effort).
 	# If the connection is down or missing, skip the REST call.
 	var space_id: String = _c._channel_to_space.get(channel_id, "")
@@ -285,6 +294,7 @@ func on_session_state_changed(state: int) -> void:
 			_voice_log("session_state: CONNECTING")
 		LiveKitAdapter.State.CONNECTED:
 			_voice_log("session_state: CONNECTED")
+			_auto_reconnect_attempted = false
 		LiveKitAdapter.State.RECONNECTING:
 			_voice_log("session_state: RECONNECTING")
 		LiveKitAdapter.State.FAILED:
@@ -295,6 +305,7 @@ func on_session_state_changed(state: int) -> void:
 			)
 		LiveKitAdapter.State.DISCONNECTED:
 			_voice_log("session_state: DISCONNECTED")
+			_try_auto_reconnect()
 
 func on_peer_joined(_user_id: String) -> void:
 	var cid := AppState.voice_channel_id
@@ -371,6 +382,24 @@ func on_audio_level_changed(
 				)
 			AppState.speaking_changed.emit(uid, true)
 
+func _try_auto_reconnect() -> void:
+	if _intentional_disconnect:
+		return
+	if _auto_reconnect_attempted:
+		return
+	if AppState.voice_channel_id.is_empty():
+		return
+	if _c._voice_server_info.is_empty():
+		return
+	if _c._voice_session == null or not _c._voice_session.is_inside_tree():
+		return
+	_voice_log("auto-reconnect: attempting with stored credentials")
+	_auto_reconnect_attempted = true
+	var info: AccordVoiceServerUpdate = AccordVoiceServerUpdate.from_dict(
+		_c._voice_server_info
+	)
+	_connect_voice_backend(info)
+
 func _cleanup_failed_join_state(channel_id: String) -> void:
 	var my_id: String = _c.current_user.get("id", "")
 	if my_id.is_empty():
@@ -402,6 +431,44 @@ func _validate_backend_info(
 			"reason": "missing livekit_url/token",
 		}
 	return {"ok": true, "backend": "livekit", "reason": ""}
+
+func on_voice_config_changed(
+	section: String, key: String,
+) -> void:
+	if section != "voice":
+		return
+	match key:
+		"video_resolution", "video_fps":
+			_republish_camera()
+		"debug_logging":
+			_c.debug_voice_logs = Config.voice.get_debug_logging()
+
+func _republish_camera() -> void:
+	if _c._camera_track == null:
+		return
+	if _c._camera_track.has_method("close"):
+		_c._camera_track.close()
+	_c._camera_track = null
+	_c._voice_session.unpublish_camera()
+	var res_preset: int = Config.voice.get_video_resolution()
+	var width := 640
+	var height := 480
+	match res_preset:
+		1:
+			width = 1280
+			height = 720
+		2:
+			width = 1920
+			height = 1080
+	var fps: int = Config.voice.get_video_fps()
+	var stream = _c._voice_session.publish_camera(
+		Vector2i(width, height), fps
+	)
+	if stream == null:
+		AppState.voice_error.emit("Failed to republish camera")
+		AppState.set_video_enabled(false)
+		return
+	_c._camera_track = stream
 
 func _voice_log(message: String) -> void:
 	_c._voice_log(message)

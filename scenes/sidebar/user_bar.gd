@@ -127,6 +127,7 @@ func _on_status_icon_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		var pos: Vector2 = status_icon.global_position
 		pos.y += status_icon.size.y
+		_status_popup.hide()
 		_status_popup.position = Vector2i(pos)
 		_status_popup.popup()
 

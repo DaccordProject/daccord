@@ -104,6 +104,7 @@ func on_context_menu_requested(
 	_context_menu.set_item_disabled(
 		4, not (can_manage and has_reactions)
 	)
+	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 
