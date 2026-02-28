@@ -57,8 +57,20 @@ var _mic_bus_idx: int = -1
 # --- Public API ---
 
 func connect_to_room(url: String, token: String) -> void:
+	# Stash room-independent screen capture resources so they survive
+	# the disconnect_voice() teardown.  They'll be re-published in
+	# _on_connected() once the new room is ready.
+	var saved_capture: LiveKitScreenCapture = _screen_capture
+	var saved_preview: LocalVideoPreview = _screen_preview
+	if saved_capture != null:
+		# Detach from disconnect_voice() without closing.
+		_screen_capture = null
+		_screen_preview = null
 	if _room != null:
 		disconnect_voice()
+	# Restore stashed capture/preview for _on_connected to re-publish.
+	_screen_capture = saved_capture
+	_screen_preview = saved_preview
 	_state = State.CONNECTING
 	session_state_changed.emit(State.CONNECTING)
 	_room = LiveKitRoom.new()
@@ -174,6 +186,27 @@ func publish_screen(source: Dictionary) -> RefCounted:
 	_screen_preview = LocalVideoPreview.new()
 	return _screen_preview
 
+func _republish_screen() -> void:
+	## Re-create the room-dependent objects (source, track, publication)
+	## for an existing screen capture after a room reconnection.
+	if _room == null or _screen_capture == null:
+		return
+	var img: Image = _screen_capture.screenshot()
+	var width: int = img.get_width() if img != null and not img.is_empty() else 1920
+	var height: int = img.get_height() if img != null and not img.is_empty() else 1080
+	_local_screen_source = LiveKitVideoSource.create(width, height)
+	_local_screen_track = LiveKitLocalVideoTrack.create(
+		"screen", _local_screen_source
+	)
+	var local_part: LiveKitLocalParticipant = _room.get_local_participant()
+	if local_part == null:
+		return
+	_local_screen_pub = local_part.publish_track(
+		_local_screen_track, {"source": LiveKitTrack.SOURCE_SCREENSHARE}
+	)
+	if _screen_preview == null:
+		_screen_preview = LocalVideoPreview.new()
+
 func unpublish_screen() -> void:
 	_cleanup_local_screen()
 
@@ -241,6 +274,9 @@ func _on_connected() -> void:
 	session_state_changed.emit(State.CONNECTED)
 	# Publish local microphone audio
 	_publish_local_audio()
+	# Re-publish screen share if capture survived the reconnection.
+	if _screen_capture != null:
+		_republish_screen()
 
 func _on_connection_failed(error: String) -> void:
 	push_error("[LiveKitAdapter] Connection failed: ", error)
