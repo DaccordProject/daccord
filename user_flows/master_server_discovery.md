@@ -375,15 +375,60 @@ discovery_panel: user clicks "Join Server"
 - [ ] accordkit: directory REST endpoint wrapper
 
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No accordmasterserver code exists yet | **High** | Repo is empty; needs full implementation |
-| No discovery UI in daccord | **High** | Discover button and panel need to be built |
-| No tag/category system on accordserver spaces | Medium | Spaces have no `tags` field; master server could add its own tagging layer, or accordserver could add a `tags` column |
-| No space preview (channels, recent messages) | Low | Could add a read-only preview before joining, but adds complexity |
-| No vanity/featured listings | Low | Could add a "featured" flag to the master server for curated highlights |
-| No abuse reporting for listed servers | Medium | Operators can list anything; no report/flag mechanism yet |
-| No server-side icon/banner proxying | Low | Directory returns direct CDN URLs to each accordserver; if a server goes down, icons break |
-| No WebSocket push for directory updates | Low | Clients poll on panel open; could add real-time updates via SSE or WebSocket later |
+### DISCOVER-1: No accordmasterserver code exists yet
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 5
+- **Tags:** general
+- **Notes:** Repo is empty; needs full implementation
+
+### DISCOVER-2: No discovery UI in daccord
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** Discover button and panel need to be built
+
+### DISCOVER-3: No tag/category system on accordserver spaces
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Spaces have no `tags` field; master server could add its own tagging layer, or accordserver could add a `tags` column
+
+### DISCOVER-4: No space preview (channels, recent messages)
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** Could add a read-only preview before joining, but adds complexity
+
+### DISCOVER-5: No vanity/featured listings
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** Could add a "featured" flag to the master server for curated highlights
+
+### DISCOVER-6: No abuse reporting for listed servers
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** Operators can list anything; no report/flag mechanism yet
+
+### DISCOVER-7: No server-side icon/banner proxying
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Directory returns direct CDN URLs to each accordserver; if a server goes down, icons break
+
+### DISCOVER-8: No WebSocket push for directory updates
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** gateway, ui
+- **Notes:** Clients poll on panel open; could add real-time updates via SSE or WebSocket later

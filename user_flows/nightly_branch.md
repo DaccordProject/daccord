@@ -357,16 +357,67 @@ master (stable)          nightly
 - [ ] Nightly changelog generation (commits since last stable tag)
 - [ ] `workflow_dispatch` for manual nightly triggers
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No `nightly` branch exists | High | The `nightly` branch has not been created yet. All development currently happens on `master`. |
-| No nightly CI workflow | High | `.github/workflows/nightly.yml` does not exist. Must be created with the version injection, build matrix, and rolling release logic. |
-| No update channel detection | High | `updater.gd` has no `get_update_channel()` function. The build has no way to know if it's stable or nightly. |
-| No GitHub Releases API integration | High | `updater.gd` only has semver utilities (lines 7-67). No code checks GitHub for new versions — the "Check for Updates" handler (user_bar.gd, line 356) is a stub that shows a toast. Prerequisite for both stable and nightly update checks. |
-| No `update_channel` project setting | Medium | `project.godot` has no `config/update_channel` key. The nightly workflow needs to inject this, and `updater.gd` needs to read it. |
-| CI only runs on `master` | Medium | `.github/workflows/ci.yml` (lines 4-6) only triggers on push/PR to `master`. Must be extended to include `nightly` to catch regressions before nightly builds ship. |
-| Sentry does not distinguish channels | Low | `error_reporting.gd` tags `app_version` (line 22) but has no `update_channel` tag. Nightly crash reports would be mixed with stable reports in GlitchTip. |
-| About dialog does not show channel | Low | The About dialog (`user_bar.gd`, line 182) shows the version but not whether the build is stable or nightly. |
-| No automated merge strategy | Low | Keeping `nightly` and `master` in sync requires manual merges. Could be partially automated with a scheduled workflow that merges `master` into `nightly`. |
+### NIGHTLY-1: No `nightly` branch exists
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** The `nightly` branch has not been created yet. All development currently happens on `master`.
+
+### NIGHTLY-2: No nightly CI workflow
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** ci
+- **Notes:** `.github/workflows/nightly.yml` does not exist. Must be created with the version injection, build matrix, and rolling release logic.
+
+### NIGHTLY-3: No update channel detection
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** ci
+- **Notes:** `updater.gd` has no `get_update_channel()` function. The build has no way to know if it's stable or nightly.
+
+### NIGHTLY-4: No GitHub Releases API integration
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** api, ci
+- **Notes:** `updater.gd` only has semver utilities (lines 7-67). No code checks GitHub for new versions — the "Check for Updates" handler (user_bar.gd, line 356) is a stub that shows a toast. Prerequisite for both stable and nightly update checks.
+
+### NIGHTLY-5: No `update_channel` project setting
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** config
+- **Notes:** `project.godot` has no `config/update_channel` key. The nightly workflow needs to inject this, and `updater.gd` needs to read it.
+
+### NIGHTLY-6: CI only runs on `master`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci
+- **Notes:** `.github/workflows/ci.yml` (lines 4-6) only triggers on push/PR to `master`. Must be extended to include `nightly` to catch regressions before nightly builds ship.
+
+### NIGHTLY-7: Sentry does not distinguish channels
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** `error_reporting.gd` tags `app_version` (line 22) but has no `update_channel` tag. Nightly crash reports would be mixed with stable reports in GlitchTip.
+
+### NIGHTLY-8: About dialog does not show channel
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ci, ui
+- **Notes:** The About dialog (`user_bar.gd`, line 182) shows the version but not whether the build is stable or nightly.
+
+### NIGHTLY-9: No automated merge strategy
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** Keeping `nightly` and `master` in sync requires manual merges. Could be partially automated with a scheduled workflow that merges `master` into `nightly`.

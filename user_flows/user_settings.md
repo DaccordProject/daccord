@@ -306,23 +306,116 @@ Built by `_build_connections_page()` (line 642). Shows "Loading connections..." 
 - [ ] Video device dropdown stored in Config but not exposed in UI
 - [ ] Connections page is read-only (no disconnect/manage)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| 2FA page doesn't check actual status on open | High | `_status_label` defaults to "not enabled" (`user_settings_twofa.gd`, line 22) but never queries the server for current 2FA state. Users may see wrong status. |
-| Settings close after profile switch | High | `AppState.profile_switched.connect(queue_free)` (`user_settings.gd`, line 184) closes the entire panel. Users must reopen settings to continue configuring. |
-| No password visibility toggle | Medium | All password fields (`user_settings_danger.gd` lines 28, 33, 38, 112; `profile_password_dialog.gd` line 74; `profile_set_password_dialog.gd` lines 68, 80, 92) use `secret = true` with no eye icon to reveal text. Standard accessibility expectation. |
-| No password strength indicator | Medium | Account password requires 8 chars minimum (`user_settings_danger.gd`, line 59) but shows no real-time strength feedback. Profile passwords have no minimum at all (`create_profile_dialog.gd`, line 47). |
-| Profile context menu not discoverable | Medium | The `...` MenuButton (`user_settings.gd`, line 237) has no tooltip. Contains 6 actions (Rename, Set Password, Export, Delete, Move Up, Move Down) that users may not find. |
-| No tooltips or help text on settings | Medium | Idle timeout, reduce motion, error reporting, suppress @everyone, video resolution/FPS — none have descriptions explaining their effect. |
-| Dialogs close on background click | Medium | `create_profile_dialog.gd` (line 65), `profile_password_dialog.gd` (line 51), `profile_set_password_dialog.gd` (line 78) all call `queue_free()` on any background mouse click. Risk of accidental dismissal during input. |
-| 2FA backup codes have no copy button | Medium | Backup codes display as a plain `Label` with newline-separated text (`user_settings_twofa.gd`, line 130). No clipboard copy affordance. |
-| Success/error messages share same label | Low | Password change success reuses the error label with a green color override (`user_settings_danger.gd`, lines 77-80). No distinct success styling pattern. |
-| No character counters on inputs | Low | Profile name has 32 char `max_length` (`user_settings.gd`, line 296; `create_profile_dialog.tscn`, line 67) but no visible counter. Bio has no limit shown. |
-| Video device dropdown not in UI | Low | `Config.get_voice_video_device()` / `set_voice_video_device()` exist (config.gd, lines 241-247) but no UI control is built for it in the Voice page. |
-| Import/export has no description | Low | Users don't know what data is included in a `.daccord-profile` export. No help text on the Import or Export buttons (`user_settings.gd`, lines 179, 324). |
-| No sound test/preview button | Low | Sound event checkboxes toggle events but there's no way to hear what each sound is (`user_settings.gd`, lines 527-538). |
-| Profile reorder has no visual feedback | Low | "Move Up" / "Move Down" silently call `Config.move_profile_up/down()` and refresh the list (`user_settings.gd`, lines 284-288). No animation or confirmation. |
-| Inconsistent label casing | Low | Section labels use ALL CAPS ("USERNAME", "INPUT DEVICE") via `_section_label()` but some inline labels use sentence case ("Accent Color" at `user_settings_profile.gd`, line 77; "Reduce motion" at `user_settings.gd`, line 592). |
-| Inconsistent button styling | Low | Delete Account button has a custom red `StyleBoxFlat` (`user_settings_danger.gd`, lines 125-135). Most other buttons use default theme. No shared primary/danger button style variants. |
+### SETTINGS-1: 2FA page doesn't check actual status on open
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** config, security
+- **Notes:** `_status_label` defaults to "not enabled" (`user_settings_twofa.gd`, line 22) but never queries the server for current 2FA state. Users may see wrong status.
+
+### SETTINGS-2: Settings close after profile switch
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** `AppState.profile_switched.connect(queue_free)` (`user_settings.gd`, line 184) closes the entire panel. Users must reopen settings to continue configuring.
+
+### SETTINGS-3: No password visibility toggle
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** a11y, config, security, ui
+- **Notes:** All password fields (`user_settings_danger.gd` lines 28, 33, 38, 112; `profile_password_dialog.gd` line 74; `profile_set_password_dialog.gd` lines 68, 80, 92) use `secret = true` with no eye icon to reveal text. Standard accessibility expectation.
+
+### SETTINGS-4: No password strength indicator
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** config, security, ui
+- **Notes:** Account password requires 8 chars minimum (`user_settings_danger.gd`, line 59) but shows no real-time strength feedback. Profile passwords have no minimum at all (`create_profile_dialog.gd`, line 47).
+
+### SETTINGS-5: Profile context menu not discoverable
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, config, security, ui
+- **Notes:** The `...` MenuButton (`user_settings.gd`, line 237) has no tooltip. Contains 6 actions (Rename, Set Password, Export, Delete, Move Up, Move Down) that users may not find.
+
+### SETTINGS-6: No tooltips or help text on settings
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** config, ui, video
+- **Notes:** Idle timeout, reduce motion, error reporting, suppress @everyone, video resolution/FPS — none have descriptions explaining their effect.
+
+### SETTINGS-7: Dialogs close on background click
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, security, ui
+- **Notes:** `create_profile_dialog.gd` (line 65), `profile_password_dialog.gd` (line 51), `profile_set_password_dialog.gd` (line 78) all call `queue_free()` on any background mouse click. Risk of accidental dismissal during input.
+
+### SETTINGS-8: 2FA backup codes have no copy button
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** config, security, ui
+- **Notes:** Backup codes display as a plain `Label` with newline-separated text (`user_settings_twofa.gd`, line 130). No clipboard copy affordance.
+
+### SETTINGS-9: Success/error messages share same label
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, security
+- **Notes:** Password change success reuses the error label with a green color override (`user_settings_danger.gd`, lines 77-80). No distinct success styling pattern.
+
+### SETTINGS-10: No character counters on inputs
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** Profile name has 32 char `max_length` (`user_settings.gd`, line 296; `create_profile_dialog.tscn`, line 67) but no visible counter. Bio has no limit shown.
+
+### SETTINGS-11: Video device dropdown not in UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config, ui, video, voice
+- **Notes:** `Config.get_voice_video_device()` / `set_voice_video_device()` exist (config.gd, lines 241-247) but no UI control is built for it in the Voice page.
+
+### SETTINGS-12: Import/export has no description
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ci, config, ui
+- **Notes:** Users don't know what data is included in a `.daccord-profile` export. No help text on the Import or Export buttons (`user_settings.gd`, lines 179, 324).
+
+### SETTINGS-13: No sound test/preview button
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** audio, config, gateway, testing, ui
+- **Notes:** Sound event checkboxes toggle events but there's no way to hear what each sound is (`user_settings.gd`, lines 527-538).
+
+### SETTINGS-14: Profile reorder has no visual feedback
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config
+- **Notes:** "Move Up" / "Move Down" silently call `Config.move_profile_up/down()` and refresh the list (`user_settings.gd`, lines 284-288). No animation or confirmation.
+
+### SETTINGS-15: Inconsistent label casing
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** audio, config
+- **Notes:** Section labels use ALL CAPS ("USERNAME", "INPUT DEVICE") via `_section_label()` but some inline labels use sentence case ("Accent Color" at `user_settings_profile.gd`, line 77; "Reduce motion" at `user_settings.gd`, line 592).
+
+### SETTINGS-16: Inconsistent button styling
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, ui
+- **Notes:** Delete Account button has a custom red `StyleBoxFlat` (`user_settings_danger.gd`, lines 125-135). Most other buttons use default theme. No shared primary/danger button style variants.

@@ -357,13 +357,46 @@ Screen share tracks are cleaned up in three scenarios:
 - [ ] Screen share audio (system audio capture alongside video)
 - [ ] Mini PiP preview when navigating away from voice channel
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Hardcoded 1920x1080 resolution | Medium | `LiveKitVideoSource.create(1920, 1080)` ignores the actual selected screen's resolution. `LiveKitScreenCapture.get_monitors()` returns `width`/`height`/`scale` per monitor, which should be used for `LiveKitVideoSource.create()` |
-| No actual frame capture | High | `LiveKitVideoSource` is created but no frames are ever pushed to it -- the screen share track publishes blank video. Use `LiveKitScreenCapture.start()` + `poll()` + `get_image()` in `_process()` to pipe frames to `LiveKitVideoSource.capture_frame()` |
-| No spotlight layout for screen shares | Medium | `video_grid.gd` treats screen share tiles identically to camera tiles in a uniform `GridContainer`. Discord shows screen shares as a large dominant view with participants as a small strip. Covered in the Video Chat user flow |
-| No screen share audio | Low | Only the video track is published. System audio capture is not included in the screen share. Would require a separate `LiveKitAudioSource` capturing desktop audio |
-| Screen picker shows no thumbnails | Low | Each source is a text-only button. No preview thumbnail of the screen/window content. `LiveKitScreenCapture.screenshot()` can provide preview thumbnails |
-| No confirmation before sharing | Low | Clicking a source immediately starts sharing with no confirmation step. Discord shows a preview before the user commits |
+### SCREEN-1: Hardcoded 1920x1080 resolution
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** video, voice
+- **Notes:** `LiveKitVideoSource.create(1920, 1080)` ignores the actual selected screen's resolution. `LiveKitScreenCapture.get_monitors()` returns `width`/`height`/`scale` per monitor, which should be used for `LiveKitVideoSource.create()`
+
+### SCREEN-2: No actual frame capture
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** video, voice
+- **Notes:** `LiveKitVideoSource` is created but no frames are ever pushed to it -- the screen share track publishes blank video. Use `LiveKitScreenCapture.start()` + `poll()` + `get_image()` in `_process()` to pipe frames to `LiveKitVideoSource.capture_frame()`
+
+### SCREEN-3: No spotlight layout for screen shares
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ci, ui, video
+- **Notes:** `video_grid.gd` treats screen share tiles identically to camera tiles in a uniform `GridContainer`. Discord shows screen shares as a large dominant view with participants as a small strip. Covered in the Video Chat user flow
+
+### SCREEN-4: No screen share audio
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** audio, video, voice
+- **Notes:** Only the video track is published. System audio capture is not included in the screen share. Would require a separate `LiveKitAudioSource` capturing desktop audio
+
+### SCREEN-5: Screen picker shows no thumbnails
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui, voice
+- **Notes:** Each source is a text-only button. No preview thumbnail of the screen/window content. `LiveKitScreenCapture.screenshot()` can provide preview thumbnails
+
+### SCREEN-6: No confirmation before sharing
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Clicking a source immediately starts sharing with no confirmation step. Discord shows a preview before the user commits

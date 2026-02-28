@@ -224,9 +224,18 @@ Reaction update (O(1) path):
 - [ ] List virtualization (only render visible messages + buffer, recycle off-screen nodes)
 - [ ] Object pooling for message scenes
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No list virtualization | High | All cached messages are instantiated as scene nodes regardless of viewport visibility (message_view.gd `_load_messages()`). With 50 messages cached and ~12 visible, 38 nodes are fully set up off-screen. Virtualize the list to only instantiate nodes within the visible range plus a small scroll buffer. |
-| Avatar LRU eviction uses O(n) remove_at(0) | Low | `_evict_cache()` calls `_cache_access_order.remove_at(0)` which is O(n) for an Array (avatar.gd line 125). With a cap of 200 this is negligible, but would matter at larger scales. |
+### MSGPERF-1: No list virtualization
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 3
+- **Tags:** performance
+- **Notes:** All cached messages are instantiated as scene nodes regardless of viewport visibility (message_view.gd `_load_messages()`). With 50 messages cached and ~12 visible, 38 nodes are fully set up off-screen. Virtualize the list to only instantiate nodes within the visible range plus a small scroll buffer.
+
+### MSGPERF-2: Avatar LRU eviction uses O(n) remove_at(0)
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** performance
+- **Notes:** `_evict_cache()` calls `_cache_access_order.remove_at(0)` which is O(n) for an Array (avatar.gd line 125). With a cap of 200 this is negligible, but would matter at larger scales.

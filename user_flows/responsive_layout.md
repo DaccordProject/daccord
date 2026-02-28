@@ -264,14 +264,53 @@ Space selected:
 - [x] Member list state restored on MEDIUM -> FULL transition
 - [x] Distinct sidebar toggle icon (`sidebar_toggle.svg` vs `menu.svg`)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Status | Notes |
-|-----|----------|--------|-------|
-| Swipe-to-open drawer | Medium | Done | Edge-swipe gesture (20px zone, 80px threshold) opens drawer in COMPACT mode. Supports both touch and mouse. |
-| Landscape/orientation detection | Low | Done | `AppState.is_landscape` and `orientation_changed` signal. Landscape = width/height > 1.5. |
-| Channel panel toggle animation | Low | Done | Tween-based slide animation (0.15s) on `set_channel_panel_visible()`. Instant variant for mode transitions. |
-| Dynamic drawer width | Low | Done | `_get_drawer_width()` caps at viewport width minus 48px tap target. Recalculates on resize. |
-| Breakpoint constants | Low | Done | `COMPACT_BREAKPOINT` (500) and `MEDIUM_BREAKPOINT` (768) constants in `app_state.gd`. |
-| Member list state restored on MEDIUM -> FULL | Low | Done | Saves `member_list_visible` before MEDIUM forces it off; restores on FULL. |
-| Sidebar toggle uses distinct icon | Low | Done | `SidebarToggle` uses `sidebar_toggle.svg` (layout sidebar icon); `HamburgerButton` keeps `menu.svg`. |
+### LAYOUT-1: Swipe-to-open drawer
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** mobile
+- **Notes:** Edge-swipe gesture (20px zone, 80px threshold) opens drawer in COMPACT mode. Supports both touch and mouse.
+
+### LAYOUT-2: Landscape/orientation detection
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `AppState.is_landscape` and `orientation_changed` signal. Landscape = width/height > 1.5.
+
+### LAYOUT-3: Channel panel toggle animation
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Tween-based slide animation (0.15s) on `set_channel_panel_visible()`. Instant variant for mode transitions.
+
+### LAYOUT-4: Dynamic drawer width
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `_get_drawer_width()` caps at viewport width minus 48px tap target. Recalculates on resize.
+
+### LAYOUT-5: Breakpoint constants
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `COMPACT_BREAKPOINT` (500) and `MEDIUM_BREAKPOINT` (768) constants in `app_state.gd`.
+
+### LAYOUT-6: Member list state restored on MEDIUM -> FULL
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** api
+- **Notes:** Saves `member_list_visible` before MEDIUM forces it off; restores on FULL.
+
+### LAYOUT-7: Sidebar toggle uses distinct icon
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** ui
+- **Notes:** `SidebarToggle` uses `sidebar_toggle.svg` (layout sidebar icon); `HamburgerButton` keeps `menu.svg`.

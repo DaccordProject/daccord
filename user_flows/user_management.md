@@ -284,12 +284,39 @@ Conversion between server strings ("online", "idle", "dnd", "offline") and enum 
 - [x] Avatar LRU cache eviction (200-entry cap with access-order tracking)
 - [x] Centralized status colors via `ClientModels.status_color()` and `status_label()`
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| Server-side 2FA endpoints may not exist yet | Low | `AuthApi` stubs (`enable_2fa`, `verify_2fa`, `disable_2fa`, `get_backup_codes`) are wired but depend on accordserver implementing the corresponding routes. |
-| Server-side password change endpoint may not exist yet | Low | `AuthApi.change_password()` calls `POST /auth/password` which may not be implemented in accordserver. |
-| Server-side account deletion endpoint may not exist yet | Low | `UsersApi.delete_me()` calls `DELETE /users/@me` which may not be implemented in accordserver. |
-| Banner image upload not supported | Low | Profile editing supports avatar upload but not banner image upload (would need a separate CDN upload endpoint). |
-| Profile card positioning on small screens | Low | Profile card position clamping may not be ideal on very small viewports where the card is larger than available space. |
+### USRMGMT-1: Server-side 2FA endpoints may not exist yet
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, security
+- **Notes:** `AuthApi` stubs (`enable_2fa`, `verify_2fa`, `disable_2fa`, `get_backup_codes`) are wired but depend on accordserver implementing the corresponding routes.
+
+### USRMGMT-2: Server-side password change endpoint may not exist yet
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, security
+- **Notes:** `AuthApi.change_password()` calls `POST /auth/password` which may not be implemented in accordserver.
+
+### USRMGMT-3: Server-side account deletion endpoint may not exist yet
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api
+- **Notes:** `UsersApi.delete_me()` calls `DELETE /users/@me` which may not be implemented in accordserver.
+
+### USRMGMT-4: Banner image upload not supported
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api
+- **Notes:** Profile editing supports avatar upload but not banner image upload (would need a separate CDN upload endpoint).
+
+### USRMGMT-5: Profile card positioning on small screens
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** Profile card position clamping may not be ideal on very small viewports where the card is larger than available space.

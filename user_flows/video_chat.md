@@ -436,13 +436,32 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 - [ ] Actual screen/window frame capture via `LiveKitScreenCapture` piped to `LiveKitVideoSource` (API now available)
 - [ ] Camera device selection applied at publish time (Config value persisted but not routed to LiveKit source)
 
-## Gaps / TODO
+## Tasks
 
-### Remaining Gaps
+### VIDEO-1: No window sharing
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** ui, voice
+- **Notes:** Screen picker (`screen_picker_dialog.gd`) only enumerates screens via `DisplayServer.get_screen_count()`. No window tab or window enumeration. `start_screen_share()` source_type and source_id params are currently unused -- `publish_screen()` always publishes at default 1920x1080. **Now unblocked:** `LiveKitScreenCapture.get_windows()` and `create_for_window()` enable window-level capture
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No window sharing | Medium | Screen picker (`screen_picker_dialog.gd`) only enumerates screens via `DisplayServer.get_screen_count()`. No window tab or window enumeration. `start_screen_share()` source_type and source_id params are currently unused -- `publish_screen()` always publishes at default 1920x1080. **Now unblocked:** `LiveKitScreenCapture.get_windows()` and `create_for_window()` enable window-level capture |
-| Camera device not routed to publish | Medium | `Config.voice.get_video_device()` is persisted but `toggle_video()` doesn't pass the device ID to `LiveKitAdapter.publish_camera()`. The adapter creates a `LiveKitVideoSource` with no device selection |
-| No bandwidth adaptation | Low | Fixed video parameters with no dynamic quality adjustment based on network conditions |
-| No video track hot-swap | Low | Switching cameras requires stopping the old track and creating a new one. No seamless hot-swap mechanism |
+### VIDEO-2: Camera device not routed to publish
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** config, video, voice
+- **Notes:** `Config.voice.get_video_device()` is persisted but `toggle_video()` doesn't pass the device ID to `LiveKitAdapter.publish_camera()`. The adapter creates a `LiveKitVideoSource` with no device selection
+
+### VIDEO-3: No bandwidth adaptation
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** video
+- **Notes:** video parameters with no dynamic quality adjustment based on network conditions
+
+### VIDEO-4: No video track hot-swap
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** video
+- **Notes:** Switching cameras requires stopping the old track and creating a new one. No seamless hot-swap mechanism

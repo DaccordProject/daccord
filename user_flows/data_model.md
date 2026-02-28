@@ -540,14 +540,53 @@ Constants (client.gd:6-12):
 - [x] User cache eviction (trim_user_cache() at USER_CACHE_CAP=500)
 - [x] Attachment rendering in message_content.gd (filename link + file size)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| `voice_users` always 0 | Medium | `channel_to_dict()` (line 208) includes a `voice_users: 0` placeholder but no voice state tracking is connected. AccordVoiceState model exists but gateway events for voice state aren't wired. `channel_item.gd` reads this field (line 61) |
-| `folder` always empty | Low | `space_to_dict()` (line 178) hardcodes `folder: ""`. This is a client-side organizational feature (grouping servers into folders); the server has no folder concept. `guild_folder.gd` exists in the UI but folder assignment is not implemented |
-| DM `last_message` only from gateway | Low | `dm_channel_to_dict()` (line 358) initializes `last_message: ""`. Only updated when a message_create gateway event arrives. On initial load, DM previews are blank until a new message is sent/received. Could pre-populate from `AccordChannel.last_message_id` by fetching the message |
-| No image display for attachments | Low | `message_content.gd` renders attachments as clickable filename links with file sizes. Image attachments (content_type starts with "image/") could be rendered inline as actual images |
-| Timestamps in UTC | Low | `_format_timestamp()` parses and displays UTC time directly. Users in non-UTC timezones see UTC times. Could convert to local time |
-| Member cache limit | Low | `fetch_members()` requests limit=1000; large spaces may not fetch all members. No pagination implemented |
-| Avatar image cache unbounded | Low | `avatar.gd` static `_image_cache` grows without limit. Could add an LRU eviction policy |
+### DATA-1: `voice_users` always 0
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** gateway, voice
+- **Notes:** `channel_to_dict()` (line 208) includes a `voice_users: 0` placeholder but no voice state tracking is connected. AccordVoiceState model exists but gateway events for voice state aren't wired. `channel_item.gd` reads this field (line 61)
+
+### DATA-2: `folder` always empty
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** ui
+- **Notes:** `space_to_dict()` (line 178) hardcodes `folder: ""`. This is a client-side organizational feature (grouping servers into folders); the server has no folder concept. `guild_folder.gd` exists in the UI but folder assignment is not implemented
+
+### DATA-3: DM `last_message` only from gateway
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api, dm, gateway
+- **Notes:** `dm_channel_to_dict()` (line 358) initializes `last_message: ""`. Only updated when a message_create gateway event arrives. On initial load, DM previews are blank until a new message is sent/received. Could pre-populate from `AccordChannel.last_message_id` by fetching the message
+
+### DATA-4: No image display for attachments
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** `message_content.gd` renders attachments as clickable filename links with file sizes. Image attachments (content_type starts with "image/") could be rendered inline as actual images
+
+### DATA-5: Timestamps in UTC
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `_format_timestamp()` parses and displays UTC time directly. Users in non-UTC timezones see UTC times. Could convert to local time
+
+### DATA-6: Member cache limit
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, performance
+- **Notes:** `fetch_members()` requests limit=1000; large spaces may not fetch all members. No pagination implemented
+
+### DATA-7: Avatar image cache unbounded
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** performance
+- **Notes:** `avatar.gd` static `_image_cache` grows without limit. Could add an LRU eviction policy

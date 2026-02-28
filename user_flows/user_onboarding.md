@@ -253,15 +253,60 @@ The welcome screen (`welcome_screen.gd`) layers three visual elements:
 - [x] Password minimum length validation on register
 - [x] Multi-server session restore (retry logic with fallback timer)
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| ~~No welcome screen on first launch~~ | ~~Medium~~ | **Resolved.** Welcome screen now shows animated shader background, floating particles, branding, feature cards, and "Add a Server" CTA. Dismissed automatically when first server connects. |
-| ~~No connection progress during startup~~ | ~~Medium~~ | **Resolved.** `ConnectingOverlay` scene appears during startup auto-connect, showing server name, progress count, and animated dots. Fades out when all servers have connected or failed. `AppState.server_connecting` signal emitted by `ClientConnection.connect_server()`. |
-| ~~No main window empty state~~ | ~~Medium~~ | **Resolved.** Welcome screen fills the content area when no servers are configured. |
-| ~~No onboarding tooltip or callout~~ | ~~Low~~ | **Resolved.** The "+" button now pulses with a looping modulate animation when no servers are configured. Pulse stops on first `spaces_updated`. |
-| ~~No server removal UI~~ | ~~Medium~~ | **Resolved.** Space icon context menu (right-click) provides "Remove Server" option via `guild_icon.gd`. |
-| ~~`_startup_selection_done` blocks multi-server restore~~ | ~~Low~~ | **Resolved.** `sidebar.gd` now retries on each `spaces_updated`: selects the first available space as a temporary fallback, then switches to the saved space when its server connects. A 5-second timer accepts the current selection if the saved space never appears. |
-| ~~No password strength validation on register~~ | ~~Low~~ | **Resolved.** Register mode now shows a "Minimum 8 characters" hint below the password field. Passwords shorter than 8 characters are rejected with a client-side error before the server request. |
-| ~~Display name not synced to username on sign-in~~ | ~~Low~~ | **Resolved.** `auth_completed` signal now carries `display_name` (from the Register form, or `""` for Sign In). Threaded through `add_server_dialog` into `Config.add_server()`, which persists it in the server config section. `GET /users/@me` still provides the authoritative value at runtime. |
+### ONBOARD-1: No welcome screen on first launch
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** ** Welcome screen now shows animated shader background, floating particles, branding, feature cards, and "Add a Server" CTA. Dismissed automatically when first server connects.
+
+### ONBOARD-2: No connection progress during startup
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** general
+- **Notes:** ** `ConnectingOverlay` scene appears during startup auto-connect, showing server name, progress count, and animated dots. Fades out when all servers have connected or failed. `AppState.server_connecting` signal emitted by `ClientConnection.connect_server()`.
+
+### ONBOARD-3: No main window empty state
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** config
+- **Notes:** ** Welcome screen fills the content area when no servers are configured.
+
+### ONBOARD-4: No onboarding tooltip or callout
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** config, ui
+- **Notes:** ** The "+" button now pulses with a looping modulate animation when no servers are configured. Pulse stops on first `spaces_updated`.
+
+### ONBOARD-5: No server removal UI
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** ** Space icon context menu (right-click) provides "Remove Server" option via `guild_icon.gd`.
+
+### ONBOARD-6: `_startup_selection_done` blocks multi-server restore
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** api
+- **Notes:** ** `sidebar.gd` now retries on each `spaces_updated`: selects the first available space as a temporary fallback, then switches to the saved space when its server connects. A 5-second timer accepts the current selection if the saved space never appears.
+
+### ONBOARD-7: No password strength validation on register
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** security
+- **Notes:** ** Register mode now shows a "Minimum 8 characters" hint below the password field. Passwords shorter than 8 characters are rejected with a client-side error before the server request.
+
+### ONBOARD-8: Display name not synced to username on sign-in
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 3
+- **Tags:** config, security, ui
+- **Notes:** ** `auth_completed` signal now carries `display_name` (from the Register form, or `""` for Sign In). Threaded through `add_server_dialog` into `Config.add_server()`, which persists it in the server config section. `GET /users/@me` still provides the authoritative value at runtime.

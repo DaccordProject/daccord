@@ -269,17 +269,74 @@ Extend `tests/unit/test_add_server_dialog.gd` (currently 18 URL parsing tests) a
 - [ ] Integration tests for IPC file round-trip
 - [ ] Update `test_add_server_dialog.gd` for pre-fill flow
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| No `daccord://` scheme exists at all | High | Entire feature is unimplemented; this document is the design spec |
-| `parse_server_url()` only handles `http://` and `https://` | Medium | Lines 66-67 of `add_server_dialog.gd`; needs `daccord://` awareness or separate parser |
-| `SingleInstance` has no IPC mechanism | High | `single_instance.gd` only detects duplicate instances and quits; cannot forward URIs to running instance |
-| CLI arg parsing only supports `--profile` | Medium | `config.gd` lines 40-45; needs `--uri` support in a new or existing autoload |
-| No confirmation dialog for URI-triggered connections | Medium | Security risk: malicious `daccord://connect/...?token=...` links could auto-connect without user consent |
-| macOS Apple Event handling unclear in Godot 4 | Medium | Godot 4 may or may not surface URL scheme activations via `OS.get_cmdline_args()`; needs testing on macOS |
-| No URL generation / sharing UI | Low | Users cannot generate `daccord://` links from within the app yet |
-| Linux xdg-mime registration not automated | Low | Needs post-install script or user documentation for `xdg-mime default` |
-| Windows uninstall cleanup | Low | `installer.iss` should remove registry keys on uninstall (`Flags: uninsdeletekey` handles this) |
-| Token exposure in URLs | Low | Auth tokens in `daccord://connect/...?token=...` may leak via browser history/logs; prefer invite codes |
+### URL-1: No `daccord://` scheme exists at all
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 5
+- **Tags:** general
+- **Notes:** Entire feature is unimplemented; this document is the design spec
+
+### URL-2: `parse_server_url()` only handles `http://` and `https://`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** security, ui
+- **Notes:** Lines 66-67 of `add_server_dialog.gd`; needs `daccord://` awareness or separate parser
+
+### URL-3: `SingleInstance` has no IPC mechanism
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** general
+- **Notes:** `single_instance.gd` only detects duplicate instances and quits; cannot forward URIs to running instance
+
+### URL-4: CLI arg parsing only supports `--profile`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** config
+- **Notes:** `config.gd` lines 40-45; needs `--uri` support in a new or existing autoload
+
+### URL-5: No confirmation dialog for URI-triggered connections
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ci, security, ui
+- **Notes:** Security risk: malicious `daccord://connect/...?token=...` links could auto-connect without user consent
+
+### URL-6: macOS Apple Event handling unclear in Godot 4
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** gateway, testing
+- **Notes:** Godot 4 may or may not surface URL scheme activations via `OS.get_cmdline_args()`; needs testing on macOS
+
+### URL-7: No URL generation / sharing UI
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** ui
+- **Notes:** Users cannot generate `daccord://` links from within the app yet
+
+### URL-8: Linux xdg-mime registration not automated
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** Needs post-install script or user documentation for `xdg-mime default`
+
+### URL-9: Windows uninstall cleanup
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** `installer.iss` should remove registry keys on uninstall (`Flags: uninsdeletekey` handles this)
+
+### URL-10: Token exposure in URLs
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** security
+- **Notes:** Auth tokens in `daccord://connect/...?token=...` may leak via browser history/logs; prefer invite codes

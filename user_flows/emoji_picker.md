@@ -261,9 +261,18 @@ Gateway reaction events:
 - [x] Flags category with 30 country flag emoji (multi-codepoint regional indicator pairs)
 - [x] Multi-codepoint `codepoint_to_char()` for flags and ZWJ sequences
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| `reactions_updated` signal declared but unused | Medium | `AppState.reactions_updated` (line 38) is declared but never emitted or connected; gateway handlers emit `messages_updated` instead, causing full message list re-renders for reaction changes |
-| Upload button not connected | Low | `composer.tscn` has an UploadButton (plus.svg icon) but it has no `pressed` connection in `composer.gd` |
+### EMOJI-1: `reactions_updated` signal declared but unused
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** emoji, gateway
+- **Notes:** `AppState.reactions_updated` (line 38) is declared but never emitted or connected; gateway handlers emit `messages_updated` instead, causing full message list re-renders for reaction changes
+
+### EMOJI-2: Upload button not connected
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** `composer.tscn` has an UploadButton (plus.svg icon) but it has no `pressed` connection in `composer.gd`

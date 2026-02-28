@@ -334,6 +334,6 @@ Connection state:
 - [x] Emoji picker in composer (insert shortcodes at cursor)
 - [x] Diff-based message updates (remove/update/append instead of full re-render)
 
-## Gaps / TODO
+## Tasks
 
-No gaps at present.
+No open tasks.

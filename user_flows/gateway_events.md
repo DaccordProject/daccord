@@ -455,9 +455,18 @@ client.resumed         -> _gw.on_gateway_reconnected.bind(idx)
 - [x] raw_event catch-all signal for unhandled events
 - [x] Gateway disconnect/reconnect/reconnected -> AppState signals for UI feedback
 
-## Gaps / TODO
+## Tasks
 
-| Gap | Severity | Notes |
-|-----|----------|-------|
-| message_delete receives raw dict | Low | Unlike other handlers that receive typed models, `on_message_delete` receives a raw Dictionary (data with id and channel_id); this is by design since the gateway only sends IDs, not a full message |
-| Ban/invite handlers don't cache | Low | `on_ban_create/delete` and `on_invite_create/delete` only emit signals without updating a local cache; UI must re-fetch from REST to reflect changes |
+### GW-1: message_delete receives raw dict
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** gateway
+- **Notes:** Unlike other handlers that receive typed models, `on_message_delete` receives a raw Dictionary (data with id and channel_id); this is by design since the gateway only sends IDs, not a full message
+
+### GW-2: Ban/invite handlers don't cache
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** api, performance, ui
+- **Notes:** `on_ban_create/delete` and `on_invite_create/delete` only emit signals without updating a local cache; UI must re-fetch from REST to reflect changes
