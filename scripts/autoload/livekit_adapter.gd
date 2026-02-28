@@ -492,8 +492,6 @@ class LocalVideoPreview extends RefCounted:
 		return _texture
 
 	func update_frame(image: Image) -> void:
-		if image.get_format() == Image.FORMAT_RGBA8:
-			image.convert(Image.FORMAT_RGB8)
 		if _texture == null \
 				or image.get_width() != _texture.get_width() \
 				or image.get_height() != _texture.get_height():
