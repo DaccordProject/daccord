@@ -10,6 +10,78 @@ var _c: Node # Client autoload
 func _init(client_node: Node) -> void:
 	_c = client_node
 
+# --- Instance-admin methods (use first connected client) ---
+
+func create_space(data: Dictionary) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	var result: RestResult = await client.spaces.create(data)
+	if result.ok:
+		await _c.fetch.fetch_spaces()
+	return result
+
+func list_all_spaces(query: Dictionary = {}) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.list_spaces(query)
+
+func admin_update_space(
+	space_id: String, data: Dictionary
+) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	var result: RestResult = await client.admin_api.update_space(
+		space_id, data
+	)
+	if result.ok:
+		await _c.fetch.fetch_spaces()
+	return result
+
+func list_all_users(query: Dictionary = {}) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.list_users(query)
+
+func admin_update_user(
+	user_id: String, data: Dictionary
+) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.update_user(user_id, data)
+
+func admin_delete_user(user_id: String) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.delete_user(user_id)
+
+func get_server_settings() -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.get_settings()
+
+func update_server_settings(data: Dictionary) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.update_settings(data)
+
+# --- Space-scoped admin methods ---
+
 func update_space(
 	space_id: String, data: Dictionary
 ) -> RestResult:
@@ -18,8 +90,17 @@ func update_space(
 		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.spaces.update(space_id, data)
-	if result.ok:
-		await _c.fetch.fetch_spaces()
+	if result.ok and result.data is AccordSpace:
+		var cdn_url: String = _c._cdn_for_space(space_id)
+		var old: Dictionary = _c._space_cache.get(space_id, {})
+		var updated: Dictionary = ClientModels.space_to_dict(
+			result.data, cdn_url
+		)
+		updated["folder"] = old.get("folder", "")
+		updated["unread"] = old.get("unread", false)
+		updated["mentions"] = old.get("mentions", 0)
+		_c._space_cache[space_id] = updated
+		AppState.spaces_updated.emit()
 	return result
 
 func delete_space(space_id: String) -> RestResult:

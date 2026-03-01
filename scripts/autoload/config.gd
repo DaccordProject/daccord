@@ -37,8 +37,8 @@ func get_emoji_cache_path(emoji_id: String) -> String:
 	return _profile_emoji_cache_dir() + "/" + emoji_id + ".png"
 
 func _ready() -> void:
-	profiles = ConfigProfilesScript.new(self, _PROFILE_SALT)
-	voice = ConfigVoiceScript.new(self)
+	profiles = ConfigProfilesScript.new(self , _PROFILE_SALT)
+	voice = ConfigVoiceScript.new(self )
 	# Parse --profile CLI arg
 	for i in OS.get_cmdline_args().size():
 		var arg: String = OS.get_cmdline_args()[i]
@@ -139,9 +139,9 @@ func _load_profile_config() -> void:
 		push_error(
 			"[Config] Config at '%s' unreadable "
 			% path
-			+ "(encrypted err=%d, plain err=%d), "
+			+"(encrypted err=%d, plain err=%d), "
 			% [err, plain_err]
-			+ "backed up and starting fresh"
+			+"backed up and starting fresh"
 		)
 	_config = ConfigFile.new()
 	_load_ok = true
@@ -288,7 +288,7 @@ func _save() -> void:
 		push_error(
 			"[Config] Encrypted save failed (error %d). "
 			% err
-			+ "Data remains in memory — will retry on next save."
+			+"Data remains in memory — will retry on next save."
 		)
 		AppState.config_save_failed.emit(err)
 		return
@@ -543,7 +543,7 @@ func set_last_update_check(timestamp: int) -> void:
 ## Master server URL
 
 func get_master_server_url() -> String:
-	return _config.get_value("master", "url", "https://master.daccord.chat")
+	return _config.get_value("master", "url", "https://master.daccord.gg")
 
 func set_master_server_url(url: String) -> void:
 	_config.set_value("master", "url", url)

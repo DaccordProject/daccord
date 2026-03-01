@@ -25,8 +25,7 @@ func build(
 	_status_label.text = "Two-factor authentication is not enabled."
 	page_vbox.add_child(_status_label)
 
-	_enable_btn = Button.new()
-	_enable_btn.text = "Enable 2FA"
+	_enable_btn = SettingsBase.create_action_button("Enable 2FA")
 	_enable_btn.pressed.connect(_on_enable)
 	page_vbox.add_child(_enable_btn)
 
@@ -45,8 +44,7 @@ func build(
 	_code_input.visible = false
 	code_row.add_child(_code_input)
 
-	_verify_btn = Button.new()
-	_verify_btn.text = "Verify"
+	_verify_btn = SettingsBase.create_action_button("Verify")
 	_verify_btn.visible = false
 	_verify_btn.pressed.connect(_on_verify)
 	code_row.add_child(_verify_btn)
@@ -64,8 +62,7 @@ func build(
 	_pw_input.visible = false
 	page_vbox.add_child(_pw_input)
 
-	_disable_btn = Button.new()
-	_disable_btn.text = "Disable 2FA"
+	_disable_btn = SettingsBase.create_danger_button("Disable 2FA")
 	_disable_btn.visible = false
 	_disable_btn.pressed.connect(_on_disable)
 	page_vbox.add_child(_disable_btn)

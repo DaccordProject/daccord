@@ -36,13 +36,11 @@ func build() -> VBoxContainer:
 	btn_row.add_theme_constant_override("separation", 8)
 	vbox.add_child(btn_row)
 
-	var new_btn := Button.new()
-	new_btn.text = "New Profile"
+	var new_btn := SettingsBase.create_action_button("New Profile")
 	new_btn.pressed.connect(_on_new_profile)
 	btn_row.add_child(new_btn)
 
-	var import_btn := Button.new()
-	import_btn.text = "Import Profile"
+	var import_btn := SettingsBase.create_secondary_button("Import Profile")
 	import_btn.pressed.connect(_on_import_profile)
 	btn_row.add_child(import_btn)
 

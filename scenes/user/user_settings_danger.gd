@@ -45,8 +45,7 @@ func build_password_page(
 	_pw_error = error_label_fn.call()
 	page_vbox.add_child(_pw_error)
 
-	_pw_save_btn = Button.new()
-	_pw_save_btn.text = "Change Password"
+	_pw_save_btn = SettingsBase.create_action_button("Change Password")
 	_pw_save_btn.pressed.connect(_on_password_save)
 	page_vbox.add_child(_pw_save_btn)
 
@@ -139,19 +138,7 @@ func build_delete_page(
 	_del_error = error_label_fn.call()
 	page_vbox.add_child(_del_error)
 
-	_del_btn = Button.new()
-	_del_btn.text = "Delete My Account"
-	var del_style := StyleBoxFlat.new()
-	del_style.bg_color = Color(0.929, 0.259, 0.271)
-	del_style.corner_radius_top_left = 4
-	del_style.corner_radius_top_right = 4
-	del_style.corner_radius_bottom_left = 4
-	del_style.corner_radius_bottom_right = 4
-	del_style.content_margin_left = 12.0
-	del_style.content_margin_right = 12.0
-	del_style.content_margin_top = 8.0
-	del_style.content_margin_bottom = 8.0
-	_del_btn.add_theme_stylebox_override("normal", del_style)
+	_del_btn = SettingsBase.create_danger_button("Delete My Account")
 	_del_btn.pressed.connect(_on_delete_account)
 	page_vbox.add_child(_del_btn)
 

@@ -23,8 +23,15 @@ func fetch_spaces() -> void:
 			for space in result.data:
 				var s: AccordSpace = space
 				if s.id == conn["space_id"]:
+					var old: Dictionary = _c._space_cache \
+						.get(s.id, {})
 					var d := ClientModels.space_to_dict(
 						s, cdn_url
+					)
+					d["folder"] = old.get("folder", "")
+					d["unread"] = old.get("unread", false)
+					d["mentions"] = old.get(
+						"mentions", 0
 					)
 					_c._space_cache[d["id"]] = d
 	AppState.spaces_updated.emit()

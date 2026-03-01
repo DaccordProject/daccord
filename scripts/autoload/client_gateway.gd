@@ -582,6 +582,7 @@ func on_channel_create(channel: AccordChannel, conn_index: int) -> void:
 						cdn_url
 					)
 		_c._dm_channel_cache[channel.id] = ClientModels.dm_channel_to_dict(channel, _c._user_cache)
+		_c._dm_to_conn[channel.id] = conn_index
 		AppState.dm_channels_updated.emit()
 	else:
 		_c._channel_cache[channel.id] = ClientModels.channel_to_dict(channel)
