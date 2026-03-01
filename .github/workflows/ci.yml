@@ -459,6 +459,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
 
+      - name: Verify all addons installed
+        run: |
+          failed=0
+          for addon in godot-livekit gut sentry; do
+            if [ ! -d "addons/$addon" ]; then
+              echo "::error::Required addon missing: addons/$addon"
+              failed=1
+            else
+              echo "OK: addons/$addon"
+            fi
+          done
+          # List all GDExtension files that will be included
+          echo "GDExtension files:"
+          find addons/ -name '*.gdextension' -exec echo "  {}" \;
+          exit $failed
+
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -480,20 +496,6 @@ jobs:
           mv "dist/templates/${ASSET}" "${DEST}"
           chmod +x "${DEST}"
           echo "GodotLite template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
-
-      - name: Strip GDExtensions for engine-only validation
-        run: |
-          # Remove all GDExtension definitions so the export and resulting
-          # binary test only GodotLite engine compatibility, not native
-          # plugin availability. The release workflow handles GDExtension
-          # inclusion separately per-platform.
-          removed=0
-          for ext in $(find addons/ -name '*.gdextension' 2>/dev/null); do
-            echo "Removing GDExtension: $ext"
-            rm -f "$ext" "${ext}.uid"
-            removed=$((removed + 1))
-          done
-          echo "Stripped $removed GDExtension(s)"
 
       - name: Cache Godot import
         uses: actions/cache@v4
@@ -517,19 +519,21 @@ jobs:
             exit 1
           fi
           echo "Export successful: $(du -h dist/build/linux/daccord.x86_64 | cut -f1)"
+          echo "Build directory contents:"
+          ls -lah dist/build/linux/
         timeout-minutes: 5
 
       - name: Validate GodotLite binary starts
         run: |
-          chmod +x dist/build/linux/daccord.x86_64
-          timeout 30 dist/build/linux/daccord.x86_64 --headless --quit 2>&1 | tee /tmp/godotlite_startup.log || true
-          # Check for fatal errors that indicate stripped engine modules.
-          # GDExtension warnings are expected (we stripped them above).
+          cd dist/build/linux
+          chmod +x daccord.x86_64
+          timeout 30 ./daccord.x86_64 --headless --quit 2>&1 | tee /tmp/godotlite_startup.log || true
+          # Check for fatal errors that indicate stripped engine modules
           if grep -qiE "MainLoop type doesn't exist|SCRIPT ERROR|Cannot open file|Failed loading resource" /tmp/godotlite_startup.log; then
             echo "::error::GodotLite binary failed startup validation"
             echo "## GodotLite Startup Errors" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            grep -iE "ERROR|SCRIPT ERROR|Cannot open|Failed loading|MainLoop|doesn't exist" /tmp/godotlite_startup.log | grep -v "GDExtension" >> $GITHUB_STEP_SUMMARY || true
+            grep -iE "ERROR|SCRIPT ERROR|Cannot open|Failed loading|MainLoop|doesn't exist" /tmp/godotlite_startup.log >> $GITHUB_STEP_SUMMARY || true
             echo '```' >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
