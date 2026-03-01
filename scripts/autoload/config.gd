@@ -549,6 +549,15 @@ func set_master_server_url(url: String) -> void:
 	_config.set_value("master", "url", url)
 	_save()
 
+## Screen sharing
+
+func get_max_screen_capture_size() -> int:
+	return _config.get_value("voice", "max_screen_capture_size", 1280)
+
+func set_max_screen_capture_size(value: int) -> void:
+	_config.set_value("voice", "max_screen_capture_size", clampi(value, 480, 3840))
+	_save()
+
 ## Draft text persistence
 
 func set_draft_text(channel_id: String, text: String) -> void:

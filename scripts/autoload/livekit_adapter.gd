@@ -40,6 +40,7 @@ var _local_screen_track: RefCounted  # LiveKitLocalVideoTrack
 var _local_screen_pub: RefCounted    # LiveKitLocalTrackPublication
 var _screen_capture: LiveKitScreenCapture  # null when not capturing
 var _screen_preview: LocalVideoPreview     # local preview for screen share
+var _screen_capture_size: Vector2i = Vector2i.ZERO  # target size after downscale
 
 # Remote playback: identity -> { stream, player, playback, generator }
 var _remote_audio: Dictionary = {}
@@ -173,7 +174,10 @@ func publish_screen(source: Dictionary) -> RefCounted:
 		_screen_capture = LiveKitScreenCapture.create_for_monitor(source)
 	var width: int = source.get("width", 1920)
 	var height: int = source.get("height", 1080)
-	_local_screen_source = LiveKitVideoSource.create(width, height)
+	_screen_capture_size = _capped_size(width, height)
+	_local_screen_source = LiveKitVideoSource.create(
+		_screen_capture_size.x, _screen_capture_size.y
+	)
 	_local_screen_track = LiveKitLocalVideoTrack.create(
 		"screen", _local_screen_source
 	)
@@ -194,7 +198,10 @@ func _republish_screen() -> void:
 	var img: Image = _screen_capture.screenshot()
 	var width: int = img.get_width() if img != null and not img.is_empty() else 1920
 	var height: int = img.get_height() if img != null and not img.is_empty() else 1080
-	_local_screen_source = LiveKitVideoSource.create(width, height)
+	_screen_capture_size = _capped_size(width, height)
+	_local_screen_source = LiveKitVideoSource.create(
+		_screen_capture_size.x, _screen_capture_size.y
+	)
 	_local_screen_track = LiveKitLocalVideoTrack.create(
 		"screen", _local_screen_source
 	)
@@ -218,6 +225,9 @@ func _process(_delta: float) -> void:
 	if _screen_capture != null and _local_screen_source != null:
 		var image: Image = _screen_capture.screenshot()
 		if image != null and not image.is_empty():
+			if _screen_capture_size != Vector2i.ZERO \
+					and Vector2i(image.get_width(), image.get_height()) != _screen_capture_size:
+				image.resize(_screen_capture_size.x, _screen_capture_size.y, Image.INTERPOLATE_BILINEAR)
 			_local_screen_source.capture_frame(image)
 			if _screen_preview != null:
 				_screen_preview.update_frame(image)
@@ -514,6 +524,22 @@ func _cleanup_local_screen() -> void:
 		_screen_preview = null
 	_local_screen_track = null
 	_local_screen_pub = null
+	_screen_capture_size = Vector2i.ZERO
+
+# --- Helpers ---
+
+static func _capped_size(width: int, height: int) -> Vector2i:
+	## Return dimensions scaled down so the longest edge does not exceed
+	## Config.get_max_screen_capture_size(), preserving aspect ratio.
+	var cap: int = Config.get_max_screen_capture_size()
+	var longest: int = maxi(width, height)
+	if longest <= cap:
+		return Vector2i(width, height)
+	var scale: float = float(cap) / float(longest)
+	# Ensure even dimensions (many codecs require this).
+	var w: int = int(width * scale) & ~1
+	var h: int = int(height * scale) & ~1
+	return Vector2i(maxi(w, 2), maxi(h, 2))
 
 # --- Audio level estimation ---
 
