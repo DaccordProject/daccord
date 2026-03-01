@@ -12,6 +12,9 @@ const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
+const ServerManagementPanel := preload(
+	"res://scenes/admin/server_management_panel.tscn"
+)
 
 var space_id: String = ""
 var space_name: String = ""
@@ -203,6 +206,11 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.add_item("Account Settings", idx)
 	idx += 1
 
+	# Server Settings (instance admin only)
+	if Client.current_user.get("is_admin", false):
+		_context_menu.add_item("Server Settings", idx)
+		idx += 1
+
 	# Mute toggle
 	if Config.is_server_muted(space_id):
 		_context_menu.add_item("Unmute Server", idx)
@@ -276,6 +284,9 @@ func _on_context_menu_id_pressed(id: int) -> void:
 				var settings: ColorRect = ServerSettingsScene.instantiate()
 				settings.setup(space_id)
 				get_tree().root.add_child(settings)
+		"Server Settings":
+			var panel := ServerManagementPanel.instantiate()
+			get_tree().root.add_child(panel)
 		"Reconnect":
 			var conn_idx: int = _server_index \
 				if _is_disconnected \

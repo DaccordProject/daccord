@@ -60,13 +60,11 @@ func _ready() -> void:
 	icon_btns.add_theme_constant_override("separation", 4)
 	icon_row.add_child(icon_btns)
 
-	var upload_btn := Button.new()
-	upload_btn.text = "Upload Icon"
+	var upload_btn := SettingsBase.create_secondary_button("Upload Icon")
 	upload_btn.pressed.connect(_on_icon_upload)
 	icon_btns.add_child(upload_btn)
 
-	var remove_btn := Button.new()
-	remove_btn.text = "Remove"
+	var remove_btn := SettingsBase.create_secondary_button("Remove")
 	remove_btn.pressed.connect(_on_icon_remove)
 	icon_btns.add_child(remove_btn)
 

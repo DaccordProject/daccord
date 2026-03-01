@@ -17,20 +17,20 @@ func _ready() -> void:
 	color = Color(0, 0, 0, 0.6)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
+	# CenterContainer keeps the modal centred at any viewport size
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+
 	# Centered modal panel
 	var modal_size: Vector2 = _get_modal_size()
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.custom_minimum_size = modal_size
-	panel.size = modal_size
-	panel.position = -modal_size / 2
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.188, 0.196, 0.212)
 	panel_style.set_corner_radius_all(8)
 	panel.add_theme_stylebox_override("panel", panel_style)
-	add_child(panel)
+	center.add_child(panel)
 
 	# Outer VBox: header bar + body
 	var outer_vbox := VBoxContainer.new()
@@ -219,6 +219,93 @@ func _error_label() -> Label:
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.visible = false
 	return lbl
+
+static func create_action_button(text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.345, 0.396, 0.949)
+	normal.set_corner_radius_all(4)
+	normal.content_margin_left = 16
+	normal.content_margin_right = 16
+	normal.content_margin_top = 6
+	normal.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("normal", normal)
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.29, 0.34, 0.87)
+	hover.set_corner_radius_all(4)
+	hover.content_margin_left = 16
+	hover.content_margin_right = 16
+	hover.content_margin_top = 6
+	hover.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("hover", hover)
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.25, 0.30, 0.80)
+	pressed.set_corner_radius_all(4)
+	pressed.content_margin_left = 16
+	pressed.content_margin_right = 16
+	pressed.content_margin_top = 6
+	pressed.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("pressed", pressed)
+	return btn
+
+static func create_secondary_button(text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.24, 0.25, 0.27)
+	normal.set_corner_radius_all(4)
+	normal.content_margin_left = 16
+	normal.content_margin_right = 16
+	normal.content_margin_top = 6
+	normal.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("normal", normal)
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.28, 0.29, 0.31)
+	hover.set_corner_radius_all(4)
+	hover.content_margin_left = 16
+	hover.content_margin_right = 16
+	hover.content_margin_top = 6
+	hover.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("hover", hover)
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.2, 0.21, 0.23)
+	pressed.set_corner_radius_all(4)
+	pressed.content_margin_left = 16
+	pressed.content_margin_right = 16
+	pressed.content_margin_top = 6
+	pressed.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("pressed", pressed)
+	return btn
+
+static func create_danger_button(text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.929, 0.259, 0.271)
+	normal.set_corner_radius_all(4)
+	normal.content_margin_left = 16
+	normal.content_margin_right = 16
+	normal.content_margin_top = 6
+	normal.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("normal", normal)
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.85, 0.2, 0.22)
+	hover.set_corner_radius_all(4)
+	hover.content_margin_left = 16
+	hover.content_margin_right = 16
+	hover.content_margin_top = 6
+	hover.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("hover", hover)
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.78, 0.18, 0.2)
+	pressed.set_corner_radius_all(4)
+	pressed.content_margin_left = 16
+	pressed.content_margin_right = 16
+	pressed.content_margin_top = 6
+	pressed.content_margin_bottom = 6
+	btn.add_theme_stylebox_override("pressed", pressed)
+	return btn
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:

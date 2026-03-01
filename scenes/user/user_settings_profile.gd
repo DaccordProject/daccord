@@ -53,13 +53,11 @@ func build(
 	avatar_btns.add_theme_constant_override("separation", 8)
 	page_vbox.add_child(avatar_btns)
 
-	var upload_btn := Button.new()
-	upload_btn.text = "Upload Avatar"
+	var upload_btn := SettingsBase.create_secondary_button("Upload Avatar")
 	upload_btn.pressed.connect(_on_avatar_upload)
 	avatar_btns.add_child(upload_btn)
 
-	var remove_btn := Button.new()
-	remove_btn.text = "Remove"
+	var remove_btn := SettingsBase.create_secondary_button("Remove")
 	remove_btn.pressed.connect(_on_avatar_remove)
 	avatar_btns.add_child(remove_btn)
 
@@ -92,8 +90,7 @@ func build(
 	_profile_accent_picker.color = Color.hex(accent_int) if accent_int > 0 else Color.BLACK
 	accent_row.add_child(_profile_accent_picker)
 
-	var reset_btn := Button.new()
-	reset_btn.text = "Reset"
+	var reset_btn := SettingsBase.create_secondary_button("Reset")
 	reset_btn.pressed.connect(func() -> void:
 		_profile_accent_picker.color = Color.BLACK
 	)
@@ -103,8 +100,7 @@ func build(
 	_profile_error = error_label_fn.call()
 	page_vbox.add_child(_profile_error)
 
-	_profile_save_btn = Button.new()
-	_profile_save_btn.text = "Save Changes"
+	_profile_save_btn = SettingsBase.create_action_button("Save Changes")
 	_profile_save_btn.pressed.connect(_on_save)
 	page_vbox.add_child(_profile_save_btn)
 

@@ -9,6 +9,9 @@ const UserSettingsProfilesPage := preload(
 const UpdateDownloadDialogScene := preload(
 	"res://scenes/messages/update_download_dialog.tscn"
 )
+const ServerManagementPanel := preload(
+	"res://scenes/admin/server_management_panel.tscn"
+)
 
 var _profiles_pg: RefCounted
 var _idle_dropdown: OptionButton
@@ -53,13 +56,16 @@ var _error_label_update: Label
 var _cached_version_info: Dictionary = {}
 
 func _get_sections() -> Array:
-	return [
+	var sections := [
 		"Profiles", "Voice & Video", "Sound",
 		"Appearance", "Notifications", "Updates",
 	]
+	if Client.current_user.get("is_admin", false):
+		sections.append("Instance Admin")
+	return sections
 
 func _build_pages() -> Array:
-	return [
+	var pages := [
 		_build_profiles_page(),
 		_build_voice_page(),
 		_build_sound_page(),
@@ -67,12 +73,15 @@ func _build_pages() -> Array:
 		_build_notifications_page(),
 		_build_updates_page(),
 	]
+	if Client.current_user.get("is_admin", false):
+		pages.append(_build_admin_page())
+	return pages
 
 # --- Profiles page ---
 
 func _build_profiles_page() -> VBoxContainer:
 	_profiles_pg = UserSettingsProfilesPage.new(
-		self, _page_vbox, _section_label,
+		self , _page_vbox, _section_label,
 	)
 	return _profiles_pg.build()
 
@@ -172,8 +181,7 @@ func _build_voice_page() -> VBoxContainer:
 
 	# Mic test
 	vbox.add_child(_section_label("MIC TEST"))
-	_mic_test_btn = Button.new()
-	_mic_test_btn.text = "Let's Check"
+	_mic_test_btn = SettingsBase.create_action_button("Let's Check")
 	_mic_test_btn.pressed.connect(_on_mic_test_toggled)
 	vbox.add_child(_mic_test_btn)
 	_mic_monitor_cb = CheckBox.new()
@@ -530,8 +538,7 @@ func _build_updates_page() -> VBoxContainer:
 	vbox.add_child(_section_label("CHECK FOR UPDATES"))
 	var check_row := HBoxContainer.new()
 	check_row.add_theme_constant_override("separation", 12)
-	_check_btn = Button.new()
-	_check_btn.text = "Check for Updates"
+	_check_btn = SettingsBase.create_action_button("Check for Updates")
 	_check_btn.pressed.connect(_on_check_updates_pressed)
 	check_row.add_child(_check_btn)
 	_status_label = Label.new()
@@ -561,8 +568,7 @@ func _build_updates_page() -> VBoxContainer:
 	_view_changes_btn.add_theme_font_size_override("font_size", 12)
 	_view_changes_btn.pressed.connect(_on_view_changes)
 	_update_row.add_child(_view_changes_btn)
-	_download_btn = Button.new()
-	_download_btn.text = "Download & Install"
+	_download_btn = SettingsBase.create_action_button("Download & Install")
 	_download_btn.pressed.connect(_on_download_pressed)
 	_update_row.add_child(_download_btn)
 	_skip_btn = Button.new()
@@ -601,8 +607,7 @@ func _build_updates_page() -> VBoxContainer:
 	vbox.add_child(_progress_row)
 
 	# Restart button (hidden until update ready)
-	_restart_btn = Button.new()
-	_restart_btn.text = "Restart to Update"
+	_restart_btn = SettingsBase.create_action_button("Restart to Update")
 	_restart_btn.visible = false
 	_restart_btn.pressed.connect(func() -> void:
 		Updater.apply_update_and_restart()
@@ -632,11 +637,10 @@ func _build_updates_page() -> VBoxContainer:
 	vbox.add_child(_section_label("MASTER SERVER URL"))
 	var url_input := LineEdit.new()
 	url_input.text = Config.get_master_server_url()
-	url_input.placeholder_text = "https://master.daccord.chat"
+	url_input.placeholder_text = "https://master.daccord.gg"
 	vbox.add_child(url_input)
 
-	var url_save := Button.new()
-	url_save.text = "Save URL"
+	var url_save := SettingsBase.create_secondary_button("Save URL")
 	url_save.pressed.connect(func() -> void:
 		var new_url: String = url_input.text.strip_edges()
 		if not new_url.is_empty():
@@ -770,6 +774,30 @@ func _show_restart_state() -> void:
 	_progress_row.visible = false
 	_restart_btn.visible = true
 	_error_label_update.visible = false
+
+# --- Instance Admin page ---
+
+func _build_admin_page() -> VBoxContainer:
+	var vbox := _page_vbox("Instance Admin")
+
+	var desc := Label.new()
+	desc.text = "You are an instance administrator."
+	desc.add_theme_color_override(
+		"font_color", Color(0.58, 0.608, 0.643)
+	)
+	vbox.add_child(desc)
+
+	var open_btn := SettingsBase.create_action_button(
+		"Open Server Management"
+	)
+	open_btn.pressed.connect(func() -> void:
+		var panel := ServerManagementPanel.instantiate()
+		get_tree().root.add_child(panel)
+		queue_free()
+	)
+	vbox.add_child(open_btn)
+
+	return vbox
 
 static func _format_size(bytes: int) -> String:
 	if bytes < 1024:

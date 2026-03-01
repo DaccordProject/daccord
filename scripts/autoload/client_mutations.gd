@@ -115,6 +115,37 @@ func send_message_to_channel(
 			cid, content, err
 		)
 		return false
+	# Add sent message to local cache immediately so it
+	# appears without waiting for the gateway echo (which
+	# may not arrive for DM channels). The gateway handler
+	# deduplicates via _message_id_index, so this is safe.
+	if result.data is AccordMessage:
+		var accord_msg: AccordMessage = result.data
+		if not _c._message_id_index.has(accord_msg.id):
+			var cdn_url: String = _c._cdn_for_channel(cid)
+			var msg_dict := ClientModels.message_to_dict(
+				accord_msg, _c._user_cache, cdn_url
+			)
+			if not _c._message_cache.has(cid):
+				_c._message_cache[cid] = []
+			_c._message_cache[cid].append(msg_dict)
+			_c._message_id_index[accord_msg.id] = cid
+			while _c._message_cache[cid].size() \
+					> Client.MESSAGE_CAP:
+				var evicted: Dictionary = \
+					_c._message_cache[cid].pop_front()
+				_c._message_id_index.erase(
+					evicted.get("id", "")
+				)
+			# Update DM channel last_message preview
+			if _c._dm_channel_cache.has(cid):
+				var preview: String = accord_msg.content
+				if preview.length() > 80:
+					preview = preview.substr(0, 80) + "..."
+				_c._dm_channel_cache[cid]["last_message"] \
+					= preview
+				AppState.dm_channels_updated.emit()
+			AppState.messages_updated.emit(cid)
 	return true
 
 func update_message_content(
