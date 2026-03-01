@@ -187,15 +187,32 @@ jobs:
             macos)
               ASSET="godotlite-${GODOTLITE_TAG}-macos-universal"
               DEST="dist/templates/godot.macos.template_release.universal"
+              # Download the bare GodotLite binary
+              gh release download "${GODOTLITE_TAG}" \
+                --repo NodotProject/GodotLite \
+                --pattern "${ASSET}" \
+                --dir /tmp/godotlite_dl
+              # Extract stock macOS template, replace binary with GodotLite, re-zip
+              STOCK_TPL="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable/macos.zip"
+              TPLDIR=$(mktemp -d)
+              unzip -o "$STOCK_TPL" -d "$TPLDIR"
+              cp "/tmp/godotlite_dl/${ASSET}" "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+              chmod +x "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+              cd "$TPLDIR" && zip -r "$GITHUB_WORKSPACE/${DEST}" macos_template.app && cd "$GITHUB_WORKSPACE"
+              rm -rf "$TPLDIR" /tmp/godotlite_dl
+              echo "GodotLite macOS template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
               ;;
           esac
-          gh release download "${GODOTLITE_TAG}" \
-            --repo NodotProject/GodotLite \
-            --pattern "${ASSET}" \
-            --dir dist/templates
-          mv "dist/templates/${ASSET}" "${DEST}"
-          chmod +x "${DEST}"
-          echo "GodotLite template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
+          # For non-macOS platforms, move and chmod the downloaded binary
+          if [ "${{ matrix.platform }}" != "macos" ]; then
+            gh release download "${GODOTLITE_TAG}" \
+              --repo NodotProject/GodotLite \
+              --pattern "${ASSET}" \
+              --dir dist/templates
+            mv "dist/templates/${ASSET}" "${DEST}"
+            chmod +x "${DEST}"
+            echo "GodotLite template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
+          fi
 
       - name: Clear missing custom templates
         run: |
@@ -405,6 +422,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: daccord-*
           merge-multiple: true
 
       - name: Extract changelog for this version
