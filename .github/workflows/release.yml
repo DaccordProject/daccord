@@ -193,7 +193,9 @@ jobs:
                 --pattern "${ASSET}" \
                 --dir /tmp/godotlite_dl
               # Extract stock macOS template, replace binary with GodotLite, re-zip
-              STOCK_TPL="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable/macos.zip"
+              # Godot's template dir uses major.minor.status (e.g. "4.5.stable"), dropping the patch version
+              GODOT_TPL_VERSION="${GODOT_VERSION%.*}"
+              STOCK_TPL="$HOME/Library/Application Support/Godot/export_templates/${GODOT_TPL_VERSION}.stable/macos.zip"
               TPLDIR=$(mktemp -d)
               unzip -o "$STOCK_TPL" -d "$TPLDIR"
               cp "/tmp/godotlite_dl/${ASSET}" "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
