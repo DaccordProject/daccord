@@ -7,6 +7,7 @@ on:
 
 env:
   GODOT_VERSION: "4.5.0"
+  GODOTLITE_TAG: "v4.5"
   GUT_VERSION: "9.5.0"
   SENTRY_VERSION: "1.3.2"
 
@@ -56,7 +57,7 @@ jobs:
       - name: Install audio libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -195,7 +196,7 @@ jobs:
       - name: Install audio libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -397,3 +398,144 @@ jobs:
           name: accordserver-log
           path: test_server.log
           if-no-files-found: ignore
+
+  godotlite-validation:
+    name: GodotLite Export Validation
+    needs: lint
+    runs-on: ubuntu-latest
+    environment: default
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev libpipewire-0.3-dev
+
+      - name: Install godot-livekit addon (latest release)
+        run: |
+          TMPDIR=$(mktemp -d)
+          gh release download --repo NodotProject/godot-livekit \
+            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
+          rm -rf addons/godot-livekit
+          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
+          rm -rf "$TMPDIR"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Cache GUT
+        uses: actions/cache@v4
+        with:
+          path: addons/gut
+          key: gut-${{ env.GUT_VERSION }}
+
+      - name: Install GUT
+        run: |
+          if [ ! -d addons/gut ]; then
+            wget -q https://github.com/bitwes/Gut/archive/refs/tags/v${GUT_VERSION}.tar.gz -O /tmp/gut.tar.gz
+            tar xzf /tmp/gut.tar.gz -C /tmp
+            cp -r /tmp/Gut-${GUT_VERSION}/addons/gut addons/gut
+            rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
+          fi
+
+      - name: Cache Sentry SDK
+        uses: actions/cache@v4
+        with:
+          path: addons/sentry
+          key: sentry-godot-${{ env.SENTRY_VERSION }}
+
+      - name: Install Sentry SDK
+        run: |
+          if [ ! -d addons/sentry ]; then
+            gh release download $SENTRY_VERSION --repo getsentry/sentry-godot \
+              --pattern "*.zip" --dir /tmp/sentry_dl
+            unzip -o /tmp/sentry_dl/*.zip -d /tmp/sentry_extract
+            cp -r /tmp/sentry_extract/addons/sentry addons/sentry
+            rm -rf /tmp/sentry_dl /tmp/sentry_extract
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Verify all addons installed
+        run: |
+          failed=0
+          for addon in godot-livekit gut sentry; do
+            if [ ! -d "addons/$addon" ]; then
+              echo "::error::Required addon missing: addons/$addon"
+              failed=1
+            else
+              echo "OK: addons/$addon"
+            fi
+          done
+          # List all GDExtension files that will be included
+          echo "GDExtension files:"
+          find addons/ -name '*.gdextension' -exec echo "  {}" \;
+          exit $failed
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Download GodotLite template
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/templates
+          ASSET="godotlite-${GODOTLITE_TAG}-linux-x86_64"
+          DEST="dist/templates/godot.linuxbsd.template_release.x86_64"
+          gh release download "${GODOTLITE_TAG}" \
+            --repo NodotProject/GodotLite \
+            --pattern "${ASSET}" \
+            --dir dist/templates
+          mv "dist/templates/${ASSET}" "${DEST}"
+          chmod +x "${DEST}"
+          echo "GodotLite template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
+
+      - name: Cache Godot import
+        uses: actions/cache@v4
+        with:
+          path: .godot/imported
+          key: godot-import-${{ env.GODOT_VERSION }}-godotlite-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-godotlite-
+
+      - name: Import project
+        run: godot --headless --import .
+        timeout-minutes: 2
+
+      - name: Export with GodotLite template
+        run: |
+          mkdir -p dist/build/linux
+          godot --headless --export-release "Linux" 2>&1 | tee /tmp/export.log
+          if [ ! -f dist/build/linux/daccord.x86_64 ]; then
+            echo "::error::GodotLite export failed — binary not produced"
+            cat /tmp/export.log
+            exit 1
+          fi
+          echo "Export successful: $(du -h dist/build/linux/daccord.x86_64 | cut -f1)"
+          echo "Build directory contents:"
+          ls -lah dist/build/linux/
+        timeout-minutes: 5
+
+      - name: Validate GodotLite binary starts
+        run: |
+          cd dist/build/linux
+          chmod +x daccord.x86_64
+          timeout 30 ./daccord.x86_64 --headless --quit 2>&1 | tee /tmp/godotlite_startup.log || true
+          # Check for fatal errors that indicate stripped engine modules
+          if grep -qiE "MainLoop type doesn't exist|SCRIPT ERROR|Cannot open file|Failed loading resource" /tmp/godotlite_startup.log; then
+            echo "::error::GodotLite binary failed startup validation"
+            echo "## GodotLite Startup Errors" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -iE "ERROR|SCRIPT ERROR|Cannot open|Failed loading|MainLoop|doesn't exist" /tmp/godotlite_startup.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "GodotLite binary started and quit successfully"
+        timeout-minutes: 1
