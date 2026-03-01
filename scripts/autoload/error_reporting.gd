@@ -95,7 +95,7 @@ func _add_breadcrumb(
 	if not _initialized:
 		return
 	var scrubbed := scrub_pii_text(message)
-	var crumb := SentryBreadcrumb.create(scrubbed)
+	var crumb: SentryBreadcrumb = SentryBreadcrumb.create(scrubbed)
 	crumb.category = category
 	crumb.type = "default"
 	SentrySDK.add_breadcrumb(crumb)
