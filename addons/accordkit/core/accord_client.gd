@@ -106,6 +106,7 @@ var applications: ApplicationsApi
 var auth: AuthApi
 var voice: VoiceApi
 var audit_logs: AuditLogsApi
+var admin_api: AdminApi
 var voice_manager: VoiceManager
 
 
@@ -138,6 +139,7 @@ func _ready() -> void:
 	auth = AuthApi.new(rest)
 	voice = VoiceApi.new(rest)
 	audit_logs = AuditLogsApi.new(rest)
+	admin_api = AdminApi.new(rest)
 
 	# Gateway
 	gateway = GatewaySocket.new()

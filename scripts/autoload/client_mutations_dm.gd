@@ -49,6 +49,12 @@ func create_dm(user_id: String) -> void:
 		ClientModels.dm_channel_to_dict(
 			channel, _c._user_cache
 		)
+	# Track which connection owns this DM for routing
+	for i in _c._connections.size():
+		var c = _c._connections[i]
+		if c != null and c.get("client") == client:
+			_c._dm_to_conn[channel.id] = i
+			break
 	AppState.dm_channels_updated.emit()
 	AppState.enter_dm_mode()
 	AppState.select_channel(channel.id)
@@ -89,6 +95,12 @@ func create_group_dm(user_ids: Array) -> void:
 		ClientModels.dm_channel_to_dict(
 			channel, _c._user_cache
 		)
+	# Track which connection owns this DM for routing
+	for i in _c._connections.size():
+		var c = _c._connections[i]
+		if c != null and c.get("client") == client:
+			_c._dm_to_conn[channel.id] = i
+			break
 	AppState.dm_channels_updated.emit()
 	AppState.enter_dm_mode()
 	AppState.select_channel(channel.id)
