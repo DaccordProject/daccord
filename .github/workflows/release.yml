@@ -187,21 +187,26 @@ jobs:
             macos)
               ASSET="godotlite-${GODOTLITE_TAG}-macos-universal"
               DEST="dist/templates/godot.macos.template_release.universal"
-              # Download the bare GodotLite binary
+              # Download the GodotLite release asset (a zip containing macos_template.app/)
               gh release download "${GODOTLITE_TAG}" \
                 --repo NodotProject/GodotLite \
                 --pattern "${ASSET}" \
                 --dir /tmp/godotlite_dl
-              # Extract stock macOS template, replace binary with GodotLite, re-zip
+              # The asset is a zip — extract the universal binary from it
+              GLDIR=$(mktemp -d)
+              unzip -o "/tmp/godotlite_dl/${ASSET}" -d "$GLDIR"
+              LITE_BIN="$GLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+              # Use stock Godot template (has proper Info.plist with $binary/$name placeholders)
+              # and replace only the binary with the GodotLite one
               # Godot's template dir uses major.minor.status (e.g. "4.5.stable"), dropping the patch version
               GODOT_TPL_VERSION="${GODOT_VERSION%.*}"
               STOCK_TPL="$HOME/Library/Application Support/Godot/export_templates/${GODOT_TPL_VERSION}.stable/macos.zip"
               TPLDIR=$(mktemp -d)
               unzip -o "$STOCK_TPL" -d "$TPLDIR"
-              cp "/tmp/godotlite_dl/${ASSET}" "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+              cp "$LITE_BIN" "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
               chmod +x "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
               cd "$TPLDIR" && zip -r "$GITHUB_WORKSPACE/${DEST}" macos_template.app && cd "$GITHUB_WORKSPACE"
-              rm -rf "$TPLDIR" /tmp/godotlite_dl
+              rm -rf "$TPLDIR" "$GLDIR" /tmp/godotlite_dl
               echo "GodotLite macOS template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
               ;;
           esac
