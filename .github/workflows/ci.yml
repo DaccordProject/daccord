@@ -57,7 +57,7 @@ jobs:
       - name: Install audio libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -196,7 +196,7 @@ jobs:
       - name: Install audio libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -409,10 +409,10 @@ jobs:
         with:
           lfs: true
 
-      - name: Install audio libraries
+      - name: Install system libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev
+          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
