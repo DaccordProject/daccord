@@ -29,9 +29,7 @@ func _ready() -> void:
 	_browse_panel.join_pressed.connect(_on_browse_join)
 
 	_tab_container.current_tab = 0
-	# Hide the Browse Servers tab for now
-	_tab_container.set_tab_hidden(1, true)
-	_tab_container.tabs_visible = false
+	_tab_container.tabs_visible = true
 
 ## Parses a server URL string into its components.
 ## Format: [protocol://]host[:port][#space-name][?token=value&invite=code]
@@ -78,8 +76,8 @@ static func parse_server_url(raw: String) -> Dictionary:
 
 
 ## Called when user clicks Join on a space in the browse tab.
-func _on_browse_join(server_url: String, _space_id: String) -> void:
-	# Check if we already have this server connected
+func _on_browse_join(server_url: String, space_id: String) -> void:
+	# Check if we already have this server + space connected
 	var servers := Config.get_servers()
 	for i in servers.size():
 		var server: Dictionary = servers[i]
@@ -92,14 +90,55 @@ func _on_browse_join(server_url: String, _space_id: String) -> void:
 	if not reachable:
 		return
 
-	# Show auth dialog, then connect
-	var auth_dialog := AuthDialogScene.instantiate()
-	auth_dialog.setup(server_url)
-	auth_dialog.auth_completed.connect(
-		func(resolved_url: String, t: String, u: String, _p: String, dn: String):
-			_connect_with_token(resolved_url, "general", t, "", u, dn)
-	)
-	get_parent().add_child(auth_dialog)
+	# Check if we already have credentials for this server from another space
+	var reused_token := ""
+	var reused_username := ""
+	var reused_display_name := ""
+	for i in servers.size():
+		var server: Dictionary = servers[i]
+		if _urls_match(server["base_url"], server_url) and Client.is_server_connected(i):
+			reused_token = server.get("token", "")
+			reused_username = server.get("username", "")
+			reused_display_name = server.get("display_name", "")
+			break
+
+	if not reused_token.is_empty():
+		# We have credentials — join the space directly, then connect
+		_join_and_connect(server_url, space_id, reused_token, reused_username, reused_display_name)
+	else:
+		# Show auth dialog, then join the space and connect
+		var auth_dialog := AuthDialogScene.instantiate()
+		auth_dialog.setup(server_url)
+		auth_dialog.auth_completed.connect(
+			func(resolved_url: String, t: String, u: String, _p: String, dn: String):
+				_join_and_connect(resolved_url, space_id, t, u, dn)
+		)
+		get_parent().add_child(auth_dialog)
+
+
+## Joins a public space on the server, then adds the connection.
+func _join_and_connect(
+	url: String, space_id: String,
+	token: String,
+	username: String = "",
+	display_name: String = "",
+) -> void:
+	# Call POST /api/v1/spaces/{space_id}/join on the target server
+	var api_url := url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = token
+	rest.token_type = "Bearer"
+	add_child(rest)
+	var result: RestResult = await rest.make_request("POST", "/spaces/%s/join" % space_id)
+	rest.queue_free()
+
+	if not result.ok:
+		var msg: String = result.error.message if result.error else "Failed to join space"
+		_show_error(msg)
+		return
+
+	# Successfully joined — now connect
+	_connect_with_token(url, space_id, token, "", username, display_name)
 
 
 func _on_add_pressed() -> void:

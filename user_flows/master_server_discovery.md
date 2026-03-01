@@ -356,40 +356,42 @@ discovery_panel: user clicks "Join Server"
 
 ## Implementation Status
 
-- [ ] Master server: project scaffolding (Cargo.toml, main.rs, Axum setup)
-- [ ] Master server: database schema and migrations
-- [ ] Master server: server registry CRUD endpoints (`POST/GET/PATCH/DELETE /servers`)
-- [ ] Master server: API key authentication for admin endpoints
-- [ ] Master server: background indexer (poll `GET /spaces/public` on registered servers)
-- [ ] Master server: health check monitoring
-- [ ] Master server: directory API (`GET /directory` with search and tag filtering)
+- [x] Master server: project scaffolding (Cargo.toml, main.rs, Axum setup)
+- [x] Master server: database schema and migrations
+- [x] Master server: server registry CRUD endpoints (`POST/GET/PATCH/DELETE /servers`)
+- [x] Master server: API key authentication for admin endpoints
+- [x] Master server: background indexer (poll `GET /spaces/public` on registered servers)
+- [x] Master server: health check monitoring
+- [x] Master server: directory API (`GET /api/v1/directory` with search and pagination)
 - [ ] Master server: space detail endpoint (`GET /directory/{space_id}`)
-- [ ] Master server: pagination for directory results
+- [x] Master server: pagination for directory results
 - [ ] Master server: rate limiting
-- [ ] daccord: "Discover" button in space bar
-- [ ] daccord: discovery panel scene (search, tag filter, card grid)
-- [ ] daccord: server card scene
+- [x] daccord: Browse Servers tab in Add Server dialog
+- [x] daccord: server card scene with space rows
+- [ ] daccord: dedicated discovery panel scene (search, tag filter, card grid)
 - [ ] daccord: server detail view with "Join Server" button
-- [ ] daccord: join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
-- [ ] daccord: master server URL in Config
+- [x] daccord: join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
+- [x] daccord: master server URL in Config
+- [ ] daccord: tag filtering in browse/directory
 - [ ] accordkit: directory REST endpoint wrapper
+- [x] accordserver: `member_count` in public spaces response (JOIN with members table)
 
 
 ## Tasks
 
 ### DISCOVER-1: No accordmasterserver code exists yet
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 5
 - **Tags:** general
-- **Notes:** Repo is empty; needs full implementation
+- **Notes:** Master server implemented with server registry, background fetcher, health monitoring, and directory API
 
 ### DISCOVER-2: No discovery UI in daccord
-- **Status:** open
+- **Status:** partial
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** ui
-- **Notes:** Discover button and panel need to be built
+- **Notes:** Browse Servers tab in Add Server dialog works with join flow. Dedicated full-panel discovery UI not yet built.
 
 ### DISCOVER-3: No tag/category system on accordserver spaces
 - **Status:** open
