@@ -193,6 +193,13 @@ func _apply_ui_scale() -> void:
 		ProjectSettings.get_setting("display/window/size/viewport_height"),
 	)
 	win.size = Vector2i(base_size * scale)
+	# Re-centre the window after the DPI resize.
+	var screen_id: int = DisplayServer.window_get_current_screen(
+		DisplayServer.MAIN_WINDOW_ID
+	)
+	var screen_pos: Vector2i = DisplayServer.screen_get_position(screen_id)
+	var screen_size: Vector2i = DisplayServer.screen_get_size(screen_id)
+	win.position = screen_pos + (screen_size - win.size) / 2
 
 func _auto_ui_scale() -> float:
 	var allow_hidpi: bool = ProjectSettings.get_setting(
