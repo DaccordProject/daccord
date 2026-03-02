@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-03-02
+
+### Added
+- Android release pipeline (APK build via GitHub Actions with keystore signing)
+- Theming system, server discovery, modal base, and active threads
+- Copy all files (pck, libs) during auto-update, not just the binary
+
+### Fixed
+- Send public flag as top-level field and parse it from server response
+- Remove phantom ThemeManager autoload entry
+- Lint errors blocking release
+
 ## [0.1.7] - 2026-03-02
 
 ### Added
