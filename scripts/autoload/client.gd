@@ -452,7 +452,6 @@ func _voice_log(message: String) -> void:
 	if not debug_voice_logs:
 		return
 	var line := "[VoiceDebug] " + message
-	print(line)
 	# Rotate if file exceeds max size
 	if FileAccess.file_exists(VOICE_LOG_PATH):
 		var check := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ)

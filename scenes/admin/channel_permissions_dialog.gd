@@ -6,9 +6,6 @@ enum OverwriteState { INHERIT, ALLOW, DENY }
 const PermOverwriteRowScene := preload("res://scenes/admin/perm_overwrite_row.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 
-var SELECTED_BG: Color:
-	get: return ThemeManager.get_color("secondary_button")
-
 # Permissions only relevant to voice channels
 const VOICE_ONLY_PERMS := [
 	"connect", "speak", "mute_members", "deafen_members",
@@ -23,6 +20,9 @@ const TEXT_ONLY_PERMS := [
 	"manage_threads", "create_threads",
 	"use_external_stickers", "send_in_threads",
 ]
+
+var _selected_bg: Color:
+	get: return ThemeManager.get_color("secondary_button")
 
 var _channel: Dictionary = {}
 var _space_id: String = ""
@@ -181,7 +181,7 @@ func _update_role_selection() -> void:
 		var btn: Button = _role_buttons[rid]
 		if rid == _selected_role_id:
 			var sb := StyleBoxFlat.new()
-			sb.bg_color = SELECTED_BG
+			sb.bg_color = _selected_bg
 			sb.corner_radius_top_left = 4
 			sb.corner_radius_top_right = 4
 			sb.corner_radius_bottom_left = 4

@@ -71,13 +71,13 @@ func test_setup_forum_icon() -> void:
 
 func test_setup_nsfw_red_tint() -> void:
 	component.setup(_ch_data({"nsfw": true}))
-	# NSFW tints the icon red
-	assert_eq(component.type_icon.modulate, Color(0.9, 0.2, 0.2))
+	# NSFW tints the icon with the theme's error color
+	assert_eq(component.type_icon.modulate, ThemeManager.get_color("error"))
 
 
 func test_setup_non_nsfw_default_tint() -> void:
 	component.setup(_ch_data({"nsfw": false}))
-	assert_eq(component.type_icon.modulate, Color(0.44, 0.47, 0.51))
+	assert_eq(component.type_icon.modulate, ThemeManager.get_color("icon_default"))
 
 
 func test_setup_unread_dot_visible() -> void:

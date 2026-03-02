@@ -5,6 +5,8 @@ const MAX_IMAGE_HEIGHT := 300
 const MAX_THUMBNAIL_SIZE := 80
 const MAX_FIELDS_PER_ROW := 3
 
+var _last_data: Dictionary = {}
+
 @onready var content_row: HBoxContainer = $ContentRow
 @onready var vbox: VBoxContainer = $ContentRow/VBox
 @onready var author_row: HBoxContainer = $ContentRow/VBox/AuthorRow
@@ -16,8 +18,6 @@ const MAX_FIELDS_PER_ROW := 3
 @onready var image_rect: TextureRect = $ContentRow/VBox/Image
 @onready var footer_label: Label = $ContentRow/VBox/Footer
 @onready var thumbnail_rect: TextureRect = $ContentRow/Thumbnail
-
-var _last_data: Dictionary = {}
 
 func _ready() -> void:
 	add_to_group("themed")

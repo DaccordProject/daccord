@@ -8,12 +8,12 @@ const ANNOUNCEMENT_ICON := preload("res://assets/theme/icons/announcement_channe
 const FORUM_ICON := preload("res://assets/theme/icons/forum_channel.svg")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
-var ICON_COLOR_DEFAULT: Color = ThemeManager.get_color("icon_default")
-var ICON_COLOR_HOVER: Color = ThemeManager.get_color("icon_hover")
-var ICON_COLOR_ACTIVE: Color = ThemeManager.get_color("icon_active")
 
 var channel_id: String = ""
 var space_id: String = ""
+var _icon_color_default: Color = ThemeManager.get_color("icon_default")
+var _icon_color_hover: Color = ThemeManager.get_color("icon_hover")
+var _icon_color_active: Color = ThemeManager.get_color("icon_active")
 var _channel_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _gear_btn: Button
@@ -43,9 +43,9 @@ func _ready() -> void:
 	active_pill.visible = false
 
 func _apply_theme() -> void:
-	ICON_COLOR_DEFAULT = ThemeManager.get_color("icon_default")
-	ICON_COLOR_HOVER = ThemeManager.get_color("icon_hover")
-	ICON_COLOR_ACTIVE = ThemeManager.get_color("icon_active")
+	_icon_color_default = ThemeManager.get_color("icon_default")
+	_icon_color_hover = ThemeManager.get_color("icon_hover")
+	_icon_color_active = ThemeManager.get_color("icon_active")
 	_apply_text_color()
 	_apply_icon_color()
 	queue_redraw()
@@ -122,15 +122,15 @@ func _apply_icon_color() -> void:
 	if _channel_data.get("nsfw", false):
 		return
 	if _is_active:
-		type_icon.modulate = ICON_COLOR_ACTIVE
+		type_icon.modulate = _icon_color_active
 	else:
-		type_icon.modulate = ICON_COLOR_DEFAULT
+		type_icon.modulate = _icon_color_default
 
 func _on_mouse_entered() -> void:
 	if _gear_btn:
 		_gear_btn.visible = true
 	if not _is_active and not _channel_data.get("nsfw", false):
-		type_icon.modulate = ICON_COLOR_HOVER
+		type_icon.modulate = _icon_color_hover
 
 func _on_mouse_exited() -> void:
 	if _gear_btn:

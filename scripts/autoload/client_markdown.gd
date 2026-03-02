@@ -61,7 +61,9 @@ static func markdown_to_bbcode(text: String) -> String:
 	var spoiler_hex: String = ThemeManager.get_color("input_bg").to_html(false)
 	result = _spoiler_regex.sub(
 		result,
-		"[url=spoiler][bgcolor=#" + spoiler_hex + "][color=#" + spoiler_hex + "]$1[/color][/bgcolor][/url]",
+		"[url=spoiler][bgcolor=#" + spoiler_hex
+		+ "][color=#" + spoiler_hex
+		+ "]$1[/color][/bgcolor][/url]",
 		true,
 	)
 	# Links — block dangerous URL schemes before converting
