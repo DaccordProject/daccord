@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-03-02
+
+### Added
+- Server management panel with admin access via space context menu
+- Browse Servers tab and join flow
+
+### Fixed
+- Re-center window after HiDPI resize and cap screen share resolution
+
 ## [0.1.6] - 2026-02-28
 
 ### Added
