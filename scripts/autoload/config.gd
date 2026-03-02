@@ -258,14 +258,6 @@ func remove_server(index: int) -> void:
 	_config.set_value("servers", "count", count - 1)
 	_save()
 
-func update_server_url(index: int, new_url: String) -> void:
-	var count: int = _config.get_value("servers", "count", 0)
-	if index < 0 or index >= count:
-		return
-	var section := "server_%d" % index
-	_config.set_value(section, "base_url", new_url)
-	_save()
-
 func update_server_token(index: int, new_token: String) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	if index < 0 or index >= count:
@@ -351,13 +343,6 @@ func set_space_folder(space_id: String, folder_name: String) -> void:
 		_config.set_value("folders", space_id, null)
 	else:
 		_config.set_value("folders", space_id, folder_name)
-	_save()
-
-func get_space_folder_color(space_id: String) -> Color:
-	return _config.get_value("folder_colors", space_id, Color(0.212, 0.224, 0.247))
-
-func set_space_folder_color(space_id: String, color: Color) -> void:
-	_config.set_value("folder_colors", space_id, color)
 	_save()
 
 func get_folder_color(fname: String) -> Color:
@@ -446,12 +431,6 @@ func set_server_suppress_everyone(space_id: String, value: int) -> void:
 		_config.set_value("server_suppress", space_id, clampi(value, 0, 1))
 	_save()
 	AppState.config_changed.emit("server_suppress", space_id)
-
-func is_suppress_everyone_for_space(space_id: String) -> bool:
-	var override: int = get_server_suppress_everyone(space_id)
-	if override == -1:
-		return get_suppress_everyone()
-	return override == 1
 
 func is_server_muted(space_id: String) -> bool:
 	return _config.get_value("muted_servers", space_id, false)
@@ -553,10 +532,6 @@ func set_master_server_url(url: String) -> void:
 
 func get_max_screen_capture_size() -> int:
 	return _config.get_value("voice", "max_screen_capture_size", 1280)
-
-func set_max_screen_capture_size(value: int) -> void:
-	_config.set_value("voice", "max_screen_capture_size", clampi(value, 480, 3840))
-	_save()
 
 ## Draft text persistence
 
