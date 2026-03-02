@@ -12,6 +12,8 @@ var _offset: int = 0
 var _has_more: bool = false
 var _searching: bool = false
 var _debounce_timer: Timer
+var _panel_style: StyleBoxFlat
+var _more_style: StyleBoxFlat
 
 @onready var search_input: LineEdit = $VBox/Header/SearchInput
 @onready var close_button: Button = $VBox/Header/CloseButton
@@ -19,10 +21,6 @@ var _debounce_timer: Timer
 @onready var scroll_container: ScrollContainer = $VBox/ScrollContainer
 @onready var results_vbox: VBoxContainer = $VBox/ScrollContainer/ResultsVBox
 @onready var load_more_btn: Button = $VBox/LoadMoreButton
-
-
-var _panel_style: StyleBoxFlat
-var _more_style: StyleBoxFlat
 
 func _ready() -> void:
 	add_to_group("themed")

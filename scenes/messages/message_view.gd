@@ -155,7 +155,10 @@ func _on_channel_selected(channel_id: String) -> void:
 				break
 
 	# Update topic bar
-	channel_name_label.text = "#%s" % _current_channel_name if not AppState.is_dm_mode else _current_channel_name
+	if AppState.is_dm_mode:
+		channel_name_label.text = _current_channel_name
+	else:
+		channel_name_label.text = "#%s" % _current_channel_name
 	threads_button.visible = not AppState.is_dm_mode and not is_forum
 
 	if not is_forum and AppState.thread_panel_visible:

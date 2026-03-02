@@ -6,9 +6,9 @@ const AddServerDialogScene := preload(
 	"res://scenes/sidebar/guild_bar/add_server_dialog.tscn"
 )
 
-var BLURPLE: Color:
+var _blurple: Color:
 	get: return ThemeManager.get_color("accent")
-var MUTED_GRAY: Color:
+var _muted_gray: Color:
 	get: return ThemeManager.get_color("text_muted")
 
 var _pulse_tween: Tween
