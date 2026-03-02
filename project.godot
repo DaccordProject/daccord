@@ -30,7 +30,6 @@ driver/enable_input=true
 SingleInstance="*res://scripts/autoload/single_instance.gd"
 AppState="*res://scripts/autoload/app_state.gd"
 Config="*res://scripts/autoload/config.gd"
-ThemeManager="*res://scripts/autoload/theme_manager.gd"
 ErrorReporting="*res://scripts/autoload/error_reporting.gd"
 Client="*res://scripts/autoload/client.gd"
 SoundManager="*res://scripts/autoload/sound_manager.gd"
