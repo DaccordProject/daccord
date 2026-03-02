@@ -461,35 +461,85 @@ func apply_update_and_restart() -> void:
 
 func _apply_binary_update() -> void:
 	var current_binary: String = OS.get_executable_path()
-	var old_binary: String = current_binary + ".old"
+	var install_dir: String = current_binary.get_base_dir()
+	var staged_dir: String = _staged_binary_path.get_base_dir()
 
-	var rename_err: int = DirAccess.rename_absolute(
-		current_binary, old_binary
-	)
-	if rename_err != OK:
-		push_error("[Updater] Failed to rename current binary: %d" % rename_err)
+	# Collect all files from staging (binary, .pck, shared libs, etc.)
+	var staged_files: PackedStringArray = _list_dir_files(staged_dir)
+	if staged_files.is_empty():
 		AppState.update_download_failed.emit(
-			"Failed to replace binary (error %d)" % rename_err
+			"No files found in staging directory"
 		)
 		return
 
-	var copy_err: int = DirAccess.copy_absolute(
-		_staged_binary_path, current_binary
-	)
-	if copy_err != OK:
-		DirAccess.rename_absolute(old_binary, current_binary)
-		push_error("[Updater] Failed to copy new binary: %d" % copy_err)
-		AppState.update_download_failed.emit(
-			"Failed to copy new binary (error %d)" % copy_err
-		)
-		return
+	# Phase 1: Rename existing files to .old for rollback
+	var renamed: Array[String] = []
+	for fname in staged_files:
+		var target: String = install_dir.path_join(fname)
+		if FileAccess.file_exists(target):
+			var old_path: String = target + ".old"
+			if FileAccess.file_exists(old_path):
+				DirAccess.remove_absolute(old_path)
+			var err: int = DirAccess.rename_absolute(target, old_path)
+			if err != OK:
+				push_error(
+					"[Updater] Failed to rename %s: %d" % [fname, err]
+				)
+				_rollback_old_files(install_dir, renamed)
+				AppState.update_download_failed.emit(
+					"Failed to replace %s (error %d)" % [fname, err]
+				)
+				return
+			renamed.append(fname)
 
+	# Phase 2: Copy all new files from staging to install directory
+	for fname in staged_files:
+		var src: String = staged_dir.path_join(fname)
+		var dst: String = install_dir.path_join(fname)
+		var err: int = DirAccess.copy_absolute(src, dst)
+		if err != OK:
+			push_error("[Updater] Failed to copy %s: %d" % [fname, err])
+			_rollback_old_files(install_dir, renamed)
+			AppState.update_download_failed.emit(
+				"Failed to copy %s (error %d)" % [fname, err]
+			)
+			return
+
+	# Phase 3: Restore executable permissions on Linux
 	if OS.get_name() == "Linux":
-		OS.execute("chmod", ["+x", current_binary])
+		for fname in staged_files:
+			var staged_path: String = staged_dir.path_join(fname)
+			var target: String = install_dir.path_join(fname)
+			# tar preserves permissions; replicate to the copied files
+			if OS.execute("test", ["-x", staged_path]) == 0:
+				OS.execute("chmod", ["+x", target])
 
 	var args: PackedStringArray = OS.get_cmdline_args()
 	OS.create_process(current_binary, args)
 	get_tree().quit()
+
+
+func _list_dir_files(dir_path: String) -> PackedStringArray:
+	var files: PackedStringArray = []
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return files
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while not fname.is_empty():
+		if not dir.current_is_dir():
+			files.append(fname)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	return files
+
+
+func _rollback_old_files(dir: String, file_names: Array[String]) -> void:
+	for fname in file_names:
+		var target: String = dir.path_join(fname)
+		var old_path: String = target + ".old"
+		if FileAccess.file_exists(old_path):
+			DirAccess.rename_absolute(old_path, target)
 
 
 func _apply_macos_update() -> void:
