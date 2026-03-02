@@ -78,7 +78,6 @@ func _build_pages() -> Array:
 	return pages
 
 # --- Profiles page ---
-
 func _build_profiles_page() -> VBoxContainer:
 	_profiles_pg = UserSettingsProfilesPage.new(
 		self , _page_vbox, _section_label,
@@ -86,7 +85,6 @@ func _build_profiles_page() -> VBoxContainer:
 	return _profiles_pg.build()
 
 # --- Voice & Video page ---
-
 func _build_voice_page() -> VBoxContainer:
 	var vbox := _page_vbox("Voice & Video")
 
@@ -271,7 +269,6 @@ func _build_voice_page() -> VBoxContainer:
 	return vbox
 
 # --- Mic test ---
-
 func _on_mic_test_toggled() -> void:
 	if _mic_testing:
 		_stop_mic_test()
@@ -370,7 +367,6 @@ func _exit_tree() -> void:
 	_cleanup_mic_test()
 
 # --- Sound page ---
-
 func _build_sound_page() -> VBoxContainer:
 	var vbox := _page_vbox("Sound")
 
@@ -422,7 +418,6 @@ func _build_sound_page() -> VBoxContainer:
 	return vbox
 
 # --- Appearance page (new) ---
-
 func _build_appearance_page() -> VBoxContainer:
 	var vbox := _page_vbox("Appearance")
 
@@ -476,7 +471,6 @@ func _build_appearance_page() -> VBoxContainer:
 	return vbox
 
 # --- Notifications page (trimmed — global only) ---
-
 func _build_notifications_page() -> VBoxContainer:
 	var vbox := _page_vbox("Notifications")
 
@@ -524,7 +518,6 @@ func _build_notifications_page() -> VBoxContainer:
 	return vbox
 
 # --- Updates page ---
-
 func _build_updates_page() -> VBoxContainer:
 	var vbox := _page_vbox("Updates")
 
@@ -670,7 +663,6 @@ func _build_updates_page() -> VBoxContainer:
 	return vbox
 
 # --- Updates page callbacks ---
-
 func _on_check_updates_pressed() -> void:
 	_check_btn.disabled = true
 	_status_label.text = "Checking..."
@@ -776,7 +768,6 @@ func _show_restart_state() -> void:
 	_error_label_update.visible = false
 
 # --- Instance Admin page ---
-
 func _build_admin_page() -> VBoxContainer:
 	var vbox := _page_vbox("Instance Admin")
 

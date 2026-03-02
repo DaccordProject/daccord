@@ -160,7 +160,7 @@ func _render_spaces() -> void:
 
 func _build_space_row(
 	space_id: String, sname: String,
-	owner_id: String, member_count: int,
+	_owner_id: String, member_count: int,
 ) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
