@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Daccord"
-config/version="0.1.6"
+config/version="0.1.7"
 run/main_scene="res://scenes/main/main_window.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
 run/low_processor_mode=true
@@ -30,6 +30,7 @@ driver/enable_input=true
 SingleInstance="*res://scripts/autoload/single_instance.gd"
 AppState="*res://scripts/autoload/app_state.gd"
 Config="*res://scripts/autoload/config.gd"
+ThemeManager="*res://scripts/autoload/theme_manager.gd"
 ErrorReporting="*res://scripts/autoload/error_reporting.gd"
 Client="*res://scripts/autoload/client.gd"
 SoundManager="*res://scripts/autoload/sound_manager.gd"
