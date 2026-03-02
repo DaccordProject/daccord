@@ -21,10 +21,14 @@ var _debounce_timer: Timer
 @onready var load_more_btn: Button = $VBox/LoadMoreButton
 
 
+var _panel_style: StyleBoxFlat
+var _more_style: StyleBoxFlat
+
 func _ready() -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.184, 0.192, 0.212)
-	add_theme_stylebox_override("panel", style)
+	add_to_group("themed")
+	_panel_style = StyleBoxFlat.new()
+	_panel_style.bg_color = ThemeManager.get_color("modal_bg")
+	add_theme_stylebox_override("panel", _panel_style)
 
 	_debounce_timer = Timer.new()
 	_debounce_timer.one_shot = true
@@ -40,28 +44,31 @@ func _ready() -> void:
 	status_label.visible = false
 
 	status_label.add_theme_font_size_override("font_size", 13)
-	status_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
-	)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	var more_style := StyleBoxFlat.new()
-	more_style.bg_color = Color(0.24, 0.25, 0.27)
-	more_style.corner_radius_top_left = 4
-	more_style.corner_radius_top_right = 4
-	more_style.corner_radius_bottom_left = 4
-	more_style.corner_radius_bottom_right = 4
-	more_style.content_margin_left = 8.0
-	more_style.content_margin_top = 4.0
-	more_style.content_margin_right = 8.0
-	more_style.content_margin_bottom = 4.0
+	_more_style = StyleBoxFlat.new()
+	_more_style.bg_color = ThemeManager.get_color("secondary_button")
+	_more_style.corner_radius_top_left = 4
+	_more_style.corner_radius_top_right = 4
+	_more_style.corner_radius_bottom_left = 4
+	_more_style.corner_radius_bottom_right = 4
+	_more_style.content_margin_left = 8.0
+	_more_style.content_margin_top = 4.0
+	_more_style.content_margin_right = 8.0
+	_more_style.content_margin_bottom = 4.0
 	load_more_btn.add_theme_stylebox_override(
-		"normal", more_style
+		"normal", _more_style
 	)
 	load_more_btn.add_theme_font_size_override("font_size", 12)
 
+	_apply_theme()
 	AppState.space_selected.connect(_on_space_selected)
 	AppState.dm_mode_entered.connect(_on_dm_mode_entered)
+
+func _apply_theme() -> void:
+	_panel_style.bg_color = ThemeManager.get_color("modal_bg")
+	status_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	_more_style.bg_color = ThemeManager.get_color("secondary_button")
 
 
 func _input(event: InputEvent) -> void:

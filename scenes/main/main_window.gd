@@ -52,6 +52,7 @@ var _pip: PanelContainer = null
 @onready var member_toggle: Button = $LayoutHBox/ContentArea/ContentHeader/MemberListToggle
 @onready var topic_bar: Label = $LayoutHBox/ContentArea/TopicBar
 @onready var content_body: HBoxContainer = $LayoutHBox/ContentArea/ContentBody
+@onready var discovery_panel: PanelContainer = $LayoutHBox/DiscoveryPanel
 @onready var message_view: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MessageView
 @onready var thread_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ThreadPanel
 @onready var member_list: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MemberList
@@ -60,6 +61,7 @@ var _pip: PanelContainer = null
 @onready var drawer_container: Control = $DrawerContainer
 
 func _ready() -> void:
+	add_to_group("themed")
 	_tabs = MainWindowTabs.new(tab_bar, self)
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
@@ -99,6 +101,9 @@ func _ready() -> void:
 	AppState.voice_left.connect(_on_voice_left_pip)
 	AppState.update_available.connect(_on_update_indicator_show)
 	AppState.update_download_complete.connect(_on_update_indicator_ready)
+	AppState.config_changed.connect(_on_config_changed)
+	AppState.discovery_opened.connect(_on_discovery_opened)
+	AppState.discovery_closed.connect(_on_discovery_closed)
 
 	# Update indicator in content header (hidden until update available)
 	_update_indicator = Button.new()
@@ -109,10 +114,10 @@ func _ready() -> void:
 		"res://assets/theme/icons/update.svg"
 	)
 	_update_indicator.add_theme_color_override(
-		"icon_normal_color", Color(0.92, 0.26, 0.27)
+		"icon_normal_color", ThemeManager.get_color("error")
 	)
 	_update_indicator.add_theme_color_override(
-		"icon_hover_color", Color(1.0, 0.35, 0.36)
+		"icon_hover_color", ThemeManager.get_color("error_hover")
 	)
 	_update_indicator.visible = false
 	_update_indicator.pressed.connect(_on_update_indicator_pressed)
@@ -133,7 +138,7 @@ func _ready() -> void:
 
 	# Style topic bar
 	topic_bar.add_theme_font_size_override("font_size", 12)
-	topic_bar.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	topic_bar.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 	# Create resize handles for side panels
 	_thread_handle = PanelResizeHandle.new(
@@ -183,11 +188,9 @@ func _apply_ui_scale() -> void:
 	var scale: float = Config.get_ui_scale()
 	if scale <= 0.0:
 		scale = _auto_ui_scale()
-	if scale <= 1.0:
-		return
 	var win := get_window()
 	win.content_scale_factor = scale
-	# Grow the window to compensate so the effective viewport stays the same.
+	# Grow/shrink the window to compensate so the effective viewport stays the same.
 	var base_size := Vector2i(
 		ProjectSettings.get_setting("display/window/size/viewport_width"),
 		ProjectSettings.get_setting("display/window/size/viewport_height"),
@@ -221,6 +224,10 @@ func _input(event: InputEvent) -> void:
 	_gestures.handle_input(event)
 
 func _on_channel_selected(channel_id: String) -> void:
+	# Close discovery panel if open
+	if AppState.is_discovery_open:
+		AppState.close_discovery()
+
 	# Close voice view if open (triggers PiP spawn via _on_voice_view_closed)
 	if AppState.is_voice_view_open:
 		AppState.close_voice_view()
@@ -732,3 +739,36 @@ func _on_reauth_needed(
 		Client.reconnect_server(server_index)
 	)
 	get_tree().root.add_child(dlg)
+
+func _on_config_changed(section: String, key: String) -> void:
+	if section == "accessibility" and key == "ui_scale":
+		_apply_ui_scale()
+
+func _on_discovery_opened() -> void:
+	discovery_panel.visible = true
+	discovery_panel.activate()
+	content_area.visible = false
+	sidebar.set_channel_panel_visible_immediate(false)
+
+func _on_discovery_closed() -> void:
+	discovery_panel.visible = false
+	content_area.visible = true
+	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:
+		sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
+	else:
+		sidebar.set_channel_panel_visible_immediate(true)
+	_update_member_list_visibility()
+	_update_search_visibility()
+	_sync_handle_visibility()
+
+func _apply_theme() -> void:
+	# Re-apply inline color overrides for long-lived nodes
+	topic_bar.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	_update_indicator.add_theme_color_override(
+		"icon_normal_color", ThemeManager.get_color("error")
+	)
+	_update_indicator.add_theme_color_override(
+		"icon_hover_color", ThemeManager.get_color("error_hover")
+	)

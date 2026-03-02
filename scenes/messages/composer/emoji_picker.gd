@@ -21,10 +21,14 @@ var _is_recent_selected: bool = false
 @onready var emoji_grid: GridContainer = $VBox/Scroll/EmojiGrid
 
 func _ready() -> void:
+	add_to_group("themed")
 	_build_category_bar()
 	search_input.text_changed.connect(_on_search_changed)
 	search_input.placeholder_text = "Search emoji..."
 	AppState.emojis_updated.connect(_on_emojis_updated)
+
+func _apply_theme() -> void:
+	_update_category_highlights()
 	# Default to recently used if any exist
 	if Config.get_recent_emoji().size() > 0:
 		_is_recent_selected = true
@@ -76,17 +80,17 @@ func _build_category_bar() -> void:
 	_update_category_highlights()
 
 func _update_category_highlights() -> void:
-	var inactive := Color(0.58, 0.608, 0.643)
+	var inactive := ThemeManager.get_color("text_muted")
 	for cat in _category_buttons:
 		var btn: Button = _category_buttons[cat]
 		if not _is_custom_selected and not _is_recent_selected and cat == _current_category:
-			btn.modulate = Color.WHITE
+			btn.modulate = ThemeManager.get_color("icon_active")
 		else:
 			btn.modulate = inactive
 	if _custom_btn:
-		_custom_btn.modulate = Color.WHITE if _is_custom_selected else inactive
+		_custom_btn.modulate = ThemeManager.get_color("icon_active") if _is_custom_selected else inactive
 	if _recent_btn:
-		_recent_btn.modulate = Color.WHITE if _is_recent_selected else inactive
+		_recent_btn.modulate = ThemeManager.get_color("icon_active") if _is_recent_selected else inactive
 
 func _on_category_pressed(cat: EmojiData.Category) -> void:
 	_current_category = cat

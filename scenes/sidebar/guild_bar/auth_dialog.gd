@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal auth_completed(
 	base_url: String, token: String,
@@ -27,6 +27,7 @@ var _prev_username: String = ""
 
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 400, 0)
 	_sign_in_btn.pressed.connect(func(): _set_mode(Mode.SIGN_IN))
 	_register_btn.pressed.connect(func(): _set_mode(Mode.REGISTER))
 	_submit_btn.pressed.connect(_on_submit)
@@ -172,16 +173,3 @@ func _show_error(msg: String) -> void:
 	_error_label.visible = true
 
 
-func _close() -> void:
-	queue_free()
-
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

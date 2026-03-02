@@ -50,7 +50,7 @@ Account deletion:
   User clicks "Delete My Account"
     → UserSettingsDanger._on_delete_account()
       → AccordClient.users.delete_me({"password": pw})    [DELETE /users/@me]
-      → on success: SceneTree.quit()
+      → on success: Config.wipe_active_profile() → SceneTree.quit()
 
 Password change:
   User clicks "Change Password"
@@ -107,7 +107,7 @@ On click, `_on_delete_account()` (line 159) validates:
 
 The REST call is `DELETE /users/@me` with `{"password": pw}` via `AccordClient.users.delete_me()` (`users_api.gd:72`). Alternatively, `Client.delete_account()` (`client.gd:548`) routes through `client_mutations.gd:427`, which picks the first connected `AccordClient`.
 
-On success, the app exits immediately with `_tree.quit()` (line 189). No local data cleanup occurs — the profile config, emoji cache, and registry remain on disk.
+On success, `Config.wipe_active_profile()` deletes the active profile's directory (config file + emoji cache) and removes its entry from the profile registry. If this was the only profile, the registry file itself is also removed. The app then exits via `_tree.quit()`.
 
 ### Password Change (Data Security)
 
@@ -124,13 +124,13 @@ Built by `UserSettingsDanger.build_password_page()` (line 23). Three secret fiel
 
 **Project settings:** `project.godot` sets `send_default_pii=false` (line 74), so the Sentry SDK never auto-collects PII.
 
-**Breadcrumbs:** Space/channel IDs and UI events are recorded (lines 62-73) but no message content or usernames.
+**Breadcrumbs:** Space/channel IDs are truncated to the last 4 characters via `_truncate_id()` before being recorded in breadcrumbs and Sentry tags. No message content or usernames are included.
 
 ### Profile Export (Partial Data Portability)
 
 `UserSettingsProfilesPage._export_profile()` (line 196) opens a FileDialog in save mode for `*.daccord-profile`. It calls `Config.export_config()` (`config.gd:547`) which saves the in-memory ConfigFile to the chosen path.
 
-**What's exported:** Client-side preferences only — voice/video settings, sound settings, notification settings, error reporting preference, UI scale, emoji skin tone, per-server mute settings, master server URL, space folder assignments, and server connection credentials (base URL, space name, token, username, password).
+**What's exported:** Client-side preferences only — voice/video settings, sound settings, notification settings, error reporting preference, UI scale, emoji skin tone, per-server mute settings, master server URL, space folder assignments, and server connection metadata (base URL, space name). Credentials (`token`, `password`) are stripped by `export_config()`.
 
 **What's NOT exported:** Server-side user data — messages, profile information (display name, avatar, bio), reactions, attachments, DM history, roles, or any other data stored on the accordserver.
 
@@ -164,7 +164,7 @@ Built by `UserSettingsDanger.build_password_page()` (line 23). Three secret fiel
 - [x] 2FA enable/disable/verify with backup codes
 - [x] OAuth connections listing (read-only)
 - [ ] Server-side data export (messages, profile, attachments)
-- [ ] Local data cleanup after account deletion
+- [x] Local data cleanup after account deletion
 - [ ] Privacy policy / terms display in-app
 - [ ] OAuth connection disconnect/revoke
 - [ ] Per-server data deletion request
@@ -180,11 +180,11 @@ Built by `UserSettingsDanger.build_password_page()` (line 23). Three secret fiel
 - **Notes:** Users cannot download their messages, attachments, or profile data from the server. Only client config is exportable. GDPR Article 20 (data portability) requires export of personal data in a machine-readable format.
 
 ### GDPR-2: No local cleanup after account deletion
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 3
 - **Tags:** emoji, performance
-- **Notes:** `_on_delete_account()` calls `tree.quit()` (line 189) but does not clear `user://profiles/`, emoji cache, or the profile registry. Stale credentials and cached data remain on disk.
+- **Notes:** `_on_delete_account()` now calls `Config.wipe_active_profile()` before `tree.quit()`. This deletes the active profile's directory (config + emoji cache) and removes its registry entry.
 
 ### GDPR-3: No privacy policy display
 - **Status:** open
@@ -215,15 +215,15 @@ Built by `UserSettingsDanger.build_password_page()` (line 23). Three secret fiel
 - **Notes:** No indication of how long server-side data is retained. No TTL on message cache, attachment storage, or audit logs.
 
 ### GDPR-7: Error breadcrumbs include IDs
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** security
-- **Notes:** `error_reporting.gd` sends space/channel IDs as breadcrumbs (lines 75-83) and Sentry tags (lines 124-135). While not PII, these are pseudonymous identifiers that could be cross-referenced.
+- **Notes:** `error_reporting.gd` now truncates space/channel IDs to the last 4 characters in both breadcrumbs and Sentry tags via `_truncate_id()`. This preserves debugging correlation while preventing full identifier cross-referencing.
 
 ### GDPR-8: Exported profile includes credentials
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** ci, config, security
-- **Notes:** `Config.export_config()` writes the full ConfigFile including server tokens and stored username/password pairs (`config.gd:540-543`). The export file is unencrypted.
+- **Notes:** `Config.export_config()` already strips `token` and `password` keys from server sections via a sanitized copy (skips keys in `_IMPORT_BLOCKED_KEYS`). The export file contains only preferences, not credentials.

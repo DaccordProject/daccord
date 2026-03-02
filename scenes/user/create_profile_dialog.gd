@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal profile_created(slug: String)
 
@@ -13,6 +13,7 @@ signal profile_created(slug: String)
 
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 400, 0)
 	_password_input.text_changed.connect(_on_password_changed)
 	_scratch_radio.pressed.connect(func() -> void:
 		_copy_radio.button_pressed = false
@@ -62,12 +63,3 @@ func _show_error(msg: String) -> void:
 	_error_label.visible = true
 
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		queue_free()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		queue_free()
-		get_viewport().set_input_as_handled()

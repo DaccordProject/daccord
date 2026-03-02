@@ -6,8 +6,10 @@ const AddServerDialogScene := preload(
 	"res://scenes/sidebar/guild_bar/add_server_dialog.tscn"
 )
 
-const BLURPLE := Color(0.345, 0.396, 0.949)
-const MUTED_GRAY := Color(0.58, 0.608, 0.643)
+var BLURPLE: Color:
+	get: return ThemeManager.get_color("accent")
+var MUTED_GRAY: Color:
+	get: return ThemeManager.get_color("text_muted")
 
 var _pulse_tween: Tween
 var _features_vbox: VBoxContainer
@@ -35,16 +37,16 @@ func _ready() -> void:
 		"res://assets/theme/icons/update.svg"
 	)
 	_update_btn.add_theme_color_override(
-		"font_color", Color(0.92, 0.26, 0.27)
+		"font_color", ThemeManager.get_color("error")
 	)
 	_update_btn.add_theme_color_override(
-		"font_hover_color", Color(1.0, 0.35, 0.36)
+		"font_hover_color", ThemeManager.get_color("error_hover")
 	)
 	_update_btn.add_theme_color_override(
-		"icon_normal_color", Color(0.92, 0.26, 0.27)
+		"icon_normal_color", ThemeManager.get_color("error")
 	)
 	_update_btn.add_theme_color_override(
-		"icon_hover_color", Color(1.0, 0.35, 0.36)
+		"icon_hover_color", ThemeManager.get_color("error_hover")
 	)
 	_update_btn.add_theme_font_size_override("font_size", 14)
 	_update_btn.visible = false
@@ -73,6 +75,10 @@ func _ready() -> void:
 			Client.app_version,
 		):
 			_update_btn.visible = true
+
+	add_to_group("themed")
+	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)
+	_apply_shader_accent()
 
 	# Apply initial responsive layout
 	_apply_layout(AppState.current_layout_mode)
@@ -285,3 +291,34 @@ func _switch_features_to_hbox() -> void:
 
 	_features_vbox.queue_free()
 	_features_vbox = null
+
+
+func _apply_shader_accent() -> void:
+	# Set the accent_color uniform on the background shader
+	var bg: ColorRect = $Background
+	if bg and bg.material is ShaderMaterial:
+		var accent: Color = ThemeManager.get_color("accent")
+		bg.material.set_shader_parameter("accent_color", accent)
+
+
+func _apply_theme() -> void:
+	_apply_shader_accent()
+	_update_btn.add_theme_color_override(
+		"font_color", ThemeManager.get_color("error")
+	)
+	_update_btn.add_theme_color_override(
+		"font_hover_color", ThemeManager.get_color("error_hover")
+	)
+	_update_btn.add_theme_color_override(
+		"icon_normal_color", ThemeManager.get_color("error")
+	)
+	_update_btn.add_theme_color_override(
+		"icon_hover_color", ThemeManager.get_color("error_hover")
+	)
+
+
+func _on_reduce_motion_changed(enabled: bool) -> void:
+	if enabled and _pulse_tween:
+		_pulse_tween.kill()
+		_pulse_tween = null
+		cta_button.modulate = Color(1.0, 1.0, 1.0, 1.0)

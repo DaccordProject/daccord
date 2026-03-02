@@ -193,7 +193,7 @@ func _build_voice_page() -> VBoxContainer:
 	_mic_test_bar.value = 0.0
 	_mic_test_bar.show_percentage = false
 	_bar_fill = StyleBoxFlat.new()
-	_bar_fill.bg_color = Color(0.35, 0.38, 0.42)
+	_bar_fill.bg_color = ThemeManager.get_color("button_hover")
 	_mic_test_bar.add_theme_stylebox_override("fill", _bar_fill)
 	vbox.add_child(_mic_test_bar)
 
@@ -310,7 +310,7 @@ func _stop_mic_test() -> void:
 	if _mic_test_bar != null:
 		_mic_test_bar.value = 0.0
 	if _bar_fill != null:
-		_bar_fill.bg_color = Color(0.35, 0.38, 0.42)
+		_bar_fill.bg_color = ThemeManager.get_color("button_hover")
 	set_process(false)
 
 func _update_threshold_position() -> void:
@@ -353,9 +353,9 @@ func _process(_delta: float) -> void:
 	var thr: float = Config.voice.get_speaking_threshold()
 	var above_thr: bool = display_rms > thr
 	if above_thr:
-		_bar_fill.bg_color = Color(0.263, 0.694, 0.431)
+		_bar_fill.bg_color = ThemeManager.get_color("success")
 	else:
-		_bar_fill.bg_color = Color(0.35, 0.38, 0.42)
+		_bar_fill.bg_color = ThemeManager.get_color("button_hover")
 	# Gate monitor output: mute when below threshold or monitor disabled
 	if _mic_test_bus_idx >= 0:
 		var should_mute: bool = (
@@ -417,9 +417,105 @@ func _build_sound_page() -> VBoxContainer:
 
 	return vbox
 
-# --- Appearance page (new) ---
+# --- Appearance page ---
+
+var _theme_dropdown: OptionButton
+var _custom_colors_container: VBoxContainer
+var _color_pickers: Dictionary = {} # key -> ColorPickerButton
+
 func _build_appearance_page() -> VBoxContainer:
 	var vbox := _page_vbox("Appearance")
+
+	# Theme preset
+	vbox.add_child(_section_label("THEME"))
+	_theme_dropdown = OptionButton.new()
+	var preset_names: Array = ThemeManager.get_preset_names()
+	var preset_labels := {
+		"dark": "Dark", "light": "Light", "nord": "Nord",
+		"monokai": "Monokai", "solarized": "Solarized",
+	}
+	for pname in preset_names:
+		_theme_dropdown.add_item(preset_labels.get(pname, pname))
+	_theme_dropdown.add_item("Custom")
+	# Select current preset
+	var current_preset: String = Config.get_theme_preset()
+	var preset_idx: int = preset_names.find(current_preset)
+	if current_preset == "custom":
+		_theme_dropdown.selected = preset_names.size()
+	elif preset_idx >= 0:
+		_theme_dropdown.selected = preset_idx
+	_theme_dropdown.item_selected.connect(_on_theme_preset_changed)
+	vbox.add_child(_theme_dropdown)
+
+	# Custom color pickers (visible only when "Custom" is selected)
+	_custom_colors_container = VBoxContainer.new()
+	_custom_colors_container.add_theme_constant_override("separation", 8)
+	_custom_colors_container.visible = (current_preset == "custom")
+	vbox.add_child(_custom_colors_container)
+
+	var editable_keys := [
+		["accent", "Accent"],
+		["text_body", "Text"],
+		["text_muted", "Muted Text"],
+		["error", "Error / Danger"],
+		["success", "Success"],
+		["panel_bg", "Panel Background"],
+		["nav_bg", "Navigation Background"],
+		["input_bg", "Input Background"],
+	]
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 8)
+	_custom_colors_container.add_child(grid)
+
+	for entry in editable_keys:
+		var key: String = entry[0]
+		var label_text: String = entry[1]
+		var lbl := Label.new()
+		lbl.text = label_text
+		lbl.add_theme_font_size_override("font_size", 13)
+		grid.add_child(lbl)
+		var picker := ColorPickerButton.new()
+		picker.custom_minimum_size = Vector2(48, 28)
+		picker.color = ThemeManager.get_color(key)
+		picker.edit_alpha = false
+		picker.color_changed.connect(_on_custom_color_changed.bind(key))
+		grid.add_child(picker)
+		_color_pickers[key] = picker
+
+	# Theme sharing buttons
+	var share_row := HBoxContainer.new()
+	share_row.add_theme_constant_override("separation", 8)
+	_custom_colors_container.add_child(share_row)
+
+	var copy_btn := SettingsBase.create_secondary_button("Copy Theme")
+	copy_btn.pressed.connect(func() -> void:
+		DisplayServer.clipboard_set(ThemeManager.export_theme_string())
+	)
+	share_row.add_child(copy_btn)
+
+	var paste_btn := SettingsBase.create_secondary_button("Paste Theme")
+	paste_btn.pressed.connect(func() -> void:
+		var clip: String = DisplayServer.clipboard_get()
+		if ThemeManager.import_theme_string(clip):
+			_theme_dropdown.selected = _theme_dropdown.item_count - 1
+			_custom_colors_container.visible = true
+			_refresh_color_pickers()
+	)
+	share_row.add_child(paste_btn)
+
+	var reset_btn := SettingsBase.create_secondary_button("Reset to Preset")
+	reset_btn.pressed.connect(func() -> void:
+		ThemeManager.apply_preset("dark")
+		_theme_dropdown.selected = 0
+		_custom_colors_container.visible = false
+		_refresh_color_pickers()
+	)
+	_custom_colors_container.add_child(reset_btn)
+
+	# Separator
+	vbox.add_child(HSeparator.new())
 
 	# Reduce motion
 	vbox.add_child(_section_label("ACCESSIBILITY"))
@@ -469,6 +565,33 @@ func _build_appearance_page() -> VBoxContainer:
 	vbox.add_child(tone_dropdown)
 
 	return vbox
+
+
+func _on_theme_preset_changed(idx: int) -> void:
+	var preset_names: Array = ThemeManager.get_preset_names()
+	if idx < preset_names.size():
+		ThemeManager.apply_preset(preset_names[idx])
+		_custom_colors_container.visible = false
+	else:
+		# "Custom" selected — keep current palette, show pickers
+		_custom_colors_container.visible = true
+		Config.set_theme_preset("custom")
+		# Save current palette as custom starting point
+		var palette: Dictionary = ThemeManager.get_palette()
+		var save_dict := {}
+		for key in palette:
+			save_dict[key] = palette[key].to_html(true)
+		Config.set_custom_palette(save_dict)
+	_refresh_color_pickers()
+
+
+func _on_custom_color_changed(color: Color, key: String) -> void:
+	ThemeManager.apply_custom_color(key, color)
+
+
+func _refresh_color_pickers() -> void:
+	for key in _color_pickers:
+		_color_pickers[key].color = ThemeManager.get_color(key)
 
 # --- Notifications page (trimmed — global only) ---
 func _build_notifications_page() -> VBoxContainer:
@@ -537,7 +660,7 @@ func _build_updates_page() -> VBoxContainer:
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", 13)
 	_status_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	check_row.add_child(_status_label)
 	vbox.add_child(check_row)
@@ -549,14 +672,14 @@ func _build_updates_page() -> VBoxContainer:
 	_update_version_label = Label.new()
 	_update_version_label.add_theme_font_size_override("font_size", 14)
 	_update_version_label.add_theme_color_override(
-		"font_color", Color(0.345, 0.396, 0.949)
+		"font_color", ThemeManager.get_color("accent")
 	)
 	_update_row.add_child(_update_version_label)
 	_view_changes_btn = Button.new()
 	_view_changes_btn.text = "View Changes"
 	_view_changes_btn.flat = true
 	_view_changes_btn.add_theme_color_override(
-		"font_color", Color(0.345, 0.396, 0.949)
+		"font_color", ThemeManager.get_color("accent")
 	)
 	_view_changes_btn.add_theme_font_size_override("font_size", 12)
 	_view_changes_btn.pressed.connect(_on_view_changes)
@@ -568,7 +691,7 @@ func _build_updates_page() -> VBoxContainer:
 	_skip_btn.text = "Skip This Version"
 	_skip_btn.flat = true
 	_skip_btn.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_skip_btn.add_theme_font_size_override("font_size", 12)
 	_skip_btn.pressed.connect(_on_skip_pressed)
@@ -586,14 +709,14 @@ func _build_updates_page() -> VBoxContainer:
 	_progress_label = Label.new()
 	_progress_label.add_theme_font_size_override("font_size", 12)
 	_progress_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_progress_row.add_child(_progress_label)
 	_cancel_btn = Button.new()
 	_cancel_btn.text = "Cancel"
 	_cancel_btn.flat = true
 	_cancel_btn.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_cancel_btn.pressed.connect(_on_cancel_download)
 	_progress_row.add_child(_cancel_btn)
@@ -610,7 +733,7 @@ func _build_updates_page() -> VBoxContainer:
 	# Error label
 	_error_label_update = Label.new()
 	_error_label_update.add_theme_color_override(
-		"font_color", Color(0.929, 0.259, 0.271)
+		"font_color", ThemeManager.get_color("error")
 	)
 	_error_label_update.add_theme_font_size_override("font_size", 13)
 	_error_label_update.visible = false
@@ -774,7 +897,7 @@ func _build_admin_page() -> VBoxContainer:
 	var desc := Label.new()
 	desc.text = "You are an instance administrator."
 	desc.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	vbox.add_child(desc)
 

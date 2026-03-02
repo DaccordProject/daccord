@@ -77,7 +77,7 @@ func _refresh_profiles_list() -> void:
 			lock_lbl.text = "[locked]"
 			lock_lbl.add_theme_font_size_override("font_size", 11)
 			lock_lbl.add_theme_color_override(
-				"font_color", Color(0.58, 0.608, 0.643)
+				"font_color", ThemeManager.get_color("text_muted")
 			)
 			row.add_child(lock_lbl)
 
@@ -86,7 +86,7 @@ func _refresh_profiles_list() -> void:
 			active_lbl.text = "(Active)"
 			active_lbl.add_theme_font_size_override("font_size", 12)
 			active_lbl.add_theme_color_override(
-				"font_color", Color(0.345, 0.396, 0.949)
+				"font_color", ThemeManager.get_color("accent")
 			)
 			row.add_child(active_lbl)
 		else:

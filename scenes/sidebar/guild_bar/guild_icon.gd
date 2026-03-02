@@ -57,6 +57,7 @@ func _ready() -> void:
 	_status_dot.visible = false
 	button_container.add_child(_status_dot)
 
+	add_to_group("themed")
 	AppState.server_disconnected.connect(_on_connection_changed)
 	AppState.server_reconnecting.connect(_on_connection_changed_3)
 	AppState.server_reconnected.connect(_on_connection_changed_1)
@@ -92,7 +93,7 @@ func setup(data: Dictionary) -> void:
 	_is_disconnected = data.get("disconnected", false)
 	_server_index = data.get("server_index", -1)
 	if _is_disconnected:
-		icon_button.modulate = Color(0.4, 0.4, 0.4)
+		icon_button.modulate = ThemeManager.get_color("icon_default")
 		icon_button.tooltip_text = space_name + " (Disconnected)"
 	else:
 		_update_muted_visual()
@@ -347,7 +348,7 @@ func _show_folder_dialog() -> void:
 		var label := Label.new()
 		label.text = "Existing folders:"
 		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		vbox.add_child(label)
 		for fname in existing_folders:
 			var btn := Button.new()
@@ -387,16 +388,24 @@ func _show_folder_dialog() -> void:
 	get_tree().root.add_child(dialog)
 	dialog.popup_centered()
 
+func _apply_theme() -> void:
+	if _is_disconnected:
+		icon_button.modulate = ThemeManager.get_color("icon_default")
+	else:
+		_update_muted_visual()
+	_update_status_dot()
+	queue_redraw()
+
 func _on_config_changed(section: String, key: String) -> void:
 	if section == "muted_servers" and key == space_id:
 		_update_muted_visual()
 
 func _update_muted_visual() -> void:
 	if Config.is_server_muted(space_id):
-		icon_button.modulate = Color(0.5, 0.5, 0.5)
+		icon_button.modulate = ThemeManager.get_color("text_muted")
 		icon_button.tooltip_text = space_name + " (Muted)"
 	else:
-		icon_button.modulate = Color(1, 1, 1)
+		icon_button.modulate = ThemeManager.get_color("text_white")
 		icon_button.tooltip_text = space_name
 
 # --- Connection Status Dot ---
@@ -417,10 +426,10 @@ func _update_status_dot() -> void:
 	var status := Client.get_space_connection_status(space_id)
 	match status:
 		"disconnected", "reconnecting":
-			_status_dot.color = Color(0.9, 0.75, 0.1)
+			_status_dot.color = ThemeManager.get_color("warning")
 			_status_dot.visible = true
 		"error":
-			_status_dot.color = Color(0.9, 0.3, 0.3)
+			_status_dot.color = ThemeManager.get_color("error")
 			_status_dot.visible = true
 		_:
 			_status_dot.visible = false
@@ -437,7 +446,7 @@ func _space_get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := Label.new()
 	preview.text = space_name
 	preview.add_theme_font_size_override("font_size", 11)
-	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	set_drag_preview(preview)
 	return {"type": "space_bar_item", "item_type": "space", "space_id": space_id, "source_node": self}
 
@@ -484,7 +493,7 @@ func _clear_drop_indicator() -> void:
 func _draw() -> void:
 	if not _drop_hovered:
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
+	var line_color := ThemeManager.get_color("accent")
 	if _drop_above:
 		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
 	else:

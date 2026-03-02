@@ -13,10 +13,12 @@ var active_space_id: String = ""
 @onready var dm_button: HBoxContainer = $ScrollContainer/VBox/DMButton
 @onready var space_list: VBoxContainer = $ScrollContainer/VBox/GuildList
 @onready var add_server_button: HBoxContainer = $ScrollContainer/VBox/AddServerButton
+@onready var discover_button: HBoxContainer = $ScrollContainer/VBox/DiscoverButton
 
 func _ready() -> void:
 	dm_button.dm_pressed.connect(_on_dm_pressed)
 	add_server_button.add_server_pressed.connect(_on_add_server_pressed)
+	discover_button.discover_pressed.connect(_on_discover_pressed)
 	AppState.spaces_updated.connect(_on_spaces_updated)
 	_populate_spaces()
 
@@ -144,6 +146,9 @@ func _on_add_server_pressed() -> void:
 func _on_server_added(space_id: String) -> void:
 	if not space_id.is_empty():
 		_on_space_pressed(space_id)
+
+func _on_discover_pressed() -> void:
+	AppState.open_discovery()
 
 func _on_dm_pressed() -> void:
 	if active_space_id != "" and space_icon_nodes.has(active_space_id):

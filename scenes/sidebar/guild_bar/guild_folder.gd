@@ -25,16 +25,19 @@ var _drop_hovered: bool = false
 @onready var space_list: VBoxContainer = $GuildList
 
 func _ready() -> void:
+	add_to_group("themed")
 	folder_button.pressed.connect(_toggle_expanded)
 	folder_button.tooltip_text = folder_name
 	# Style folder button
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.212, 0.224, 0.247)
+	style.bg_color = ThemeManager.get_color("secondary_button")
 	style.corner_radius_top_left = 16
 	style.corner_radius_top_right = 16
 	style.corner_radius_bottom_left = 16
 	style.corner_radius_bottom_right = 16
 	folder_button.add_theme_stylebox_override("normal", style)
+
+	_apply_theme()
 
 	# Context menu
 	_context_menu = PopupMenu.new()
@@ -43,7 +46,14 @@ func _ready() -> void:
 	folder_button.gui_input.connect(_on_folder_gui_input)
 	folder_button.set_drag_forwarding(_folder_get_drag_data, _folder_can_drop_data, _folder_drop_data)
 
-func setup(p_name: String, spaces: Array, folder_color: Color = Color(0.212, 0.224, 0.247)) -> void:
+func _apply_theme() -> void:
+	var style: StyleBoxFlat = folder_button.get_theme_stylebox("normal")
+	if style and not _spaces_data_cache.size():
+		# Only update base color if setup() hasn't applied a folder color
+		style.bg_color = ThemeManager.get_color("secondary_button")
+	queue_redraw()
+
+func setup(p_name: String, spaces: Array, folder_color: Color = Color(0.24, 0.25, 0.27)) -> void:
 	folder_name = p_name
 	_spaces_data_cache = spaces
 	if folder_button:
@@ -284,7 +294,7 @@ func _folder_get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := Label.new()
 	preview.text = folder_name
 	preview.add_theme_font_size_override("font_size", 11)
-	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	set_drag_preview(preview)
 	return {
 		"type": "space_bar_item",
@@ -366,7 +376,7 @@ func _clear_drop_indicator() -> void:
 func _draw() -> void:
 	if not _drop_hovered:
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
+	var line_color := ThemeManager.get_color("accent")
 	if _drop_above:
 		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
 	else:

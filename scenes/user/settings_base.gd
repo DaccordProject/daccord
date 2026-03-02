@@ -1,5 +1,5 @@
 class_name SettingsBase
-extends ColorRect
+extends ModalBase
 
 ## Shared base class for modal settings panels.
 ## Subclasses override _get_sections(), _build_pages(), _get_modal_size(),
@@ -10,34 +10,20 @@ var initial_page: int = 0
 var _nav_buttons: Array[Button] = []
 var _pages: Array[Control] = []
 var _current_page: int = 0
+var _nav_panel: PanelContainer
+var _body_hbox: HBoxContainer
 
 func _ready() -> void:
-	# Semi-transparent backdrop that dims the background
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	color = Color(0, 0, 0, 0.6)
-	mouse_filter = Control.MOUSE_FILTER_STOP
-
-	# CenterContainer keeps the modal centred at any viewport size
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-
-	# Centered modal panel
 	var modal_size: Vector2 = _get_modal_size()
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = modal_size
+	_setup_modal("", modal_size.x, modal_size.y, false, 0.0)
+
+	# Override panel style (settings uses slightly different bg)
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.188, 0.196, 0.212)
+	panel_style.bg_color = ThemeManager.get_color("settings_bg")
 	panel_style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", panel_style)
-	center.add_child(panel)
+	_modal_panel.add_theme_stylebox_override("panel", panel_style)
 
-	# Outer VBox: header bar + body
-	var outer_vbox := VBoxContainer.new()
-	outer_vbox.add_theme_constant_override("separation", 0)
-	panel.add_child(outer_vbox)
-
-	# Header bar with title and X close button
+	# Settings has its own header with smaller font and gray text
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 0)
 	var header_margin := MarginContainer.new()
@@ -46,13 +32,13 @@ func _ready() -> void:
 	header_margin.add_theme_constant_override("margin_top", 8)
 	header_margin.add_theme_constant_override("margin_bottom", 0)
 	header_margin.add_child(header)
-	outer_vbox.add_child(header_margin)
+	content_container.add_child(header_margin)
 
 	var header_title := Label.new()
 	header_title.text = "Settings"
 	header_title.add_theme_font_size_override("font_size", 14)
 	header_title.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	header_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(header_title)
@@ -62,32 +48,33 @@ func _ready() -> void:
 	close_btn.flat = true
 	close_btn.add_theme_font_size_override("font_size", 16)
 	close_btn.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	close_btn.add_theme_color_override(
-		"font_hover_color", Color.WHITE
+		"font_hover_color", ThemeManager.get_color("text_white")
 	)
-	close_btn.pressed.connect(queue_free)
+	close_btn.pressed.connect(_close)
 	header.add_child(close_btn)
 
 	# Body: nav + content side by side
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 0)
-	hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	outer_vbox.add_child(hbox)
+	_body_hbox = HBoxContainer.new()
+	_body_hbox.add_theme_constant_override("separation", 0)
+	_body_hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_body_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_container.add_child(_body_hbox)
 
 	# Left nav panel
-	var nav_panel := PanelContainer.new()
-	nav_panel.custom_minimum_size = Vector2(180, 0)
+	_nav_panel = PanelContainer.new()
+	_nav_panel.custom_minimum_size = Vector2(180, 0)
 	var nav_style := StyleBoxFlat.new()
-	nav_style.bg_color = Color(0.153, 0.161, 0.176)
+	nav_style.bg_color = ThemeManager.get_color("nav_bg")
 	nav_style.corner_radius_bottom_left = 8
-	nav_panel.add_theme_stylebox_override("panel", nav_style)
-	hbox.add_child(nav_panel)
+	_nav_panel.add_theme_stylebox_override("panel", nav_style)
+	_body_hbox.add_child(_nav_panel)
 
 	var nav_scroll := ScrollContainer.new()
 	nav_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	nav_panel.add_child(nav_scroll)
+	_nav_panel.add_child(nav_scroll)
 
 	var nav_vbox := VBoxContainer.new()
 	nav_vbox.add_theme_constant_override("separation", 2)
@@ -107,7 +94,7 @@ func _ready() -> void:
 		sub_lbl.text = subtitle
 		sub_lbl.add_theme_font_size_override("font_size", 11)
 		sub_lbl.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		nav_vbox.add_child(sub_lbl)
 		var sub_sep := HSeparator.new()
@@ -127,7 +114,7 @@ func _ready() -> void:
 	var content_scroll := ScrollContainer.new()
 	content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	hbox.add_child(content_scroll)
+	_body_hbox.add_child(content_scroll)
 
 	var content_margin := MarginContainer.new()
 	content_margin.add_theme_constant_override("margin_left", 24)
@@ -160,7 +147,7 @@ func _show_page(index: int) -> void:
 	for i in _nav_buttons.size():
 		if i == index:
 			_nav_buttons[i].add_theme_color_override(
-				"font_color", Color.WHITE
+				"font_color", ThemeManager.get_color("text_white")
 			)
 		else:
 			_nav_buttons[i].remove_theme_color_override("font_color")
@@ -198,7 +185,7 @@ func _section_label(text: String) -> Label:
 	lbl.text = text
 	lbl.add_theme_font_size_override("font_size", 11)
 	lbl.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	return lbl
 
@@ -214,7 +201,7 @@ func _labeled_value(label_text: String, value_text: String) -> VBoxContainer:
 func _error_label() -> Label:
 	var lbl := Label.new()
 	lbl.add_theme_color_override(
-		"font_color", Color(0.929, 0.259, 0.271)
+		"font_color", ThemeManager.get_color("error")
 	)
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.visible = false
@@ -224,7 +211,7 @@ static func create_action_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.345, 0.396, 0.949)
+	normal.bg_color = ThemeManager.get_color("accent")
 	normal.set_corner_radius_all(4)
 	normal.content_margin_left = 16
 	normal.content_margin_right = 16
@@ -232,7 +219,7 @@ static func create_action_button(text: String) -> Button:
 	normal.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("normal", normal)
 	var hover := StyleBoxFlat.new()
-	hover.bg_color = Color(0.29, 0.34, 0.87)
+	hover.bg_color = ThemeManager.get_color("accent_hover")
 	hover.set_corner_radius_all(4)
 	hover.content_margin_left = 16
 	hover.content_margin_right = 16
@@ -240,7 +227,7 @@ static func create_action_button(text: String) -> Button:
 	hover.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("hover", hover)
 	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = Color(0.25, 0.30, 0.80)
+	pressed.bg_color = ThemeManager.get_color("accent_pressed")
 	pressed.set_corner_radius_all(4)
 	pressed.content_margin_left = 16
 	pressed.content_margin_right = 16
@@ -253,7 +240,7 @@ static func create_secondary_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.24, 0.25, 0.27)
+	normal.bg_color = ThemeManager.get_color("secondary_button")
 	normal.set_corner_radius_all(4)
 	normal.content_margin_left = 16
 	normal.content_margin_right = 16
@@ -261,7 +248,7 @@ static func create_secondary_button(text: String) -> Button:
 	normal.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("normal", normal)
 	var hover := StyleBoxFlat.new()
-	hover.bg_color = Color(0.28, 0.29, 0.31)
+	hover.bg_color = ThemeManager.get_color("secondary_button_hover")
 	hover.set_corner_radius_all(4)
 	hover.content_margin_left = 16
 	hover.content_margin_right = 16
@@ -269,7 +256,7 @@ static func create_secondary_button(text: String) -> Button:
 	hover.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("hover", hover)
 	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = Color(0.2, 0.21, 0.23)
+	pressed.bg_color = ThemeManager.get_color("secondary_button_pressed")
 	pressed.set_corner_radius_all(4)
 	pressed.content_margin_left = 16
 	pressed.content_margin_right = 16
@@ -282,7 +269,7 @@ static func create_danger_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.929, 0.259, 0.271)
+	normal.bg_color = ThemeManager.get_color("error")
 	normal.set_corner_radius_all(4)
 	normal.content_margin_left = 16
 	normal.content_margin_right = 16
@@ -290,7 +277,7 @@ static func create_danger_button(text: String) -> Button:
 	normal.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("normal", normal)
 	var hover := StyleBoxFlat.new()
-	hover.bg_color = Color(0.85, 0.2, 0.22)
+	hover.bg_color = ThemeManager.get_color("error_hover")
 	hover.set_corner_radius_all(4)
 	hover.content_margin_left = 16
 	hover.content_margin_right = 16
@@ -298,7 +285,7 @@ static func create_danger_button(text: String) -> Button:
 	hover.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("hover", hover)
 	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = Color(0.78, 0.18, 0.2)
+	pressed.bg_color = ThemeManager.get_color("error_pressed")
 	pressed.set_corner_radius_all(4)
 	pressed.content_margin_left = 16
 	pressed.content_margin_right = 16
@@ -306,8 +293,3 @@ static func create_danger_button(text: String) -> Button:
 	pressed.content_margin_bottom = 6
 	btn.add_theme_stylebox_override("pressed", pressed)
 	return btn
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-		get_viewport().set_input_as_handled()
-		queue_free()

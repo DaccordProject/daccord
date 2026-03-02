@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal ban_confirmed(user_id: String, reason: String)
 
@@ -15,6 +15,7 @@ var _confirmed: bool = false
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 380, 0)
 	_close_btn.pressed.connect(_close)
 	_ban_btn.pressed.connect(_on_ban_pressed)
 	_reason_input.text_submitted.connect(func(_t: String): _on_ban_pressed())
@@ -68,14 +69,3 @@ func _on_ban_pressed() -> void:
 		ban_confirmed.emit(_user_id, reason)
 		_close()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

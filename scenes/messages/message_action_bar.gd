@@ -35,6 +35,10 @@ func show_for_message(msg_node: Control, msg_data: Dictionary) -> void:
 	var can_manage: bool = Client.has_channel_permission(
 		space_id, channel_id, AccordPermission.MANAGE_MESSAGES
 	)
+	var can_thread: bool = Client.has_channel_permission(
+		space_id, channel_id, AccordPermission.CREATE_THREADS
+	)
+	thread_btn.visible = can_thread
 	edit_btn.visible = is_own or can_manage
 	delete_btn.visible = is_own or can_manage
 	if _fade_tween and _fade_tween.is_valid():

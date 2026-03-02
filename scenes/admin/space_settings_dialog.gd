@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
@@ -24,6 +24,7 @@ var _icon_preview: ColorRect
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 440, 0)
 	_close_btn.pressed.connect(_close)
 	_save_btn.pressed.connect(_on_save)
 	_delete_btn.pressed.connect(_on_delete)
@@ -39,7 +40,7 @@ func _ready() -> void:
 	icon_label.text = "SPACE ICON"
 	icon_label.add_theme_font_size_override("font_size", 11)
 	icon_label.add_theme_color_override(
-		"font_color", Color(0.7, 0.7, 0.7)
+		"font_color", ThemeManager.get_color("text_body")
 	)
 	_vbox.add_child(icon_label)
 	_vbox.move_child(icon_label, 1)
@@ -87,7 +88,7 @@ func setup(space_id: String) -> void:
 	# Icon preview
 	var sname: String = space.get("name", "")
 	_icon_preview.set_avatar_color(
-		space.get("icon_color", Color(0.345, 0.396, 0.949))
+		space.get("icon_color", ThemeManager.get_color("accent"))
 	)
 	if sname.length() > 0:
 		_icon_preview.set_letter(sname[0].to_upper())

@@ -35,7 +35,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.114, 0.118, 0.129)
+	style.bg_color = ThemeManager.get_color("popup_bg")
 	style.corner_radius_top_left = 8
 	style.corner_radius_top_right = 8
 	style.corner_radius_bottom_left = 8
@@ -53,7 +53,7 @@ func _ready() -> void:
 	# Banner area
 	_banner_rect = ColorRect.new()
 	_banner_rect.custom_minimum_size = Vector2(300, 60)
-	_banner_rect.color = Color(0.188, 0.196, 0.212)
+	_banner_rect.color = ThemeManager.get_color("settings_bg")
 	vbox.add_child(_banner_rect)
 
 	# Content area with padding
@@ -96,7 +96,7 @@ func _ready() -> void:
 	_username_label = Label.new()
 	_username_label.add_theme_font_size_override("font_size", 13)
 	_username_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	content.add_child(_username_label)
 
@@ -104,7 +104,7 @@ func _ready() -> void:
 	_custom_status_label = Label.new()
 	_custom_status_label.add_theme_font_size_override("font_size", 13)
 	_custom_status_label.add_theme_color_override(
-		"font_color", Color(0.75, 0.75, 0.75)
+		"font_color", ThemeManager.get_color("text_body")
 	)
 	_custom_status_label.visible = false
 	content.add_child(_custom_status_label)
@@ -117,7 +117,7 @@ func _ready() -> void:
 	_activities_label = Label.new()
 	_activities_label.add_theme_font_size_override("font_size", 12)
 	_activities_label.add_theme_color_override(
-		"font_color", Color(0.75, 0.75, 0.75)
+		"font_color", ThemeManager.get_color("text_body")
 	)
 	_activities_label.visible = false
 	_activities_label.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -139,7 +139,7 @@ func _ready() -> void:
 	bio_header.text = "ABOUT ME"
 	bio_header.add_theme_font_size_override("font_size", 11)
 	bio_header.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_bio_section.add_child(bio_header)
 
@@ -161,7 +161,7 @@ func _ready() -> void:
 	roles_header.text = "ROLES"
 	roles_header.add_theme_font_size_override("font_size", 11)
 	roles_header.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_roles_section.add_child(roles_header)
 
@@ -180,7 +180,7 @@ func _ready() -> void:
 	_member_since_label = Label.new()
 	_member_since_label.add_theme_font_size_override("font_size", 11)
 	_member_since_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_member_since_label.visible = false
 	content.add_child(_member_since_label)
@@ -202,7 +202,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 
 	# Avatar
 	_avatar.set_avatar_color(
-		user_data.get("color", Color(0.345, 0.396, 0.949))
+		user_data.get("color", ThemeManager.get_color("accent"))
 	)
 	if dn.length() > 0:
 		_avatar.set_letter(dn[0].to_upper())
@@ -279,7 +279,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 				pill.text = role.get("name", "")
 				pill.add_theme_font_size_override("font_size", 12)
 				var pill_style := StyleBoxFlat.new()
-				pill_style.bg_color = Color(0.22, 0.23, 0.25)
+				pill_style.bg_color = ThemeManager.get_color("secondary_button")
 				pill_style.corner_radius_top_left = 4
 				pill_style.corner_radius_top_right = 4
 				pill_style.corner_radius_bottom_left = 4
@@ -301,7 +301,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 			badge_label.text = badge_name
 			badge_label.add_theme_font_size_override("font_size", 11)
 			var bs := StyleBoxFlat.new()
-			bs.bg_color = Color(0.275, 0.29, 0.318)
+			bs.bg_color = ThemeManager.get_color("secondary_button")
 			bs.corner_radius_top_left = 3
 			bs.corner_radius_top_right = 3
 			bs.corner_radius_bottom_left = 3

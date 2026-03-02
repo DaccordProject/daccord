@@ -16,11 +16,9 @@ func setup(text: String, is_error: bool = false) -> void:
 func _ready() -> void:
 	visible = false
 	var style := StyleBoxFlat.new()
-	style.bg_color = (
-		Color(0.28, 0.12, 0.12, 0.95)
-		if _is_error
-		else Color(0.18, 0.19, 0.21, 0.95)
-	)
+	var toast_bg := ThemeManager.get_color("error" if _is_error else "modal_bg")
+	toast_bg.a = 0.95
+	style.bg_color = toast_bg
 	style.corner_radius_top_left = 6
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6
@@ -36,9 +34,7 @@ func _ready() -> void:
 
 func _apply(text: String) -> void:
 	label.text = text
-	var text_color := Color(0.92, 0.92, 0.92)
-	if _is_error:
-		text_color = Color(1.0, 0.86, 0.86)
+	var text_color := ThemeManager.get_color("text_white")
 	label.add_theme_color_override("font_color", text_color)
 	if is_inside_tree():
 		call_deferred("_show_and_dismiss")

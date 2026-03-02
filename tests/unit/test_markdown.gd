@@ -40,7 +40,8 @@ func test_markdown_code_block_with_language() -> void:
 
 func test_markdown_spoiler() -> void:
 	var result = ClientModels.markdown_to_bbcode("||spoiler text||")
-	assert_eq(result, "[url=spoiler][bgcolor=#1e1f22][color=#1e1f22]spoiler text[/color][/bgcolor][/url]")
+	var hex: String = ThemeManager.get_color("input_bg").to_html(false)
+	assert_eq(result, "[url=spoiler][bgcolor=#" + hex + "][color=#" + hex + "]spoiler text[/color][/bgcolor][/url]")
 
 
 func test_markdown_link() -> void:
@@ -50,7 +51,8 @@ func test_markdown_link() -> void:
 
 func test_markdown_blockquote() -> void:
 	var result = ClientModels.markdown_to_bbcode("> quoted text")
-	assert_eq(result, "[indent][color=#8a8e94]quoted text[/color][/indent]")
+	var hex: String = ThemeManager.get_color("text_muted").to_html(false)
+	assert_eq(result, "[indent][color=#" + hex + "]quoted text[/color][/indent]")
 
 
 func test_markdown_plain_passthrough() -> void:

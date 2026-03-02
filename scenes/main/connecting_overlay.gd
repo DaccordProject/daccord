@@ -19,7 +19,7 @@ func _ready() -> void:
 		dot.text = "."
 		dot.add_theme_font_size_override("font_size", 24)
 		dot.add_theme_color_override(
-			"font_color", Color(0.345, 0.396, 0.949)
+			"font_color", ThemeManager.get_color("accent")
 		)
 		dots_hbox.add_child(dot)
 		_dots.append(dot)

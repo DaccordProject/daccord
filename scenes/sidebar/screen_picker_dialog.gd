@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal source_selected(source: Dictionary)
 
@@ -6,21 +6,13 @@ signal source_selected(source: Dictionary)
 @onready var _source_list: VBoxContainer = $CenterContainer/Panel/VBox/Scroll/SourceList
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 440, 400)
 	_close_btn.pressed.connect(_close)
-	gui_input.connect(_on_backdrop_input)
 	var status: Dictionary = LiveKitScreenCapture.check_permissions()
 	if status.get("status", -1) == LiveKitScreenCapture.PERMISSION_ERROR:
 		_add_error_label(status.get("summary", "Screen capture permission denied"))
 	else:
 		_populate_sources()
-
-func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-
-func _on_backdrop_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
 
 func _populate_sources() -> void:
 	_clear_list()
@@ -96,6 +88,3 @@ func _add_error_label(text: String) -> void:
 func _clear_list() -> void:
 	for child in _source_list.get_children():
 		child.queue_free()
-
-func _close() -> void:
-	queue_free()

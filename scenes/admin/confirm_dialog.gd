@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal confirmed()
 
@@ -9,6 +9,7 @@ signal confirmed()
 @onready var _confirm_btn: Button = $CenterContainer/Panel/VBox/Buttons/ConfirmButton
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 380, 0)
 	_close_btn.pressed.connect(_close)
 	_cancel_btn.pressed.connect(_close)
 	_confirm_btn.pressed.connect(_on_confirm)
@@ -25,7 +26,7 @@ func setup(
 		_confirm_btn.text = confirm_text
 		if danger:
 			var danger_style := StyleBoxFlat.new()
-			danger_style.bg_color = Color(0.85, 0.24, 0.24)
+			danger_style.bg_color = ThemeManager.get_color("error")
 			danger_style.corner_radius_top_left = 4
 			danger_style.corner_radius_top_right = 4
 			danger_style.corner_radius_bottom_left = 4
@@ -36,21 +37,10 @@ func setup(
 			danger_style.content_margin_bottom = 4.0
 			_confirm_btn.add_theme_stylebox_override("normal", danger_style)
 			var danger_hover := danger_style.duplicate()
-			danger_hover.bg_color = Color(0.95, 0.3, 0.3)
+			danger_hover.bg_color = ThemeManager.get_color("error_hover")
 			_confirm_btn.add_theme_stylebox_override("hover", danger_hover)
 
 func _on_confirm() -> void:
 	confirmed.emit()
 	_close()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

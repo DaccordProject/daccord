@@ -1,6 +1,6 @@
 # Server Management
 
-Last touched: 2026-03-01
+Last touched: 2026-03-02
 
 ## Overview
 
@@ -148,15 +148,17 @@ Super admin action (Server Management panel)
 | `scenes/admin/transfer_ownership_dialog.gd` | Member picker for space ownership transfer — built in code, no .tscn |
 | `addons/accordkit/rest/endpoints/admin_api.gd` | Admin-only REST endpoints (spaces, users, settings) |
 
-### To Be Created (accordserver)
+### Implemented (accordserver)
 
 | File | Role |
 |------|------|
-| `accordserver/src/routes/admin.rs` | Admin-only route handlers (spaces, users, settings) |
-| `accordserver/src/middleware/admin.rs` | `require_instance_admin()` middleware guard |
-| `accordserver/src/db/admin.rs` | Admin DB queries (all spaces, all users, server settings) |
-| `accordserver/migrations/XXXX_server_settings.sql` | `server_settings` table schema |
-| `accordserver/migrations/XXXX_user_disabled.sql` | Add `disabled` column to users table |
+| `accordserver/src/routes/admin.rs` | Admin-only route handlers (list/update spaces, list/update/delete users) |
+| `accordserver/src/routes/settings.rs` | Server settings handlers (admin GET/PATCH + public GET) |
+| `accordserver/src/middleware/permissions.rs` | `require_server_admin()` guard (replaces planned `middleware/admin.rs`) |
+| `accordserver/src/db/admin.rs` | Admin DB queries (all spaces, all users, user cascade delete) |
+| `accordserver/src/db/settings.rs` | Server settings DB queries (get, update) |
+| `accordserver/migrations/011_server_settings.sql` | `server_settings` table schema |
+| `accordserver/migrations/012_admin_management.sql` | `disabled`, `force_password_reset` columns + extended server settings |
 
 ## Implementation Details
 
@@ -258,22 +260,24 @@ The client-side `has_permission()` check already grants all permissions to insta
 - [x] `admin_api.gd` AccordKit endpoints for admin routes
 
 ### Missing (daccord client)
-- [ ] Account disable/enable controls (needs server-side `disabled` flag)
+- [x] Account disable/enable controls (server-side `disabled` flag is implemented)
 
-### Missing (accordserver)
-- [ ] `GET /admin/spaces` — list all spaces with owner and member count
-- [ ] `PATCH /admin/spaces/{id}` — update space including `owner_id` transfer
-- [ ] `GET /admin/users` — paginated user list with admin flag
-- [ ] `PATCH /admin/users/{id}` — toggle `is_admin`, disable account
-- [ ] `DELETE /admin/users/{id}` — delete user with cascade
-- [ ] `GET /admin/settings` — fetch server settings
-- [ ] `PATCH /admin/settings` — update server settings
-- [ ] `require_instance_admin()` middleware guard
-- [ ] `server_settings` database table
-- [ ] `disabled` column on users table
-- [ ] `force_password_reset` column on users table
-- [ ] Registration policy enforcement (open/invite-only/closed)
-- [ ] MOTD delivery (in gateway READY payload or dedicated endpoint)
+### Implemented (accordserver)
+- [x] `GET /admin/spaces` — list all spaces with owner and member count (`src/routes/admin.rs`)
+- [x] `PATCH /admin/spaces/{id}` — update space including `owner_id` transfer (`src/routes/admin.rs`)
+- [x] `GET /admin/users` — paginated user list with admin flag, disabled, space count (`src/routes/admin.rs`)
+- [x] `PATCH /admin/users/{id}` — toggle `is_admin`, `disabled`, `force_password_reset` with self-demotion and last-admin protection (`src/routes/admin.rs`)
+- [x] `DELETE /admin/users/{id}` — delete user with full cascade; prevents deleting self or admins; requires ownership transfer first (`src/db/admin.rs`)
+- [x] `GET /admin/settings` — fetch server settings, admin-only (`src/routes/settings.rs`)
+- [x] `PATCH /admin/settings` — update server settings with hot-reload (`src/routes/settings.rs`)
+- [x] `GET /settings` — public settings endpoint for client upload limits, server name, registration policy, MOTD (`src/routes/settings.rs`)
+- [x] `require_server_admin()` middleware guard (`src/middleware/permissions.rs`)
+- [x] `server_settings` database table (`migrations/011_server_settings.sql`, `migrations/012_admin_management.sql`)
+- [x] `disabled` column on users table (`migrations/012_admin_management.sql`)
+- [x] `force_password_reset` column on users table (`migrations/012_admin_management.sql`)
+- [x] Registration policy enforcement — open/invite_only/closed checked at `POST /auth/register` (`src/routes/auth.rs`)
+- [x] MOTD delivery in gateway READY payload (`src/gateway/mod.rs`)
+- [x] Disabled user rejection at token validation, login, and gateway connect (`src/middleware/auth.rs`, `src/routes/auth.rs`, `src/gateway/mod.rs`)
 
 ## Tasks
 
@@ -292,43 +296,43 @@ The client-side `has_permission()` check already grants all permissions to insta
 - **Notes:** Simple form: name, description, optional icon upload. Calls existing `AccordClient.spaces.create()`. Can be built before any server changes. The first usable piece of server management.
 
 ### SRVMGMT-3: Add admin API routes to accordserver
-- **Status:** open
+- **Status:** done
 - **Impact:** 5
 - **Effort:** 4
 - **Tags:** api, server
-- **Notes:** New `/admin/*` route group with `require_instance_admin()` guard. Covers: list all spaces, list all users, update user admin flag, server settings CRUD. This is the primary blocker for most server management features.
+- **Notes:** `/admin/*` route group with `require_server_admin()` guard. Covers: list all spaces, list all users, update user admin flag, server settings CRUD. Routes registered in `src/routes/mod.rs`, handlers in `src/routes/admin.rs` and `src/routes/settings.rs`, DB layer in `src/db/admin.rs`.
 
 ### SRVMGMT-4: Build instance user management UI
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** ui, admin, api
-- **Notes:** Paginated user list with search, admin toggle, disable, delete. Blocked by SRVMGMT-3 (needs `/admin/users` endpoints).
+- **Notes:** Paginated user list with search, admin toggle, disable, delete. Server-side endpoints are ready (`/admin/users`).
 
 ### SRVMGMT-5: Implement space ownership transfer
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** api, admin
-- **Notes:** Needs server-side `PATCH /admin/spaces/{id}` with `owner_id` field. Client needs a member picker dialog. Blocked by SRVMGMT-3.
+- **Notes:** Server-side `PATCH /admin/spaces/{id}` with `owner_id` field implemented. Ensures new owner is a member of the space. Client transfer dialog implemented.
 
 ### SRVMGMT-6: Add server settings table and API
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 3
 - **Tags:** api, server
-- **Notes:** New `server_settings` table with key-value pairs. `GET/PATCH /admin/settings`. Registration policy enforcement requires changes to the auth routes. MOTD delivery needs gateway READY payload changes.
+- **Notes:** `server_settings` table with columns for server_name, registration_policy, max_spaces, max_members_per_space, motd, public_listing, plus upload size limits. `GET/PATCH /admin/settings` (admin-only) and `GET /settings` (public). Registration policy enforced at `POST /auth/register`. MOTD included in gateway READY payload. Settings hot-reloaded via `ArcSwap` in `AppState`.
 
 ### SRVMGMT-7: Add `disabled` flag to user accounts
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** api, server
-- **Notes:** Add `disabled` boolean column to users table. Check at token validation — reject all API calls for disabled users. Blocked by SRVMGMT-3.
+- **Notes:** `disabled` and `force_password_reset` columns added to users table. Disabled users rejected at: bearer/bot token resolution (`src/middleware/auth.rs`), login (`src/routes/auth.rs`), and gateway connect (`src/gateway/mod.rs`). Toggled via `PATCH /admin/users/{id}`.
 
 ### SRVMGMT-8: AccordKit admin endpoint wrappers
 - **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** api
-- **Notes:** New `admin_api.gd` in AccordKit with methods for all `/admin/*` endpoints. Blocked by SRVMGMT-3 (endpoints must exist first).
+- **Notes:** `admin_api.gd` in AccordKit with methods for all `/admin/*` endpoints.

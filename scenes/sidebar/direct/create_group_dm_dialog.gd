@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 ## Dialog for selecting multiple users to create a group DM.
 
@@ -12,6 +12,7 @@ var _selected_ids: Array = []
 
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 440, 0)
 	# Use unique names for lookup — set them since .tscn doesn't
 	close_button = $CenterContainer/Panel/VBox/Header/CloseButton
 	search_input = $CenterContainer/Panel/VBox/SearchInput
@@ -24,16 +25,6 @@ func _ready() -> void:
 	create_button.pressed.connect(_on_create_pressed)
 	_populate_users()
 
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed \
-			and event.keycode == KEY_ESCAPE:
-		_close()
-		get_viewport().set_input_as_handled()
-
-
-func _close() -> void:
-	queue_free()
 
 
 func _populate_users() -> void:

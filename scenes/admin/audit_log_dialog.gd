@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const AuditLogRowScene := preload("res://scenes/admin/audit_log_row.tscn")
 
@@ -18,6 +18,7 @@ var _has_more: bool = false
 @onready var _load_more_btn: Button = $CenterContainer/Panel/VBox/LoadMoreButton
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 520, 0)
 	_close_btn.pressed.connect(_close)
 	_search_input.text_changed.connect(_on_search_changed)
 	_filter_option.item_selected.connect(_on_filter_changed)
@@ -140,14 +141,3 @@ func _on_load_more() -> void:
 	_load_more_btn.disabled = false
 	_load_more_btn.text = "Load More"
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

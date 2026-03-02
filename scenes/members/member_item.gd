@@ -26,7 +26,7 @@ func setup(data: Dictionary) -> void:
 		dn_text += " (Owner)"
 	display_name.text = dn_text
 	tooltip_text = data.get("display_name", "Unknown")
-	avatar.set_avatar_color(data.get("color", Color(0.345, 0.396, 0.949)))
+	avatar.set_avatar_color(data.get("color", ThemeManager.get_color("accent")))
 	var dn: String = data.get("display_name", "")
 	if dn.length() > 0:
 		avatar.set_letter(dn[0].to_upper())
@@ -194,9 +194,13 @@ func _toggle_role(space_id: String, user_id: String, id: int) -> void:
 
 	# Visual feedback flash
 	if result != null and result.ok:
-		_flash_feedback(Color(0.231, 0.647, 0.365, 0.3))
+		var success_color := ThemeManager.get_color("success")
+		success_color.a = 0.3
+		_flash_feedback(success_color)
 	else:
-		_flash_feedback(Color(0.929, 0.259, 0.271, 0.3))
+		var error_color := ThemeManager.get_color("error")
+		error_color.a = 0.3
+		_flash_feedback(error_color)
 		# Revert checkbox on failure
 		_context_menu.set_item_checked(item_index, role_id in member_roles)
 

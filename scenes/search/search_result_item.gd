@@ -14,6 +14,7 @@ var _normal_style: StyleBoxFlat
 
 
 func _ready() -> void:
+	add_to_group("themed")
 	_normal_style = StyleBoxFlat.new()
 	_normal_style.bg_color = Color(0, 0, 0, 0)
 	_normal_style.content_margin_left = 8.0
@@ -21,7 +22,7 @@ func _ready() -> void:
 	_normal_style.content_margin_top = 6.0
 	_normal_style.content_margin_bottom = 6.0
 	_hover_style = StyleBoxFlat.new()
-	_hover_style.bg_color = Color(0.24, 0.25, 0.27)
+	_hover_style.bg_color = ThemeManager.get_color("button_hover")
 	_hover_style.content_margin_left = 8.0
 	_hover_style.content_margin_right = 8.0
 	_hover_style.content_margin_top = 6.0
@@ -33,23 +34,21 @@ func _ready() -> void:
 	add_theme_stylebox_override("panel", _normal_style)
 
 	channel_label.add_theme_font_size_override("font_size", 11)
-	channel_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
-	)
 	timestamp_label.add_theme_font_size_override("font_size", 10)
-	timestamp_label.add_theme_color_override(
-		"font_color", Color(0.44, 0.46, 0.50)
-	)
 	author_label.add_theme_font_size_override("font_size", 13)
 	content_label.add_theme_font_size_override("font_size", 13)
-	content_label.add_theme_color_override(
-		"font_color", Color(0.78, 0.80, 0.83)
-	)
+	_apply_theme()
 
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
 	gui_input.connect(_on_gui_input)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+func _apply_theme() -> void:
+	_hover_style.bg_color = ThemeManager.get_color("button_hover")
+	channel_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	timestamp_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	content_label.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
 
 
 func setup(data: Dictionary) -> void:

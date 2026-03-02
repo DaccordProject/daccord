@@ -27,25 +27,32 @@ var _incremental_handled: bool = false
 @onready var scroll_container: ScrollContainer = $VBox/ScrollContainer
 @onready var virtual_content: Control = $VBox/ScrollContainer/VirtualContent
 
+var _panel_style: StyleBoxFlat
+var _search_style: StyleBoxFlat
+
 func _ready() -> void:
+	add_to_group("themed")
 	set_process(false)
 	header_label.add_theme_font_size_override("font_size", 11)
-	header_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
-	)
 	header_label.uppercase = true
 	header_label.text = "Members"
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.184, 0.192, 0.212)
-	add_theme_stylebox_override("panel", style)
+	_panel_style = StyleBoxFlat.new()
+	_panel_style.bg_color = ThemeManager.get_color("modal_bg")
+	add_theme_stylebox_override("panel", _panel_style)
 
-	var search_style := StyleBoxFlat.new()
-	search_style.bg_color = Color(0.118, 0.129, 0.149)
-	search_style.set_content_margin_all(4)
-	search_bar.add_theme_stylebox_override("normal", search_style)
+	_search_style = StyleBoxFlat.new()
+	_search_style.bg_color = ThemeManager.get_color("input_bg")
+	_search_style.set_content_margin_all(4)
+	search_bar.add_theme_stylebox_override("normal", _search_style)
 
+	_apply_theme()
 	invite_btn.pressed.connect(_on_invite_pressed)
+
+func _apply_theme() -> void:
+	header_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	_panel_style.bg_color = ThemeManager.get_color("modal_bg")
+	_search_style.bg_color = ThemeManager.get_color("input_bg")
 	search_bar.text_changed.connect(_on_search_changed)
 	group_toggle.pressed.connect(_on_group_toggle_pressed)
 

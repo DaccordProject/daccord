@@ -19,8 +19,12 @@ var _cancel_button: Button
 var _post_button: Button
 var _context_menu: PopupMenu
 var _context_post_data: Dictionary
+var _empty_title_label: Label
+var _empty_desc_label: Label
+var _form_style: StyleBoxFlat
 
 func _ready() -> void:
+	add_to_group("themed")
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_theme_constant_override("separation", 0)
@@ -41,7 +45,7 @@ func _build_ui() -> void:
 
 	_forum_title = Label.new()
 	_forum_title.add_theme_font_size_override("font_size", 16)
-	_forum_title.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	_forum_title.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	header.add_child(_forum_title)
 
 	var spacer := Control.new()
@@ -84,20 +88,20 @@ func _build_ui() -> void:
 	_empty_state.add_theme_constant_override("separation", 12)
 	_post_list.add_child(_empty_state)
 
-	var empty_title := Label.new()
-	empty_title.text = "No posts yet"
-	empty_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	empty_title.add_theme_font_size_override("font_size", 20)
-	empty_title.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	_empty_state.add_child(empty_title)
+	_empty_title_label = Label.new()
+	_empty_title_label.text = "No posts yet"
+	_empty_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_empty_title_label.add_theme_font_size_override("font_size", 20)
+	_empty_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	_empty_state.add_child(_empty_title_label)
 
-	var empty_desc := Label.new()
-	empty_desc.text = "Start the conversation by creating a new post!"
-	empty_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	empty_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	empty_desc.add_theme_font_size_override("font_size", 14)
-	empty_desc.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
-	_empty_state.add_child(empty_desc)
+	_empty_desc_label = Label.new()
+	_empty_desc_label.text = "Start the conversation by creating a new post!"
+	_empty_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_empty_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_empty_desc_label.add_theme_font_size_override("font_size", 14)
+	_empty_desc_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	_empty_state.add_child(_empty_desc_label)
 
 	var empty_btn := Button.new()
 	empty_btn.text = "New Post"
@@ -108,17 +112,17 @@ func _build_ui() -> void:
 	# New post form (hidden by default)
 	_new_post_form = PanelContainer.new()
 	_new_post_form.visible = false
-	var form_style := StyleBoxFlat.new()
-	form_style.bg_color = Color(0.18, 0.19, 0.21, 1)
-	form_style.content_margin_left = 12.0
-	form_style.content_margin_right = 12.0
-	form_style.content_margin_top = 12.0
-	form_style.content_margin_bottom = 12.0
-	form_style.corner_radius_top_left = 6
-	form_style.corner_radius_top_right = 6
-	form_style.corner_radius_bottom_left = 6
-	form_style.corner_radius_bottom_right = 6
-	_new_post_form.add_theme_stylebox_override("panel", form_style)
+	_form_style = StyleBoxFlat.new()
+	_form_style.bg_color = ThemeManager.get_color("modal_bg")
+	_form_style.content_margin_left = 12.0
+	_form_style.content_margin_right = 12.0
+	_form_style.content_margin_top = 12.0
+	_form_style.content_margin_bottom = 12.0
+	_form_style.corner_radius_top_left = 6
+	_form_style.corner_radius_top_right = 6
+	_form_style.corner_radius_bottom_left = 6
+	_form_style.corner_radius_bottom_right = 6
+	_new_post_form.add_theme_stylebox_override("panel", _form_style)
 	add_child(_new_post_form)
 	# Move form before scroll container
 	move_child(_new_post_form, get_child_count() - 2)
@@ -160,6 +164,16 @@ func _build_ui() -> void:
 	_context_menu.add_item("Delete Post", 1)
 	_context_menu.id_pressed.connect(_on_context_menu_pressed)
 	add_child(_context_menu)
+
+func _apply_theme() -> void:
+	if _forum_title:
+		_forum_title.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	if _empty_title_label:
+		_empty_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	if _empty_desc_label:
+		_empty_desc_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	if _form_style:
+		_form_style.bg_color = ThemeManager.get_color("modal_bg")
 
 func load_forum(channel_id: String, channel_name: String) -> void:
 	_channel_id = channel_id

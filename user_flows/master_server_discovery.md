@@ -3,30 +3,39 @@
 
 ## Overview
 
-The accord master server (`accordmasterserver`) is a lightweight registry that aggregates public spaces from multiple accordserver instances into a single searchable directory. Server operators opt in by registering their accordserver URL with the master server. The master server periodically polls each registered instance's `GET /spaces/public` endpoint, caches the results, and exposes a unified API for browsing, searching, and joining public servers. The daccord client adds a "Discover Servers" panel accessible from the space bar, where users can browse the directory and join servers with one click.
+The accord master server (`accordmasterserver`) is a lightweight registry that aggregates public spaces from multiple accordserver instances into a single searchable directory. Server operators opt in by registering their accordserver URL with the master server. The master server periodically polls each registered instance's `GET /spaces/public` endpoint, caches the results, and exposes a unified API for browsing, searching, and joining public servers.
+
+The daccord client provides two entry points for discovery: a dedicated discovery panel accessible from the space bar's compass icon, and a "Browse Servers" tab inside the Add Server dialog. Both use the `DirectoryApi` AccordKit endpoint to query the master server.
 
 This flow is analogous to Discord's Server Discovery or Matrix's room directory -- a federated index of public communities.
 
 ## User Steps
 
-### Browse Public Servers (Client)
+### Browse Public Servers (Discovery Panel)
 
 1. User clicks the "Discover" button in the space bar (compass icon, below the Add Server button).
-2. A full-width discovery panel replaces the message view area.
-3. The panel fetches `GET /directory` from the master server.
-4. Server cards are displayed in a scrollable grid: icon, name, description, member count, tags.
-5. User can search by name/description or filter by category tag.
-6. Clicking a card opens a detail view: full description, banner, member count, category, server URL.
-7. User clicks "Join Server" to connect.
+2. `AppState.open_discovery()` emits `discovery_opened`. `main_window` hides the message view and channel panel, shows `DiscoveryPanel`.
+3. `discovery_panel.activate()` fetches `GET /directory` from the master server via `DirectoryApi.browse()`.
+4. Space cards are displayed in a responsive grid (3 columns >= 800px, 2 columns >= 500px, 1 column < 500px). Each card shows icon, name, member count (with optional online count), description, and tag chips.
+5. User can type in the search box (0.4s debounce) to search by name/description. Search re-fetches from the master server (server-side).
+6. Tag chips are dynamically populated from the response data. Clicking a tag re-fetches with a `tag` query parameter (server-side filter). "All" resets to unfiltered.
+7. Clicking a card hides the grid/search/tags and shows a detail view inline: banner image, icon, name, member/online counts, description, comma-separated tags, server URL (protocol stripped), and a "Join Server" button.
+
+### Browse Public Servers (Add Server Dialog)
+
+1. User clicks Add Server in the space bar, then switches to the "Browse Servers" tab.
+2. `browse_servers_panel` fetches the directory and shows server cards in a list format. Each server card is collapsible and shows individual spaces as rows.
+3. User can search locally (client-side filter on server/space names, no debounce). No tag filtering in this view.
+4. User clicks a space row's join button to join directly (no detail view).
 
 ### Join a Public Server (Client)
 
-1. From the detail view, user clicks "Join Server".
+1. From either the discovery detail view or the browse servers panel, user clicks "Join Server" / join button.
 2. Client checks if user already has an account on the target accordserver:
-   - **Has account**: Client uses stored credentials to call `POST /spaces/{space_id}/join` on the target server.
-   - **No account**: Client opens the auth dialog (register or sign-in) for the target server URL. After auth, calls `POST /spaces/{space_id}/join`.
+   - **Has account**: Checks `Config.get_servers()` for a matching `base_url` that is currently connected (`Client.is_server_connected()`). Uses stored token to call `POST /api/v1/spaces/{space_id}/join` on the target server.
+   - **No account**: Client opens the auth dialog (register or sign-in) for the target server URL. After auth, calls `POST /api/v1/spaces/{space_id}/join`.
 3. On success, `Config.add_server()` saves the connection and `Client.connect_server()` adds the space to the sidebar.
-4. Discovery panel closes; the new space appears in the space bar.
+4. `AppState.close_discovery()` hides the discovery panel and restores the message view. The new space is selected via `AppState.select_space()`.
 
 ### Register a Server (Server Operator)
 
@@ -113,11 +122,18 @@ Indexer polls each registered accordserver:
 | `accordmasterserver/src/indexer.rs` | Background poller that fetches public spaces from registered servers |
 | `accordmasterserver/src/db/` | Database layer (server registry, space directory) |
 | `accordmasterserver/migrations/` | SQLite schema migrations |
-| `daccord: scenes/sidebar/guild_bar/discover_button.gd` | Compass icon button in space bar |
-| `daccord: scenes/discovery/discovery_panel.gd` | Discovery panel UI (search, grid, detail view) |
-| `daccord: scenes/discovery/server_card.gd` | Individual server card in the discovery grid |
-| `daccord: addons/accordkit/rest/endpoints/directory.gd` | AccordKit REST client for master server directory API |
-| `daccord: scripts/autoload/config.gd` | Stores master server URL in config |
+| `scenes/sidebar/guild_bar/discover_button.gd` | Compass icon button in space bar, emits `discover_pressed` |
+| `scenes/sidebar/guild_bar/guild_bar.gd` | Connects discover button to `AppState.open_discovery()` |
+| `scenes/discovery/discovery_panel.gd` | Full discovery panel: search, tag filter, responsive card grid, inline detail view |
+| `scenes/discovery/discovery_card.gd` | Individual space card in the discovery grid (icon, name, members, description, tags) |
+| `scenes/discovery/discovery_detail.gd` | Detail view with banner, icon, stats, description, tags, join button |
+| `scenes/sidebar/guild_bar/browse_servers_panel.gd` | "Browse Servers" tab in Add Server dialog (list layout, client-side search) |
+| `scenes/sidebar/guild_bar/server_card.gd` | Collapsible server card with space rows (used by browse_servers_panel) |
+| `scenes/sidebar/guild_bar/space_row.gd` | Individual space row inside a server card (used by browse_servers_panel) |
+| `addons/accordkit/rest/endpoints/directory_api.gd` | `DirectoryApi` class: `browse(query, tag, page)` and `get_space(space_id)` |
+| `scripts/autoload/config.gd` | `get_master_server_url()` / `set_master_server_url()` (default: `https://master.daccord.gg`) |
+| `scripts/autoload/app_state.gd` | `discovery_opened` / `discovery_closed` signals, `is_discovery_open` state |
+| `scenes/main/main_window.gd` | Mounts discovery panel, toggles visibility on discovery signals |
 
 
 ## Implementation Details
@@ -129,7 +145,7 @@ Indexer polls each registered accordserver:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check |
-| `GET` | `/directory` | Browse/search public spaces |
+| `GET` | `/directory` | Browse/search public spaces (supports `q`, `tag`, `page` query params) |
 | `GET` | `/directory/{space_id}` | Get detail for a specific space listing |
 
 **Admin endpoints (API key auth):**
@@ -235,16 +251,16 @@ Unhealthy servers are still polled on every cycle (they may come back online) bu
 
 ### Client Discovery Panel
 
-The discovery panel is a new scene added to the main window, shown in place of the message view when the user clicks "Discover".
+The discovery panel (`scenes/discovery/discovery_panel.gd`) is mounted in `main_window.tscn` at `$LayoutHBox/DiscoveryPanel`, initially hidden. When `AppState.discovery_opened` fires, `main_window` hides the content area and channel panel, then calls `discovery_panel.activate()`.
 
-**Layout:**
+**Layout (grid view):**
 
 ```
 ┌──────────────────────────────────────────────┐
 │  ← Back    Discover Servers                  │
 │                                              │
 │  ┌──────────────────────────────────────┐    │
-│  │ 🔍 Search servers...                 │    │
+│  │ Search servers...                    │    │
 │  └──────────────────────────────────────┘    │
 │                                              │
 │  Tags: [All] [Gaming] [Social] [Dev] [Art]   │
@@ -253,19 +269,19 @@ The discovery panel is a new scene added to the main window, shown in place of t
 │  │  Icon   │  │  Icon   │  │  Icon   │      │
 │  │  Name   │  │  Name   │  │  Name   │      │
 │  │  Desc   │  │  Desc   │  │  Desc   │      │
-│  │  142 👤 │  │  37 👤  │  │  89 👤  │      │
+│  │  142    │  │  37     │  │  89     │      │
 │  └─────────┘  └─────────┘  └─────────┘      │
 │                                              │
 │  ┌─────────┐  ┌─────────┐                   │
 │  │  Icon   │  │  Icon   │                   │
 │  │  Name   │  │  Name   │                   │
 │  │  Desc   │  │  Desc   │                   │
-│  │  56 👤  │  │  203 👤 │                   │
+│  │  56     │  │  203    │                   │
 │  └─────────┘  └─────────┘                   │
 └──────────────────────────────────────────────┘
 ```
 
-**Detail view (on card click):**
+**Detail view (inline, replaces grid on card click):**
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -289,40 +305,70 @@ The discovery panel is a new scene added to the main window, shown in place of t
 └──────────────────────────────────────────────┘
 ```
 
-### Client Config Addition
+The detail view uses the card's already-loaded data dictionary rather than calling `GET /directory/{space_id}` separately. The join button shows "Joining..." while the request is in flight. Errors are displayed in red below the button.
 
-`Config` gains a `master_server_url` setting:
+### Browse Servers Tab (Add Server Dialog)
+
+The "Browse Servers" tab in the Add Server dialog (`browse_servers_panel.gd`) provides a simpler list-based alternative to the full discovery panel. Key differences:
+
+- **List layout** with collapsible `server_card` nodes (each containing `space_row` children) instead of a flat card grid.
+- **Client-side search** only -- filters the already-fetched `_all_servers` array locally by server/space name, no re-fetch.
+- **No tag filtering** or debounce.
+- **No detail view** -- users join directly from a space row's button.
+
+### Client Config
+
+`Config` stores the master server URL under the `"master"` section:
 
 ```gdscript
-# Default master server URL (can be overridden by user)
-const DEFAULT_MASTER_SERVER_URL := "https://directory.accordchat.com"
-
 func get_master_server_url() -> String:
-    return _config.get_value("general", "master_server_url", DEFAULT_MASTER_SERVER_URL)
+    return _config.get_value("master", "url", "https://master.daccord.gg")
 
 func set_master_server_url(url: String) -> void:
-    _config.set_value("general", "master_server_url", url)
-    _config.save(_config_path)
+    _config.set_value("master", "url", url)
+    _save()
 ```
+
+### AppState Discovery Signals
+
+```gdscript
+signal discovery_opened()
+signal discovery_closed()
+var is_discovery_open: bool = false
+
+func open_discovery():   # guards against double-open, sets flag, emits discovery_opened
+func close_discovery():  # guards, clears flag, emits discovery_closed
+```
+
+Channel selection auto-closes discovery: `main_window._on_channel_selected()` checks `AppState.is_discovery_open` and calls `AppState.close_discovery()`.
 
 ### Join Flow Signal Chain
 
 ```
-discovery_panel: user clicks "Join Server"
-  → _check_existing_account(server_url)
-    → Config.get_servers() -- look for matching base_url
-    → If found: has account, use stored token
-    → If not found: open auth_dialog for server_url
-  → auth complete (existing or new account)
-  → client: POST /api/v1/spaces/{space_id}/join on target accordserver
-    → On 200: space joined
-  → Config.add_server(base_url, token, space_name)
-  → Client.connect_server(server_config)
-    → Fetches space, connects gateway
-    → AppState.spaces_updated.emit()
-  → discovery_panel closes
-  → Space appears in space bar
+discovery_panel: user clicks "Join Server" in detail view
+  → _on_detail_join(server_url, space_id)
+    → Config.get_servers() -- look for matching base_url with active connection
+    → If found: use stored token, call _join_and_connect()
+    → If not found: open auth_dialog for server_url, on auth complete call _join_and_connect()
+  → _join_and_connect():
+    → POST /api/v1/spaces/{space_id}/join on target accordserver (direct, with bearer token)
+      → On 200: space joined
+    → Config.add_server(base_url, token, space_id)
+    → await Client.connect_server(server_index)
+      → Fetches space, connects gateway
+    → AppState.close_discovery()
+    → AppState.select_space(joined_space_id)
+    → Space appears in space bar
 ```
+
+### Theming
+
+All discovery components use `ThemeManager` for colors:
+
+- **discovery_panel.gd**: Uses `panel_bg`, `text_body`, `input_bg`, `accent`, `text_white`, `secondary_button`, `secondary_button_hover`, `accent_hover`. Connected to `AppState.theme_changed` for live updates (long-lived component).
+- **discovery_card.gd**: Uses `nav_bg`, `button_hover`, `text_muted`, `secondary_button`. Colors read at creation time (short-lived).
+- **discovery_detail.gd**: Uses `text_muted`, `accent`, `accent_hover`, `accent_pressed`, `text_white`, `error`. Colors read at creation time (short-lived).
+- **discover_button.gd**: Uses `nav_bg` (normal) and `accent` (hover). Colors read at `_ready()`.
 
 ### Security Considerations
 
@@ -362,18 +408,20 @@ discovery_panel: user clicks "Join Server"
 - [x] Master server: API key authentication for admin endpoints
 - [x] Master server: background indexer (poll `GET /spaces/public` on registered servers)
 - [x] Master server: health check monitoring
-- [x] Master server: directory API (`GET /api/v1/directory` with search and pagination)
-- [ ] Master server: space detail endpoint (`GET /directory/{space_id}`)
+- [x] Master server: directory API (`GET /directory` with search and pagination)
 - [x] Master server: pagination for directory results
+- [ ] Master server: space detail endpoint (`GET /directory/{space_id}`) -- `DirectoryApi.get_space()` exists but detail view uses cached card data instead
 - [ ] Master server: rate limiting
-- [x] daccord: Browse Servers tab in Add Server dialog
-- [x] daccord: server card scene with space rows
-- [ ] daccord: dedicated discovery panel scene (search, tag filter, card grid)
-- [ ] daccord: server detail view with "Join Server" button
-- [x] daccord: join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
-- [x] daccord: master server URL in Config
-- [ ] daccord: tag filtering in browse/directory
-- [ ] accordkit: directory REST endpoint wrapper
+- [x] daccord: Discover button in space bar (compass icon)
+- [x] daccord: Discovery panel with responsive card grid, search (debounced), and tag filter
+- [x] daccord: Discovery detail view with banner, icon, stats, and join button
+- [x] daccord: Browse Servers tab in Add Server dialog (list layout, client-side search)
+- [x] daccord: Server card + space row scenes for Browse Servers tab
+- [x] daccord: Join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
+- [x] daccord: AppState discovery signals (`discovery_opened`, `discovery_closed`, `is_discovery_open`)
+- [x] daccord: Master server URL in Config (section `"master"`, key `"url"`)
+- [x] daccord: ThemeManager integration for all discovery components
+- [x] accordkit: `DirectoryApi` class (`browse()`, `get_space()`)
 - [x] accordserver: `member_count` in public spaces response (JOIN with members table)
 
 
@@ -387,11 +435,11 @@ discovery_panel: user clicks "Join Server"
 - **Notes:** Master server implemented with server registry, background fetcher, health monitoring, and directory API
 
 ### DISCOVER-2: No discovery UI in daccord
-- **Status:** partial
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** ui
-- **Notes:** Browse Servers tab in Add Server dialog works with join flow. Dedicated full-panel discovery UI not yet built.
+- **Notes:** Two entry points: dedicated discovery panel (search, tag filter, card grid, detail view) and Browse Servers tab in Add Server dialog. Both use DirectoryApi.
 
 ### DISCOVER-3: No tag/category system on accordserver spaces
 - **Status:** open
@@ -434,3 +482,10 @@ discovery_panel: user clicks "Join Server"
 - **Effort:** 2
 - **Tags:** gateway, ui
 - **Notes:** Clients poll on panel open; could add real-time updates via SSE or WebSocket later
+
+### DISCOVER-9: No URL normalization for join flow account matching
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** `_on_detail_join()` uses direct string equality to match `base_url` in Config; URLs with trailing slashes or different schemes would fail to match an existing account
