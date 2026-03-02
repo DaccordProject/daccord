@@ -97,6 +97,7 @@ var _voice_state_cache: Dictionary = {} # channel_id -> Array of voice state dic
 var _voice_server_info: Dictionary = {} # stored for Phase 4
 var _thread_message_cache: Dictionary = {} # parent_message_id -> Array of message dicts
 var _thread_unread: Dictionary = {} # parent_message_id -> true
+var _thread_mention_count: Dictionary = {} # parent_message_id -> int
 var _forum_post_cache: Dictionary = {} # channel_id -> Array of post dicts
 
 # Unread / mention tracking

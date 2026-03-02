@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const RoleRowScene := preload("res://scenes/admin/role_row.tscn")
@@ -37,6 +37,7 @@ var _dirty: bool = false
 	$CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 640, 480)
 	_close_btn.pressed.connect(_close)
 	_new_role_btn.pressed.connect(_on_new_role)
 	_save_btn.pressed.connect(_on_save)

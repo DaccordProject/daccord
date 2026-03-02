@@ -15,6 +15,7 @@ var system: bool = false
 var flags: int = 0
 var public_flags: int = 0
 var is_admin: bool = false
+var disabled: bool = false
 var created_at: String = ""
 
 
@@ -32,6 +33,7 @@ static func from_dict(d: Dictionary) -> AccordUser:
 	u.flags = d.get("flags", 0)
 	u.public_flags = d.get("public_flags", 0)
 	u.is_admin = d.get("is_admin", false)
+	u.disabled = d.get("disabled", false)
 	u.created_at = d.get("created_at", "")
 	return u
 
@@ -45,6 +47,7 @@ func to_dict() -> Dictionary:
 		"flags": flags,
 		"public_flags": public_flags,
 		"is_admin": is_admin,
+		"disabled": disabled,
 		"created_at": created_at,
 	}
 	if display_name != null:

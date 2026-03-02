@@ -98,7 +98,7 @@ func _fetch_spaces() -> void:
 	var loading := Label.new()
 	loading.text = "Loading spaces..."
 	loading.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_spaces_list.add_child(loading)
 
@@ -154,7 +154,7 @@ func _render_spaces() -> void:
 		var empty := Label.new()
 		empty.text = "No spaces found."
 		empty.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		_spaces_list.add_child(empty)
 
@@ -168,7 +168,7 @@ func _build_space_row(
 	# Letter avatar
 	var letter_rect := ColorRect.new()
 	letter_rect.custom_minimum_size = Vector2(36, 36)
-	letter_rect.color = Color(0.345, 0.396, 0.949)
+	letter_rect.color = ThemeManager.get_color("accent")
 	var letter_lbl := Label.new()
 	letter_lbl.text = sname[0].to_upper() if sname.length() > 0 else "?"
 	letter_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -188,7 +188,7 @@ func _build_space_row(
 	detail_lbl.text = "%d members" % member_count
 	detail_lbl.add_theme_font_size_override("font_size", 11)
 	detail_lbl.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	info.add_child(detail_lbl)
 	row.add_child(info)
@@ -290,7 +290,7 @@ func _fetch_users(append: bool = false) -> void:
 		var loading := Label.new()
 		loading.text = "Loading users..."
 		loading.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		_users_list.add_child(loading)
 
@@ -335,7 +335,7 @@ func _fetch_users(append: bool = false) -> void:
 		var empty := Label.new()
 		empty.text = "No users found."
 		empty.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		_users_list.add_child(empty)
 
@@ -349,19 +349,22 @@ func _build_user_row(user) -> HBoxContainer:
 	var uname: String = ""
 	var uid: String = ""
 	var is_admin_flag: bool = false
+	var is_disabled: bool = false
 	if user is AccordUser:
 		uname = user.username
 		uid = user.id
 		is_admin_flag = user.is_admin
+		is_disabled = user.disabled
 	elif user is Dictionary:
 		uname = user.get("username", "")
 		uid = user.get("id", "")
 		is_admin_flag = user.get("is_admin", false)
+		is_disabled = user.get("disabled", false)
 
 	# Letter avatar
 	var letter_rect := ColorRect.new()
 	letter_rect.custom_minimum_size = Vector2(32, 32)
-	letter_rect.color = Color(0.345, 0.396, 0.949)
+	letter_rect.color = ThemeManager.get_color("accent")
 	var letter_lbl := Label.new()
 	letter_lbl.text = uname[0].to_upper() if uname.length() > 0 else "?"
 	letter_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -370,14 +373,19 @@ func _build_user_row(user) -> HBoxContainer:
 	letter_rect.add_child(letter_lbl)
 	row.add_child(letter_rect)
 
-	# Username + admin badge
+	# Username + badges
 	var name_lbl := Label.new()
 	name_lbl.text = uname
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if is_admin_flag:
+	if is_disabled:
+		name_lbl.text += "  [Disabled]"
+		name_lbl.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
+		)
+	elif is_admin_flag:
 		name_lbl.text += "  [Admin]"
 		name_lbl.add_theme_color_override(
-			"font_color", Color(0.345, 0.396, 0.949)
+			"font_color", ThemeManager.get_color("accent")
 		)
 	row.add_child(name_lbl)
 
@@ -399,6 +407,17 @@ func _build_user_row(user) -> HBoxContainer:
 	)
 	row.add_child(admin_cb)
 
+	# Disable/Enable button
+	var disable_btn: Button
+	if is_disabled:
+		disable_btn = SettingsBase.create_secondary_button("Enable")
+	else:
+		disable_btn = SettingsBase.create_danger_button("Disable")
+	disable_btn.pressed.connect(func() -> void:
+		_on_toggle_disabled(uid, uname, not is_disabled)
+	)
+	row.add_child(disable_btn)
+
 	# Delete button
 	var del_btn := SettingsBase.create_danger_button("Delete")
 	del_btn.pressed.connect(func() -> void:
@@ -407,6 +426,31 @@ func _build_user_row(user) -> HBoxContainer:
 	row.add_child(del_btn)
 
 	return row
+
+func _on_toggle_disabled(
+	user_id: String, uname: String, disable: bool,
+) -> void:
+	var action: String = "Disable" if disable else "Enable"
+	var msg: String
+	if disable:
+		msg = "Disable '%s'? They will be unable to log in." % uname
+	else:
+		msg = "Re-enable '%s'? They will be able to log in again." % uname
+	var dialog := ConfirmDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(
+		"%s User" % action, msg, action, disable
+	)
+	dialog.confirmed.connect(func() -> void:
+		var result: RestResult = await Client.admin.admin_update_user(
+			user_id, {"disabled": disable}
+		)
+		if result != null and result.ok:
+			_fetch_users()
+		elif result != null and result.error:
+			_users_error.text = result.error.message
+			_users_error.visible = true
+	)
 
 func _on_delete_user(user_id: String, uname: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()

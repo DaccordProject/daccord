@@ -1,6 +1,6 @@
 # Test Coverage
 
-Last touched: 2026-02-25
+Last touched: 2026-03-02
 
 ## Overview
 
@@ -62,6 +62,7 @@ cleanup() --> kill server + rm accord_test.db
 | `tests/unit/test_client_startup.gd` | Smoke tests for Client `_ready()` startup -- sub-module creation, AccordVoiceSession, signal wiring (6 tests) |
 | `tests/unit/test_client.gd` | Unit tests for Client autoload -- data access, routing, permissions, unread tracking (60 tests) |
 | `tests/unit/test_client_gateway.gd` | Unit tests for ClientGateway -- event handlers, cache mutation, signal routing (36 tests) |
+| `tests/unit/test_client_fetch.gd` | Unit tests for ClientFetch -- REST data fetching, cache population, signal emission, error paths (48 tests) |
 | `tests/unit/test_channel_item.gd` | Unit tests for channel_item -- setup, type icons, NSFW, unread, active state (15 tests) |
 | `tests/unit/test_category_item.gd` | Unit tests for category_item -- setup, collapse, channel items (10 tests) |
 | `tests/unit/test_guild_icon.gd` | Unit tests for guild_icon -- setup, pill state, mention badge, active (11 tests) |
@@ -175,6 +176,8 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 **test_client_gateway.gd** -- 36 tests for ClientGateway event handlers. Calls `on_*` methods directly with `AccordMessage.from_dict()` etc. Tests message create (append, index update, bucket creation, MESSAGE_CAP eviction, unread marking), message update (in-place replacement), message delete (single + bulk), typing (signal emission, own-user skip), presence/user updates (user cache status, member cache status, current_user update), space CRUD (preserves unread/mentions/folder on update, delete removes, create adds), channel CRUD (text vs DM, preserves unread/voice_users on update), role CRUD (create/update/delete), reactions via `gw._reactions` (add new emoji, increment existing, active flag for current user, remove decrement, remove at zero, clear all, clear specific emoji), voice state via `gw._events` (add user, move user between channels), and gateway lifecycle (reconnected sets status, disconnected non-fatal).
 
+**test_client_fetch.gd** -- 48 tests for ClientFetch data-fetching methods. Uses a `StubRest` inner class that extends `AccordRest` to intercept REST calls and return pre-configured `RestResult` responses, allowing the real API layer (UsersApi, SpacesApi, etc.) to deserialize raw dictionaries into AccordKit models. Tests `fetch_spaces` (cache population, preserves unread/folder/mentions state, skips disconnected, skips non-matching space, failure path), `fetch_channels` (cache population + channel_to_space mapping, clears old cache for space, null client early return, failure push_error), `fetch_messages` (reverses newest-first API order, builds message_id_index, clears old index, null client emits message_fetch_failed, API failure emits failure, fetches unknown authors into user_cache), `fetch_older_messages` (prepends to existing cache, empty cache early return, caps at MAX_CHANNEL_MESSAGES with eviction, empty result still emits, indexes new messages), `fetch_thread_messages` (populates thread_message_cache, null client), `fetch_forum_posts` (populates forum_post_cache, indexes messages, failure emits fetch_failed), `fetch_active_threads` (returns message dicts, null client returns empty), `fetch_members` (populates member_cache, fetches missing users, null client), `fetch_roles` (populates role_cache, failure path, null client), `fetch_voice_states` (populates voice_state_cache, updates channel_cache voice_users count, null client), `refresh_current_user` (updates user_cache + connection dict + current_user, invalid/null connection), `fetch_dm_channels` (populates dm_channel_cache + dm_to_conn, preserves unread state, preserves last_message previews, caches recipients in user_cache, skips disconnected), `_fetch_unknown_authors` (deduplicates fetches, skips known authors), and `resync_voice_states` (fetches only voice channels, skips text). Uses `load().new()` without `add_child` to skip `_ready()`.
+
 **test_user_bar.gd** -- 12 tests for the user bar sidebar component. Covers `setup` with null/missing/empty avatar (no crash), avatar URL handling, display name and username from dict (with defaults when missing), avatar letter from display name, and status icon color (online/offline via `ClientModels.status_color()`).
 
 **test_error_reporting.gd** -- 20 tests for the ErrorReporting autoload. Guard clause tests (4) verify `_initialized` is false by default and that `_add_breadcrumb`, `update_context`, and `report_problem` return early without crashing when Sentry is not initialized. Signal handler tests (9) verify that `_on_space_selected`, `_on_channel_selected`, `_on_dm_mode_entered`, `_on_message_sent`, `_on_reply_initiated`, `_on_layout_mode_changed` (COMPACT/MEDIUM/FULL), and `_on_sidebar_drawer_toggled` do not crash when uninitialized. PII scrubbing tests (7) verify that `scrub_pii_text` redacts Bearer tokens (single and multiple), `token=` query parameters, URLs with ports (HTTPS and HTTP), preserves plain text, and handles combined PII in a single string.
@@ -251,13 +254,13 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 29 | 551 | No |
+| Unit (`tests/unit/`) | 30 | 599 | No |
 | AccordKit unit (`tests/accordkit/unit/`) | 11 | 129 | No |
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
 | AccordKit e2e (`tests/accordkit/e2e/`) | 3 | 7 | Yes |
 | LiveKit (`tests/livekit/unit/`) | 1 | 10 | No |
-| **Total** | **52** | **748** | |
+| **Total** | **53** | **796** | |
 
 ## Implementation Status
 
@@ -296,6 +299,7 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - [x] LiveKit adapter unit tests -- state machine, mute/deafen, signals (10 tests)
 - [x] Unit tests for Client autoload -- data access, routing, permissions, unread (60 tests)
 - [x] Unit tests for ClientGateway -- event dispatch, cache mutation (36 tests)
+- [x] Unit tests for ClientFetch -- REST data fetching, cache population, error paths (48 tests)
 - [x] Unit tests for channel_item sidebar component (15 tests)
 - [x] Unit tests for category_item sidebar component (10 tests)
 - [x] Unit tests for guild_icon sidebar component (11 tests)
@@ -314,11 +318,11 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 ## Tasks
 
 ### TEST-1: No tests for `ClientFetch`
-- **Status:** open
+- **Status:** closed
 - **Impact:** 4
 - **Effort:** 1
 - **Tags:** api, testing
-- **Notes:** `scripts/autoload/client_fetch.gd` handles REST data fetching. No unit tests.
+- **Notes:** `tests/unit/test_client_fetch.gd` -- 48 tests covering all public methods. Uses StubRest to intercept REST calls.
 
 ### TEST-2: No tests for `ClientAdmin`
 - **Status:** open

@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://ddb2dohjdov56" path="res://assets/theme/icons/sidebar_toggle.svg" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/video/video_grid.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/messages/thread_panel.tscn" id="11"]
+[ext_resource type="PackedScene" path="res://scenes/discovery/discovery_panel.tscn" id="12"]
 
 [node name="MainWindow" type="Control"]
 layout_mode = 3
@@ -104,6 +105,11 @@ layout_mode = 2
 
 [node name="SearchPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("8")]
 visible = false
+
+[node name="DiscoveryPanel" parent="LayoutHBox" instance=ExtResource("12")]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="DrawerBackdrop" type="ColorRect" parent="."]
 visible = false

@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 # Duration options in seconds
 const DURATIONS := [60, 300, 600, 3600, 86400, 604800]
@@ -28,6 +28,7 @@ var _user_id: String = ""
 	$CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 380, 0)
 	_close_btn.pressed.connect(_close)
 	_apply_btn.pressed.connect(_on_apply)
 	_remove_timeout_btn.pressed.connect(_on_remove_timeout)
@@ -107,14 +108,3 @@ func _on_remove_timeout() -> void:
 	else:
 		_close()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 var _space_id: String = ""
 var _selected_role: Dictionary = {}
@@ -18,13 +18,10 @@ var _custom_perm_checks: Dictionary = {} # perm_name -> CheckBox
 @onready var close_button: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 500, 400)
 	preview_button.pressed.connect(_on_preview)
 	cancel_button.pressed.connect(_close)
 	close_button.pressed.connect(_close)
-	gui_input.connect(func(event: InputEvent):
-		if event is InputEventMouseButton and event.pressed:
-			_close()
-	)
 
 func setup(space_id: String) -> void:
 	_space_id = space_id
@@ -102,12 +99,12 @@ func _on_role_selected(role: Dictionary) -> void:
 	# Highlight selected role button
 	for child in role_list.get_children():
 		if child is Button:
-			child.modulate = Color(1, 1, 1)
+			child.modulate = Color.WHITE
 	# Find the pressed button (the one that triggered this call)
 	# and highlight it
 	for child in role_list.get_children():
 		if child is Button and child.is_pressed():
-			child.modulate = Color(0.345, 0.396, 0.949)
+			child.modulate = ThemeManager.get_color("accent")
 
 func _on_custom_selected() -> void:
 	_is_custom = true
@@ -139,5 +136,3 @@ func _on_preview() -> void:
 	AppState.enter_imposter_mode(role_data)
 	_close()
 
-func _close() -> void:
-	queue_free()

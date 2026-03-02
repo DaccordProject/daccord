@@ -8,10 +8,14 @@ const AvatarShader := preload("res://assets/theme/avatar_circle.gdshader")
 @onready var grid: GridContainer = $Grid
 
 func _ready() -> void:
+	add_to_group("themed")
 	custom_minimum_size = Vector2(avatar_size, avatar_size)
 	size = Vector2(avatar_size, avatar_size)
-	color = Color(0.184, 0.192, 0.212)
+	color = ThemeManager.get_color("modal_bg")
 	clip_children = CLIP_CHILDREN_ONLY
+
+func _apply_theme() -> void:
+	color = ThemeManager.get_color("modal_bg")
 
 	var mat := ShaderMaterial.new()
 	mat.shader = AvatarShader
@@ -40,7 +44,7 @@ func setup_recipients(recipients: Array) -> void:
 		av.custom_minimum_size = Vector2(mini_size, mini_size)
 		av.size = Vector2(mini_size, mini_size)
 		av.set_avatar_color(
-			r.get("color", Color(0.345, 0.396, 0.949))
+			r.get("color", ThemeManager.get_color("accent"))
 		)
 		var dn: String = r.get("display_name", "")
 		if dn.length() > 0:

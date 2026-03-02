@@ -3,6 +3,8 @@ shader_type canvas_item;
 // Animated welcome screen background shader
 // GL Compatibility safe — no compute, no advanced features
 
+uniform vec4 accent_color : source_color = vec4(0.345, 0.396, 0.949, 1.0);
+
 // Hash-based pseudo-random
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -33,7 +35,7 @@ void fragment() {
 		float alpha = 0.03 + seed * 0.09;
 		bokeh += glow * alpha;
 	}
-	vec3 bokeh_color = vec3(0.345, 0.396, 0.949); // blurple
+	vec3 bokeh_color = accent_color.rgb;
 	bg += bokeh_color * bokeh;
 
 	// Subtle noise shimmer — sparkle dots fading in/out

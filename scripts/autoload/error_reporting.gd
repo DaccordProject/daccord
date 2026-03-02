@@ -53,14 +53,19 @@ func _connect_breadcrumbs() -> void:
 	)
 	AppState.voice_error.connect(_on_voice_error)
 
+func _truncate_id(id: String) -> String:
+	if id.length() <= 4:
+		return id
+	return "…" + id.right(4)
+
 func _on_space_selected(space_id: String) -> void:
 	_add_breadcrumb(
-		"Switched space: %s" % space_id, "navigation"
+		"Switched space: %s" % _truncate_id(space_id), "navigation"
 	)
 
 func _on_channel_selected(channel_id: String) -> void:
 	_add_breadcrumb(
-		"Opened channel: %s" % channel_id, "navigation"
+		"Opened channel: %s" % _truncate_id(channel_id), "navigation"
 	)
 
 func _on_dm_mode_entered() -> void:
@@ -109,11 +114,11 @@ func update_context() -> void:
 	)
 	if not AppState.current_space_id.is_empty():
 		SentrySDK.set_tag(
-			"space_id", AppState.current_space_id
+			"space_id", _truncate_id(AppState.current_space_id)
 		)
 	if not AppState.current_channel_id.is_empty():
 		SentrySDK.set_tag(
-			"channel_id", AppState.current_channel_id
+			"channel_id", _truncate_id(AppState.current_channel_id)
 		)
 
 func report_problem(description: String) -> void:

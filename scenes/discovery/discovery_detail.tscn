@@ -1,0 +1,97 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/discovery/discovery_detail.gd" id="1"]
+
+[node name="DiscoveryDetail" type="VBoxContainer"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+script = ExtResource("1")
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="Header"]
+layout_mode = 2
+text = "← Back to results"
+flat = true
+
+[node name="BannerContainer" type="PanelContainer" parent="."]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 140)
+
+[node name="Banner" type="TextureRect" parent="BannerContainer"]
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="SpaceInfo" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Icon" type="TextureRect" parent="SpaceInfo"]
+layout_mode = 2
+custom_minimum_size = Vector2(64, 64)
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Info" type="VBoxContainer" parent="SpaceInfo"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+theme_override_constants/separation = 4
+
+[node name="NameLabel" type="Label" parent="SpaceInfo/Info"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+
+[node name="MemberLabel" type="Label" parent="SpaceInfo/Info"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+
+[node name="DescLabel" type="Label" parent="."]
+layout_mode = 2
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 14
+
+[node name="Details" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TagRow" type="HBoxContainer" parent="Details"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TagLabel" type="Label" parent="Details/TagRow"]
+layout_mode = 2
+text = "Tags:"
+theme_override_font_sizes/font_size = 13
+
+[node name="TagValue" type="Label" parent="Details/TagRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+
+[node name="ServerRow" type="HBoxContainer" parent="Details"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ServerLabel" type="Label" parent="Details/ServerRow"]
+layout_mode = 2
+text = "Server:"
+theme_override_font_sizes/font_size = 13
+
+[node name="ServerValue" type="Label" parent="Details/ServerRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+
+[node name="JoinButton" type="Button" parent="."]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Join Server"
+
+[node name="StatusLabel" type="Label" parent="."]
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 13

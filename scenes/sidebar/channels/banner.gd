@@ -19,6 +19,7 @@ var _has_admin: bool = false
 @onready var dropdown_icon: Label = $DropdownIcon
 
 func _ready() -> void:
+	add_to_group("themed")
 	_admin_menu = PopupMenu.new()
 	_admin_menu.id_pressed.connect(_on_admin_menu_pressed)
 	add_child(_admin_menu)
@@ -26,12 +27,15 @@ func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 
+func _apply_theme() -> void:
+	space_name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+
 func setup(space_data: Dictionary) -> void:
 	_space_id = space_data.get("id", "")
 	space_name_label.text = space_data.get("name", "")
 	space_name_label.add_theme_font_size_override("font_size", 16)
-	space_name_label.add_theme_color_override("font_color", Color.WHITE)
-	banner_rect.color = space_data.get("icon_color", Color(0.184, 0.192, 0.212)).darkened(0.3)
+	space_name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	banner_rect.color = space_data.get("icon_color", ThemeManager.get_color("modal_bg")).darkened(0.3)
 
 	_has_admin = _has_any_admin_perm()
 	dropdown_icon.visible = _has_admin

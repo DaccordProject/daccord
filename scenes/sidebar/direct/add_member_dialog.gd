@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 ## Dialog for selecting a single user to add to a group DM.
 
@@ -13,6 +13,7 @@ var _selected_id: String = ""
 
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 440, 0)
 	close_button = $CenterContainer/Panel/VBox/Header/CloseButton
 	search_input = $CenterContainer/Panel/VBox/SearchInput
 	user_list = $CenterContainer/Panel/VBox/Scroll/UserList
@@ -37,16 +38,6 @@ func setup(
 			_existing_ids.append(rid)
 	_populate_users()
 
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed \
-			and event.keycode == KEY_ESCAPE:
-		_close()
-		get_viewport().set_input_as_handled()
-
-
-func _close() -> void:
-	queue_free()
 
 
 func _populate_users() -> void:
@@ -105,7 +96,7 @@ func _on_user_selected(uid: String, btn: Button) -> void:
 		child.remove_theme_stylebox_override("normal")
 	_selected_id = uid
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.345, 0.396, 0.949, 0.3)
+	style.bg_color = Color(ThemeManager.get_color("accent"), 0.3)
 	style.set_corner_radius_all(4)
 	btn.add_theme_stylebox_override("normal", style)
 	add_button.disabled = false

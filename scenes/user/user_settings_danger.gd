@@ -96,7 +96,7 @@ func _on_password_save() -> void:
 		_pw_error.visible = true
 	else:
 		_pw_error.add_theme_color_override(
-			"font_color", Color(0.929, 0.259, 0.271)
+			"font_color", ThemeManager.get_color("error")
 		)
 		_pw_error.text = result.get(
 			"error", "Failed to change password"
@@ -120,7 +120,7 @@ func build_delete_page(
 		+ "All your data will be permanently deleted."
 	)
 	warning.add_theme_color_override(
-		"font_color", Color(0.929, 0.259, 0.271)
+		"font_color", ThemeManager.get_color("error")
 	)
 	warning.autowrap_mode = TextServer.AUTOWRAP_WORD
 	page_vbox.add_child(warning)
@@ -173,6 +173,7 @@ func _on_delete_account() -> void:
 		result = await Client.delete_account(pw)
 	_del_btn.disabled = false
 	if result.get("ok", false):
+		Config.wipe_active_profile()
 		_tree.quit()
 	else:
 		_del_error.text = result.get(

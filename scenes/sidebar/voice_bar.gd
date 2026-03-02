@@ -39,6 +39,12 @@ func _ready() -> void:
 	AppState.screen_share_changed.connect(_on_screen_share_changed)
 	AppState.voice_error.connect(_on_voice_error)
 	AppState.voice_session_state_changed.connect(_on_session_state_changed)
+	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)
+	add_to_group("themed")
+
+func _apply_theme() -> void:
+	if visible:
+		_update_button_visuals()
 
 func _on_voice_joined(channel_id: String) -> void:
 	visible = true
@@ -53,9 +59,9 @@ func _on_voice_joined(channel_id: String) -> void:
 	# Show connecting state until LiveKit session confirms CONNECTED
 	channel_label.text = "Connecting..."
 	channel_label.add_theme_color_override(
-		"font_color", Color(0.98, 0.82, 0.24)
+		"font_color", ThemeManager.get_color("warning")
 	)
-	status_dot.color = Color(0.98, 0.82, 0.24)
+	status_dot.color = ThemeManager.get_color("warning")
 	_start_pulse()
 	sfx_btn.visible = Client.has_permission(
 		AppState.voice_space_id,
@@ -77,7 +83,7 @@ func _on_voice_error(error: String) -> void:
 		return
 	_saved_channel_label = channel_label.text
 	channel_label.text = error
-	status_dot.color = Color(0.929, 0.259, 0.271)
+	status_dot.color = ThemeManager.get_color("error")
 	if _error_tween and _error_tween.is_valid():
 		_error_tween.kill()
 	_error_tween = create_tween()
@@ -88,7 +94,7 @@ func _clear_voice_error() -> void:
 	if not visible:
 		return
 	channel_label.text = _saved_channel_label
-	status_dot.color = Color(0.231, 0.647, 0.365)
+	status_dot.color = ThemeManager.get_color("success")
 
 func _on_session_state_changed(state: int) -> void:
 	if not visible:
@@ -98,17 +104,17 @@ func _on_session_state_changed(state: int) -> void:
 			_stop_pulse()
 			channel_label.text = "Connecting..."
 			channel_label.add_theme_color_override(
-				"font_color", Color(0.98, 0.82, 0.24)
+				"font_color", ThemeManager.get_color("warning")
 			)
-			status_dot.color = Color(0.98, 0.82, 0.24)
+			status_dot.color = ThemeManager.get_color("warning")
 			_start_pulse()
 		LiveKitAdapter.State.CONNECTED:
 			_stop_pulse()
 			channel_label.text = _saved_channel_label
 			channel_label.add_theme_color_override(
-				"font_color", Color(0.231, 0.647, 0.365)
+				"font_color", ThemeManager.get_color("success")
 			)
-			status_dot.color = Color(0.231, 0.647, 0.365)
+			status_dot.color = ThemeManager.get_color("success")
 			status_dot.modulate.a = 1.0
 		LiveKitAdapter.State.RECONNECTING:
 			_stop_pulse()
@@ -198,7 +204,7 @@ func _update_button_visuals() -> void:
 	if AppState.is_voice_muted:
 		mute_btn.text = "Mic Off"
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.929, 0.259, 0.271, 0.3)
+		style.bg_color = Color(ThemeManager.get_color("error"), 0.3)
 		style.corner_radius_top_left = 4
 		style.corner_radius_top_right = 4
 		style.corner_radius_bottom_left = 4
@@ -212,7 +218,7 @@ func _update_button_visuals() -> void:
 	if AppState.is_voice_deafened:
 		deafen_btn.text = "Deaf"
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.929, 0.259, 0.271, 0.3)
+		style.bg_color = Color(ThemeManager.get_color("error"), 0.3)
 		style.corner_radius_top_left = 4
 		style.corner_radius_top_right = 4
 		style.corner_radius_bottom_left = 4
@@ -229,7 +235,7 @@ func _update_button_visuals() -> void:
 	if AppState.is_video_enabled:
 		video_btn.text = "Cam On"
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.231, 0.647, 0.365, 0.3)
+		style.bg_color = Color(ThemeManager.get_color("success"), 0.3)
 		style.corner_radius_top_left = 4
 		style.corner_radius_top_right = 4
 		style.corner_radius_bottom_left = 4
@@ -243,7 +249,7 @@ func _update_button_visuals() -> void:
 	if AppState.is_screen_sharing:
 		share_btn.text = "Sharing"
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.231, 0.647, 0.365, 0.3)
+		style.bg_color = Color(ThemeManager.get_color("success"), 0.3)
 		style.corner_radius_top_left = 4
 		style.corner_radius_top_right = 4
 		style.corner_radius_bottom_left = 4
@@ -262,3 +268,7 @@ func _has_camera() -> bool:
 		)
 		return entries.size() > 0
 	return true
+
+func _on_reduce_motion_changed(enabled: bool) -> void:
+	if enabled:
+		_stop_pulse()

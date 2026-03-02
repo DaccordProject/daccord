@@ -90,6 +90,11 @@ func _migrate_legacy_config() -> void:
 		var key := _derive_key()
 		var err := _config.load_encrypted_pass("user://config.cfg", key)
 		if err != OK:
+			for legacy_key in _legacy_keys():
+				if _config.load_encrypted_pass("user://config.cfg", legacy_key) == OK:
+					err = OK
+					break
+		if err != OK:
 			_config.load("user://config.cfg")
 		_load_ok = true
 		return
@@ -122,6 +127,28 @@ func _load_profile_config() -> void:
 		_migrate_guild_to_space_keys()
 		_migrate_clear_passwords()
 		return
+	# Try legacy encryption keys before giving up
+	for legacy_key in _legacy_keys():
+		var legacy_err := _config.load_encrypted_pass(path, legacy_key)
+		if legacy_err == OK:
+			_load_ok = true
+			_migrate_guild_to_space_keys()
+			_migrate_clear_passwords()
+			# Re-encrypt with current key
+			_config.save_encrypted_pass(path, key)
+			return
+	# Also try the .bak file with legacy keys (in case we already
+	# backed up a "corrupted" file that was actually just re-keyed)
+	var bak_path := path + ".bak"
+	if FileAccess.file_exists(bak_path):
+		for legacy_key in _legacy_keys():
+			var bak_err := _config.load_encrypted_pass(bak_path, legacy_key)
+			if bak_err == OK:
+				_load_ok = true
+				_migrate_guild_to_space_keys()
+				_migrate_clear_passwords()
+				_config.save_encrypted_pass(path, key)
+				return
 	var plain_err := _config.load(path)
 	if plain_err == OK:
 		_load_ok = true
@@ -207,7 +234,13 @@ func _throttled_backup() -> void:
 	)
 
 func _derive_key() -> String:
-	return _SALT + OS.get_user_data_dir()
+	return _SALT
+
+## Legacy keys that were used in previous versions. Tried in order during
+## migration so we can still decrypt configs encrypted with the old scheme.
+func _legacy_keys() -> Array[String]:
+	# v1: key was salt + OS.get_user_data_dir() (broke on project rename / Godot upgrade)
+	return [_SALT + OS.get_user_data_dir()]
 
 func get_servers() -> Array:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -444,6 +477,18 @@ func set_server_muted(space_id: String, muted: bool) -> void:
 	_save()
 	AppState.config_changed.emit("muted_servers", space_id)
 
+## Thread notification settings
+
+func get_thread_notifications(thread_id: String) -> String:
+	return _config.get_value("thread_notifications", thread_id, "default")
+
+func set_thread_notifications(thread_id: String, mode: String) -> void:
+	if mode == "default":
+		_config.set_value("thread_notifications", thread_id, null)
+	else:
+		_config.set_value("thread_notifications", thread_id, mode)
+	_save()
+
 ## Recently used emoji
 
 func get_recent_emoji() -> Array:
@@ -480,6 +525,7 @@ func set_reduced_motion(enabled: bool) -> void:
 	_config.set_value("accessibility", "reduced_motion", enabled)
 	_save()
 	AppState.config_changed.emit("accessibility", "reduced_motion")
+	AppState.reduce_motion_changed.emit(enabled)
 
 func get_ui_scale() -> float:
 	return _config.get_value("accessibility", "ui_scale", 0.0)
@@ -491,6 +537,24 @@ func _set_ui_scale(scale: float) -> void:
 		_config.set_value("accessibility", "ui_scale", clampf(scale, 0.5, 3.0))
 	_save()
 	AppState.config_changed.emit("accessibility", "ui_scale")
+
+## Theme
+
+func get_theme_preset() -> String:
+	return _config.get_value("theme", "preset", "dark")
+
+func set_theme_preset(preset: String) -> void:
+	_config.set_value("theme", "preset", preset)
+	_save()
+	AppState.config_changed.emit("theme", "preset")
+
+func get_custom_palette() -> Dictionary:
+	return _config.get_value("theme", "custom_palette", {})
+
+func set_custom_palette(palette: Dictionary) -> void:
+	_config.set_value("theme", "custom_palette", palette)
+	_save()
+	AppState.config_changed.emit("theme", "custom_palette")
 
 ## Update preferences
 
@@ -545,6 +609,31 @@ func get_draft_text(channel_id: String) -> String:
 func clear_draft_text(channel_id: String) -> void:
 	_config.set_value("drafts", channel_id, null)
 	_save()
+
+## Wipes the active profile's local data (config, emoji cache) and removes
+## it from the registry. Called after a successful account deletion so no
+## stale credentials remain on disk.
+func wipe_active_profile() -> void:
+	var slug := _profile_slug
+	var dir_path := _profile_dir()
+	# Delete the profile directory (config + emoji cache)
+	if DirAccess.dir_exists_absolute(dir_path):
+		_remove_directory_recursive(dir_path)
+	# Remove from registry
+	var order: Array = _registry.get_value("order", "list", [])
+	var idx := order.find(slug)
+	if idx != -1:
+		order.remove_at(idx)
+	_registry.set_value("order", "list", order)
+	var section := "profile_" + slug
+	if _registry.has_section(section):
+		_registry.erase_section(section)
+	if order.is_empty():
+		# Last profile — remove the registry file entirely
+		var reg_global := ProjectSettings.globalize_path(REGISTRY_PATH)
+		DirAccess.remove_absolute(reg_global)
+	else:
+		_registry.save(REGISTRY_PATH)
 
 func _clear() -> void:
 	var count: int = _config.get_value("servers", "count", 0)

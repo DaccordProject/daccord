@@ -20,9 +20,10 @@ var _context_menu: PopupMenu
 @onready var close_btn: Button = $HBox/CloseBtn
 
 func _ready() -> void:
+	add_to_group("themed")
 	pressed.connect(func(): dm_pressed.emit(dm_id))
 	last_message_label.add_theme_font_size_override("font_size", 12)
-	last_message_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
 	close_btn.visible = false
 	close_btn.pressed.connect(_on_close_pressed)
 	mouse_entered.connect(func(): close_btn.visible = true)
@@ -60,7 +61,7 @@ func setup(data: Dictionary) -> void:
 		avatar.visible = true
 		group_avatar.visible = false
 		avatar.set_avatar_color(
-			user.get("color", Color(0.345, 0.396, 0.949))
+			user.get("color", ThemeManager.get_color("accent"))
 		)
 		var dn: String = user.get("display_name", "")
 		if dn.length() > 0:
@@ -88,6 +89,9 @@ func setup(data: Dictionary) -> void:
 		member_count_label.visible = true
 	else:
 		member_count_label.visible = false
+
+func _apply_theme() -> void:
+	last_message_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func _on_close_pressed() -> void:
 	dm_closed.emit(dm_id)
@@ -157,13 +161,13 @@ func _leave_group() -> void:
 func set_active(active: bool) -> void:
 	if active:
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0.24, 0.25, 0.27)
+		style.bg_color = ThemeManager.get_color("button_hover")
 		style.corner_radius_top_left = 4
 		style.corner_radius_top_right = 4
 		style.corner_radius_bottom_left = 4
 		style.corner_radius_bottom_right = 4
 		add_theme_stylebox_override("normal", style)
-		username_label.add_theme_color_override("font_color", Color(1, 1, 1))
+		username_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
 		remove_theme_stylebox_override("normal")
 		username_label.remove_theme_color_override("font_color")

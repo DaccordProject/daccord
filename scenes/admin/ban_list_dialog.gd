@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const BanRowScene := preload("res://scenes/admin/ban_row.tscn")
@@ -23,6 +23,7 @@ var _has_more: bool = false
 @onready var _bulk_unban_btn: Button = $CenterContainer/Panel/VBox/BulkBar/BulkUnbanBtn
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 440, 0)
 	_close_btn.pressed.connect(_close)
 	_search_input.text_changed.connect(_on_search_changed)
 	_select_all_check.toggled.connect(_on_select_all)
@@ -194,14 +195,3 @@ func _on_bans_updated(space_id: String) -> void:
 	if space_id == _space_id:
 		_load_bans()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

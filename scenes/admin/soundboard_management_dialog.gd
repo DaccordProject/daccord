@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const SoundRowScene := preload("res://scenes/admin/sound_row.tscn")
@@ -17,6 +17,7 @@ var _volume_debounce: Dictionary = {}
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 520, 0)
 	_close_btn.pressed.connect(_close)
 	_upload_btn.pressed.connect(_on_upload_pressed)
 	_file_dialog.file_selected.connect(_on_file_selected)
@@ -241,14 +242,3 @@ func _is_ogg_opus(bytes: PackedByteArray) -> bool:
 			return true
 	return false
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

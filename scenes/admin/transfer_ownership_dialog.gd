@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 ## Dialog for transferring space ownership to another member.
 ## Instantiate via script, then call setup(space_id, space_name).
@@ -15,82 +15,41 @@ var _error_label: Label
 var _members: Array = []
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	color = Color(0, 0, 0, 0.6)
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	_setup_modal("Transfer Ownership", 440.0, 450.0, true, 20.0)
 
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(440, 450)
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.188, 0.196, 0.212)
-	panel_style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", panel_style)
-	center.add_child(panel)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	panel.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
-	margin.add_child(vbox)
-
-	# Header
-	var header := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "Transfer Ownership"
-	title.add_theme_font_size_override("font_size", 18)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-	var close_btn := Button.new()
-	close_btn.text = "  X  "
-	close_btn.flat = true
-	close_btn.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
-	)
-	close_btn.add_theme_color_override(
-		"font_hover_color", Color.WHITE
-	)
-	close_btn.pressed.connect(queue_free)
-	header.add_child(close_btn)
-	vbox.add_child(header)
+	# Override title font size to match original
+	if _modal_title_label:
+		_modal_title_label.add_theme_font_size_override("font_size", 18)
 
 	# Search
 	var search_label := Label.new()
 	search_label.text = "SEARCH MEMBERS"
 	search_label.add_theme_font_size_override("font_size", 11)
 	search_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
-	vbox.add_child(search_label)
+	content_container.add_child(search_label)
 	_search_input = LineEdit.new()
 	_search_input.placeholder_text = "Filter by username..."
 	_search_input.text_changed.connect(
 		func(_t: String) -> void: _render_members()
 	)
-	vbox.add_child(_search_input)
+	content_container.add_child(_search_input)
 
 	# Error
 	_error_label = Label.new()
 	_error_label.add_theme_color_override(
-		"font_color", Color(0.929, 0.259, 0.271)
+		"font_color", ThemeManager.get_color("error")
 	)
 	_error_label.add_theme_font_size_override("font_size", 13)
 	_error_label.visible = false
-	vbox.add_child(_error_label)
+	content_container.add_child(_error_label)
 
 	# Member list (scrollable)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(scroll)
+	content_container.add_child(scroll)
 
 	_member_list = VBoxContainer.new()
 	_member_list.add_theme_constant_override("separation", 4)
@@ -108,7 +67,7 @@ func _load_members() -> void:
 	var loading := Label.new()
 	loading.text = "Loading members..."
 	loading.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_member_list.add_child(loading)
 
@@ -135,7 +94,7 @@ func _render_members() -> void:
 		# Letter avatar
 		var letter_rect := ColorRect.new()
 		letter_rect.custom_minimum_size = Vector2(28, 28)
-		letter_rect.color = Color(0.345, 0.396, 0.949)
+		letter_rect.color = ThemeManager.get_color("accent")
 		var letter_lbl := Label.new()
 		letter_lbl.text = (
 			uname[0].to_upper() if uname.length() > 0 else "?"
@@ -165,7 +124,7 @@ func _render_members() -> void:
 		var empty := Label.new()
 		empty.text = "No members found."
 		empty.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		_member_list.add_child(empty)
 
@@ -199,12 +158,3 @@ func _clear_children(container: Control) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
 		child.queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		queue_free()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		queue_free()
-		get_viewport().set_input_as_handled()

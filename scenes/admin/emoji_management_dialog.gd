@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const EmojiCellScene := preload("res://scenes/admin/emoji_cell.tscn")
@@ -15,6 +15,7 @@ var _all_emojis: Array = []
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 480, 0)
 	_close_btn.pressed.connect(_close)
 	_upload_btn.pressed.connect(_on_upload_pressed)
 	_file_dialog.file_selected.connect(_on_file_selected)
@@ -165,14 +166,3 @@ func _on_emojis_updated(space_id: String) -> void:
 	if space_id == _space_id:
 		_load_emojis()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

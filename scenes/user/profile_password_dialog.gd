@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal password_verified(slug: String)
 
@@ -17,6 +17,7 @@ func setup(slug: String, profile_name: String) -> void:
 
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 360, 0)
 	_unlock_btn.pressed.connect(_on_unlock)
 	_password_input.text_submitted.connect(func(_t: String) -> void:
 		_on_unlock()
@@ -48,12 +49,3 @@ func _show_error(msg: String) -> void:
 	_error_label.visible = true
 
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		queue_free()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		queue_free()
-		get_viewport().set_input_as_handled()

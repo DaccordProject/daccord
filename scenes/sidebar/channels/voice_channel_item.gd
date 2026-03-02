@@ -47,9 +47,14 @@ func _ready() -> void:
 	# Forward drag-and-drop from ChannelButton to this VBoxContainer
 	channel_button.set_drag_forwarding(_get_drag_data, _can_drop_data, _drop_data)
 
+	add_to_group("themed")
 	channel_button.gui_input.connect(_on_gui_input)
 	channel_button.mouse_entered.connect(_on_mouse_entered)
 	channel_button.mouse_exited.connect(_on_mouse_exited)
+
+func _apply_theme() -> void:
+	_refresh_participants()
+	queue_redraw()
 
 func setup(data: Dictionary) -> void:
 	channel_id = data.get("id", "")
@@ -69,7 +74,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		_gear_btn.add_theme_font_size_override("font_size", 14)
-		_gear_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		_gear_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		_gear_btn.tooltip_text = "Edit Channel"
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$ChannelButton/HBox.add_child(_gear_btn)
@@ -111,11 +116,11 @@ func _refresh_participants() -> void:
 
 	# Green tint when we are connected to this channel
 	if AppState.voice_channel_id == channel_id:
-		type_icon.modulate = Color(0.231, 0.647, 0.365)
-		channel_name.add_theme_color_override("font_color", Color(1, 1, 1))
+		type_icon.modulate = ThemeManager.get_color("success")
+		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
-		type_icon.modulate = Color(0.44, 0.47, 0.51)
-		channel_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		type_icon.modulate = ThemeManager.get_color("icon_default")
+		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 	# Build participant items
 	for vs in voice_users:
@@ -136,7 +141,7 @@ func _refresh_participants() -> void:
 		av.custom_minimum_size = Vector2(18, 18)
 		av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(av)
-		av.set_avatar_color(user.get("color", Color(0.345, 0.396, 0.949)))
+		av.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
 		var dn: String = user.get("display_name", "?")
 		av.set_letter(dn.left(1).to_upper() if not dn.is_empty() else "?")
 		var avatar_url = user.get("avatar", null)
@@ -160,7 +165,7 @@ func _refresh_participants() -> void:
 		name_label.text = user.get("display_name", "Unknown")
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_label.add_theme_font_size_override("font_size", 12)
-		name_label.add_theme_color_override("font_color", Color(0.72, 0.73, 0.76))
+		name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
 		row.add_child(name_label)
 
 		# Mute/deaf indicators
@@ -170,14 +175,14 @@ func _refresh_participants() -> void:
 			var deaf_label := Label.new()
 			deaf_label.text = "D"
 			deaf_label.add_theme_font_size_override("font_size", 10)
-			deaf_label.add_theme_color_override("font_color", Color(0.929, 0.259, 0.271))
+			deaf_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 			deaf_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(deaf_label)
 		elif self_mute:
 			var mute_label := Label.new()
 			mute_label.text = "M"
 			mute_label.add_theme_font_size_override("font_size", 10)
-			mute_label.add_theme_color_override("font_color", Color(0.929, 0.259, 0.271))
+			mute_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 			mute_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(mute_label)
 
@@ -188,14 +193,14 @@ func _refresh_participants() -> void:
 			var video_label := Label.new()
 			video_label.text = "V"
 			video_label.add_theme_font_size_override("font_size", 10)
-			video_label.add_theme_color_override("font_color", Color(0.231, 0.647, 0.365))
+			video_label.add_theme_color_override("font_color", ThemeManager.get_color("success"))
 			video_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(video_label)
 		if self_stream:
 			var stream_label := Label.new()
 			stream_label.text = "S"
 			stream_label.add_theme_font_size_override("font_size", 10)
-			stream_label.add_theme_color_override("font_color", Color(0.345, 0.396, 0.949))
+			stream_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
 			stream_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(stream_label)
 
@@ -211,13 +216,13 @@ func _on_mouse_entered() -> void:
 	if _gear_btn:
 		_gear_btn.visible = true
 	if AppState.voice_channel_id != channel_id:
-		type_icon.modulate = Color(0.72, 0.75, 0.78)
+		type_icon.modulate = ThemeManager.get_color("icon_hover")
 
 func _on_mouse_exited() -> void:
 	if _gear_btn:
 		_gear_btn.visible = false
 	if AppState.voice_channel_id != channel_id:
-		type_icon.modulate = Color(0.44, 0.47, 0.51)
+		type_icon.modulate = ThemeManager.get_color("icon_default")
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -264,7 +269,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 		return null
 	var preview := Label.new()
 	preview.text = "# " + _channel_data.get("name", "")
-	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	set_drag_preview(preview)
 	return {"type": "channel", "channel_data": _channel_data, "source_node": self}
 
@@ -330,7 +335,7 @@ func _clear_drop_indicator() -> void:
 func _draw() -> void:
 	if not _drop_hovered:
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
+	var line_color := ThemeManager.get_color("accent")
 	if _drop_above:
 		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
 	else:

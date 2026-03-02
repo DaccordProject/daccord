@@ -14,14 +14,18 @@ var active_dm_id: String = ""
 @onready var dm_vbox: VBoxContainer = $VBox/ScrollContainer/DMVBox
 
 func _ready() -> void:
+	add_to_group("themed")
 	header_label.add_theme_font_size_override("font_size", 11)
-	header_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
 	new_group_btn.add_theme_font_size_override("font_size", 16)
 	new_group_btn.pressed.connect(_on_new_group_pressed)
 	search.text_changed.connect(_on_search_text_changed)
 	AppState.dm_channels_updated.connect(_on_dm_channels_updated)
 	AppState.user_updated.connect(_on_user_updated)
 	_populate_dms()
+
+func _apply_theme() -> void:
+	header_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func _populate_dms() -> void:
 	for child in dm_vbox.get_children():

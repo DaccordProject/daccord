@@ -145,7 +145,7 @@ func _build_connections_page() -> VBoxContainer:
 	var loading := Label.new()
 	loading.text = "Loading connections..."
 	loading.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	vbox.add_child(loading)
 
@@ -165,7 +165,7 @@ func _fetch_connections(
 		var err_lbl := Label.new()
 		err_lbl.text = "Failed to load connections"
 		err_lbl.add_theme_color_override(
-			"font_color", Color(0.929, 0.259, 0.271)
+			"font_color", ThemeManager.get_color("error")
 		)
 		vbox.add_child(err_lbl)
 		return
@@ -174,7 +174,7 @@ func _fetch_connections(
 		var none_lbl := Label.new()
 		none_lbl.text = "No connections linked."
 		none_lbl.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		vbox.add_child(none_lbl)
 		return
@@ -189,7 +189,7 @@ func _fetch_connections(
 			var name_lbl := Label.new()
 			name_lbl.text = str(conn.get("name", ""))
 			name_lbl.add_theme_color_override(
-				"font_color", Color(0.58, 0.608, 0.643)
+				"font_color", ThemeManager.get_color("text_muted")
 			)
 			row.add_child(name_lbl)
 			vbox.add_child(row)

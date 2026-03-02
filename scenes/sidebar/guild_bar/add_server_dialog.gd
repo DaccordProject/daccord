@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal server_added(space_id: String)
 
@@ -23,6 +23,7 @@ const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tsc
 )
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 480, 0)
 	_close_btn.pressed.connect(_close)
 	_url_input.text_submitted.connect(func(_t): _on_add_pressed())
 	_add_btn.pressed.connect(_on_add_pressed)
@@ -292,15 +293,3 @@ func _show_error(msg: String) -> void:
 	_error_label.text = msg
 	_error_label.visible = true
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	# Close on backdrop click
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

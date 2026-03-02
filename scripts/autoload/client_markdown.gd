@@ -58,9 +58,10 @@ static func markdown_to_bbcode(text: String) -> String:
 	# Italic
 	result = _italic_regex.sub(result, "[i]$1[/i]", true)
 	# Spoilers ||text||
+	var spoiler_hex: String = ThemeManager.get_color("input_bg").to_html(false)
 	result = _spoiler_regex.sub(
 		result,
-		"[url=spoiler][bgcolor=#1e1f22][color=#1e1f22]$1[/color][/bgcolor][/url]",
+		"[url=spoiler][bgcolor=#" + spoiler_hex + "][color=#" + spoiler_hex + "]$1[/color][/bgcolor][/url]",
 		true,
 	)
 	# Links — block dangerous URL schemes before converting
@@ -74,9 +75,10 @@ static func markdown_to_bbcode(text: String) -> String:
 		var replacement := "[url=%s]%s[/url]" % [link_url, link_text]
 		result = result.substr(0, lm.get_start()) + replacement + result.substr(lm.get_end())
 	# Blockquotes (line-level: > text)
+	var quote_hex: String = ThemeManager.get_color("text_muted").to_html(false)
 	result = _blockquote_regex.sub(
 		result,
-		"[indent][color=#8a8e94]$1[/color][/indent]",
+		"[indent][color=#" + quote_hex + "]$1[/color][/indent]",
 		true,
 	)
 	# Emoji shortcodes :name: -> inline image

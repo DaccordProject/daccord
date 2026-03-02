@@ -16,30 +16,48 @@ var _original_edit_content: String = ""
 var _spoilers_revealed: bool = false
 var _raw_bbcode: String = ""
 var _is_system: bool = false
+var _last_data: Dictionary = {}
 
 @onready var text_content: RichTextLabel = $TextContent
 @onready var embed: PanelContainer = $Embed
 @onready var reaction_bar: HBoxContainer = $ReactionBar
 
 func _ready() -> void:
+	add_to_group("themed")
 	# Allow mouse events to pass through to the parent message node
 	# so hover detection works over the entire message area.
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	text_content.mouse_filter = Control.MOUSE_FILTER_PASS
 	text_content.meta_clicked.connect(_on_meta_clicked)
 
+func _apply_theme() -> void:
+	if _last_data.is_empty() or is_editing():
+		return
+	# Re-render text content with current theme colors
+	var raw_text: String = _last_data.get("content", "")
+	if _is_system:
+		var safe_text := raw_text.replace("[", "[lb]")
+		text_content.text = "[i][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "]" + safe_text + "[/color][/i]"
+	else:
+		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
+		if _last_data.get("edited", false):
+			bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](edited)[/color][/font_size]"
+		_raw_bbcode = bbcode
+		text_content.text = bbcode
+
 func setup(data: Dictionary) -> void:
+	_last_data = data
 	var raw_text: String = data.get("content", "")
 	_is_system = data.get("system", false)
 
 	if _is_system:
 		# Escape BBCode in system messages -- they render as plain italic text
 		var safe_text := raw_text.replace("[", "[lb]")
-		text_content.text = "[i][color=#8a8e94]" + safe_text + "[/color][/i]"
+		text_content.text = "[i][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "]" + safe_text + "[/color][/i]"
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
-			bbcode += " [font_size=11][color=#8a8e94](edited)[/color][/font_size]"
+			bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](edited)[/color][/font_size]"
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
 
@@ -86,9 +104,9 @@ func setup(data: Dictionary) -> void:
 		var size_str := _format_file_size(size_bytes)
 		var safe_fname := fname.replace("[", "[lb]")
 		att_label.text = (
-			"[color=#00aaff][url=%s]%s[/url][/color]"
+			"[color=#" + ThemeManager.get_color("link").to_html(false) + "][url=%s]%s[/url][/color]"
 			% [url, safe_fname]
-			+ " [font_size=11][color=#8a8e94](%s)[/color][/font_size]"
+			+ " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](%s)[/color][/font_size]"
 			% size_str
 		)
 		att_label.meta_clicked.connect(_on_meta_clicked)
@@ -124,11 +142,11 @@ func update_content(data: Dictionary) -> void:
 	_is_system = data.get("system", false)
 	if _is_system:
 		var safe_text := raw_text.replace("[", "[lb]")
-		text_content.text = "[i][color=#8a8e94]" + safe_text + "[/color][/i]"
+		text_content.text = "[i][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "]" + safe_text + "[/color][/i]"
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
-			bbcode += " [font_size=11][color=#8a8e94](edited)[/color][/font_size]"
+			bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](edited)[/color][/font_size]"
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
 
@@ -136,8 +154,9 @@ func _on_meta_clicked(meta: Variant) -> void:
 	var meta_str := str(meta)
 	if meta_str == "spoiler":
 		_spoilers_revealed = true
+		var spoiler_hex: String = ThemeManager.get_color("input_bg").to_html(false)
 		var revealed := _raw_bbcode.replace(
-			"[color=#1e1f22]", "[color=#dcddde]"
+			"[color=#" + spoiler_hex + "]", "[color=#" + ThemeManager.get_color("text_body").to_html(false) + "]"
 		)
 		text_content.text = revealed
 	elif meta_str.begins_with("http://") or meta_str.begins_with("https://"):
@@ -243,7 +262,7 @@ static func _format_file_size(bytes: int) -> String:
 
 func _add_loading_placeholder(container: Control) -> void:
 	var bg := ColorRect.new()
-	bg.color = Color(0.12, 0.13, 0.15)
+	bg.color = ThemeManager.get_color("input_bg")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.name = "LoadingPlaceholder"
@@ -251,7 +270,7 @@ func _add_loading_placeholder(container: Control) -> void:
 	var lbl := Label.new()
 	lbl.text = "Loading..."
 	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	lbl.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -269,7 +288,7 @@ func _show_image_error(container: Control) -> void:
 	var lbl := Label.new()
 	lbl.text = "Failed to load image"
 	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	lbl.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -285,14 +304,14 @@ func _show_gif_fallback(container: Control, url: String) -> void:
 	_remove_loading_placeholder(container)
 	container.custom_minimum_size = Vector2(200, 60)
 	var bg := ColorRect.new()
-	bg.color = Color(0.15, 0.16, 0.18)
+	bg.color = ThemeManager.get_color("nav_bg")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	container.add_child(bg)
 	var lbl := Label.new()
 	lbl.text = "GIF - Click to view"
 	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", Color(0.0, 0.667, 1.0))
+	lbl.add_theme_color_override("font_color", ThemeManager.get_color("link"))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -308,7 +327,7 @@ func _create_video_placeholder(url: String, filename: String) -> Control:
 	container.custom_minimum_size = Vector2(400, 225)
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
 	var bg := ColorRect.new()
-	bg.color = Color(0.1, 0.1, 0.12)
+	bg.color = ThemeManager.get_color("input_bg")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(bg)
@@ -327,7 +346,7 @@ func _create_video_placeholder(url: String, filename: String) -> Control:
 	var name_label := Label.new()
 	name_label.text = filename
 	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	name_label.offset_top = -24
@@ -349,7 +368,7 @@ func _create_audio_player(
 	# Background
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.16, 0.18)
+	style.bg_color = ThemeManager.get_color("nav_bg")
 	style.corner_radius_top_left = 4
 	style.corner_radius_top_right = 4
 	style.corner_radius_bottom_left = 4
@@ -379,13 +398,13 @@ func _create_audio_player(
 	var time_label := Label.new()
 	time_label.text = "0:00"
 	time_label.add_theme_font_size_override("font_size", 11)
-	time_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	time_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	inner_row.add_child(time_label)
 	# Filename
 	var name_label := Label.new()
 	name_label.text = filename
 	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	inner_row.add_child(name_label)
 	row.add_child(panel)
 	# Audio playback logic
@@ -461,7 +480,7 @@ func enter_edit_mode(message_id: String, content: String) -> void:
 	_edit_hint_label = Label.new()
 	_edit_hint_label.text = "Enter to save \u00b7 Escape to cancel \u00b7 Shift+Enter for newline"
 	_edit_hint_label.add_theme_font_size_override("font_size", 11)
-	_edit_hint_label.add_theme_color_override("font_color", Color(0.541, 0.557, 0.580))
+	_edit_hint_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	add_child(_edit_hint_label)
 	move_child(_edit_hint_label, 1)
 
@@ -502,7 +521,7 @@ func _on_edit_input(event: InputEvent) -> void:
 			elif not new_text.is_empty():
 				# Optimistic update: show new content with "(saving...)" indicator
 				var bbcode := ClientModels.markdown_to_bbcode(new_text)
-				bbcode += " [font_size=11][color=#8a8e94](saving...)[/color][/font_size]"
+				bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](saving...)[/color][/font_size]"
 				text_content.text = bbcode
 				AppState.edit_message(_editing_message_id, new_text)
 				_exit_edit_mode()
@@ -527,7 +546,7 @@ func show_edit_error(error: String) -> void:
 	_edit_error_label = Label.new()
 	_edit_error_label.text = error
 	_edit_error_label.add_theme_font_size_override("font_size", 11)
-	_edit_error_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	_edit_error_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	add_child(_edit_error_label)
 	# Place after TextEdit and hint if editing, otherwise at the top
 	if _edit_input:
