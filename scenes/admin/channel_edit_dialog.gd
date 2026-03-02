@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 signal saved
 
@@ -16,6 +16,7 @@ var _dirty: bool = false
 @onready var _save_btn: Button = $CenterContainer/Panel/VBox/Buttons/SaveButton
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 380, 0)
 	_close_btn.pressed.connect(_close)
 	_cancel_btn.pressed.connect(_close)
 	_save_btn.pressed.connect(_on_save)

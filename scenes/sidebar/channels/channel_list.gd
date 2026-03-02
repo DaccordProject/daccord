@@ -160,7 +160,7 @@ func load_space(space_id: String) -> void:
 		create_btn.flat = true
 		create_btn.custom_minimum_size = Vector2(0, 36)
 		create_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		create_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		create_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		create_btn.pressed.connect(_on_create_channel_pressed.bind(space_id, channels))
 		channel_vbox.add_child(create_btn)
 

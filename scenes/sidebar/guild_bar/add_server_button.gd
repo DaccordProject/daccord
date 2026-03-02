@@ -3,24 +3,31 @@ extends HBoxContainer
 signal add_server_pressed()
 
 var _pulse_tween: Tween
+var _normal_style: StyleBoxFlat
+var _hover_style: StyleBoxFlat
 
 @onready var pill: ColorRect = $PillContainer/Pill
 @onready var icon_button: Button = $IconButton
 
 func _ready() -> void:
+	add_to_group("themed")
 	icon_button.pressed.connect(_on_pressed)
 	icon_button.tooltip_text = "Add a Server"
+	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)
 	# Style the button as a circle
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.212, 0.224, 0.247)
-	style.corner_radius_top_left = 24
-	style.corner_radius_top_right = 24
-	style.corner_radius_bottom_left = 24
-	style.corner_radius_bottom_right = 24
-	icon_button.add_theme_stylebox_override("normal", style)
-	var hover_style := style.duplicate()
-	hover_style.bg_color = Color(0.176, 0.557, 0.384)
-	icon_button.add_theme_stylebox_override("hover", hover_style)
+	_normal_style = StyleBoxFlat.new()
+	_normal_style.corner_radius_top_left = 24
+	_normal_style.corner_radius_top_right = 24
+	_normal_style.corner_radius_bottom_left = 24
+	_normal_style.corner_radius_bottom_right = 24
+	icon_button.add_theme_stylebox_override("normal", _normal_style)
+	_hover_style = _normal_style.duplicate()
+	icon_button.add_theme_stylebox_override("hover", _hover_style)
+	_apply_theme()
+
+func _apply_theme() -> void:
+	_normal_style.bg_color = ThemeManager.get_color("nav_bg")
+	_hover_style.bg_color = ThemeManager.get_color("success")
 
 	# Pulse animation when no servers are configured
 	if not Config.has_servers():
@@ -46,3 +53,7 @@ func _stop_pulse() -> void:
 		_pulse_tween.kill()
 		_pulse_tween = null
 	icon_button.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+func _on_reduce_motion_changed(enabled: bool) -> void:
+	if enabled:
+		_stop_pulse()

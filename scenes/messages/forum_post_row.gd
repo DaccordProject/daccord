@@ -14,11 +14,13 @@ var _reply_count_label: Label
 var _last_activity_label: Label
 var _preview_label: Label
 
+var _dot1: Label
 var _dot2: Label
 var _hover_style: StyleBoxFlat
 var _normal_style: StyleBoxFlat
 
 func _ready() -> void:
+	add_to_group("themed")
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	# Normal style (transparent)
@@ -35,7 +37,7 @@ func _ready() -> void:
 
 	# Hover style
 	_hover_style = _normal_style.duplicate()
-	_hover_style.bg_color = Color(0.24, 0.25, 0.27, 1)
+	_hover_style.bg_color = ThemeManager.get_color("button_hover")
 
 	add_theme_stylebox_override("panel", _normal_style)
 
@@ -57,7 +59,7 @@ func _ready() -> void:
 
 	_title_label = Label.new()
 	_title_label.add_theme_font_size_override("font_size", 15)
-	_title_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	info.add_child(_title_label)
 
 	var meta := HBoxContainer.new()
@@ -66,34 +68,34 @@ func _ready() -> void:
 
 	_author_label = Label.new()
 	_author_label.add_theme_font_size_override("font_size", 12)
-	_author_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+	_author_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	meta.add_child(_author_label)
 
-	var dot1 := Label.new()
-	dot1.text = " \u00b7 "
-	dot1.add_theme_font_size_override("font_size", 12)
-	dot1.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
-	meta.add_child(dot1)
+	_dot1 = Label.new()
+	_dot1.text = " \u00b7 "
+	_dot1.add_theme_font_size_override("font_size", 12)
+	_dot1.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	meta.add_child(_dot1)
 
 	_reply_count_label = Label.new()
 	_reply_count_label.add_theme_font_size_override("font_size", 12)
-	_reply_count_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+	_reply_count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	meta.add_child(_reply_count_label)
 
 	_dot2 = Label.new()
 	_dot2.text = " \u00b7 "
 	_dot2.add_theme_font_size_override("font_size", 12)
-	_dot2.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+	_dot2.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	meta.add_child(_dot2)
 
 	_last_activity_label = Label.new()
 	_last_activity_label.add_theme_font_size_override("font_size", 12)
-	_last_activity_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+	_last_activity_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	meta.add_child(_last_activity_label)
 
 	_preview_label = Label.new()
 	_preview_label.add_theme_font_size_override("font_size", 13)
-	_preview_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+	_preview_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_preview_label.max_lines_visible = 2
 	info.add_child(_preview_label)
@@ -103,6 +105,17 @@ func _ready() -> void:
 
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	_apply_layout(AppState.current_layout_mode)
+
+func _apply_theme() -> void:
+	_hover_style.bg_color = ThemeManager.get_color("button_hover")
+	_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	var muted := ThemeManager.get_color("text_muted")
+	_author_label.add_theme_color_override("font_color", muted)
+	_dot1.add_theme_color_override("font_color", muted)
+	_reply_count_label.add_theme_color_override("font_color", muted)
+	_dot2.add_theme_color_override("font_color", muted)
+	_last_activity_label.add_theme_color_override("font_color", muted)
+	_preview_label.add_theme_color_override("font_color", muted)
 
 func setup(data: Dictionary) -> void:
 	_post_data = data

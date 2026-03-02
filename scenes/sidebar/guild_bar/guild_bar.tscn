@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scenes/sidebar/guild_bar/guild_bar.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/dm_button.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/add_server_button.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/discover_button.tscn" id="7"]
 
 [sub_resource type="StyleBoxFlat" id="guild_bar_bg"]
 bg_color = Color(0.125, 0.133, 0.145, 1)
@@ -47,4 +48,7 @@ layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="AddServerButton" parent="ScrollContainer/VBox" instance=ExtResource("6")]
+layout_mode = 2
+
+[node name="DiscoverButton" parent="ScrollContainer/VBox" instance=ExtResource("7")]
 layout_mode = 2

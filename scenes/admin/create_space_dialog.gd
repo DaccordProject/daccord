@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 ## Dialog for creating a new space on the instance.
 ## Instantiate via `var d = CreateSpaceDialog.new(); root.add_child(d)`.
@@ -13,61 +13,20 @@ var _create_btn: Button
 var _error_label: Label
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	color = Color(0, 0, 0, 0.6)
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	_setup_modal("Create Space", 440.0, 400.0, true, 20.0)
 
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(440, 400)
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.188, 0.196, 0.212)
-	panel_style.set_corner_radius_all(8)
-	panel.add_theme_stylebox_override("panel", panel_style)
-	center.add_child(panel)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	panel.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
-	margin.add_child(vbox)
-
-	# Header
-	var header := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "Create Space"
-	title.add_theme_font_size_override("font_size", 18)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-	var close_btn := Button.new()
-	close_btn.text = "  X  "
-	close_btn.flat = true
-	close_btn.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
-	)
-	close_btn.add_theme_color_override(
-		"font_hover_color", Color.WHITE
-	)
-	close_btn.pressed.connect(queue_free)
-	header.add_child(close_btn)
-	vbox.add_child(header)
+	# Override title font size to match original
+	if _modal_title_label:
+		_modal_title_label.add_theme_font_size_override("font_size", 18)
 
 	# Icon upload
 	var icon_section := Label.new()
 	icon_section.text = "SPACE ICON"
 	icon_section.add_theme_font_size_override("font_size", 11)
 	icon_section.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
-	vbox.add_child(icon_section)
+	content_container.add_child(icon_section)
 
 	var icon_row := HBoxContainer.new()
 	icon_row.add_theme_constant_override("separation", 12)
@@ -82,46 +41,46 @@ func _ready() -> void:
 	)
 	upload_btn.pressed.connect(_on_icon_upload)
 	icon_row.add_child(upload_btn)
-	vbox.add_child(icon_row)
+	content_container.add_child(icon_row)
 
 	# Name
 	var name_label := Label.new()
 	name_label.text = "SPACE NAME"
 	name_label.add_theme_font_size_override("font_size", 11)
 	name_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
-	vbox.add_child(name_label)
+	content_container.add_child(name_label)
 	_name_input = LineEdit.new()
 	_name_input.placeholder_text = "My Space"
-	vbox.add_child(_name_input)
+	content_container.add_child(_name_input)
 
 	# Description
 	var desc_label := Label.new()
 	desc_label.text = "DESCRIPTION (optional)"
 	desc_label.add_theme_font_size_override("font_size", 11)
 	desc_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
-	vbox.add_child(desc_label)
+	content_container.add_child(desc_label)
 	_desc_input = TextEdit.new()
 	_desc_input.custom_minimum_size = Vector2(0, 60)
 	_desc_input.placeholder_text = "What is this space about?"
-	vbox.add_child(_desc_input)
+	content_container.add_child(_desc_input)
 
 	# Error
 	_error_label = Label.new()
 	_error_label.add_theme_color_override(
-		"font_color", Color(0.929, 0.259, 0.271)
+		"font_color", ThemeManager.get_color("error")
 	)
 	_error_label.add_theme_font_size_override("font_size", 13)
 	_error_label.visible = false
-	vbox.add_child(_error_label)
+	content_container.add_child(_error_label)
 
 	# Create button
 	_create_btn = SettingsBase.create_action_button("Create")
 	_create_btn.pressed.connect(_on_create)
-	vbox.add_child(_create_btn)
+	content_container.add_child(_create_btn)
 
 func _on_icon_upload() -> void:
 	var fd := FileDialog.new()
@@ -183,12 +142,3 @@ func _on_create() -> void:
 		_error_label.visible = true
 	else:
 		queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		queue_free()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		queue_free()
-		get_viewport().set_input_as_handled()

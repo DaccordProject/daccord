@@ -1,0 +1,70 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/discovery/discovery_panel.gd" id="1"]
+
+[node name="DiscoveryPanel" type="PanelContainer"]
+visible = false
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Margin/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Discover Servers"
+theme_override_font_sizes/font_size = 20
+
+[node name="CloseButton" type="Button" parent="Margin/VBox/Header"]
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "✕"
+flat = true
+
+[node name="SearchInput" type="LineEdit" parent="Margin/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+placeholder_text = "Search servers..."
+clear_button_enabled = true
+
+[node name="TagBar" type="HFlowContainer" parent="Margin/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Grid" type="GridContainer" parent="Margin/VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 3
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+
+[node name="StatusLabel" type="Label" parent="Margin/VBox"]
+visible = false
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="DetailContainer" type="PanelContainer" parent="Margin/VBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3

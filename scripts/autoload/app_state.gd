@@ -126,6 +126,10 @@ signal thread_closed()
 @warning_ignore("unused_signal")
 signal thread_messages_updated(parent_message_id: String)
 @warning_ignore("unused_signal")
+signal thread_typing_started(thread_id: String, username: String)
+@warning_ignore("unused_signal")
+signal thread_typing_stopped(thread_id: String)
+@warning_ignore("unused_signal")
 signal forum_posts_updated(channel_id: String)
 
 # Auto-update signals
@@ -156,6 +160,20 @@ signal config_changed(section: String, key: String)
 @warning_ignore("unused_signal")
 signal config_save_failed(error_code: int)
 
+# Theme changed (palette swap or custom color edit)
+@warning_ignore("unused_signal")
+signal theme_changed()
+
+# Reduce-motion preference toggled
+@warning_ignore("unused_signal")
+signal reduce_motion_changed(enabled: bool)
+
+# Discovery panel opened/closed
+@warning_ignore("unused_signal")
+signal discovery_opened()
+@warning_ignore("unused_signal")
+signal discovery_closed()
+
 enum LayoutMode { COMPACT, MEDIUM, FULL }
 
 const COMPACT_BREAKPOINT: float = 500.0
@@ -182,6 +200,7 @@ var spotlight_user_id: String = ""
 var pending_attachments: Array = []
 var current_thread_id: String = ""
 var thread_panel_visible: bool = false
+var is_discovery_open: bool = false
 var is_imposter_mode: bool = false
 var imposter_permissions: Array = []
 var imposter_role_name: String = ""
@@ -335,6 +354,18 @@ func close_thread() -> void:
 	current_thread_id = ""
 	thread_panel_visible = false
 	thread_closed.emit()
+
+func open_discovery() -> void:
+	if is_discovery_open:
+		return
+	is_discovery_open = true
+	discovery_opened.emit()
+
+func close_discovery() -> void:
+	if not is_discovery_open:
+		return
+	is_discovery_open = false
+	discovery_closed.emit()
 
 func enter_imposter_mode(role_data: Dictionary) -> void:
 	is_imposter_mode = true

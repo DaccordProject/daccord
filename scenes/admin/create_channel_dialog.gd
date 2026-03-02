@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 var _space_id: String = ""
 var _parent_id: String = ""
@@ -13,6 +13,7 @@ var _parent_id: String = ""
 @onready var _create_btn: Button = $CenterContainer/Panel/VBox/Buttons/CreateButton
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 380, 0)
 	_close_btn.pressed.connect(_close)
 	_cancel_btn.pressed.connect(_close)
 	_create_btn.pressed.connect(_on_create)
@@ -87,14 +88,3 @@ func _on_create() -> void:
 	else:
 		queue_free()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

@@ -13,11 +13,12 @@ var _is_hovered: bool = false
 @onready var timestamp_spacer: Control = $TimestampSpacer
 
 func _ready() -> void:
+	add_to_group("themed")
 	# Allow mouse events to pass through so hover detection
 	# covers the entire message area.
 	timestamp_spacer.mouse_filter = Control.MOUSE_FILTER_PASS
 	timestamp_label.add_theme_font_size_override("font_size", 11)
-	timestamp_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
 	timestamp_label.visible = false
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
@@ -27,6 +28,10 @@ func _ready() -> void:
 	# Listen for layout changes to show timestamps in compact mode
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	_apply_timestamp_visibility(AppState.current_layout_mode)
+
+func _apply_theme() -> void:
+	timestamp_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	queue_redraw()
 
 func setup(data: Dictionary) -> void:
 	_message_data = data
@@ -92,4 +97,4 @@ func set_hovered(hovered: bool) -> void:
 
 func _draw() -> void:
 	if _is_hovered:
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.24, 0.25, 0.27, 0.3))
+		draw_rect(Rect2(Vector2.ZERO, size), Color(ThemeManager.get_color("button_hover"), 0.3))

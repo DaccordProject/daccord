@@ -21,25 +21,30 @@ var _is_hovered: bool = false
 @onready var thread_count_label: Label = $ContentColumn/ThreadIndicator/ThreadCountLabel
 
 func _ready() -> void:
+	add_to_group("themed")
 	# Allow mouse events to pass through child controls so hover
 	# detection covers the entire message area, not just gaps.
 	content_column.mouse_filter = Control.MOUSE_FILTER_PASS
 	header.mouse_filter = Control.MOUSE_FILTER_PASS
 	timestamp_label.add_theme_font_size_override("font_size", 11)
-	timestamp_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
 	reply_author.add_theme_font_size_override("font_size", 12)
 	reply_preview.add_theme_font_size_override("font_size", 12)
-	reply_preview.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
 	gui_input.connect(_on_gui_input)
 	# Long-press for touch
 	_long_press = LongPressDetector.new(self, _emit_context_menu)
+
+func _apply_theme() -> void:
+	timestamp_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	reply_preview.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	queue_redraw()
 
 func setup(data: Dictionary) -> void:
 	_message_data = data
 	var user: Dictionary = data.get("author", {})
 	author_label.text = user.get("display_name", "Unknown")
 	author_label.add_theme_color_override("font_color", user.get("color", Color.WHITE))
-	avatar.set_avatar_color(user.get("color", Color(0.345, 0.396, 0.949)))
+	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
 	var display_name: String = user.get("display_name", "")
 	if display_name.length() > 0:
 		avatar.set_letter(display_name[0].to_upper())
@@ -60,7 +65,7 @@ func setup(data: Dictionary) -> void:
 		else:
 			reply_author.text = ""
 			reply_preview.text = "Loading reply..."
-			reply_preview.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+			reply_preview.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 			var channel_id: String = data.get("channel_id", "")
 			_fetch_reply_reference(reply_to, channel_id)
 	else:
@@ -75,10 +80,15 @@ func setup(data: Dictionary) -> void:
 		var suffix: String = "reply" if thread_reply_count == 1 else "replies"
 		thread_count_label.text = "%d %s" % [thread_reply_count, suffix]
 		thread_count_label.add_theme_font_size_override("font_size", 12)
-		thread_count_label.add_theme_color_override("font_color", Color(0.345, 0.396, 0.949))
+		thread_count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
 		# Detect unread thread
 		if Client._thread_unread.has(data.get("id", "")):
-			thread_count_label.add_theme_color_override("font_color", Color(0.4, 0.5, 1.0))
+			thread_count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent_hover"))
+		# Show mention badge
+		var mention_count: int = Client._thread_mention_count.get(data.get("id", ""), 0)
+		if mention_count > 0:
+			thread_count_label.text += " \u00b7 @%d" % mention_count
+			thread_count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent_hover"))
 		thread_indicator.gui_input.connect(_on_thread_indicator_input)
 		thread_indicator.mouse_filter = Control.MOUSE_FILTER_STOP
 		thread_indicator.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -129,7 +139,7 @@ func update_author(user: Dictionary) -> void:
 	_message_data["author"] = user
 	author_label.text = user.get("display_name", "Unknown")
 	author_label.add_theme_color_override("font_color", user.get("color", Color.WHITE))
-	avatar.set_avatar_color(user.get("color", Color(0.345, 0.396, 0.949)))
+	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
 	var display_name: String = user.get("display_name", "")
 	if display_name.length() > 0:
 		avatar.set_letter(display_name[0].to_upper())
@@ -184,4 +194,4 @@ func set_hovered(hovered: bool) -> void:
 
 func _draw() -> void:
 	if _is_hovered:
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.24, 0.25, 0.27, 0.3))
+		draw_rect(Rect2(Vector2.ZERO, size), Color(ThemeManager.get_color("button_hover"), 0.3))

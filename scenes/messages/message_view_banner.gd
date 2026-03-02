@@ -27,19 +27,25 @@ func _init(
 	_get_space_for_channel = get_space
 
 	_style_warning = StyleBoxFlat.new()
-	_style_warning.bg_color = Color(0.75, 0.55, 0.1, 0.9)
+	_style_warning.bg_color = Color(ThemeManager.get_color("warning"), 0.9)
 	_style_warning.set_content_margin_all(6)
 	_style_warning.set_corner_radius_all(4)
 
 	_style_error = StyleBoxFlat.new()
-	_style_error.bg_color = Color(0.75, 0.2, 0.2, 0.9)
+	_style_error.bg_color = Color(ThemeManager.get_color("error"), 0.9)
 	_style_error.set_content_margin_all(6)
 	_style_error.set_corner_radius_all(4)
 
 	_style_success = StyleBoxFlat.new()
-	_style_success.bg_color = Color(0.2, 0.65, 0.3, 0.9)
+	_style_success.bg_color = Color(ThemeManager.get_color("success"), 0.9)
 	_style_success.set_content_margin_all(6)
 	_style_success.set_corner_radius_all(4)
+
+
+func update_styles() -> void:
+	_style_warning.bg_color = Color(ThemeManager.get_color("warning"), 0.9)
+	_style_error.bg_color = Color(ThemeManager.get_color("error"), 0.9)
+	_style_success.bg_color = Color(ThemeManager.get_color("success"), 0.9)
 
 
 func on_server_disconnected(

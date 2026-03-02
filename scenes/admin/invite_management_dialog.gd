@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const InviteRowScene := preload("res://scenes/admin/invite_row.tscn")
@@ -25,6 +25,7 @@ var _selected_codes: Array = []
 @onready var _bulk_revoke_btn: Button = $CenterContainer/Panel/VBox/BulkBar/BulkRevokeBtn
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 460, 0)
 	_close_btn.pressed.connect(_close)
 	_create_toggle.pressed.connect(_toggle_create)
 	_create_btn.pressed.connect(_on_create)
@@ -211,14 +212,3 @@ func _on_invites_updated(space_id: String) -> void:
 	if space_id == _space_id:
 		_load_invites()
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()

@@ -9,7 +9,11 @@ func setup(new_space_id: String) -> void:
 	space_id = new_space_id
 
 func _ready() -> void:
+	add_to_group("themed")
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+func _apply_theme() -> void:
+	queue_redraw()
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary or data.get("type", "") != "channel":
@@ -44,6 +48,6 @@ func _clear_drop_indicator() -> void:
 func _draw() -> void:
 	if not _drop_hovered:
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
+	var line_color := ThemeManager.get_color("accent")
 	var mid_y: float = size.y / 2.0
 	draw_line(Vector2(0, mid_y), Vector2(size.x, mid_y), line_color, 2.0)

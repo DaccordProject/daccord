@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 var _version_info: Dictionary = {}
 var _total_size: int = 0
@@ -16,6 +16,7 @@ var _total_size: int = 0
 @onready var _later_btn: Button = $CenterContainer/Panel/VBox/ButtonRow/LaterButton
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 400, 0)
 	_close_btn.pressed.connect(_close)
 	_cancel_btn.pressed.connect(_on_cancel)
 	_retry_btn.pressed.connect(_on_retry)
@@ -101,14 +102,6 @@ func _close() -> void:
 	AppState.update_download_failed.disconnect(_on_failed)
 	queue_free()
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()
 
 static func _format_size(bytes: int) -> String:
 	if bytes < 1024:

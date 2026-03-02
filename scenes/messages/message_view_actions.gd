@@ -98,6 +98,10 @@ func on_context_menu_requested(
 	_context_menu.set_item_disabled(
 		2, not (is_own or can_manage)
 	)
+	var can_thread: bool = Client.has_channel_permission(
+		space_id, channel_id, AccordPermission.CREATE_THREADS
+	)
+	_context_menu.set_item_disabled(5, not can_thread)
 	var has_reactions: bool = (
 		msg_data.get("reactions", []).size() > 0
 	)

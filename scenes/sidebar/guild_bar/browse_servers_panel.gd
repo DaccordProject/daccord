@@ -15,39 +15,30 @@ func _ready() -> void:
 	_search_input.text_changed.connect(_on_search_changed)
 	_fetch_servers()
 
-func _fetch_servers() -> void:
+func _fetch_servers(query: String = "") -> void:
 	_status_label.text = "Loading servers..."
 	_status_label.visible = true
 
 	var master_url: String = Config.get_master_server_url()
-	var url := master_url.trim_suffix("/") + "/api/v1/servers"
-
 	var rest := AccordRest.new(master_url)
 	add_child(rest)
 
-	var http := HTTPRequest.new()
-	add_child(http)
-	http.request(url)
-	var result: Array = await http.request_completed
-	http.queue_free()
+	var api := DirectoryApi.new(rest)
+	var result: RestResult = await api.browse(query)
 	rest.queue_free()
 
-	var response_code: int = result[1]
-	var body: PackedByteArray = result[3]
-
-	if response_code == 0 or response_code >= 400:
-		_status_label.text = "Could not reach master server"
+	if not result.ok:
+		var msg: String = result.error.message if result.error else "Could not reach master server"
+		_status_label.text = msg
 		return
 
-	var json := JSON.new()
-	var parse_err := json.parse(body.get_string_from_utf8())
-	if parse_err != OK:
-		_status_label.text = "Failed to parse server list"
-		return
-
-	var data = json.data
-	if data is Dictionary and data.has("data"):
+	var data = result.data
+	if data is Dictionary and data.has("spaces"):
+		_all_servers = data["spaces"]
+	elif data is Dictionary and data.has("data"):
 		_all_servers = data["data"]
+	elif data is Array:
+		_all_servers = data
 	else:
 		_all_servers = []
 

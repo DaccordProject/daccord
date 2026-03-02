@@ -8,9 +8,9 @@ const ANNOUNCEMENT_ICON := preload("res://assets/theme/icons/announcement_channe
 const FORUM_ICON := preload("res://assets/theme/icons/forum_channel.svg")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
-const ICON_COLOR_DEFAULT := Color(0.44, 0.47, 0.51)
-const ICON_COLOR_HOVER := Color(0.72, 0.75, 0.78)
-const ICON_COLOR_ACTIVE := Color(0.88, 0.9, 0.92)
+var ICON_COLOR_DEFAULT: Color = ThemeManager.get_color("icon_default")
+var ICON_COLOR_HOVER: Color = ThemeManager.get_color("icon_hover")
+var ICON_COLOR_ACTIVE: Color = ThemeManager.get_color("icon_active")
 
 var channel_id: String = ""
 var space_id: String = ""
@@ -29,6 +29,7 @@ var _is_active: bool = false
 @onready var active_pill: ColorRect = $ActivePill
 
 func _ready() -> void:
+	add_to_group("themed")
 	pressed.connect(func(): channel_pressed.emit(channel_id))
 
 	_context_menu = PopupMenu.new()
@@ -40,6 +41,14 @@ func _ready() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 	active_bg.visible = false
 	active_pill.visible = false
+
+func _apply_theme() -> void:
+	ICON_COLOR_DEFAULT = ThemeManager.get_color("icon_default")
+	ICON_COLOR_HOVER = ThemeManager.get_color("icon_hover")
+	ICON_COLOR_ACTIVE = ThemeManager.get_color("icon_active")
+	_apply_text_color()
+	_apply_icon_color()
+	queue_redraw()
 
 func setup(data: Dictionary) -> void:
 	channel_id = data.get("id", "")
@@ -62,7 +71,7 @@ func setup(data: Dictionary) -> void:
 			type_icon.texture = TEXT_ICON
 	# NSFW indicator - tint icon red
 	if data.get("nsfw", false):
-		type_icon.modulate = Color(0.9, 0.2, 0.2)
+		type_icon.modulate = ThemeManager.get_color("error")
 	else:
 		_apply_icon_color()
 
@@ -72,7 +81,7 @@ func setup(data: Dictionary) -> void:
 		var count_label := Label.new()
 		count_label.text = str(voice_users)
 		count_label.add_theme_font_size_override("font_size", 11)
-		count_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		$HBox.add_child(count_label)
 		$HBox.move_child(count_label, $HBox.get_child_count() - 1)
@@ -91,7 +100,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		_gear_btn.add_theme_font_size_override("font_size", 14)
-		_gear_btn.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		_gear_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		_gear_btn.tooltip_text = "Edit Channel"
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$HBox.add_child(_gear_btn)
@@ -105,9 +114,9 @@ func set_active(active: bool) -> void:
 
 func _apply_text_color() -> void:
 	if _has_unread or _is_active:
-		channel_name.add_theme_color_override("font_color", Color(1, 1, 1))
+		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
-		channel_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func _apply_icon_color() -> void:
 	if _channel_data.get("nsfw", false):
@@ -172,7 +181,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 		return null
 	var preview := Label.new()
 	preview.text = "# " + _channel_data.get("name", "")
-	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	set_drag_preview(preview)
 	return {"type": "channel", "channel_data": _channel_data, "source_node": self}
 
@@ -238,7 +247,7 @@ func _clear_drop_indicator() -> void:
 func _draw() -> void:
 	if not _drop_hovered:
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
+	var line_color := ThemeManager.get_color("accent")
 	if _drop_above:
 		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
 	else:

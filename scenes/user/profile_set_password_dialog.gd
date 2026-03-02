@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 var _slug: String = ""
 var _has_existing_pw: bool = false
@@ -18,6 +18,7 @@ func setup(slug: String, has_password: bool) -> void:
 
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 380, 0)
 	_save_btn.pressed.connect(_on_save)
 	_remove_btn.pressed.connect(_on_remove)
 
@@ -75,12 +76,3 @@ func _show_error(msg: String) -> void:
 	_error_label.visible = true
 
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		queue_free()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		queue_free()
-		get_viewport().set_input_as_handled()

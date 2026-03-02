@@ -292,6 +292,10 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 					fp["last_reply_at"] = msg_dict.get("timestamp", "")
 					AppState.forum_posts_updated.emit(forum_ch_id)
 					break
+		# Track thread mentions
+		var my_id: String = _c.current_user.get("id", "")
+		if my_id in message.mentions:
+			_c._thread_mention_count[tid] = _c._thread_mention_count.get(tid, 0) + 1
 		# Mark thread as unread if panel is not open for it
 		if AppState.current_thread_id != tid:
 			_c._thread_unread[tid] = true
@@ -472,6 +476,27 @@ func on_typing_start(data: Dictionary) -> void:
 		return
 	var user_dict: Dictionary = _c.get_user_by_id(user_id)
 	var username: String = user_dict.get("display_name", "Someone")
+
+	# Thread-scoped typing
+	var thread_id: String = str(data.get("thread_id", ""))
+	if not thread_id.is_empty():
+		AppState.thread_typing_started.emit(thread_id, username)
+		var timer_key: String = "thread_" + thread_id
+		if _typing_timers.has(timer_key) and is_instance_valid(_typing_timers[timer_key]):
+			_typing_timers[timer_key].queue_free()
+		var t_timer := Timer.new()
+		t_timer.wait_time = 10.0
+		t_timer.one_shot = true
+		t_timer.timeout.connect(func():
+			AppState.thread_typing_stopped.emit(thread_id)
+			_typing_timers.erase(timer_key)
+			t_timer.queue_free()
+		)
+		_c.add_child(t_timer)
+		t_timer.start()
+		_typing_timers[timer_key] = t_timer
+		return
+
 	AppState.typing_started.emit(channel_id, username)
 	# Reset/create timeout to emit typing_stopped
 	if _typing_timers.has(channel_id) and is_instance_valid(_typing_timers[channel_id]):

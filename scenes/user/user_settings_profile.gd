@@ -39,7 +39,7 @@ func build(
 	_profile_avatar.custom_minimum_size = Vector2(80, 80)
 	_profile_avatar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_profile_avatar.set_avatar_color(
-		user.get("color", Color(0.345, 0.396, 0.949))
+		user.get("color", ThemeManager.get_color("accent"))
 	)
 	var dn: String = user.get("display_name", "")
 	if dn.length() > 0:

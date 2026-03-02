@@ -17,15 +17,24 @@ const MAX_FIELDS_PER_ROW := 3
 @onready var footer_label: Label = $ContentRow/VBox/Footer
 @onready var thumbnail_rect: TextureRect = $ContentRow/Thumbnail
 
+var _last_data: Dictionary = {}
+
 func _ready() -> void:
+	add_to_group("themed")
 	title_rtl.add_theme_font_size_override("font_size", 14)
 	title_rtl.meta_clicked.connect(_on_meta_clicked)
 	author_name_rtl.add_theme_font_size_override("font_size", 12)
 	author_name_rtl.meta_clicked.connect(_on_meta_clicked)
 	footer_label.add_theme_font_size_override("font_size", 11)
-	footer_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
+
+func _apply_theme() -> void:
+	footer_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	if not _last_data.is_empty():
+		setup(_last_data)
 
 func setup(data: Dictionary) -> void:
+	_last_data = data
 	if data.is_empty():
 		visible = false
 		return
@@ -39,12 +48,13 @@ func setup(data: Dictionary) -> void:
 		author_row.visible = true
 		var aname: String = author_data.get("name", "")
 		var aurl: String = author_data.get("url", "")
+		var white_hex: String = ThemeManager.get_color("text_white").to_html(false)
 		if not aurl.is_empty():
 			author_name_rtl.text = (
-				"[url=%s][color=#ffffff]%s[/color][/url]" % [aurl, aname]
+				"[url=%s][color=#%s]%s[/color][/url]" % [aurl, white_hex, aname]
 			)
 		else:
-			author_name_rtl.text = "[color=#ffffff]%s[/color]" % aname
+			author_name_rtl.text = "[color=#%s]%s[/color]" % [white_hex, aname]
 		var icon_url: String = author_data.get("icon_url", "")
 		if not icon_url.is_empty():
 			_load_remote_image(icon_url, author_icon, 24, 24)
@@ -58,12 +68,14 @@ func setup(data: Dictionary) -> void:
 	var embed_url: String = data.get("url", "")
 	if not title_text.is_empty():
 		title_rtl.visible = true
+		var link_hex: String = ThemeManager.get_color("link").to_html(false)
 		if not embed_url.is_empty():
 			title_rtl.text = (
-				"[url=%s][color=#00aaff]%s[/color][/url]" % [embed_url, title_text]
+				"[url=%s][color=#%s]%s[/color][/url]" % [embed_url, link_hex, title_text]
 			)
 		else:
-			title_rtl.text = "[color=#ffffff]%s[/color]" % title_text
+			var title_white_hex: String = ThemeManager.get_color("text_white").to_html(false)
+			title_rtl.text = "[color=#%s]%s[/color]" % [title_white_hex, title_text]
 	else:
 		title_rtl.visible = false
 
@@ -109,7 +121,7 @@ func setup(data: Dictionary) -> void:
 	footer_label.visible = not footer_label.text.is_empty()
 
 	# --- Border color ---
-	var embed_color: Color = data.get("color", Color(0.345, 0.396, 0.949))
+	var embed_color: Color = data.get("color", ThemeManager.get_color("accent"))
 	var style: StyleBoxFlat = get_theme_stylebox("panel").duplicate()
 	style.border_color = embed_color
 	add_theme_stylebox_override("panel", style)
@@ -171,7 +183,7 @@ func _create_field_cell(field: Dictionary) -> VBoxContainer:
 	var name_label := Label.new()
 	name_label.text = field.get("name", "")
 	name_label.add_theme_font_size_override("font_size", 12)
-	name_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cell.add_child(name_label)
 

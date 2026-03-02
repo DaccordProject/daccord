@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 ## Permission overwrite states
 enum OverwriteState { INHERIT, ALLOW, DENY }
@@ -6,7 +6,8 @@ enum OverwriteState { INHERIT, ALLOW, DENY }
 const PermOverwriteRowScene := preload("res://scenes/admin/perm_overwrite_row.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 
-const SELECTED_BG := Color(0.25, 0.27, 0.3, 1.0)
+var SELECTED_BG: Color:
+	get: return ThemeManager.get_color("secondary_button")
 
 # Permissions only relevant to voice channels
 const VOICE_ONLY_PERMS := [
@@ -49,6 +50,7 @@ var _original_overwrite_types: Dictionary = {}
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 640, 480)
 	_close_btn.pressed.connect(_try_close)
 	_save_btn.pressed.connect(_on_save)
 	_reset_btn.pressed.connect(_on_reset)
@@ -130,7 +132,7 @@ func _rebuild_role_list() -> void:
 		var member_label := Label.new()
 		member_label.text = "MEMBERS"
 		member_label.add_theme_color_override(
-			"font_color", Color(0.7, 0.7, 0.7, 1)
+			"font_color", ThemeManager.get_color("text_body")
 		)
 		member_label.add_theme_font_size_override("font_size", 11)
 		_role_list.add_child(member_label)
@@ -146,7 +148,7 @@ func _rebuild_role_list() -> void:
 	add_btn.custom_minimum_size = Vector2(140, 28)
 	add_btn.text = "+ Add Member"
 	add_btn.add_theme_color_override(
-		"font_color", Color(0.345, 0.396, 0.949, 1)
+		"font_color", ThemeManager.get_color("accent")
 	)
 	add_btn.pressed.connect(_on_add_member_overwrite)
 	_role_list.add_child(add_btn)
@@ -168,7 +170,7 @@ func _add_member_button(user_id: String) -> void:
 
 	btn.text = display_name
 	btn.add_theme_color_override(
-		"font_color", Color(0.8, 0.8, 0.9, 1)
+		"font_color", ThemeManager.get_color("text_body")
 	)
 	btn.pressed.connect(_on_entity_selected.bind(user_id, "user"))
 	_role_list.add_child(btn)

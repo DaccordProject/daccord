@@ -10,9 +10,10 @@ var _timeout_timer: Timer
 @onready var text_label: Label = $Text
 
 func _ready() -> void:
+	add_to_group("themed")
 	dots = [dot1, dot2, dot3]
 	text_label.add_theme_font_size_override("font_size", 12)
-	text_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
 	for d in dots:
 		d.add_theme_font_size_override("font_size", 16)
 	_timeout_timer = Timer.new()
@@ -21,6 +22,9 @@ func _ready() -> void:
 	_timeout_timer.timeout.connect(hide_typing)
 	add_child(_timeout_timer)
 	set_process(false)
+
+func _apply_theme() -> void:
+	text_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func _process(delta: float) -> void:
 	anim_time += delta

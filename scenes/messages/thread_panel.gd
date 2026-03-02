@@ -6,8 +6,10 @@ const CollapsedMessageScene := preload("res://scenes/messages/collapsed_message.
 var _parent_message_id: String = ""
 var _parent_channel_id: String = ""
 var _also_send_to_channel: bool = false
+var _notify_popup: PopupMenu
 
 @onready var thread_title: Label = $VBox/Header/ThreadTitle
+@onready var notify_button: Button = $VBox/Header/NotifyButton
 @onready var close_button: Button = $VBox/Header/CloseButton
 @onready var reply_count_label: Label = $VBox/ReplyCountLabel
 @onready var parent_container: MarginContainer = $VBox/ParentMessageContainer
@@ -15,18 +17,29 @@ var _also_send_to_channel: bool = false
 @onready var thread_message_list: VBoxContainer = $VBox/ScrollContainer/ThreadMessageList
 @onready var thread_input: TextEdit = $VBox/ComposerBox/HBox/ThreadInput
 @onready var send_button: Button = $VBox/ComposerBox/HBox/SendButton
+@onready var thread_typing_indicator: HBoxContainer = $VBox/ThreadTypingIndicator
 @onready var also_send_check: CheckBox = $VBox/ComposerBox/AlsoSendCheck
 
 func _ready() -> void:
 	close_button.pressed.connect(_on_close)
+	notify_button.pressed.connect(_on_notify_pressed)
 	send_button.pressed.connect(_on_send)
 	thread_input.gui_input.connect(_on_input_key)
 	also_send_check.toggled.connect(func(v: bool): _also_send_to_channel = v)
+	_notify_popup = PopupMenu.new()
+	_notify_popup.add_item("Default", 0)
+	_notify_popup.add_item("All Messages", 1)
+	_notify_popup.add_item("Mentions Only", 2)
+	_notify_popup.add_item("Nothing", 3)
+	_notify_popup.id_pressed.connect(_on_notify_option_selected)
+	add_child(_notify_popup)
 	AppState.thread_opened.connect(_on_thread_opened)
 	AppState.thread_closed.connect(_on_thread_closed)
 	AppState.thread_messages_updated.connect(_on_thread_messages_updated)
 	AppState.reactions_updated.connect(_on_reactions_updated)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
+	AppState.thread_typing_started.connect(_on_thread_typing_started)
+	AppState.thread_typing_stopped.connect(_on_thread_typing_stopped)
 	_apply_layout(AppState.current_layout_mode)
 
 func _on_thread_opened(parent_message_id: String) -> void:
@@ -58,8 +71,9 @@ func _on_thread_opened(parent_message_id: String) -> void:
 	for child in thread_message_list.get_children():
 		child.queue_free()
 
-	# Clear thread unread
+	# Clear thread unread and mentions
 	Client._thread_unread.erase(parent_message_id)
+	Client._thread_mention_count.erase(parent_message_id)
 
 	# Fetch thread messages
 	Client.fetch.fetch_thread_messages(_parent_channel_id, parent_message_id)
@@ -72,13 +86,27 @@ func _on_thread_opened(parent_message_id: String) -> void:
 		_also_send_to_channel = false
 		also_send_check.button_pressed = false
 
+	# Check SEND_IN_THREADS permission
+	var space_id: String = Client._channel_to_space.get(_parent_channel_id, "")
+	var can_send: bool = Client.has_channel_permission(
+		space_id, _parent_channel_id, AccordPermission.SEND_IN_THREADS
+	)
+	thread_input.editable = can_send
+	send_button.disabled = not can_send
+	if not can_send:
+		thread_input.placeholder_text = "You don't have permission to reply in threads"
+	else:
+		thread_input.placeholder_text = "Reply in thread..."
+
 	# Focus input
-	thread_input.grab_focus()
+	if can_send:
+		thread_input.grab_focus()
 
 func _on_thread_closed() -> void:
 	_parent_message_id = ""
 	_parent_channel_id = ""
 	visible = false
+	thread_typing_indicator.hide_typing()
 	for child in thread_message_list.get_children():
 		child.queue_free()
 	for child in parent_container.get_children():
@@ -132,6 +160,26 @@ func _render_thread_messages() -> void:
 		scroll_container.get_v_scroll_bar().max_value
 	)
 
+func _on_notify_pressed() -> void:
+	if _parent_message_id.is_empty():
+		return
+	var current: String = Config.get_thread_notifications(_parent_message_id)
+	var mode_map: Dictionary = {"default": 0, "all": 1, "mentions": 2, "nothing": 3}
+	var current_idx: int = mode_map.get(current, 0)
+	for i in _notify_popup.item_count:
+		_notify_popup.set_item_checked(i, i == current_idx)
+	var btn_rect := notify_button.get_global_rect()
+	_notify_popup.position = Vector2i(
+		int(btn_rect.position.x),
+		int(btn_rect.position.y + btn_rect.size.y)
+	)
+	_notify_popup.popup()
+
+func _on_notify_option_selected(id: int) -> void:
+	var modes: Array = ["default", "all", "mentions", "nothing"]
+	if id >= 0 and id < modes.size():
+		Config.set_thread_notifications(_parent_message_id, modes[id])
+
 func _on_close() -> void:
 	AppState.close_thread()
 
@@ -172,3 +220,11 @@ func _apply_layout(mode: AppState.LayoutMode) -> void:
 		_:
 			close_button.text = "X"
 			custom_minimum_size.x = 340
+
+func _on_thread_typing_started(thread_id: String, username: String) -> void:
+	if thread_id == _parent_message_id:
+		thread_typing_indicator.show_typing(username)
+
+func _on_thread_typing_stopped(thread_id: String) -> void:
+	if thread_id == _parent_message_id:
+		thread_typing_indicator.hide_typing()

@@ -28,11 +28,11 @@ var _drop_style: StyleBoxFlat
 @onready var channel_container: VBoxContainer = $ChannelContainer
 
 func _ready() -> void:
+	add_to_group("themed")
 	header.pressed.connect(_toggle_collapsed)
 	chevron.texture = CHEVRON_DOWN
-	chevron.modulate = Color(0.58, 0.608, 0.643)
 	category_name.add_theme_font_size_override("font_size", 11)
-	category_name.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
 
 	# Display-only children should not intercept mouse events (especially drag)
 	chevron.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -45,8 +45,6 @@ func _ready() -> void:
 
 	# Pre-build the drop highlight style (reused across frames)
 	_drop_style = StyleBoxFlat.new()
-	_drop_style.bg_color = Color(0.34, 0.52, 0.89, 0.25)
-	_drop_style.border_color = Color(0.34, 0.52, 0.89)
 	_drop_style.set_border_width_all(2)
 	_drop_style.set_corner_radius_all(4)
 
@@ -58,6 +56,18 @@ func _ready() -> void:
 	header.mouse_entered.connect(_on_header_mouse_entered)
 	header.mouse_exited.connect(_on_header_mouse_exited)
 
+func _apply_theme() -> void:
+	chevron.modulate = ThemeManager.get_color("icon_default")
+	category_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	_drop_style.bg_color = Color(ThemeManager.get_color("accent"), 0.25)
+	_drop_style.border_color = ThemeManager.get_color("accent")
+	if _count_label:
+		_count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	if _plus_btn:
+		_plus_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("icon_default"))
+		_plus_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("icon_active"))
+	queue_redraw()
+
 func setup(data: Dictionary, child_channels: Array) -> void:
 	space_id = data.get("space_id", "")
 	_category_data = data
@@ -68,7 +78,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 	_count_label = Label.new()
 	_count_label.text = str(child_channels.size())
 	_count_label.add_theme_font_size_override("font_size", 10)
-	_count_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_count_label.visible = false
@@ -95,8 +105,8 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		_plus_btn.icon = PLUS_ICON
 		_plus_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_plus_btn.expand_icon = true
-		_plus_btn.add_theme_color_override("icon_normal_color", Color(0.58, 0.608, 0.643))
-		_plus_btn.add_theme_color_override("icon_hover_color", Color(1, 1, 1))
+		_plus_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("icon_default"))
+		_plus_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("icon_active"))
 		_plus_btn.tooltip_text = "Create Channel"
 		_plus_btn.pressed.connect(_on_create_channel)
 		$Header/HBox.add_child(_plus_btn)
@@ -203,7 +213,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := Label.new()
 	preview.text = _category_data.get("name", "").to_upper()
 	preview.add_theme_font_size_override("font_size", 11)
-	preview.add_theme_color_override("font_color", Color(1, 1, 1))
+	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	set_drag_preview(preview)
 	return {"type": "category", "category_data": _category_data, "source_node": self}
 
@@ -318,7 +328,7 @@ func _draw() -> void:
 	if _drop_channel_hover:
 		# Channel-on-category indicator is shown via header StyleBox override
 		return
-	var line_color := Color(0.34, 0.52, 0.89)
+	var line_color := ThemeManager.get_color("accent")
 	if _drop_above:
 		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
 	else:

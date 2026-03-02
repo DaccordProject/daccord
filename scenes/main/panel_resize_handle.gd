@@ -38,6 +38,10 @@ func _init(
 	if _target.is_node_ready():
 		visible = _target.visible
 	_target.visibility_changed.connect(_on_target_visibility_changed)
+	add_to_group("themed")
+
+func _apply_theme() -> void:
+	queue_redraw()
 
 
 func _on_target_visibility_changed() -> void:
@@ -50,7 +54,7 @@ func _draw() -> void:
 		draw_line(
 			Vector2(center_x, 4.0),
 			Vector2(center_x, size.y - 4.0),
-			Color(0.45, 0.47, 0.50, 0.8), 2.0,
+			ThemeManager.get_color("icon_default"), 2.0,
 		)
 
 

@@ -37,9 +37,13 @@ func _ready() -> void:
 	AppState.server_connection_failed.connect(func(_gid, _r): update_enabled_state())
 	AppState.imposter_mode_changed.connect(func(_a): update_enabled_state())
 	AppState.channel_selected.connect(_on_channel_selected_restore_draft)
+	add_to_group("themed")
 	# Style reply bar
 	reply_label.add_theme_font_size_override("font_size", 12)
-	reply_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+	_apply_theme()
+
+func _apply_theme() -> void:
+	reply_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func set_channel_name(channel_name: String) -> void:
 	text_input.placeholder_text = "Message #" + channel_name
@@ -71,7 +75,7 @@ func _on_send() -> void:
 	# Show queue confirmation
 	if is_queuing:
 		error_label.add_theme_color_override(
-			"font_color", Color(0.58, 0.608, 0.643)
+			"font_color", ThemeManager.get_color("text_muted")
 		)
 		error_label.text = "Message queued \u2014 will send when reconnected"
 		error_label.visible = true
@@ -193,7 +197,7 @@ func _update_attachment_bar() -> void:
 		var label := Label.new()
 		label.text = file_info["filename"] + " (" + _format_file_size(file_info["size"]) + ")"
 		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643))
+		label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		var remove_btn := Button.new()
 		remove_btn.text = "x"
 		remove_btn.flat = true

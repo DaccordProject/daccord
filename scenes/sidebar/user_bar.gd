@@ -10,10 +10,9 @@ var _status_popup: PopupMenu = null
 @onready var menu_button: MenuButton = $HBox/MenuButton
 
 func _ready() -> void:
+	add_to_group("themed")
 	username.add_theme_font_size_override("font_size", 11)
-	username.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
-	)
+	_apply_theme()
 	voice_indicator.visible = false
 	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
@@ -63,13 +62,18 @@ func _ready() -> void:
 	AppState.channel_selected.connect(_on_active_view_changed)
 	AppState.config_changed.connect(_on_config_changed)
 
+func _apply_theme() -> void:
+	username.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get(
 		"display_name", "User"
 	)
 	username.text = user.get("username", "user")
 	avatar.set_avatar_color(
-		user.get("color", Color(0.345, 0.396, 0.949))
+		user.get("color", ThemeManager.get_color("accent"))
 	)
 	var dn: String = user.get("display_name", "")
 	if dn.length() > 0:
@@ -226,7 +230,7 @@ func _show_about_dialog() -> void:
 	license_label.text = "License: MIT"
 	license_label.add_theme_font_size_override("font_size", 12)
 	license_label.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	vbox.add_child(license_label)
 
@@ -302,7 +306,7 @@ func _show_feedback_dialog() -> void:
 	)
 	info.add_theme_font_size_override("font_size", 11)
 	info.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	vbox.add_child(info)
 
@@ -328,11 +332,11 @@ func _show_toast(text: String) -> void:
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast.add_theme_font_size_override("font_size", 13)
 	toast.add_theme_color_override(
-		"font_color", Color(0.75, 0.75, 0.75)
+		"font_color", ThemeManager.get_color("text_body")
 	)
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.18, 0.19, 0.21, 0.95)
+	style.bg_color = Color(ThemeManager.get_color("panel_bg"), 0.95)
 	style.corner_radius_top_left = 6
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6

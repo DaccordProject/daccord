@@ -11,10 +11,17 @@ var _in_setup: bool = false
 var _press_tween: Tween
 
 func _ready() -> void:
+	add_to_group("themed")
 	add_theme_font_size_override("font_size", 12)
 	_update_active_style()
 	toggled.connect(_on_toggled)
 	AppState.reaction_failed.connect(_on_reaction_failed)
+
+func _apply_theme() -> void:
+	_style_active = null
+	_style_inactive = null
+	_ensure_styles()
+	_update_active_style()
 
 func setup(data: Dictionary) -> void:
 	_in_setup = true
@@ -90,8 +97,8 @@ static func _ensure_styles() -> void:
 	_style_active.border_width_top = 1
 	_style_active.border_width_right = 1
 	_style_active.border_width_bottom = 1
-	_style_active.bg_color = Color(0.345, 0.396, 0.949, 0.3)
-	_style_active.border_color = Color(0.345, 0.396, 0.949)
+	_style_active.bg_color = Color(ThemeManager.get_color("accent"), 0.3)
+	_style_active.border_color = ThemeManager.get_color("accent")
 
 	_style_inactive = StyleBoxFlat.new()
 	_style_inactive.set_corner_radius_all(8)
@@ -103,7 +110,7 @@ static func _ensure_styles() -> void:
 	_style_inactive.border_width_top = 1
 	_style_inactive.border_width_right = 1
 	_style_inactive.border_width_bottom = 1
-	_style_inactive.bg_color = Color(0.184, 0.192, 0.212, 1)
+	_style_inactive.bg_color = ThemeManager.get_color("modal_bg")
 	_style_inactive.border_color = Color(0.25, 0.26, 0.28, 1)
 
 func _update_active_style() -> void:

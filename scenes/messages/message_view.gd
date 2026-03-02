@@ -7,6 +7,7 @@ const MessageViewActionsScript := preload("res://scenes/messages/message_view_ac
 const MessageViewHoverScript := preload("res://scenes/messages/message_view_hover.gd")
 const MessageViewScrollScript := preload("res://scenes/messages/message_view_scroll.gd")
 const ForumViewScene := preload("res://scenes/messages/forum_view.tscn")
+const ActiveThreadsDialogScript := preload("res://scenes/messages/active_threads_dialog.gd")
 
 var current_channel_id: String = ""
 var _current_channel_name: String = ""
@@ -29,6 +30,9 @@ var _banner: MessageViewBanner
 @onready var connection_banner: PanelContainer = $VBox/ConnectionBanner
 @onready var banner_status_label: Label = $VBox/ConnectionBanner/HBox/StatusLabel
 @onready var banner_retry_button: Button = $VBox/ConnectionBanner/HBox/RetryButton
+@onready var topic_bar: HBoxContainer = $VBox/TopicBar
+@onready var channel_name_label: Label = $VBox/TopicBar/ChannelNameLabel
+@onready var threads_button: Button = $VBox/TopicBar/ThreadsButton
 @onready var scroll_container: ScrollContainer = $VBox/ScrollContainer
 @onready var message_list: VBoxContainer = $VBox/ScrollContainer/MessageList
 @onready var typing_indicator: HBoxContainer = $VBox/TypingIndicator
@@ -86,6 +90,8 @@ func _ready() -> void:
 		_banner.on_server_connection_failed
 	)
 
+	threads_button.pressed.connect(_on_threads_button_pressed)
+
 	# Loading timeout timer
 	_loading_timeout_timer = Timer.new()
 	_loading_timeout_timer.wait_time = 15.0
@@ -104,8 +110,14 @@ func _ready() -> void:
 	_hover = MessageViewHoverScript.new(self, action_bar)
 	action_bar.action_reply.connect(_actions.on_bar_reply)
 	action_bar.action_edit.connect(_actions.on_bar_edit)
+	action_bar.action_thread.connect(_actions.on_bar_thread)
 	action_bar.action_delete.connect(_actions.on_bar_delete)
 	action_bar.mouse_exited.connect(_hover.on_action_bar_unhovered)
+	add_to_group("themed")
+
+func _apply_theme() -> void:
+	if _banner:
+		_banner.update_styles()
 
 func _is_persistent_node(child: Node) -> bool:
 	return (
@@ -142,6 +154,10 @@ func _on_channel_selected(channel_id: String) -> void:
 				_current_channel_name = user.get("display_name", "DM")
 				break
 
+	# Update topic bar
+	channel_name_label.text = "#%s" % _current_channel_name if not AppState.is_dm_mode else _current_channel_name
+	threads_button.visible = not AppState.is_dm_mode and not is_forum
+
 	if not is_forum and AppState.thread_panel_visible:
 		AppState.close_thread()
 
@@ -171,7 +187,7 @@ func _on_channel_selected(channel_id: String) -> void:
 				child.queue_free()
 		_update_empty_state([])
 		# Reset loading label style (used for error/timeout states)
-		loading_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+		loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		loading_label.text = "Loading messages..."
 		loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		# Show skeleton during loading
@@ -620,7 +636,7 @@ func _on_message_fetch_failed(channel_id: String, error: String) -> void:
 	_loading_timeout_timer.stop()
 	loading_skeleton.visible = false
 	loading_label.text = "Failed to load messages: %s\nClick to retry" % error
-	loading_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	loading_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -630,7 +646,7 @@ func _on_loading_timeout() -> void:
 	_is_loading = false
 	loading_skeleton.visible = false
 	loading_label.text = "Loading timed out. Click to retry"
-	loading_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	loading_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -642,10 +658,19 @@ func _on_loading_label_input(event: InputEvent) -> void:
 			loading_skeleton.visible = true
 			loading_skeleton.reset_shimmer()
 			loading_label.text = "Loading messages..."
-			loading_label.add_theme_color_override("font_color", Color(0.58, 0.608, 0.643, 1))
+			loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 			loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_loading_timeout_timer.start()
 			Client.fetch.fetch_messages(current_channel_id)
+
+# --- Threads Dialog ---
+
+func _on_threads_button_pressed() -> void:
+	if current_channel_id.is_empty():
+		return
+	var dialog: ModalBase = ActiveThreadsDialogScript.new()
+	get_tree().root.add_child(dialog)
+	dialog.open(current_channel_id)
 
 # --- Helpers ---
 

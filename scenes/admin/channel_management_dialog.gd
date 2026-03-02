@@ -1,4 +1,4 @@
-extends ColorRect
+extends ModalBase
 
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
@@ -26,6 +26,7 @@ var _selected_ids: Array = []
 @onready var _bulk_delete_btn: Button = $CenterContainer/Panel/VBox/BulkBar/BulkDeleteBtn
 
 func _ready() -> void:
+	_bind_modal_nodes($CenterContainer/Panel, 480, 0)
 	_close_btn.pressed.connect(_close)
 	_create_toggle.pressed.connect(_toggle_create_form)
 	_create_btn.pressed.connect(_on_create)
@@ -248,14 +249,3 @@ func _show_error(msg: String) -> void:
 	_error_label.text = msg
 	_error_label.visible = true
 
-func _close() -> void:
-	queue_free()
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		_close()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_close()
-		get_viewport().set_input_as_handled()
