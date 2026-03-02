@@ -133,8 +133,8 @@ Thread opened (COMPACT mode)
 
 | File | Role |
 |------|------|
-| `.github/workflows/release.yml` | Release CI pipeline. Currently has linux, linux-arm64, windows, macos matrix entries (lines 30-50). Needs an `android` entry. |
-| `export_presets.cfg` | Godot export presets. Currently has 4 presets (Linux, Windows, macOS, Linux ARM64). Needs an Android preset (preset.4). |
+| `.github/workflows/release.yml` | Release CI pipeline. Has linux, linux-arm64, windows, macos, android matrix entries (lines 30-55). Android entry sets up Java JDK, Android SDK/NDK, decodes keystore from secrets, configures Godot editor settings, and injects keystore into export preset. |
+| `export_presets.cfg` | Godot export presets. Has 5 presets: Linux (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3), Android (preset.4). Android preset targets arm64, ETC2/ASTC textures, min SDK 24, target SDK 34, with internet/microphone/camera permissions. |
 | `project.godot` | Project config. Sets `renderer/rendering_method.mobile="gl_compatibility"` (line 64), `textures/vram_compression/import_etc2_astc=true` (line 65), minimum window size 320x480 (lines 46-47), `run/low_processor_mode=true` (line 21). |
 | `scripts/autoload/app_state.gd` | Tracks `LayoutMode` enum (line 159): `COMPACT` <500px (line 161), `MEDIUM` <768px (line 162), `FULL` >=768px. Breakpoints drive drawer vs inline sidebar. Signals: `layout_mode_changed`, `sidebar_drawer_toggled`. |
 | `scripts/autoload/updater.gd` | Auto-update system. `_parse_release()` (line 147) uses `OS.get_name().to_lower()` (line 168) for platform asset matching — no `"android"` branch. `apply_update_and_restart()` (line 450) replaces binary on disk — impossible on Android. |
@@ -304,12 +304,12 @@ android.arm64 = "res://addons/godot-livekit/bin/libgodot-livekit.android.arm64.s
 - [x] Low processor mode for battery efficiency (project.godot line 21)
 - [x] Sentry SDK ships Android binaries (installed by CI)
 - [x] LiveKit gracefully disabled when platform binary missing (release.yml lines 123-143)
-- [ ] Android export preset in `export_presets.cfg`
-- [ ] Android matrix entry in `release.yml`
-- [ ] Java JDK + Android SDK/NDK setup in CI
-- [ ] Keystore management (generation, secret storage, CI decode)
+- [x] Android export preset in `export_presets.cfg`
+- [x] Android matrix entry in `release.yml`
+- [x] Java JDK + Android SDK/NDK setup in CI
+- [x] Keystore management (generation, secret storage, CI decode)
 - [ ] Adaptive icon for Android (foreground/background layers)
-- [ ] Android manifest permissions (internet, microphone, camera)
+- [x] Android manifest permissions (internet, microphone, camera)
 - [ ] Google Play Store listing and AAB upload
 
 ### Touch & Gesture UX
@@ -345,14 +345,14 @@ android.arm64 = "res://addons/godot-livekit/bin/libgodot-livekit.android.arm64.s
 ## Tasks
 
 ### ANDROID-1: No Android export preset
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** ci, mobile, permissions
 - **Notes:** `export_presets.cfg` has no Android entry. Godot needs this to produce APK/AAB output. Must define package name, SDK versions, permissions, and architecture.
 
 ### ANDROID-2: No Android CI pipeline entry
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 2
 - **Tags:** ci, mobile
@@ -387,7 +387,7 @@ android.arm64 = "res://addons/godot-livekit/bin/libgodot-livekit.android.arm64.s
 - **Notes:** `godot-livekit.gdextension` (lines 6-8) has no Android entry. Voice and video will be unavailable. Extension is safely removed at build time by release.yml (lines 123-143).
 
 ### ANDROID-7: No keystore setup
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 3
 - **Tags:** ci, mobile
