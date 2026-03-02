@@ -12,6 +12,7 @@ var banner = null
 var splash = null
 var owner_id: String = ""
 var features: Array = []
+var public: bool = false
 var verification_level: String = "none"
 var default_notifications: String = "all"
 var explicit_content_filter: String = "disabled"
@@ -43,6 +44,7 @@ static func from_dict(d: Dictionary) -> AccordSpace:
 	s.splash = d.get("splash", null)
 	s.owner_id = str(d.get("owner_id", ""))
 	s.features = d.get("features", [])
+	s.public = d.get("public", false)
 	s.verification_level = d.get("verification_level", "none")
 	s.default_notifications = d.get("default_notifications", "all")
 	s.explicit_content_filter = d.get("explicit_content_filter", "disabled")
@@ -91,6 +93,7 @@ func to_dict() -> Dictionary:
 		"slug": slug,
 		"owner_id": owner_id,
 		"features": features,
+		"public": public,
 		"verification_level": verification_level,
 		"default_notifications": default_notifications,
 		"explicit_content_filter": explicit_content_filter,

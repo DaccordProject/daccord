@@ -229,7 +229,7 @@ static func space_to_dict(
 	var desc: String = ""
 	if space.description != null:
 		desc = str(space.description)
-	var is_public: bool = "PUBLIC" in space.features or "public" in space.features
+	var is_public: bool = space.public or "PUBLIC" in space.features or "public" in space.features
 
 	var icon_url = null
 	if space.icon != null and not str(space.icon).is_empty():
