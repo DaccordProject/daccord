@@ -1,6 +1,7 @@
 extends RefCounted
 
 const AvatarScript := preload("res://scenes/common/avatar.gd")
+const TAB_ICON_HEIGHT := 16
 
 var tabs: Array[Dictionary] = []
 
@@ -144,8 +145,11 @@ func _set_space_icon_for_tab(tab_index: int) -> void:
 		_tab_bar.set_tab_icon(tab_index, tex)
 		return
 	if AvatarScript._image_cache.has(icon_url):
-		var tex: ImageTexture = (
+		var full_tex: ImageTexture = (
 			AvatarScript._image_cache[icon_url]
+		)
+		var tex: ImageTexture = _resize_for_tab(
+			full_tex.get_image(),
 		)
 		_space_icon_cache[space_id] = tex
 		_tab_bar.set_tab_icon(tab_index, tex)
@@ -177,14 +181,26 @@ func _on_tab_icon_loaded(
 		err = image.load_webp_from_buffer(body)
 	if err != OK:
 		return
-	image.resize(16, 16)
-	var tex := ImageTexture.create_from_image(image)
+	var tex: ImageTexture = _resize_for_tab(image)
 	_space_icon_cache[space_id] = tex
 	update_icons()
 
 
+func _resize_for_tab(image: Image) -> ImageTexture:
+	var src_w: int = image.get_width()
+	var src_h: int = image.get_height()
+	if src_h <= 0:
+		image.resize(TAB_ICON_HEIGHT, TAB_ICON_HEIGHT)
+	else:
+		var aspect: float = float(src_w) / float(src_h)
+		var new_h: int = TAB_ICON_HEIGHT
+		var new_w: int = maxi(1, int(round(new_h * aspect)))
+		image.resize(new_w, new_h)
+	return ImageTexture.create_from_image(image)
+
+
 func _create_color_swatch(
-	c: Color, px: int = 16,
+	c: Color, px: int = TAB_ICON_HEIGHT,
 ) -> ImageTexture:
 	var img: Image = Image.new()
 	var data := PackedByteArray()

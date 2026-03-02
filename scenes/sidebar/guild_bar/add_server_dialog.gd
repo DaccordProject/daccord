@@ -292,4 +292,3 @@ static func _urls_match(a: String, b: String) -> bool:
 func _show_error(msg: String) -> void:
 	_error_label.text = msg
 	_error_label.visible = true
-

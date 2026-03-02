@@ -62,11 +62,15 @@ func setup(data: Dictionary) -> void:
 	if banner_url.is_empty():
 		_banner_container.visible = false
 	else:
+		if banner_url.begins_with("/"):
+			banner_url = server_url.rstrip("/") + banner_url
 		_load_image(banner_url, _banner)
 
 	# Load icon
 	var icon_url: String = data.get("icon_url", "")
 	if not icon_url.is_empty():
+		if icon_url.begins_with("/"):
+			icon_url = server_url.rstrip("/") + icon_url
 		_load_image(icon_url, _icon)
 
 func _apply_style() -> void:
