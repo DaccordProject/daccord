@@ -130,12 +130,7 @@ func _on_save() -> void:
 		"default_notifications": notif_levels[_notifications_btn.selected],
 	}
 
-	# Public is a feature flag - send it only if the server supports it
-	# For now we include it as a top-level field
-	if _public_check.button_pressed:
-		data["features"] = ["public"]
-	else:
-		data["features"] = []
+	data["public"] = _public_check.button_pressed
 
 	# Icon upload / removal
 	if not _pending_icon_data_uri.is_empty():
