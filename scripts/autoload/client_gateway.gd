@@ -105,7 +105,6 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var conn: Dictionary = _c._connections[conn_index]
-	print("[Client] Gateway ready for: ", conn["config"]["base_url"])
 	_c._auto_reconnect_attempted.erase(conn_index)
 	# Parse server version from READY payload (if provided)
 	var srv_version: String = _data.get("server_version", "")

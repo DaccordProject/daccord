@@ -25,7 +25,6 @@ func init_sentry() -> void:
 func _on_sdk_ready() -> void:
 	_initialized = true
 	_connect_breadcrumbs()
-	print("[ErrorReporting] Sentry SDK initialized")
 
 func scrub_pii_text(msg: String) -> String:
 	var token_re := RegEx.new()

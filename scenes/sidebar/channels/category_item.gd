@@ -32,7 +32,6 @@ func _ready() -> void:
 	header.pressed.connect(_toggle_collapsed)
 	chevron.texture = CHEVRON_DOWN
 	category_name.add_theme_font_size_override("font_size", 11)
-	_apply_theme()
 
 	# Display-only children should not intercept mouse events (especially drag)
 	chevron.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -47,6 +46,8 @@ func _ready() -> void:
 	_drop_style = StyleBoxFlat.new()
 	_drop_style.set_border_width_all(2)
 	_drop_style.set_corner_radius_all(4)
+
+	_apply_theme()
 
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)

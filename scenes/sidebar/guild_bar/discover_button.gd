@@ -2,11 +2,11 @@ extends HBoxContainer
 
 signal discover_pressed()
 
-@onready var pill: ColorRect = $PillContainer/Pill
-@onready var icon_button: Button = $IconButton
-
 var _normal_style: StyleBoxFlat
 var _hover_style: StyleBoxFlat
+
+@onready var pill: ColorRect = $PillContainer/Pill
+@onready var icon_button: Button = $IconButton
 
 func _ready() -> void:
 	add_to_group("themed")

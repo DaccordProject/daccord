@@ -43,8 +43,6 @@ func connect_server(
 		_c._connections.append(null)
 	_c._connections[index] = conn
 
-	print("[Client] Connecting to server: ", base_url)
-
 	var client := _make_client(
 		token, base_url, gw_url, cdn_url
 	)
@@ -101,13 +99,6 @@ func connect_server(
 	conn["user"] = me_dict
 	if _c.current_user.is_empty():
 		_c.current_user = me_dict
-
-	var dn: String = me_dict["display_name"]
-	print(
-		"[Client] Logged in as: ", dn,
-		" on ", base_url,
-		" is_admin=", me_user.is_admin
-	)
 
 	# Accept invite if provided (non-fatal)
 	if not invite_code.is_empty():
@@ -326,8 +317,4 @@ func handle_gateway_reconnect_failed(
 			)
 		return
 	_c._auto_reconnect_attempted[conn_index] = true
-	print(
-		"[Client] Gateway reconnect exhausted, "
-		+ "attempting full reconnect with re-auth"
-	)
 	reconnect_server(conn_index)

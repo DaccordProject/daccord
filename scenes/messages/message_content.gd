@@ -37,11 +37,19 @@ func _apply_theme() -> void:
 	var raw_text: String = _last_data.get("content", "")
 	if _is_system:
 		var safe_text := raw_text.replace("[", "[lb]")
-		text_content.text = "[i][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "]" + safe_text + "[/color][/i]"
+		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+		text_content.text = (
+			"[i][color=#" + muted_hex + "]"
+			+ safe_text + "[/color][/i]"
+		)
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if _last_data.get("edited", false):
-			bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](edited)[/color][/font_size]"
+			var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+			bbcode += (
+				" [font_size=11][color=#" + muted_hex
+				+ "](edited)[/color][/font_size]"
+			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
 
@@ -53,11 +61,19 @@ func setup(data: Dictionary) -> void:
 	if _is_system:
 		# Escape BBCode in system messages -- they render as plain italic text
 		var safe_text := raw_text.replace("[", "[lb]")
-		text_content.text = "[i][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "]" + safe_text + "[/color][/i]"
+		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+		text_content.text = (
+			"[i][color=#" + muted_hex + "]"
+			+ safe_text + "[/color][/i]"
+		)
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
-			bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](edited)[/color][/font_size]"
+			var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+			bbcode += (
+				" [font_size=11][color=#" + muted_hex
+				+ "](edited)[/color][/font_size]"
+			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
 
@@ -103,11 +119,13 @@ func setup(data: Dictionary) -> void:
 		att_label.mouse_filter = Control.MOUSE_FILTER_PASS
 		var size_str := _format_file_size(size_bytes)
 		var safe_fname := fname.replace("[", "[lb]")
+		var link_hex: String = ThemeManager.get_color("link").to_html(false)
+		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
 		att_label.text = (
-			"[color=#" + ThemeManager.get_color("link").to_html(false) + "][url=%s]%s[/url][/color]"
-			% [url, safe_fname]
-			+ " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](%s)[/color][/font_size]"
-			% size_str
+			"[color=#" + link_hex + "]"
+			+ "[url=%s]%s[/url][/color]" % [url, safe_fname]
+			+ " [font_size=11][color=#" + muted_hex
+			+ "](%s)[/color][/font_size]" % size_str
 		)
 		att_label.meta_clicked.connect(_on_meta_clicked)
 		add_child(att_label)
@@ -142,11 +160,19 @@ func update_content(data: Dictionary) -> void:
 	_is_system = data.get("system", false)
 	if _is_system:
 		var safe_text := raw_text.replace("[", "[lb]")
-		text_content.text = "[i][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "]" + safe_text + "[/color][/i]"
+		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+		text_content.text = (
+			"[i][color=#" + muted_hex + "]"
+			+ safe_text + "[/color][/i]"
+		)
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
-			bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](edited)[/color][/font_size]"
+			var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+			bbcode += (
+				" [font_size=11][color=#" + muted_hex
+				+ "](edited)[/color][/font_size]"
+			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
 
@@ -155,8 +181,10 @@ func _on_meta_clicked(meta: Variant) -> void:
 	if meta_str == "spoiler":
 		_spoilers_revealed = true
 		var spoiler_hex: String = ThemeManager.get_color("input_bg").to_html(false)
+		var body_hex: String = ThemeManager.get_color("text_body").to_html(false)
 		var revealed := _raw_bbcode.replace(
-			"[color=#" + spoiler_hex + "]", "[color=#" + ThemeManager.get_color("text_body").to_html(false) + "]"
+			"[color=#" + spoiler_hex + "]",
+			"[color=#" + body_hex + "]",
 		)
 		text_content.text = revealed
 	elif meta_str.begins_with("http://") or meta_str.begins_with("https://"):
@@ -521,7 +549,11 @@ func _on_edit_input(event: InputEvent) -> void:
 			elif not new_text.is_empty():
 				# Optimistic update: show new content with "(saving...)" indicator
 				var bbcode := ClientModels.markdown_to_bbcode(new_text)
-				bbcode += " [font_size=11][color=#" + ThemeManager.get_color("text_muted").to_html(false) + "](saving...)[/color][/font_size]"
+				var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
+				bbcode += (
+					" [font_size=11][color=#" + muted_hex
+					+ "](saving...)[/color][/font_size]"
+				)
 				text_content.text = bbcode
 				AppState.edit_message(_editing_message_id, new_text)
 				_exit_edit_mode()

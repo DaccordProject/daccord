@@ -1,10 +1,10 @@
 extends VBoxContainer
 
 const SHIMMER_SHADER := preload("res://assets/theme/skeleton_shimmer.gdshader")
-
-var BAR_COLOR: Color
 const ROW_COUNT := 5
 const SHIMMER_DURATION := 1.2
+
+var _bar_color: Color
 
 var _shimmer_offset: float = -0.5
 var _materials: Array[ShaderMaterial] = []
@@ -20,7 +20,7 @@ var _row_configs: Array = [
 
 func _ready() -> void:
 	add_to_group("themed")
-	BAR_COLOR = ThemeManager.get_color("button_hover")
+	_bar_color = ThemeManager.get_color("button_hover")
 	for i in ROW_COUNT:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
@@ -64,7 +64,7 @@ func _process(delta: float) -> void:
 func _make_bar(w: int, h: int, radius: float) -> ColorRect:
 	var bar := ColorRect.new()
 	bar.custom_minimum_size = Vector2(w, h)
-	bar.color = BAR_COLOR
+	bar.color = _bar_color
 	var mat := ShaderMaterial.new()
 	mat.shader = SHIMMER_SHADER
 	mat.set_shader_parameter("corner_radius", radius)
@@ -74,16 +74,16 @@ func _make_bar(w: int, h: int, radius: float) -> ColorRect:
 	return bar
 
 func _apply_theme() -> void:
-	BAR_COLOR = ThemeManager.get_color("button_hover")
+	_bar_color = ThemeManager.get_color("button_hover")
 	for row in get_children():
 		if row is HBoxContainer:
 			for child in row.get_children():
 				if child is ColorRect:
-					child.color = BAR_COLOR
+					child.color = _bar_color
 				elif child is VBoxContainer:
 					for bar in child.get_children():
 						if bar is ColorRect:
-							bar.color = BAR_COLOR
+							bar.color = _bar_color
 
 func reset_shimmer() -> void:
 	_shimmer_offset = -0.5

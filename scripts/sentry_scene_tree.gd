@@ -36,7 +36,6 @@ static func _init_sdk() -> void:
 	SentrySDK.set_tag("renderer", ProjectSettings.get_setting(
 		"rendering/renderer/rendering_method", "unknown"
 	))
-	print("[SentrySceneTree] Sentry SDK initialized")
 
 
 static func _before_send(event: SentryEvent) -> SentryEvent:

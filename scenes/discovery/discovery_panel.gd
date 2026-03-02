@@ -176,7 +176,10 @@ func _style_tag_button(btn: Button, active: bool) -> void:
 	style.content_margin_bottom = 4.0
 	btn.add_theme_stylebox_override("normal", style)
 	var hover := style.duplicate()
-	hover.bg_color = ThemeManager.get_color("secondary_button_hover") if not active else ThemeManager.get_color("accent_hover")
+	if active:
+		hover.bg_color = ThemeManager.get_color("accent_hover")
+	else:
+		hover.bg_color = ThemeManager.get_color("secondary_button_hover")
 	btn.add_theme_stylebox_override("hover", hover)
 
 func _show_status(msg: String) -> void:
@@ -224,7 +227,12 @@ func _on_detail_join(server_url: String, space_id: String) -> void:
 		var server: Dictionary = servers[i]
 		if server["base_url"] == server_url and Client.is_server_connected(i):
 			# Already have credentials — join directly
-			_join_and_connect(server_url, space_id, server.get("token", ""), server.get("username", ""), server.get("display_name", ""))
+			_join_and_connect(
+				server_url, space_id,
+				server.get("token", ""),
+				server.get("username", ""),
+				server.get("display_name", ""),
+			)
 			return
 
 	# No existing account — show auth dialog

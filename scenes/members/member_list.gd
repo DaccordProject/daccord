@@ -19,6 +19,8 @@ var _debounce_timer: Timer
 var _search_text: String = ""
 var _group_by_role: bool = false
 var _incremental_handled: bool = false
+var _panel_style: StyleBoxFlat
+var _search_style: StyleBoxFlat
 
 @onready var header_label: Label = $VBox/HeaderBar/HeaderLabel
 @onready var group_toggle: Button = $VBox/HeaderBar/GroupToggle
@@ -26,9 +28,6 @@ var _incremental_handled: bool = false
 @onready var search_bar: LineEdit = $VBox/SearchBar
 @onready var scroll_container: ScrollContainer = $VBox/ScrollContainer
 @onready var virtual_content: Control = $VBox/ScrollContainer/VirtualContent
-
-var _panel_style: StyleBoxFlat
-var _search_style: StyleBoxFlat
 
 func _ready() -> void:
 	add_to_group("themed")

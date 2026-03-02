@@ -34,6 +34,7 @@ ErrorReporting="*res://scripts/autoload/error_reporting.gd"
 Client="*res://scripts/autoload/client.gd"
 SoundManager="*res://scripts/autoload/sound_manager.gd"
 Updater="*res://scripts/autoload/updater.gd"
+ThemeManager="*res://scripts/autoload/theme_manager.gd"
 
 [debug]
 
@@ -68,7 +69,7 @@ textures/vram_compression/import_etc2_astc=true
 
 config/dsn="https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1"
 config/auto_init=false
-config/debug=true
+config/debug=false
 config/max_breadcrumbs=100
 config/send_default_pii=false
 config/attach_log=true
