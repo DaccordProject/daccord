@@ -54,6 +54,9 @@ func setup(data: Dictionary) -> void:
 	# Load icon asynchronously
 	var icon_url: String = data.get("icon_url", "")
 	if not icon_url.is_empty():
+		if icon_url.begins_with("/"):
+			var server_url: String = data.get("server_url", "")
+			icon_url = server_url.rstrip("/") + icon_url
 		_load_icon(icon_url)
 
 func _apply_theme() -> void:
