@@ -176,41 +176,36 @@ jobs:
             echo "godot-livekit binary found: $LIB"
           fi
 
+      - name: Stash macOS godot-livekit dylibs to prevent editor crash
+        if: matrix.platform == 'macos'
+        run: |
+          # The LiveKit C++ SDK triggers AVFoundation camera device enumeration
+          # on load, which crashes with "Pure virtual function called!" on macOS
+          # 14+ headless runners. Rather than patching the Godot editor's
+          # Info.plist (fragile), we stash the dylibs so the editor never loads
+          # them, then inject them into the exported .app afterward.
+          STASH="$RUNNER_TEMP/livekit_dylibs"
+          mkdir -p "$STASH"
+          moved=0
+          for f in addons/godot-livekit/bin/*.dylib; do
+            [ -f "$f" ] || continue
+            mv "$f" "$STASH/"
+            echo "  Stashed $(basename "$f")"
+            moved=$((moved + 1))
+          done
+          if [ "$moved" -gt 0 ]; then
+            echo "LIVEKIT_DYLIB_STASH=$STASH" >> "$GITHUB_ENV"
+            echo "Stashed $moved macOS dylibs — will inject post-export"
+          else
+            echo "No macOS dylibs found to stash"
+          fi
+
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
         with:
           version: ${{ env.GODOT_VERSION }}
           use-dotnet: false
           include-templates: true
-
-      - name: Patch Godot Info.plist for macOS LiveKit compatibility
-        if: matrix.platform == 'macos'
-        run: |
-          # The LiveKit C++ SDK triggers AVFoundation camera device enumeration
-          # on load, which crashes with "Pure virtual function called!" on macOS
-          # 14+ if NSCameraUseContinuityCameraDeviceType is missing from the
-          # host app's Info.plist.
-          GODOT_BIN=$(which godot 2>/dev/null || true)
-          if [ -z "$GODOT_BIN" ]; then
-            echo "::warning::godot not found on PATH; skipping Info.plist fix"
-            exit 0
-          fi
-          GODOT_REAL=$(realpath "$GODOT_BIN")
-          # Godot.app/Contents/MacOS/Godot → walk up to .app root
-          MAYBE_APP=$(dirname "$(dirname "$(dirname "$GODOT_REAL")")")
-          if [[ "$MAYBE_APP" == *.app ]]; then
-            PLIST="$MAYBE_APP/Contents/Info.plist"
-            if [ -f "$PLIST" ]; then
-              /usr/libexec/PlistBuddy -c "Add :NSCameraUseContinuityCameraDeviceType bool true" "$PLIST" 2>/dev/null || \
-                /usr/libexec/PlistBuddy -c "Set :NSCameraUseContinuityCameraDeviceType true" "$PLIST"
-              codesign --force --deep --sign - "$MAYBE_APP"
-              echo "Patched Godot editor Info.plist and re-signed: $MAYBE_APP"
-            else
-              echo "::warning::Info.plist not found at $PLIST"
-            fi
-          else
-            echo "::warning::Godot binary not in .app bundle: $GODOT_REAL"
-          fi
 
       - name: Cache Godot import
         uses: actions/cache@v4
@@ -336,6 +331,47 @@ jobs:
       - name: Export ${{ matrix.preset }}
         run: godot --headless --export-release "${{ matrix.preset }}"
         timeout-minutes: 10
+
+      - name: Inject godot-livekit dylibs into macOS export
+        if: matrix.platform == 'macos' && env.LIVEKIT_DYLIB_STASH != ''
+        run: |
+          EXPORT_ZIP="dist/build/macos/daccord.zip"
+          if [ ! -f "$EXPORT_ZIP" ]; then
+            echo "::error::macOS export zip not found"
+            exit 1
+          fi
+          WORK=$(mktemp -d)
+          unzip -o "$EXPORT_ZIP" -d "$WORK"
+
+          # Copy stashed LiveKit dylibs into the app bundle's Frameworks dir
+          FW="$WORK/daccord.app/Contents/Frameworks"
+          mkdir -p "$FW"
+          cp "$LIVEKIT_DYLIB_STASH"/*.dylib "$FW/"
+          echo "Injected dylibs into Contents/Frameworks/:"
+          ls -lh "$FW"/*.dylib
+
+          # Ensure the exported app's Info.plist has the camera key so the
+          # app itself doesn't crash on macOS 14+ when LiveKit loads
+          PLIST="$WORK/daccord.app/Contents/Info.plist"
+          if [ -f "$PLIST" ]; then
+            /usr/libexec/PlistBuddy \
+              -c "Add :NSCameraUseContinuityCameraDeviceType bool true" \
+              "$PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy \
+              -c "Set :NSCameraUseContinuityCameraDeviceType true" "$PLIST"
+          fi
+
+          # Ad-hoc sign each injected dylib so macOS doesn't reject them
+          for dylib in "$FW"/*.dylib; do
+            codesign --force --sign - "$dylib"
+          done
+
+          # Re-package
+          cd "$WORK"
+          zip -r "$GITHUB_WORKSPACE/$EXPORT_ZIP" daccord.app
+          cd "$GITHUB_WORKSPACE"
+          rm -rf "$WORK"
+          echo "macOS export updated with godot-livekit dylibs"
 
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
