@@ -176,6 +176,30 @@ jobs:
             echo "godot-livekit binary found: $LIB"
           fi
 
+      - name: Stash macOS godot-livekit dylibs to prevent editor crash
+        if: matrix.platform == 'macos'
+        run: |
+          # The LiveKit C++ SDK triggers AVFoundation camera device enumeration
+          # on load, which crashes with "Pure virtual function called!" on macOS
+          # 14+ headless runners. Rather than patching the Godot editor's
+          # Info.plist (fragile), we stash the dylibs so the editor never loads
+          # them, then inject them into the exported .app afterward.
+          STASH="$RUNNER_TEMP/livekit_dylibs"
+          mkdir -p "$STASH"
+          moved=0
+          for f in addons/godot-livekit/bin/*.dylib; do
+            [ -f "$f" ] || continue
+            mv "$f" "$STASH/"
+            echo "  Stashed $(basename "$f")"
+            moved=$((moved + 1))
+          done
+          if [ "$moved" -gt 0 ]; then
+            echo "LIVEKIT_DYLIB_STASH=$STASH" >> "$GITHUB_ENV"
+            echo "Stashed $moved macOS dylibs — will inject post-export"
+          else
+            echo "No macOS dylibs found to stash"
+          fi
+
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -239,6 +263,12 @@ jobs:
               unzip -o "$STOCK_TPL" -d "$TPLDIR"
               cp "$LITE_BIN" "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
               chmod +x "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+              # Add camera key so the exported app doesn't crash from LiveKit's
+              # AVFoundation device enumeration on macOS 14+
+              TPL_PLIST="$TPLDIR/macos_template.app/Contents/Info.plist"
+              if [ -f "$TPL_PLIST" ]; then
+                /usr/libexec/PlistBuddy -c "Add :NSCameraUseContinuityCameraDeviceType bool true" "$TPL_PLIST" 2>/dev/null || true
+              fi
               cd "$TPLDIR" && zip -r "$GITHUB_WORKSPACE/${DEST}" macos_template.app && cd "$GITHUB_WORKSPACE"
               rm -rf "$TPLDIR" "$GLDIR" /tmp/godotlite_dl
               echo "GodotLite macOS template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
@@ -301,6 +331,47 @@ jobs:
       - name: Export ${{ matrix.preset }}
         run: godot --headless --export-release "${{ matrix.preset }}"
         timeout-minutes: 10
+
+      - name: Inject godot-livekit dylibs into macOS export
+        if: matrix.platform == 'macos' && env.LIVEKIT_DYLIB_STASH != ''
+        run: |
+          EXPORT_ZIP="dist/build/macos/daccord.zip"
+          if [ ! -f "$EXPORT_ZIP" ]; then
+            echo "::error::macOS export zip not found"
+            exit 1
+          fi
+          WORK=$(mktemp -d)
+          unzip -o "$EXPORT_ZIP" -d "$WORK"
+
+          # Copy stashed LiveKit dylibs into the app bundle's Frameworks dir
+          FW="$WORK/daccord.app/Contents/Frameworks"
+          mkdir -p "$FW"
+          cp "$LIVEKIT_DYLIB_STASH"/*.dylib "$FW/"
+          echo "Injected dylibs into Contents/Frameworks/:"
+          ls -lh "$FW"/*.dylib
+
+          # Ensure the exported app's Info.plist has the camera key so the
+          # app itself doesn't crash on macOS 14+ when LiveKit loads
+          PLIST="$WORK/daccord.app/Contents/Info.plist"
+          if [ -f "$PLIST" ]; then
+            /usr/libexec/PlistBuddy \
+              -c "Add :NSCameraUseContinuityCameraDeviceType bool true" \
+              "$PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy \
+              -c "Set :NSCameraUseContinuityCameraDeviceType true" "$PLIST"
+          fi
+
+          # Ad-hoc sign each injected dylib so macOS doesn't reject them
+          for dylib in "$FW"/*.dylib; do
+            codesign --force --sign - "$dylib"
+          done
+
+          # Re-package
+          cd "$WORK"
+          zip -r "$GITHUB_WORKSPACE/$EXPORT_ZIP" daccord.app
+          cd "$GITHUB_WORKSPACE"
+          rm -rf "$WORK"
+          echo "macOS export updated with godot-livekit dylibs"
 
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
