@@ -183,6 +183,35 @@ jobs:
           use-dotnet: false
           include-templates: true
 
+      - name: Patch Godot Info.plist for macOS LiveKit compatibility
+        if: matrix.platform == 'macos'
+        run: |
+          # The LiveKit C++ SDK triggers AVFoundation camera device enumeration
+          # on load, which crashes with "Pure virtual function called!" on macOS
+          # 14+ if NSCameraUseContinuityCameraDeviceType is missing from the
+          # host app's Info.plist.
+          GODOT_BIN=$(which godot 2>/dev/null || true)
+          if [ -z "$GODOT_BIN" ]; then
+            echo "::warning::godot not found on PATH; skipping Info.plist fix"
+            exit 0
+          fi
+          GODOT_REAL=$(realpath "$GODOT_BIN")
+          # Godot.app/Contents/MacOS/Godot → walk up to .app root
+          MAYBE_APP=$(dirname "$(dirname "$(dirname "$GODOT_REAL")")")
+          if [[ "$MAYBE_APP" == *.app ]]; then
+            PLIST="$MAYBE_APP/Contents/Info.plist"
+            if [ -f "$PLIST" ]; then
+              /usr/libexec/PlistBuddy -c "Add :NSCameraUseContinuityCameraDeviceType bool true" "$PLIST" 2>/dev/null || \
+                /usr/libexec/PlistBuddy -c "Set :NSCameraUseContinuityCameraDeviceType true" "$PLIST"
+              codesign --force --deep --sign - "$MAYBE_APP"
+              echo "Patched Godot editor Info.plist and re-signed: $MAYBE_APP"
+            else
+              echo "::warning::Info.plist not found at $PLIST"
+            fi
+          else
+            echo "::warning::Godot binary not in .app bundle: $GODOT_REAL"
+          fi
+
       - name: Cache Godot import
         uses: actions/cache@v4
         with:
@@ -239,6 +268,12 @@ jobs:
               unzip -o "$STOCK_TPL" -d "$TPLDIR"
               cp "$LITE_BIN" "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
               chmod +x "$TPLDIR/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+              # Add camera key so the exported app doesn't crash from LiveKit's
+              # AVFoundation device enumeration on macOS 14+
+              TPL_PLIST="$TPLDIR/macos_template.app/Contents/Info.plist"
+              if [ -f "$TPL_PLIST" ]; then
+                /usr/libexec/PlistBuddy -c "Add :NSCameraUseContinuityCameraDeviceType bool true" "$TPL_PLIST" 2>/dev/null || true
+              fi
               cd "$TPLDIR" && zip -r "$GITHUB_WORKSPACE/${DEST}" macos_template.app && cd "$GITHUB_WORKSPACE"
               rm -rf "$TPLDIR" "$GLDIR" /tmp/godotlite_dl
               echo "GodotLite macOS template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
