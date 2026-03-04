@@ -40,7 +40,7 @@ jobs:
             os: ubuntu-latest
           - platform: windows
             preset: Windows
-            artifact: daccord-windows-x86_64
+            artifact: blacksmith-4vcpu-windows-2025
             extension: exe
             os: ubuntu-latest
           - platform: macos
@@ -506,7 +506,7 @@ jobs:
   windows-installer:
     name: Build Windows installer
     needs: build
-    runs-on: windows-latest
+    runs-on: blacksmith-4vcpu-windows-2025
     environment: default
     steps:
       - uses: actions/checkout@v4
@@ -556,7 +556,7 @@ jobs:
   release:
     name: Create Release
     needs: [build, windows-installer]
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
 
