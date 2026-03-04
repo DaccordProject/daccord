@@ -40,7 +40,7 @@ jobs:
             os: ubuntu-latest
           - platform: windows
             preset: Windows
-            artifact: blacksmith-4vcpu-windows-2025
+            artifact: daccord-windows-x86_64
             extension: exe
             os: ubuntu-latest
           - platform: macos
