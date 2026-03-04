@@ -211,7 +211,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .godot/imported
-          key: godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-${{ hashFiles('project.godot', '**/*.tscn', '**/*.tres') }}
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-${{ github.sha }}
           restore-keys: |
             godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-
 

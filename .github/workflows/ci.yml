@@ -258,7 +258,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .accordserver_repo/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('.accordserver_repo/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
