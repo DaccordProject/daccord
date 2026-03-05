@@ -102,6 +102,21 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 
+      - name: Generate debug keystore (Android, no release key)
+        if: matrix.platform == 'android' && env.ANDROID_KEYSTORE_BASE64 == ''
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/debug.keystore" \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_USER=androiddebugkey" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+
       - name: Cache GUT
         uses: actions/cache@v4
         with:
@@ -328,15 +343,17 @@ jobs:
             > "$SETTINGS_DIR/editor_settings-4.tres"
 
       - name: Inject Android keystore into export preset
-        if: matrix.platform == 'android' && env.ANDROID_KEYSTORE_BASE64 != ''
+        if: matrix.platform == 'android'
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RELEASE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
+          RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
+          # Use release secret values if available, otherwise fall back to debug keystore env vars
+          KS_USER="${RELEASE_USER:-$ANDROID_KEYSTORE_USER}"
+          KS_PASS="${RELEASE_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
           sed -i "s|keystore/release=\"\"|keystore/release=\"$ANDROID_KEYSTORE_PATH\"|" export_presets.cfg
-          sed -i "s|keystore/release_user=\"\"|keystore/release_user=\"$ANDROID_KEYSTORE_USER\"|" export_presets.cfg
-          sed -i "s|keystore/release_password=\"\"|keystore/release_password=\"$ANDROID_KEYSTORE_PASSWORD\"|" export_presets.cfg
+          sed -i "s|keystore/release_user=\"\"|keystore/release_user=\"$KS_USER\"|" export_presets.cfg
+          sed -i "s|keystore/release_password=\"\"|keystore/release_password=\"$KS_PASS\"|" export_presets.cfg
 
       - name: Create build directory
         run: mkdir -p dist/build/${{ matrix.platform }}
