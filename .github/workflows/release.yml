@@ -565,9 +565,14 @@ jobs:
           echo "APP_VERSION=$ver" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+        shell: cmd
+
       - name: Compile installer with Inno Setup
         run: |
-          iscc "/DMyAppVersion=${{ steps.version.outputs.APP_VERSION }}" dist\installer.iss
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ steps.version.outputs.APP_VERSION }}" dist\installer.iss
         shell: cmd
 
       - name: Sign installer
