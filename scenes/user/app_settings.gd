@@ -45,6 +45,7 @@ var _sensitivity_label: Label
 
 # Appearance page refs
 var _theme_dropdown: OptionButton
+var _theme_preview_row: HBoxContainer
 var _custom_colors_container: VBoxContainer
 var _color_pickers: Dictionary = {} # key -> ColorPickerButton
 
@@ -436,6 +437,12 @@ func _build_appearance_page() -> VBoxContainer:
 	_theme_dropdown.item_selected.connect(_on_theme_preset_changed)
 	vbox.add_child(_theme_dropdown)
 
+	# Theme preview swatches
+	_theme_preview_row = HBoxContainer.new()
+	_theme_preview_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(_theme_preview_row)
+	_update_theme_preview()
+
 	# Custom color pickers (visible only when "Custom" is selected)
 	_custom_colors_container = VBoxContainer.new()
 	_custom_colors_container.add_theme_constant_override("separation", 8)
@@ -581,6 +588,40 @@ func _on_custom_color_changed(color: Color, key: String) -> void:
 func _refresh_color_pickers() -> void:
 	for key in _color_pickers:
 		_color_pickers[key].color = ThemeManager.get_color(key)
+	_update_theme_preview()
+
+
+func _update_theme_preview() -> void:
+	if _theme_preview_row == null:
+		return
+	for child in _theme_preview_row.get_children():
+		child.queue_free()
+	var preview_keys := [
+		["Accent", "accent"],
+		["Text", "text_body"],
+		["Muted", "text_muted"],
+		["Panel", "panel_bg"],
+		["Nav", "nav_bg"],
+		["Input", "input_bg"],
+		["Error", "error"],
+		["Success", "success"],
+	]
+	for entry in preview_keys:
+		var swatch_col := VBoxContainer.new()
+		swatch_col.add_theme_constant_override("separation", 2)
+		var rect := ColorRect.new()
+		rect.custom_minimum_size = Vector2(28, 28)
+		rect.color = ThemeManager.get_color(entry[1])
+		swatch_col.add_child(rect)
+		var lbl := Label.new()
+		lbl.text = entry[0]
+		lbl.add_theme_font_size_override("font_size", 10)
+		lbl.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
+		)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		swatch_col.add_child(lbl)
+		_theme_preview_row.add_child(swatch_col)
 
 # --- Notifications page (trimmed — global only) ---
 func _build_notifications_page() -> VBoxContainer:

@@ -29,6 +29,9 @@ func _ready() -> void:
 	_apply_theme()
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("modal_bg")
 	footer_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	if not _last_data.is_empty():
 		setup(_last_data)

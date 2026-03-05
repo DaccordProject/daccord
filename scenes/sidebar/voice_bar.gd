@@ -43,8 +43,12 @@ func _ready() -> void:
 	add_to_group("themed")
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("nav_bg")
 	if visible:
 		_update_button_visuals()
+	ThemeManager.apply_font_colors(self)
 
 func _on_voice_joined(channel_id: String) -> void:
 	visible = true
@@ -121,9 +125,9 @@ func _on_session_state_changed(state: int) -> void:
 			_saved_channel_label = channel_label.text
 			channel_label.text = "Reconnecting..."
 			channel_label.add_theme_color_override(
-				"font_color", Color(0.96, 0.59, 0.15)
+				"font_color", ThemeManager.get_color("warning")
 			)
-			status_dot.color = Color(0.96, 0.59, 0.15)
+			status_dot.color = ThemeManager.get_color("warning")
 			_start_pulse()
 
 func _start_pulse() -> void:

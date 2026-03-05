@@ -25,6 +25,9 @@ func _ready() -> void:
 	_populate_dms()
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("panel_bg")
 	header_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func _populate_dms() -> void:

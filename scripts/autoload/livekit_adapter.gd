@@ -23,10 +23,13 @@ enum State {
 }
 
 # --- Internal state ---
+const CONNECT_TIMEOUT_SEC := 15.0
+
 var _room: LiveKitRoom
 var _state: int = State.DISCONNECTED
 var _muted: bool = false
 var _deafened: bool = false
+var _connect_timer: Timer
 
 # Local tracks
 var _local_audio_source: RefCounted  # LiveKitAudioSource
@@ -74,6 +77,7 @@ func connect_to_room(url: String, token: String) -> void:
 	_screen_preview = saved_preview
 	_state = State.CONNECTING
 	session_state_changed.emit(State.CONNECTING)
+	_start_connect_timer()
 	_room = LiveKitRoom.new()
 	_room.connected.connect(_on_connected)
 	_room.disconnected.connect(_on_disconnected)
@@ -284,6 +288,7 @@ func _process(_delta: float) -> void:
 # --- Room signal handlers ---
 
 func _on_connected() -> void:
+	_stop_connect_timer()
 	_state = State.CONNECTED
 	session_state_changed.emit(State.CONNECTED)
 	# Publish local microphone audio
@@ -293,6 +298,7 @@ func _on_connected() -> void:
 		_republish_screen()
 
 func _on_connection_failed(error: String) -> void:
+	_stop_connect_timer()
 	push_error("[LiveKitAdapter] Connection failed: ", error)
 	_state = State.FAILED
 	session_state_changed.emit(State.FAILED)
@@ -554,7 +560,30 @@ func _estimate_audio_level(player: AudioStreamPlayer) -> float:
 		return 0.0
 	return clampf(db_to_linear(peak), 0.0, 1.0)
 
+func _start_connect_timer() -> void:
+	_stop_connect_timer()
+	_connect_timer = Timer.new()
+	_connect_timer.wait_time = CONNECT_TIMEOUT_SEC
+	_connect_timer.one_shot = true
+	_connect_timer.timeout.connect(_on_connect_timeout)
+	add_child(_connect_timer)
+	_connect_timer.start()
+
+func _stop_connect_timer() -> void:
+	if _connect_timer != null:
+		_connect_timer.stop()
+		_connect_timer.queue_free()
+		_connect_timer = null
+
+func _on_connect_timeout() -> void:
+	if _state == State.CONNECTING:
+		push_error("[LiveKitAdapter] Connection timed out after %ds" % int(CONNECT_TIMEOUT_SEC))
+		_stop_connect_timer()
+		_state = State.FAILED
+		session_state_changed.emit(State.FAILED)
+
 func _exit_tree() -> void:
+	_stop_connect_timer()
 	disconnect_voice()
 
 

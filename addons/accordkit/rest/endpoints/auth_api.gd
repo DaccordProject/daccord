@@ -25,9 +25,24 @@ func register(data: Dictionary) -> RestResult:
 
 ## Logs in with existing credentials.
 ## data should contain: { "username": String, "password": String }.
-## Returns RestResult with data = { "user": AccordUser, "token": String }.
+## Returns RestResult with data = { "user": AccordUser, "token": String }
+## OR data = { "mfa_required": true, "ticket": String } when 2FA is enabled.
 func login(data: Dictionary) -> RestResult:
 	var result := await _rest.make_request("POST", "/auth/login", data)
+	if result.ok and result.data is Dictionary:
+		# Don't parse as auth response if MFA is required
+		if not result.data.get("mfa_required", false):
+			result.data = _parse_auth_response(result.data)
+	return result
+
+
+## Completes MFA login with a TOTP code or backup code.
+## data should contain: { "ticket": String, "code": String }.
+## Returns RestResult with data = { "user": AccordUser, "token": String }.
+func login_mfa(data: Dictionary) -> RestResult:
+	var result := await _rest.make_request(
+		"POST", "/auth/login/mfa", data
+	)
 	if result.ok and result.data is Dictionary:
 		result.data = _parse_auth_response(result.data)
 	return result
@@ -39,7 +54,8 @@ func change_password(data: Dictionary) -> RestResult:
 	return await _rest.make_request("POST", "/auth/password", data)
 
 
-## Enables two-factor authentication. Returns a TOTP secret.
+## Enables two-factor authentication. Returns a TOTP secret and otpauth URI.
+## data should contain: { "password": String }.
 func enable_2fa(data: Dictionary) -> RestResult:
 	return await _rest.make_request("POST", "/auth/2fa/enable", data)
 
@@ -56,9 +72,19 @@ func disable_2fa(data: Dictionary) -> RestResult:
 	return await _rest.make_request("POST", "/auth/2fa/disable", data)
 
 
-## Retrieves backup codes for 2FA.
-func get_backup_codes() -> RestResult:
-	return await _rest.make_request("GET", "/auth/2fa/backup-codes")
+## Regenerates backup codes for 2FA.
+## data should contain: { "password": String }.
+func regenerate_backup_codes(data: Dictionary) -> RestResult:
+	return await _rest.make_request(
+		"POST", "/auth/2fa/backup-codes", data
+	)
+
+
+## Revokes all sessions for the current user.
+func revoke_all_sessions() -> RestResult:
+	return await _rest.make_request(
+		"POST", "/auth/sessions/revoke-all"
+	)
 
 
 ## Parses the auth response envelope into { "user": AccordUser, "token": String }.

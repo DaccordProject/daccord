@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-03-05
+
+### Added
+- Voice text chat panel for sending messages in voice channels
+- URI handler for deep linking (`daccord://` protocol)
+- MFA/2FA support in auth dialog
+- Permission descriptions for role management UI
+- Theme font color metadata system for declarative node theming
+- Status colors, image error background, and reaction border theme tokens
+- Settings icon
+
+### Changed
+- Admin dialogs migrated to modal base system with themed font colors
+- Connecting overlay replaced with integrated welcome screen
+
+### Fixed
+- Discovery card and detail panel theming improvements
+
 ## [0.1.8] - 2026-03-02
 
 ### Added

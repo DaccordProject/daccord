@@ -77,6 +77,10 @@ signal voice_view_opened(channel_id: String)
 @warning_ignore("unused_signal")
 signal voice_view_closed()
 @warning_ignore("unused_signal")
+signal voice_text_opened(channel_id: String)
+@warning_ignore("unused_signal")
+signal voice_text_closed()
+@warning_ignore("unused_signal")
 signal spotlight_changed(user_id: String)
 @warning_ignore("unused_signal")
 signal profile_card_requested(user_id: String, position: Vector2)
@@ -94,15 +98,11 @@ signal server_reconnected(space_id: String)
 @warning_ignore("unused_signal")
 signal server_synced(space_id: String)
 @warning_ignore("unused_signal")
-signal server_version_warning(space_id: String, server_version: String, client_version: String)
-@warning_ignore("unused_signal")
 signal profile_switched()
 @warning_ignore("unused_signal")
 signal imposter_mode_changed(active: bool)
 @warning_ignore("unused_signal")
 signal connection_step(step: String)
-@warning_ignore("unused_signal")
-signal server_connecting(server_name: String, index: int, total: int)
 @warning_ignore("unused_signal")
 signal server_connection_failed(space_id: String, reason: String)
 @warning_ignore("unused_signal")
@@ -200,6 +200,7 @@ var spotlight_user_id: String = ""
 var pending_attachments: Array = []
 var current_thread_id: String = ""
 var thread_panel_visible: bool = false
+var voice_text_channel_id: String = ""
 var is_discovery_open: bool = false
 var is_imposter_mode: bool = false
 var imposter_permissions: Array = []
@@ -354,6 +355,22 @@ func close_thread() -> void:
 	current_thread_id = ""
 	thread_panel_visible = false
 	thread_closed.emit()
+
+func toggle_voice_text(channel_id: String) -> void:
+	if voice_text_channel_id == channel_id:
+		close_voice_text()
+	else:
+		open_voice_text(channel_id)
+
+func open_voice_text(channel_id: String) -> void:
+	voice_text_channel_id = channel_id
+	voice_text_opened.emit(channel_id)
+
+func close_voice_text() -> void:
+	if voice_text_channel_id.is_empty():
+		return
+	voice_text_channel_id = ""
+	voice_text_closed.emit()
 
 func open_discovery() -> void:
 	if is_discovery_open:

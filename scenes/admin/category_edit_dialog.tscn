@@ -67,7 +67,6 @@ flat = true
 [node name="NameLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "CATEGORY NAME"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
@@ -77,7 +76,7 @@ custom_minimum_size = Vector2(0, 36)
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2
 
 [node name="Buttons" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]

@@ -88,6 +88,7 @@ func _setup_modal(title: String = "", width: float = 400.0, height: float = 0.0,
 	content_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer_vbox.add_child(content_container)
 
+	add_to_group("themed")
 	_start_responsive()
 
 
@@ -98,7 +99,22 @@ func _bind_modal_nodes(panel: PanelContainer, width: float = 400.0,
 	_modal_panel = panel
 	modal_width = width
 	modal_height = height
+	add_to_group("themed")
+	_apply_modal_theme()
 	_start_responsive()
+
+
+func _apply_theme() -> void:
+	_apply_modal_theme()
+	ThemeManager.apply_font_colors(self)
+
+
+func _apply_modal_theme() -> void:
+	color = ThemeManager.get_color("overlay")
+	if is_instance_valid(_modal_panel):
+		var style: StyleBox = _modal_panel.get_theme_stylebox("panel")
+		if style is StyleBoxFlat:
+			style.bg_color = ThemeManager.get_color("modal_bg")
 
 
 func set_modal_title(text: String) -> void:
@@ -112,7 +128,8 @@ func _close() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
 		_close()
 
 

@@ -53,6 +53,7 @@ func _ready() -> void:
 
 	if Config.get_reduced_motion():
 		set_process(false)
+	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)
 
 func _process(delta: float) -> void:
 	_shimmer_offset += delta / SHIMMER_DURATION
@@ -84,6 +85,12 @@ func _apply_theme() -> void:
 					for bar in child.get_children():
 						if bar is ColorRect:
 							bar.color = _bar_color
+
+func _on_reduce_motion_changed(enabled: bool) -> void:
+	if enabled:
+		set_process(false)
+	else:
+		set_process(visible)
 
 func reset_shimmer() -> void:
 	_shimmer_offset = -0.5

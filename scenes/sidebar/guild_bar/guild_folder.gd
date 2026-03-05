@@ -53,14 +53,15 @@ func _apply_theme() -> void:
 		style.bg_color = ThemeManager.get_color("secondary_button")
 	queue_redraw()
 
-func setup(p_name: String, spaces: Array, folder_color: Color = Color(0.24, 0.25, 0.27)) -> void:
+func setup(p_name: String, spaces: Array, folder_color := Color(-1, 0, 0)) -> void:
 	folder_name = p_name
 	_spaces_data_cache = spaces
 	if folder_button:
 		folder_button.tooltip_text = p_name
-		# Apply folder color (darkened)
+		var fallback := ThemeManager.get_color("secondary_button")
+		var actual_color := folder_color if folder_color.r >= 0.0 else fallback
 		var style: StyleBoxFlat = folder_button.get_theme_stylebox("normal").duplicate()
-		style.bg_color = folder_color.darkened(0.6)
+		style.bg_color = actual_color.darkened(0.6)
 		folder_button.add_theme_stylebox_override("normal", style)
 
 	# Create mini grid preview (up to 4 tiny space avatars)

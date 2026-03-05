@@ -11,6 +11,7 @@ var _active_tag: String = ""
 var _search_timer: Timer
 var _detail_view: VBoxContainer = null
 var _embedded := false
+var _ping_cache: Dictionary = {}  # server_url -> int (ms)
 
 @onready var _margin: MarginContainer = $Margin
 @onready var _header: HBoxContainer = $Margin/VBox/Header
@@ -130,6 +131,7 @@ func _fetch_directory(query: String = "", tag: String = "") -> void:
 	_status_label.visible = false
 	_populate_grid(spaces)
 	_populate_tags(spaces)
+	_ping_servers(spaces)
 
 func _populate_grid(spaces: Array) -> void:
 	_clear_grid()
@@ -210,6 +212,50 @@ func _style_tag_button(btn: Button, active: bool) -> void:
 		hover.bg_color = ThemeManager.get_color("secondary_button_hover")
 	btn.add_theme_stylebox_override("hover", hover)
 
+func _ping_servers(spaces: Array) -> void:
+	# Collect unique server URLs
+	var urls: Dictionary = {}
+	for space in spaces:
+		var url: String = space.get("server_url", "")
+		if not url.is_empty():
+			urls[url] = true
+
+	for url in urls:
+		if _ping_cache.has(url):
+			_apply_ping_to_cards(url, _ping_cache[url])
+		else:
+			_ping_server(url)
+
+func _ping_server(server_url: String) -> void:
+	var http := HTTPRequest.new()
+	add_child(http)
+	var health_url: String = server_url.rstrip("/") + "/health"
+	var start := Time.get_ticks_msec()
+	var err := http.request(health_url)
+	if err != OK:
+		http.queue_free()
+		return
+	var result: Array = await http.request_completed
+	http.queue_free()
+	if not is_instance_valid(self):
+		return
+	var ms: int = Time.get_ticks_msec() - start
+	var response_code: int = result[1]
+	if response_code < 200 or response_code >= 300:
+		return
+	_ping_cache[server_url] = ms
+	_apply_ping_to_cards(server_url, ms)
+
+func _apply_ping_to_cards(server_url: String, ms: int) -> void:
+	for card in _grid.get_children():
+		if not is_instance_valid(card):
+			continue
+		if card.has_method("set_ping") and card._data.get("server_url", "") == server_url:
+			card.set_ping(ms)
+	if _detail_view and is_instance_valid(_detail_view) and _detail_view.has_method("set_ping"):
+		if _detail_view._data.get("server_url", "") == server_url:
+			_detail_view.set_ping(ms)
+
 func _show_status(msg: String) -> void:
 	_status_label.text = msg
 	_status_label.visible = true
@@ -238,6 +284,13 @@ func _on_card_clicked(space_data: Dictionary) -> void:
 	_detail_view.setup(space_data)
 	_detail_view.back_pressed.connect(_on_detail_back)
 	_detail_view.join_pressed.connect(_on_detail_join_with_slug)
+
+	# Apply cached ping to detail view
+	var server_url: String = space_data.get("server_url", "")
+	if _ping_cache.has(server_url):
+		_detail_view.set_ping(_ping_cache[server_url])
+	else:
+		_ping_server(server_url)
 
 func _on_detail_back() -> void:
 	_detail_container.visible = false

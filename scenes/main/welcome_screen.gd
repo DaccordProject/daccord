@@ -294,11 +294,18 @@ func _switch_features_to_hbox() -> void:
 
 
 func _apply_shader_accent() -> void:
-	# Set the accent_color uniform on the background shader
 	var bg: ColorRect = $Background
 	if bg and bg.material is ShaderMaterial:
 		var accent: Color = ThemeManager.get_color("accent")
 		bg.material.set_shader_parameter("accent_color", accent)
+		var nav: Color = ThemeManager.get_color("nav_bg")
+		var input: Color = ThemeManager.get_color("input_bg")
+		bg.material.set_shader_parameter(
+			"bg_navy", Vector3(input.r, input.g, input.b)
+		)
+		bg.material.set_shader_parameter(
+			"bg_purple", Vector3(nav.r, nav.g, nav.b)
+		)
 
 
 func _apply_theme() -> void:
@@ -315,6 +322,7 @@ func _apply_theme() -> void:
 	_update_btn.add_theme_color_override(
 		"icon_hover_color", ThemeManager.get_color("error_hover")
 	)
+	ThemeManager.apply_font_colors(self)
 
 
 func _on_reduce_motion_changed(enabled: bool) -> void:

@@ -162,6 +162,10 @@ func _ready() -> void:
 	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
+	# On Android, request dangerous permissions (microphone, camera) early so
+	# they are granted before the user tries to join a voice channel.
+	if OS.get_name() == "Android":
+		OS.request_permissions()
 	_voice_session = LiveKitAdapter.new()
 	add_child(_voice_session)
 	_voice_session.session_state_changed.connect(
@@ -239,9 +243,7 @@ func _notification(what: int) -> void:
 		get_tree().quit()
 
 func _derive_gateway_url(base_url: String) -> String:
-	var gw := base_url.replace(
-		"https://", "wss://"
-	).replace("http://", "ws://")
+	var gw := base_url.replace("https://", "wss://").replace("http://", "ws://")
 	return gw + "/ws"
 
 func _derive_cdn_url(base_url: String) -> String:
@@ -249,9 +251,7 @@ func _derive_cdn_url(base_url: String) -> String:
 
 # --- Multi-server connection ---
 
-func connect_server(
-	index: int, invite_code: String = ""
-) -> Dictionary:
+func connect_server(index: int, invite_code: String = "") -> Dictionary:
 	return await connection.connect_server(index, invite_code)
 
 # --- Client routing ---
@@ -561,9 +561,7 @@ func get_camera_track():
 func get_screen_track():
 	return _screen_track
 
-func get_remote_track(
-	user_id: String,
-):
+func get_remote_track(user_id: String):
 	return _remote_tracks.get(user_id)
 
 func update_profile(data: Dictionary) -> bool:
@@ -628,9 +626,37 @@ func is_space_owner(gid: String) -> bool:
 func get_my_highest_role_position(gid: String) -> int:
 	return permissions.get_my_highest_role_position(gid)
 
+## Returns the color of the user's highest-positioned role that has a non-zero
+## color in the given space, or null if no colored role exists.
+func get_role_color_for_user(gid: String, user_id: String) -> Variant:
+	var mi: int = _member_index_for(gid, user_id)
+	if mi == -1:
+		return null
+	var member_roles: Array = _member_cache.get(gid, [])[mi].get("roles", [])
+	var roles: Array = _role_cache.get(gid, [])
+	var best_color: int = 0
+	var best_position: int = -1
+	for role in roles:
+		var rid: String = role.get("id", "")
+		if rid not in member_roles:
+			continue
+		var c: int = role.get("color", 0)
+		if c == 0:
+			continue
+		var pos: int = role.get("position", 0)
+		if pos > best_position:
+			best_position = pos
+			best_color = c
+	if best_color == 0:
+		return null
+	return Color.hex(best_color)
+
 # --- Unread / mention tracking ---
 
 func _on_channel_selected_clear_unread(cid: String) -> void:
+	clear_channel_unread(cid)
+
+func clear_channel_unread(cid: String) -> void:
 	if not _unread_channels.has(cid):
 		return
 	_unread_channels.erase(cid)
@@ -645,9 +671,7 @@ func _on_channel_selected_clear_unread(cid: String) -> void:
 		_dm_channel_cache[cid]["unread"] = false
 		AppState.dm_channels_updated.emit()
 
-func mark_channel_unread(
-	cid: String, is_mention: bool = false,
-) -> void:
+func mark_channel_unread(cid: String, is_mention: bool = false) -> void:
 	_unread_channels[cid] = true
 	if is_mention:
 		var cur: int = _channel_mention_counts.get(cid, 0)
@@ -746,22 +770,6 @@ func _find_channel_for_message(mid: String) -> String:
 			if msg.get("id", "") == mid:
 				return ch_id
 	return ""
-
-# --- Custom emoji caching (delegates to ClientEmoji) ---
-
-func register_custom_emoji(
-	space_id: String, emoji_id: String,
-	emoji_name: String,
-) -> void:
-	emoji.register(space_id, emoji_id, emoji_name)
-
-func register_custom_emoji_texture(
-	emoji_name: String, texture: Texture2D,
-) -> void:
-	emoji.register_texture(emoji_name, texture)
-
-func trim_user_cache() -> void:
-	emoji.trim_user_cache()
 
 # --- Member index helpers ---
 

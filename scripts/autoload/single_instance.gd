@@ -4,10 +4,28 @@ const LOCK_FILE := "user://daccord.lock"
 
 func _ready() -> void:
 	if _another_instance_running():
-		OS.alert("daccord is already running.", "daccord")
+		# Forward any --uri to the running instance via IPC file
+		var uri := _get_cli_uri()
+		if not uri.is_empty():
+			var file := FileAccess.open("user://daccord.uri", FileAccess.WRITE)
+			if file:
+				file.store_string(uri)
+				file.close()
+		else:
+			OS.alert("daccord is already running.", "daccord")
 		get_tree().quit()
 		return
 	_write_lock()
+
+
+func _get_cli_uri() -> String:
+	var args := OS.get_cmdline_args()
+	for i in args.size():
+		if args[i] == "--uri" and i + 1 < args.size():
+			return args[i + 1]
+		if args[i].begins_with("daccord://"):
+			return args[i]
+	return ""
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE:

@@ -42,7 +42,7 @@ This flow describes how daccord reports crashes, script errors, and diagnostic d
 1. User encounters a bug and wants to report it manually.
 2. User opens the user bar menu and selects "Report a Problem" (menu id 13).
 3. A dialog appears with a text field: "Describe what happened (optional):" and buttons [Send Report] [Cancel].
-4. **Send Report:** `ErrorReporting.report_problem(description)` calls `SentrySDK.capture_feedback()` with a `SentryFeedback` object. Context tags (server_count, space_id, channel_id) are updated first. Toast: "Report sent. Thank you!"
+4. **Send Report:** `ErrorReporting.report_problem(description)` sets a `type=user-feedback` tag and calls `SentrySDK.capture_message()` at INFO level. Context tags (server_count, space_id, channel_id) are updated first. Toast: "Report sent. Thank you!"
 5. **Cancel:** Dialog closes. No event is sent.
 
 ### Toggling Error Reporting (User Bar Menu)
@@ -109,7 +109,8 @@ Manual Report:
     -> User enters description, clicks [Send Report]
     -> ErrorReporting.report_problem(description)
       -> update_context() sets server_count, space_id, channel_id tags
-      -> SentrySDK.capture_feedback(SentryFeedback)
+      -> SentrySDK.set_tag("type", "user-feedback")
+      -> SentrySDK.capture_message(description, LEVEL_INFO)
     -> _show_report_sent_toast()
 
 Toggle Setting:
@@ -125,7 +126,7 @@ Toggle Setting:
 | File | Role |
 |------|------|
 | `scripts/sentry_scene_tree.gd` | Sentry SDK initialization helper. Houses `late_init()` for SDK initialization, `_before_send` callback, PII scrubbing, and `_read_consent_from_disk()` for reading consent from encrypted config. Called by `ErrorReporting` autoload at startup or via consent dialog. |
-| `addons/sentry/` | Sentry Godot SDK addon (GDExtension, gitignored). Provides `SentrySDK`, `SentryEvent`, `SentryBreadcrumb`, `SentryFeedback`, `SentryOptions` classes. |
+| `addons/sentry/` | Sentry Godot SDK addon (GDExtension, gitignored). Provides `SentrySDK`, `SentryEvent`, `SentryBreadcrumb`, `SentryOptions` classes. |
 | `project.godot:67-80` | Sentry SDK configuration: DSN, `auto_init=false`, `send_default_pii=false`, logger masks. |
 | `scripts/autoload/error_reporting.gd` | Autoload for SDK initialization, breadcrumb hooks, context tags, `report_problem()` for user feedback, and `scrub_pii_text()` utility. Reads consent on startup and delegates SDK initialization to `SentrySceneTree.late_init()`. |
 | `scripts/autoload/config.gd:329-342` | Persists `error_reporting_enabled` and `consent_shown` under `[error_reporting]` config section. |
@@ -248,7 +249,7 @@ In `_ready()`, it checks `SentrySceneTree.initialized` (always false on fresh st
 
 **`update_context()`**: Sets `server_count`, `space_id`, and `channel_id` tags on the Sentry scope. Called before manual reports.
 
-**`report_problem(description)`**: Creates a `SentryFeedback` with the description, calls `SentrySDK.capture_feedback()`.
+**`report_problem(description)`**: Sets a `type=user-feedback` tag and calls `SentrySDK.capture_message()` at INFO level. GlitchTip doesn't support the Sentry feedback envelope API, so user reports are sent as tagged events instead.
 
 ### Breadcrumb Strategy
 
@@ -336,7 +337,7 @@ GlitchTip implements the Sentry event ingestion API (v7). The Sentry Godot SDK s
 | Release tracking | Yes |
 | Environment tags | Yes |
 | Attachments (log files) | Yes |
-| User feedback | Yes |
+| User feedback | No (sent as tagged INFO events instead) |
 | Performance/tracing | Partial (not needed for error reporting) |
 
 ### What Is NOT Sent
@@ -365,7 +366,7 @@ The `before_send` callback enforces this as a safety net: `_scrub_pii()` redacts
 - [x] Release tag set from `application/config/version`
 - [x] Environment and OS tags set on scope
 - [x] "Report a Problem" menu item in `user_bar.gd`
-- [x] Feedback dialog with text input and send (`SentryFeedback`)
+- [x] Feedback dialog with text input and send (tagged `capture_message`)
 - [x] Crash recovery toast on next launch
 - [x] Settings toggle for enabling/disabling error reporting (check item in user bar menu)
 - [x] CI/CD: DSN injected at export time via `SENTRY_DSN` secret in `release.yml`

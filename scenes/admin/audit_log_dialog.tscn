@@ -64,7 +64,7 @@ layout_mode = 2
 [node name="FilterLabel" type="Label" parent="CenterContainer/Panel/VBox/FilterRow"]
 layout_mode = 2
 text = "Filter:"
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 
 [node name="FilterOption" type="OptionButton" parent="CenterContainer/Panel/VBox/FilterRow"]
 layout_mode = 2
@@ -84,16 +84,15 @@ visible = false
 layout_mode = 2
 text = "Load More"
 flat = true
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 
 [node name="EmptyLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
 text = "No audit log entries."
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2

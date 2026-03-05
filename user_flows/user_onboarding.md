@@ -140,8 +140,8 @@ sidebar._on_spaces_updated()                           (line 22)
 |------|------|
 | `scripts/autoload/config.gd` | Persists server configs; `has_servers()` (line 85), `get_last_selection()` (line 96), `add_server()` (line 35) |
 | `scripts/autoload/client.gd` | Startup check (line 90), `connect_server()` (line 112), mode transitions |
-| `scripts/autoload/app_state.gd` | `spaces_updated` signal triggers sidebar startup selection; `server_connecting` signal for overlay progress |
-| `scripts/autoload/client_connection.gd` | Server connection lifecycle; emits `server_connecting` at start of `connect_server()` |
+| `scripts/autoload/app_state.gd` | `spaces_updated` signal triggers sidebar startup selection |
+| `scripts/autoload/client_connection.gd` | Server connection lifecycle |
 | `scenes/sidebar/guild_bar/add_server_button.gd` | "+" button, emits `add_server_pressed`; pulse animation when no servers configured |
 | `scenes/sidebar/guild_bar/add_server_dialog.gd` | URL parsing (line 24), server probing (line 134), connection (line 161) |
 | `scenes/sidebar/guild_bar/auth_dialog.gd` | Sign In / Register flow, emits `auth_completed` (line 3) |
@@ -152,9 +152,7 @@ sidebar._on_spaces_updated()                           (line 22)
 | `scenes/main/welcome_screen.gd` | Welcome screen with animated background, entrance animations, CTA button, responsive layout |
 | `scenes/main/welcome_screen.tscn` | Welcome screen scene (shader bg, CPUParticles2D, feature cards, CTA button) |
 | `theme/welcome_bg.gdshader` | Animated gradient background shader (bokeh particles, sparkle shimmer) |
-| `scenes/main/connecting_overlay.gd` | Connecting overlay with animated dots, progress tracking, auto-dismiss |
-| `scenes/main/connecting_overlay.tscn` | Connecting overlay scene |
-| `scenes/main/main_window.gd` | Root scene; shows welcome screen when no servers configured, connecting overlay on startup, dismisses on first `spaces_updated` |
+| `scenes/main/main_window.gd` | Root scene; shows welcome screen when no servers configured, dismisses on first `spaces_updated` |
 
 ## Implementation Details
 
@@ -263,11 +261,11 @@ The welcome screen (`welcome_screen.gd`) layers three visual elements:
 - **Notes:** ** Welcome screen now shows animated shader background, floating particles, branding, feature cards, and "Add a Server" CTA. Dismissed automatically when first server connects.
 
 ### ONBOARD-2: No connection progress during startup
-- **Status:** done
+- **Status:** removed
 - **Impact:** 3
 - **Effort:** 3
 - **Tags:** general
-- **Notes:** ** `ConnectingOverlay` scene appears during startup auto-connect, showing server name, progress count, and animated dots. Fades out when all servers have connected or failed. `AppState.server_connecting` signal emitted by `ClientConnection.connect_server()`.
+- **Notes:** Connecting overlay removed. Space icon indicators in the guild bar now show per-server connection status instead of blocking the UI with an overlay.
 
 ### ONBOARD-3: No main window empty state
 - **Status:** done

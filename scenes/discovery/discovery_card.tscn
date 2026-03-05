@@ -33,9 +33,18 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
 
-[node name="NameLabel" type="Label" parent="Margin/VBox/Header/Info"]
+[node name="TopRow" type="HBoxContainer" parent="Margin/VBox/Header/Info"]
 layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="NameLabel" type="Label" parent="Margin/VBox/Header/Info/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 15
+
+[node name="PingLabel" type="Label" parent="Margin/VBox/Header/Info/TopRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
 
 [node name="MemberLabel" type="Label" parent="Margin/VBox/Header/Info"]
 layout_mode = 2

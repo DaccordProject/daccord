@@ -200,7 +200,7 @@ func fetch_messages(channel_id: String) -> void:
 		for msg in msgs:
 			_c._message_id_index[msg.get("id", "")] = channel_id
 		# Trim user cache periodically
-		_c.trim_user_cache()
+		_c.emoji.trim_user_cache()
 		AppState.messages_updated.emit(channel_id)
 	else:
 		var err_msg: String = (

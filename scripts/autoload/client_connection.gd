@@ -20,9 +20,6 @@ func connect_server(
 	var base_url: String = cfg["base_url"]
 	var token: String = cfg["token"]
 	var space_name: String = cfg["space_name"]
-	AppState.server_connecting.emit(
-		space_name, index, servers.size()
-	)
 	var gw_url: String = _c._derive_gateway_url(base_url)
 	var cdn_url: String = _c._derive_cdn_url(base_url)
 
@@ -72,23 +69,6 @@ func connect_server(
 		client.queue_free()
 		conn["client"] = null
 		return {"error": err_msg}
-
-	# Check server version compatibility (non-blocking)
-	var ver_result: RestResult = await client.rest.make_request(
-		"GET", "/version"
-	)
-	if ver_result.ok and ver_result.data is Dictionary:
-		conn["server_version"] = ver_result.data.get("version", "")
-		conn["server_git_sha"] = ver_result.data.get("git_sha", "")
-		var srv_ver: String = conn["server_version"]
-		# Compare major version (first digit before the dot)
-		var client_major: String = AccordConfig.CLIENT_VERSION.split(".")[0]
-		var server_major: String = srv_ver.split(".")[0] if not srv_ver.is_empty() else ""
-		if not server_major.is_empty() and server_major != client_major:
-			AppState.server_version_warning.emit(
-				old_space_id, srv_ver,
-				AccordConfig.CLIENT_VERSION
-			)
 
 	var me_user: AccordUser = me_result.data
 	var me_dict := ClientModels.user_to_dict(

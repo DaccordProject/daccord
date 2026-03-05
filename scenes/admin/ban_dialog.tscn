@@ -67,7 +67,6 @@ flat = true
 [node name="ReasonLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "REASON (OPTIONAL)"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="ReasonInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
@@ -78,7 +77,6 @@ placeholder_text = "Reason for ban"
 [node name="SummaryLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 autowrap_mode = 2
 
 [node name="BanButton" type="Button" parent="CenterContainer/Panel/VBox"]
@@ -90,5 +88,5 @@ theme_override_styles/normal = SubResource("ban_btn_normal")
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2

@@ -21,11 +21,18 @@ var _notify_popup: PopupMenu
 @onready var also_send_check: CheckBox = $VBox/ComposerBox/AlsoSendCheck
 
 func _ready() -> void:
+	add_to_group("themed")
+	_apply_theme()
 	close_button.pressed.connect(_on_close)
 	notify_button.pressed.connect(_on_notify_pressed)
 	send_button.pressed.connect(_on_send)
 	thread_input.gui_input.connect(_on_input_key)
 	also_send_check.toggled.connect(func(v: bool): _also_send_to_channel = v)
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("panel_bg")
 	_notify_popup = PopupMenu.new()
 	_notify_popup.add_item("Default", 0)
 	_notify_popup.add_item("All Messages", 1)
@@ -41,6 +48,7 @@ func _ready() -> void:
 	AppState.thread_typing_started.connect(_on_thread_typing_started)
 	AppState.thread_typing_stopped.connect(_on_thread_typing_stopped)
 	_apply_layout(AppState.current_layout_mode)
+	ThemeManager.apply_font_colors(self)
 
 func _on_thread_opened(parent_message_id: String) -> void:
 	_parent_message_id = parent_message_id

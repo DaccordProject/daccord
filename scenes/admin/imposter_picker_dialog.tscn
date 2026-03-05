@@ -70,7 +70,7 @@ flat = true
 layout_mode = 2
 text = "Select a role to preview permissions"
 theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 
 [node name="Content" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -100,7 +100,6 @@ theme_override_constants/separation = 4
 [node name="PermLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/CustomScroll/CustomPanel"]
 layout_mode = 2
 text = "PERMISSIONS"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="PermList" type="VBoxContainer" parent="CenterContainer/Panel/VBox/Content/CustomScroll/CustomPanel"]

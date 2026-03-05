@@ -5,6 +5,7 @@ const MESSAGE_VIEW_MIN := 300.0
 const PANEL_MIN_THREAD := 240.0
 const PANEL_MIN_MEMBER := 180.0
 const PANEL_MIN_SEARCH := 240.0
+const PANEL_MIN_VOICE_TEXT := 240.0
 const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
 const PanelResizeHandle := preload("res://scenes/main/panel_resize_handle.gd")
 const MainWindowTabs := preload("res://scenes/main/main_window_tabs.gd")
@@ -13,9 +14,6 @@ const ProfileCardScene := preload(
 )
 const WelcomeScreenScene := preload(
 	"res://scenes/main/welcome_screen.tscn"
-)
-const ConnectingOverlayScene := preload(
-	"res://scenes/main/connecting_overlay.tscn"
 )
 const ImageLightboxScene := preload(
 	"res://scenes/messages/image_lightbox.tscn"
@@ -36,22 +34,24 @@ var _gestures: RefCounted
 var _thread_handle: Control
 var _member_handle: Control
 var _search_handle: Control
+var _voice_text_handle: Control
 var _clamping_panels: bool = false
 var _update_indicator: Button = null
 var _pip: PanelContainer = null
 
 @onready var video_grid: PanelContainer = $LayoutHBox/ContentArea/VideoGrid
-@onready var content_header: HBoxContainer = $LayoutHBox/ContentArea/ContentHeader
+@onready var content_header: PanelContainer = $LayoutHBox/ContentArea/ContentHeader
 @onready var layout_hbox: HBoxContainer = $LayoutHBox
 @onready var sidebar: HBoxContainer = $LayoutHBox/Sidebar
 @onready var content_area: VBoxContainer = $LayoutHBox/ContentArea
-@onready var hamburger_button: Button = $LayoutHBox/ContentArea/ContentHeader/HamburgerButton
-@onready var sidebar_toggle: Button = $LayoutHBox/ContentArea/ContentHeader/SidebarToggle
-@onready var tab_bar: TabBar = $LayoutHBox/ContentArea/ContentHeader/TabBar
-@onready var search_toggle: Button = $LayoutHBox/ContentArea/ContentHeader/SearchToggle
-@onready var member_toggle: Button = $LayoutHBox/ContentArea/ContentHeader/MemberListToggle
+@onready var hamburger_button: Button = %HamburgerButton
+@onready var sidebar_toggle: Button = %SidebarToggle
+@onready var tab_bar: TabBar = %TabBar
+@onready var search_toggle: Button = %SearchToggle
+@onready var member_toggle: Button = %MemberListToggle
 @onready var topic_bar: Label = $LayoutHBox/ContentArea/TopicBar
 @onready var content_body: HBoxContainer = $LayoutHBox/ContentArea/ContentBody
+@onready var voice_text_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/VoiceTextPanel
 @onready var discovery_panel: PanelContainer = $LayoutHBox/DiscoveryPanel
 @onready var message_view: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MessageView
 @onready var thread_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ThreadPanel
@@ -102,6 +102,8 @@ func _ready() -> void:
 	AppState.update_available.connect(_on_update_indicator_show)
 	AppState.update_download_complete.connect(_on_update_indicator_ready)
 	AppState.config_changed.connect(_on_config_changed)
+	AppState.voice_text_opened.connect(_on_voice_text_opened)
+	AppState.voice_text_closed.connect(_on_voice_text_closed)
 	AppState.discovery_opened.connect(_on_discovery_opened)
 	AppState.discovery_closed.connect(_on_discovery_closed)
 
@@ -121,7 +123,7 @@ func _ready() -> void:
 	)
 	_update_indicator.visible = false
 	_update_indicator.pressed.connect(_on_update_indicator_pressed)
-	var header: HBoxContainer = $LayoutHBox/ContentArea/ContentHeader
+	var header: HBoxContainer = $LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox
 	header.add_child(_update_indicator)
 	header.move_child(
 		_update_indicator, search_toggle.get_index()
@@ -135,6 +137,11 @@ func _ready() -> void:
 		)
 	):
 		_update_indicator.visible = true
+
+	# Style content header background
+	var header_style := StyleBoxFlat.new()
+	header_style.bg_color = ThemeManager.get_color("content_bg")
+	content_header.add_theme_stylebox_override("panel", header_style)
 
 	# Style topic bar
 	topic_bar.add_theme_font_size_override("font_size", 12)
@@ -159,6 +166,14 @@ func _ready() -> void:
 	content_body.add_child(_search_handle)
 	content_body.move_child(_search_handle, search_panel.get_index())
 
+	_voice_text_handle = PanelResizeHandle.new(
+		voice_text_panel, 240.0, 500.0, 300.0,
+	)
+	content_body.add_child(_voice_text_handle)
+	content_body.move_child(
+		_voice_text_handle, voice_text_panel.get_index()
+	)
+
 	_sync_handle_visibility()
 	content_body.resized.connect(_clamp_panel_widths)
 
@@ -181,8 +196,6 @@ func _ready() -> void:
 	# Welcome screen for first launch (no servers configured)
 	if not Config.has_servers():
 		_show_welcome_screen()
-	elif int(Client.mode) == Client.Mode.CONNECTING:
-		_show_connecting_overlay()
 
 func _apply_ui_scale() -> void:
 	var scale: float = Config.get_ui_scale()
@@ -317,27 +330,18 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	# When voice view is open, skip content visibility management
 	if AppState.is_voice_view_open:
 		# Still handle sidebar/drawer transitions
-		match mode:
-			AppState.LayoutMode.FULL:
-				_drawer.move_sidebar_to_layout()
-				sidebar.visible = true
-				sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
-				hamburger_button.visible = false
-				sidebar_toggle.visible = true
-				_drawer.close_drawer_immediate()
-			AppState.LayoutMode.MEDIUM:
-				_drawer.move_sidebar_to_layout()
-				sidebar.visible = true
-				sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
-				hamburger_button.visible = false
-				sidebar_toggle.visible = true
-				_drawer.close_drawer_immediate()
-			AppState.LayoutMode.COMPACT:
-				_drawer.move_sidebar_to_drawer()
-				sidebar.set_channel_panel_visible_immediate(true)
-				hamburger_button.visible = true
-				sidebar_toggle.visible = false
-				_drawer.close_drawer_immediate()
+		if mode == AppState.LayoutMode.COMPACT:
+			_drawer.move_sidebar_to_drawer()
+			sidebar.set_channel_panel_visible_immediate(true)
+			hamburger_button.visible = true
+			sidebar_toggle.visible = false
+		else:
+			_drawer.move_sidebar_to_layout()
+			sidebar.visible = true
+			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
+			hamburger_button.visible = false
+			sidebar_toggle.visible = true
+		_drawer.close_drawer_immediate()
 		return
 
 	match mode:
@@ -391,6 +395,7 @@ func _sync_handle_visibility() -> void:
 	_thread_handle.visible = thread_panel.visible and not is_compact
 	_member_handle.visible = member_list.visible and not is_compact
 	_search_handle.visible = search_panel.visible and not is_compact
+	_voice_text_handle.visible = voice_text_panel.visible and not is_compact
 	_clamp_panel_widths()
 
 func _clamp_panel_widths() -> void:
@@ -407,6 +412,8 @@ func _clamp_panel_widths() -> void:
 		reserved += PANEL_HANDLE_WIDTH
 	if _search_handle.visible:
 		reserved += PANEL_HANDLE_WIDTH
+	if _voice_text_handle.visible:
+		reserved += PANEL_HANDLE_WIDTH
 
 	var budget: float = available - reserved
 	if budget <= 0.0:
@@ -421,6 +428,8 @@ func _clamp_panel_widths() -> void:
 		panels.append([member_list, PANEL_MIN_MEMBER])
 	if search_panel.visible:
 		panels.append([search_panel, PANEL_MIN_SEARCH])
+	if voice_text_panel.visible:
+		panels.append([voice_text_panel, PANEL_MIN_VOICE_TEXT])
 
 	var total: float = 0.0
 	for p in panels:
@@ -474,6 +483,7 @@ func _on_dm_mode_entered() -> void:
 	_update_member_list_visibility()
 
 func _on_space_selected(_space_id: String) -> void:
+	AppState.close_voice_text()
 	_update_member_list_visibility()
 	_update_search_visibility()
 	AppState.close_search()
@@ -549,10 +559,6 @@ func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
 	var y: float = clampf(pos.y, 0.0, vp_size.y - card_size.y)
 	_active_profile_card.position = Vector2(x, y)
 
-func _show_connecting_overlay() -> void:
-	var overlay: ColorRect = ConnectingOverlayScene.instantiate()
-	add_child(overlay)
-
 func _show_welcome_screen() -> void:
 	_welcome_screen = WelcomeScreenScene.instantiate()
 	# Add as full-window overlay covering sidebar + content
@@ -624,12 +630,21 @@ func _on_voice_view_opened(_channel_id: String) -> void:
 	_remove_pip()
 	content_header.visible = false
 	topic_bar.visible = false
-	content_body.visible = false
+	# Hide content_body children except voice text panel
+	if voice_text_panel.visible:
+		for child in content_body.get_children():
+			if child != voice_text_panel:
+				child.visible = false
+	else:
+		content_body.visible = false
 	video_grid.set_full_area(true)
 
 func _on_voice_view_closed() -> void:
 	content_header.visible = true
 	content_body.visible = true
+	# Restore visibility of content_body children hidden during voice view
+	message_view.visible = true
+	_sync_handle_visibility()
 	# Restore topic bar based on current channel
 	var topic := ""
 	for ch in Client.channels:
@@ -744,6 +759,12 @@ func _on_config_changed(section: String, key: String) -> void:
 	if section == "accessibility" and key == "ui_scale":
 		_apply_ui_scale()
 
+func _on_voice_text_opened(_channel_id: String) -> void:
+	_sync_handle_visibility()
+
+func _on_voice_text_closed() -> void:
+	_sync_handle_visibility()
+
 func _on_discovery_opened() -> void:
 	discovery_panel.visible = true
 	discovery_panel.activate()
@@ -762,6 +783,10 @@ func _on_discovery_closed() -> void:
 	_sync_handle_visibility()
 
 func _apply_theme() -> void:
+	drawer_backdrop.color = ThemeManager.get_color("overlay")
+	var header_sb: StyleBox = content_header.get_theme_stylebox("panel")
+	if header_sb is StyleBoxFlat:
+		header_sb.bg_color = ThemeManager.get_color("content_bg")
 	# Re-apply inline color overrides for long-lived nodes
 	topic_bar.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")

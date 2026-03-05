@@ -92,6 +92,7 @@ func setup(data: Dictionary) -> void:
 
 func _apply_theme() -> void:
 	last_message_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.apply_font_colors(self)
 
 func _on_close_pressed() -> void:
 	dm_closed.emit(dm_id)

@@ -14,6 +14,7 @@ var _username: String = ""
 func _ready() -> void:
 	_checkbox.toggled.connect(func(pressed: bool): toggled.emit(pressed, user_id))
 	_unban_btn.pressed.connect(func(): unban_requested.emit(user_id, _username))
+	ThemeManager.apply_font_colors(self)
 
 func setup(ban: Dictionary, selected: bool) -> void:
 	var user_data = ban.get("user", {})

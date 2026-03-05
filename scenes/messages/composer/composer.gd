@@ -36,6 +36,8 @@ func _ready() -> void:
 	AppState.server_synced.connect(func(_gid): update_enabled_state())
 	AppState.server_connection_failed.connect(func(_gid, _r): update_enabled_state())
 	AppState.imposter_mode_changed.connect(func(_a): update_enabled_state())
+	AppState.roles_updated.connect(func(_s): update_enabled_state())
+	AppState.channel_selected.connect(func(_c): update_enabled_state())
 	AppState.channel_selected.connect(_on_channel_selected_restore_draft)
 	add_to_group("themed")
 	# Style reply bar
@@ -43,7 +45,11 @@ func _ready() -> void:
 	_apply_theme()
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("button_hover")
 	reply_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.apply_font_colors(self)
 
 func set_channel_name(channel_name: String) -> void:
 	text_input.placeholder_text = "Message #" + channel_name
@@ -329,6 +335,27 @@ func update_enabled_state() -> void:
 			text_input.placeholder_text = "Preview mode \u2014 sending disabled"
 		return
 
+	# Channel permission checks
+	var channel_id: String = AppState.current_channel_id
+	if not space_id.is_empty() and not channel_id.is_empty():
+		var can_send: bool = Client.has_channel_permission(
+			space_id, channel_id, AccordPermission.SEND_MESSAGES
+		)
+		if not can_send:
+			text_input.editable = false
+			send_button.disabled = true
+			upload_button.disabled = true
+			emoji_button.disabled = true
+			if _saved_placeholder.is_empty():
+				_saved_placeholder = text_input.placeholder_text
+			text_input.placeholder_text = "You do not have permission to send messages in this channel"
+			return
+		var can_attach: bool = Client.has_channel_permission(
+			space_id, channel_id, AccordPermission.ATTACH_FILES
+		)
+		upload_button.disabled = not can_attach
+		upload_button.tooltip_text = "" if can_attach else "You do not have permission to attach files"
+
 	# Syncing: connected but data not yet refreshed
 	var is_syncing := false
 	if connected and not space_id.is_empty():
@@ -342,7 +369,13 @@ func update_enabled_state() -> void:
 
 	text_input.editable = (connected and not is_syncing) or can_queue
 	send_button.disabled = (not connected and not can_queue) or is_syncing
-	upload_button.disabled = not connected or is_syncing
+	if not space_id.is_empty() and not channel_id.is_empty():
+		var can_attach: bool = Client.has_channel_permission(
+			space_id, channel_id, AccordPermission.ATTACH_FILES
+		)
+		upload_button.disabled = upload_button.disabled or not can_attach
+	else:
+		upload_button.disabled = not connected or is_syncing
 	emoji_button.disabled = not connected or is_syncing
 	if is_syncing:
 		if _saved_placeholder.is_empty():

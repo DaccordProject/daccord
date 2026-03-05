@@ -42,7 +42,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Voice Connected"
 theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.231, 0.647, 0.365, 1)
+metadata/theme_font_color = "status_online"
 
 [node name="ButtonRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -96,4 +96,4 @@ layout_mode = 2
 custom_minimum_size = Vector2(48, 32)
 text = "✕"
 theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.929, 0.259, 0.271, 1)
+metadata/theme_font_color = "error"

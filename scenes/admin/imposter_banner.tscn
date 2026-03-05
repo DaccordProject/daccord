@@ -29,12 +29,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Previewing as @everyone"
 theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.945, 0.769, 0.059, 1)
+metadata/theme_font_color = "warning"
 
 [node name="ExitButton" type="Button" parent="HBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "Exit"
 flat = true
-theme_override_colors/font_color = Color(0.945, 0.769, 0.059, 1)
+metadata/theme_font_color = "warning"
 theme_override_font_sizes/font_size = 12

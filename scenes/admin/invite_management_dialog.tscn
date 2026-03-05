@@ -96,13 +96,12 @@ visible = false
 layout_mode = 2
 text = "Revoke Selected"
 flat = true
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 
 [node name="EmptyLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
 text = "No invites."
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
 [node name="CreateToggle" type="Button" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -118,7 +117,6 @@ theme_override_constants/separation = 8
 [node name="MaxAgeLabel" type="Label" parent="CenterContainer/Panel/VBox/CreateForm"]
 layout_mode = 2
 text = "EXPIRE AFTER"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="MaxAgeOption" type="OptionButton" parent="CenterContainer/Panel/VBox/CreateForm"]
@@ -148,7 +146,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "Members who join via this invite are kicked when they disconnect, unless they are assigned a role first."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="CreateButton" type="Button" parent="CenterContainer/Panel/VBox/CreateForm"]
@@ -160,5 +158,5 @@ theme_override_styles/normal = SubResource("create_btn_normal")
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2

@@ -16,15 +16,14 @@ var _has_admin: bool = false
 
 @onready var banner_rect: ColorRect = $BannerRect
 @onready var space_name_label: Label = $GuildName
-@onready var dropdown_icon: Label = $DropdownIcon
+@onready var settings_button: TextureButton = $SettingsButton
 
 func _ready() -> void:
 	add_to_group("themed")
 	_admin_menu = PopupMenu.new()
 	_admin_menu.id_pressed.connect(_on_admin_menu_pressed)
 	add_child(_admin_menu)
-	gui_input.connect(_on_banner_input)
-	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	settings_button.pressed.connect(_show_admin_menu)
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 
 func _apply_theme() -> void:
@@ -38,7 +37,7 @@ func setup(space_data: Dictionary) -> void:
 	banner_rect.color = space_data.get("icon_color", ThemeManager.get_color("modal_bg")).darkened(0.3)
 
 	_has_admin = _has_any_admin_perm()
-	dropdown_icon.visible = _has_admin
+	settings_button.visible = _has_admin
 
 func _has_any_admin_perm() -> bool:
 	if _space_id.is_empty():
@@ -54,12 +53,6 @@ func _has_any_admin_perm() -> bool:
 		Client.has_permission(_space_id, AccordPermission.MANAGE_SOUNDBOARD) or
 		Client.has_permission(_space_id, AccordPermission.USE_SOUNDBOARD)
 	)
-
-func _on_banner_input(event: InputEvent) -> void:
-	if not _has_admin:
-		return
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_show_admin_menu()
 
 func _show_admin_menu() -> void:
 	_admin_menu.clear()
@@ -155,4 +148,4 @@ func _on_admin_menu_pressed(id: int) -> void:
 
 func _on_imposter_mode_changed(_active: bool) -> void:
 	_has_admin = _has_any_admin_perm()
-	dropdown_icon.visible = _has_admin
+	settings_button.visible = _has_admin

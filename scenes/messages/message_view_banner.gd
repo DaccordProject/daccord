@@ -109,21 +109,6 @@ func on_server_synced(space_id: String) -> void:
 	_hide_timer.start()
 
 
-func on_server_version_warning(
-	space_id: String, server_version: String, client_version: String
-) -> void:
-	if space_id != _get_space_for_channel.call():
-		return
-	_hide_timer.stop()
-	connection_banner.add_theme_stylebox_override("panel", _style_warning)
-	status_label.text = (
-		"Server version mismatch (server v%s, client v%s). "
-		+ "Some features may not work correctly."
-	) % [server_version, client_version]
-	retry_button.visible = false
-	connection_banner.visible = true
-
-
 func on_server_connection_failed(
 	space_id: String, reason: String
 ) -> void:

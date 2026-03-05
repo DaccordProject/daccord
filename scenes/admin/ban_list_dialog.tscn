@@ -76,7 +76,7 @@ visible = false
 layout_mode = 2
 text = "Unban Selected"
 flat = true
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 
 [node name="Scroll" type="ScrollContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -92,16 +92,15 @@ visible = false
 layout_mode = 2
 text = "Load More"
 flat = true
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 
 [node name="EmptyLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
 text = "No bans."
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2

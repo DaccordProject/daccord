@@ -134,6 +134,7 @@ func _build_twofa_page() -> VBoxContainer:
 	_twofa = UserSettingsTwofa.new()
 	_twofa.build(
 		vbox, _section_label, _error_label, _accord_client,
+		_server_user,
 	)
 	return vbox
 

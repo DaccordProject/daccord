@@ -61,6 +61,7 @@ func _build_perm_checkboxes() -> void:
 	for perm in AccordPermission.all():
 		var cb := CheckBox.new()
 		cb.text = _format_perm_name(perm)
+		cb.tooltip_text = AccordPermission.description(perm)
 		cb.toggled.connect(func(_b: bool): _dirty = true)
 		_perm_list.add_child(cb)
 		_perm_checks[perm] = cb

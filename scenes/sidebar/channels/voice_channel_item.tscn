@@ -14,6 +14,29 @@ custom_minimum_size = Vector2(0, 44)
 flat = true
 alignment = 0
 
+[node name="ActiveBg" type="ColorRect" parent="ChannelButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.24, 0.26, 0.3, 1)
+
+[node name="ActivePill" type="ColorRect" parent="ChannelButton"]
+custom_minimum_size = Vector2(4, 18)
+layout_mode = 1
+anchors_preset = 6
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 2.0
+offset_top = -9.0
+offset_right = 6.0
+offset_bottom = 9.0
+mouse_filter = 2
+color = Color(0.34, 0.56, 0.94, 1)
+
 [node name="HBox" type="HBoxContainer" parent="ChannelButton"]
 layout_mode = 1
 anchors_preset = 15
@@ -31,6 +54,13 @@ custom_minimum_size = Vector2(20, 20)
 size_flags_vertical = 4
 stretch_mode = 5
 
+[node name="UnreadDot" type="ColorRect" parent="ChannelButton/HBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(8, 8)
+size_flags_vertical = 4
+color = Color(1, 1, 1, 1)
+
 [node name="ChannelName" type="Label" parent="ChannelButton/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -41,7 +71,7 @@ visible = false
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_font_sizes/font_size = 11
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 
 [node name="ParticipantContainer" type="VBoxContainer" parent="."]
 layout_mode = 2

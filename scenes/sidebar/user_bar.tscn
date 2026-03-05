@@ -61,7 +61,7 @@ layout_mode = 2
 size_flags_vertical = 4
 text = "🎙"
 theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.231, 0.647, 0.365, 1)
+metadata/theme_font_color = "status_online"
 
 [node name="MenuButton" type="MenuButton" parent="HBox"]
 layout_mode = 2

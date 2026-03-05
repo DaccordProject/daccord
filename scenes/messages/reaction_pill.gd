@@ -111,7 +111,7 @@ static func _ensure_styles() -> void:
 	_style_inactive.border_width_right = 1
 	_style_inactive.border_width_bottom = 1
 	_style_inactive.bg_color = ThemeManager.get_color("modal_bg")
-	_style_inactive.border_color = Color(0.25, 0.26, 0.28, 1)
+	_style_inactive.border_color = ThemeManager.get_color("reaction_border")
 
 func _update_active_style() -> void:
 	_ensure_styles()

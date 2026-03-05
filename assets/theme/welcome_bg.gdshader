@@ -4,6 +4,8 @@ shader_type canvas_item;
 // GL Compatibility safe — no compute, no advanced features
 
 uniform vec4 accent_color : source_color = vec4(0.345, 0.396, 0.949, 1.0);
+uniform vec3 bg_navy = vec3(0.06, 0.065, 0.12);
+uniform vec3 bg_purple = vec3(0.10, 0.07, 0.14);
 
 // Hash-based pseudo-random
 float hash(vec2 p) {
@@ -16,8 +18,8 @@ void fragment() {
 	// Animated gradient: dark navy to subtle purple, slowly shifting
 	float t = TIME * 0.15;
 	float gradient = mix(0.08, 0.14, uv.y);
-	vec3 navy = vec3(0.06, 0.065, 0.12);
-	vec3 purple = vec3(0.10, 0.07, 0.14);
+	vec3 navy = bg_navy;
+	vec3 purple = bg_purple;
 	float blend = sin(t + uv.x * 2.0) * 0.5 + 0.5;
 	vec3 bg = mix(navy, purple, blend * 0.6) + gradient * 0.3;
 

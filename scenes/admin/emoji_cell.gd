@@ -10,6 +10,7 @@ var _emoji_data: Dictionary = {}
 
 func _ready() -> void:
 	_delete_btn.pressed.connect(func(): delete_requested.emit(_emoji_data))
+	ThemeManager.apply_font_colors(self)
 
 func setup(emoji: Dictionary, space_id: String) -> void:
 	_emoji_data = emoji

@@ -154,6 +154,19 @@ func _set_font_color(theme: Theme, type: String, color_name: String, color_key: 
 		theme.set_color(color_name, type, _palette.get(color_key, Color.MAGENTA))
 
 
+## Recursively apply themed font colors to nodes with metadata/theme_font_color.
+## Nodes in .tscn files can set metadata/theme_font_color = "key" (e.g. "text_muted",
+## "accent", "error") and this method will apply the matching ThemeManager color as a
+## font_color override. Call from _apply_theme() on container nodes.
+func apply_font_colors(root: Node) -> void:
+	for child in root.get_children():
+		if child is Control and child.has_meta("theme_font_color"):
+			var key: String = child.get_meta("theme_font_color")
+			child.add_theme_color_override("font_color", get_color(key))
+		if child.get_child_count() > 0:
+			apply_font_colors(child)
+
+
 func _init_presets() -> void:
 	# Dark — current Discord-like defaults
 	_presets["dark"] = {
@@ -169,6 +182,12 @@ func _init_presets() -> void:
 		"success": Color(0.263, 0.694, 0.431),
 		"warning": Color(1.0, 0.85, 0.2),
 		"link": Color(0.0, 0.6, 0.88),
+		"status_online": Color(0.231, 0.647, 0.365),
+		"status_idle": Color(0.98, 0.659, 0.157),
+		"status_dnd": Color(0.929, 0.259, 0.271),
+		"status_offline": Color(0.58, 0.608, 0.643),
+		"image_error_bg": Color(0.15, 0.12, 0.12),
+		"reaction_border": Color(0.25, 0.26, 0.28),
 		"panel_bg": Color(0.176, 0.184, 0.204),
 		"nav_bg": Color(0.153, 0.161, 0.176),
 		"input_bg": Color(0.118, 0.125, 0.141),
@@ -187,6 +206,7 @@ func _init_presets() -> void:
 		"secondary_button": Color(0.24, 0.25, 0.27),
 		"secondary_button_hover": Color(0.28, 0.29, 0.31),
 		"secondary_button_pressed": Color(0.2, 0.21, 0.23),
+		"content_bg": Color(0.212, 0.224, 0.247),
 	}
 
 	# Light
@@ -203,6 +223,12 @@ func _init_presets() -> void:
 		"success": Color(0.18, 0.6, 0.35),
 		"warning": Color(0.9, 0.75, 0.0),
 		"link": Color(0.0, 0.5, 0.8),
+		"status_online": Color(0.18, 0.6, 0.35),
+		"status_idle": Color(0.85, 0.6, 0.0),
+		"status_dnd": Color(0.85, 0.18, 0.2),
+		"status_offline": Color(0.42, 0.44, 0.48),
+		"image_error_bg": Color(0.92, 0.88, 0.88),
+		"reaction_border": Color(0.78, 0.79, 0.82),
 		"panel_bg": Color(0.96, 0.96, 0.97),
 		"nav_bg": Color(0.91, 0.92, 0.93),
 		"input_bg": Color(0.88, 0.89, 0.9),
@@ -221,6 +247,7 @@ func _init_presets() -> void:
 		"secondary_button": Color(0.85, 0.86, 0.88),
 		"secondary_button_hover": Color(0.8, 0.81, 0.83),
 		"secondary_button_pressed": Color(0.75, 0.76, 0.78),
+		"content_bg": Color(1.0, 1.0, 1.0),
 	}
 
 	# Nord
@@ -237,6 +264,12 @@ func _init_presets() -> void:
 		"success": Color(0.639, 0.745, 0.549),
 		"warning": Color(0.922, 0.796, 0.545),
 		"link": Color(0.506, 0.631, 0.757),
+		"status_online": Color(0.639, 0.745, 0.549),
+		"status_idle": Color(0.922, 0.796, 0.545),
+		"status_dnd": Color(0.749, 0.38, 0.416),
+		"status_offline": Color(0.616, 0.667, 0.737),
+		"image_error_bg": Color(0.16, 0.14, 0.16),
+		"reaction_border": Color(0.231, 0.259, 0.322),
 		"panel_bg": Color(0.18, 0.204, 0.251),
 		"nav_bg": Color(0.157, 0.176, 0.22),
 		"input_bg": Color(0.133, 0.153, 0.192),
@@ -255,6 +288,7 @@ func _init_presets() -> void:
 		"secondary_button": Color(0.231, 0.259, 0.322),
 		"secondary_button_hover": Color(0.263, 0.298, 0.369),
 		"secondary_button_pressed": Color(0.208, 0.235, 0.29),
+		"content_bg": Color(0.216, 0.243, 0.302),
 	}
 
 	# Monokai
@@ -271,6 +305,12 @@ func _init_presets() -> void:
 		"success": Color(0.639, 0.835, 0.227),
 		"warning": Color(0.902, 0.859, 0.455),
 		"link": Color(0.404, 0.855, 0.996),
+		"status_online": Color(0.639, 0.835, 0.227),
+		"status_idle": Color(0.902, 0.859, 0.455),
+		"status_dnd": Color(0.984, 0.365, 0.365),
+		"status_offline": Color(0.6, 0.6, 0.55),
+		"image_error_bg": Color(0.14, 0.12, 0.1),
+		"reaction_border": Color(0.24, 0.24, 0.2),
 		"panel_bg": Color(0.157, 0.157, 0.129),
 		"nav_bg": Color(0.133, 0.133, 0.106),
 		"input_bg": Color(0.114, 0.114, 0.09),
@@ -289,6 +329,7 @@ func _init_presets() -> void:
 		"secondary_button": Color(0.2, 0.2, 0.17),
 		"secondary_button_hover": Color(0.24, 0.24, 0.2),
 		"secondary_button_pressed": Color(0.18, 0.18, 0.15),
+		"content_bg": Color(0.188, 0.188, 0.157),
 	}
 
 	# Solarized Dark
@@ -305,6 +346,12 @@ func _init_presets() -> void:
 		"success": Color(0.522, 0.6, 0.0),
 		"warning": Color(0.71, 0.537, 0.0),
 		"link": Color(0.149, 0.545, 0.824),
+		"status_online": Color(0.522, 0.6, 0.0),
+		"status_idle": Color(0.71, 0.537, 0.0),
+		"status_dnd": Color(0.863, 0.196, 0.184),
+		"status_offline": Color(0.396, 0.482, 0.514),
+		"image_error_bg": Color(0.05, 0.12, 0.14),
+		"reaction_border": Color(0.035, 0.255, 0.31),
 		"panel_bg": Color(0.0, 0.169, 0.212),
 		"nav_bg": Color(0.0, 0.145, 0.18),
 		"input_bg": Color(0.027, 0.212, 0.259),
@@ -323,4 +370,5 @@ func _init_presets() -> void:
 		"secondary_button": Color(0.027, 0.212, 0.259),
 		"secondary_button_hover": Color(0.035, 0.255, 0.31),
 		"secondary_button_pressed": Color(0.0, 0.145, 0.18),
+		"content_bg": Color(0.027, 0.212, 0.259),
 	}

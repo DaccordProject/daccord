@@ -82,7 +82,7 @@ theme_override_constants/separation = 2
 [node name="SelectedLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "0 users selected"
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12
 
 [node name="CreateButton" type="Button" parent="CenterContainer/Panel/VBox"]

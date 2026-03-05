@@ -20,6 +20,9 @@ func _apply_theme() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = AvatarShader
 	mat.set_shader_parameter("radius", 0.5)
+	mat.set_shader_parameter(
+		"ring_color", ThemeManager.get_color("status_online")
+	)
 	material = mat
 
 	grid.columns = 2

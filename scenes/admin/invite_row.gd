@@ -19,6 +19,7 @@ func _ready() -> void:
 		copy_requested.emit(_code)
 	)
 	_revoke_btn.pressed.connect(func(): revoke_requested.emit(_code))
+	ThemeManager.apply_font_colors(self)
 
 func setup(invite: Dictionary, selected: bool) -> void:
 	_code = invite.get("code", "")

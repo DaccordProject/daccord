@@ -169,8 +169,22 @@ func _rebuild_row_data() -> void:
 
 func _build_status_groups() -> void:
 	var members: Array = Client.get_members_for_space(_space_id)
+	var roles: Array = Client.get_roles_for_space(_space_id)
 
-	var groups: Dictionary = {
+	# Build lookup for hoisted roles sorted by position descending
+	var hoisted_roles: Array = []
+	var role_lookup: Dictionary = {}
+	for role in roles:
+		role_lookup[role.get("id", "")] = role
+		if role.get("hoist", false) and role.get("position", 0) > 0:
+			hoisted_roles.append(role)
+	hoisted_roles.sort_custom(func(a, b):
+		return a.get("position", 0) > b.get("position", 0)
+	)
+
+	# Separate members into hoisted role groups vs regular status groups
+	var hoist_groups: Dictionary = {} # role_id -> Array of members
+	var status_groups: Dictionary = {
 		ClientModels.UserStatus.ONLINE: [],
 		ClientModels.UserStatus.IDLE: [],
 		ClientModels.UserStatus.DND: [],
@@ -184,16 +198,48 @@ func _build_status_groups() -> void:
 			).to_lower()
 			if _search_text not in name_lower:
 				continue
-		var status: int = member.get(
-			"status", ClientModels.UserStatus.OFFLINE
-		)
-		if groups.has(status):
-			groups[status].append(member)
+		# Check if member belongs to a hoisted role
+		var member_roles: Array = member.get("roles", [])
+		var highest_hoist_id: String = ""
+		var highest_hoist_pos: int = -1
+		for rid in member_roles:
+			var role: Dictionary = role_lookup.get(rid, {})
+			if role.get("hoist", false) and role.get("position", 0) > highest_hoist_pos:
+				highest_hoist_pos = role.get("position", 0)
+				highest_hoist_id = rid
+		if not highest_hoist_id.is_empty():
+			if not hoist_groups.has(highest_hoist_id):
+				hoist_groups[highest_hoist_id] = []
+			hoist_groups[highest_hoist_id].append(member)
 		else:
-			groups[ClientModels.UserStatus.OFFLINE].append(member)
+			var status: int = member.get(
+				"status", ClientModels.UserStatus.OFFLINE
+			)
+			if status_groups.has(status):
+				status_groups[status].append(member)
+			else:
+				status_groups[ClientModels.UserStatus.OFFLINE].append(member)
 
-	for status_key in groups:
-		groups[status_key].sort_custom(func(a, b):
+	# Add hoisted role groups first (sorted by position descending)
+	for role in hoisted_roles:
+		var rid: String = role.get("id", "")
+		if not hoist_groups.has(rid):
+			continue
+		var group: Array = hoist_groups[rid]
+		group.sort_custom(func(a, b):
+			return a.get("display_name", "").to_lower() \
+				< b.get("display_name", "").to_lower()
+		)
+		_row_data.append({
+			"type": "header",
+			"label": "%s — %d" % [role.get("name", "Unknown"), group.size()],
+		})
+		for member in group:
+			_row_data.append({"type": "member", "data": member})
+
+	# Add remaining members in status groups
+	for status_key in status_groups:
+		status_groups[status_key].sort_custom(func(a, b):
 			return a.get("display_name", "").to_lower() \
 				< b.get("display_name", "").to_lower()
 		)
@@ -208,7 +254,7 @@ func _build_status_groups() -> void:
 	for entry in status_labels:
 		var status: int = entry[0]
 		var label: String = entry[1]
-		var group: Array = groups[status]
+		var group: Array = status_groups[status]
 		if group.is_empty():
 			continue
 		_row_data.append({

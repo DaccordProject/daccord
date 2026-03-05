@@ -106,18 +106,6 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 		return
 	var conn: Dictionary = _c._connections[conn_index]
 	_c._auto_reconnect_attempted.erase(conn_index)
-	# Parse server version from READY payload (if provided)
-	var srv_version: String = _data.get("server_version", "")
-	var api_version: String = _data.get("api_version", "")
-	if not srv_version.is_empty():
-		conn["server_version"] = srv_version
-	if not api_version.is_empty():
-		conn["api_version"] = api_version
-		if api_version != AccordConfig.API_VERSION:
-			AppState.server_version_warning.emit(
-				conn["space_id"], srv_version,
-				AccordConfig.CLIENT_VERSION
-			)
 	# Emit reconnected if this was a reconnect after disconnect
 	var was_down: bool = conn.get("_was_disconnected", false) \
 		or conn["status"] != "connected"
@@ -328,7 +316,11 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 
 	# Track unread + mentions for channels not currently viewed
 	var my_id: String = _c.current_user.get("id", "")
-	if message.channel_id != AppState.current_channel_id and message.author_id != my_id:
+	var is_viewed: bool = (
+		message.channel_id == AppState.current_channel_id
+		or message.channel_id == AppState.voice_text_channel_id
+	)
+	if not is_viewed and message.author_id != my_id:
 		# DND suppresses all notification indicators
 		var user_status: int = _c.current_user.get("status", 0)
 		if user_status == ClientModels.UserStatus.DND:

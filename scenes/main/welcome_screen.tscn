@@ -122,14 +122,14 @@ alignment = 1
 layout_mode = 2
 text = "Daccord"
 horizontal_alignment = 1
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 theme_override_font_sizes/font_size = 40
 
 [node name="TaglineLabel" type="Label" parent="ContentCenter/ContentVBox"]
 layout_mode = 2
 text = "Connect. Communicate. Collaborate."
 horizontal_alignment = 1
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 16
 
 [node name="Spacer" type="Control" parent="ContentCenter/ContentVBox"]
@@ -170,7 +170,7 @@ custom_minimum_size = Vector2(110, 0)
 text = "Connect to multiple servers at once"
 horizontal_alignment = 1
 autowrap_mode = 2
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12
 
 [node name="Feature2" type="PanelContainer" parent="ContentCenter/ContentVBox/FeaturesHBox"]
@@ -202,7 +202,7 @@ custom_minimum_size = Vector2(110, 0)
 text = "Instant messaging with rich formatting"
 horizontal_alignment = 1
 autowrap_mode = 2
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12
 
 [node name="Feature3" type="PanelContainer" parent="ContentCenter/ContentVBox/FeaturesHBox"]
@@ -234,7 +234,7 @@ custom_minimum_size = Vector2(110, 0)
 text = "Crystal-clear voice and video calls"
 horizontal_alignment = 1
 autowrap_mode = 2
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12
 
 [node name="Spacer2" type="Control" parent="ContentCenter/ContentVBox"]
@@ -263,6 +263,6 @@ offset_bottom = -12.0
 grow_vertical = 0
 text = "Settings"
 flat = true
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_colors/font_hover_color = Color(0.85, 0.85, 0.88, 1)
 theme_override_font_sizes/font_size = 14

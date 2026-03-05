@@ -8,6 +8,18 @@ daccord is a Godot 4.5 chat client that connects to [accordserver](https://githu
 
 The client connects to one or more accordserver instances using token-based authentication. Supports multi-server connections, real-time messaging via WebSocket, and full CRUD for messages. If no servers are configured, the UI is empty until the user adds a server via the Add Server dialog.
 
+## Setup
+
+Install the godot-livekit addon (binaries are not tracked in git):
+```bash
+gh release download --repo NodotProject/godot-livekit \
+  --pattern "godot-livekit-release.zip" --dir /tmp
+unzip -o /tmp/godot-livekit-release.zip -d /tmp/extracted
+cp -R /tmp/extracted/addons/godot-livekit addons/godot-livekit
+```
+
+CI workflows handle this automatically. The addon is gitignored.
+
 ## Running
 
 Open in Godot 4.5 and run. Main scene: `scenes/main/main_window.tscn`. Renderer: GL Compatibility.
@@ -26,7 +38,7 @@ See user_flows/README.md. If a user flow is out of date, update it.
 
 **Addons:**
 - `accordkit` -- GDScript client library for the accordserver API. Developed in-tree under `addons/accordkit/` (no separate repo). Provides `AccordClient` (REST + WebSocket gateway), typed models (`AccordUser`, `AccordSpace`, `AccordChannel`, `AccordMessage`, `AccordInvite`, etc.), REST endpoints, and gateway event handling. Snowflake IDs are strings throughout. REST methods return `RestResult` via await. Nullable fields use `var field = null` (no type hint).
-- `godot-livekit` -- GDExtension wrapping the LiveKit C++ SDK for room-based voice/video. Provides `LiveKitRoom`, `LiveKitVideoStream`, `LiveKitAudioStream`, and related classes. Wrapped by `LiveKitAdapter` (`scripts/autoload/livekit_adapter.gd`) which bridges the room-based API to the signal surface `client.gd` expects.
+- `godot-livekit` -- GDExtension wrapping the LiveKit C++ SDK for room-based voice/video. Downloaded from [NodotProject/godot-livekit](https://github.com/NodotProject/godot-livekit) releases (not tracked in git; see Setup). Provides `LiveKitRoom`, `LiveKitVideoStream`, `LiveKitAudioStream`, and related classes. Wrapped by `LiveKitAdapter` (`scripts/autoload/livekit_adapter.gd`) which bridges the room-based API to the signal surface `client.gd` expects.
 - `gut` -- GUT (Godot Unit Test) framework for testing.
 
 **Server connection flow:** On startup, `Client._ready()` checks `Config.has_servers()`. If servers exist, it calls `connect_server()` for each. Each connection authenticates with a Bearer token, fetches the current user via `GET /users/@me`, lists the user's spaces via `GET /users/@me/spaces`, matches the configured space name, connects the WebSocket gateway, and enters `LIVE` mode. If no servers are configured, the client stays in `CONNECTING` mode (UI is empty until a server is added).

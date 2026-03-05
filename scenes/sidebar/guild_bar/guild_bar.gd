@@ -16,11 +16,18 @@ var active_space_id: String = ""
 @onready var discover_button: HBoxContainer = $ScrollContainer/VBox/DiscoverButton
 
 func _ready() -> void:
+	add_to_group("themed")
+	_apply_theme()
 	dm_button.dm_pressed.connect(_on_dm_pressed)
 	add_server_button.add_server_pressed.connect(_on_add_server_pressed)
 	discover_button.discover_pressed.connect(_on_discover_pressed)
 	AppState.spaces_updated.connect(_on_spaces_updated)
 	_populate_spaces()
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("input_bg")
 
 func _populate_spaces() -> void:
 	# Group spaces by folder

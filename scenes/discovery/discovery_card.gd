@@ -5,7 +5,8 @@ signal card_clicked(space_data: Dictionary)
 var _data: Dictionary = {}
 
 @onready var _icon: TextureRect = $Margin/VBox/Header/Icon
-@onready var _name_label: Label = $Margin/VBox/Header/Info/NameLabel
+@onready var _name_label: Label = $Margin/VBox/Header/Info/TopRow/NameLabel
+@onready var _ping_label: Label = $Margin/VBox/Header/Info/TopRow/PingLabel
 @onready var _member_label: Label = $Margin/VBox/Header/Info/MemberLabel
 @onready var _desc_label: Label = $Margin/VBox/DescLabel
 @onready var _tag_container: HFlowContainer = $Margin/VBox/TagContainer
@@ -58,6 +59,27 @@ func setup(data: Dictionary) -> void:
 			var server_url: String = data.get("server_url", "")
 			icon_url = server_url.rstrip("/") + icon_url
 		_load_icon(icon_url)
+
+func set_ping(ms: int) -> void:
+	if ms < 0:
+		_ping_label.text = ""
+		return
+	var bars: String
+	var color: Color
+	if ms < 100:
+		bars = "\u2582\u2584\u2586\u2588"
+		color = ThemeManager.get_color("success")
+	elif ms < 200:
+		bars = "\u2582\u2584\u2586"
+		color = ThemeManager.get_color("success")
+	elif ms < 400:
+		bars = "\u2582\u2584"
+		color = ThemeManager.get_color("warning")
+	else:
+		bars = "\u2582"
+		color = ThemeManager.get_color("error")
+	_ping_label.text = "%s %dms" % [bars, ms]
+	_ping_label.add_theme_color_override("font_color", color)
 
 func _apply_theme() -> void:
 	_apply_style()

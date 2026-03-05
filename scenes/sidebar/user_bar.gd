@@ -63,9 +63,13 @@ func _ready() -> void:
 	AppState.config_changed.connect(_on_config_changed)
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("input_bg")
 	username.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
+	ThemeManager.apply_font_colors(self)
 
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get(

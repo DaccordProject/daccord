@@ -91,7 +91,7 @@ func _on_password_save() -> void:
 		_pw_confirm.text = ""
 		_pw_error.text = "Password changed successfully"
 		_pw_error.add_theme_color_override(
-			"font_color", Color(0.231, 0.647, 0.365)
+			"font_color", ThemeManager.get_color("success")
 		)
 		_pw_error.visible = true
 	else:

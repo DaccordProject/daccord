@@ -28,6 +28,9 @@ func _ready() -> void:
 	AppState.emojis_updated.connect(_on_emojis_updated)
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("modal_bg")
 	_update_category_highlights()
 	# Default to recently used if any exist
 	if Config.get_recent_emoji().size() > 0:
@@ -197,8 +200,8 @@ func _add_custom_emoji_cell(emoji) -> void:
 				return
 			var tex := ImageTexture.create_from_image(img)
 			_custom_emoji_cache[emoji_id] = {"name": emoji_name, "texture": tex}
-			Client.register_custom_emoji(AppState.current_space_id, emoji_id, emoji_name)
-			Client.register_custom_emoji_texture(emoji_name, tex)
+			Client.emoji.register(AppState.current_space_id, emoji_id, emoji_name)
+			Client.emoji.register_texture(emoji_name, tex)
 			if is_instance_valid(cell):
 				cell.icon = tex
 		)
