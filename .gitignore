@@ -7,6 +7,7 @@
 # Imported resources
 .import/
 addons/gut
+addons/godot-livekit
 
 # Database files
 *.db
