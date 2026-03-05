@@ -166,7 +166,7 @@ jobs:
             linux)       LIB="addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" ;;
             linux-arm64) LIB="addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" ;;
             windows)     LIB="addons/godot-livekit/bin/libgodot-livekit.windows.x86_64.dll" ;;
-            macos)       LIB="addons/godot-livekit/bin/libgodot-livekit.macos.universal.dylib" ;;
+            macos)       LIB="addons/godot-livekit/bin/libgodot-livekit.macos.arm64.dylib" ;;
             android)     LIB="addons/godot-livekit/bin/libgodot-livekit.android.arm64.so" ;;
           esac
           if [ ! -f "$LIB" ]; then
@@ -187,11 +187,24 @@ jobs:
           STASH="$RUNNER_TEMP/livekit_dylibs"
           mkdir -p "$STASH"
           moved=0
+          # Stash top-level dylibs (the GDExtension binaries)
           for f in addons/godot-livekit/bin/*.dylib; do
             [ -f "$f" ] || continue
             mv "$f" "$STASH/"
             echo "  Stashed $(basename "$f")"
             moved=$((moved + 1))
+          done
+          # Stash arch-specific subdirectory dylibs (liblivekit, liblivekit_ffi)
+          for subdir in addons/godot-livekit/bin/macos-*/; do
+            [ -d "$subdir" ] || continue
+            dirname=$(basename "$subdir")
+            mkdir -p "$STASH/$dirname"
+            for f in "$subdir"*.dylib; do
+              [ -f "$f" ] || continue
+              mv "$f" "$STASH/$dirname/"
+              echo "  Stashed $dirname/$(basename "$f")"
+              moved=$((moved + 1))
+            done
           done
           if [ "$moved" -gt 0 ]; then
             echo "LIVEKIT_DYLIB_STASH=$STASH" >> "$GITHUB_ENV"
@@ -347,8 +360,15 @@ jobs:
           FW="$WORK/daccord.app/Contents/Frameworks"
           mkdir -p "$FW"
           cp "$LIVEKIT_DYLIB_STASH"/*.dylib "$FW/"
+          # Also copy arch-specific subdirectory dylibs
+          for subdir in "$LIVEKIT_DYLIB_STASH"/macos-*/; do
+            [ -d "$subdir" ] || continue
+            dirname=$(basename "$subdir")
+            mkdir -p "$FW/$dirname"
+            cp "$subdir"*.dylib "$FW/$dirname/"
+          done
           echo "Injected dylibs into Contents/Frameworks/:"
-          ls -lh "$FW"/*.dylib
+          find "$FW" -name "*.dylib" -exec ls -lh {} \;
 
           # Ensure the exported app's Info.plist has the camera key so the
           # app itself doesn't crash on macOS 14+ when LiveKit loads
@@ -362,9 +382,7 @@ jobs:
           fi
 
           # Ad-hoc sign each injected dylib so macOS doesn't reject them
-          for dylib in "$FW"/*.dylib; do
-            codesign --force --sign - "$dylib"
-          done
+          find "$FW" -name "*.dylib" -exec codesign --force --sign - {} \;
 
           # Re-package
           cd "$WORK"
