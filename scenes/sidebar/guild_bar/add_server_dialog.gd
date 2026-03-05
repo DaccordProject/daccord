@@ -106,7 +106,10 @@ func _on_browse_join(server_url: String, space_id: String, space_slug: String) -
 
 	if not reused_token.is_empty():
 		# We have credentials — join the space directly, then connect
-		_join_and_connect(server_url, space_id, space_slug, reused_token, reused_username, reused_display_name)
+		_join_and_connect(
+			server_url, space_id, space_slug,
+			reused_token, reused_username, reused_display_name
+		)
 	else:
 		# Show auth dialog, then join the space and connect
 		var auth_dialog := AuthDialogScene.instantiate()
