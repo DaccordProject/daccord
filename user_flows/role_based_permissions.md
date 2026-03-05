@@ -62,7 +62,7 @@ Gateway role events
 | `scenes/members/member_item.gd:86-109` | Context menu role assignment toggle with hierarchy enforcement |
 | `scenes/sidebar/guild_bar/guild_icon.gd:155-183` | Space context menu permission gating |
 | `scenes/sidebar/channels/banner.gd:43-97` | Space banner dropdown permission gating |
-| `scenes/sidebar/channels/channel_list.gd:44-52` | Imposter mode channel visibility filtering (VIEW_CHANNEL) |
+| `scenes/sidebar/channels/channel_list.gd:43-52` | Channel visibility filtering by VIEW_CHANNEL for all users (via `has_channel_permission`) |
 | `tests/accordkit/unit/test_permissions.gd` | AccordPermission unit tests (constants, has(), admin bypass) |
 | `tests/unit/test_client.gd:225-269` | Client-level permission resolution tests |
 
@@ -167,7 +167,7 @@ Permission checks gate admin UI elements across the application:
 - Offers a "Custom..." option to manually select permissions (line 86).
 - On "Preview", calls `AppState.enter_imposter_mode(role_data)` (line 139) which stores the role's permissions, name, and space ID.
 - `has_permission()` and `has_channel_permission()` check `AppState.is_imposter_mode` first and resolve against the impersonated permission set instead of the user's real permissions.
-- `channel_list.gd` (line 44) filters channels by `VIEW_CHANNEL` during imposter mode.
+- `channel_list.gd` (line 43) filters channels by `VIEW_CHANNEL` for all users via `Client.has_channel_permission()`, which uses imposter permissions when imposter mode is active.
 - Exiting the space or switching to another space auto-exits imposter mode (`app_state.gd:179-191`).
 
 ### REST API Surface
@@ -199,49 +199,49 @@ Permission checks gate admin UI elements across the application:
 - [x] Dirty tracking and unsaved changes prompts in both role and overwrite dialogs
 - [x] Role search/filter in management dialog
 - [x] Member count per role in management dialog
-- [ ] Hoist-based member list grouping by role
-- [ ] Role color applied to usernames in messages and member list
+- [x] Hoist-based member list grouping by role
+- [x] Role color applied to usernames in messages and member list
 - [ ] Drag-and-drop role reordering
-- [ ] Channel visibility filtering by VIEW_CHANNEL for non-imposter users
-- [ ] SEND_MESSAGES permission gating on the composer
-- [ ] Per-permission descriptions/tooltips in management dialogs
+- [x] Channel visibility filtering by VIEW_CHANNEL for all users (imposter and real)
+- [x] SEND_MESSAGES permission gating on the composer
+- [x] Per-permission descriptions/tooltips in management dialogs
 
 ## Tasks
 
 ### RBAC-1: No VIEW_CHANNEL filtering for real users
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 2
 - **Tags:** permissions
-- **Notes:** `channel_list.gd:44-52` only filters channels in imposter mode; real users see all channels regardless of VIEW_CHANNEL permission
+- **Notes:** `channel_list.gd` now uses `Client.has_channel_permission()` to filter channels by VIEW_CHANNEL for all users (not just imposter mode)
 
 ### RBAC-2: No SEND_MESSAGES gating on composer
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 2
 - **Tags:** general
-- **Notes:** `composer.gd` only checks MENTION_EVERYONE (line 117); should disable input when user lacks SEND_MESSAGES for the current channel
+- **Notes:** `composer.gd` now checks SEND_MESSAGES via `Client.has_channel_permission()` and disables input when user lacks permission
 
 ### RBAC-3: Role colors not applied to usernames
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** permissions
-- **Notes:** Role `color` is stored and editable but never rendered on member names in messages or the member list
+- **Notes:** Role colors now applied via `Client.get_role_color_for_user()` in cozy_message, member_item, and voice_channel_item
 
 ### RBAC-4: No hoist-based member list sections
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** permissions
-- **Notes:** `AccordRole.hoist` is stored and editable but the member list does not group members by hoisted roles
+- **Notes:** `member_list.gd` `_build_status_groups()` now separates hoisted-role members into their own sections above status groups
 
 ### RBAC-5: VIEW_CHANNEL imposter filter is coarse
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** permissions
-- **Notes:** `channel_list.gd:50` checks if the role has VIEW_CHANNEL globally, not per-channel via overwrites -- so all channels are shown or hidden uniformly
+- **Notes:** Channel filtering now uses `Client.has_channel_permission()` which respects per-channel overwrites for both imposter and real users
 
 ### RBAC-6: No drag-and-drop role reorder
 - **Status:** open
@@ -251,29 +251,29 @@ Permission checks gate admin UI elements across the application:
 - **Notes:** Role reordering uses up/down arrow buttons (`role_row.gd:14-15`); drag-and-drop would be more intuitive
 
 ### RBAC-7: No permission descriptions
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** permissions, ui
-- **Notes:** Permission checkboxes show formatted names only (e.g., "Manage Channels"); no tooltip or description explains what each permission does
+- **Notes:** `AccordPermission.description()` provides tooltips for all 37 permissions, shown in role_management_dialog and perm_overwrite_row
 
 ### RBAC-8: No CONNECT permission check for voice
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** permissions, voice
-- **Notes:** Voice channel join does not check `CONNECT` permission before attempting to join
+- **Notes:** `channel_list.gd` now checks CONNECT permission before joining voice channels
 
 ### RBAC-9: No ATTACH_FILES permission check
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** permissions
-- **Notes:** File upload in composer does not check `ATTACH_FILES` permission
+- **Notes:** `composer.gd` now checks ATTACH_FILES via `Client.has_channel_permission()` and disables the upload button with tooltip
 
 ### RBAC-10: No EMBED_LINKS permission check
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** permissions
-- **Notes:** URL previews are not gated by `EMBED_LINKS` permission
+- **Notes:** URL previews are not gated by `EMBED_LINKS` permission (server-side enforcement needed)

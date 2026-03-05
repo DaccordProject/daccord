@@ -35,7 +35,6 @@ User toggle → Config.set_reduced_motion() → checked at each animation site
 | `scenes/user/user_settings.gd` | "Reduce motion" checkbox in Notifications page (lines 589-595) |
 | `scenes/main/main_window.gd` | Responsive layout, edge-swipe gestures, drawer animations with reduced motion checks |
 | `scenes/main/main_window.tscn` | Tooltip text on header buttons (hamburger, sidebar toggle, search, member list) |
-| `scenes/main/connecting_overlay.gd` | Connecting dots animation, fade in/out with reduced motion checks |
 | `scenes/main/welcome_screen.gd` | Entrance animation, CTA pulse with reduced motion checks |
 | `scenes/common/avatar.gd` | Luminance-based text contrast, `tween_radius()` with reduced motion check (line 111) |
 | `scenes/messages/composer/composer.gd` | Enter-to-send, Up-to-edit keyboard handling, focus management |
@@ -101,9 +100,6 @@ When enabled, `Config.get_reduced_motion()` is checked at 14 animation sites acr
 |-----------|------|--------|---------|
 | Drawer slide | `main_window.gd:333` | 0.2s cubic slide + backdrop fade | Instant show/hide |
 | Crash/update toast | `main_window.gd:477` | 4s delay then 1s fade out | 4s delay then instant remove |
-| Connecting overlay fade in | `connecting_overlay.gd:33` | 0.3s fade in | Instant show |
-| Connecting overlay dots | `connecting_overlay.gd:37` | Sine wave alpha animation | Static (no _process) |
-| Connecting overlay dismiss | `connecting_overlay.gd:69` | 0.3s fade out | Instant queue_free |
 | Welcome screen entrance | `welcome_screen.gd:47` | Staggered 0.4s slide+fade per element | Skip (show all immediately) |
 | CTA button pulse | `welcome_screen.gd:100` | Looping modulate pulse | Skip (no pulse) |
 | Welcome screen dismiss | `welcome_screen.gd:111` | 0.3s fade out | Instant queue_free |

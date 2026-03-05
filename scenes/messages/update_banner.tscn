@@ -29,27 +29,27 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Daccord v0.0.0 is available"
 theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 
 [node name="ViewChangesButton" type="Button" parent="HBox"]
 layout_mode = 2
 text = "View Changes"
 flat = true
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 theme_override_font_sizes/font_size = 12
 
 [node name="UpdateButton" type="Button" parent="HBox"]
 layout_mode = 2
 text = "Update"
 flat = true
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 theme_override_font_sizes/font_size = 12
 
 [node name="SkipButton" type="Button" parent="HBox"]
 layout_mode = 2
 text = "Skip"
 flat = true
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12
 
 [node name="DismissButton" type="Button" parent="HBox"]
@@ -57,5 +57,5 @@ layout_mode = 2
 custom_minimum_size = Vector2(30, 0)
 text = "X"
 flat = true
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12

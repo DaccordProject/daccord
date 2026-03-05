@@ -10,8 +10,15 @@ var _speaking_style: StyleBoxFlat
 @onready var initials_label: Label = $VBox/InitialsLabel
 
 func _ready() -> void:
+	add_to_group("themed")
 	AppState.speaking_changed.connect(_on_speaking_changed)
 	gui_input.connect(_on_gui_input)
+	ThemeManager.apply_font_colors(self)
+
+
+func _apply_theme() -> void:
+	ThemeManager.apply_font_colors(self)
+
 
 func setup_local(
 	stream, user: Dictionary,
@@ -58,7 +65,7 @@ func _on_speaking_changed(user_id: String, is_speaking: bool) -> void:
 		if _speaking_style == null:
 			_speaking_style = StyleBoxFlat.new()
 			_speaking_style.bg_color = Color(0, 0, 0, 0)
-			_speaking_style.border_color = Color(0.231, 0.647, 0.365)
+			_speaking_style.border_color = ThemeManager.get_color("status_online")
 			_speaking_style.set_border_width_all(2)
 			_speaking_style.set_corner_radius_all(4)
 		add_theme_stylebox_override("panel", _speaking_style)

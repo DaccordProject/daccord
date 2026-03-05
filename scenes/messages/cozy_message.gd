@@ -43,7 +43,11 @@ func setup(data: Dictionary) -> void:
 	_message_data = data
 	var user: Dictionary = data.get("author", {})
 	author_label.text = user.get("display_name", "Unknown")
-	author_label.add_theme_color_override("font_color", user.get("color", Color.WHITE))
+	var name_color: Color = user.get("color", Color.WHITE)
+	var role_color = _resolve_role_color(user)
+	if role_color != null:
+		name_color = role_color
+	author_label.add_theme_color_override("font_color", name_color)
 	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
 	var display_name: String = user.get("display_name", "")
 	if display_name.length() > 0:
@@ -104,7 +108,11 @@ func setup(data: Dictionary) -> void:
 func _apply_reply_reference(original: Dictionary) -> void:
 	var original_author: Dictionary = original.get("author", {})
 	reply_author.text = original_author.get("display_name", "")
-	reply_author.add_theme_color_override("font_color", original_author.get("color", Color.WHITE))
+	var reply_name_color: Color = original_author.get("color", Color.WHITE)
+	var reply_role_color = _resolve_role_color(original_author)
+	if reply_role_color != null:
+		reply_name_color = reply_role_color
+	reply_author.add_theme_color_override("font_color", reply_name_color)
 	var preview: String = original.get("content", "")
 	if preview.length() > 50:
 		preview = preview.substr(0, 50) + "..."
@@ -138,7 +146,11 @@ func _fetch_reply_reference(reply_to: String, channel_id: String) -> void:
 func update_author(user: Dictionary) -> void:
 	_message_data["author"] = user
 	author_label.text = user.get("display_name", "Unknown")
-	author_label.add_theme_color_override("font_color", user.get("color", Color.WHITE))
+	var name_color: Color = user.get("color", Color.WHITE)
+	var role_color = _resolve_role_color(user)
+	if role_color != null:
+		name_color = role_color
+	author_label.add_theme_color_override("font_color", name_color)
 	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
 	var display_name: String = user.get("display_name", "")
 	if display_name.length() > 0:
@@ -164,6 +176,17 @@ func _get_current_user_roles() -> Array:
 		if member.get("id", "") == my_id:
 			return member.get("roles", [])
 	return []
+
+func _resolve_role_color(user: Dictionary) -> Variant:
+	var space_id: String = Client._channel_to_space.get(
+		AppState.current_channel_id, ""
+	)
+	if space_id.is_empty():
+		return null
+	var uid: String = user.get("id", "")
+	if uid.is_empty():
+		return null
+	return Client.get_role_color_for_user(space_id, uid)
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:

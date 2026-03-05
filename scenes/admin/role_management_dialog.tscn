@@ -74,7 +74,7 @@ theme_override_font_sizes/font_size = 20
 layout_mode = 2
 text = "+ New Role"
 flat = true
-theme_override_colors/font_color = Color(0.345, 0.396, 0.949, 1)
+metadata/theme_font_color = "accent"
 
 [node name="CloseButton" type="Button" parent="CenterContainer/Panel/VBox/Header"]
 layout_mode = 2
@@ -114,7 +114,6 @@ theme_override_constants/separation = 8
 [node name="NameLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
 layout_mode = 2
 text = "ROLE NAME"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
@@ -145,7 +144,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "Members with this role are shown in their own section in the member list."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="MentionableRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
@@ -160,13 +159,12 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "Anyone can @mention this role to notify all members who have it."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="PermLabel" type="Label" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
 layout_mode = 2
 text = "PERMISSIONS"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="PermList" type="VBoxContainer" parent="CenterContainer/Panel/VBox/Content/EditorScroll/Editor"]
@@ -193,5 +191,5 @@ theme_override_styles/normal = SubResource("save_btn_normal")
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2

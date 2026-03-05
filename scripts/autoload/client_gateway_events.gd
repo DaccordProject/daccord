@@ -89,6 +89,39 @@ func on_interaction_create(
 func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
+	var conn: Dictionary = _c._connections[conn_index]
+	var cdn_url: String = conn.get("cdn_url", "")
+	# Ensure user is cached before building the voice state dict
+	if not _c._user_cache.has(state.user_id):
+		var client: AccordClient = conn["client"]
+		if client != null:
+			var user_result: RestResult = await client.users.fetch(state.user_id)
+			if user_result.ok:
+				_c._user_cache[state.user_id] = ClientModels.user_to_dict(
+					user_result.data,
+					ClientModels.UserStatus.OFFLINE,
+					cdn_url
+				)
+	# Ensure the user is in the member cache for this space
+	var space_id: String = conn["space_id"]
+	if not space_id.is_empty() and _c._user_cache.has(state.user_id):
+		var member_idx: int = _c._member_index_for(space_id, state.user_id)
+		if member_idx == -1:
+			var user_dict: Dictionary = _c._user_cache[state.user_id].duplicate()
+			user_dict["roles"] = []
+			user_dict["joined_at"] = ""
+			user_dict["mute"] = state.mute
+			user_dict["deaf"] = state.deaf
+			user_dict["nickname"] = ""
+			user_dict["timed_out_until"] = ""
+			if not _c._member_cache.has(space_id):
+				_c._member_cache[space_id] = []
+			_c._member_cache[space_id].append(user_dict)
+			if not _c._member_id_index.has(space_id):
+				_c._member_id_index[space_id] = {}
+			_c._member_id_index[space_id][state.user_id] = _c._member_cache[space_id].size() - 1
+			AppState.member_joined.emit(space_id, user_dict)
+			AppState.members_updated.emit(space_id)
 	var state_dict := ClientModels.voice_state_to_dict(state, _c._user_cache)
 	var new_channel: String = state_dict["channel_id"]
 	var user_id: String = state.user_id

@@ -9,10 +9,17 @@ var _all_sounds: Array = []
 @onready var _empty_label: Label = $VBox/EmptyLabel
 
 func _ready() -> void:
+	add_to_group("themed")
+	_apply_theme()
 	_close_btn.pressed.connect(close)
 	_search_input.text_changed.connect(_on_search_changed)
 	AppState.soundboard_updated.connect(_on_soundboard_updated)
 	AppState.voice_left.connect(func(_ch: String) -> void: close())
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("modal_bg")
 
 func setup(space_id: String) -> void:
 	_space_id = space_id

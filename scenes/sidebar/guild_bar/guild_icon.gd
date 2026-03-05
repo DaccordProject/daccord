@@ -25,6 +25,7 @@ var _is_disconnected: bool = false
 var _server_index: int = -1
 
 var _context_menu: PopupMenu
+var _admin_submenu: PopupMenu
 var _status_dot: ColorRect
 var _drop_above: bool = false
 var _drop_hovered: bool = false
@@ -45,6 +46,12 @@ func _ready() -> void:
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
 	add_child(_context_menu)
+
+	_admin_submenu = PopupMenu.new()
+	_admin_submenu.name = "AdminSubmenu"
+	_admin_submenu.id_pressed.connect(_on_admin_submenu_id_pressed)
+	add_child(_admin_submenu)
+
 	icon_button.gui_input.connect(_on_icon_gui_input)
 	icon_button.set_drag_forwarding(_space_get_drag_data, _space_can_drop_data, _space_drop_data)
 
@@ -147,6 +154,7 @@ func _on_icon_gui_input(event: InputEvent) -> void:
 
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
+	_admin_submenu.clear()
 	var idx: int = 0
 
 	if _is_disconnected:
@@ -158,44 +166,51 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.popup()
 		return
 
+	# --- Administration submenu (permission-gated items) ---
+	var admin_idx: int = 0
 	if Client.has_permission(space_id, AccordPermission.MANAGE_SPACE):
-		_context_menu.add_item("Space Settings", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Space Settings", admin_idx)
+		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
-		_context_menu.add_item("Channels", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Channels", admin_idx)
+		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_ROLES):
-		_context_menu.add_item("Roles", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Roles", admin_idx)
+		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.BAN_MEMBERS):
-		_context_menu.add_item("Bans", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Bans", admin_idx)
+		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.CREATE_INVITES):
-		_context_menu.add_item("Invites", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Invites", admin_idx)
+		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_EMOJIS):
-		_context_menu.add_item("Emojis", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Emojis", admin_idx)
+		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.VIEW_AUDIT_LOG):
-		_context_menu.add_item("Audit Log", idx)
-		idx += 1
-
+		_admin_submenu.add_item("Audit Log", admin_idx)
+		admin_idx += 1
 	if (Client.has_permission(space_id, AccordPermission.MANAGE_SOUNDBOARD)
 			or Client.has_permission(space_id, AccordPermission.USE_SOUNDBOARD)):
-		_context_menu.add_item("Soundboard", idx)
+		_admin_submenu.add_item("Soundboard", admin_idx)
+		admin_idx += 1
+	if not AppState.is_imposter_mode and Client.has_permission(
+		space_id, AccordPermission.MANAGE_ROLES
+	):
+		_admin_submenu.add_item("View As...", admin_idx)
+		admin_idx += 1
+
+	if admin_idx > 0:
+		_context_menu.add_submenu_node_item("Administration", _admin_submenu, idx)
+		idx += 1
+		_context_menu.add_separator()
 		idx += 1
 
-	var can_manage_roles: bool = Client.has_permission(
-		space_id, AccordPermission.MANAGE_ROLES
-	)
-	if not AppState.is_imposter_mode and can_manage_roles:
-		_context_menu.add_item("View As...", idx)
+	# --- General items ---
+	_context_menu.add_item("Account Settings", idx)
+	idx += 1
+
+	if Client.current_user.get("is_admin", false):
+		_context_menu.add_item("Server Settings", idx)
 		idx += 1
 
 	var status := Client.get_space_connection_status(space_id)
@@ -203,43 +218,32 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Reconnect", idx)
 		idx += 1
 
-	# Account Settings
-	_context_menu.add_item("Account Settings", idx)
-	idx += 1
-
-	# Server Settings (instance admin only)
-	if Client.current_user.get("is_admin", false):
-		_context_menu.add_item("Server Settings", idx)
-		idx += 1
-
-	# Mute toggle
 	if Config.is_server_muted(space_id):
 		_context_menu.add_item("Unmute Server", idx)
 	else:
 		_context_menu.add_item("Mute Server", idx)
 	idx += 1
 
-	# Folder management
 	var current_folder: String = Config.get_space_folder(space_id)
 	if current_folder.is_empty():
 		_context_menu.add_item("Move to Folder", idx)
-		idx += 1
 	else:
 		_context_menu.add_item("Remove from Folder", idx)
-		idx += 1
+	idx += 1
 
-	if idx > 0:
-		_context_menu.add_separator()
-		idx += 1
-
+	_context_menu.add_separator()
+	idx += 1
 	_context_menu.add_item("Remove Server", idx)
 
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
 
-func _on_context_menu_id_pressed(id: int) -> void:
-	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
+func _on_admin_submenu_id_pressed(id: int) -> void:
+	var idx: int = _admin_submenu.get_item_index(id)
+	if idx < 0:
+		return
+	var label: String = _admin_submenu.get_item_text(idx)
 	match label:
 		"Space Settings":
 			var dialog := SpaceSettingsScene.instantiate()
@@ -277,6 +281,10 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			var dialog := ImposterPickerScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(space_id)
+
+func _on_context_menu_id_pressed(id: int) -> void:
+	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
+	match label:
 		"Account Settings":
 			var ServerSettingsScene: PackedScene = load(
 				"res://scenes/user/server_settings.tscn"

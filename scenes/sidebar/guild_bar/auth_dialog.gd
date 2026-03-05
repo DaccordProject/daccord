@@ -12,6 +12,7 @@ var _mode: Mode = Mode.SIGN_IN
 var _base_url: String = ""
 var _prefill_username: String = ""
 var _prev_username: String = ""
+var _mfa_ticket: String = ""
 
 @onready var _sign_in_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/SignInBtn
 @onready var _register_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/RegisterBtn
@@ -22,6 +23,8 @@ var _prev_username: String = ""
 @onready var _password_hint: Label = $CenterContainer/Panel/VBox/PasswordHint
 @onready var _display_name_label: Label = $CenterContainer/Panel/VBox/DisplayNameLabel
 @onready var _display_name_input: LineEdit = $CenterContainer/Panel/VBox/DisplayNameInput
+@onready var _mfa_label: Label = $CenterContainer/Panel/VBox/MfaLabel
+@onready var _mfa_input: LineEdit = $CenterContainer/Panel/VBox/MfaInput
 @onready var _submit_btn: Button = $CenterContainer/Panel/VBox/SubmitButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
@@ -36,6 +39,7 @@ func _ready() -> void:
 	_username_input.text_changed.connect(_on_username_changed)
 	_username_input.text_submitted.connect(func(_t): _password_input.grab_focus())
 	_password_input.text_submitted.connect(func(_t): _on_submit())
+	_mfa_input.text_submitted.connect(func(_t): _on_submit())
 
 	_set_mode(Mode.SIGN_IN)
 
@@ -58,6 +62,8 @@ func setup(base_url: String, prefill_username: String = "") -> void:
 func _set_mode(m: Mode) -> void:
 	_mode = m
 	_error_label.visible = false
+	_mfa_ticket = ""
+	_exit_mfa_mode()
 
 	if m == Mode.SIGN_IN:
 		_sign_in_btn.disabled = true
@@ -81,18 +87,32 @@ func _set_mode(m: Mode) -> void:
 		_submit_btn.text = "Register"
 
 
+func _enter_mfa_mode() -> void:
+	_mfa_label.visible = true
+	_mfa_input.visible = true
+	_mfa_input.text = ""
+	_submit_btn.text = "Verify"
+	_mfa_input.grab_focus()
+
+
+func _exit_mfa_mode() -> void:
+	_mfa_label.visible = false
+	_mfa_input.visible = false
+	_mfa_input.text = ""
+
+
 func _on_submit() -> void:
+	# MFA step
+	if not _mfa_ticket.is_empty():
+		_on_submit_mfa()
+		return
+
 	var username := _username_input.text.strip_edges()
 	var password := _password_input.text.strip_edges()
 
-	if username.is_empty():
-		_show_error("Username is required.")
-		return
-	if password.is_empty():
-		_show_error("Password is required.")
-		return
-	if _mode == Mode.REGISTER and password.length() < 8:
-		_show_error("Password must be at least 8 characters.")
+	var validation_error := _validate_credentials(username, password)
+	if not validation_error.is_empty():
+		_show_error(validation_error)
 		return
 
 	_error_label.visible = false
@@ -109,7 +129,34 @@ func _on_submit() -> void:
 		_show_error(err_msg)
 		return
 
-	var token: String = result.data.get("token", "") if result.data is Dictionary else ""
+	if not result.data is Dictionary:
+		_show_error("Unexpected response from server.")
+		return
+
+	_handle_auth_result(result, username)
+
+
+func _validate_credentials(username: String, password: String) -> String:
+	if username.is_empty():
+		return "Username is required."
+	if password.is_empty():
+		return "Password is required."
+	if _mode == Mode.REGISTER and password.length() < 8:
+		return "Password must be at least 8 characters."
+	return ""
+
+
+func _handle_auth_result(result: RestResult, username: String) -> void:
+	# Check if MFA is required
+	if result.data.get("mfa_required", false):
+		_mfa_ticket = result.data.get("ticket", "")
+		if _mfa_ticket.is_empty():
+			_show_error("Server requires 2FA but sent no ticket.")
+			return
+		_enter_mfa_mode()
+		return
+
+	var token: String = result.data.get("token", "")
 	if token.is_empty():
 		_show_error("No token received from server.")
 		return
@@ -117,7 +164,59 @@ func _on_submit() -> void:
 	var dn := ""
 	if _mode == Mode.REGISTER:
 		dn = _display_name_input.text.strip_edges()
-	auth_completed.emit(_base_url, token, username, password, dn)
+	auth_completed.emit(
+		_base_url, token, username,
+		_password_input.text.strip_edges(), dn,
+	)
+	queue_free()
+
+
+func _on_submit_mfa() -> void:
+	var code := _mfa_input.text.strip_edges()
+	if code.is_empty():
+		_show_error("Enter your 2FA code.")
+		return
+
+	_error_label.visible = false
+	_submit_btn.disabled = true
+	_submit_btn.text = "Verifying..."
+
+	var api_url := _base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	add_child(rest)
+
+	var auth := AuthApi.new(rest)
+	var result: RestResult = await auth.login_mfa({
+		"ticket": _mfa_ticket, "code": code,
+	})
+	rest.queue_free()
+
+	_submit_btn.disabled = false
+	_submit_btn.text = "Verify"
+
+	if not result.ok:
+		var err_msg: String = (
+			result.error.message
+			if result.error else "MFA verification failed"
+		)
+		_show_error(err_msg)
+		return
+
+	var token: String = (
+		result.data.get("token", "")
+		if result.data is Dictionary else ""
+	)
+	if token.is_empty():
+		_show_error("No token received from server.")
+		return
+
+	var username := _username_input.text.strip_edges()
+	auth_completed.emit(
+		_base_url, token, username,
+		_password_input.text.strip_edges(), "",
+	)
 	queue_free()
 
 
@@ -171,5 +270,3 @@ func _try_auth(username: String, password: String) -> RestResult:
 func _show_error(msg: String) -> void:
 	_error_label.text = msg
 	_error_label.visible = true
-
-

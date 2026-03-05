@@ -62,7 +62,7 @@ func _add_section_label(text: String) -> void:
 	lbl.text = text
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override(
-		"font_color", Color(0.72, 0.74, 0.78)
+		"font_color", ThemeManager.get_color("text_body")
 	)
 	_source_list.add_child(lbl)
 
@@ -71,7 +71,7 @@ func _add_empty_label(text: String) -> void:
 	lbl.text = text
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.add_theme_color_override(
-		"font_color", Color(0.58, 0.608, 0.643)
+		"font_color", ThemeManager.get_color("text_muted")
 	)
 	_source_list.add_child(lbl)
 
@@ -81,7 +81,7 @@ func _add_error_label(text: String) -> void:
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_color_override(
-		"font_color", Color(0.929, 0.259, 0.271)
+		"font_color", ThemeManager.get_color("error")
 	)
 	_source_list.add_child(lbl)
 

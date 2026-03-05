@@ -26,6 +26,7 @@ func _ready() -> void:
 	_perms_btn.pressed.connect(func(): permissions_requested.emit(_channel_data))
 	_edit_btn.pressed.connect(func(): edit_requested.emit(_channel_data))
 	_del_btn.pressed.connect(func(): delete_requested.emit(_channel_data))
+	ThemeManager.apply_font_colors(self)
 
 func setup(
 	ch: Dictionary, selected: bool,

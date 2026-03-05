@@ -14,6 +14,7 @@ func _ready() -> void:
 	_up_btn.pressed.connect(func(): move_requested.emit(_role_data, -1))
 	_down_btn.pressed.connect(func(): move_requested.emit(_role_data, 1))
 	_role_btn.pressed.connect(func(): selected.emit(_role_data))
+	ThemeManager.apply_font_colors(self)
 
 func setup(role: Dictionary, index: int, total: int, member_count: int = -1) -> void:
 	_role_data = role

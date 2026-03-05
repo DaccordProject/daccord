@@ -3,6 +3,7 @@ extends VBoxContainer
 signal channel_pressed(channel_id: String)
 
 const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
+const CHAT_ICON := preload("res://assets/theme/icons/chat.svg")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
@@ -11,8 +12,12 @@ var channel_id: String = ""
 var space_id: String = ""
 var _channel_data: Dictionary = {}
 var _gear_btn: Button
+var _chat_btn: Button
 var _context_menu: PopupMenu
 var _gear_just_pressed: bool = false
+var _chat_just_pressed: bool = false
+var _is_active: bool = false
+var _has_unread: bool = false
 var _drop_above: bool = false
 var _drop_hovered: bool = false
 var _participant_avatars: Dictionary = {} # user_id -> Avatar node ref
@@ -22,11 +27,17 @@ var _participant_avatars: Dictionary = {} # user_id -> Avatar node ref
 @onready var channel_name: Label = $ChannelButton/HBox/ChannelName
 @onready var user_count: Label = $ChannelButton/HBox/UserCount
 @onready var participant_container: VBoxContainer = $ParticipantContainer
+@onready var unread_dot: ColorRect = $ChannelButton/HBox/UnreadDot
+@onready var active_bg: ColorRect = $ChannelButton/ActiveBg
+@onready var active_pill: ColorRect = $ChannelButton/ActivePill
 
 func _ready() -> void:
 	channel_button.pressed.connect(func():
 		if _gear_just_pressed:
 			_gear_just_pressed = false
+			return
+		if _chat_just_pressed:
+			_chat_just_pressed = false
 			return
 		channel_pressed.emit(channel_id)
 	)
@@ -34,6 +45,8 @@ func _ready() -> void:
 	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
 	AppState.speaking_changed.connect(_on_speaking_changed)
+	AppState.channels_updated.connect(_on_channels_updated)
+	AppState.voice_text_opened.connect(_on_voice_text_opened)
 
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
@@ -47,6 +60,9 @@ func _ready() -> void:
 	# Forward drag-and-drop from ChannelButton to this VBoxContainer
 	channel_button.set_drag_forwarding(_get_drag_data, _can_drop_data, _drop_data)
 
+	active_bg.visible = false
+	active_pill.visible = false
+
 	add_to_group("themed")
 	channel_button.gui_input.connect(_on_gui_input)
 	channel_button.mouse_entered.connect(_on_mouse_entered)
@@ -55,6 +71,7 @@ func _ready() -> void:
 func _apply_theme() -> void:
 	_refresh_participants()
 	queue_redraw()
+	ThemeManager.apply_font_colors(self)
 
 func setup(data: Dictionary) -> void:
 	channel_id = data.get("id", "")
@@ -63,6 +80,23 @@ func setup(data: Dictionary) -> void:
 	channel_name.text = data.get("name", "")
 	channel_button.tooltip_text = data.get("name", "")
 	type_icon.texture = VOICE_ICON
+
+	_has_unread = data.get("unread", false)
+	unread_dot.visible = _has_unread
+
+	# Chat button (voice text chat)
+	_chat_btn = Button.new()
+	_chat_btn.icon = CHAT_ICON
+	_chat_btn.flat = true
+	_chat_btn.visible = false
+	_chat_btn.custom_minimum_size = Vector2(20, 20)
+	_chat_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_chat_btn.mouse_filter = Control.MOUSE_FILTER_PASS
+	_chat_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("text_muted"))
+	_chat_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("text_white"))
+	_chat_btn.tooltip_text = "Open Text Chat"
+	_chat_btn.pressed.connect(_on_chat_pressed)
+	$ChannelButton/HBox.add_child(_chat_btn)
 
 	# Gear button (only if user has permission)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
@@ -81,10 +115,11 @@ func setup(data: Dictionary) -> void:
 
 	_refresh_participants()
 
-func set_active(_active: bool) -> void:
-	# Voice channels don't have a persistent active state like text channels,
-	# but we support the interface for polymorphism with channel_item.
-	pass
+func set_active(active: bool) -> void:
+	_is_active = active
+	active_bg.visible = active
+	active_pill.visible = active
+	_apply_text_color()
 
 func _on_voice_state_updated(cid: String) -> void:
 	if cid == channel_id:
@@ -117,10 +152,9 @@ func _refresh_participants() -> void:
 	# Green tint when we are connected to this channel
 	if AppState.voice_channel_id == channel_id:
 		type_icon.modulate = ThemeManager.get_color("success")
-		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
 		type_icon.modulate = ThemeManager.get_color("icon_default")
-		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	_apply_text_color()
 
 	# Build participant items
 	for vs in voice_users:
@@ -165,7 +199,14 @@ func _refresh_participants() -> void:
 		name_label.text = user.get("display_name", "Unknown")
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_label.add_theme_font_size_override("font_size", 12)
-		name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
+		var uid: String = user.get("id", vs.get("user_id", ""))
+		var role_color = null
+		if not space_id.is_empty() and not uid.is_empty():
+			role_color = Client.get_role_color_for_user(space_id, uid)
+		if role_color != null:
+			name_label.add_theme_color_override("font_color", role_color)
+		else:
+			name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
 		row.add_child(name_label)
 
 		# Mute/deaf indicators
@@ -206,23 +247,55 @@ func _refresh_participants() -> void:
 
 		participant_container.add_child(row)
 
+func _apply_text_color() -> void:
+	if _has_unread or _is_active or AppState.voice_channel_id == channel_id:
+		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	else:
+		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+
 func _on_speaking_changed(user_id: String, is_speaking: bool) -> void:
 	if _participant_avatars.has(user_id):
 		var av = _participant_avatars[user_id]
 		if is_instance_valid(av):
 			av.set_speaking(is_speaking)
 
+func _on_channels_updated(_space_id: String) -> void:
+	if channel_id.is_empty():
+		return
+	for ch in Client.channels:
+		if ch["id"] == channel_id:
+			var was_unread := _has_unread
+			_has_unread = ch.get("unread", false)
+			if _has_unread != was_unread:
+				unread_dot.visible = _has_unread
+				_apply_text_color()
+			break
+
+func _on_voice_text_opened(cid: String) -> void:
+	if cid == channel_id and _has_unread:
+		Client.clear_channel_unread(channel_id)
+
+func _on_chat_pressed() -> void:
+	_chat_just_pressed = true
+	AppState.toggle_voice_text(channel_id)
+
 func _on_mouse_entered() -> void:
+	if _chat_btn:
+		_chat_btn.visible = true
 	if _gear_btn:
 		_gear_btn.visible = true
 	if AppState.voice_channel_id != channel_id:
 		type_icon.modulate = ThemeManager.get_color("icon_hover")
+	channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 
 func _on_mouse_exited() -> void:
+	if _chat_btn:
+		_chat_btn.visible = false
 	if _gear_btn:
 		_gear_btn.visible = false
 	if AppState.voice_channel_id != channel_id:
 		type_icon.modulate = ThemeManager.get_color("icon_default")
+	_apply_text_color()
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:

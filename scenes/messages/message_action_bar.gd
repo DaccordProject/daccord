@@ -19,10 +19,17 @@ var _fade_tween: Tween
 @onready var delete_btn: Button = $HBox/DeleteButton
 
 func _ready() -> void:
+	add_to_group("themed")
+	_apply_theme()
 	react_btn.pressed.connect(_on_react_pressed)
 	reply_btn.pressed.connect(_on_reply_pressed)
 	thread_btn.pressed.connect(_on_thread_pressed)
 	edit_btn.pressed.connect(_on_edit_pressed)
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("panel_bg")
 	delete_btn.pressed.connect(_on_delete_pressed)
 
 func show_for_message(msg_node: Control, msg_data: Dictionary) -> void:

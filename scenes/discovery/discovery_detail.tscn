@@ -86,6 +86,20 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
 
+[node name="PingRow" type="HBoxContainer" parent="Details"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PingLabel" type="Label" parent="Details/PingRow"]
+layout_mode = 2
+text = "Ping:"
+theme_override_font_sizes/font_size = 13
+
+[node name="PingValue" type="Label" parent="Details/PingRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 13
+
 [node name="JoinButton" type="Button" parent="."]
 layout_mode = 2
 size_flags_horizontal = 0

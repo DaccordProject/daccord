@@ -124,6 +124,5 @@ func report_problem(description: String) -> void:
 	if not _initialized:
 		return
 	update_context()
-	var feedback := SentryFeedback.new()
-	feedback.message = description
-	SentrySDK.capture_feedback(feedback)
+	SentrySDK.set_tag("type", "user-feedback")
+	SentrySDK.capture_message(description, SentrySDK.LEVEL_INFO)

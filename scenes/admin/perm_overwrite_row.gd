@@ -25,6 +25,7 @@ func _ready() -> void:
 func setup(perm: String, state: int) -> void:
 	_perm = perm
 	_label.text = perm.replace("_", " ").capitalize()
+	tooltip_text = AccordPermission.description(perm)
 	update_state(state)
 
 func update_state(state: int) -> void:

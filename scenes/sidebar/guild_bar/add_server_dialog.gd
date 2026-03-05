@@ -77,6 +77,13 @@ static func parse_server_url(raw: String) -> Dictionary:
 	}
 
 
+## Opens the dialog with a pre-filled URL (used by UriHandler for daccord:// links).
+## Call this after _ready() has run (i.e. after adding to the scene tree).
+func open_prefilled(url_text: String) -> void:
+	_url_input.text = url_text
+	_tab_container.current_tab = 1  # Switch to "Enter URL" tab
+
+
 ## Called when user clicks Join on a space in the browse tab.
 func _on_browse_join(server_url: String, space_id: String, space_slug: String) -> void:
 	# Check if we already have this server + space connected

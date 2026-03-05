@@ -1,0 +1,73 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/messages/voice_text_panel.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/messages/typing_indicator.tscn" id="3"]
+
+[sub_resource type="StyleBoxFlat" id="panel_bg"]
+bg_color = Color(0.176, 0.188, 0.208, 1)
+border_width_left = 1
+border_color = Color(0.14, 0.15, 0.16, 1)
+
+[node name="VoiceTextPanel" type="PanelContainer"]
+visible = false
+custom_minimum_size = Vector2(300, 0)
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("panel_bg")
+script = ExtResource("1")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+theme_override_constants/separation = 8
+
+[node name="HeaderLabel" type="Label" parent="VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Voice Text Chat"
+
+[node name="CloseButton" type="Button" parent="VBox/Header"]
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+flat = true
+text = "X"
+
+[node name="HSeparator" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MessageList" type="VBoxContainer" parent="VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TypingIndicator" parent="VBox" instance=ExtResource("3")]
+layout_mode = 2
+
+[node name="ComposerBox" type="VBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HBox" type="HBoxContainer" parent="VBox/ComposerBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TextInput" type="TextEdit" parent="VBox/ComposerBox/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 36)
+placeholder_text = "Message voice chat..."
+scroll_fit_content_height = true
+
+[node name="SendButton" type="Button" parent="VBox/ComposerBox/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+tooltip_text = "Send"
+flat = true
+icon = ExtResource("2")

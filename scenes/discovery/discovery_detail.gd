@@ -14,6 +14,7 @@ var _data: Dictionary = {}
 @onready var _desc_label: Label = $DescLabel
 @onready var _tag_label: Label = $Details/TagRow/TagValue
 @onready var _server_label: Label = $Details/ServerRow/ServerValue
+@onready var _ping_label: Label = $Details/PingRow/PingValue
 @onready var _join_button: Button = $JoinButton
 @onready var _status_label: Label = $StatusLabel
 
@@ -57,6 +58,9 @@ func setup(data: Dictionary) -> void:
 	var server_url: String = data.get("server_url", "")
 	_server_label.text = server_url.replace("https://", "").replace("http://", "")
 
+	_ping_label.text = "Measuring..."
+	_ping_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+
 	# Load banner
 	var banner_url: String = data.get("banner_url", "")
 	if banner_url.is_empty():
@@ -72,6 +76,28 @@ func setup(data: Dictionary) -> void:
 		if icon_url.begins_with("/"):
 			icon_url = server_url.rstrip("/") + icon_url
 		_load_image(icon_url, _icon)
+
+func set_ping(ms: int) -> void:
+	if ms < 0:
+		_ping_label.text = "Measuring..."
+		_ping_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		return
+	var bars: String
+	var color: Color
+	if ms < 100:
+		bars = "\u2582\u2584\u2586\u2588"
+		color = ThemeManager.get_color("success")
+	elif ms < 200:
+		bars = "\u2582\u2584\u2586"
+		color = ThemeManager.get_color("success")
+	elif ms < 400:
+		bars = "\u2582\u2584"
+		color = ThemeManager.get_color("warning")
+	else:
+		bars = "\u2582"
+		color = ThemeManager.get_color("error")
+	_ping_label.text = "%s %dms" % [bars, ms]
+	_ping_label.add_theme_color_override("font_color", color)
 
 func _apply_style() -> void:
 	# Join button

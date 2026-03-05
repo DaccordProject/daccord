@@ -31,7 +31,7 @@ Ordered by natural user journey:
 | 23 | [UI Animations](ui_animations.md) | Tween-based drawer/panel/pill/avatar animations, shader morphing, typing indicator sine wave, hover state machines, flash feedback |
 | 24 | [Error Reporting](error_reporting.md) | Self-hosted GlitchTip (Sentry-compatible) error tracking via the Sentry Godot SDK, opt-in consent, PII filtering, breadcrumbs, crash recovery |
 | 25 | [Application Sound Effects](application_sound_effects.md) | Client-side audio feedback for messages, mentions, voice join/leave, and UI events; SoundManager architecture, Config persistence, AudioBus layout |
-| 26 | [Cross-Platform GitHub Releases](cross_platform_github_releases.md) | Release CI pipeline, cross-platform Godot export (Linux/Windows/macOS), artifact packaging, changelog extraction, GitHub Release creation, code signing gaps |
+| 26 | [Cross-Platform GitHub Releases](cross_platform_github_releases.md) | Release CI pipeline with CI gate, cross-platform Godot export (Linux/ARM64/Windows/macOS/Android), GodotLite templates, macOS DMG + dylib stash/inject, Windows installer with URL protocol, artifact packaging, changelog extraction, GitHub Release creation, code signing |
 | 27 | [User Onboarding](user_onboarding.md) | First-run experience, empty states, Add Server + auth flow, startup auto-connect, session restore, subsequent launches |
 | 28 | [Group DMs](group_dms.md) | Group DM detection via recipient count, comma-separated names, channel-ID avatar, gateway handling, creation/management gaps |
 | 29 | [File Sharing](file_sharing.md) | File attachments, image/file upload via composer, clipboard paste (images & large text), multipart form infrastructure, attachment rendering (inline images & download links), CDN URLs |
@@ -61,10 +61,11 @@ Ordered by natural user journey:
 | 53 | [Signal Wiring](signal_wiring.md) | Complete signal emit/connect wiring map, audit findings, fixes applied, remaining gaps |
 | 54 | [Audit Logs](audit_logs.md) | Audit log viewer: permission gating, paginated fetch, action type filter, client-side search, row rendering with user/target resolution |
 | 55 | [GDPR & Data Privacy](gdpr.md) | Account deletion, password change, error reporting consent & PII scrubbing, profile export, local data cleanup, data portability gaps |
-| 56 | [Theming](theming.md) | Global theme resource, appearance settings (reduce motion, UI scale, skin tone), 202 hardcoded colors, proposed base64 theme sharing |
+| 56 | [Theming](theming.md) | ThemeManager palette (5 presets, 33 keys), custom color pickers, base64 theme sharing, theme string detection in chat, shader parameterization, live UI scale, reduce motion |
 | 57 | [End-to-End Encryption](e2ee.md) | Voice/video E2EE via LiveKit frame encryption: godot-livekit E2EE classes (conditional compile), key provider/ratcheting, missing integration in daccord |
 | 58 | [URL Protocol](url_protocol.md) | Custom `daccord://` deep link scheme: connect/invite/navigate routes, platform registration (Windows/Linux/macOS), IPC for running instances, security model |
 | 59 | [Role-Based Permissions](role_based_permissions.md) | 39-permission RBAC system, role CRUD/reorder/hierarchy, Discord-style channel overwrites, UI gating across 16+ permission types, imposter mode |
 | 60 | [Security Testing](security_testing.md) | Client-side security surface: token storage, encrypted config, HTTPS downgrade, BBCode injection, PII scrubbing, permission gating, credential exposure, rate limiting |
 | 61 | [Android Release](android_release.md) | Android build/release plan and end-user experience: export preset, CI pipeline, touch gestures (long-press, edge-swipe drawer), responsive layout (COMPACT/MEDIUM/FULL), message interaction, back button handling, on-screen keyboard, Sentry/LiveKit status, updater gaps, Play Store distribution |
 | 62 | [Server Management](server_management.md) | Instance-level admin: super admins create/manage multiple spaces, manage instance users, configure server settings; space admins manage a single space |
+| 63 | [Voice Text Chat](voice_text_chat.md) | Discord-like text chat in voice channels: voice view text panel, message fetch on voice join, composer targeting, layout split, current gaps |

@@ -137,7 +137,6 @@ theme_override_constants/separation = 12
 [node name="Description" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 layout_mode = 2
 text = "Enter a server URL or invite link"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 
 [node name="UrlField" type="VBoxContainer" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 layout_mode = 2
@@ -146,7 +145,6 @@ theme_override_constants/separation = 6
 [node name="ServerUrlLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/UrlField"]
 layout_mode = 2
 text = "SERVER URL"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="ServerUrlInput" type="LineEdit" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox/UrlField"]
@@ -168,14 +166,13 @@ theme_override_styles/pressed = SubResource("add_btn_pressed")
 visible = false
 layout_mode = 2
 horizontal_alignment = 1
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 12
 autowrap_mode = 2
 
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox/TabContainer/Enter URL/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2
 
 [node name="Browse Servers" parent="CenterContainer/Panel/VBox/TabContainer" instance=ExtResource("2")]

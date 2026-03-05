@@ -13,11 +13,16 @@ var _version_info: Dictionary = {}
 @onready var dismiss_button: Button = $HBox/DismissButton
 
 func _ready() -> void:
+	add_to_group("themed")
 	AppState.update_available.connect(_on_update_available)
 	view_changes_button.pressed.connect(_on_view_changes)
 	update_button.pressed.connect(_on_update)
 	skip_button.pressed.connect(_on_skip)
 	dismiss_button.pressed.connect(_on_dismiss)
+	ThemeManager.apply_font_colors(self)
+
+func _apply_theme() -> void:
+	ThemeManager.apply_font_colors(self)
 	visible = false
 
 func _on_update_available(info: Dictionary) -> void:

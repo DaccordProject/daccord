@@ -355,7 +355,7 @@ func test_trim_user_cache_below_cap_noop() -> void:
 	for i in 10:
 		client._user_cache["u_%d" % i] = {"id": "u_%d" % i}
 	var size_before: int = client._user_cache.size()
-	client.trim_user_cache()
+	client.emoji.trim_user_cache()
 	# me_1 + 10 users = 11, well below cap -- nothing evicted
 	assert_eq(client._user_cache.size(), size_before)
 
@@ -366,7 +366,7 @@ func test_trim_user_cache_preserves_current_user() -> void:
 		client._user_cache["u_%d" % i] = {"id": "u_%d" % i}
 	AppState.current_space_id = ""
 	AppState.current_channel_id = ""
-	client.trim_user_cache()
+	client.emoji.trim_user_cache()
 	assert_true(client._user_cache.has("me_1"), "Current user should be preserved")
 
 
@@ -378,7 +378,7 @@ func test_trim_user_cache_preserves_space_members() -> void:
 		client._user_cache["u_%d" % i] = {"id": "u_%d" % i}
 	client._user_cache["member_1"] = {"id": "member_1"}
 	client._user_cache["member_2"] = {"id": "member_2"}
-	client.trim_user_cache()
+	client.emoji.trim_user_cache()
 	assert_true(client._user_cache.has("member_1"), "Space member should be preserved")
 	assert_true(client._user_cache.has("member_2"), "Space member should be preserved")
 

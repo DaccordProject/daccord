@@ -25,6 +25,10 @@ const _ACTION_ICONS := {
 @onready var _time_label: Label = $TimeLabel
 
 
+func _ready() -> void:
+	ThemeManager.apply_font_colors(self)
+
+
 func setup(entry: Dictionary) -> void:
 	var action: String = entry.get("action_type", "")
 	_icon_label.text = _action_icon(action)

@@ -27,6 +27,12 @@ func setup(data: Dictionary) -> void:
 	display_name.text = dn_text
 	tooltip_text = data.get("display_name", "Unknown")
 	avatar.set_avatar_color(data.get("color", ThemeManager.get_color("accent")))
+	# Apply role color to display name
+	var role_color = _resolve_role_color(data)
+	if role_color != null:
+		display_name.add_theme_color_override("font_color", role_color)
+	else:
+		display_name.remove_theme_color_override("font_color")
 	var dn: String = data.get("display_name", "")
 	if dn.length() > 0:
 		avatar.set_letter(dn[0].to_upper())
@@ -38,6 +44,15 @@ func setup(data: Dictionary) -> void:
 
 	var status: int = data.get("status", ClientModels.UserStatus.OFFLINE)
 	status_dot.color = ClientModels.status_color(status)
+
+func _resolve_role_color(data: Dictionary) -> Variant:
+	var space_id: String = AppState.current_space_id
+	if space_id.is_empty():
+		return null
+	var uid: String = data.get("id", "")
+	if uid.is_empty():
+		return null
+	return Client.get_role_color_for_user(space_id, uid)
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:

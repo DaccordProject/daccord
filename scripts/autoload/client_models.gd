@@ -67,13 +67,13 @@ static func _status_enum_to_string(status: int) -> String:
 static func status_color(status: int) -> Color:
 	match status:
 		UserStatus.ONLINE:
-			return Color(0.231, 0.647, 0.365)
+			return ThemeManager.get_color("status_online")
 		UserStatus.IDLE:
-			return Color(0.98, 0.659, 0.157)
+			return ThemeManager.get_color("status_idle")
 		UserStatus.DND:
-			return Color(0.929, 0.259, 0.271)
+			return ThemeManager.get_color("status_dnd")
 		_:
-			return Color(0.58, 0.608, 0.643)
+			return ThemeManager.get_color("status_offline")
 
 static func status_label(status: int) -> String:
 	match status:
@@ -219,6 +219,7 @@ static func user_to_dict(
 		"public_flags": user.public_flags,
 		"created_at": user.created_at,
 		"bot": user.bot,
+		"mfa_enabled": user.mfa_enabled,
 		"client_status": {},
 		"activities": [],
 	}

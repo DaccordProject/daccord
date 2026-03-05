@@ -77,6 +77,8 @@ func setup(data: Dictionary) -> void:
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
 
+	_detect_theme_string(raw_text)
+
 	# Attachments
 	var attachments: Array = data.get("attachments", [])
 	for att in attachments:
@@ -175,6 +177,50 @@ func update_content(data: Dictionary) -> void:
 			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
+
+func _detect_theme_string(raw_text: String) -> void:
+	var trimmed := raw_text.strip_edges()
+	if trimmed.length() < 20 or trimmed.length() > 2000:
+		return
+	# Quick check: must look like base64 (alphanumeric, +, /, =)
+	var base64_re := RegEx.new()
+	base64_re.compile("^[A-Za-z0-9+/=\\s]+$")
+	if not base64_re.search(trimmed):
+		return
+	var cleaned := trimmed.replace("\n", "").replace(" ", "")
+	var json_str: String = Marshalls.base64_to_utf8(cleaned)
+	if json_str.is_empty():
+		return
+	var parsed: Variant = JSON.parse_string(json_str)
+	if parsed == null or not (parsed is Dictionary):
+		return
+	if not parsed.has("accent") and not parsed.has("text_body"):
+		return
+	# Valid theme string — add an "Apply Theme" button
+	var btn := Button.new()
+	btn.text = "Apply Theme"
+	btn.custom_minimum_size = Vector2(0, 28)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var accent: Color = ThemeManager.get_color("accent")
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = accent
+	sb.corner_radius_top_left = 4
+	sb.corner_radius_top_right = 4
+	sb.corner_radius_bottom_left = 4
+	sb.corner_radius_bottom_right = 4
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.pressed.connect(func() -> void:
+		ThemeManager.import_theme_string(cleaned)
+		btn.text = "Theme Applied!"
+		btn.disabled = true
+	)
+	add_child(btn)
+	move_child(btn, get_child_count() - 2)
 
 func _on_meta_clicked(meta: Variant) -> void:
 	var meta_str := str(meta)
@@ -309,7 +355,7 @@ func _show_image_error(container: Control) -> void:
 	_remove_loading_placeholder(container)
 	container.custom_minimum_size = Vector2(200, 40)
 	var bg := ColorRect.new()
-	bg.color = Color(0.15, 0.12, 0.12)
+	bg.color = ThemeManager.get_color("image_error_bg")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(bg)

@@ -96,7 +96,7 @@ visible = false
 layout_mode = 2
 text = "Delete Selected"
 flat = true
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 
 [node name="CreateToggle" type="Button" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -112,7 +112,6 @@ theme_override_constants/separation = 8
 [node name="CreateNameLabel" type="Label" parent="CenterContainer/Panel/VBox/CreateForm"]
 layout_mode = 2
 text = "CHANNEL NAME"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="CreateNameInput" type="LineEdit" parent="CenterContainer/Panel/VBox/CreateForm"]
@@ -126,7 +125,6 @@ layout_mode = 2
 [node name="CreateTypeLabel" type="Label" parent="CenterContainer/Panel/VBox/CreateForm/CreateTypeRow"]
 layout_mode = 2
 text = "TYPE"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="TypeInfo" type="Label" parent="CenterContainer/Panel/VBox/CreateForm/CreateTypeRow"]
@@ -134,7 +132,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "Text: chat messages. Voice: real-time audio. Announcement: broadcast updates. Forum: threaded discussions."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="CreateTypeOption" type="OptionButton" parent="CenterContainer/Panel/VBox/CreateForm"]
@@ -146,7 +144,6 @@ layout_mode = 2
 [node name="CreateParentLabel" type="Label" parent="CenterContainer/Panel/VBox/CreateForm/CreateParentRow"]
 layout_mode = 2
 text = "CATEGORY"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="ParentInfo" type="Label" parent="CenterContainer/Panel/VBox/CreateForm/CreateParentRow"]
@@ -154,7 +151,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "The parent category this channel is grouped under in the sidebar."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="CreateParentOption" type="OptionButton" parent="CenterContainer/Panel/VBox/CreateForm"]
@@ -169,5 +166,5 @@ theme_override_styles/normal = SubResource("create_btn_normal")
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2

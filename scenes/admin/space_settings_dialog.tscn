@@ -78,7 +78,6 @@ flat = true
 [node name="NameLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "SPACE NAME"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
@@ -89,7 +88,6 @@ placeholder_text = "Space name"
 [node name="DescLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "DESCRIPTION"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="DescInput" type="TextEdit" parent="CenterContainer/Panel/VBox"]
@@ -110,7 +108,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "Controls how strictly members are verified before they can interact. Higher levels require additional account verification."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="VerificationOption" type="OptionButton" parent="CenterContainer/Panel/VBox/VerificationRow"]
@@ -130,7 +128,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "The default notification setting applied to new members. They can override this individually."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="NotificationsOption" type="OptionButton" parent="CenterContainer/Panel/VBox/NotificationsRow"]
@@ -149,7 +147,7 @@ layout_mode = 2
 text = "ⓘ"
 tooltip_text = "When enabled, this space appears in the public directory and anyone can join."
 mouse_filter = 0
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
 [node name="SaveRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
@@ -165,7 +163,7 @@ theme_override_styles/normal = SubResource("save_btn_normal")
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2
 
 [node name="DangerZone" type="VBoxContainer" parent="CenterContainer/Panel/VBox"]
@@ -180,7 +178,7 @@ theme_override_colors/separator_color = Color(0.95, 0.3, 0.3, 0.4)
 [node name="DangerLabel" type="Label" parent="CenterContainer/Panel/VBox/DangerZone"]
 layout_mode = 2
 text = "DANGER ZONE"
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 theme_override_font_sizes/font_size = 11
 
 [node name="DeleteButton" type="Button" parent="CenterContainer/Panel/VBox/DangerZone"]

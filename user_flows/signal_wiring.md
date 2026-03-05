@@ -131,7 +131,7 @@ Signals emitted directly by AppState methods (like `space_selected`, `channel_se
 
 | Signal | Emits | Connects | Emit Files | Connect Files | Status |
 |--------|-------|----------|-----------|---------------|--------|
-| `spaces_updated` | 10 | 8 | guild_icon, guild_folder, client_connection, client, client_fetch, client_gateway | connecting_overlay, main_window, add_server_button, guild_bar, user_bar, sidebar, updater | OK |
+| `spaces_updated` | 10 | 7 | guild_icon, guild_folder, client_connection, client, client_fetch, client_gateway | main_window, add_server_button, guild_bar, user_bar, sidebar, updater | OK |
 | `channels_updated` | 18 | 5 | client_mutations_dm, client, client_fetch, client_gateway | channel_management_dialog, member_list, dm_list, channel_list, forum_view | OK |
 | `dm_channels_updated` | 12 | 2 | client_mutations_dm, client, client_fetch, client_gateway | member_list, dm_list | UNDER-CONNECTED |
 | `user_updated` | 5 | 2 | client_mutations, client_fetch, client_gateway | dm_list, user_bar | OK |
@@ -181,9 +181,8 @@ Signals emitted directly by AppState methods (like `space_selected`, `channel_se
 
 | Signal | Emits | Connects | Emit Files | Connect Files | Status |
 |--------|-------|----------|-----------|---------------|--------|
-| `server_connecting` | 1 | 1 | client_connection | connecting_overlay | OK |
 | `connection_step` | 5 | 2 | client_connection | add_server_dialog, sidebar | OK |
-| `server_connection_failed` | 4 | 4 | client_connection | connecting_overlay, guild_icon, composer, message_view | OK |
+| `server_connection_failed` | 4 | 3 | client_connection | guild_icon, composer, message_view | OK |
 | `server_disconnected` | 2 | 3 | client_gateway | guild_icon, composer, message_view | OK |
 | `server_reconnecting` | 1 | 2 | client_gateway | guild_icon, message_view | OK |
 | `server_reconnected` | 3 | 4 | client_gateway | guild_icon, composer, message_view, client | OK |

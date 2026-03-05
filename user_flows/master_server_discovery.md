@@ -16,10 +16,10 @@ This flow is analogous to Discord's Server Discovery or Matrix's room directory 
 1. User clicks the "Discover" button in the space bar (compass icon, below the Add Server button).
 2. `AppState.open_discovery()` emits `discovery_opened`. `main_window` hides the message view and channel panel, shows `DiscoveryPanel`.
 3. `discovery_panel.activate()` fetches `GET /directory` from the master server via `DirectoryApi.browse()`.
-4. Space cards are displayed in a responsive grid (3 columns >= 800px, 2 columns >= 500px, 1 column < 500px). Each card shows icon, name, member count (with optional online count), description, and tag chips.
+4. Space cards are displayed in a responsive grid (3 columns >= 800px, 2 columns >= 500px, 1 column < 500px). Each card shows icon, name, ping strength indicator, member count (with optional online count), description, and tag chips. The ping indicator uses Unicode bar characters (▂▄▆█) colored by latency: green <200ms, yellow <400ms, red >=400ms.
 5. User can type in the search box (0.4s debounce) to search by name/description. Search re-fetches from the master server (server-side).
 6. Tag chips are dynamically populated from the response data. Clicking a tag re-fetches with a `tag` query parameter (server-side filter). "All" resets to unfiltered.
-7. Clicking a card hides the grid/search/tags and shows a detail view inline: banner image, icon, name, member/online counts, description, comma-separated tags, server URL (protocol stripped), and a "Join Server" button.
+7. Clicking a card hides the grid/search/tags and shows a detail view inline: banner image, icon, name, member/online counts, description, comma-separated tags, server URL (protocol stripped), ping strength (with latency in ms), and a "Join Server" button. The ping row shows "Measuring..." until the health check completes.
 
 ### Browse Public Servers (Add Server Dialog)
 
@@ -125,9 +125,9 @@ Indexer polls each registered accordserver:
 | `accordmasterserver/migrations/` | SQLite schema migrations |
 | `scenes/sidebar/guild_bar/discover_button.gd` | Compass icon button in space bar, emits `discover_pressed` |
 | `scenes/sidebar/guild_bar/guild_bar.gd` | Connects discover button to `AppState.open_discovery()` |
-| `scenes/discovery/discovery_panel.gd` | Full discovery panel: search, tag filter, responsive card grid, inline detail view |
-| `scenes/discovery/discovery_card.gd` | Individual space card in the discovery grid (icon, name, members, description, tags) |
-| `scenes/discovery/discovery_detail.gd` | Detail view with banner, icon, stats, description, tags, join button |
+| `scenes/discovery/discovery_panel.gd` | Full discovery panel: search, tag filter, responsive card grid, inline detail view, server ping measurement |
+| `scenes/discovery/discovery_card.gd` | Individual space card in the discovery grid (icon, name, ping indicator, members, description, tags) |
+| `scenes/discovery/discovery_detail.gd` | Detail view with banner, icon, stats, description, tags, ping row, join button |
 | `scenes/discovery/discovery_panel.gd` | Also used in embedded mode inside the Add Server dialog's "Browse Servers" tab (single-column grid, no header) |
 | `addons/accordkit/rest/endpoints/directory_api.gd` | `DirectoryApi` class: `browse(query, tag, page)` and `get_space(space_id)` |
 | `scripts/autoload/config.gd` | `get_master_server_url()` / `set_master_server_url()` (default: `https://master.daccord.gg`) |
@@ -264,19 +264,17 @@ The discovery panel (`scenes/discovery/discovery_panel.gd`) is mounted in `main_
 │                                              │
 │  Tags: [All] [Gaming] [Social] [Dev] [Art]   │
 │                                              │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐      │
-│  │  Icon   │  │  Icon   │  │  Icon   │      │
-│  │  Name   │  │  Name   │  │  Name   │      │
-│  │  Desc   │  │  Desc   │  │  Desc   │      │
-│  │  142    │  │  37     │  │  89     │      │
-│  └─────────┘  └─────────┘  └─────────┘      │
-│                                              │
-│  ┌─────────┐  ┌─────────┐                   │
-│  │  Icon   │  │  Icon   │                   │
-│  │  Name   │  │  Name   │                   │
-│  │  Desc   │  │  Desc   │                   │
-│  │  56     │  │  203    │                   │
-│  └─────────┘  └─────────┘                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │Icon Name ▂▄▆█│  │Icon Name ▂▄▆│  │Icon Name ▂▄ │ │
+│  │     142 memb │  │     37 memb  │  │     89 memb  │ │
+│  │     Desc     │  │     Desc     │  │     Desc     │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘ │
+│                                                        │
+│  ┌──────────────┐  ┌──────────────┐                    │
+│  │Icon Name ▂▄▆█│  │Icon Name ▂   │                    │
+│  │     56 memb  │  │     203 memb │                    │
+│  │     Desc     │  │     Desc     │                    │
+│  └──────────────┘  └──────────────┘                    │
 └──────────────────────────────────────────────┘
 ```
 
@@ -297,6 +295,7 @@ The discovery panel (`scenes/discovery/discovery_panel.gd`) is mounted in `main_
 │                                              │
 │  Tags: Gaming, Social                        │
 │  Server: server.example.com                  │
+│  Ping: ▂▄▆█ 45ms                            │
 │                                              │
 │  ┌──────────────────┐                        │
 │  │   Join Server     │                        │
@@ -305,6 +304,27 @@ The discovery panel (`scenes/discovery/discovery_panel.gd`) is mounted in `main_
 ```
 
 The detail view uses the card's already-loaded data dictionary rather than calling `GET /directory/{space_id}` separately. The join button shows "Joining..." while the request is in flight. Errors are displayed in red below the button.
+
+### Ping Strength Indicator
+
+After the discovery grid is populated, `discovery_panel` pings each unique `server_url` by sending a `GET /health` request and measuring the round-trip time (lines 215-257). Results are cached in `_ping_cache` (line 14) so repeated searches or detail view opens reuse the measurement.
+
+**Measurement:** `_ping_server()` (line 229) creates an `HTTPRequest`, records `Time.get_ticks_msec()` before the request, and calculates the delta on completion. Only successful responses (2xx) are cached; failed pings are silently ignored.
+
+**Display tiers:** Both `discovery_card.set_ping()` (line 63) and `discovery_detail.set_ping()` (line 80) use the same tier logic with Unicode bar characters:
+
+| Latency | Bars | Color |
+|---------|------|-------|
+| < 100ms | ▂▄▆█ | `success` (green) |
+| 100-199ms | ▂▄▆ | `success` (green) |
+| 200-399ms | ▂▄ | `warning` (yellow) |
+| >= 400ms | ▂ | `error` (red) |
+
+**Card:** The ping label sits in a `TopRow` HBoxContainer alongside the space name (line 8-9 in `discovery_card.gd`), right-aligned at 11px font size.
+
+**Detail view:** A dedicated `PingRow` in the Details section shows "Ping:" label and value (line 17 in `discovery_detail.gd`). The `setup()` method initializes it to "Measuring..." in muted text (lines 61-62). When the panel opens the detail view, it either applies the cached ping immediately or re-pings the server (lines 288-293 in `discovery_panel.gd`).
+
+**Propagation:** `_apply_ping_to_cards()` (line 249) iterates all grid children and the active detail view, matching by `server_url`. This means when an async ping completes, all cards for that server update simultaneously.
 
 ### Browse Servers Tab (Add Server Dialog)
 
@@ -366,8 +386,8 @@ discovery_panel: user clicks "Join Server" in detail view
 All discovery components use `ThemeManager` for colors:
 
 - **discovery_panel.gd**: Uses `panel_bg`, `text_body`, `input_bg`, `accent`, `text_white`, `secondary_button`, `secondary_button_hover`, `accent_hover`. Connected to `AppState.theme_changed` for live updates (long-lived component).
-- **discovery_card.gd**: Uses `nav_bg`, `button_hover`, `text_muted`, `secondary_button`. Colors read at creation time (short-lived).
-- **discovery_detail.gd**: Uses `text_muted`, `accent`, `accent_hover`, `accent_pressed`, `text_white`, `error`. Colors read at creation time (short-lived).
+- **discovery_card.gd**: Uses `nav_bg`, `button_hover`, `text_muted`, `secondary_button`, `success`, `warning`, `error` (ping indicator). Colors read at creation time (short-lived).
+- **discovery_detail.gd**: Uses `text_muted`, `accent`, `accent_hover`, `accent_pressed`, `text_white`, `error`, `success`, `warning` (ping indicator). Colors read at creation time (short-lived).
 - **discover_button.gd**: Uses `nav_bg` (normal) and `accent` (hover). Colors read at `_ready()`.
 
 ### Security Considerations
@@ -419,6 +439,7 @@ All discovery components use `ThemeManager` for colors:
 - [x] daccord: Join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
 - [x] daccord: AppState discovery signals (`discovery_opened`, `discovery_closed`, `is_discovery_open`)
 - [x] daccord: Master server URL in Config (section `"master"`, key `"url"`)
+- [x] daccord: Ping strength indicator on discovery cards and detail view (health endpoint round-trip measurement)
 - [x] daccord: ThemeManager integration for all discovery components
 - [x] accordkit: `DirectoryApi` class (`browse()`, `get_space()`)
 - [x] accordserver: `member_count` in public spaces response (JOIN with members table)

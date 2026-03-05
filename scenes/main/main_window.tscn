@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://scenes/video/video_grid.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/messages/thread_panel.tscn" id="11"]
 [ext_resource type="PackedScene" path="res://scenes/discovery/discovery_panel.tscn" id="12"]
+[ext_resource type="PackedScene" path="res://scenes/messages/voice_text_panel.tscn" id="13"]
 
 [node name="MainWindow" type="Control"]
 layout_mode = 3
@@ -38,11 +39,15 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="ContentHeader" type="HBoxContainer" parent="LayoutHBox/ContentArea"]
+[node name="ContentHeader" type="PanelContainer" parent="LayoutHBox/ContentArea"]
+layout_mode = 2
+
+[node name="ContentHeaderHBox" type="HBoxContainer" parent="LayoutHBox/ContentArea/ContentHeader"]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="HamburgerButton" type="Button" parent="LayoutHBox/ContentArea/ContentHeader"]
+[node name="HamburgerButton" type="Button" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
+unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
@@ -50,31 +55,35 @@ tooltip_text = "Open sidebar"
 icon = ExtResource("4")
 flat = true
 
-[node name="SidebarToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader"]
+[node name="SidebarToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "Toggle channel list"
 icon = ExtResource("9")
 flat = true
 
-[node name="TabBar" type="TabBar" parent="LayoutHBox/ContentArea/ContentHeader"]
+[node name="TabBar" type="TabBar" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 tab_close_display_policy = 1
 drag_to_rearrange_enabled = true
 
-[node name="HeaderSpacer" type="Control" parent="LayoutHBox/ContentArea/ContentHeader"]
+[node name="HeaderSpacer" type="Control" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SearchToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader"]
+[node name="SearchToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "Search messages"
 icon = ExtResource("7")
 flat = true
 
-[node name="MemberListToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader"]
+[node name="MemberListToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "Toggle member list"
@@ -105,6 +114,9 @@ layout_mode = 2
 
 [node name="SearchPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("8")]
 visible = false
+
+[node name="VoiceTextPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("13")]
+layout_mode = 2
 
 [node name="DiscoveryPanel" parent="LayoutHBox" instance=ExtResource("12")]
 visible = false

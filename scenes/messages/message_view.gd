@@ -85,7 +85,7 @@ func _ready() -> void:
 	AppState.server_reconnecting.connect(_banner.on_server_reconnecting)
 	AppState.server_reconnected.connect(_on_server_reconnected)
 	AppState.server_synced.connect(_banner.on_server_synced)
-	AppState.server_version_warning.connect(_banner.on_server_version_warning)
+
 	AppState.server_connection_failed.connect(
 		_banner.on_server_connection_failed
 	)
@@ -114,10 +114,15 @@ func _ready() -> void:
 	action_bar.action_delete.connect(_actions.on_bar_delete)
 	action_bar.mouse_exited.connect(_hover.on_action_bar_unhovered)
 	add_to_group("themed")
+	_apply_theme()
 
 func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("content_bg")
 	if _banner:
 		_banner.update_styles()
+	ThemeManager.apply_font_colors(self)
 
 func _is_persistent_node(child: Node) -> bool:
 	return (

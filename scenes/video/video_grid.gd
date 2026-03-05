@@ -14,6 +14,8 @@ var _rebuild_pending: bool = false
 
 func _ready() -> void:
 	visible = false
+	add_to_group("themed")
+	_apply_theme()
 	AppState.video_enabled_changed.connect(
 		_on_video_changed
 	)
@@ -23,10 +25,16 @@ func _ready() -> void:
 	AppState.voice_state_updated.connect(
 		_on_voice_state_updated
 	)
+	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
 	AppState.remote_track_received.connect(
 		_on_remote_track_received
 	)
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("nav_bg")
 	AppState.remote_track_removed.connect(
 		_on_remote_track_removed
 	)
@@ -56,6 +64,9 @@ func _on_video_changed(_value: bool) -> void:
 func _on_voice_state_updated(_channel_id: String) -> void:
 	if AppState.voice_channel_id.is_empty():
 		return
+	_schedule_rebuild()
+
+func _on_voice_joined(_channel_id: String) -> void:
 	_schedule_rebuild()
 
 func _on_voice_left(_channel_id: String) -> void:
@@ -126,12 +137,25 @@ func _has_screen_share() -> bool:
 
 func _count_tiles() -> int:
 	var count := 0
-	if Client.get_camera_track() != null:
-		count += 1
-	if Client.get_screen_track() != null:
-		count += 1
 	var cid := AppState.voice_channel_id
-	if not cid.is_empty():
+	if cid.is_empty():
+		return count
+	if _mode == GridMode.FULL_AREA:
+		var my_id: String = Client.current_user.get("id", "")
+		# Count all participants (including self)
+		var voice_states: Array = Client.get_voice_users(cid)
+		count = voice_states.size()
+		# Add extra tiles for screen shares
+		if Client.get_screen_track() != null:
+			count += 1
+		for state in voice_states:
+			if state.get("user_id", "") != my_id and state.get("self_stream", false):
+				count += 1
+	else:
+		if Client.get_camera_track() != null:
+			count += 1
+		if Client.get_screen_track() != null:
+			count += 1
 		var my_id: String = Client.current_user.get("id", "")
 		var states: Array = Client.get_voice_users(cid)
 		for state in states:
@@ -152,34 +176,78 @@ func _clear() -> void:
 	spotlight_area.visible = false
 
 func _collect_tiles() -> Array:
-	# Returns array of dictionaries: {track, user, is_screen, user_id}
+	# Returns array of dictionaries: {track, user, is_screen, user_id, voice_state}
 	var tiles: Array = []
-
-	# Local camera tile
-	var cam_track = Client.get_camera_track()
-	if cam_track != null:
-		tiles.append({
-			"track": cam_track,
-			"user": Client.current_user,
-			"is_screen": false,
-			"user_id": Client.current_user.get("id", ""),
-		})
-
-	# Local screen share tile
-	var screen_track = Client.get_screen_track()
-	if screen_track != null:
-		tiles.append({
-			"track": screen_track,
-			"user": Client.current_user,
-			"is_screen": true,
-			"user_id": Client.current_user.get("id", ""),
-		})
-
-	# Remote peer tiles
 	var cid := AppState.voice_channel_id
-	if not cid.is_empty():
-		var my_id: String = Client.current_user.get("id", "")
-		var states: Array = Client.get_voice_users(cid)
+	if cid.is_empty():
+		return tiles
+
+	var my_id: String = Client.current_user.get("id", "")
+	var states: Array = Client.get_voice_users(cid)
+
+	if _mode == GridMode.FULL_AREA:
+		# Show all participants as cards (like Discord voice view)
+		for state in states:
+			var uid: String = state.get("user_id", "")
+			var user: Dictionary = state.get("user", {})
+			if user.is_empty():
+				user = Client.get_user_by_id(uid)
+			# Participant card shows camera only (screen shares get separate tiles)
+			var track = null
+			if uid == my_id:
+				track = Client.get_camera_track()
+			elif state.get("self_video", false):
+				track = Client.get_remote_track(uid)
+			tiles.append({
+				"track": track,
+				"user": user,
+				"is_screen": false,
+				"user_id": uid,
+				"voice_state": state,
+			})
+		# Separate tile for local screen share
+		var screen_track = Client.get_screen_track()
+		if screen_track != null:
+			tiles.append({
+				"track": screen_track,
+				"user": Client.current_user,
+				"is_screen": true,
+				"user_id": my_id,
+			})
+		# Separate tiles for remote screen shares
+		for state in states:
+			var uid: String = state.get("user_id", "")
+			if uid == my_id:
+				continue
+			if state.get("self_stream", false):
+				var user: Dictionary = state.get("user", {})
+				if user.is_empty():
+					user = Client.get_user_by_id(uid)
+				tiles.append({
+					"track": Client.get_remote_track(uid),
+					"user": user,
+					"is_screen": true,
+					"user_id": uid,
+					"voice_state": state,
+				})
+	else:
+		# Inline mode: only show tiles with active video/screen share
+		var cam_track = Client.get_camera_track()
+		if cam_track != null:
+			tiles.append({
+				"track": cam_track,
+				"user": Client.current_user,
+				"is_screen": false,
+				"user_id": my_id,
+			})
+		var screen_track = Client.get_screen_track()
+		if screen_track != null:
+			tiles.append({
+				"track": screen_track,
+				"user": Client.current_user,
+				"is_screen": true,
+				"user_id": my_id,
+			})
 		for state in states:
 			var uid: String = state.get("user_id", "")
 			if uid == my_id:
@@ -190,9 +258,8 @@ func _collect_tiles() -> Array:
 				var user: Dictionary = state.get("user", {})
 				if user.is_empty():
 					user = Client.get_user_by_id(uid)
-				var remote_track = Client.get_remote_track(uid)
 				tiles.append({
-					"track": remote_track,
+					"track": Client.get_remote_track(uid),
 					"user": user,
 					"is_screen": has_stream and not has_video,
 					"user_id": uid,
@@ -215,10 +282,7 @@ func _rebuild() -> void:
 	_clear()
 	var tiles := _collect_tiles()
 	if tiles.is_empty():
-		if _mode == GridMode.FULL_AREA:
-			visible = true
-		else:
-			visible = false
+		visible = _mode == GridMode.FULL_AREA
 		return
 
 	visible = true

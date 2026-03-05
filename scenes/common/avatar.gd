@@ -19,14 +19,25 @@ var _current_url: String = ""
 @onready var letter_label: Label = $LetterLabel
 
 func _ready() -> void:
+	add_to_group("themed")
 	custom_minimum_size = Vector2(avatar_size, avatar_size)
 	_shader_material = ShaderMaterial.new()
 	_shader_material.shader = AvatarShader
 	_shader_material.set_shader_parameter("radius", 0.5)
+	_shader_material.set_shader_parameter(
+		"ring_color", ThemeManager.get_color("status_online")
+	)
 	material = _shader_material
 	letter_label.visible = show_letter
 	letter_label.add_theme_font_size_override("font_size", letter_font_size)
 	_resize_letter_label()
+
+func _apply_theme() -> void:
+	var ring_color := ThemeManager.get_color("status_online")
+	if _shader_material:
+		_shader_material.set_shader_parameter("ring_color", ring_color)
+	if _texture_rect and _texture_rect.material is ShaderMaterial:
+		_texture_rect.material.set_shader_parameter("ring_color", ring_color)
 
 func set_avatar_color(c: Color) -> void:
 	color = c

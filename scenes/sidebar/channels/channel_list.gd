@@ -20,10 +20,18 @@ var _current_space_id: String = ""
 @onready var empty_state: VBoxContainer = $VBox/ScrollContainer/ChannelVBox/EmptyState
 
 func _ready() -> void:
+	add_to_group("themed")
+	_apply_theme()
 	AppState.channels_updated.connect(_on_channels_updated)
 	AppState.spaces_updated.connect(_on_spaces_updated)
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 	AppState.channel_selected.connect(_on_app_channel_selected)
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("panel_bg")
+	ThemeManager.apply_font_colors(self)
 
 func load_space(space_id: String) -> void:
 	_current_space_id = space_id
@@ -40,16 +48,16 @@ func load_space(space_id: String) -> void:
 
 	var channels := Client.get_channels_for_space(space_id)
 
-	# Imposter mode: filter out channels the impersonated role can't view
-	if AppState.is_imposter_mode and space_id == AppState.imposter_space_id:
-		var filtered: Array = []
-		for ch in channels:
-			if ch["type"] == ClientModels.ChannelType.CATEGORY:
-				filtered.append(ch)
-				continue
-			if AccordPermission.has(AppState.imposter_permissions, AccordPermission.VIEW_CHANNEL):
-				filtered.append(ch)
-		channels = filtered
+	# Filter out channels the user (or impersonated role) can't view
+	var filtered: Array = []
+	for ch in channels:
+		if ch["type"] == ClientModels.ChannelType.CATEGORY:
+			filtered.append(ch)
+			continue
+		var ch_id: String = ch.get("id", "")
+		if Client.has_channel_permission(space_id, ch_id, AccordPermission.VIEW_CHANNEL):
+			filtered.append(ch)
+	channels = filtered
 
 	# Count non-category channels
 	var selectable_channels: int = 0
@@ -190,6 +198,12 @@ func _on_channel_pressed(channel_id: String) -> void:
 			ch_data = ch
 			break
 	if ch_data.get("type", 0) == ClientModels.ChannelType.VOICE:
+		# Check CONNECT permission before joining
+		if not Client.has_channel_permission(
+			_current_space_id, channel_id, AccordPermission.CONNECT
+		):
+			return
+		_set_active_channel(channel_id)
 		if AppState.voice_channel_id == channel_id:
 			# Already in this voice channel — open the video view
 			AppState.open_voice_view()

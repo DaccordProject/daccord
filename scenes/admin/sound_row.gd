@@ -24,6 +24,7 @@ func _ready() -> void:
 	_name_edit.text_submitted.connect(_on_name_submitted)
 	_volume_slider.value_changed.connect(_on_volume_changed)
 	_name_edit.visible = false
+	ThemeManager.apply_font_colors(self)
 
 func setup(sound: Dictionary, can_manage: bool) -> void:
 	_sound_data = sound

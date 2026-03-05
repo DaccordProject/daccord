@@ -83,7 +83,6 @@ text = "Register"
 [node name="UsernameLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "USERNAME"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="UsernameInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
@@ -94,7 +93,6 @@ placeholder_text = "Enter your username"
 [node name="PasswordLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 text = "PASSWORD"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="PasswordRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
@@ -124,14 +122,13 @@ text = "View"
 visible = false
 layout_mode = 2
 text = "Minimum 8 characters"
-theme_override_colors/font_color = Color(0.58, 0.608, 0.643, 1)
+metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 11
 
 [node name="DisplayNameLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
 text = "DISPLAY NAME (optional)"
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 
 [node name="DisplayNameInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
@@ -139,6 +136,18 @@ visible = false
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
 placeholder_text = "How others will see you"
+
+[node name="MfaLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+text = "TWO-FACTOR CODE"
+theme_override_font_sizes/font_size = 11
+
+[node name="MfaInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+placeholder_text = "6-digit code or backup code"
 
 [node name="SubmitButton" type="Button" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
@@ -150,5 +159,5 @@ theme_override_styles/hover = SubResource("submit_btn_hover")
 [node name="ErrorLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.3, 0.3, 1)
+metadata/theme_font_color = "error"
 autowrap_mode = 2
