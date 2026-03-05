@@ -6,7 +6,7 @@ const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tsc
 
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _tab_container: TabContainer = $CenterContainer/Panel/VBox/TabContainer
-@onready var _browse_panel: VBoxContainer = get_node(
+@onready var _browse_panel: PanelContainer = get_node(
 	"CenterContainer/Panel/VBox/TabContainer/Browse Servers"
 )
 @onready var _url_input: LineEdit = get_node(
@@ -27,7 +27,8 @@ func _ready() -> void:
 	_close_btn.pressed.connect(_close)
 	_url_input.text_submitted.connect(func(_t): _on_add_pressed())
 	_add_btn.pressed.connect(_on_add_pressed)
-	_browse_panel.join_pressed.connect(_on_browse_join)
+	_browse_panel.set_embedded(true)
+	_browse_panel.join_requested.connect(_on_browse_join)
 
 	_tab_container.current_tab = 0
 	_tab_container.tabs_visible = true
@@ -77,7 +78,7 @@ static func parse_server_url(raw: String) -> Dictionary:
 
 
 ## Called when user clicks Join on a space in the browse tab.
-func _on_browse_join(server_url: String, space_id: String) -> void:
+func _on_browse_join(server_url: String, space_id: String, space_slug: String) -> void:
 	# Check if we already have this server + space connected
 	var servers := Config.get_servers()
 	for i in servers.size():
@@ -105,21 +106,21 @@ func _on_browse_join(server_url: String, space_id: String) -> void:
 
 	if not reused_token.is_empty():
 		# We have credentials — join the space directly, then connect
-		_join_and_connect(server_url, space_id, reused_token, reused_username, reused_display_name)
+		_join_and_connect(server_url, space_id, space_slug, reused_token, reused_username, reused_display_name)
 	else:
 		# Show auth dialog, then join the space and connect
 		var auth_dialog := AuthDialogScene.instantiate()
 		auth_dialog.setup(server_url)
 		auth_dialog.auth_completed.connect(
 			func(resolved_url: String, t: String, u: String, _p: String, dn: String):
-				_join_and_connect(resolved_url, space_id, t, u, dn)
+				_join_and_connect(resolved_url, space_id, space_slug, t, u, dn)
 		)
 		get_parent().add_child(auth_dialog)
 
 
 ## Joins a public space on the server, then adds the connection.
 func _join_and_connect(
-	url: String, space_id: String,
+	url: String, space_id: String, space_slug: String,
 	token: String,
 	username: String = "",
 	display_name: String = "",
@@ -138,8 +139,8 @@ func _join_and_connect(
 		_show_error(msg)
 		return
 
-	# Successfully joined — now connect
-	_connect_with_token(url, space_id, token, "", username, display_name)
+	# Successfully joined — now connect (use slug as space_name for Config)
+	_connect_with_token(url, space_slug, token, "", username, display_name)
 
 
 func _on_add_pressed() -> void:
