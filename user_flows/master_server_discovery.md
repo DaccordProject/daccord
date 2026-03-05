@@ -24,9 +24,10 @@ This flow is analogous to Discord's Server Discovery or Matrix's room directory 
 ### Browse Public Servers (Add Server Dialog)
 
 1. User clicks Add Server in the space bar, then switches to the "Browse Servers" tab.
-2. `browse_servers_panel` fetches the directory and shows server cards in a list format. Each server card is collapsible and shows individual spaces as rows.
-3. User can search locally (client-side filter on server/space names, no debounce). No tag filtering in this view.
-4. User clicks a space row's join button to join directly (no detail view).
+2. An embedded `discovery_panel` (with `set_embedded(true)`) fetches the directory and shows discovery cards in a single-column grid. The header (close button + title) is hidden and margins are reduced to fit within the dialog.
+3. User can search (0.4s debounce, server-side) and filter by tags, identical to the full discovery panel.
+4. Clicking a card shows the inline detail view with back button and join button.
+5. Clicking "Join Server" emits `join_requested` to the dialog, which handles auth and connection via `_on_browse_join()`.
 
 ### Join a Public Server (Client)
 
@@ -127,9 +128,7 @@ Indexer polls each registered accordserver:
 | `scenes/discovery/discovery_panel.gd` | Full discovery panel: search, tag filter, responsive card grid, inline detail view |
 | `scenes/discovery/discovery_card.gd` | Individual space card in the discovery grid (icon, name, members, description, tags) |
 | `scenes/discovery/discovery_detail.gd` | Detail view with banner, icon, stats, description, tags, join button |
-| `scenes/sidebar/guild_bar/browse_servers_panel.gd` | "Browse Servers" tab in Add Server dialog (list layout, client-side search) |
-| `scenes/sidebar/guild_bar/server_card.gd` | Collapsible server card with space rows (used by browse_servers_panel) |
-| `scenes/sidebar/guild_bar/space_row.gd` | Individual space row inside a server card (used by browse_servers_panel) |
+| `scenes/discovery/discovery_panel.gd` | Also used in embedded mode inside the Add Server dialog's "Browse Servers" tab (single-column grid, no header) |
 | `addons/accordkit/rest/endpoints/directory_api.gd` | `DirectoryApi` class: `browse(query, tag, page)` and `get_space(space_id)` |
 | `scripts/autoload/config.gd` | `get_master_server_url()` / `set_master_server_url()` (default: `https://master.daccord.gg`) |
 | `scripts/autoload/app_state.gd` | `discovery_opened` / `discovery_closed` signals, `is_discovery_open` state |
@@ -309,12 +308,13 @@ The detail view uses the card's already-loaded data dictionary rather than calli
 
 ### Browse Servers Tab (Add Server Dialog)
 
-The "Browse Servers" tab in the Add Server dialog (`browse_servers_panel.gd`) provides a simpler list-based alternative to the full discovery panel. Key differences:
+The "Browse Servers" tab in the Add Server dialog reuses `discovery_panel.gd` in **embedded mode** (`set_embedded(true)`). This gives it the same search, tag filtering, card grid, and detail view as the full-page discovery panel, with these adaptations:
 
-- **List layout** with collapsible `server_card` nodes (each containing `space_row` children) instead of a flat card grid.
-- **Client-side search** only -- filters the already-fetched `_all_servers` array locally by server/space name, no re-fetch.
-- **No tag filtering** or debounce.
-- **No detail view** -- users join directly from a space row's button.
+- **Header hidden** -- the close button and "Discover Servers" title are removed (the dialog has its own close button).
+- **Reduced margins** -- 8px instead of 24px/16px to fit within the 480px dialog.
+- **Single-column grid** -- always 1 column regardless of panel width.
+- **Join via signal** -- instead of handling join internally, the panel emits `join_requested(server_url, space_id)` which the dialog's `_on_browse_join()` handler processes (with its own auth/connect logic).
+- **Auto-activates** -- `activate()` is called in `_ready()` when embedded, so data loads as soon as the tab is shown.
 
 ### Client Config
 
@@ -415,8 +415,7 @@ All discovery components use `ThemeManager` for colors:
 - [x] daccord: Discover button in space bar (compass icon)
 - [x] daccord: Discovery panel with responsive card grid, search (debounced), and tag filter
 - [x] daccord: Discovery detail view with banner, icon, stats, and join button
-- [x] daccord: Browse Servers tab in Add Server dialog (list layout, client-side search)
-- [x] daccord: Server card + space row scenes for Browse Servers tab
+- [x] daccord: Browse Servers tab in Add Server dialog (embedded discovery panel, single-column grid)
 - [x] daccord: Join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
 - [x] daccord: AppState discovery signals (`discovery_opened`, `discovery_closed`, `is_discovery_open`)
 - [x] daccord: Master server URL in Config (section `"master"`, key `"url"`)

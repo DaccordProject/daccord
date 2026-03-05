@@ -1,7 +1,7 @@
 extends VBoxContainer
 
 signal back_pressed()
-signal join_pressed(server_url: String, space_id: String)
+signal join_pressed(server_url: String, space_id: String, space_slug: String)
 
 var _data: Dictionary = {}
 
@@ -102,14 +102,15 @@ func _apply_style() -> void:
 
 func _on_join_pressed() -> void:
 	var server_url: String = _data.get("server_url", "")
-	var space_id: String = _data.get("id", "")
-	if server_url.is_empty() or space_id.is_empty():
+	var space_id: String = _data.get("space_id", _data.get("id", ""))
+	var space_slug: String = _data.get("slug", "")
+	if server_url.is_empty() or space_id.is_empty() or space_slug.is_empty():
 		_status_label.text = "Missing server information"
 		_status_label.visible = true
 		return
 	_join_button.disabled = true
 	_join_button.text = "Joining..."
-	join_pressed.emit(server_url, space_id)
+	join_pressed.emit(server_url, space_id, space_slug)
 
 func show_error(msg: String) -> void:
 	_status_label.text = msg

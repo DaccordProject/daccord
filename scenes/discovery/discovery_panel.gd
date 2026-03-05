@@ -1,5 +1,7 @@
 extends PanelContainer
 
+signal join_requested(server_url: String, space_id: String, space_slug: String)
+
 const DiscoveryCardScene := preload("res://scenes/discovery/discovery_card.tscn")
 const DiscoveryDetailScene := preload("res://scenes/discovery/discovery_detail.tscn")
 const AuthDialogScene := preload("res://scenes/sidebar/guild_bar/auth_dialog.tscn")
@@ -8,7 +10,10 @@ var _all_spaces: Array = []
 var _active_tag: String = ""
 var _search_timer: Timer
 var _detail_view: VBoxContainer = null
+var _embedded := false
 
+@onready var _margin: MarginContainer = $Margin
+@onready var _header: HBoxContainer = $Margin/VBox/Header
 @onready var _close_button: Button = $Margin/VBox/Header/CloseButton
 @onready var _search_input: LineEdit = $Margin/VBox/SearchInput
 @onready var _tag_bar: HFlowContainer = $Margin/VBox/TagBar
@@ -30,6 +35,10 @@ func _ready() -> void:
 	_search_timer.timeout.connect(_on_search_debounced)
 	add_child(_search_timer)
 
+	if _embedded:
+		_apply_embedded()
+		activate()
+
 func activate() -> void:
 	_update_grid_columns()
 	_fetch_directory()
@@ -38,8 +47,27 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_update_grid_columns()
 
+func set_embedded(value: bool) -> void:
+	_embedded = value
+	if is_node_ready():
+		_apply_embedded()
+		if _embedded:
+			activate()
+
+func _apply_embedded() -> void:
+	_header.visible = not _embedded
+	if _embedded:
+		_margin.add_theme_constant_override("margin_left", 8)
+		_margin.add_theme_constant_override("margin_top", 8)
+		_margin.add_theme_constant_override("margin_right", 8)
+		_margin.add_theme_constant_override("margin_bottom", 8)
+		_grid.columns = 1
+
 func _update_grid_columns() -> void:
 	if not is_instance_valid(_grid):
+		return
+	if _embedded:
+		_grid.columns = 1
 		return
 	var w := size.x
 	if w < 500:
@@ -209,7 +237,7 @@ func _on_card_clicked(space_data: Dictionary) -> void:
 	_detail_container.add_child(_detail_view)
 	_detail_view.setup(space_data)
 	_detail_view.back_pressed.connect(_on_detail_back)
-	_detail_view.join_pressed.connect(_on_detail_join)
+	_detail_view.join_pressed.connect(_on_detail_join_with_slug)
 
 func _on_detail_back() -> void:
 	_detail_container.visible = false
@@ -220,7 +248,11 @@ func _on_detail_back() -> void:
 	_tag_bar.visible = true
 	_search_input.visible = true
 
-func _on_detail_join(server_url: String, space_id: String) -> void:
+func _on_detail_join_with_slug(server_url: String, space_id: String, space_slug: String) -> void:
+	if _embedded:
+		join_requested.emit(server_url, space_id, space_slug)
+		return
+
 	# Check if already connected to this server
 	var servers := Config.get_servers()
 	for i in servers.size():
@@ -228,7 +260,7 @@ func _on_detail_join(server_url: String, space_id: String) -> void:
 		if server["base_url"] == server_url and Client.is_server_connected(i):
 			# Already have credentials — join directly
 			_join_and_connect(
-				server_url, space_id,
+				server_url, space_id, space_slug,
 				server.get("token", ""),
 				server.get("username", ""),
 				server.get("display_name", ""),
@@ -240,12 +272,12 @@ func _on_detail_join(server_url: String, space_id: String) -> void:
 	auth_dialog.setup(server_url)
 	auth_dialog.auth_completed.connect(
 		func(resolved_url: String, t: String, u: String, _p: String, dn: String):
-			_join_and_connect(resolved_url, space_id, t, u, dn)
+			_join_and_connect(resolved_url, space_id, space_slug, t, u, dn)
 	)
 	get_tree().root.add_child(auth_dialog)
 
 func _join_and_connect(
-	url: String, space_id: String,
+	url: String, space_id: String, space_slug: String,
 	token: String,
 	username: String = "",
 	display_name: String = "",
@@ -268,8 +300,8 @@ func _join_and_connect(
 			_detail_view.show_error(msg)
 		return
 
-	# Successfully joined — save config and connect
-	Config.add_server(url, token, space_id, username, display_name)
+	# Successfully joined — save config with slug (used by connect_server to match)
+	Config.add_server(url, token, space_slug, username, display_name)
 	var server_index: int = Config.get_servers().size() - 1
 	var connect_result: Dictionary = await Client.connect_server(server_index)
 
@@ -288,4 +320,5 @@ func _join_and_connect(
 		AppState.select_space(joined_space_id)
 
 func _on_close() -> void:
-	AppState.close_discovery()
+	if not _embedded:
+		AppState.close_discovery()
