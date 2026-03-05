@@ -349,32 +349,10 @@ jobs:
             2>&1 | tee /tmp/gut_ak_rest.txt
         timeout-minutes: 5
 
-      - name: Run gateway tests (headless, allowed to fail)
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          godot --headless -s addons/gut/gut_cmdln.gd \
-            -gexit \
-            -ginclude_subdirs=true \
-            -gprefix=test_ \
-            -gsuffix=.gd \
-            -glog=1 \
-            -gdir=res://tests/accordkit/gateway \
-            2>&1 | tee /tmp/gut_ak_gw.txt
-          godot --headless -s addons/gut/gut_cmdln.gd \
-            -gexit \
-            -ginclude_subdirs=true \
-            -gprefix=test_ \
-            -gsuffix=.gd \
-            -glog=1 \
-            -gdir=res://tests/accordkit/e2e \
-            2>&1 | tee -a /tmp/gut_ak_gw.txt
-        timeout-minutes: 5
-
       - name: Test result summary
         if: always()
         run: |
-          for file in /tmp/gut_ak_unit.txt /tmp/gut_ak_rest.txt /tmp/gut_ak_gw.txt; do
+          for file in /tmp/gut_ak_unit.txt /tmp/gut_ak_rest.txt; do
             if [ -f "$file" ]; then
               suite=$(basename "$file" .txt | sed 's/gut_ak_//')
               echo "## AccordKit ${suite} test results" >> $GITHUB_STEP_SUMMARY

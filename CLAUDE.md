@@ -81,9 +81,10 @@ GDScript's `:=` operator infers the type from the right-hand side. This **fails 
 ```bash
 ./test.sh              # All tests (starts accordserver automatically)
 ./test.sh unit         # Unit tests only (no server needed)
-./test.sh integration  # AccordKit + LiveKit integration/e2e tests
-./test.sh accordkit    # AccordKit tests only
-./test.sh livekit # LiveKit tests only (no server needed)
+./test.sh integration  # AccordKit unit + REST integration tests
+./test.sh accordkit    # AccordKit unit + REST tests only
+./test.sh gateway      # Gateway/e2e tests (requires non-headless Godot)
+./test.sh livekit      # LiveKit tests only (no server needed)
 ```
 
 Server logs are written to `test_server.log` -- tail them with `tail -f test_server.log` while tests run.

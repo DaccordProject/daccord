@@ -7,10 +7,11 @@
 # Server logs are written to a file and can be tailed in a separate terminal.
 #
 # Usage:
-#   ./test.sh              Run all tests
+#   ./test.sh              Run all tests (excludes gateway -- needs non-headless)
 #   ./test.sh unit         Run only unit tests (no server needed)
-#   ./test.sh integration  Run AccordKit integration/e2e tests
-#   ./test.sh accordkit    Run only AccordKit tests
+#   ./test.sh integration  Run AccordKit unit + REST integration tests
+#   ./test.sh accordkit    Run only AccordKit unit + REST tests
+#   ./test.sh gateway      Run gateway/e2e tests (requires non-headless Godot)
 #   ./test.sh livekit      Run only LiveKit adapter tests (no server needed)
 #
 # Environment variables:
@@ -66,11 +67,15 @@ resolve_dirs() {
             ;;
         integration)
             NEEDS_SERVER=true
-            GUT_DIRS="res://tests/accordkit"
+            GUT_DIRS="res://tests/accordkit/unit,res://tests/accordkit/integration"
             ;;
         accordkit)
             NEEDS_SERVER=true
-            GUT_DIRS="res://tests/accordkit"
+            GUT_DIRS="res://tests/accordkit/unit,res://tests/accordkit/integration"
+            ;;
+        gateway)
+            NEEDS_SERVER=true
+            GUT_DIRS="res://tests/accordkit/gateway,res://tests/accordkit/e2e"
             ;;
         livekit)
             NEEDS_SERVER=false
@@ -78,11 +83,11 @@ resolve_dirs() {
             ;;
         all)
             NEEDS_SERVER=true
-            GUT_DIRS="res://tests/unit,res://tests/accordkit,res://tests/livekit"
+            GUT_DIRS="res://tests/unit,res://tests/accordkit/unit,res://tests/accordkit/integration,res://tests/livekit"
             ;;
         *)
             err "Unknown suite: $1"
-            echo "Usage: $0 [unit|integration|accordkit|livekit|all]"
+            echo "Usage: $0 [unit|integration|accordkit|gateway|livekit|all]"
             exit 1
             ;;
     esac
