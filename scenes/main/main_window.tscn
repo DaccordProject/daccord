@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://dfdj5l4hj5t18"]
+[gd_scene load_steps=14 format=3 uid="uid://dfdj5l4hj5t18"]
 
 [ext_resource type="Script" uid="uid://cpxq3kjxgwtsg" path="res://scenes/main/main_window.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/sidebar.tscn" id="2"]
@@ -72,7 +72,6 @@ drag_to_rearrange_enabled = true
 
 [node name="HeaderSpacer" type="Control" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
 layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="SearchToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
 unique_name_in_owner = true
@@ -119,9 +118,7 @@ visible = false
 layout_mode = 2
 
 [node name="DiscoveryPanel" parent="LayoutHBox" instance=ExtResource("12")]
-visible = false
 layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="DrawerBackdrop" type="ColorRect" parent="."]
 visible = false

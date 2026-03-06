@@ -16,6 +16,9 @@ const CreateSpaceDialogScene := preload(
 const TransferOwnershipDialogScene := preload(
 	"res://scenes/admin/transfer_ownership_dialog.gd"
 )
+const ResetPasswordDialogScene := preload(
+	"res://scenes/admin/reset_password_dialog.tscn"
+)
 
 # Spaces tab
 var _spaces_list: VBoxContainer
@@ -418,6 +421,21 @@ func _build_user_row(user) -> HBoxContainer:
 	)
 	row.add_child(disable_btn)
 
+	# Reset Password button (not for bots)
+	var is_bot: bool = false
+	if user is AccordUser:
+		is_bot = user.bot
+	elif user is Dictionary:
+		is_bot = user.get("bot", false)
+	if not is_bot:
+		var reset_btn := SettingsBase.create_secondary_button(
+			"Reset Password"
+		)
+		reset_btn.pressed.connect(func() -> void:
+			_on_reset_password(uid, uname)
+		)
+		row.add_child(reset_btn)
+
 	# Delete button
 	var del_btn := SettingsBase.create_danger_button("Delete")
 	del_btn.pressed.connect(func() -> void:
@@ -451,6 +469,11 @@ func _on_toggle_disabled(
 			_users_error.text = result.error.message
 			_users_error.visible = true
 	)
+
+func _on_reset_password(user_id: String, uname: String) -> void:
+	var dialog := ResetPasswordDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.setup(user_id, uname)
 
 func _on_delete_user(user_id: String, uname: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()

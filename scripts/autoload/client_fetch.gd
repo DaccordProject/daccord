@@ -143,6 +143,21 @@ func fetch_dm_channels() -> void:
 	# Asynchronously fetch last message previews
 	_fetch_dm_previews()
 
+func fetch_mutes(conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	var client: AccordClient = conn.get("client")
+	if client == null:
+		return
+	var result: RestResult = await client.users.list_mutes()
+	if result.ok and result.data is Array:
+		for entry in result.data:
+			var channel_id: String = str(entry.get("channel_id", entry))
+			if not channel_id.is_empty():
+				_c._muted_channels[channel_id] = true
+		AppState.channel_mutes_updated.emit()
+
 func _fetch_unknown_authors(
 	messages: Array, client: AccordClient, cdn_url: String,
 ) -> void:

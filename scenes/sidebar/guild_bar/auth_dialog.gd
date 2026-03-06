@@ -6,6 +6,10 @@ signal auth_completed(
 	display_name: String,
 )
 
+const ChangePasswordDialogScene := preload(
+	"res://scenes/sidebar/guild_bar/change_password_dialog.tscn"
+)
+
 enum Mode { SIGN_IN, REGISTER }
 
 var _mode: Mode = Mode.SIGN_IN
@@ -161,6 +165,11 @@ func _handle_auth_result(result: RestResult, username: String) -> void:
 		_show_error("No token received from server.")
 		return
 
+	# Check if the server requires a password change before continuing
+	if result.data.get("force_password_reset", false):
+		_show_change_password_dialog(token, username)
+		return
+
 	var dn := ""
 	if _mode == Mode.REGISTER:
 		dn = _display_name_input.text.strip_edges()
@@ -212,7 +221,16 @@ func _on_submit_mfa() -> void:
 		_show_error("No token received from server.")
 		return
 
+	# Check if the server requires a password change after MFA
+	var force_reset: bool = (
+		result.data.get("force_password_reset", false)
+		if result.data is Dictionary else false
+	)
 	var username := _username_input.text.strip_edges()
+	if force_reset:
+		_show_change_password_dialog(token, username)
+		return
+
 	auth_completed.emit(
 		_base_url, token, username,
 		_password_input.text.strip_edges(), "",
@@ -265,6 +283,19 @@ func _try_auth(username: String, password: String) -> RestResult:
 
 	rest.queue_free()
 	return result
+
+
+func _show_change_password_dialog(token: String, username: String) -> void:
+	var dialog: Node = ChangePasswordDialogScene.instantiate()
+	dialog.setup(_base_url, token, username)
+	dialog.password_changed.connect(func(t: String):
+		auth_completed.emit(
+			_base_url, t, username,
+			"", "",
+		)
+		queue_free()
+	)
+	get_parent().add_child(dialog)
 
 
 func _show_error(msg: String) -> void:

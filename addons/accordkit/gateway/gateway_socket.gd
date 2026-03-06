@@ -16,7 +16,10 @@ signal space_delete(data: Dictionary)
 signal channel_create(channel: AccordChannel)
 signal channel_update(channel: AccordChannel)
 signal channel_delete(channel: AccordChannel)
+signal channel_reorder(data: Dictionary)
 signal channel_pins_update(data: Dictionary)
+signal channel_mute_create(data: Dictionary)
+signal channel_mute_delete(data: Dictionary)
 
 # Members
 signal member_join(member: AccordMember)
@@ -306,8 +309,14 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			channel_update.emit(AccordChannel.from_dict(data))
 		"channel.delete":
 			channel_delete.emit(AccordChannel.from_dict(data))
+		"channel.reorder":
+			channel_reorder.emit(data)
 		"channel.pins_update":
 			channel_pins_update.emit(data)
+		"channel_mute.create":
+			channel_mute_create.emit(data)
+		"channel_mute.delete":
+			channel_mute_delete.emit(data)
 		"member.join":
 			member_join.emit(AccordMember.from_dict(data))
 		"member.leave":

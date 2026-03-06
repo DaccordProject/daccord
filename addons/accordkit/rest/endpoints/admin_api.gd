@@ -77,3 +77,12 @@ func update_settings(data: Dictionary) -> RestResult:
 	return await _rest.make_request(
 		"PATCH", "/admin/settings", data
 	)
+
+
+## Resets a user's password. The user's sessions are revoked and 2FA is
+## disabled so the new password is immediately usable.
+## data should contain: { "new_password": String } (8–128 characters).
+func reset_user_password(user_id: String, data: Dictionary) -> RestResult:
+	return await _rest.make_request(
+		"POST", "/admin/users/" + user_id + "/reset-password", data
+	)

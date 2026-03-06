@@ -46,7 +46,7 @@ func _build_category_bar() -> void:
 	_recent_btn.flat = true
 	_recent_btn.custom_minimum_size = Vector2(36, 36)
 	_recent_btn.expand_icon = true
-	_recent_btn.icon = EmojiData.TEXTURES.get("watch")
+	_recent_btn.icon = EmojiData.get_texture("watch")
 	_recent_btn.tooltip_text = "Recently Used"
 	_recent_btn.pressed.connect(_on_recent_category_pressed)
 	category_bar.add_child(_recent_btn)
@@ -57,7 +57,7 @@ func _build_category_bar() -> void:
 		_custom_btn.flat = true
 		_custom_btn.custom_minimum_size = Vector2(36, 36)
 		_custom_btn.expand_icon = true
-		_custom_btn.icon = EmojiData.TEXTURES.get("star")
+		_custom_btn.icon = EmojiData.get_texture("star")
 		_custom_btn.tooltip_text = "Custom"
 		_custom_btn.pressed.connect(_on_custom_category_pressed)
 		category_bar.add_child(_custom_btn)
@@ -72,7 +72,7 @@ func _build_category_bar() -> void:
 		var tex: Texture2D = null
 		for entry in EmojiData.CATALOG[cat]:
 			if entry["codepoint"] == icon_name:
-				tex = EmojiData.TEXTURES.get(entry["name"])
+				tex = EmojiData.get_texture(entry["name"])
 				break
 		if tex:
 			btn.icon = tex

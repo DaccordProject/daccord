@@ -59,6 +59,17 @@ func admin_update_user(
 		return null
 	return await client.admin_api.update_user(user_id, data)
 
+func reset_user_password(
+	user_id: String, new_password: String
+) -> RestResult:
+	var client: AccordClient = _c._first_connected_client()
+	if client == null:
+		push_error("[Client] No connected server")
+		return null
+	return await client.admin_api.reset_user_password(
+		user_id, {"new_password": new_password}
+	)
+
 func admin_delete_user(user_id: String) -> RestResult:
 	var client: AccordClient = _c._first_connected_client()
 	if client == null:

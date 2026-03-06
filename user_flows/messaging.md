@@ -267,7 +267,7 @@ Connection state:
 
 ### Reactions (reaction_pill.gd, reaction_picker.gd)
 
-- 160 emoji textures from `EmojiData.TEXTURES` (shared with emoji picker). See [Emoji Picker](emoji_picker.md) for full catalog details.
+- ~340 emoji textures via `EmojiData.get_texture()` (lazy-loaded, shared with emoji picker). See [Emoji Picker](emoji_picker.md) for full catalog details.
 - **Pill toggle**: Optimistic local count update, then calls `Client.add_reaction()` or `Client.remove_reaction()` (reaction_pill.gd lines 42-47). Skips API call during `setup()` via `_in_setup` guard (line 33).
 - `Client.add_reaction()` and `Client.remove_reaction()` call the server. On success, they update `_message_cache` optimistically and emit `messages_updated`. On failure, they emit `AppState.reaction_failed` which causes the pill to revert its toggle state and count.
 - Active style: blue background (30% opacity), 1px border, 8px rounded corners (lines 50-67).

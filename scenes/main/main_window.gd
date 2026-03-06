@@ -77,6 +77,7 @@ func _ready() -> void:
 	tab_bar.tab_changed.connect(_tabs.on_tab_changed)
 	tab_bar.tab_close_pressed.connect(_tabs.on_tab_close)
 	tab_bar.active_tab_rearranged.connect(_tabs.on_tab_rearranged)
+	tab_bar.gui_input.connect(_on_tab_bar_input)
 	hamburger_button.pressed.connect(_on_hamburger_pressed)
 	sidebar_toggle.pressed.connect(_on_sidebar_toggle_pressed)
 	member_toggle.pressed.connect(_on_member_toggle_pressed)
@@ -781,6 +782,32 @@ func _on_discovery_closed() -> void:
 	_update_member_list_visibility()
 	_update_search_visibility()
 	_sync_handle_visibility()
+
+func _on_tab_bar_input(event: InputEvent) -> void:
+	if not event is InputEventMouseButton:
+		return
+	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var i: int = tab_bar.current_tab
+	if i < 0 or i >= tab_bar.tab_count:
+		return
+	var close_icon: Texture2D = tab_bar.get_theme_icon("close")
+	if close_icon == null:
+		return
+	var icon_size: Vector2 = close_icon.get_size()
+	var tab_rect: Rect2 = tab_bar.get_tab_rect(i)
+	var style: StyleBox = tab_bar.get_theme_stylebox("tab_selected")
+	var right_margin: float = style.content_margin_right if style else 0.0
+	var close_rect := Rect2(
+		Vector2(
+			tab_rect.end.x - right_margin - icon_size.x,
+			tab_rect.position.y + (tab_rect.size.y - icon_size.y) / 2.0,
+		),
+		icon_size,
+	)
+	if close_rect.has_point(event.position):
+		_tabs.on_tab_close(i)
+		tab_bar.accept_event()
 
 func _apply_theme() -> void:
 	drawer_backdrop.color = ThemeManager.get_color("overlay")

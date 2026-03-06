@@ -56,6 +56,7 @@ func _ready() -> void:
 	header.gui_input.connect(_on_header_gui_input)
 	header.mouse_entered.connect(_on_header_mouse_entered)
 	header.mouse_exited.connect(_on_header_mouse_exited)
+	AppState.channel_mutes_updated.connect(_on_mutes_updated)
 
 func _apply_theme() -> void:
 	chevron.modulate = ThemeManager.get_color("icon_default")
@@ -134,6 +135,13 @@ func restore_collapse_state() -> void:
 		if _count_label:
 			_count_label.visible = true
 
+func _on_mutes_updated() -> void:
+	var cat_id: String = _category_data.get("id", "")
+	if not cat_id.is_empty() and Client.is_channel_muted(cat_id):
+		category_name.modulate.a = 0.4
+	else:
+		category_name.modulate.a = 1.0
+
 func get_channel_items() -> Array:
 	var items := []
 	for child in channel_container.get_children():
@@ -150,15 +158,22 @@ func _on_header_mouse_exited() -> void:
 
 func _on_header_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
-			var pos := get_global_mouse_position()
-			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+		var pos := get_global_mouse_position()
+		_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
 
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
-	_context_menu.add_item("Create Channel", 0)
-	_context_menu.add_item("Edit Category", 1)
-	_context_menu.add_item("Delete Category", 2)
+	var cat_id: String = _category_data.get("id", "")
+	if not cat_id.is_empty():
+		if Client.is_channel_muted(cat_id):
+			_context_menu.add_item("Unmute Category", 10)
+		else:
+			_context_menu.add_item("Mute Category", 10)
+	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
+		_context_menu.add_separator()
+		_context_menu.add_item("Create Channel", 0)
+		_context_menu.add_item("Edit Category", 1)
+		_context_menu.add_item("Delete Category", 2)
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
@@ -168,6 +183,16 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		0: _on_create_channel()
 		1: _on_edit_category()
 		2: _on_delete_category()
+		10: _on_toggle_mute()
+
+func _on_toggle_mute() -> void:
+	var cat_id: String = _category_data.get("id", "")
+	if cat_id.is_empty():
+		return
+	if Client.is_channel_muted(cat_id):
+		Client.unmute_channel(cat_id)
+	else:
+		Client.mute_channel(cat_id)
 
 func _on_create_channel() -> void:
 	var dialog := CreateChannelDialogScene.instantiate()

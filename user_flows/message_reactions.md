@@ -205,7 +205,7 @@ Custom emoji keys arrive from the picker in `"custom:name:id"` format. The react
 
 `reaction_bar.gd` is a `FlowContainer` that creates a `ReactionPill` for each entry in the reactions array (line 5). It injects `channel_id` and `message_id` into each reaction dictionary so pills can make API calls.
 
-`reaction_pill.gd` extends `Button` with `toggle_mode`. In `setup()` (line 17), it sets the emoji texture from `EmojiData.TEXTURES`, the count label, and the pressed state from the `active` flag. The `_in_setup` guard (line 7) prevents `_on_toggled` from firing during setup.
+`reaction_pill.gd` extends `Button` with `toggle_mode`. In `setup()` (line 17), it sets the emoji texture via `EmojiData.get_texture()`, the count label, and the pressed state from the `active` flag. The `_in_setup` guard (line 7) prevents `_on_toggled` from firing during setup.
 
 Both active and inactive pill styles are explicitly set in `_update_active_style()`. Active pills use a blue `StyleBoxFlat`: `bg_color = Color(0.345, 0.396, 0.949, 0.3)` with a blue border. Inactive pills use a dark `StyleBoxFlat`: `bg_color = Color(0.184, 0.192, 0.212, 1)` with a subtle border. Both use 8px corner radius and 1px borders. The pill also shows a tooltip with the emoji name (e.g. `":thumbsup:"`).
 

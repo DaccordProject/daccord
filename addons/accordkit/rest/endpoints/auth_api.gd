@@ -49,9 +49,10 @@ func login_mfa(data: Dictionary) -> RestResult:
 
 
 ## Changes the current user's password.
-## data should contain: { "current_password": String, "new_password": String }.
+## data should contain: { "old_password": String, "new_password": String }.
+## Clears force_password_reset flag and revokes all other sessions.
 func change_password(data: Dictionary) -> RestResult:
-	return await _rest.make_request("POST", "/auth/password", data)
+	return await _rest.make_request("POST", "/auth/change-password", data)
 
 
 ## Enables two-factor authentication. Returns a TOTP secret and otpauth URI.
@@ -88,10 +89,13 @@ func revoke_all_sessions() -> RestResult:
 
 
 ## Parses the auth response envelope into { "user": AccordUser, "token": String }.
+## Preserves force_password_reset flag when present.
 func _parse_auth_response(d: Dictionary) -> Dictionary:
 	var parsed := {}
 	if d.has("user") and d["user"] is Dictionary:
 		parsed["user"] = AccordUser.from_dict(d["user"])
 	if d.has("token"):
 		parsed["token"] = str(d["token"])
+	if d.get("force_password_reset", false):
+		parsed["force_password_reset"] = true
 	return parsed
