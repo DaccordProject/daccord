@@ -142,7 +142,7 @@ func test_client_ready_connects_app_state() -> void:
 		return
 	assert_true(
 		AppState.channel_selected.is_connected(
-			client._on_channel_selected_clear_unread
+			client.unread.on_channel_selected_clear_unread
 		),
 		"channel_selected not connected",
 	)

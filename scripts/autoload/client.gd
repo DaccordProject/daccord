@@ -30,6 +30,7 @@ var fetch: ClientFetch
 var admin: ClientAdmin
 var voice: ClientVoice
 var mutations: ClientMutations
+var unread: RefCounted # ClientUnread (loaded dynamically to avoid class_name dep)
 var emoji # ClientEmoji (typed reference causes circular dep)
 var permissions: RefCounted
 var connection: ClientConnection
@@ -158,6 +159,7 @@ func _ready() -> void:
 	admin = ClientAdmin.new(self)
 	voice = ClientVoice.new(self)
 	mutations = ClientMutations.new(self)
+	unread = load("res://scripts/autoload/client_unread.gd").new(self)
 	var PermClass = load(
 		"res://scripts/autoload/client_permissions.gd"
 	)
@@ -197,7 +199,7 @@ func _ready() -> void:
 	_speaking_timer.timeout.connect(_check_speaking_timeouts)
 	add_child(_speaking_timer)
 	_speaking_timer.start()
-	AppState.channel_selected.connect(_on_channel_selected_clear_unread)
+	AppState.channel_selected.connect(unread.on_channel_selected_clear_unread)
 	AppState.profile_switched.connect(_on_profile_switched)
 	AppState.server_reconnected.connect(_flush_message_queue)
 	AppState.config_changed.connect(voice.on_voice_config_changed)
@@ -692,56 +694,13 @@ func get_role_color_for_user(gid: String, user_id: String) -> Variant:
 		return null
 	return Color.hex(best_color)
 
-# --- Unread / mention tracking ---
-
-func _on_channel_selected_clear_unread(cid: String) -> void:
-	clear_channel_unread(cid)
+# --- Unread / mention tracking (delegates to ClientUnread) ---
 
 func clear_channel_unread(cid: String) -> void:
-	if not _unread_channels.has(cid):
-		return
-	_unread_channels.erase(cid)
-	_channel_mention_counts.erase(cid)
-	# Update the cached channel dict
-	if _channel_cache.has(cid):
-		_channel_cache[cid]["unread"] = false
-		var gid: String = _channel_cache[cid].get("space_id", "")
-		_update_space_unread(gid)
-		AppState.channels_updated.emit(gid)
-	elif _dm_channel_cache.has(cid):
-		_dm_channel_cache[cid]["unread"] = false
-		AppState.dm_channels_updated.emit()
+	unread.clear_channel_unread(cid)
 
 func mark_channel_unread(cid: String, is_mention: bool = false) -> void:
-	_unread_channels[cid] = true
-	if is_mention:
-		var cur: int = _channel_mention_counts.get(cid, 0)
-		_channel_mention_counts[cid] = cur + 1
-	# Update channel dict
-	if _channel_cache.has(cid):
-		_channel_cache[cid]["unread"] = true
-		var gid: String = _channel_cache[cid].get("space_id", "")
-		_update_space_unread(gid)
-		AppState.channels_updated.emit(gid)
-		AppState.spaces_updated.emit()
-	elif _dm_channel_cache.has(cid):
-		_dm_channel_cache[cid]["unread"] = true
-		AppState.dm_channels_updated.emit()
-
-func _update_space_unread(gid: String) -> void:
-	if gid.is_empty() or not _space_cache.has(gid):
-		return
-	var has_unread := false
-	var total_mentions := 0
-	for ch_id in _channel_cache:
-		var ch: Dictionary = _channel_cache[ch_id]
-		if ch.get("space_id", "") != gid:
-			continue
-		if _unread_channels.has(ch_id):
-			has_unread = true
-		total_mentions += _channel_mention_counts.get(ch_id, 0)
-	_space_cache[gid]["unread"] = has_unread
-	_space_cache[gid]["mentions"] = total_mentions
+	unread.mark_channel_unread(cid, is_mention)
 
 # --- Server management ---
 
