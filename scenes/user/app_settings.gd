@@ -523,28 +523,6 @@ func _build_appearance_page() -> VBoxContainer:
 	)
 	vbox.add_child(motion_cb)
 
-	# UI Scale
-	vbox.add_child(_section_label("UI SCALE"))
-	var scale_row := HBoxContainer.new()
-	scale_row.add_theme_constant_override("separation", 8)
-	var scale_slider := HSlider.new()
-	scale_slider.min_value = 0.5
-	scale_slider.max_value = 2.0
-	scale_slider.step = 0.1
-	var current_scale: float = Config.get_ui_scale()
-	scale_slider.value = current_scale if current_scale > 0.0 else 1.0
-	scale_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scale_row.add_child(scale_slider)
-	var scale_label := Label.new()
-	scale_label.text = "%d%%" % int(scale_slider.value * 100)
-	scale_label.custom_minimum_size = Vector2(50, 0)
-	scale_row.add_child(scale_label)
-	scale_slider.value_changed.connect(func(val: float) -> void:
-		Config._set_ui_scale(val)
-		scale_label.text = "%d%%" % int(val * 100)
-	)
-	vbox.add_child(scale_row)
-
 	# Emoji skin tone
 	vbox.add_child(_section_label("EMOJI SKIN TONE"))
 	var tone_dropdown := OptionButton.new()
