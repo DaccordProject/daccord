@@ -597,18 +597,23 @@ func set_master_server_url(url: String) -> void:
 func get_max_screen_capture_size() -> int:
 	return _config.get_value("voice", "max_screen_capture_size", 1280)
 
+## NSFW acknowledgement (per-server)
+
+func has_nsfw_ack(server_url: String) -> bool:
+	return _config.get_value("nsfw_ack", server_url, false)
+
+func set_nsfw_ack(server_url: String) -> void:
+	_config.set_value("nsfw_ack", server_url, true)
+	_save()
+
 ## Draft text persistence
 
 func set_draft_text(channel_id: String, text: String) -> void:
-	_config.set_value("drafts", channel_id, text)
+	_config.set_value("drafts", channel_id, text if not text.is_empty() else null)
 	_save()
 
 func get_draft_text(channel_id: String) -> String:
 	return _config.get_value("drafts", channel_id, "")
-
-func clear_draft_text(channel_id: String) -> void:
-	_config.set_value("drafts", channel_id, null)
-	_save()
 
 ## Wipes the active profile's local data (config, emoji cache) and removes
 ## it from the registry. Called after a successful account deletion so no

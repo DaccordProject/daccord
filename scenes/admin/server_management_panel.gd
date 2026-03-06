@@ -19,6 +19,9 @@ const TransferOwnershipDialogScene := preload(
 const ResetPasswordDialogScene := preload(
 	"res://scenes/admin/reset_password_dialog.tscn"
 )
+const ReportListDialogScene := preload(
+	"res://scenes/admin/report_list_dialog.tscn"
+)
 
 # Spaces tab
 var _spaces_list: VBoxContainer
@@ -45,7 +48,7 @@ var _settings_save_btn: Button
 var _settings_error: Label
 
 func _get_sections() -> Array:
-	return ["Spaces", "Users", "Settings"]
+	return ["Spaces", "Users", "Reports", "Settings"]
 
 func _get_subtitle() -> String:
 	var servers: Array = Config.get_servers()
@@ -60,6 +63,7 @@ func _build_pages() -> Array:
 	return [
 		_build_spaces_page(),
 		_build_users_page(),
+		_build_reports_page(),
 		_build_settings_page(),
 	]
 
@@ -247,6 +251,31 @@ func _on_delete_space(space_id: String, sname: String) -> void:
 		if result != null and result.ok:
 			_fetch_spaces()
 	)
+
+# ── Reports tab ─────────────────────────────────────────────
+
+func _build_reports_page() -> VBoxContainer:
+	var vbox := _page_vbox("Reports (All Spaces)")
+
+	var open_btn := SettingsBase.create_action_button(
+		"Open Server-wide Reports"
+	)
+	open_btn.pressed.connect(func() -> void:
+		var dialog := ReportListDialogScene.instantiate()
+		get_tree().root.add_child(dialog)
+		dialog.setup_server_wide()
+	)
+	vbox.add_child(open_btn)
+
+	var desc := Label.new()
+	desc.text = "View and moderate reports from all spaces on this server."
+	desc.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vbox.add_child(desc)
+
+	return vbox
 
 # ── Users tab ───────────────────────────────────────────────
 

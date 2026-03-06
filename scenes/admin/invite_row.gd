@@ -5,6 +5,7 @@ signal copy_requested(code: String)
 signal revoke_requested(code: String)
 
 var _code: String = ""
+var _space_id: String = ""
 
 @onready var _checkbox: CheckBox = $CheckBox
 @onready var _code_label: Label = $CodeLabel
@@ -14,15 +15,25 @@ var _code: String = ""
 
 func _ready() -> void:
 	_checkbox.toggled.connect(func(pressed: bool): toggled.emit(pressed, _code))
-	_copy_btn.pressed.connect(func():
-		DisplayServer.clipboard_set(_code)
-		copy_requested.emit(_code)
-	)
+	_copy_btn.pressed.connect(_on_copy)
 	_revoke_btn.pressed.connect(func(): revoke_requested.emit(_code))
 	ThemeManager.apply_font_colors(self)
 
-func setup(invite: Dictionary, selected: bool) -> void:
+func _on_copy() -> void:
+	var url := _build_invite_url()
+	DisplayServer.clipboard_set(url)
+	copy_requested.emit(_code)
+
+func _build_invite_url() -> String:
+	var base_url: String = Client.get_base_url_for_space(_space_id)
+	if base_url.is_empty():
+		return _code
+	var host := base_url.replace("https://", "").replace("http://", "")
+	return "daccord://invite/" + _code + "@" + host
+
+func setup(invite: Dictionary, selected: bool, space_id: String = "") -> void:
 	_code = invite.get("code", "")
+	_space_id = space_id
 	set_meta("code", _code)
 	_code_label.text = _code
 	_checkbox.button_pressed = selected

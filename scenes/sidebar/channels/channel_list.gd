@@ -6,6 +6,7 @@ const CategoryItemScene := preload("res://scenes/sidebar/channels/category_item.
 const ChannelItemScene := preload("res://scenes/sidebar/channels/channel_item.tscn")
 const VoiceChannelItemScene := preload("res://scenes/sidebar/channels/voice_channel_item.tscn")
 const CreateChannelDialogScene := preload("res://scenes/admin/create_channel_dialog.tscn")
+const NsfwGateDialogScene := preload("res://scenes/admin/nsfw_gate_dialog.tscn")
 const UncategorizedDropTargetScene := preload(
 	"res://scenes/sidebar/channels/uncategorized_drop_target.tscn"
 )
@@ -179,11 +180,16 @@ func load_space(space_id: String) -> void:
 	elif AppState.current_channel_id != "" and channel_item_nodes.has(AppState.current_channel_id):
 		select_id = AppState.current_channel_id
 	else:
+		var nsfw_acked: bool = Client.is_nsfw_acked(_current_space_id)
 		for ch in channels:
 			var ch_type: int = ch.get("type", 0)
 			if ch_type != ClientModels.ChannelType.CATEGORY \
 					and ch_type != ClientModels.ChannelType.VOICE \
 					and channel_item_nodes.has(ch["id"]):
+				if ch.get("nsfw", false) and not nsfw_acked:
+					if select_id.is_empty():
+						select_id = ch["id"]
+					continue
 				select_id = ch["id"]
 				break
 	pending_channel_id = ""
@@ -209,6 +215,11 @@ func _on_channel_pressed(channel_id: String) -> void:
 			AppState.open_voice_view()
 		else:
 			Client.join_voice_channel(channel_id)
+		return
+
+	# NSFW age gate
+	if ch_data.get("nsfw", false) and not Client.is_nsfw_acked(_current_space_id):
+		_show_nsfw_gate(channel_id)
 		return
 
 	_set_active_channel(channel_id)
@@ -245,6 +256,15 @@ func _set_active_channel(channel_id: String) -> void:
 	active_channel_id = channel_id
 	if channel_item_nodes.has(channel_id):
 		channel_item_nodes[channel_id].set_active(true)
+
+func _show_nsfw_gate(channel_id: String) -> void:
+	var dialog := NsfwGateDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.acknowledged.connect(func() -> void:
+		var base_url := Client.get_base_url_for_space(_current_space_id)
+		Config.set_nsfw_ack(base_url)
+		_on_channel_pressed(channel_id)
+	)
 
 func _on_create_channel_pressed(space_id: String, channels: Array) -> void:
 	var dialog := CreateChannelDialogScene.instantiate()

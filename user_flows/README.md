@@ -69,3 +69,9 @@ Ordered by natural user journey:
 | 61 | [Android Release](android_release.md) | Android build/release plan and end-user experience: export preset, CI pipeline, touch gestures (long-press, edge-swipe drawer), responsive layout (COMPACT/MEDIUM/FULL), message interaction, back button handling, on-screen keyboard, Sentry/LiveKit status, updater gaps, Play Store distribution |
 | 62 | [Server Management](server_management.md) | Instance-level admin: super admins create/manage multiple spaces, manage instance users, configure server settings; space admins manage a single space |
 | 63 | [Voice Text Chat](voice_text_chat.md) | Discord-like text chat in voice channels: voice view text panel, message fetch on voice join, composer targeting, layout split, current gaps |
+| 64 | [Moderation](moderation.md) | Kick/ban/timeout/mute/deafen members, nickname editing, message deletion, ban list management, audit log, permission gating, user reporting gaps |
+| 65 | [Illegal Content Moderation](illegal_content_moderation.md) | CSAM detection, terrorism/fraud/hate/threats/self-harm scanning, server-side automod pipeline, user reporting flow, moderation queue, NCMEC integration |
+| 66 | [Age Restrictions](age_restrictions.md) | NSFW channel/space gating, consent interstitial, admin NSFW toggle, nsfw_level model support, missing access gate and consent UI |
+| 67 | [In-App Terms of Service](terms_of_service.md) | ToS acceptance during registration, rules channel interstitial, content policy display, complaint/appeal process, consistent enforcement |
+| 68 | [End-User Documentation](end_user_documentation.md) | Markdown docs in `docs/` for non-technical users: 7 sections, 18 pages, front matter conventions, page-to-user-flow mapping |
+| 69 | [Friends](friends.md) | Cross-server friends system: friend requests, accept/decline, friends list with filter tabs, block/unblock, DM sidebar integration, per-server relationships |

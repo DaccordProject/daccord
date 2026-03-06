@@ -256,6 +256,7 @@ static func space_to_dict(
 		"default_notifications": space.default_notifications,
 		"preferred_locale": space.preferred_locale,
 		"public": is_public,
+		"nsfw_level": space.nsfw_level,
 	}
 
 static func channel_to_dict(channel: AccordChannel) -> Dictionary:

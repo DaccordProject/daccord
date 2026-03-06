@@ -5,6 +5,8 @@ extends RefCounted
 ## Receives a reference to the Client autoload node so it can
 ## access caches, routing helpers, and emit AppState signals.
 
+const VOICE_LOG_PATH := "user://voice_debug.log"
+const VOICE_LOG_MAX_SIZE := 1048576 # 1 MB
 
 var _c: Node # Client autoload
 var _intentional_disconnect: bool = false
@@ -471,4 +473,31 @@ func _republish_camera() -> void:
 	_c._camera_track = stream
 
 func _voice_log(message: String) -> void:
-	_c._voice_log(message)
+	if not _c.debug_voice_logs:
+		return
+	var line := "[VoiceDebug] " + message
+	if FileAccess.file_exists(VOICE_LOG_PATH):
+		var check := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ)
+		if check:
+			var size := check.get_length()
+			check.close()
+			if size > VOICE_LOG_MAX_SIZE:
+				_rotate_voice_log()
+	var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ_WRITE)
+	if f:
+		f.seek_end()
+		f.store_line(line)
+		f.close()
+
+
+func _rotate_voice_log() -> void:
+	if not FileAccess.file_exists(VOICE_LOG_PATH):
+		return
+	var bak_path := VOICE_LOG_PATH + ".1"
+	var bak_global := ProjectSettings.globalize_path(bak_path)
+	if FileAccess.file_exists(bak_path):
+		DirAccess.remove_absolute(bak_global)
+	DirAccess.rename_absolute(
+		ProjectSettings.globalize_path(VOICE_LOG_PATH),
+		bak_global
+	)

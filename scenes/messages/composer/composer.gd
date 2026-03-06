@@ -400,7 +400,7 @@ func _on_channel_selected_restore_draft(channel_id: String) -> void:
 	if not draft.is_empty():
 		text_input.text = draft
 		text_input.set_caret_column(draft.length())
-		Config.clear_draft_text(channel_id)
+		Config.set_draft_text(channel_id, "")
 
 func _exit_tree() -> void:
 	if _emoji_picker and is_instance_valid(_emoji_picker):

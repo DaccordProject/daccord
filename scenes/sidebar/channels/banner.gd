@@ -7,6 +7,7 @@ const BanListScene := preload("res://scenes/admin/ban_list_dialog.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn")
 const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
+const ReportListScene := preload("res://scenes/admin/report_list_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 
@@ -50,6 +51,7 @@ func _has_any_admin_perm() -> bool:
 		Client.has_permission(_space_id, AccordPermission.CREATE_INVITES) or
 		Client.has_permission(_space_id, AccordPermission.MANAGE_EMOJIS) or
 		Client.has_permission(_space_id, AccordPermission.VIEW_AUDIT_LOG) or
+		Client.has_permission(_space_id, AccordPermission.MODERATE_MEMBERS) or
 		Client.has_permission(_space_id, AccordPermission.MANAGE_SOUNDBOARD) or
 		Client.has_permission(_space_id, AccordPermission.USE_SOUNDBOARD)
 	)
@@ -84,6 +86,10 @@ func _show_admin_menu() -> void:
 
 	if Client.has_permission(_space_id, AccordPermission.VIEW_AUDIT_LOG):
 		_admin_menu.add_item("Audit Log", idx)
+		idx += 1
+
+	if Client.has_permission(_space_id, AccordPermission.MODERATE_MEMBERS):
+		_admin_menu.add_item("Reports", idx)
 		idx += 1
 
 	if (Client.has_permission(_space_id, AccordPermission.MANAGE_SOUNDBOARD)
@@ -135,6 +141,10 @@ func _on_admin_menu_pressed(id: int) -> void:
 			dialog.setup(_space_id)
 		"Audit Log":
 			var dialog := AuditLogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(_space_id)
+		"Reports":
+			var dialog := ReportListScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(_space_id)
 		"Soundboard":

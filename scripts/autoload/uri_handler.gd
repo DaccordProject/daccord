@@ -12,6 +12,8 @@ const IPC_POLL_INTERVAL := 0.5
 var _ipc_timer: Timer
 
 func _ready() -> void:
+	_ensure_protocol_registered()
+
 	# Process any --uri CLI arg
 	var uri := _get_cli_uri()
 	if not uri.is_empty():
@@ -293,6 +295,89 @@ func _open_add_server_prefilled(url_text: String) -> void:
 	var dialog: ColorRect = AddServerDialogScene.instantiate()
 	main_window.add_child(dialog)
 	dialog.open_prefilled(url_text)
+
+
+## Silently registers the daccord:// protocol handler if not already registered.
+func _ensure_protocol_registered() -> void:
+	if OS.has_feature("editor"):
+		return
+	var platform := OS.get_name()
+	match platform:
+		"Linux", "FreeBSD", "NetBSD", "OpenBSD":
+			_ensure_protocol_linux()
+		"Windows":
+			_ensure_protocol_windows()
+
+
+func _ensure_protocol_linux() -> void:
+	var output: Array = []
+	var exit_code := OS.execute(
+		"xdg-mime", ["query", "default", "x-scheme-handler/daccord"], output
+	)
+	if exit_code == 0 and output.size() > 0:
+		var result: String = output[0].strip_edges()
+		if not result.is_empty():
+			return
+
+	# Find the executable path
+	var exe_path := OS.get_executable_path()
+	if exe_path.is_empty():
+		return
+
+	# Write .desktop file to ~/.local/share/applications/
+	var apps_dir := OS.get_environment("HOME") + "/.local/share/applications"
+	DirAccess.make_dir_recursive_absolute(apps_dir)
+	var desktop_path := apps_dir + "/daccord.desktop"
+
+	var content := "[Desktop Entry]\n"
+	content += "Name=daccord\n"
+	content += "Comment=Chat client for accordserver instances\n"
+	content += "Exec=\"" + exe_path + "\" --uri %u\n"
+	content += "Icon=daccord\n"
+	content += "Terminal=false\n"
+	content += "Type=Application\n"
+	content += "Categories=Network;Chat;InstantMessaging;\n"
+	content += "MimeType=x-scheme-handler/daccord;\n"
+
+	var file := FileAccess.open(desktop_path, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(content)
+	file.close()
+
+	OS.execute("xdg-mime", [
+		"default", "daccord.desktop", "x-scheme-handler/daccord"
+	])
+
+
+func _ensure_protocol_windows() -> void:
+	var output: Array = []
+	var exit_code := OS.execute("reg", [
+		"query", "HKCU\\Software\\Classes\\daccord",
+	], output)
+	if exit_code == 0:
+		return
+
+	var exe_path := OS.get_executable_path().replace("/", "\\")
+	if exe_path.is_empty():
+		return
+
+	OS.execute("reg", [
+		"add", "HKCU\\Software\\Classes\\daccord",
+		"/ve", "/d", "URL:daccord Protocol", "/f",
+	])
+	OS.execute("reg", [
+		"add", "HKCU\\Software\\Classes\\daccord",
+		"/v", "URL Protocol", "/d", "", "/f",
+	])
+	OS.execute("reg", [
+		"add", "HKCU\\Software\\Classes\\daccord\\DefaultIcon",
+		"/ve", "/d", exe_path + ",0", "/f",
+	])
+	OS.execute("reg", [
+		"add", "HKCU\\Software\\Classes\\daccord\\shell\\open\\command",
+		"/ve", "/d", "\"" + exe_path + "\" --uri \"%1\"", "/f",
+	])
 
 
 ## Writes a URI to the IPC file so a running instance can pick it up.

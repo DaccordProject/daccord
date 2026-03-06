@@ -4,6 +4,7 @@ const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const BanDialogScene := preload("res://scenes/admin/ban_dialog.tscn")
 const ModerateMemberDialogScene := preload("res://scenes/admin/moderate_member_dialog.tscn")
 const NicknameDialogScene := preload("res://scenes/admin/nickname_dialog.tscn")
+const ReportDialogScene := preload("res://scenes/admin/report_dialog.tscn")
 
 var _member_data: Dictionary = {}
 var _context_menu: PopupMenu
@@ -82,6 +83,9 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.add_item("Message", idx)
 	idx += 1
 
+	_context_menu.add_item("Report", idx)
+	idx += 1
+
 	if Client.has_permission(space_id, AccordPermission.KICK_MEMBERS):
 		_context_menu.add_item("Kick", idx)
 		idx += 1
@@ -144,6 +148,10 @@ func _on_context_menu_id_pressed(id: int) -> void:
 	match label:
 		"Message":
 			Client.create_dm(user_id)
+		"Report":
+			var dialog := ReportDialogScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup_user(space_id, user_id, dname)
 		"Kick":
 			var dialog := ConfirmDialogScene.instantiate()
 			get_tree().root.add_child(dialog)

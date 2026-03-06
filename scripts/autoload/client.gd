@@ -2,10 +2,6 @@ extends Node
 
 enum Mode { LIVE, CONNECTING }
 
-# Voice debug logging (configurable via settings, default off).
-const VOICE_LOG_PATH := "user://voice_debug.log"
-const VOICE_LOG_MAX_SIZE := 1048576 # 1 MB
-
 # Dimension constants
 const SPACE_ICON_SIZE := 48
 const AVATAR_SIZE := 42
@@ -142,23 +138,25 @@ var _speaking_timer: Timer
 
 func _ready() -> void:
 	debug_voice_logs = Config.voice.get_debug_logging()
-	if debug_voice_logs:
-		_rotate_voice_log()
-		var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.WRITE)
-		if f:
-			f.store_line("=== Voice debug start ===")
-			f.close()
-		_voice_log("voice logger initialized")
-		_voice_log(
-			"ClassDB.class_exists(LiveKitRoom)=%s" % [
-				str(ClassDB.class_exists(&"LiveKitRoom"))
-			]
-		)
 	_gw = ClientGateway.new(self)
 	fetch = ClientFetch.new(self)
 	admin = ClientAdmin.new(self)
 	voice = ClientVoice.new(self)
 	mutations = ClientMutations.new(self)
+	if debug_voice_logs:
+		voice._rotate_voice_log()
+		var f := FileAccess.open(
+			ClientVoice.VOICE_LOG_PATH, FileAccess.WRITE
+		)
+		if f:
+			f.store_line("=== Voice debug start ===")
+			f.close()
+		voice._voice_log("voice logger initialized")
+		voice._voice_log(
+			"ClassDB.class_exists(LiveKitRoom)=%s" % [
+				str(ClassDB.class_exists(&"LiveKitRoom"))
+			]
+		)
 	unread = load("res://scripts/autoload/client_unread.gd").new(self)
 	var PermClass = load(
 		"res://scripts/autoload/client_permissions.gd"
@@ -192,7 +190,7 @@ func _ready() -> void:
 		voice.on_audio_level_changed
 	)
 	if debug_voice_logs:
-		_voice_log("LiveKitAdapter ready")
+		voice._voice_log("LiveKitAdapter ready")
 	# Speaking debounce timer (checks every 200ms for 300ms silence)
 	_speaking_timer = Timer.new()
 	_speaking_timer.wait_time = 0.2
@@ -450,39 +448,8 @@ func _check_speaking_timeouts() -> void:
 	for uid in expired:
 		_speaking_users.erase(uid)
 		if debug_voice_logs:
-			_voice_log("speaking_stop uid=%s" % uid)
+			voice._voice_log("speaking_stop uid=%s" % uid)
 		AppState.speaking_changed.emit(uid, false)
-
-func _voice_log(message: String) -> void:
-	if not debug_voice_logs:
-		return
-	var line := "[VoiceDebug] " + message
-	# Rotate if file exceeds max size
-	if FileAccess.file_exists(VOICE_LOG_PATH):
-		var check := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ)
-		if check:
-			var size := check.get_length()
-			check.close()
-			if size > VOICE_LOG_MAX_SIZE:
-				_rotate_voice_log()
-	var f := FileAccess.open(VOICE_LOG_PATH, FileAccess.READ_WRITE)
-	if f:
-		f.seek_end()
-		f.store_line(line)
-		f.close()
-
-
-func _rotate_voice_log() -> void:
-	if not FileAccess.file_exists(VOICE_LOG_PATH):
-		return
-	var bak_path := VOICE_LOG_PATH + ".1"
-	var bak_global := ProjectSettings.globalize_path(bak_path)
-	if FileAccess.file_exists(bak_path):
-		DirAccess.remove_absolute(bak_global)
-	DirAccess.rename_absolute(
-		ProjectSettings.globalize_path(VOICE_LOG_PATH),
-		bak_global
-	)
 
 # --- Search (delegates to ClientMutations) ---
 
@@ -729,6 +696,19 @@ func is_space_syncing(gid: String) -> bool:
 
 func get_conn_index_for_space(gid: String) -> int:
 	return _space_to_conn.get(gid, -1)
+
+func get_base_url_for_space(space_id: String) -> String:
+	var conn = _conn_for_space(space_id)
+	if conn == null:
+		return ""
+	var cfg: Dictionary = conn.get("config", {})
+	return cfg.get("base_url", "")
+
+func is_nsfw_acked(space_id: String) -> bool:
+	var base_url := get_base_url_for_space(space_id)
+	if base_url.is_empty():
+		return false
+	return Config.has_nsfw_ack(base_url)
 
 func reconnect_server(index: int) -> void:
 	connection.reconnect_server(index)

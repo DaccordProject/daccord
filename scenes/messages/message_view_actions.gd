@@ -5,6 +5,9 @@ extends RefCounted
 const ReactionPickerScene := preload(
 	"res://scenes/messages/reaction_picker.tscn"
 )
+const ReportDialogScene := preload(
+	"res://scenes/admin/report_dialog.tscn"
+)
 
 var _view: Control # parent MessageView
 var _context_menu: PopupMenu
@@ -26,6 +29,7 @@ func setup_context_menu() -> void:
 	_context_menu.add_item("Add Reaction", 3)
 	_context_menu.add_item("Remove All Reactions", 4)
 	_context_menu.add_item("Start Thread", 5)
+	_context_menu.add_item("Report", 6)
 	_context_menu.id_pressed.connect(on_context_menu_id_pressed)
 	_view.add_child(_context_menu)
 
@@ -102,6 +106,7 @@ func on_context_menu_requested(
 		space_id, channel_id, AccordPermission.CREATE_THREADS
 	)
 	_context_menu.set_item_disabled(5, not can_thread)
+	_context_menu.set_item_disabled(6, is_own)
 	var has_reactions: bool = (
 		msg_data.get("reactions", []).size() > 0
 	)
@@ -155,6 +160,18 @@ func on_context_menu_id_pressed(id: int) -> void:
 			AppState.open_thread(
 				_context_menu_data.get("id", "")
 			)
+		6: # Report
+			var cid: String = _context_menu_data.get(
+				"channel_id", ""
+			)
+			var mid: String = _context_menu_data.get("id", "")
+			var sid: String = Client._channel_to_space.get(
+				cid, ""
+			)
+			if not sid.is_empty():
+				var dialog := ReportDialogScene.instantiate()
+				_view.get_tree().root.add_child(dialog)
+				dialog.setup_message(sid, cid, mid)
 
 
 func open_reaction_picker(msg_data: Dictionary) -> void:

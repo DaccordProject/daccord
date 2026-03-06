@@ -100,6 +100,7 @@ var messages: MessagesApi
 var members: MembersApi
 var roles: RolesApi
 var bans: BansApi
+var reports: ReportsApi
 var invites: InvitesApi
 var emojis: EmojisApi
 var soundboard: SoundboardApi
@@ -133,6 +134,7 @@ func _ready() -> void:
 	members = MembersApi.new(rest)
 	roles = RolesApi.new(rest)
 	bans = BansApi.new(rest)
+	reports = ReportsApi.new(rest)
 	invites = InvitesApi.new(rest)
 	emojis = EmojisApi.new(rest)
 	soundboard = SoundboardApi.new(rest)

@@ -524,3 +524,35 @@ func update_channel_overwrites(
 	if last_result == null:
 		last_result = RestResult.success(200, null)
 	return last_result
+
+func create_report(
+	space_id: String, data: Dictionary
+) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
+	if client == null:
+		push_error("[Client] No connection for space:", space_id)
+		return null
+	return await client.reports.create(space_id, data)
+
+func get_reports(
+	space_id: String, query: Dictionary = {}
+) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
+	if client == null:
+		push_error("[Client] No connection for space:", space_id)
+		return null
+	return await client.reports.list(space_id, query)
+
+func resolve_report(
+	space_id: String, report_id: String, data: Dictionary
+) -> RestResult:
+	var client: AccordClient = _c._client_for_space(space_id)
+	if client == null:
+		push_error("[Client] No connection for space:", space_id)
+		return null
+	var result: RestResult = await client.reports.resolve(
+		space_id, report_id, data
+	)
+	if result.ok:
+		AppState.reports_updated.emit(space_id)
+	return result

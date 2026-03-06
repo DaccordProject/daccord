@@ -1,0 +1,66 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/admin/report_row.gd" id="1"]
+
+[node name="ReportRow" type="VBoxContainer"]
+theme_override_constants/separation = 4
+script = ExtResource("1")
+
+[node name="TopRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CategoryLabel" type="Label" parent="TopRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 0)
+text_overrun_behavior = 3
+
+[node name="TargetLabel" type="Label" parent="TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+metadata/theme_font_color = "text_muted"
+text_overrun_behavior = 3
+
+[node name="StatusLabel" type="Label" parent="TopRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+[node name="TimeLabel" type="Label" parent="TopRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+metadata/theme_font_color = "text_muted"
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+[node name="DescriptionLabel" type="Label" parent="."]
+visible = false
+layout_mode = 2
+metadata/theme_font_color = "text_muted"
+autowrap_mode = 2
+
+[node name="ReporterLabel" type="Label" parent="."]
+visible = false
+layout_mode = 2
+metadata/theme_font_color = "text_muted"
+theme_override_font_sizes/font_size = 12
+
+[node name="ActionRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ActionButton" type="Button" parent="ActionRow"]
+layout_mode = 2
+text = "Action"
+flat = true
+metadata/theme_font_color = "accent"
+
+[node name="DismissButton" type="Button" parent="ActionRow"]
+layout_mode = 2
+text = "Dismiss"
+flat = true
+metadata/theme_font_color = "text_muted"
+
+[node name="Separator" type="HSeparator" parent="."]
+layout_mode = 2

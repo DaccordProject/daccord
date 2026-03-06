@@ -101,7 +101,7 @@ func _rebuild_list(invites: Array) -> void:
 	for invite_dict in invites:
 		var row := InviteRowScene.instantiate()
 		_invite_list.add_child(row)
-		row.setup(invite_dict, invite_dict.get("code", "") in _selected_codes)
+		row.setup(invite_dict, invite_dict.get("code", "") in _selected_codes, _space_id)
 		row.toggled.connect(_on_row_toggled)
 		row.revoke_requested.connect(_on_revoke)
 

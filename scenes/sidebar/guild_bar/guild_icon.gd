@@ -9,6 +9,7 @@ const BanListScene := preload("res://scenes/admin/ban_list_dialog.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn")
 const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
+const ReportListScene := preload("res://scenes/admin/report_list_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
@@ -189,6 +190,9 @@ func _show_context_menu(pos: Vector2i) -> void:
 	if Client.has_permission(space_id, AccordPermission.VIEW_AUDIT_LOG):
 		_admin_submenu.add_item("Audit Log", admin_idx)
 		admin_idx += 1
+	if Client.has_permission(space_id, AccordPermission.MODERATE_MEMBERS):
+		_admin_submenu.add_item("Reports", admin_idx)
+		admin_idx += 1
 	if (Client.has_permission(space_id, AccordPermission.MANAGE_SOUNDBOARD)
 			or Client.has_permission(space_id, AccordPermission.USE_SOUNDBOARD)):
 		_admin_submenu.add_item("Soundboard", admin_idx)
@@ -211,6 +215,8 @@ func _show_context_menu(pos: Vector2i) -> void:
 
 	if Client.current_user.get("is_admin", false):
 		_context_menu.add_item("Server Settings", idx)
+		idx += 1
+		_context_menu.add_item("Server Reports", idx)
 		idx += 1
 
 	var status := Client.get_space_connection_status(space_id)
@@ -273,6 +279,10 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 			var dialog := AuditLogScene.instantiate()
 			get_tree().root.add_child(dialog)
 			dialog.setup(space_id)
+		"Reports":
+			var dialog := ReportListScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup(space_id)
 		"Soundboard":
 			var dialog := SoundboardMgmtScene.instantiate()
 			get_tree().root.add_child(dialog)
@@ -296,6 +306,10 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		"Server Settings":
 			var panel := ServerManagementPanel.instantiate()
 			get_tree().root.add_child(panel)
+		"Server Reports":
+			var dialog := ReportListScene.instantiate()
+			get_tree().root.add_child(dialog)
+			dialog.setup_server_wide()
 		"Reconnect":
 			var conn_idx: int = _server_index \
 				if _is_disconnected \

@@ -145,10 +145,9 @@ func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:
 	if user_id == my_id and AppState.voice_channel_id.is_empty() \
 			and _c._voice_server_info.is_empty() \
 			and not new_channel.is_empty():
-		if _c.has_method("_voice_log"):
-			_c._voice_log(
-				"ignore self voice_state_update without backend"
-			)
+		_c.voice._voice_log(
+			"ignore self voice_state_update without backend"
+		)
 		return
 
 	# Remove user from any previous channel in the cache
@@ -187,20 +186,18 @@ func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> v
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	_c._voice_server_info = info.to_dict()
-	if _c.has_method("_voice_log"):
-		_c._voice_log(
-			"voice_server_update livekit=%s" % [
-				str(info.livekit_url)
-			]
-		)
+	_c.voice._voice_log(
+		"voice_server_update livekit=%s" % [
+			str(info.livekit_url)
+		]
+	)
 	# If we're already in a voice channel, (re)connect the backend with
 	# the new credentials.  _connect_voice_backend() handles tearing down
 	# any existing room, so this works whether the session is still
 	# CONNECTED (gateway event arrived before LiveKit disconnected) or
 	# already DISCONNECTED (the old race-condition path).
 	if not AppState.voice_channel_id.is_empty() and _c._voice_session != null:
-		if _c.has_method("_voice_log"):
-			_c._voice_log("voice_server_update connecting backend now")
+		_c.voice._voice_log("voice_server_update connecting backend now")
 		_c.voice._connect_voice_backend(info)
 
 func on_voice_signal(_data: Dictionary, _conn_index: int) -> void:

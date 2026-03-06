@@ -1,5 +1,6 @@
 extends HBoxContainer
 
+const NsfwGateDialogScene := preload("res://scenes/admin/nsfw_gate_dialog.tscn")
 const CHANNEL_PANEL_WIDTH: float = 240.0
 const CHANNEL_PANEL_ANIM_DURATION: float = 0.15
 
@@ -65,6 +66,14 @@ func _on_server_removed(space_id: String) -> void:
 		guild_bar._on_space_pressed(Client.spaces[0]["id"])
 
 func _on_space_selected(space_id: String) -> void:
+	# Space-level NSFW gate
+	var space_data := Client.get_space_by_id(space_id)
+	var nsfw_level: String = space_data.get("nsfw_level", "default")
+	if nsfw_level in ["age_restricted", "explicit"] \
+			and not Client.is_nsfw_acked(space_id):
+		_show_nsfw_gate_for_space(space_id)
+		return
+
 	channel_list.visible = true
 	dm_list.visible = false
 	channel_list.load_space(space_id)
@@ -102,6 +111,15 @@ func _on_dm_selected_channel(dm_id: String) -> void:
 		set_channel_panel_visible(false)
 	# In compact mode, close the drawer
 	AppState.close_sidebar_drawer()
+
+func _show_nsfw_gate_for_space(space_id: String) -> void:
+	var dialog := NsfwGateDialogScene.instantiate()
+	get_tree().root.add_child(dialog)
+	dialog.acknowledged.connect(func() -> void:
+		var base_url := Client.get_base_url_for_space(space_id)
+		Config.set_nsfw_ack(base_url)
+		_on_space_selected(space_id)
+	)
 
 func set_channel_panel_visible(vis: bool) -> void:
 	if Config.get_reduced_motion():

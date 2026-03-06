@@ -250,6 +250,8 @@ The screen sharing button uses `ScreenPickerDialog` which relies on desktop scre
 
 ### Android-Specific UX Considerations
 
+**Mobile resolution and UI scaling:** On Android devices, the UI renders too small and the responsive layout breakpoints are not reached at typical mobile resolutions. The COMPACT mode breakpoint (<500px) and MEDIUM mode breakpoint (<768px) are measured in Godot viewport pixels, but Android phones report high logical resolutions (e.g. 1080x2400 or higher) even on small screens. This means a phone with a 6-inch display may report a viewport width well above 768px, causing the app to use FULL layout mode instead of COMPACT. As a result, menus do not collapse into hamburger button drawers, the sidebar remains inline, and the overall UI elements appear too small for comfortable touch interaction. The auto UI scale (`_auto_ui_scale()` in main_window.gd line 207) reads `DisplayServer.screen_get_scale()` and adjusts `content_scale_factor`, but this does not change the viewport dimensions that the layout breakpoints check against. The breakpoints need to account for screen density or the content scale factor so that a phone-sized screen triggers COMPACT mode regardless of its pixel resolution.
+
 **Back button:** Android's system back button emits `ui_cancel` in Godot. Many dialogs already handle `ui_cancel` via `_input()` -- 25 dialog files use `event.is_action_pressed("ui_cancel")` to close on Escape (which maps to Android back). However, there is no global handler to close the sidebar drawer, dismiss the image lightbox, navigate back from thread view to message view, or handle a back-button stack for multi-level navigation. Each dialog handles `ui_cancel` independently rather than through a centralized navigation stack.
 
 **On-screen keyboard:** Text input fields (`TextEdit`, `LineEdit`) in the composer and search bar will trigger the Android virtual keyboard. The viewport may need to resize or scroll to keep the input field visible above the keyboard. Godot has built-in virtual keyboard handling, but the composer is at the bottom of the screen, which is the most vulnerable position for keyboard occlusion.
@@ -315,6 +317,7 @@ The screen sharing button uses `ScreenPickerDialog` which relies on desktop scre
 - [x] Collapsed message timestamps always shown in COMPACT (collapsed_message.gd line 82)
 - [x] Member list and search panel hidden in COMPACT (main_window.gd)
 - [x] Auto UI scale for high-DPI Android screens (main_window.gd lines 187-219)
+- [ ] Layout breakpoints not density-aware -- phones stay in FULL mode with tiny UI (ANDROID-15)
 
 ### Navigation & Platform
 - [x] All dialogs handle `ui_cancel` for Escape/back button dismiss (25 dialog files)
@@ -417,6 +420,13 @@ The screen sharing button uses `ScreenPickerDialog` which relies on desktop scre
 - **Effort:** 1
 - **Tags:** mobile, ui
 - **Notes:** `image_lightbox.gd` `_on_backdrop_input()` (line 24) only checks `InputEventMouseButton`. Needs an `InputEventScreenTouch` check so tapping the backdrop closes the lightbox on touch devices. One-line fix.
+
+### ANDROID-15: Mobile resolution does not trigger responsive breakpoints
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** mobile, ui
+- **Notes:** Android phones report high logical viewport widths (e.g. 1080px+) despite having small physical screens. The layout breakpoints in `AppState.update_layout_mode()` (app_state.gd line 250) compare raw viewport pixels, so COMPACT (<500px) and MEDIUM (<768px) modes are never reached on most phones. The UI stays in FULL mode with tiny elements and no drawer navigation. The breakpoints should incorporate screen density or the content scale factor so that a 6-inch phone screen triggers COMPACT mode. Alternatively, `_auto_ui_scale()` could adjust the viewport size (via `content_scale_size` or `window/size/viewport_width`) rather than just `content_scale_factor`, so the effective viewport width shrinks to match the physical screen class.
 
 ### ANDROID-14: Empty min/target SDK versions
 - **Status:** open
