@@ -131,6 +131,8 @@ signal thread_typing_started(thread_id: String, username: String)
 signal thread_typing_stopped(thread_id: String)
 @warning_ignore("unused_signal")
 signal forum_posts_updated(channel_id: String)
+@warning_ignore("unused_signal")
+signal channel_mutes_updated()
 
 # Auto-update signals
 @warning_ignore("unused_signal")

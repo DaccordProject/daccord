@@ -100,6 +100,9 @@ var _thread_unread: Dictionary = {} # parent_message_id -> true
 var _thread_mention_count: Dictionary = {} # parent_message_id -> int
 var _forum_post_cache: Dictionary = {} # channel_id -> Array of post dicts
 
+# Channel mute tracking (server-side, per-user)
+var _muted_channels: Dictionary = {}        # channel_id -> true
+
 # Unread / mention tracking
 var _unread_channels: Dictionary = {}       # channel_id -> true
 var _channel_mention_counts: Dictionary = {} # channel_id -> int
@@ -607,6 +610,44 @@ func rename_group_dm(
 func close_dm(channel_id: String) -> void:
 	await mutations.dm.close_dm(channel_id)
 
+# --- Channel mute API ---
+
+func is_channel_muted(channel_id: String) -> bool:
+	if _muted_channels.has(channel_id):
+		return true
+	# Check if parent category is muted (inherited mute)
+	var ch: Dictionary = _channel_cache.get(channel_id, {})
+	var parent_id: String = ch.get("parent_id", "")
+	if not parent_id.is_empty() and _muted_channels.has(parent_id):
+		return true
+	return false
+
+func mute_channel(channel_id: String) -> void:
+	var client: AccordClient = _client_for_channel(channel_id)
+	if client == null:
+		push_error("[Client] No connection for channel: ", channel_id)
+		return
+	var result: RestResult = await client.channels.mute(channel_id)
+	if result.ok:
+		_muted_channels[channel_id] = true
+		AppState.channel_mutes_updated.emit()
+	else:
+		var err: String = result.error.message if result.error else "unknown"
+		push_error("[Client] Failed to mute channel: ", err)
+
+func unmute_channel(channel_id: String) -> void:
+	var client: AccordClient = _client_for_channel(channel_id)
+	if client == null:
+		push_error("[Client] No connection for channel: ", channel_id)
+		return
+	var result: RestResult = await client.channels.unmute(channel_id)
+	if result.ok:
+		_muted_channels.erase(channel_id)
+		AppState.channel_mutes_updated.emit()
+	else:
+		var err: String = result.error.message if result.error else "unknown"
+		push_error("[Client] Failed to unmute channel: ", err)
+
 func has_permission(gid: String, perm: String) -> bool:
 	return permissions.has_permission(gid, perm)
 
@@ -787,6 +828,7 @@ func _member_index_for(space_id: String, user_id: String) -> int:
 func _on_profile_switched() -> void:
 	disconnect_all()
 	_forum_post_cache.clear()
+	_muted_channels.clear()
 	# Reset AppState navigation state
 	AppState.current_space_id = ""
 	AppState.current_channel_id = ""

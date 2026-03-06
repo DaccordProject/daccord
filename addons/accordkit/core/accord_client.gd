@@ -16,7 +16,10 @@ signal space_delete(data: Dictionary)
 signal channel_create(channel: AccordChannel)
 signal channel_update(channel: AccordChannel)
 signal channel_delete(channel: AccordChannel)
+signal channel_reorder(data: Dictionary)
 signal channel_pins_update(data: Dictionary)
+signal channel_mute_create(data: Dictionary)
+signal channel_mute_delete(data: Dictionary)
 
 # Members
 signal member_join(member: AccordMember)
@@ -200,7 +203,10 @@ func _connect_gateway_signals() -> void:
 	gateway.channel_create.connect(func(c): channel_create.emit(c))
 	gateway.channel_update.connect(func(c): channel_update.emit(c))
 	gateway.channel_delete.connect(func(c): channel_delete.emit(c))
+	gateway.channel_reorder.connect(func(d): channel_reorder.emit(d))
 	gateway.channel_pins_update.connect(func(d): channel_pins_update.emit(d))
+	gateway.channel_mute_create.connect(func(d): channel_mute_create.emit(d))
+	gateway.channel_mute_delete.connect(func(d): channel_mute_delete.emit(d))
 
 	gateway.member_join.connect(func(m): member_join.emit(m))
 	gateway.member_leave.connect(func(d): member_leave.emit(d))

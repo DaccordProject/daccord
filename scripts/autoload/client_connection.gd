@@ -201,6 +201,7 @@ func disconnect_all() -> void:
 	_c._role_cache.clear()
 	_c._voice_state_cache.clear()
 	_c._voice_server_info.clear()
+	_c._muted_channels.clear()
 	_c._unread_channels.clear()
 	_c._channel_mention_counts.clear()
 	_c._message_id_index.clear()

@@ -41,6 +41,7 @@ func _ready() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 	active_bg.visible = false
 	active_pill.visible = false
+	AppState.channel_mutes_updated.connect(_on_mutes_updated)
 
 func _apply_theme() -> void:
 	_icon_color_default = ThemeManager.get_color("icon_default")
@@ -117,6 +118,19 @@ func _apply_text_color() -> void:
 		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
 		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	# Dim icon when muted
+	if not channel_id.is_empty() and Client.is_channel_muted(channel_id):
+		if not _channel_data.get("nsfw", false):
+			type_icon.modulate.a = 0.4
+		channel_name.modulate.a = 0.4
+	else:
+		if not _channel_data.get("nsfw", false) and not _is_active:
+			type_icon.modulate.a = 1.0
+		channel_name.modulate.a = 1.0
+
+func _on_mutes_updated() -> void:
+	_apply_text_color()
+	_apply_icon_color()
 
 func _apply_icon_color() -> void:
 	if _channel_data.get("nsfw", false):
@@ -139,14 +153,19 @@ func _on_mouse_exited() -> void:
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
-			var pos := get_global_mouse_position()
-			_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
+		var pos := get_global_mouse_position()
+		_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
 
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
-	_context_menu.add_item("Edit Channel", 0)
-	_context_menu.add_item("Delete Channel", 1)
+	if Client.is_channel_muted(channel_id):
+		_context_menu.add_item("Unmute Channel", 10)
+	else:
+		_context_menu.add_item("Mute Channel", 10)
+	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
+		_context_menu.add_separator()
+		_context_menu.add_item("Edit Channel", 0)
+		_context_menu.add_item("Delete Channel", 1)
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
@@ -155,11 +174,18 @@ func _on_context_menu_id_pressed(id: int) -> void:
 	match id:
 		0: _on_edit_channel()
 		1: _on_delete_channel()
+		10: _on_toggle_mute()
 
 func _on_edit_channel() -> void:
 	var dialog := ChannelEditScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(_channel_data)
+
+func _on_toggle_mute() -> void:
+	if Client.is_channel_muted(channel_id):
+		Client.unmute_channel(channel_id)
+	else:
+		Client.mute_channel(channel_id)
 
 func _on_delete_channel() -> void:
 	var dialog := ConfirmDialogScene.instantiate()

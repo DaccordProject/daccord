@@ -51,8 +51,14 @@ func connect_signals(
 	client.channel_update.connect(
 		on_channel_update.bind(idx))
 	client.channel_delete.connect(on_channel_delete)
+	client.channel_reorder.connect(
+		on_channel_reorder.bind(idx))
 	client.channel_pins_update.connect(
 		on_channel_pins_update)
+	client.channel_mute_create.connect(
+		_events.on_channel_mute_create)
+	client.channel_mute_delete.connect(
+		_events.on_channel_mute_delete)
 	client.role_create.connect(
 		on_role_create.bind(idx))
 	client.role_update.connect(
@@ -225,6 +231,7 @@ func _refetch_data(conn: Dictionary, conn_index: int) -> void:
 		_c.fetch.resync_voice_states(space_id)
 		await _c.fetch.refresh_current_user(conn_index)
 	await _c.fetch.fetch_dm_channels()
+	await _c.fetch.fetch_mutes(conn_index)
 	conn["_syncing"] = false
 	if not space_id.is_empty():
 		AppState.server_synced.emit(space_id)
@@ -326,9 +333,12 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 		if user_status == ClientModels.UserStatus.DND:
 			pass # Skip all notification tracking in DND mode
 		else:
-			# Check server mute
 			var space_id: String = _c._channel_to_space.get(message.channel_id, "")
-			if Config.is_server_muted(space_id):
+			# Check channel/category mute
+			if _c.is_channel_muted(message.channel_id):
+				pass # Channel is muted — skip unread tracking
+			# Check server mute
+			elif Config.is_server_muted(space_id):
 				pass # Server is muted — skip unread tracking
 			else:
 				# Determine if this is a mention
@@ -642,6 +652,26 @@ func on_channel_delete(channel: AccordChannel) -> void:
 		_c._channel_cache.erase(channel.id)
 		_c._channel_to_space.erase(channel.id)
 		var space_id: String = str(channel.space_id) if channel.space_id != null else ""
+		AppState.channels_updated.emit(space_id)
+
+func on_channel_reorder(data: Dictionary, _conn_index: int) -> void:
+	var space_id: String = str(data.get("space_id", ""))
+	var channels: Array = data.get("channels", [])
+	for ch_data in channels:
+		if not ch_data is Dictionary:
+			continue
+		var channel: AccordChannel = AccordChannel.from_dict(ch_data)
+		if _c._channel_cache.has(channel.id):
+			var old_ch: Dictionary = _c._channel_cache[channel.id]
+			var new_ch: Dictionary = ClientModels.channel_to_dict(channel)
+			new_ch["unread"] = old_ch.get("unread", false)
+			new_ch["voice_users"] = old_ch.get("voice_users", 0)
+			_c._channel_cache[channel.id] = new_ch
+			_c._channel_to_space[channel.id] = space_id
+		else:
+			_c._channel_cache[channel.id] = ClientModels.channel_to_dict(channel)
+			_c._channel_to_space[channel.id] = space_id
+	if not space_id.is_empty():
 		AppState.channels_updated.emit(space_id)
 
 func on_role_create(data: Dictionary, conn_index: int) -> void:

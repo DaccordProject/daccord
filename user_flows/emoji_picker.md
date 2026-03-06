@@ -1,14 +1,14 @@
 # Emoji Picker
 
-Last touched: 2026-03-05
+Last touched: 2026-03-06
 
 ## Overview
 
-The emoji picker allows users to browse and insert emoji into their messages as `:name:` shortcodes. It provides a categorized catalog of 190 Twemoji SVGs across 9 categories (including Flags), a search bar for filtering by name, and category tabs for quick navigation. Selected emoji are inserted as `:name:` shortcodes at the cursor position in the composer, and rendered inline as images by `markdown_to_bbcode()`. Emoji are also used in message reactions via a shared `EmojiData` catalog. The picker supports custom server emoji loaded from the CDN, displayed in a dedicated "Custom" category tab.
+The emoji picker allows users to browse and insert emoji into their messages as `:name:` shortcodes. It provides a categorized catalog of ~340 Twemoji SVGs across 9 categories (including Flags), a search bar for filtering by name, and category tabs for quick navigation. Selected emoji are inserted as `:name:` shortcodes at the cursor position in the composer, and rendered inline as images by `markdown_to_bbcode()`. Emoji are also used in message reactions via a shared `EmojiData` catalog. The picker supports custom server emoji loaded from the CDN, displayed in a dedicated "Custom" category tab.
 
-The catalog is a curated subset of the full Unicode emoji set (~3600+ emoji). Only 190 built-in emoji are included (20 per category, 30 flags), chosen to cover the most commonly used emoji. Many standard emoji (e.g., most face variants, animals, foods, objects, symbols, and all but 30 flags) are missing from the picker and cannot be inserted via the UI.
+The catalog is a curated subset of the full Unicode emoji set (~3600+ emoji). Approximately 340 built-in emoji are included across 9 categories, chosen to cover the most commonly used emoji. Textures are lazy-loaded on first access (not preloaded at startup) to manage memory efficiently.
 
-The picker supports skin tone preferences for 19 hand/gesture emoji in the People category. Users set their preferred skin tone (Default, Light, Medium-Light, Medium, Medium-Dark, Dark) in Settings > Notifications > EMOJI SKIN TONE. The preference is applied globally: in the picker grid, in rendered messages, and on reaction pills. Skin tone variant textures (95 SVGs) are lazily loaded on first use to avoid startup overhead.
+The picker supports skin tone preferences for 27 hand/gesture emoji in the People category. Users set their preferred skin tone (Default, Light, Medium-Light, Medium, Medium-Dark, Dark) in Settings > Notifications > EMOJI SKIN TONE. The preference is applied globally: in the picker grid, in rendered messages, and on reaction pills. Skin tone variant textures (135 SVGs) are lazily loaded on first use to avoid startup overhead.
 
 Custom emoji are stored on the server as image files (uploaded as base64 data URIs via `POST /spaces/{id}/emojis`). The server assigns each emoji a snowflake ID, stores the image to disk, and serves it via CDN at `/emojis/{emoji_id}.{png|gif}`. Emoji CRUD operations broadcast gateway events (`emoji.create`, `emoji.update`, `emoji.delete`) to all members of the space.
 
@@ -19,7 +19,7 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 1. User clicks the smiley-face emoji button in the composer toolbar
 2. Emoji picker panel appears above the button (352x360px, dark background with rounded corners)
 3. Category bar at the top shows tabs; if recently used emoji exist, "Recently Used" (watch icon) is selected by default; if a space is selected, a "Custom" tab (star icon) appears; followed by 9 built-in category tabs (including Flags)
-4. User browses the 8x-column grid of emoji for the current category (20 per built-in category, 30 for Flags). Hand/gesture emoji display with the user's preferred skin tone
+4. User browses the 8x-column grid of emoji for the current category. Hand/gesture emoji display with the user's preferred skin tone
 5. Optionally, user types in the search bar to filter emoji by name across all categories (including cached custom emoji)
 6. User clicks an emoji cell
 7. The emoji's `:name:` shortcode is inserted at the caret position in the composer TextEdit (both built-in and custom emoji use the same shortcode format)
@@ -40,7 +40,7 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 2. User navigates to the "Notifications" page
 3. Under the "EMOJI SKIN TONE" section, user selects a skin tone from the dropdown: Default, Light, Medium-Light, Medium, Medium-Dark, or Dark
 4. The preference is saved immediately to the profile config
-5. The next time the emoji picker opens, hand/gesture emoji (19 in the People category) display with the selected skin tone
+5. The next time the emoji picker opens, hand/gesture emoji (27 in the People category) display with the selected skin tone
 6. Messages containing skin-tone-eligible emoji shortcodes render with the selected tone
 7. Reaction pills for skin-tone-eligible emoji also reflect the preference
 
@@ -48,7 +48,7 @@ Custom emoji are stored on the server as image files (uploaded as base64 data UR
 
 1. User opens the emoji picker
 2. User clicks the Flags tab (US flag icon, last tab in the category bar)
-3. 30 country flag emoji are displayed in the grid
+3. 50 country flag emoji are displayed in the grid
 4. User clicks a flag to insert its `:flag_xx:` shortcode
 5. The flag renders as an inline image in the message
 
@@ -165,7 +165,7 @@ Gateway reaction events:
 | `scenes/messages/composer/emoji_picker.tscn` | Picker layout: 352x360px PanelContainer, CategoryBar, SearchInput, 8-column EmojiGrid in ScrollContainer |
 | `scenes/messages/composer/emoji_button_cell.gd` | Individual emoji button: displays texture with skin tone, emits `emoji_selected` on click |
 | `scenes/messages/composer/emoji_button_cell.tscn` | Cell layout: 36x36px flat Button with hover highlight, centered icon |
-| `scripts/emoji_data.gd` | Static catalog: `Category` enum (9 categories), `CATALOG` (190 entries), `TEXTURES` (190 preloaded SVGs), skin tone support (`get_texture()`, `get_codepoint_with_tone()`), multi-codepoint `codepoint_to_char()`, lazy skin tone texture cache |
+| `scripts/emoji_data.gd` | Static catalog: `Category` enum (9 categories), `CATALOG` (~340 entries), lazy-loaded texture cache, skin tone support (`get_texture()`, `get_codepoint_with_tone()`), multi-codepoint `codepoint_to_char()` |
 | `scripts/autoload/client_markdown.gd` | `markdown_to_bbcode()` renders `:name:` shortcodes as inline `[img]` BBCode tags (extracted from `client_models.gd`) |
 | `scripts/autoload/client_models.gd` | Holds `custom_emoji_paths` and `custom_emoji_textures` static dictionaries; `emoji_to_dict()` converts `AccordEmoji` models |
 | `scenes/messages/message_content.gd` | Calls `markdown_to_bbcode()` for emoji rendering, passes `channel_id` and `message_id` to reaction bar |
@@ -181,8 +181,8 @@ Gateway reaction events:
 | `scripts/autoload/config.gd` | `get_emoji_skin_tone()` (line 497) / `set_emoji_skin_tone()` (line 500), `get_recent_emoji()` (line 494) / `add_recent_emoji()` (line 505) |
 | `addons/accordkit/models/emoji.gd` | `AccordEmoji` model with `image_url` field parsed from server responses |
 | `scenes/user/app_settings.gd` | Skin tone dropdown in Notifications page under "EMOJI SKIN TONE" section (line 542) |
-| `scripts/download_emoji.sh` | One-time script to download Twemoji SVGs for skin tone variants (95) and flags (30) |
-| `assets/theme/emoji/*.svg` | 285 Twemoji SVG files: 160 base + 95 skin tone variants + 30 flags |
+| `scripts/download_emoji.sh` | One-time script to download Twemoji SVGs for base emoji, skin tone variants, and flags |
+| `assets/theme/emoji/*.svg` | ~493 Twemoji SVG files: ~308 base + 135 skin tone variants + 50 flags |
 
 ## Implementation Details
 
@@ -191,17 +191,18 @@ Gateway reaction events:
 - `Category` enum: `SMILEYS`, `PEOPLE`, `NATURE`, `FOOD`, `ACTIVITIES`, `TRAVEL`, `OBJECTS`, `SYMBOLS`, `FLAGS`
 - `CATEGORY_NAMES`: Human-readable names for tooltip text (e.g., "Smileys & Emotion", "People & Body", "Flags")
 - `CATEGORY_ICONS`: Maps each category to its representative codepoint (used as the tab icon). FLAGS uses `1f1fa-1f1f8` (US flag)
-- `CATALOG`: Dictionary mapping each `Category` to an array of `{name, codepoint}` entries. 20 per built-in category, 30 for FLAGS. **This is a curated subset — the full Unicode emoji set has ~3600+ emoji, but only 190 are included here**
-- `TEXTURES`: Dictionary mapping emoji name to `preload()`ed SVG textures. All 190 base emoji are preloaded at class load time
+- `CATALOG`: Dictionary mapping each `Category` to an array of `{name, codepoint}` entries. ~56 smileys, ~28 people, ~40 nature, ~40 food, ~36 activities, ~35 travel, ~39 objects, ~34 symbols, ~50 flags (~340 total). This is a curated subset of the ~3600+ Unicode emoji set
+- `_texture_cache` (static var): Lazily-loaded cache of base emoji textures (keyed by emoji name). Textures are loaded on first access via `get_texture()` instead of preloading all at startup
 - `SKIN_TONE_MODIFIERS`: Array of 6 entries (index 0 = empty/default, 1-5 = skin tone hex codepoints `1f3fb`..`1f3ff`)
-- `SKIN_TONE_EMOJI`: Array of 19 emoji names in the People category that support skin tone variants (all except `handshake`)
+- `SKIN_TONE_EMOJI`: Array of 27 emoji names in the People category that support skin tone variants (all except `handshake`)
 - `_skin_tone_textures` (static var): Lazily-loaded cache of skin tone variant textures (keyed by full codepoint like `"1f44d-1f3fb"`)
 - `_name_lookup` (static var): Lazily-built dictionary mapping emoji name to `{name, codepoint}` entry for O(1) lookup
+- `get_texture(emoji_name, tone)`: Returns the texture for the emoji with optional skin tone. Lazy-loads from `res://assets/theme/emoji/` on first access and caches in `_texture_cache` or `_skin_tone_textures`. Returns `null` if the SVG doesn't exist
 - `get_all_for_category(category)`: Returns the entry array for a category
 - `get_by_name(emoji_name)`: Dictionary lookup via `_name_lookup` (lazy-initialized on first call)
 - `supports_skin_tone(emoji_name)`: Returns true if the emoji supports skin tone variants
 - `get_codepoint_with_tone(emoji_name, tone)`: Returns the codepoint with skin tone modifier appended (e.g., `"1f44d-1f3fb"` for thumbs_up + light tone). Returns base codepoint if tone is 0 or emoji doesn't support tones
-- `get_texture(emoji_name, tone)`: Returns the texture for the emoji with the given skin tone. Lazily loads skin tone SVGs on first access. Falls back to base texture if the variant file doesn't exist
+- `get_texture(emoji_name, tone)`: Returns the texture for the emoji with the given skin tone. All textures (base and skin tone) are lazily loaded on first access and cached. Falls back to base texture if the variant file doesn't exist
 - `codepoint_to_char(hex_codepoint)`: Converts hex codepoint string to Unicode character(s). Handles multi-codepoint sequences by splitting on `-` (e.g., `"1f1fa-1f1f8"` produces two regional indicator characters for the US flag)
 
 ### Emoji Picker Panel (emoji_picker.gd)
@@ -269,7 +270,7 @@ Gateway reaction events:
 - [x] Emoji button in composer toolbar (smile.svg icon)
 - [x] Emoji picker panel with dark theme styling
 - [x] 9 category tabs with icon buttons and active highlighting (including Flags)
-- [x] 190 Twemoji SVGs across 9 categories (20 per built-in, 30 flags) + 95 skin tone variants
+- [x] ~340 Twemoji SVGs across 9 categories + 135 skin tone variants (lazy-loaded)
 - [x] Search-by-name filtering across all categories
 - [x] Shortcode insertion at caret position (`:name:` format)
 - [x] Shortcode rendering as inline images via `markdown_to_bbcode()`
@@ -277,7 +278,7 @@ Gateway reaction events:
 - [x] Dismiss via Escape key or click-outside
 - [x] Lazy instantiation (picker created on first use)
 - [x] Viewport-clamped positioning
-- [x] Shared `EmojiData.TEXTURES` used by both picker and reaction pills
+- [x] Shared `EmojiData.get_texture()` used by both picker and reaction pills
 - [x] Picker cleanup on composer exit
 - [x] Reactions call server API (`Client.add_reaction()` / `Client.remove_reaction()`)
 - [x] Optimistic local reaction count updates with rollback on failure
@@ -296,32 +297,33 @@ Gateway reaction events:
 - [x] `AccordEmoji` model `image_url` field parsed from server responses (preferred over manual CDN URL construction)
 - [x] Skin tone preference (Default + 5 tones) persisted in config, applied to picker, messages, and reaction pills
 - [x] Skin tone settings UI in Notifications page (dropdown under "EMOJI SKIN TONE" section)
-- [x] Skin tone variant textures lazily loaded (95 SVGs, not preloaded at startup)
-- [x] Flags category with 30 country flag emoji (multi-codepoint regional indicator pairs)
+- [x] All textures lazy-loaded on first access (not preloaded at startup)
+- [x] Skin tone variant textures lazily loaded (135 SVGs for 27 hand/gesture emoji)
+- [x] Flags category with 50 country flag emoji (multi-codepoint regional indicator pairs)
 - [x] Multi-codepoint `codepoint_to_char()` for flags and ZWJ sequences
 - [x] Reaction pill bounce animation on toggle
 - [x] Reaction failure rollback via `reaction_failed` signal
-- [ ] Expanded emoji catalog (currently 190 of ~3600+ Unicode emoji)
+- [x] Expanded emoji catalog (~340 emoji, up from 190)
 
 ## Tasks
 
 ### EMOJI-1: `reactions_updated` signal declared but unused
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 3
 - **Tags:** emoji, gateway
-- **Notes:** `AppState.reactions_updated` (line 50) is declared but never emitted or connected; gateway handlers emit `messages_updated` instead, causing full message list re-renders for reaction changes
+- **Notes:** Resolved: `AppState.reactions_updated` is now emitted by all four gateway reaction handlers (`on_reaction_add`, `on_reaction_remove`, `on_reaction_clear`, `on_reaction_clear_emoji`) in `client_gateway_reactions.gd` and connected in `message_view.gd` for targeted reaction bar updates.
 
 ### EMOJI-2: Upload button not connected
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** ui
-- **Notes:** `composer.tscn` has an UploadButton (plus.svg icon) which is now connected to `_on_upload_button()` (line 154) for file attachments. This task can be closed.
+- **Notes:** Resolved: `composer.tscn` UploadButton is connected to `_on_upload_button()` for file attachments.
 
 ### EMOJI-3: Expand built-in emoji catalog
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 4
 - **Tags:** emoji, content
-- **Notes:** The picker only contains 190 curated emoji (20 per category, 30 flags) out of ~3600+ in the Unicode emoji set. Many commonly used emoji are missing (e.g., nerd_face, skull, clown, monocle, yawning, nausea, sneezing face variants; most animals beyond the initial 15; foods like sushi, ramen, ice cream; objects like camera, phone, clock variants; symbols like arrows, zodiac signs; and ~200+ flags). Expanding the catalog requires: (1) downloading additional Twemoji SVGs via `download_emoji.sh`, (2) adding entries to `EmojiData.CATALOG`, (3) adding preload entries to `EmojiData.TEXTURES`. Consider lazy-loading textures per category instead of preloading all at startup to manage the increased resource count.
+- **Notes:** Expanded from 190 to ~340 emoji across all categories. Added smileys (skull, nerd, clown, monocle, etc.), people (vulcan, middle finger, writing hand, etc.), nature (penguin, shark, butterfly, etc.), food (sushi, ramen, ice cream, etc.), activities (guitar, jigsaw, etc.), travel (bicycle, volcano, tent, etc.), objects (camera, crown, gem, etc.), symbols (sparkles, warning, infinity, etc.), and flags (50 countries, up from 30). Switched from `preload()` TEXTURES const to lazy-loaded `_texture_cache` to manage the increased resource count. Skin tone emoji expanded from 19 to 27. Download script updated to fetch all new SVGs.

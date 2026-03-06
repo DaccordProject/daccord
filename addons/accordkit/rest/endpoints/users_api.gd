@@ -77,3 +77,8 @@ func delete_me(data: Dictionary = {}) -> RestResult:
 func list_connections() -> RestResult:
 	var result := await _rest.make_request("GET", "/users/@me/connections")
 	return result
+
+
+## Lists all muted channel IDs for the current user.
+func list_mutes() -> RestResult:
+	return await _rest.make_request("GET", "/users/@me/mutes")

@@ -78,3 +78,17 @@ func remove_recipient(channel_id: String, user_id: String) -> RestResult:
 		"DELETE",
 		"/channels/" + channel_id + "/recipients/" + user_id,
 	)
+
+
+## Mutes a channel or category for the current user.
+func mute(channel_id: String) -> RestResult:
+	return await _rest.make_request(
+		"PUT", "/channels/" + channel_id + "/mute"
+	)
+
+
+## Unmutes a channel or category for the current user.
+func unmute(channel_id: String) -> RestResult:
+	return await _rest.make_request(
+		"DELETE", "/channels/" + channel_id + "/mute"
+	)

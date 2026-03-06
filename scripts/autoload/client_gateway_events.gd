@@ -57,7 +57,8 @@ func on_soundboard_play(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var space_id: String = _c._connections[conn_index]["space_id"]
-	var sound_id: String = str(data.get("sound_id", data.get("id", "")))
+	var sound_data: Dictionary = data.get("sound", {})
+	var sound_id: String = str(data.get("sound_id", sound_data.get("id", "")))
 	var user_id: String = str(data.get("user_id", ""))
 	AppState.soundboard_played.emit(space_id, sound_id, user_id)
 
@@ -78,6 +79,18 @@ func on_emoji_delete(_data: Dictionary, conn_index: int) -> void:
 		return
 	var space_id: String = _c._connections[conn_index]["space_id"]
 	AppState.emojis_updated.emit(space_id)
+
+func on_channel_mute_create(data: Dictionary) -> void:
+	var channel_id: String = str(data.get("channel_id", ""))
+	if not channel_id.is_empty():
+		_c._muted_channels[channel_id] = true
+		AppState.channel_mutes_updated.emit()
+
+func on_channel_mute_delete(data: Dictionary) -> void:
+	var channel_id: String = str(data.get("channel_id", ""))
+	if not channel_id.is_empty():
+		_c._muted_channels.erase(channel_id)
+		AppState.channel_mutes_updated.emit()
 
 func on_interaction_create(
 	_interaction: AccordInteraction, _conn_index: int,
