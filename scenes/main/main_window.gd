@@ -8,6 +8,7 @@ const PANEL_MIN_SEARCH := 240.0
 const PANEL_MIN_VOICE_TEXT := 240.0
 const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
 const PanelResizeHandle := preload("res://scenes/main/panel_resize_handle.gd")
+const MainWindowVoiceViewClass := preload("res://scenes/main/main_window_voice_view.gd")
 const MainWindowTabs := preload("res://scenes/main/main_window_tabs.gd")
 const ProfileCardScene := preload(
 	"res://scenes/user/profile_card.tscn"
@@ -18,15 +19,13 @@ const WelcomeScreenScene := preload(
 const ImageLightboxScene := preload(
 	"res://scenes/messages/image_lightbox.tscn"
 )
-const VideoPipScene := preload(
-	"res://scenes/video/video_pip.tscn"
-)
 const ToastScene := preload(
 	"res://scenes/main/toast.tscn"
 )
 
 var _tabs: RefCounted
 var _drawer: MainWindowDrawer
+var _voice_view: RefCounted # MainWindowVoiceView
 var _active_profile_card: PanelContainer = null
 var _welcome_screen: Control = null
 var _member_list_before_medium: bool = true
@@ -37,7 +36,6 @@ var _search_handle: Control
 var _voice_text_handle: Control
 var _clamping_panels: bool = false
 var _update_indicator: Button = null
-var _pip: PanelContainer = null
 
 @onready var video_grid: PanelContainer = $LayoutHBox/ContentArea/VideoGrid
 @onready var content_header: PanelContainer = $LayoutHBox/ContentArea/ContentHeader
@@ -66,6 +64,7 @@ func _ready() -> void:
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
+	_voice_view = MainWindowVoiceViewClass.new(self)
 	_apply_ui_scale()
 	AudioServer.set_bus_volume_db(
 		0, linear_to_db(Config.voice.get_output_volume() / 100.0)
@@ -627,73 +626,20 @@ func _show_toast(text: String, is_error: bool = false) -> void:
 	toast.setup(text, is_error)
 	add_child(toast)
 
-func _on_voice_view_opened(_channel_id: String) -> void:
-	_remove_pip()
-	content_header.visible = false
-	topic_bar.visible = false
-	# Hide content_body children except voice text panel
-	if voice_text_panel.visible:
-		for child in content_body.get_children():
-			if child != voice_text_panel:
-				child.visible = false
-	else:
-		content_body.visible = false
-	video_grid.set_full_area(true)
+func _on_voice_view_opened(channel_id: String) -> void:
+	_voice_view.on_voice_view_opened(
+		channel_id, content_header, topic_bar,
+		content_body, voice_text_panel, video_grid,
+	)
 
 func _on_voice_view_closed() -> void:
-	content_header.visible = true
-	content_body.visible = true
-	# Restore visibility of content_body children hidden during voice view
-	message_view.visible = true
-	_sync_handle_visibility()
-	# Restore topic bar based on current channel
-	var topic := ""
-	for ch in Client.channels:
-		if ch["id"] == AppState.current_channel_id:
-			topic = ch.get("topic", "")
-			break
-	topic_bar.visible = topic != ""
-	video_grid.set_full_area(false)
-	# Spawn PiP if still in voice with active video
-	_maybe_spawn_pip()
-
-func _on_voice_left_pip(_channel_id: String) -> void:
-	_remove_pip()
-
-func _maybe_spawn_pip() -> void:
-	if AppState.voice_channel_id.is_empty():
-		return
-	# Only spawn PiP if there's any video content
-	var has_video := (
-		Client.get_camera_track() != null
-		or Client.get_screen_track() != null
+	_voice_view.on_voice_view_closed(
+		content_header, content_body, message_view,
+		topic_bar, video_grid, _sync_handle_visibility,
 	)
-	if not has_video:
-		# Check remote peers
-		var cid := AppState.voice_channel_id
-		var my_id: String = Client.current_user.get("id", "")
-		var states: Array = Client.get_voice_users(cid)
-		for state in states:
-			var uid: String = state.get("user_id", "")
-			if uid == my_id:
-				continue
-			if state.get("self_video", false) or state.get("self_stream", false):
-				has_video = true
-				break
-	if not has_video:
-		return
-	_pip = VideoPipScene.instantiate()
-	_pip.pip_clicked.connect(_on_pip_clicked)
-	add_child(_pip)
 
-func _remove_pip() -> void:
-	if _pip != null and is_instance_valid(_pip):
-		_pip.queue_free()
-		_pip = null
-
-func _on_pip_clicked() -> void:
-	_remove_pip()
-	AppState.open_voice_view()
+func _on_voice_left_pip(channel_id: String) -> void:
+	_voice_view.on_voice_left(channel_id)
 
 func _on_voice_error(error: String) -> void:
 	_show_toast("Voice error: %s" % error, true)

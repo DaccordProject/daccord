@@ -6,11 +6,11 @@ signal auth_completed(
 	display_name: String,
 )
 
+enum Mode { SIGN_IN, REGISTER }
+
 const ChangePasswordDialogScene := preload(
 	"res://scenes/sidebar/guild_bar/change_password_dialog.tscn"
 )
-
-enum Mode { SIGN_IN, REGISTER }
 
 var _mode: Mode = Mode.SIGN_IN
 var _base_url: String = ""

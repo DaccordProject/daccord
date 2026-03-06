@@ -18,6 +18,8 @@ func before_each() -> void:
 	client.fetch = ClientFetch.new(client)
 	client.admin = ClientAdmin.new(client)
 	client.mutations = ClientMutations.new(client)
+	var UnreadClass = load("res://scripts/autoload/client_unread.gd")
+	client.unread = UnreadClass.new(client)
 	client.emoji = ClientEmoji.new(client)
 	var PermClass = load("res://scripts/autoload/client_permissions.gd")
 	client.permissions = PermClass.new(client)
@@ -313,7 +315,7 @@ func test_on_channel_selected_clear_unread_channel() -> void:
 	client._space_cache["g1"] = {"id": "g1", "unread": true, "mentions": 1}
 	client._unread_channels["c1"] = true
 	client._channel_mention_counts["c1"] = 1
-	client._on_channel_selected_clear_unread("c1")
+	client.unread.on_channel_selected_clear_unread("c1")
 	assert_false(client._unread_channels.has("c1"))
 	assert_false(client._channel_cache["c1"]["unread"])
 	assert_false(client._channel_mention_counts.has("c1"))
@@ -322,7 +324,7 @@ func test_on_channel_selected_clear_unread_channel() -> void:
 func test_on_channel_selected_clear_unread_dm() -> void:
 	client._dm_channel_cache["dm1"] = {"id": "dm1", "unread": true}
 	client._unread_channels["dm1"] = true
-	client._on_channel_selected_clear_unread("dm1")
+	client.unread.on_channel_selected_clear_unread("dm1")
 	assert_false(client._unread_channels.has("dm1"))
 	assert_false(client._dm_channel_cache["dm1"]["unread"])
 
@@ -330,7 +332,7 @@ func test_on_channel_selected_clear_unread_dm() -> void:
 func test_on_channel_selected_clear_unread_noop_not_unread() -> void:
 	client._channel_cache["c1"] = {"id": "c1", "space_id": "g1", "unread": false}
 	# Should be a no-op when channel is not in _unread_channels
-	client._on_channel_selected_clear_unread("c1")
+	client.unread.on_channel_selected_clear_unread("c1")
 	assert_false(client._channel_cache["c1"]["unread"])
 
 
@@ -341,7 +343,7 @@ func test_update_space_unread_aggregates() -> void:
 	client._unread_channels["c1"] = true
 	client._channel_mention_counts["c1"] = 2
 	client._channel_mention_counts["c2"] = 3
-	client._update_space_unread("g1")
+	client.unread.update_space_unread("g1")
 	assert_true(client._space_cache["g1"]["unread"])
 	assert_eq(client._space_cache["g1"]["mentions"], 5)
 
