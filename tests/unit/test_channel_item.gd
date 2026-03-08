@@ -126,3 +126,35 @@ func test_stores_channel_data() -> void:
 	component.setup(data)
 	assert_eq(component._channel_data["id"], "c_1")
 	assert_eq(component._channel_data["name"], "general")
+
+
+# --- locked state (imposter mode) ---
+
+func test_locked_shows_lock_icon() -> void:
+	component.setup(_ch_data({"locked": true}))
+	assert_eq(component.type_icon.texture, component.LOCK_ICON)
+
+
+func test_locked_is_disabled() -> void:
+	component.setup(_ch_data({"locked": true}))
+	assert_true(component.disabled)
+
+
+func test_locked_is_dimmed() -> void:
+	component.setup(_ch_data({"locked": true}))
+	assert_almost_eq(component.modulate.a, 0.4, 0.01)
+
+
+func test_unlocked_is_not_disabled() -> void:
+	component.setup(_ch_data({"locked": false}))
+	assert_false(component.disabled)
+
+
+func test_locked_flag_defaults_false() -> void:
+	component.setup(_ch_data())
+	assert_false(component._is_locked)
+
+
+func test_locked_sets_is_locked_true() -> void:
+	component.setup(_ch_data({"locked": true}))
+	assert_true(component._is_locked)
