@@ -52,7 +52,7 @@ var _cb_active_speakers
 ## Minimal stub returned from publish_camera() so callers know the
 ## publish succeeded even though no local preview is available on web.
 class WebVideoStub extends RefCounted:
-	const _is_stub := true
+	const IS_STUB := true
 
 
 func _ready() -> void:
