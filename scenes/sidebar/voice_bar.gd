@@ -40,6 +40,8 @@ func _ready() -> void:
 	AppState.voice_error.connect(_on_voice_error)
 	AppState.voice_session_state_changed.connect(_on_session_state_changed)
 	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)
+	if OS.get_name() == "Web":
+		share_btn.visible = false
 	add_to_group("themed")
 
 func _apply_theme() -> void:
