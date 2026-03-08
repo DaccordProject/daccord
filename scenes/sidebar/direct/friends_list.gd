@@ -63,7 +63,7 @@ func _refresh() -> void:
 		child.queue_free()
 
 	# Update pending badge
-	var pending_count: int = Client.get_pending_incoming().size()
+	var pending_count: int = Client.relationships.get_pending_incoming().size()
 	pending_badge.text = str(pending_count)
 	pending_badge.visible = pending_count > 0
 
@@ -87,18 +87,18 @@ func _refresh() -> void:
 func _get_filtered_rels() -> Array:
 	match _current_tab:
 		TAB_ALL:
-			return Client.get_friends()
+			return Client.relationships.get_friends()
 		TAB_ONLINE:
-			return Client.get_friends().filter(func(r):
+			return Client.relationships.get_friends().filter(func(r):
 				return r["user"].get("status", ClientModels.UserStatus.OFFLINE) \
 					!= ClientModels.UserStatus.OFFLINE
 			)
 		TAB_PENDING:
-			var incoming: Array = Client.get_pending_incoming()
-			var outgoing: Array = Client.get_pending_outgoing()
+			var incoming: Array = Client.relationships.get_pending_incoming()
+			var outgoing: Array = Client.relationships.get_pending_outgoing()
 			return incoming + outgoing
 		TAB_BLOCKED:
-			return Client.get_blocked()
+			return Client.relationships.get_blocked()
 	return []
 
 func _on_add_friend_pressed() -> void:
@@ -122,25 +122,25 @@ func _on_remove_pressed(user_id: String) -> void:
 		"Remove",
 		true
 	)
-	dialog.confirmed.connect(func(): Client.remove_friend(user_id))
+	dialog.confirmed.connect(func(): Client.relationships.remove_friend(user_id))
 
 func _on_block_pressed(user_id: String) -> void:
-	Client.block_user(user_id)
+	Client.relationships.block_user(user_id)
 
 func _on_accept_pressed(user_id: String) -> void:
-	Client.accept_friend_request(user_id)
+	Client.relationships.accept_friend_request(user_id)
 
 func _on_decline_pressed(user_id: String) -> void:
-	Client.decline_friend_request(user_id)
+	Client.relationships.decline_friend_request(user_id)
 
 func _on_cancel_pressed(user_id: String) -> void:
-	Client.decline_friend_request(user_id)
+	Client.relationships.decline_friend_request(user_id)
 
 func _on_unblock_pressed(user_id: String) -> void:
-	Client.unblock_user(user_id)
+	Client.relationships.unblock_user(user_id)
 
 func _display_name_for(user_id: String) -> String:
-	var rel = Client.get_relationship(user_id)
+	var rel = Client.relationships.get_relationship(user_id)
 	if rel != null:
 		return rel["user"].get("display_name", "this user")
 	return "this user"

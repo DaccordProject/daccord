@@ -36,7 +36,7 @@ func _on_send() -> void:
 
 	_send_btn.disabled = true
 	_send_btn.text = "Sending..."
-	await Client.send_friend_request(user_id)
+	await Client.relationships.send_friend_request(user_id)
 	_close()
 
 func _find_user_id(username: String) -> String:

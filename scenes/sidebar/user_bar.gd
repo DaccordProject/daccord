@@ -3,6 +3,7 @@ extends PanelContainer
 ## Index of the Sync tab in AppSettings._get_sections().
 ## Must match the position of "Sync" in AppSettings._get_sections().
 const SYNC_SETTINGS_PAGE_INDEX := 6
+const _APP_SETTINGS_SCENE := preload("res://scenes/user/app_settings.tscn")
 
 var _status_popup: PopupMenu = null
 var _sync_badge: Button = null
@@ -193,11 +194,8 @@ func _on_menu_id_pressed(id: int) -> void:
 			_show_import_dialog()
 
 func _show_app_settings() -> void:
-	var AppSettingsScene: PackedScene = load(
-		"res://scenes/user/app_settings.tscn"
-	)
-	if AppSettingsScene:
-		var settings: ColorRect = AppSettingsScene.instantiate()
+	if _APP_SETTINGS_SCENE:
+		var settings: ColorRect = _APP_SETTINGS_SCENE.instantiate()
 		get_tree().root.add_child(settings)
 
 func _show_server_settings() -> void:
@@ -457,11 +455,8 @@ func _on_sync_state_changed(new_state: SyncManager.SyncState) -> void:
 
 
 func _on_sync_badge_pressed() -> void:
-	var AppSettingsScene: PackedScene = load(
-		"res://scenes/user/app_settings.tscn"
-	)
-	if AppSettingsScene:
-		var settings: ColorRect = AppSettingsScene.instantiate()
+	if _APP_SETTINGS_SCENE:
+		var settings: ColorRect = _APP_SETTINGS_SCENE.instantiate()
 		settings.initial_page = SYNC_SETTINGS_PAGE_INDEX
 		get_tree().root.add_child(settings)
 
