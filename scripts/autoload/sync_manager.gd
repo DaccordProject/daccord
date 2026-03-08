@@ -17,6 +17,9 @@ signal sync_state_changed(new_state: SyncState)
 
 enum SyncState { DISCONNECTED, AUTHENTICATING, IDLE, SYNCING, ERROR }
 
+const _PUSH_DELAY_SEC := 5.0
+const _TOKEN_CIPHER_SALT := "daccord-sync-token-v1"
+
 var state: SyncState = SyncState.DISCONNECTED
 
 var _email: String = ""
@@ -28,9 +31,6 @@ var _sync_key: PackedByteArray = PackedByteArray()
 
 # Push debounce timer (5 second delay after last config change)
 var _push_timer: Timer = null
-
-const _PUSH_DELAY_SEC := 5.0
-const _TOKEN_CIPHER_SALT := "daccord-sync-token-v1"
 
 var _api: SyncAPI = null
 
