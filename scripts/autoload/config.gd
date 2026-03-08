@@ -763,6 +763,24 @@ func _copy_directory(src: String, dst: String) -> void:
 		fname = dir.get_next()
 	dir.list_dir_end()
 
+## Returns a Dictionary of space_id → folder_name for all non-empty folder mappings.
+func get_folder_map() -> Dictionary:
+	var folders: Dictionary = {}
+	if _config.has_section("folders"):
+		for key in _config.get_section_keys("folders"):
+			var fname: String = _config.get_value("folders", key, "")
+			if not fname.is_empty():
+				folders[key] = fname
+	return folders
+
+## Returns the ordered list of profile slugs.
+func get_profile_order() -> Array:
+	return _registry.get_value("order", "list", [])
+
+## Returns the display name for a profile slug.
+func get_profile_name(slug: String) -> String:
+	return _registry.get_value("profile_" + slug, "name", slug)
+
 func _remove_directory_recursive(path: String) -> void:
 	var dir := DirAccess.open(path)
 	if dir == null:

@@ -166,21 +166,12 @@ func _serialize_config() -> Dictionary:
 		})
 
 	# Collect folder mappings: space_id → folder_name
-	var folders: Dictionary = {}
-	if Config._config.has_section("folders"):
-		for key in Config._config.get_section_keys("folders"):
-			var fname: String = Config._config.get_value("folders", key, "")
-			if not fname.is_empty():
-				folders[key] = fname
+	var folders: Dictionary = Config.get_folder_map()
 
 	# Collect profile metadata (slug + name, no password hashes)
 	var profiles: Array = []
-	var order: Array = Config._registry.get_value("order", "list", [])
-	for slug in order:
-		var pname: String = Config._registry.get_value(
-			"profile_" + slug, "name", slug
-		)
-		profiles.append({"slug": slug, "name": pname})
+	for slug in Config.get_profile_order():
+		profiles.append({"slug": slug, "name": Config.get_profile_name(slug)})
 
 	return {
 		"version": 1,
