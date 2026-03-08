@@ -49,7 +49,9 @@ func load_space(space_id: String) -> void:
 
 	var channels := Client.get_channels_for_space(space_id)
 
-	# Filter out channels the user (or impersonated role) can't view
+	# Filter channels by VIEW_CHANNEL permission.
+	# In imposter mode, show hidden channels with a lock icon so the admin
+	# can see which channels the previewed role cannot access.
 	var filtered: Array = []
 	for ch in channels:
 		if ch["type"] == ClientModels.ChannelType.CATEGORY:
@@ -58,6 +60,10 @@ func load_space(space_id: String) -> void:
 		var ch_id: String = ch.get("id", "")
 		if Client.has_channel_permission(space_id, ch_id, AccordPermission.VIEW_CHANNEL):
 			filtered.append(ch)
+		elif AppState.is_imposter_mode:
+			var locked_ch: Dictionary = ch.duplicate()
+			locked_ch["locked"] = true
+			filtered.append(locked_ch)
 	channels = filtered
 
 	# Count non-category channels
@@ -173,7 +179,8 @@ func load_space(space_id: String) -> void:
 		create_btn.pressed.connect(_on_create_channel_pressed.bind(space_id, channels))
 		channel_vbox.add_child(create_btn)
 
-	# Auto-select: pending channel if it exists, otherwise first non-voice/non-category channel
+	# Auto-select: pending channel if it exists, otherwise first non-voice/non-category channel.
+	# Skip locked channels — they cannot be selected in imposter mode.
 	var select_id: String = ""
 	if pending_channel_id != "" and channel_item_nodes.has(pending_channel_id):
 		select_id = pending_channel_id
@@ -182,6 +189,8 @@ func load_space(space_id: String) -> void:
 	else:
 		var nsfw_acked: bool = Client.is_nsfw_acked(_current_space_id)
 		for ch in channels:
+			if ch.get("locked", false):
+				continue
 			var ch_type: int = ch.get("type", 0)
 			if ch_type != ClientModels.ChannelType.CATEGORY \
 					and ch_type != ClientModels.ChannelType.VOICE \

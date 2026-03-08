@@ -6,16 +6,19 @@ const TEXT_ICON := preload("res://assets/theme/icons/text_channel.svg")
 const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
 const ANNOUNCEMENT_ICON := preload("res://assets/theme/icons/announcement_channel.svg")
 const FORUM_ICON := preload("res://assets/theme/icons/forum_channel.svg")
+const LOCK_ICON := preload("res://assets/theme/icons/lock.svg")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 
 var channel_id: String = ""
 var space_id: String = ""
+var _is_locked: bool = false
 var _icon_color_default: Color = ThemeManager.get_color("icon_default")
 var _icon_color_hover: Color = ThemeManager.get_color("icon_hover")
 var _icon_color_active: Color = ThemeManager.get_color("icon_active")
 var _channel_data: Dictionary = {}
 var _context_menu: PopupMenu
+var _notification_submenu: PopupMenu
 var _gear_btn: Button
 var _drop_above: bool = false
 var _drop_hovered: bool = false
@@ -32,8 +35,16 @@ func _ready() -> void:
 	add_to_group("themed")
 	pressed.connect(func(): channel_pressed.emit(channel_id))
 
+	_notification_submenu = PopupMenu.new()
+	_notification_submenu.name = "NotificationSubmenu"
+	_notification_submenu.id_pressed.connect(_on_notification_submenu_id_pressed)
+	_notification_submenu.add_radio_check_item("All Messages", 20)
+	_notification_submenu.add_radio_check_item("Only Mentions", 21)
+	_notification_submenu.add_radio_check_item("Muted", 22)
+
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+	_context_menu.add_child(_notification_submenu)
 	add_child(_context_menu)
 
 	gui_input.connect(_on_gui_input)
@@ -42,6 +53,7 @@ func _ready() -> void:
 	active_bg.visible = false
 	active_pill.visible = false
 	AppState.channel_mutes_updated.connect(_on_mutes_updated)
+	AppState.channel_notification_updated.connect(_on_notification_updated)
 
 func _apply_theme() -> void:
 	_icon_color_default = ThemeManager.get_color("icon_default")
@@ -57,6 +69,15 @@ func setup(data: Dictionary) -> void:
 	_channel_data = data
 	channel_name.text = data.get("name", "")
 	tooltip_text = data.get("name", "")
+
+	# Locked channels are visible to admins in imposter mode but not interactive.
+	_is_locked = data.get("locked", false)
+	if _is_locked:
+		type_icon.texture = LOCK_ICON
+		modulate = Color(1.0, 1.0, 1.0, 0.4)
+		disabled = true
+		mouse_default_cursor_shape = CURSOR_ARROW
+		return
 
 	var type: int = data.get("type", ClientModels.ChannelType.TEXT)
 	match type:
@@ -118,8 +139,12 @@ func _apply_text_color() -> void:
 		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
 		channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-	# Dim icon when muted
-	if not channel_id.is_empty() and Client.is_channel_muted(channel_id):
+	# Dim icon when server-muted or client notification level is "muted"
+	var is_dimmed: bool = (not channel_id.is_empty()) and (
+		Client.is_channel_muted(channel_id) or
+		Config.get_channel_notification_level(channel_id) == "muted"
+	)
+	if is_dimmed:
 		if not _channel_data.get("nsfw", false):
 			type_icon.modulate.a = 0.4
 		channel_name.modulate.a = 0.4
@@ -162,6 +187,12 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item("Unmute Channel", 10)
 	else:
 		_context_menu.add_item("Mute Channel", 10)
+	# Notification settings submenu
+	var level: String = Config.get_channel_notification_level(channel_id)
+	_notification_submenu.set_item_checked(0, level == "all")
+	_notification_submenu.set_item_checked(1, level == "mentions")
+	_notification_submenu.set_item_checked(2, level == "muted")
+	_context_menu.add_submenu_node_item("Notification Settings", _notification_submenu, 11)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_context_menu.add_separator()
 		_context_menu.add_item("Edit Channel", 0)
@@ -175,6 +206,16 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		0: _on_edit_channel()
 		1: _on_delete_channel()
 		10: _on_toggle_mute()
+
+func _on_notification_submenu_id_pressed(id: int) -> void:
+	match id:
+		20: Config.set_channel_notification_level(channel_id, "all")
+		21: Config.set_channel_notification_level(channel_id, "mentions")
+		22: Config.set_channel_notification_level(channel_id, "muted")
+
+func _on_notification_updated(updated_channel_id: String) -> void:
+	if updated_channel_id == channel_id:
+		_apply_text_color()
 
 func _on_edit_channel() -> void:
 	var dialog := ChannelEditScene.instantiate()

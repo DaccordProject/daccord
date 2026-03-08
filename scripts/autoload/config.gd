@@ -489,6 +489,19 @@ func set_thread_notifications(thread_id: String, mode: String) -> void:
 		_config.set_value("thread_notifications", thread_id, mode)
 	_save()
 
+## Channel notification settings
+
+func get_channel_notification_level(channel_id: String) -> String:
+	return _config.get_value("channel_notifications", channel_id, "default")
+
+func set_channel_notification_level(channel_id: String, level: String) -> void:
+	if level == "default":
+		_config.set_value("channel_notifications", channel_id, null)
+	else:
+		_config.set_value("channel_notifications", channel_id, level)
+	_save()
+	AppState.channel_notification_updated.emit(channel_id)
+
 ## Recently used emoji
 
 func get_recent_emoji() -> Array:

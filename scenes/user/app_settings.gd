@@ -83,24 +83,33 @@ func _build_voice_page() -> VBoxContainer:
 	var vbox := _page_vbox("Voice & Video")
 
 	# Microphone
-	vbox.add_child(_section_label("INPUT DEVICE"))
-	var mic_dropdown := OptionButton.new()
-	var saved_input: String = Config.voice.get_input_device()
-	var input_devices: PackedStringArray = (
-		AudioServer.get_input_device_list()
-	)
-	for dev in input_devices:
-		mic_dropdown.add_item(dev)
-	for i in mic_dropdown.item_count:
-		if mic_dropdown.get_item_text(i) == saved_input:
-			mic_dropdown.selected = i
-			break
-	mic_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.voice.set_input_device(
-			mic_dropdown.get_item_text(idx)
+	if OS.get_name() == "Web":
+		var web_note := Label.new()
+		web_note.text = "Device selection is managed by your browser."
+		web_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		web_note.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
 		)
-	)
-	vbox.add_child(mic_dropdown)
+		vbox.add_child(web_note)
+	else:
+		vbox.add_child(_section_label("INPUT DEVICE"))
+		var mic_dropdown := OptionButton.new()
+		var saved_input: String = Config.voice.get_input_device()
+		var input_devices: PackedStringArray = (
+			AudioServer.get_input_device_list()
+		)
+		for dev in input_devices:
+			mic_dropdown.add_item(dev)
+		for i in mic_dropdown.item_count:
+			if mic_dropdown.get_item_text(i) == saved_input:
+				mic_dropdown.selected = i
+				break
+		mic_dropdown.item_selected.connect(func(idx: int) -> void:
+			Config.voice.set_input_device(
+				mic_dropdown.get_item_text(idx)
+			)
+		)
+		vbox.add_child(mic_dropdown)
 
 	# Input volume
 	vbox.add_child(_section_label("INPUT VOLUME"))
@@ -128,24 +137,25 @@ func _build_voice_page() -> VBoxContainer:
 	vbox.add_child(input_vol_row)
 
 	# Speaker
-	vbox.add_child(_section_label("OUTPUT DEVICE"))
-	var speaker_dropdown := OptionButton.new()
-	var saved_output: String = Config.voice.get_output_device()
-	var output_devices: PackedStringArray = (
-		AudioServer.get_output_device_list()
-	)
-	for dev in output_devices:
-		speaker_dropdown.add_item(dev)
-	for i in speaker_dropdown.item_count:
-		if speaker_dropdown.get_item_text(i) == saved_output:
-			speaker_dropdown.selected = i
-			break
-	speaker_dropdown.item_selected.connect(func(idx: int) -> void:
-		Config.voice.set_output_device(
-			speaker_dropdown.get_item_text(idx)
+	if OS.get_name() != "Web":
+		vbox.add_child(_section_label("OUTPUT DEVICE"))
+		var speaker_dropdown := OptionButton.new()
+		var saved_output: String = Config.voice.get_output_device()
+		var output_devices: PackedStringArray = (
+			AudioServer.get_output_device_list()
 		)
-	)
-	vbox.add_child(speaker_dropdown)
+		for dev in output_devices:
+			speaker_dropdown.add_item(dev)
+		for i in speaker_dropdown.item_count:
+			if speaker_dropdown.get_item_text(i) == saved_output:
+				speaker_dropdown.selected = i
+				break
+		speaker_dropdown.item_selected.connect(func(idx: int) -> void:
+			Config.voice.set_output_device(
+				speaker_dropdown.get_item_text(idx)
+			)
+		)
+		vbox.add_child(speaker_dropdown)
 
 	# Output volume
 	vbox.add_child(_section_label("OUTPUT VOLUME"))
@@ -224,11 +234,12 @@ func _build_voice_page() -> VBoxContainer:
 	vbox.add_child(sens_row)
 
 	# Camera
-	vbox.add_child(_section_label("CAMERA"))
-	var cam_dropdown := OptionButton.new()
-	cam_dropdown.add_item("System Default Camera")
-	cam_dropdown.disabled = false
-	vbox.add_child(cam_dropdown)
+	if OS.get_name() != "Web":
+		vbox.add_child(_section_label("CAMERA"))
+		var cam_dropdown := OptionButton.new()
+		cam_dropdown.add_item("System Default Camera")
+		cam_dropdown.disabled = false
+		vbox.add_child(cam_dropdown)
 
 	# Video resolution
 	vbox.add_child(_section_label("VIDEO RESOLUTION"))

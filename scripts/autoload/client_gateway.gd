@@ -237,7 +237,7 @@ func _refetch_data(conn: Dictionary, conn_index: int) -> void:
 		_c.fetch.resync_voice_states(space_id)
 		await _c.fetch.refresh_current_user(conn_index)
 	await _c.fetch.fetch_dm_channels()
-	await _c.fetch_relationships()
+	await _c.relationships.fetch_relationships()
 	await _c.fetch.fetch_mutes(conn_index)
 	await _c.fetch.fetch_unread(conn_index)
 	conn["_syncing"] = false

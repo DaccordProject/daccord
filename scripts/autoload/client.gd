@@ -30,6 +30,7 @@ var unread: RefCounted # ClientUnread (loaded dynamically to avoid class_name de
 var emoji # ClientEmoji (typed reference causes circular dep)
 var permissions: RefCounted
 var connection: ClientConnection
+var relationships: ClientRelationships
 
 # --- Data access API (properties) ---
 
@@ -41,9 +42,6 @@ var channels: Array:
 
 var dm_channels: Array:
 	get: return _dm_channel_cache.values()
-
-var relationships: Array:
-	get: return _relationship_cache.values()
 
 var pending_servers: Array:
 	get:
@@ -132,7 +130,7 @@ var _message_queue: Array = []
 var _emoji_download_pending: Dictionary = {} # emoji_id -> true
 
 var _gw: ClientGateway
-var _voice_session: LiveKitAdapter
+var _voice_session # LiveKitAdapter on desktop/mobile, WebVoiceSession on web
 var _idle_timer: Timer
 var _is_auto_idle: bool = false
 var _last_input_time: float = 0.0
@@ -171,11 +169,18 @@ func _ready() -> void:
 	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
+	relationships = ClientRelationships.new(self)
 	# On Android, request dangerous permissions (microphone, camera) early so
 	# they are granted before the user tries to join a voice channel.
 	if OS.get_name() == "Android":
 		OS.request_permissions()
-	_voice_session = LiveKitAdapter.new()
+	if OS.get_name() == "Web":
+		var WebVoiceSessionClass = load(
+			"res://scripts/autoload/web_voice_session.gd"
+		)
+		_voice_session = WebVoiceSessionClass.new()
+	else:
+		_voice_session = LiveKitAdapter.new()
 	add_child(_voice_session)
 	_voice_session.session_state_changed.connect(
 		voice.on_session_state_changed
@@ -196,7 +201,9 @@ func _ready() -> void:
 		voice.on_audio_level_changed
 	)
 	if debug_voice_logs:
-		voice._voice_log("LiveKitAdapter ready")
+		voice._voice_log(
+			"voice session ready platform=%s" % OS.get_name()
+		)
 	# Speaking debounce timer (checks every 200ms for 300ms silence)
 	_speaking_timer = Timer.new()
 	_speaking_timer.wait_time = 0.2
@@ -593,73 +600,6 @@ func rename_group_dm(
 
 func close_dm(channel_id: String) -> void:
 	await mutations.dm.close_dm(channel_id)
-
-# --- Relationship API ---
-
-func fetch_relationships() -> void:
-	for i in _connections.size():
-		var conn: Dictionary = _connections[i]
-		if conn == null or conn.get("status", "") != "connected":
-			continue
-		var client: AccordClient = conn["client"]
-		var cdn: String = conn.get("cdn_url", "")
-		var result: RestResult = await client.users.list_relationships()
-		if result.ok and result.data is Array:
-			for rel in result.data:
-				if rel is AccordRelationship:
-					var d: Dictionary = ClientModels.relationship_to_dict(rel, cdn)
-					var key: String = str(i) + ":" + d["user"].get("id", "")
-					_relationship_cache[key] = d
-	AppState.relationships_updated.emit()
-
-func get_relationship(user_id: String) -> Variant:
-	for key in _relationship_cache:
-		var rel: Dictionary = _relationship_cache[key]
-		if rel["user"].get("id", "") == user_id:
-			return rel
-	return null
-
-func get_friends() -> Array:
-	return _relationship_cache.values().filter(func(r): return r["type"] == 1)
-
-func get_blocked() -> Array:
-	return _relationship_cache.values().filter(func(r): return r["type"] == 2)
-
-func get_pending_incoming() -> Array:
-	return _relationship_cache.values().filter(func(r): return r["type"] == 3)
-
-func get_pending_outgoing() -> Array:
-	return _relationship_cache.values().filter(func(r): return r["type"] == 4)
-
-func send_friend_request(user_id: String) -> void:
-	var conn = _first_connected_conn()
-	if conn == null:
-		return
-	var client: AccordClient = conn["client"]
-	await client.users.put_relationship(user_id, {"type": 1})
-
-func accept_friend_request(user_id: String) -> void:
-	await send_friend_request(user_id)
-
-func decline_friend_request(user_id: String) -> void:
-	var conn = _first_connected_conn()
-	if conn == null:
-		return
-	var client: AccordClient = conn["client"]
-	await client.users.delete_relationship(user_id)
-
-func block_user(user_id: String) -> void:
-	var conn = _first_connected_conn()
-	if conn == null:
-		return
-	var client: AccordClient = conn["client"]
-	await client.users.put_relationship(user_id, {"type": 2})
-
-func unblock_user(user_id: String) -> void:
-	await decline_friend_request(user_id)
-
-func remove_friend(user_id: String) -> void:
-	await decline_friend_request(user_id)
 
 # --- Channel mute API ---
 

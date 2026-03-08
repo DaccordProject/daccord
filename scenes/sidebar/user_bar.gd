@@ -1,5 +1,7 @@
 extends PanelContainer
 
+const _APP_SETTINGS_SCENE := preload("res://scenes/user/app_settings.tscn")
+
 var _status_popup: PopupMenu = null
 
 @onready var avatar: ColorRect = $HBox/Avatar
@@ -182,11 +184,8 @@ func _on_menu_id_pressed(id: int) -> void:
 			_show_import_dialog()
 
 func _show_app_settings() -> void:
-	var AppSettingsScene: PackedScene = load(
-		"res://scenes/user/app_settings.tscn"
-	)
-	if AppSettingsScene:
-		var settings: ColorRect = AppSettingsScene.instantiate()
+	if _APP_SETTINGS_SCENE:
+		var settings: ColorRect = _APP_SETTINGS_SCENE.instantiate()
 		get_tree().root.add_child(settings)
 
 func _show_server_settings() -> void:
@@ -412,6 +411,7 @@ func _show_import_dialog() -> void:
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
 	fd.popup_centered(Vector2i(600, 400))
+
 
 func _show_import_name_dialog(
 	import_path: String,

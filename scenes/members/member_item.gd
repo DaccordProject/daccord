@@ -84,7 +84,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 	idx += 1
 
 	# Friend / relationship actions
-	var rel = Client.get_relationship(user_id)
+	var rel = Client.relationships.get_relationship(user_id)
 	if rel == null:
 		_context_menu.add_item("Add Friend", idx)
 		idx += 1
@@ -168,15 +168,15 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		"Message":
 			Client.create_dm(user_id)
 		"Add Friend":
-			Client.send_friend_request(user_id)
+			Client.relationships.send_friend_request(user_id)
 		"Remove Friend":
-			Client.remove_friend(user_id)
+			Client.relationships.remove_friend(user_id)
 		"Accept Friend Request":
-			Client.accept_friend_request(user_id)
+			Client.relationships.accept_friend_request(user_id)
 		"Block":
-			Client.block_user(user_id)
+			Client.relationships.block_user(user_id)
 		"Unblock":
-			Client.unblock_user(user_id)
+			Client.relationships.unblock_user(user_id)
 		"Report":
 			var dialog := ReportDialogScene.instantiate()
 			get_tree().root.add_child(dialog)

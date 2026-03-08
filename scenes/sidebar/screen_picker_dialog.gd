@@ -8,6 +8,9 @@ signal source_selected(source: Dictionary)
 func _ready() -> void:
 	_bind_modal_nodes($CenterContainer/Panel, 440, 400)
 	_close_btn.pressed.connect(_close)
+	if OS.get_name() == "Web":
+		_add_error_label("Screen sharing is not supported in the web client")
+		return
 	var status: Dictionary = LiveKitScreenCapture.check_permissions()
 	if status.get("status", -1) == LiveKitScreenCapture.PERMISSION_ERROR:
 		_add_error_label(status.get("summary", "Screen capture permission denied"))

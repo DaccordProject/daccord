@@ -4,6 +4,7 @@ signal channel_pressed(channel_id: String)
 
 const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
 const CHAT_ICON := preload("res://assets/theme/icons/chat.svg")
+const LOCK_ICON := preload("res://assets/theme/icons/lock.svg")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
@@ -80,6 +81,15 @@ func setup(data: Dictionary) -> void:
 	_channel_data = data
 	channel_name.text = data.get("name", "")
 	channel_button.tooltip_text = data.get("name", "")
+
+	# Locked channels are shown to admins in imposter mode but are not interactive.
+	if data.get("locked", false):
+		type_icon.texture = LOCK_ICON
+		channel_button.modulate = Color(1.0, 1.0, 1.0, 0.4)
+		channel_button.disabled = true
+		channel_button.mouse_default_cursor_shape = CURSOR_ARROW
+		return
+
 	type_icon.texture = VOICE_ICON
 
 	_has_unread = data.get("unread", false)
