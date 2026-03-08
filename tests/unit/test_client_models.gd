@@ -728,3 +728,64 @@ func test_embed_empty_fields_not_included() -> void:
 	var embed: Dictionary = d["embeds"][0]
 	# Empty fields array should not be included
 	assert_false(embed.has("fields"))
+
+
+# =============================================================================
+# relationship_to_dict
+# =============================================================================
+
+func _make_relationship(overrides: Dictionary = {}) -> AccordRelationship:
+	var d := {
+		"id": "rel_1",
+		"user": {"id": "u_1", "username": "alice", "display_name": "Alice"},
+		"type": 1,
+		"since": "2025-03-01T00:00:00Z",
+	}
+	d.merge(overrides, true)
+	return AccordRelationship.from_dict(d)
+
+
+func test_relationship_to_dict_id() -> void:
+	var rel := _make_relationship()
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_eq(d["id"], "rel_1")
+
+
+func test_relationship_to_dict_type() -> void:
+	var rel := _make_relationship({"type": 2})
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_eq(d["type"], 2)
+
+
+func test_relationship_to_dict_since() -> void:
+	var rel := _make_relationship()
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_eq(d["since"], "2025-03-01T00:00:00Z")
+
+
+func test_relationship_to_dict_user_username() -> void:
+	var rel := _make_relationship()
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_eq(d["user"]["username"], "alice")
+
+
+func test_relationship_to_dict_user_display_name() -> void:
+	var rel := _make_relationship()
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_eq(d["user"]["display_name"], "Alice")
+
+
+func test_relationship_to_dict_user_id() -> void:
+	var rel := _make_relationship()
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_eq(d["user"]["id"], "u_1")
+
+
+func test_relationship_to_dict_null_user_gives_empty_dict() -> void:
+	var rel := AccordRelationship.new()
+	rel.id = "rel_2"
+	rel.user = null
+	rel.type = 3
+	rel.since = ""
+	var d: Dictionary = ClientModels.relationship_to_dict(rel)
+	assert_true(d["user"].is_empty())
