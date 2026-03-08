@@ -596,6 +596,30 @@ func set_last_update_check(timestamp: int) -> void:
 	_config.set_value("updates", "last_check_timestamp", timestamp)
 	_save()
 
+## Daccord Sync server
+
+func get_sync_base_url() -> String:
+	return _config.get_value("sync", "base_url", "https://sync.daccord.app")
+func set_sync_base_url(url: String) -> void:
+	_config.set_value("sync", "base_url", url); _save()
+func get_sync_email() -> String:
+	return _config.get_value("sync", "email", "")
+func set_sync_email(email: String) -> void:
+	_config.set_value("sync", "email", email if not email.is_empty() else null); _save()
+func get_sync_encrypted_token() -> String:
+	return _config.get_value("sync", "encrypted_token", "")
+func set_sync_encrypted_token(enc: String) -> void:
+	_config.set_value("sync", "encrypted_token", enc if not enc.is_empty() else null); _save()
+func get_sync_version() -> int:
+	return _config.get_value("sync", "version", 0)
+func set_sync_version(v: int) -> void:
+	_config.set_value("sync", "version", v); _save()
+func clear_sync_credentials() -> void:
+	_config.set_value("sync", "email", null)
+	_config.set_value("sync", "encrypted_token", null)
+	_config.set_value("sync", "version", null)
+	_save()
+
 ## Master server URL
 
 func get_master_server_url() -> String:
@@ -738,6 +762,24 @@ func _copy_directory(src: String, dst: String) -> void:
 			)
 		fname = dir.get_next()
 	dir.list_dir_end()
+
+## Returns a Dictionary of space_id → folder_name for all non-empty folder mappings.
+func get_folder_map() -> Dictionary:
+	var folders: Dictionary = {}
+	if _config.has_section("folders"):
+		for key in _config.get_section_keys("folders"):
+			var fname: String = _config.get_value("folders", key, "")
+			if not fname.is_empty():
+				folders[key] = fname
+	return folders
+
+## Returns the ordered list of profile slugs.
+func get_profile_order() -> Array:
+	return _registry.get_value("order", "list", [])
+
+## Returns the display name for a profile slug.
+func get_profile_name(slug: String) -> String:
+	return _registry.get_value("profile_" + slug, "name", slug)
 
 func _remove_directory_recursive(path: String) -> void:
 	var dir := DirAccess.open(path)
