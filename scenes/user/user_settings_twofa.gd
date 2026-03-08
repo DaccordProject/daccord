@@ -134,6 +134,23 @@ func build(
 	# Check initial 2FA status from user data
 	if user.get("mfa_enabled", false):
 		_show_enabled_state()
+	# Refresh from server to get authoritative status
+	_refresh_mfa_status()
+
+func _refresh_mfa_status() -> void:
+	var client: AccordClient = _get_client()
+	if client == null:
+		return
+	var result: RestResult = await client.users.get_me()
+	if not result.ok:
+		return
+	if not result.data is AccordUser:
+		return
+	var fetched_user: AccordUser = result.data
+	if fetched_user.mfa_enabled:
+		_show_enabled_state()
+	else:
+		_show_disabled_state()
 
 func _show_enabled_state() -> void:
 	_status_label.text = "Two-factor authentication is enabled."
