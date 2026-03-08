@@ -53,6 +53,11 @@ jobs:
             artifact: daccord-android-arm64
             extension: apk
             os: ubuntu-latest
+          - platform: web
+            preset: Web
+            artifact: daccord-web
+            extension: zip
+            os: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -183,6 +188,7 @@ jobs:
             windows)     LIB="addons/godot-livekit/bin/libgodot-livekit.windows.x86_64.dll" ;;
             macos)       LIB="addons/godot-livekit/bin/libgodot-livekit.macos.arm64.dylib" ;;
             android)     LIB="addons/godot-livekit/bin/libgodot-livekit.android.arm64.so" ;;
+            web)         LIB="addons/godot-livekit/bin/libgodot-livekit.web.wasm32.wasm" ;;
           esac
           if [ ! -f "$LIB" ]; then
             echo "::warning::godot-livekit binary $LIB not found — removing GDExtension to prevent crash"
@@ -256,7 +262,7 @@ jobs:
           rm -f project.godot.bak
 
       - name: Download GodotLite template
-        if: matrix.platform != 'linux-arm64' && matrix.platform != 'android'
+        if: matrix.platform != 'linux-arm64' && matrix.platform != 'android' && matrix.platform != 'web'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -452,6 +458,12 @@ jobs:
         if: matrix.platform == 'android'
         run: |
           cp dist/build/android/daccord.apk ${{ matrix.artifact }}.apk
+
+      - name: Package Web
+        if: matrix.platform == 'web'
+        run: |
+          cd dist/build/web
+          zip -r ../../../${{ matrix.artifact }}.zip .
 
       - name: Package macOS
         if: matrix.platform == 'macos'
