@@ -284,6 +284,7 @@ func test_join_voice_channel_rest_failure_does_not_emit_voice_joined() -> void:
 
 	var result: bool = await client.voice.join_voice_channel("c_1")
 
+	assert_push_error("Failed to join voice")
 	assert_false(result)
 	assert_signal_not_emitted(AppState, "voice_joined")
 
@@ -300,6 +301,7 @@ func test_join_voice_channel_no_connection_does_not_emit_voice_joined() -> void:
 
 	var result: bool = await client.voice.join_voice_channel("c_1")
 
+	assert_push_error("No connection for voice channel")
 	assert_false(result)
 	assert_signal_not_emitted(AppState, "voice_joined")
 
