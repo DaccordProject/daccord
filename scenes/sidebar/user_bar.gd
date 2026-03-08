@@ -1,12 +1,8 @@
 extends PanelContainer
 
-## Index of the Sync tab in AppSettings._get_sections().
-## Must match the position of "Sync" in AppSettings._get_sections().
-const SYNC_SETTINGS_PAGE_INDEX := 6
 const _APP_SETTINGS_SCENE := preload("res://scenes/user/app_settings.tscn")
 
 var _status_popup: PopupMenu = null
-var _sync_badge: Button = null
 
 @onready var avatar: ColorRect = $HBox/Avatar
 @onready var display_name: Label = $HBox/Info/DisplayName
@@ -67,12 +63,6 @@ func _ready() -> void:
 	AppState.dm_mode_entered.connect(_on_active_view_changed)
 	AppState.channel_selected.connect(_on_active_view_changed)
 	AppState.config_changed.connect(_on_config_changed)
-	# Founder sync badge — inserted before the menu button
-	_sync_badge = _build_sync_badge()
-	$HBox.add_child(_sync_badge)
-	$HBox.move_child(_sync_badge, menu_button.get_index())
-	SyncManager.sync_state_changed.connect(_on_sync_state_changed)
-	_on_sync_state_changed(SyncManager.state)
 
 func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")
@@ -421,44 +411,6 @@ func _show_import_dialog() -> void:
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
 	fd.popup_centered(Vector2i(600, 400))
-
-func _build_sync_badge() -> Button:
-	var btn := Button.new()
-	btn.text = "● Sync"
-	btn.flat = true
-	btn.tooltip_text = "Daccord Sync — Founder"
-	btn.visible = false
-	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	btn.add_theme_font_size_override("font_size", 11)
-	btn.add_theme_color_override(
-		"font_color", ThemeManager.get_color("accent")
-	)
-	btn.add_theme_color_override(
-		"font_hover_color", ThemeManager.get_color("accent")
-	)
-	var badge_style := StyleBoxFlat.new()
-	badge_style.bg_color = Color(ThemeManager.get_color("accent"), 0.15)
-	badge_style.set_corner_radius_all(4)
-	badge_style.content_margin_left = 6.0
-	badge_style.content_margin_right = 6.0
-	badge_style.content_margin_top = 2.0
-	badge_style.content_margin_bottom = 2.0
-	btn.add_theme_stylebox_override("normal", badge_style)
-	btn.pressed.connect(_on_sync_badge_pressed)
-	return btn
-
-
-func _on_sync_state_changed(new_state: SyncManager.SyncState) -> void:
-	if _sync_badge == null:
-		return
-	_sync_badge.visible = (new_state != SyncManager.SyncState.DISCONNECTED)
-
-
-func _on_sync_badge_pressed() -> void:
-	if _APP_SETTINGS_SCENE:
-		var settings: ColorRect = _APP_SETTINGS_SCENE.instantiate()
-		settings.initial_page = SYNC_SETTINGS_PAGE_INDEX
-		get_tree().root.add_child(settings)
 
 
 func _show_import_name_dialog(

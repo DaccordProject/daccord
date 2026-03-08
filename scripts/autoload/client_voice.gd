@@ -123,7 +123,6 @@ func _connect_voice_backend(
 ) -> bool:
 	if _c._voice_session == null:
 		_voice_log("connect backend: no voice session")
-		push_warning("Voice session unavailable")
 		return false
 	if info.livekit_url == null or info.token == null:
 		_voice_log("connect backend: missing livekit credentials")
