@@ -36,6 +36,7 @@ SoundManager="*res://scripts/autoload/sound_manager.gd"
 Updater="*res://scripts/autoload/updater.gd"
 ThemeManager="*res://scripts/autoload/theme_manager.gd"
 UriHandler="*res://scripts/autoload/uri_handler.gd"
+SyncManager="*res://scripts/autoload/sync_manager.gd"
 
 [debug]
 
