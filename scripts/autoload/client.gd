@@ -386,6 +386,15 @@ func get_messages_for_channel(cid: String) -> Array:
 func get_user_by_id(uid: String) -> Dictionary:
 	return _user_cache.get(uid, {})
 
+func find_user_id_by_username(username: String) -> String:
+	var lower: String = username.to_lower()
+	for uid: String in _user_cache:
+		var u: Dictionary = _user_cache[uid]
+		if u.get("username", "").to_lower() == lower \
+				or u.get("display_name", "").to_lower() == lower:
+			return uid
+	return ""
+
 func get_active_user() -> Dictionary:
 	var conn = _conn_for_active_view()
 	if conn != null:

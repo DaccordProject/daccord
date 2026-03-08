@@ -40,13 +40,7 @@ func _on_send() -> void:
 	_close()
 
 func _find_user_id(username: String) -> String:
-	var lower: String = username.to_lower()
-	for uid: String in Client._user_cache:
-		var u: Dictionary = Client._user_cache[uid]
-		if u.get("username", "").to_lower() == lower \
-				or u.get("display_name", "").to_lower() == lower:
-			return uid
-	return ""
+	return Client.find_user_id_by_username(username)
 
 func _close() -> void:
 	queue_free()
