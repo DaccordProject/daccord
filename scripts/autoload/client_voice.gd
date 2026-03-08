@@ -96,7 +96,9 @@ func join_voice_channel(channel_id: String) -> bool:
 				"Voice backend unavailable — server returned no credentials"
 			)
 			return false
-		_connect_voice_backend(info)
+		var connected: bool = _connect_voice_backend(info)
+		if not connected:
+			return false
 	else:
 		_voice_log(
 			"join_voice_channel no server_update data_type=%s" % [
@@ -113,14 +115,14 @@ func join_voice_channel(channel_id: String) -> bool:
 
 func _connect_voice_backend(
 	info: AccordVoiceServerUpdate,
-) -> void:
+) -> bool:
 	if _c._voice_session == null:
 		_voice_log("connect backend: no voice session")
 		push_warning("Voice session unavailable")
-		return
+		return false
 	if info.livekit_url == null or info.token == null:
 		_voice_log("connect backend: missing livekit credentials")
-		return
+		return false
 	_voice_log("connect backend: livekit url=%s" % str(info.livekit_url))
 	# Flag intentional so the intermediate DISCONNECTED state from
 	# connect_to_room() tearing down the old room doesn't trigger
@@ -130,6 +132,7 @@ func _connect_voice_backend(
 		str(info.livekit_url), str(info.token)
 	)
 	_intentional_disconnect = false
+	return true
 
 func leave_voice_channel() -> bool:
 	var channel_id := AppState.voice_channel_id
@@ -391,15 +394,34 @@ func _try_auto_reconnect() -> void:
 		return
 	if AppState.voice_channel_id.is_empty():
 		return
-	if _c._voice_server_info.is_empty():
-		return
 	if _c._voice_session == null or not _c._voice_session.is_inside_tree():
 		return
-	_voice_log("auto-reconnect: attempting with stored credentials")
+	var channel_id: String = AppState.voice_channel_id
+	var client: AccordClient = _c._client_for_channel(channel_id)
+	if client == null:
+		_voice_log("auto-reconnect: no client for channel")
+		return
+	_voice_log("auto-reconnect: fetching fresh token")
 	_auto_reconnect_attempted = true
-	var info: AccordVoiceServerUpdate = AccordVoiceServerUpdate.from_dict(
-		_c._voice_server_info
+	var result: RestResult = await client.voice.join(
+		channel_id, AppState.is_voice_muted, AppState.is_voice_deafened
 	)
+	if not result.ok:
+		var err: String = (
+			result.error.message if result.error else "unknown"
+		)
+		_voice_log("auto-reconnect: token refresh failed err=%s" % err)
+		push_error("[Client] Voice auto-reconnect token refresh failed: ", err)
+		AppState.voice_error.emit(
+			"Voice reconnect failed — could not refresh credentials"
+		)
+		return
+	if not result.data is AccordVoiceServerUpdate:
+		_voice_log("auto-reconnect: unexpected data from join")
+		return
+	_voice_log("auto-reconnect: got fresh token, reconnecting")
+	var info: AccordVoiceServerUpdate = result.data
+	_c._voice_server_info = info.to_dict()
 	_connect_voice_backend(info)
 
 func _cleanup_failed_join_state(channel_id: String) -> void:

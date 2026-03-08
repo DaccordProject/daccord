@@ -132,7 +132,7 @@ var _message_queue: Array = []
 var _emoji_download_pending: Dictionary = {} # emoji_id -> true
 
 var _gw: ClientGateway
-var _voice_session: LiveKitAdapter
+var _voice_session # LiveKitAdapter on desktop/mobile, WebVoiceSession on web
 var _idle_timer: Timer
 var _is_auto_idle: bool = false
 var _last_input_time: float = 0.0
@@ -175,7 +175,13 @@ func _ready() -> void:
 	# they are granted before the user tries to join a voice channel.
 	if OS.get_name() == "Android":
 		OS.request_permissions()
-	_voice_session = LiveKitAdapter.new()
+	if OS.get_name() == "Web":
+		var WebVoiceSessionClass = load(
+			"res://scripts/autoload/web_voice_session.gd"
+		)
+		_voice_session = WebVoiceSessionClass.new()
+	else:
+		_voice_session = LiveKitAdapter.new()
 	add_child(_voice_session)
 	_voice_session.session_state_changed.connect(
 		voice.on_session_state_changed
@@ -196,7 +202,9 @@ func _ready() -> void:
 		voice.on_audio_level_changed
 	)
 	if debug_voice_logs:
-		voice._voice_log("LiveKitAdapter ready")
+		voice._voice_log(
+			"voice session ready platform=%s" % OS.get_name()
+		)
 	# Speaking debounce timer (checks every 200ms for 300ms silence)
 	_speaking_timer = Timer.new()
 	_speaking_timer.wait_time = 0.2
