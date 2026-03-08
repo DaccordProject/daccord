@@ -42,6 +42,9 @@ var channels: Array:
 var dm_channels: Array:
 	get: return _dm_channel_cache.values()
 
+var relationships: Array:
+	get: return _relationship_cache.values()
+
 var pending_servers: Array:
 	get:
 		var result: Array = []
@@ -96,6 +99,9 @@ var _thread_message_cache: Dictionary = {} # parent_message_id -> Array of messa
 var _thread_unread: Dictionary = {} # parent_message_id -> true
 var _thread_mention_count: Dictionary = {} # parent_message_id -> int
 var _forum_post_cache: Dictionary = {} # channel_id -> Array of post dicts
+
+# Relationship cache: "{conn_index}:{user_id}" -> relationship dict
+var _relationship_cache: Dictionary = {}
 
 # Channel mute tracking (server-side, per-user)
 var _muted_channels: Dictionary = {}        # channel_id -> true
@@ -578,6 +584,73 @@ func rename_group_dm(
 
 func close_dm(channel_id: String) -> void:
 	await mutations.dm.close_dm(channel_id)
+
+# --- Relationship API ---
+
+func fetch_relationships() -> void:
+	for i in _connections.size():
+		var conn: Dictionary = _connections[i]
+		if conn == null or conn.get("status", "") != "connected":
+			continue
+		var client: AccordClient = conn["client"]
+		var cdn: String = conn.get("cdn_url", "")
+		var result: RestResult = await client.users.list_relationships()
+		if result.ok and result.data is Array:
+			for rel in result.data:
+				if rel is AccordRelationship:
+					var d: Dictionary = ClientModels.relationship_to_dict(rel, cdn)
+					var key: String = str(i) + ":" + d["user"].get("id", "")
+					_relationship_cache[key] = d
+	AppState.relationships_updated.emit()
+
+func get_relationship(user_id: String) -> Variant:
+	for key in _relationship_cache:
+		var rel: Dictionary = _relationship_cache[key]
+		if rel["user"].get("id", "") == user_id:
+			return rel
+	return null
+
+func get_friends() -> Array:
+	return _relationship_cache.values().filter(func(r): return r["type"] == 1)
+
+func get_blocked() -> Array:
+	return _relationship_cache.values().filter(func(r): return r["type"] == 2)
+
+func get_pending_incoming() -> Array:
+	return _relationship_cache.values().filter(func(r): return r["type"] == 3)
+
+func get_pending_outgoing() -> Array:
+	return _relationship_cache.values().filter(func(r): return r["type"] == 4)
+
+func send_friend_request(user_id: String) -> void:
+	var conn = _first_connected_conn()
+	if conn == null:
+		return
+	var client: AccordClient = conn["client"]
+	await client.users.put_relationship(user_id, {"type": 1})
+
+func accept_friend_request(user_id: String) -> void:
+	await send_friend_request(user_id)
+
+func decline_friend_request(user_id: String) -> void:
+	var conn = _first_connected_conn()
+	if conn == null:
+		return
+	var client: AccordClient = conn["client"]
+	await client.users.delete_relationship(user_id)
+
+func block_user(user_id: String) -> void:
+	var conn = _first_connected_conn()
+	if conn == null:
+		return
+	var client: AccordClient = conn["client"]
+	await client.users.put_relationship(user_id, {"type": 2})
+
+func unblock_user(user_id: String) -> void:
+	await decline_friend_request(user_id)
+
+func remove_friend(user_id: String) -> void:
+	await decline_friend_request(user_id)
 
 # --- Channel mute API ---
 

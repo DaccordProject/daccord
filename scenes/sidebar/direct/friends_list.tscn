@@ -1,0 +1,83 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/sidebar/direct/friends_list.gd" id="1"]
+
+[node name="FriendsList" type="VBoxContainer"]
+offset_right = 240.0
+offset_bottom = 600.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1")
+
+[node name="TabBar" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="AllBtn" type="Button" parent="TabBar"]
+layout_mode = 2
+flat = true
+text = "All"
+tooltip_text = "All Friends"
+
+[node name="OnlineBtn" type="Button" parent="TabBar"]
+layout_mode = 2
+flat = true
+text = "Online"
+tooltip_text = "Online Friends"
+
+[node name="PendingBtn" type="Button" parent="TabBar"]
+layout_mode = 2
+flat = true
+text = "Pending"
+tooltip_text = "Pending Requests"
+
+[node name="PendingBadge" type="Label" parent="TabBar/PendingBtn"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+grow_horizontal = 0
+grow_vertical = 2
+offset_left = -16.0
+offset_top = -4.0
+offset_right = 4.0
+offset_bottom = 12.0
+visible = false
+theme_override_font_sizes/font_size = 10
+
+[node name="BlockedBtn" type="Button" parent="TabBar"]
+layout_mode = 2
+flat = true
+text = "Blocked"
+tooltip_text = "Blocked Users"
+
+[node name="Spacer" type="Control" parent="TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AddFriendBtn" type="Button" parent="TabBar"]
+layout_mode = 2
+flat = true
+text = "+"
+tooltip_text = "Add Friend"
+
+[node name="EmptyLabel" type="Label" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "No friends here yet."
+visible = false
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ListVBox" type="VBoxContainer" parent="ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4

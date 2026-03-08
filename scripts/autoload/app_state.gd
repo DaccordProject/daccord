@@ -135,6 +135,14 @@ signal thread_typing_stopped(thread_id: String)
 signal forum_posts_updated(channel_id: String)
 @warning_ignore("unused_signal")
 signal channel_mutes_updated()
+@warning_ignore("unused_signal")
+signal channel_notification_updated(channel_id: String)
+
+# Friends / relationships
+@warning_ignore("unused_signal")
+signal relationships_updated()
+@warning_ignore("unused_signal")
+signal friend_request_received(user_id: String)
 
 # Auto-update signals
 @warning_ignore("unused_signal")

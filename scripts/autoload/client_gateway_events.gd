@@ -202,3 +202,36 @@ func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> v
 
 func on_voice_signal(_data: Dictionary, _conn_index: int) -> void:
 	pass # LiveKit handles signaling internally
+
+# --- Relationship events ---
+
+func on_relationship_add(rel: AccordRelationship, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var cdn: String = _c._connections[conn_index].get("cdn_url", "")
+	var d: Dictionary = ClientModels.relationship_to_dict(rel, cdn)
+	var user_id: String = d["user"].get("id", "")
+	var key: String = str(conn_index) + ":" + user_id
+	_c._relationship_cache[key] = d
+	AppState.relationships_updated.emit()
+	if rel.type == 3:  # PENDING_INCOMING
+		AppState.friend_request_received.emit(user_id)
+
+func on_relationship_update(rel: AccordRelationship, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var cdn: String = _c._connections[conn_index].get("cdn_url", "")
+	var d: Dictionary = ClientModels.relationship_to_dict(rel, cdn)
+	var key: String = str(conn_index) + ":" + d["user"].get("id", "")
+	_c._relationship_cache[key] = d
+	AppState.relationships_updated.emit()
+
+func on_relationship_remove(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var user_id: String = str(data.get("user_id", ""))
+	if user_id.is_empty():
+		return
+	var key: String = str(conn_index) + ":" + user_id
+	_c._relationship_cache.erase(key)
+	AppState.relationships_updated.emit()

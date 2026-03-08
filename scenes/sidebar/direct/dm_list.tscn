@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/direct/dm_list.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/direct/friends_list.tscn" id="2"]
 
 [sub_resource type="StyleBoxFlat" id="dm_panel_bg"]
 bg_color = Color(0.184, 0.192, 0.212, 1)
@@ -15,41 +16,67 @@ script = ExtResource("1")
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 0
 
-[node name="SearchContainer" type="MarginContainer" parent="VBox"]
+[node name="TabRow" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="FriendsBtn" type="Button" parent="VBox/TabRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+flat = true
+text = "Friends"
+
+[node name="MessagesBtn" type="Button" parent="VBox/TabRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+flat = true
+text = "Messages"
+
+[node name="FriendsList" parent="VBox" instance=ExtResource("2")]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DMPanel" type="VBoxContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+visible = false
+
+[node name="SearchContainer" type="MarginContainer" parent="VBox/DMPanel"]
 layout_mode = 2
 
-[node name="Search" type="LineEdit" parent="VBox/SearchContainer"]
+[node name="Search" type="LineEdit" parent="VBox/DMPanel/SearchContainer"]
 layout_mode = 2
 placeholder_text = "Find or start a conversation"
 
-[node name="HeaderMargin" type="MarginContainer" parent="VBox"]
+[node name="HeaderMargin" type="MarginContainer" parent="VBox/DMPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_right = 8
 
-[node name="HeaderRow" type="HBoxContainer" parent="VBox/HeaderMargin"]
+[node name="HeaderRow" type="HBoxContainer" parent="VBox/DMPanel/HeaderMargin"]
 layout_mode = 2
 
-[node name="HeaderLabel" type="Label" parent="VBox/HeaderMargin/HeaderRow"]
+[node name="HeaderLabel" type="Label" parent="VBox/DMPanel/HeaderMargin/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "DIRECT MESSAGES"
 
-[node name="NewGroupBtn" type="Button" parent="VBox/HeaderMargin/HeaderRow"]
+[node name="NewGroupBtn" type="Button" parent="VBox/DMPanel/HeaderMargin/HeaderRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(24, 24)
 text = "+"
 flat = true
 tooltip_text = "New Group DM"
 
-[node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
+[node name="ScrollContainer" type="ScrollContainer" parent="VBox/DMPanel"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="DMVBox" type="VBoxContainer" parent="VBox/ScrollContainer"]
+[node name="DMVBox" type="VBoxContainer" parent="VBox/DMPanel/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2

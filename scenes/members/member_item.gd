@@ -83,6 +83,25 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.add_item("Message", idx)
 	idx += 1
 
+	# Friend / relationship actions
+	var rel = Client.get_relationship(user_id)
+	if rel == null:
+		_context_menu.add_item("Add Friend", idx)
+		idx += 1
+	elif rel["type"] == 1:  # FRIEND
+		_context_menu.add_item("Remove Friend", idx)
+		idx += 1
+	elif rel["type"] == 3:  # PENDING_INCOMING
+		_context_menu.add_item("Accept Friend Request", idx)
+		idx += 1
+
+	var is_blocked: bool = rel != null and rel["type"] == 2
+	if is_blocked:
+		_context_menu.add_item("Unblock", idx)
+	else:
+		_context_menu.add_item("Block", idx)
+	idx += 1
+
 	_context_menu.add_item("Report", idx)
 	idx += 1
 
@@ -148,6 +167,16 @@ func _on_context_menu_id_pressed(id: int) -> void:
 	match label:
 		"Message":
 			Client.create_dm(user_id)
+		"Add Friend":
+			Client.send_friend_request(user_id)
+		"Remove Friend":
+			Client.remove_friend(user_id)
+		"Accept Friend Request":
+			Client.accept_friend_request(user_id)
+		"Block":
+			Client.block_user(user_id)
+		"Unblock":
+			Client.unblock_user(user_id)
 		"Report":
 			var dialog := ReportDialogScene.instantiate()
 			get_tree().root.add_child(dialog)

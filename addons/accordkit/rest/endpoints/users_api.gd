@@ -82,3 +82,36 @@ func list_connections() -> RestResult:
 ## Lists all muted channel IDs for the current user.
 func list_mutes() -> RestResult:
 	return await _rest.make_request("GET", "/users/@me/mutes")
+
+
+## Lists all channels with unread messages for the current user.
+## Each entry is a dict with at least "channel_id" and optionally "mention_count".
+func list_unread() -> RestResult:
+	return await _rest.make_request("GET", "/users/@me/unread")
+
+
+## Lists all relationships for the current user.
+func list_relationships() -> RestResult:
+	var result: RestResult = await _rest.make_request("GET", "/users/@me/relationships")
+	if result.ok and result.data is Array:
+		var rels := []
+		for item in result.data:
+			if item is Dictionary:
+				rels.append(AccordRelationship.from_dict(item))
+		result.data = rels
+	return result
+
+
+## Creates or updates a relationship with another user.
+## data should contain {"type": int} where 1=friend request, 2=block.
+func put_relationship(user_id: String, data: Dictionary) -> RestResult:
+	return await _rest.make_request(
+		"PUT", "/users/@me/relationships/" + user_id, data
+	)
+
+
+## Removes a relationship (unfriend, decline, cancel, or unblock).
+func delete_relationship(user_id: String) -> RestResult:
+	return await _rest.make_request(
+		"DELETE", "/users/@me/relationships/" + user_id
+	)

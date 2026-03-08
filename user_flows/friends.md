@@ -72,16 +72,17 @@ User clicks "Block"
 
 | File | Role |
 |------|------|
-| `addons/accordkit/rest/endpoints/users_api.gd` | Would host relationship REST methods (currently: user CRUD, DM creation) |
-| `addons/accordkit/core/accord_client.gd` | Would declare relationship gateway signals |
-| `addons/accordkit/models/accord_relationship.gd` | New model: AccordRelationship (id, user, type, since) |
-| `scripts/autoload/app_state.gd` | Would declare `relationships_updated` signal |
-| `scripts/autoload/client.gd` | Would host relationship cache + methods |
-| `scripts/autoload/client_models.gd` | Would add `relationship_to_dict()` conversion |
-| `scenes/sidebar/direct/dm_list.gd` | Would gain a friends tab header |
-| `scenes/sidebar/direct/friends_list.gd` | New scene: friends list with filter tabs |
-| `scenes/sidebar/direct/friend_item.gd` | New scene: friend row (avatar, name, status, actions) |
-| `scenes/members/member_item.gd` | Context menu gains "Add Friend" / "Block" items (line 79) |
+| `addons/accordkit/rest/endpoints/users_api.gd` | Relationship REST methods: `list_relationships`, `put_relationship`, `delete_relationship` |
+| `addons/accordkit/core/accord_client.gd` | Relationship gateway signals: `relationship_add`, `relationship_update`, `relationship_remove` |
+| `addons/accordkit/models/accord_relationship.gd` | AccordRelationship model (id, user, type, since) |
+| `scripts/autoload/app_state.gd` | `relationships_updated` and `friend_request_received` signals |
+| `scripts/autoload/client.gd` | Relationship cache + public methods |
+| `scripts/autoload/client_models.gd` | `relationship_to_dict()` conversion |
+| `scenes/sidebar/direct/dm_list.gd` | Friends/Messages tab toggle header |
+| `scenes/sidebar/direct/friends_list.gd` | Friends list with All/Online/Pending/Blocked tabs |
+| `scenes/sidebar/direct/friend_item.gd` | Friend row (avatar, name, status, action buttons) |
+| `scenes/sidebar/direct/add_friend_dialog.gd` | Add Friend by username dialog |
+| `scenes/members/member_item.gd` | Context menu: Add Friend, Remove Friend, Accept Friend Request, Block, Unblock |
 
 ## Implementation Details
 
@@ -308,23 +309,23 @@ When a user is blocked:
 
 ## Implementation Status
 
-- [ ] AccordRelationship model
-- [ ] UsersApi relationship endpoints
-- [ ] Gateway relationship event signals
-- [ ] Gateway event handler wiring
-- [ ] AppState `relationships_updated` signal
-- [ ] Client relationship cache and methods
-- [ ] Friends list UI (scenes/sidebar/direct/friends_list)
-- [ ] Friend item scene (avatar, name, status, actions)
-- [ ] DM sidebar Friends/Messages tab toggle
-- [ ] Member context menu "Add Friend" / "Block" items
-- [ ] Pending friend request badge
-- [ ] "Add Friend" by username search dialog
-- [ ] Block enforcement (DM filtering, request auto-decline)
+- [x] AccordRelationship model (`addons/accordkit/models/accord_relationship.gd`)
+- [x] UsersApi relationship endpoints (`list_relationships`, `put_relationship`, `delete_relationship`)
+- [x] Gateway relationship event signals (`relationship_add`, `relationship_update`, `relationship_remove` in `gateway_socket.gd` and `accord_client.gd`)
+- [x] Gateway event handler wiring (`client_gateway_events.gd` + `client_gateway.gd`)
+- [x] AppState `relationships_updated` signal (also `friend_request_received`)
+- [x] Client relationship cache and methods (`fetch_relationships`, `get_friends`, `get_blocked`, `get_pending_incoming`, `get_pending_outgoing`, `send_friend_request`, `accept_friend_request`, `decline_friend_request`, `remove_friend`, `block_user`, `unblock_user`)
+- [x] Friends list UI (`scenes/sidebar/direct/friends_list.gd/.tscn`)
+- [x] Friend item scene with avatar, name, status, action buttons (`scenes/sidebar/direct/friend_item.gd/.tscn`)
+- [x] DM sidebar Friends/Messages tab toggle (`scenes/sidebar/direct/dm_list.gd/.tscn`)
+- [x] Member context menu "Add Friend" / "Block" items (`scenes/members/member_item.gd`)
+- [x] Pending friend request badge on Friends tab
+- [x] "Add Friend" by username search dialog (`scenes/sidebar/direct/add_friend_dialog.gd/.tscn`)
+- [ ] Block enforcement (DM filtering, request auto-decline) — client-side filtering not yet implemented
 - [ ] Server-side relationship API (accordserver)
 - [ ] Server-side gateway relationship events (accordserver)
 - [ ] Server-side block enforcement (DM creation, friend requests)
-- [ ] Cross-server relationship cache keying
+- [x] Cross-server relationship cache keying (`{conn_index}:{user_id}` composite keys)
 
 ## Gaps / TODO
 

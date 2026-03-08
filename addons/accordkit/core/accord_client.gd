@@ -78,6 +78,11 @@ signal soundboard_update(sound: AccordSound)
 signal soundboard_delete(data: Dictionary)
 signal soundboard_play(data: Dictionary)
 
+# Relationships
+signal relationship_add(relationship: AccordRelationship)
+signal relationship_update(relationship: AccordRelationship)
+signal relationship_remove(data: Dictionary)
+
 # Raw
 signal raw_event(event_type: String, data: Dictionary)
 
@@ -252,4 +257,7 @@ func _connect_gateway_signals() -> void:
 	gateway.soundboard_update.connect(func(s): soundboard_update.emit(s))
 	gateway.soundboard_delete.connect(func(d): soundboard_delete.emit(d))
 	gateway.soundboard_play.connect(func(d): soundboard_play.emit(d))
+	gateway.relationship_add.connect(func(r): relationship_add.emit(r))
+	gateway.relationship_update.connect(func(r): relationship_update.emit(r))
+	gateway.relationship_remove.connect(func(d): relationship_remove.emit(d))
 	gateway.raw_event.connect(func(t, d): raw_event.emit(t, d))

@@ -224,6 +224,19 @@ static func user_to_dict(
 		"activities": [],
 	}
 
+static func relationship_to_dict(
+	rel: AccordRelationship, cdn_url: String = ""
+) -> Dictionary:
+	var user_dict: Dictionary = {}
+	if rel.user != null:
+		user_dict = user_to_dict(rel.user, ClientModels.UserStatus.OFFLINE, cdn_url)
+	return {
+		"id": rel.id,
+		"user": user_dict,
+		"type": rel.type,
+		"since": rel.since,
+	}
+
 static func space_to_dict(
 	space: AccordSpace, cdn_url: String = ""
 ) -> Dictionary:

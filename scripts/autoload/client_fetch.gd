@@ -143,6 +143,46 @@ func fetch_dm_channels() -> void:
 	# Asynchronously fetch last message previews
 	_fetch_dm_previews()
 
+func fetch_unread(conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	var client: AccordClient = conn.get("client")
+	if client == null:
+		return
+	var result: RestResult = await client.users.list_unread()
+	if not (result.ok and result.data is Array):
+		return
+	for entry in result.data:
+		var channel_id: String = ""
+		var mention_count: int = 0
+		if entry is Dictionary:
+			channel_id = str(entry.get("channel_id", ""))
+			mention_count = int(entry.get("mention_count", 0))
+		elif entry is String:
+			channel_id = entry
+		if channel_id.is_empty():
+			continue
+		_c._unread_channels[channel_id] = true
+		if mention_count > 0:
+			_c._channel_mention_counts[channel_id] = mention_count
+		if _c._channel_cache.has(channel_id):
+			_c._channel_cache[channel_id]["unread"] = true
+		elif _c._dm_channel_cache.has(channel_id):
+			_c._dm_channel_cache[channel_id]["unread"] = true
+	# Recompute space-level unread aggregates and notify per-space
+	var affected_spaces: Dictionary = {}
+	for channel_id in _c._unread_channels:
+		var gid: String = _c._channel_to_space.get(channel_id, "")
+		if not gid.is_empty():
+			affected_spaces[gid] = true
+	for space_id in affected_spaces:
+		_c.unread.update_space_unread(space_id)
+		AppState.channels_updated.emit(space_id)
+	AppState.dm_channels_updated.emit()
+	AppState.spaces_updated.emit()
+
+
 func fetch_mutes(conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return

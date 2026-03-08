@@ -78,6 +78,11 @@ signal soundboard_update(sound: AccordSound)
 signal soundboard_delete(data: Dictionary)
 signal soundboard_play(data: Dictionary)
 
+# Relationships
+signal relationship_add(relationship: AccordRelationship)
+signal relationship_update(relationship: AccordRelationship)
+signal relationship_remove(data: Dictionary)
+
 # Raw event for anything not explicitly handled
 signal raw_event(event_type: String, data: Dictionary)
 
@@ -383,6 +388,12 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			soundboard_delete.emit(data)
 		"soundboard.play":
 			soundboard_play.emit(data)
+		"relationship.add":
+			relationship_add.emit(AccordRelationship.from_dict(data))
+		"relationship.update":
+			relationship_update.emit(AccordRelationship.from_dict(data))
+		"relationship.remove":
+			relationship_remove.emit(data)
 
 	raw_event.emit(event_type, data)
 

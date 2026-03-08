@@ -104,6 +104,12 @@ func connect_signals(
 		on_gateway_reconnecting.bind(idx))
 	client.resumed.connect(
 		on_gateway_reconnected.bind(idx))
+	client.relationship_add.connect(
+		_events.on_relationship_add.bind(idx))
+	client.relationship_update.connect(
+		_events.on_relationship_update.bind(idx))
+	client.relationship_remove.connect(
+		_events.on_relationship_remove.bind(idx))
 	client.raw_event.connect(
 		on_gateway_raw_event.bind(idx))
 
@@ -231,7 +237,9 @@ func _refetch_data(conn: Dictionary, conn_index: int) -> void:
 		_c.fetch.resync_voice_states(space_id)
 		await _c.fetch.refresh_current_user(conn_index)
 	await _c.fetch.fetch_dm_channels()
+	await _c.fetch_relationships()
 	await _c.fetch.fetch_mutes(conn_index)
+	await _c.fetch.fetch_unread(conn_index)
 	conn["_syncing"] = false
 	if not space_id.is_empty():
 		AppState.server_synced.emit(space_id)
