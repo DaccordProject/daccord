@@ -6,6 +6,10 @@ extends HBoxContainer
 ## Wraps a LineEdit (secret=true by default) and a flat icon Button that
 ## toggles password visibility.  Exposes the same text/signal API as
 ## LineEdit so dialogs can use it as a drop-in replacement.
+##
+## Focus: the HBoxContainer accepts focus (FOCUS_ALL) and immediately
+## redirects it to the inner LineEdit via the focus_entered signal, so
+## callers can call grab_focus() on the PasswordField node as usual.
 
 signal text_changed(new_text: String)
 signal text_submitted(submitted_text: String)
@@ -52,11 +56,9 @@ func _ready() -> void:
 	_input.text_changed.connect(func(t: String) -> void: text_changed.emit(t))
 	_input.text_submitted.connect(func(t: String) -> void: text_submitted.emit(t))
 	_toggle_btn.pressed.connect(_on_toggle)
+	# Redirect focus from the container to the inner input.
+	focus_entered.connect(func() -> void: _input.grab_focus())
 	_update_icon()
-
-
-func grab_focus() -> void:
-	_input.grab_focus()
 
 
 # --- Private ---
