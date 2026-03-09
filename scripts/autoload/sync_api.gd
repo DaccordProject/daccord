@@ -35,7 +35,7 @@ func _base_url() -> String:
 ## Register a new account. Returns SyncResult with { "token": String } on success.
 func register(email: String, password: String) -> SyncResult:
 	return await _post(
-		"/api/auth/register",
+		"/auth/register",
 		{"email": email, "password": password},
 		""
 	)
@@ -44,7 +44,7 @@ func register(email: String, password: String) -> SyncResult:
 ## Log in to an existing account. Returns SyncResult with { "token": String } on success.
 func login(email: String, password: String) -> SyncResult:
 	return await _post(
-		"/api/auth/login",
+		"/auth/login",
 		{"email": email, "password": password},
 		""
 	)
@@ -53,7 +53,7 @@ func login(email: String, password: String) -> SyncResult:
 ## Push an encrypted config blob. Returns SyncResult with { "version": int } on success.
 func push(token: String, blob: String, version: int) -> SyncResult:
 	return await _put(
-		"/api/config",
+		"/api/v1/sync",
 		{"blob": blob, "version": version},
 		token
 	)
@@ -62,13 +62,13 @@ func push(token: String, blob: String, version: int) -> SyncResult:
 ## Pull the current encrypted config blob.
 ## Returns SyncResult with { "blob": String, "version": int } on success.
 func pull(token: String) -> SyncResult:
-	return await _get("/api/config", token)
+	return await _get("/api/v1/sync", token)
 
 
 ## Retrieve slot availability.
 ## Returns SyncResult with { "sold": int, "cap": int, "remaining": int } on success.
 func get_slots() -> SyncResult:
-	return await _get("/api/slots", "")
+	return await _get("/api/v1/slots", "")
 
 
 # ---------------------------------------------------------------------------
