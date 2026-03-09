@@ -23,15 +23,6 @@ const _ICON_EYE_CLOSED: Texture2D = preload("res://assets/theme/icons/eye_closed
 @onready var _input: LineEdit = $Input
 @onready var _toggle_btn: Button = $ToggleBtn
 
-
-func _ready() -> void:
-	_input.placeholder_text = placeholder_text
-	_input.text_changed.connect(func(t: String) -> void: text_changed.emit(t))
-	_input.text_submitted.connect(func(t: String) -> void: text_submitted.emit(t))
-	_toggle_btn.pressed.connect(_on_toggle)
-	_update_icon()
-
-
 # --- Public API (mirrors LineEdit) ---
 
 var text: String:
@@ -53,6 +44,14 @@ var editable: bool:
 	set(v):
 		_input.editable = v
 		_toggle_btn.visible = v
+
+
+func _ready() -> void:
+	_input.placeholder_text = placeholder_text
+	_input.text_changed.connect(func(t: String) -> void: text_changed.emit(t))
+	_input.text_submitted.connect(func(t: String) -> void: text_submitted.emit(t))
+	_toggle_btn.pressed.connect(_on_toggle)
+	_update_icon()
 
 
 func grab_focus() -> void:
