@@ -517,3 +517,217 @@ jobs:
           fi
           echo "GodotLite binary started and quit successfully"
         timeout-minutes: 1
+
+  web-export:
+    name: Web Export & Chrome Smoke Test
+    needs: lint
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: default
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev \
+            chromium-browser python3
+
+      - name: Install godot-livekit addon (latest release)
+        run: |
+          TMPDIR=$(mktemp -d)
+          gh release download --repo NodotProject/godot-livekit \
+            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
+          rm -rf addons/godot-livekit
+          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
+          rm -rf "$TMPDIR"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Cache GUT
+        uses: actions/cache@v4
+        with:
+          path: addons/gut
+          key: gut-${{ env.GUT_VERSION }}
+
+      - name: Install GUT
+        run: |
+          if [ ! -d addons/gut ]; then
+            wget -q https://github.com/bitwes/Gut/archive/refs/tags/v${GUT_VERSION}.tar.gz -O /tmp/gut.tar.gz
+            tar xzf /tmp/gut.tar.gz -C /tmp
+            cp -r /tmp/Gut-${GUT_VERSION}/addons/gut addons/gut
+            rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
+          fi
+
+      - name: Cache Sentry SDK
+        uses: actions/cache@v4
+        with:
+          path: addons/sentry
+          key: sentry-godot-${{ env.SENTRY_VERSION }}
+
+      - name: Install Sentry SDK
+        run: |
+          if [ ! -d addons/sentry ]; then
+            gh release download $SENTRY_VERSION --repo getsentry/sentry-godot \
+              --pattern "*.zip" --dir /tmp/sentry_dl
+            unzip -o /tmp/sentry_dl/*.zip -d /tmp/sentry_extract
+            cp -r /tmp/sentry_extract/addons/sentry addons/sentry
+            rm -rf /tmp/sentry_dl /tmp/sentry_extract
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Set up Godot (with web templates)
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Cache Godot import
+        uses: actions/cache@v4
+        with:
+          path: .godot/imported
+          key: godot-import-web-${{ env.GODOT_VERSION }}-${{ github.sha }}
+          restore-keys: |
+            godot-import-web-${{ env.GODOT_VERSION }}-
+
+      - name: Import project
+        run: godot --headless --import .
+        timeout-minutes: 2
+
+      - name: Export Web build
+        run: |
+          mkdir -p dist/build/web
+          godot --headless --export-release "Web" 2>&1 | tee /tmp/web_export.log
+          if [ ! -f dist/build/web/index.html ]; then
+            echo "::error::Web export failed — index.html not produced"
+            cat /tmp/web_export.log
+            exit 1
+          fi
+          echo "Web export artifacts:"
+          ls -lah dist/build/web/
+        timeout-minutes: 5
+
+      - name: Validate web export artifacts
+        run: |
+          # Godot 4 web export must produce these files
+          REQUIRED=(index.html index.js index.wasm index.pck)
+          failed=0
+          for f in "${REQUIRED[@]}"; do
+            if [ ! -f "dist/build/web/$f" ]; then
+              echo "::error::Missing web export artifact: $f"
+              failed=1
+            else
+              echo "OK: dist/build/web/$f ($(du -h dist/build/web/$f | cut -f1))"
+            fi
+          done
+          exit $failed
+
+      - name: Copy COOP/COEP service worker into web build
+        run: |
+          cp export/web/coop_coep.js dist/build/web/coop_coep.js
+          echo "Service worker copied: $(du -h dist/build/web/coop_coep.js | cut -f1)"
+
+      - name: Start HTTP server with COOP/COEP headers
+        run: |
+          # Serve the web build with the isolation headers Chrome requires for
+          # SharedArrayBuffer.  The service worker handles this at runtime, but
+          # for the headless smoke test we inject the headers server-side so
+          # Chrome can load the page without the worker bootstrap reload.
+          cat > /tmp/coop_coep_server.py << 'PYEOF'
+          import http.server, os, sys
+          PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8060
+          SERVE_DIR = sys.argv[2] if len(sys.argv) > 2 else "."
+          class COOPCOEPHandler(http.server.SimpleHTTPRequestHandler):
+              def __init__(self, *args, **kwargs):
+                  super().__init__(*args, directory=SERVE_DIR, **kwargs)
+              def end_headers(self):
+                  self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+                  self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+                  super().end_headers()
+              def log_message(self, *args):
+                  pass  # silence request logs
+          httpd = http.server.HTTPServer(("127.0.0.1", PORT), COOPCOEPHandler)
+          httpd.serve_forever()
+          PYEOF
+          python3 /tmp/coop_coep_server.py 8060 dist/build/web &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+          # Wait for the server to be ready
+          for i in $(seq 1 10); do
+            if curl -sf http://127.0.0.1:8060/ > /dev/null 2>&1; then
+              echo "HTTP server ready on :8060"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Chrome headless smoke test
+        run: |
+          # Run Chrome headless and capture console output for 10 seconds.
+          # A successful load prints the Godot engine start message; fatal
+          # JS errors (e.g. missing SharedArrayBuffer, WASM load failure) are
+          # captured and fail the step.
+          CHROME=$(command -v chromium-browser || command -v chromium || command -v google-chrome || true)
+          if [ -z "$CHROME" ]; then
+            echo "::warning::No Chrome/Chromium found — skipping smoke test"
+            exit 0
+          fi
+          "$CHROME" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-gpu \
+            --remote-debugging-port=9222 \
+            --enable-logging=stderr \
+            --log-level=0 \
+            "http://127.0.0.1:8060/" \
+            > /tmp/chrome_stdout.txt 2> /tmp/chrome_stderr.txt &
+          CHROME_PID=$!
+          sleep 10
+          kill $CHROME_PID 2>/dev/null || true
+          echo "--- Chrome stderr (last 40 lines) ---"
+          tail -40 /tmp/chrome_stderr.txt || true
+          # Fail if Chrome logged a SharedArrayBuffer or WASM load error
+          if grep -qiE "sharedarraybuffer|not allowed|wasm.*fail|cannot.*instantiate|cross-origin" \
+               /tmp/chrome_stderr.txt /tmp/chrome_stdout.txt 2>/dev/null; then
+            echo "::error::Chrome reported a COOP/COEP or WASM load error"
+            echo "## Chrome Smoke Test Errors" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -iE "sharedarraybuffer|not allowed|wasm.*fail|cross-origin" \
+              /tmp/chrome_stderr.txt /tmp/chrome_stdout.txt 2>/dev/null | head -20 >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "Chrome smoke test passed"
+        timeout-minutes: 3
+
+      - name: Stop HTTP server
+        if: always()
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            kill "$SERVER_PID" 2>/dev/null || true
+          fi
+
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daccord-web-build
+          path: dist/build/web/
+          retention-days: 7
+
+      - name: Web export summary
+        if: always()
+        run: |
+          echo "## Web Export" >> $GITHUB_STEP_SUMMARY
+          if [ -f dist/build/web/index.html ]; then
+            echo "Build artifacts:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -lah dist/build/web/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Export failed — no artifacts produced." >> $GITHUB_STEP_SUMMARY
+          fi
