@@ -1,4 +1,3 @@
-class_name PasswordField
 extends HBoxContainer
 
 ## Reusable password input with a visibility-toggle eye button.
@@ -26,12 +25,18 @@ signal text_submitted(submitted_text: String)
 
 var text: String:
 	get:
+		if _input == null:
+			return ""
 		return _input.text
 	set(v):
+		if _input == null:
+			return
 		_input.text = v
 
 var secret: bool:
 	get:
+		if _input == null:
+			return true
 		return _input.secret
 	set(v):
 		if _input == null:
@@ -41,6 +46,8 @@ var secret: bool:
 
 var editable: bool:
 	get:
+		if _input == null:
+			return true
 		return _input.editable
 	set(v):
 		if _input == null or _toggle_btn == null:

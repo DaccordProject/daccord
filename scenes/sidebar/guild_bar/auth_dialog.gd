@@ -11,6 +11,7 @@ enum Mode { SIGN_IN, REGISTER }
 const ChangePasswordDialogScene := preload(
 	"res://scenes/sidebar/guild_bar/change_password_dialog.tscn"
 )
+const PasswordField = preload("res://scenes/user/password_field.gd")
 
 var _mode: Mode = Mode.SIGN_IN
 var _base_url: String = ""

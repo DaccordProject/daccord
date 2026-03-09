@@ -1,5 +1,7 @@
 extends GutTest
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var component: PasswordField
 
 

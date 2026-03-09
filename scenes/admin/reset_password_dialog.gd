@@ -1,5 +1,7 @@
 extends ModalBase
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var _user_id: String = ""
 
 @onready var _title_label: Label = $CenterContainer/Panel/VBox/Header/Title

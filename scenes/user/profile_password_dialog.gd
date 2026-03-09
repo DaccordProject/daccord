@@ -2,6 +2,8 @@ extends ModalBase
 
 signal password_verified(slug: String)
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var _slug: String = ""
 
 @onready var _profile_label: Label = $CenterContainer/Panel/VBox/ProfileLabel

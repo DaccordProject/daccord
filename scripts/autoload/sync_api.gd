@@ -34,8 +34,8 @@ func _base_url() -> String:
 
 ## Register a new account. Returns SyncResult with { "token": String } on success.
 func register(email: String, password: String) -> SyncResult:
-	return await _post(
-		"/auth/register",
+	return await _http_post(
+		"/api/auth/register",
 		{"email": email, "password": password},
 		""
 	)
@@ -43,8 +43,8 @@ func register(email: String, password: String) -> SyncResult:
 
 ## Log in to an existing account. Returns SyncResult with { "token": String } on success.
 func login(email: String, password: String) -> SyncResult:
-	return await _post(
-		"/auth/login",
+	return await _http_post(
+		"/api/auth/login",
 		{"email": email, "password": password},
 		""
 	)
@@ -52,8 +52,8 @@ func login(email: String, password: String) -> SyncResult:
 
 ## Push an encrypted config blob. Returns SyncResult with { "version": int } on success.
 func push(token: String, blob: String, version: int) -> SyncResult:
-	return await _put(
-		"/api/v1/sync",
+	return await _http_put(
+		"/api/config",
 		{"blob": blob, "version": version},
 		token
 	)
@@ -62,28 +62,28 @@ func push(token: String, blob: String, version: int) -> SyncResult:
 ## Pull the current encrypted config blob.
 ## Returns SyncResult with { "blob": String, "version": int } on success.
 func pull(token: String) -> SyncResult:
-	return await _get("/api/v1/sync", token)
+	return await _http_get("/api/config", token)
 
 
 ## Retrieve slot availability.
 ## Returns SyncResult with { "sold": int, "cap": int, "remaining": int } on success.
 func get_slots() -> SyncResult:
-	return await _get("/api/v1/slots", "")
+	return await _http_get("/api/slots", "")
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-func _get(path: String, token: String) -> SyncResult:
+func _http_get(path: String, token: String) -> SyncResult:
 	return await _request("GET", path, null, token)
 
 
-func _post(path: String, body: Dictionary, token: String) -> SyncResult:
+func _http_post(path: String, body: Dictionary, token: String) -> SyncResult:
 	return await _request("POST", path, body, token)
 
 
-func _put(path: String, body: Dictionary, token: String) -> SyncResult:
+func _http_put(path: String, body: Dictionary, token: String) -> SyncResult:
 	return await _request("PUT", path, body, token)
 
 

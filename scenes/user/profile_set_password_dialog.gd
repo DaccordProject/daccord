@@ -1,5 +1,7 @@
 extends ModalBase
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var _slug: String = ""
 var _has_existing_pw: bool = false
 

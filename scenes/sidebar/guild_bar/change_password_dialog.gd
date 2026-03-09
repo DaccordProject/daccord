@@ -5,6 +5,8 @@ extends ModalBase
 
 signal password_changed(new_token: String)
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var _base_url: String = ""
 var _token: String = ""
 var _username: String = ""
