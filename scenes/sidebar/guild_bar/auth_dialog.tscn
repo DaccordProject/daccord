@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/guild_bar/auth_dialog.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/user/password_field.tscn" id="2"]
 
 [sub_resource type="StyleBoxFlat" id="panel_style"]
 bg_color = Color(0.184, 0.192, 0.212, 1)
@@ -99,24 +100,16 @@ theme_override_font_sizes/font_size = 11
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="PasswordInput" type="LineEdit" parent="CenterContainer/Panel/VBox/PasswordRow"]
+[node name="PasswordInput" parent="CenterContainer/Panel/VBox/PasswordRow" instance=ExtResource("2")]
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 36)
 placeholder_text = "Enter your password"
-secret = true
 
 [node name="GenerateBtn" type="Button" parent="CenterContainer/Panel/VBox/PasswordRow"]
 visible = false
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
 text = "Generate"
-
-[node name="ViewBtn" type="Button" parent="CenterContainer/Panel/VBox/PasswordRow"]
-visible = false
-layout_mode = 2
-custom_minimum_size = Vector2(0, 36)
-text = "View"
 
 [node name="PasswordHint" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false

@@ -5,7 +5,7 @@ var _user_id: String = ""
 @onready var _title_label: Label = $CenterContainer/Panel/VBox/Header/Title
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _description: Label = $CenterContainer/Panel/VBox/Description
-@onready var _password_input: LineEdit = $CenterContainer/Panel/VBox/PasswordInput
+@onready var _password_input: PasswordField = $CenterContainer/Panel/VBox/PasswordInput
 @onready var _submit_btn: Button = $CenterContainer/Panel/VBox/SubmitButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 

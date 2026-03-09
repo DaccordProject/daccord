@@ -21,9 +21,8 @@ var _mfa_ticket: String = ""
 @onready var _sign_in_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/SignInBtn
 @onready var _register_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/RegisterBtn
 @onready var _username_input: LineEdit = $CenterContainer/Panel/VBox/UsernameInput
-@onready var _password_input: LineEdit = $CenterContainer/Panel/VBox/PasswordRow/PasswordInput
+@onready var _password_input: PasswordField = $CenterContainer/Panel/VBox/PasswordRow/PasswordInput
 @onready var _generate_btn: Button = $CenterContainer/Panel/VBox/PasswordRow/GenerateBtn
-@onready var _view_btn: Button = $CenterContainer/Panel/VBox/PasswordRow/ViewBtn
 @onready var _password_hint: Label = $CenterContainer/Panel/VBox/PasswordHint
 @onready var _display_name_label: Label = $CenterContainer/Panel/VBox/DisplayNameLabel
 @onready var _display_name_input: LineEdit = $CenterContainer/Panel/VBox/DisplayNameInput
@@ -39,7 +38,6 @@ func _ready() -> void:
 	_register_btn.pressed.connect(func(): _set_mode(Mode.REGISTER))
 	_submit_btn.pressed.connect(_on_submit)
 	_generate_btn.pressed.connect(_on_generate_password)
-	_view_btn.pressed.connect(_on_toggle_password_view)
 	_username_input.text_changed.connect(_on_username_changed)
 	_username_input.text_submitted.connect(func(_t): _password_input.grab_focus())
 	_password_input.text_submitted.connect(func(_t): _on_submit())
@@ -75,10 +73,8 @@ func _set_mode(m: Mode) -> void:
 		_display_name_label.visible = false
 		_display_name_input.visible = false
 		_generate_btn.visible = false
-		_view_btn.visible = false
 		_password_hint.visible = false
 		_password_input.secret = true
-		_view_btn.text = "View"
 		_submit_btn.text = "Sign In"
 	else:
 		_sign_in_btn.disabled = false
@@ -86,7 +82,6 @@ func _set_mode(m: Mode) -> void:
 		_display_name_label.visible = true
 		_display_name_input.visible = true
 		_generate_btn.visible = true
-		_view_btn.visible = true
 		_password_hint.visible = true
 		_submit_btn.text = "Register"
 
@@ -247,12 +242,6 @@ func _on_generate_password() -> void:
 		password += CHARS[random_bytes[i] % CHARS.length()]
 	_password_input.text = password
 	_password_input.secret = false
-	_view_btn.text = "Hide"
-
-
-func _on_toggle_password_view() -> void:
-	_password_input.secret = not _password_input.secret
-	_view_btn.text = "View" if _password_input.secret else "Hide"
 
 
 func _on_username_changed(new_text: String) -> void:

@@ -5,7 +5,7 @@ signal password_verified(slug: String)
 var _slug: String = ""
 
 @onready var _profile_label: Label = $CenterContainer/Panel/VBox/ProfileLabel
-@onready var _password_input: LineEdit = $CenterContainer/Panel/VBox/PasswordInput
+@onready var _password_input: PasswordField = $CenterContainer/Panel/VBox/PasswordInput
 @onready var _unlock_btn: Button = $CenterContainer/Panel/VBox/UnlockButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
