@@ -459,6 +459,19 @@ jobs:
         run: |
           cp dist/build/android/daccord.apk ${{ matrix.artifact }}.apk
 
+      - name: Bundle web JS dependencies
+        if: matrix.platform == 'web'
+        run: |
+          # Download livekit-client UMD bundle for voice/video
+          curl -fSL --retry 3 -o dist/build/web/livekit-client.umd.min.js \
+            "https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"
+          echo "livekit-client: $(wc -c < dist/build/web/livekit-client.umd.min.js | tr -d ' ') bytes"
+          # Copy godot-livekit web wrapper and COOP/COEP service worker
+          cp export/web/godot-livekit-web.js dist/build/web/
+          cp export/web/coop_coep.js dist/build/web/
+          echo "Web JS dependencies bundled:"
+          ls -lh dist/build/web/*.js
+
       - name: Package Web
         if: matrix.platform == 'web'
         run: |

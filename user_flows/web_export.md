@@ -72,6 +72,7 @@ WebVoiceSession (GDScript)   <-->   JavaScriptBridge   <-->   godot-livekit-web.
 | `scripts/autoload/web_voice_session.gd` | `WebVoiceSession` — web-only voice session using `JavaScriptBridge` to call into `godot-livekit-web.js`. Mirrors `LiveKitAdapter` signal/API surface. No-ops on non-web builds. |
 | `scripts/autoload/client_voice.gd` | Voice join pipeline: calls REST join, then routes to `LiveKitAdapter` (desktop) or `WebVoiceSession` (web). |
 | `.github/workflows/ci.yml` (`web-export` job) | CI web export: builds to `dist/build/web/`, validates artifacts, copies `coop_coep.js`, runs Chrome headless smoke test. |
+| `.github/workflows/release.yml` (`web` matrix entry) | Release build: exports web, downloads `livekit-client` UMD bundle, copies `godot-livekit-web.js` and `coop_coep.js`, packages everything into `daccord-web.zip` for the GitHub release. |
 
 ## Implementation Details
 
@@ -122,9 +123,13 @@ Audio playback is handled automatically by the `livekit-client` SDK (no GDScript
 - [x] `godot-livekit-web.js` wrapper mirrors GDExtension API
 - [x] `WebVoiceSession` bridges JS room events to GDScript signals
 - [x] CI web export job with Chrome headless smoke test
+- [x] Release CI bundles web JS dependencies (livekit-client, godot-livekit-web.js, coop_coep.js) into the web release artifact
 - [x] Web export hosted build can connect to a server and do text chat
 - [x] Voice on web uses LiveKit JS SDK via `WebVoiceSession`
 - [x] Video on web (camera publish, remote track receive)
+- [ ] Icons not rendering (displays garbled ASCII instead of SVG/theme icons)
+- [ ] Initial layout is squashed into the lower half of the screen (requires a window resize to correct)
+- [ ] Mic test audio plays back at a higher pitch than expected
 - [ ] Local video preview on web
 - [ ] Screen share on web
 - [ ] Per-device audio/video selection on web
@@ -159,3 +164,24 @@ Audio playback is handled automatically by the `livekit-client` SDK (no GDScript
 - **Effort:** 2
 - **Tags:** ui, voice, video
 - **Notes:** Settings UI device enumeration depends on LiveKit GDExtension. Web could use `navigator.mediaDevices.enumerateDevices()` via `JavaScriptBridge`.
+
+### WEB-5: Icons not rendering on web
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ui, rendering
+- **Notes:** Theme icons (SVGs) display as garbled ASCII characters instead of rendering correctly. Does not affect the desktop client. Likely a font/icon fallback or SVG import issue specific to the web export pipeline.
+
+### WEB-6: Initial layout squashed on load
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** ui, rendering
+- **Notes:** On first load, the entire UI appears squashed into the lower half of the screen. Resizing the browser window corrects the layout. Likely a canvas/viewport sizing race condition during initialization — the viewport dimensions may not be correctly reported until after a resize event fires.
+
+### WEB-7: Mic test audio plays back at high pitch
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** voice, audio
+- **Notes:** Mic test playback sounds higher-pitched than expected on web. Does not affect the desktop client. Likely a sample rate mismatch between the browser's `AudioContext` and the playback pipeline (e.g., recording at 48 kHz but playing back assuming 44.1 kHz, or vice versa).

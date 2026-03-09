@@ -32,12 +32,19 @@
     return;
   }
 
+  // Enable verbose LiveKit logging for debugging WebRTC issues.
+  if (LK.setLogLevel) {
+    LK.setLogLevel("debug");
+  }
+
   // --- Constants matching GDExtension enums ---
 
   var ConnectionState = {
     DISCONNECTED: 0,
-    CONNECTED: 1,
-    RECONNECTING: 2,
+    CONNECTING: 1,
+    CONNECTED: 2,
+    RECONNECTING: 3,
+    FAILED: 4,
   };
 
   var TrackKind = {
@@ -55,6 +62,8 @@
 
   function mapConnectionState(state) {
     switch (state) {
+      case LK.ConnectionState.Connecting:
+        return ConnectionState.CONNECTING;
       case LK.ConnectionState.Connected:
         return ConnectionState.CONNECTED;
       case LK.ConnectionState.Reconnecting:
@@ -231,7 +240,10 @@
       },
 
       connectToRoom: function (url, token) {
-        return room.connect(url, token);
+        return room.connect(url, token).catch(function (err) {
+          console.error("[godot-livekit-web] connectToRoom failed:", err);
+          emit("disconnected", String(err));
+        });
       },
 
       disconnectFromRoom: function () {
