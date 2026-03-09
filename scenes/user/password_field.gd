@@ -37,6 +37,8 @@ var secret: bool:
 	get:
 		return _input.secret
 	set(v):
+		if _input == null:
+			return
 		_input.secret = v
 		_update_icon()
 
@@ -44,6 +46,8 @@ var editable: bool:
 	get:
 		return _input.editable
 	set(v):
+		if _input == null or _toggle_btn == null:
+			return
 		_input.editable = v
 		_toggle_btn.visible = v
 
