@@ -117,6 +117,37 @@
       <div id="status-notice"></div>
     </div>
 
+    <!-- Cross-Origin Isolation (required for SharedArrayBuffer / WASM threads in Chrome).
+         Register the COOP/COEP service worker before loading the engine.  On the very
+         first visit the worker won't be controlling the page yet, so we reload once
+         it activates.  Subsequent loads are served by the worker and are already
+         isolated. -->
+    <script>
+      (function () {
+        if (!("serviceWorker" in navigator)) return;
+        navigator.serviceWorker.getRegistration("./").then(function (reg) {
+          if (reg) return; // already registered — nothing to do
+          navigator.serviceWorker
+            .register("coop_coep.js", { scope: "./" })
+            .then(function (registration) {
+              registration.addEventListener("updatefound", function () {
+                var worker = registration.installing;
+                if (!worker) return;
+                worker.addEventListener("statechange", function () {
+                  if (worker.state === "activated") {
+                    // First install: reload so the worker can add isolation headers.
+                    window.location.reload();
+                  }
+                });
+              });
+            })
+            .catch(function (err) {
+              console.warn("[daccord] Service worker registration failed:", err);
+            });
+        });
+      })();
+    </script>
+
     <!-- livekit-client.js must load before the Godot WASM module so that
          JavaScriptBridge.eval("new LivekitClient.Room()") works at runtime. -->
     <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
