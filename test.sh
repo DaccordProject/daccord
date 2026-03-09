@@ -13,6 +13,7 @@
 #   ./test.sh accordkit    Run only AccordKit unit + REST tests
 #   ./test.sh gateway      Run gateway/e2e tests (requires non-headless Godot)
 #   ./test.sh livekit      Run only LiveKit adapter tests (no server needed)
+#   ./test.sh sync         Run daccord-sync integration tests (requires Docker on port 3001)
 #
 # Environment variables:
 #   ACCORD_TEST_URL        Run against a remote server instead of starting one
@@ -81,13 +82,17 @@ resolve_dirs() {
             NEEDS_SERVER=false
             GUT_DIRS="res://tests/livekit"
             ;;
+        sync)
+            NEEDS_SERVER=false
+            GUT_DIRS="res://tests/integration"
+            ;;
         all)
             NEEDS_SERVER=true
             GUT_DIRS="res://tests/unit,res://tests/accordkit/unit,res://tests/accordkit/integration,res://tests/livekit"
             ;;
         *)
             err "Unknown suite: $1"
-            echo "Usage: $0 [unit|integration|accordkit|gateway|livekit|all]"
+            echo "Usage: $0 [unit|integration|accordkit|gateway|livekit|sync|all]"
             exit 1
             ;;
     esac
