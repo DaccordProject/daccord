@@ -72,6 +72,34 @@ static func _scrub_pii(event: SentryEvent) -> void:
 	event.message = msg
 
 
+## --- Helpers called by ErrorReporting to avoid direct Sentry class refs ---
+
+static func add_breadcrumb(
+	message: String, category: String, type: String = "default",
+) -> void:
+	var crumb: SentryBreadcrumb = SentryBreadcrumb.create(message)
+	crumb.category = category
+	crumb.type = type
+	SentrySDK.add_breadcrumb(crumb)
+
+
+static func set_tag(key: String, value: String) -> void:
+	SentrySDK.set_tag(key, value)
+
+
+static func capture_message(
+	description: String, level: int = -1,
+) -> void:
+	if level < 0:
+		level = SentrySDK.LEVEL_INFO
+	SentrySDK.capture_message(description, level)
+
+
+static func get_last_event_id() -> String:
+	var val = SentrySDK.get_last_event_id()
+	return val if val != null else ""
+
+
 static func _read_consent_from_disk() -> bool:
 	# 1. Determine active profile slug from the registry
 	var slug := "default"

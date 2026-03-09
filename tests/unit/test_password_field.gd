@@ -102,4 +102,4 @@ func test_text_submitted_signal_emitted() -> void:
 func test_grab_focus_delegates_to_input() -> void:
 	# Just verify the call doesn't crash; actual focus requires a display.
 	component.grab_focus()
-	pass
+	assert_true(true, "grab_focus() did not crash")

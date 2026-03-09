@@ -188,8 +188,7 @@ func _ready() -> void:
 
 	# Crash recovery toast
 	if Config.get_error_reporting_enabled() and ErrorReporting._initialized:
-		var last_id_value = SentrySDK.get_last_event_id()
-		var last_id: String = last_id_value if last_id_value != null else ""
+		var last_id: String = ErrorReporting.get_last_event_id()
 		if not last_id.is_empty():
 			call_deferred("_show_crash_toast")
 

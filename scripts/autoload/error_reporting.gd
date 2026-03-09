@@ -1,15 +1,19 @@
 extends Node
 
-const _SENTRY_TREE := preload("res://scripts/sentry_scene_tree.gd")
-
+var _sentry_tree = null # loaded dynamically; null on web
 var _initialized := false
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
-	if _SENTRY_TREE.initialized:
+	if not ClassDB.class_exists(&"SentrySDK"):
+		return
+	_sentry_tree = load("res://scripts/sentry_scene_tree.gd")
+	if _sentry_tree == null:
+		return
+	if _sentry_tree.initialized:
 		_on_sdk_ready()
-	elif _SENTRY_TREE._read_consent_from_disk():
+	elif _sentry_tree._read_consent_from_disk():
 		init_sentry()
 
 ## Called by the consent dialog (main_window.gd) when the user enables error
@@ -18,8 +22,10 @@ func _ready() -> void:
 func init_sentry() -> void:
 	if _initialized:
 		return
-	_SENTRY_TREE.late_init()
-	if _SENTRY_TREE.initialized:
+	if _sentry_tree == null:
+		return
+	_sentry_tree.late_init()
+	if _sentry_tree.initialized:
 		_on_sdk_ready()
 
 func _on_sdk_ready() -> void:
@@ -99,30 +105,32 @@ func _add_breadcrumb(
 	if not _initialized:
 		return
 	var scrubbed := scrub_pii_text(message)
-	var crumb: SentryBreadcrumb = SentryBreadcrumb.create(scrubbed)
-	crumb.category = category
-	crumb.type = "default"
-	SentrySDK.add_breadcrumb(crumb)
+	_sentry_tree.add_breadcrumb(scrubbed, category)
 
 func update_context() -> void:
 	if not _initialized:
 		return
-	SentrySDK.set_tag(
+	_sentry_tree.set_tag(
 		"server_count",
 		str(Config.get_servers().size())
 	)
 	if not AppState.current_space_id.is_empty():
-		SentrySDK.set_tag(
+		_sentry_tree.set_tag(
 			"space_id", _truncate_id(AppState.current_space_id)
 		)
 	if not AppState.current_channel_id.is_empty():
-		SentrySDK.set_tag(
+		_sentry_tree.set_tag(
 			"channel_id", _truncate_id(AppState.current_channel_id)
 		)
+
+func get_last_event_id() -> String:
+	if not _initialized or _sentry_tree == null:
+		return ""
+	return _sentry_tree.get_last_event_id()
 
 func report_problem(description: String) -> void:
 	if not _initialized:
 		return
 	update_context()
-	SentrySDK.set_tag("type", "user-feedback")
-	SentrySDK.capture_message(description, SentrySDK.LEVEL_INFO)
+	_sentry_tree.set_tag("type", "user-feedback")
+	_sentry_tree.capture_message(description)
