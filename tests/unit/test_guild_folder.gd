@@ -1,5 +1,7 @@
 extends GutTest
 
+const TestDataFactory := preload("res://tests/helpers/test_data_factory.gd")
+
 var component: VBoxContainer
 
 
@@ -26,15 +28,15 @@ func after_each() -> void:
 
 func _spaces_data() -> Array:
 	return [
-		{"id": "g_1", "name": "Space One", "icon_color": Color.RED, "icon": null, "unread": false, "mentions": 0},
-		{"id": "g_2", "name": "Space Two", "icon_color": Color.BLUE, "icon": null, "unread": false, "mentions": 0},
+		TestDataFactory.space_data({"id": "g_1", "name": "Space One", "icon_color": Color.RED}),
+		TestDataFactory.space_data({"id": "g_2", "name": "Space Two", "icon_color": Color.BLUE}),
 	]
 
 
 func _spaces_data_with_unread() -> Array:
 	return [
-		{"id": "g_1", "name": "Space One", "icon_color": Color.RED, "icon": null, "unread": true, "mentions": 3},
-		{"id": "g_2", "name": "Space Two", "icon_color": Color.BLUE, "icon": null, "unread": false, "mentions": 2},
+		TestDataFactory.space_data({"id": "g_1", "name": "Space One", "icon_color": Color.RED, "unread": true, "mentions": 3}),
+		TestDataFactory.space_data({"id": "g_2", "name": "Space Two", "icon_color": Color.BLUE, "mentions": 2}),
 	]
 
 

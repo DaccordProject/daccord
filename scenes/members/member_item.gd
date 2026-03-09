@@ -27,21 +27,13 @@ func setup(data: Dictionary) -> void:
 		dn_text += " (Owner)"
 	display_name.text = dn_text
 	tooltip_text = data.get("display_name", "Unknown")
-	avatar.set_avatar_color(data.get("color", ThemeManager.get_color("accent")))
+	avatar.setup_from_dict(data)
 	# Apply role color to display name
 	var role_color = _resolve_role_color(data)
 	if role_color != null:
 		display_name.add_theme_color_override("font_color", role_color)
 	else:
 		display_name.remove_theme_color_override("font_color")
-	var dn: String = data.get("display_name", "")
-	if dn.length() > 0:
-		avatar.set_letter(dn[0].to_upper())
-	else:
-		avatar.set_letter("")
-	var avatar_url = data.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		avatar.set_avatar_url(avatar_url)
 
 	var status: int = data.get("status", ClientModels.UserStatus.OFFLINE)
 	status_dot.color = ClientModels.status_color(status)

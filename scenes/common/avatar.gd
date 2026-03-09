@@ -39,6 +39,26 @@ func _apply_theme() -> void:
 	if _texture_rect and _texture_rect.material is ShaderMaterial:
 		_texture_rect.material.set_shader_parameter("ring_color", ring_color)
 
+## One-call setup from a user or space dictionary.
+## [param data] is a Dictionary with color/display_name/avatar (or icon_color/name/icon for spaces).
+## [param color_key] and [param name_key] select which dict fields to read.
+func setup_from_dict(
+	data: Dictionary,
+	color_key: String = "color",
+	name_key: String = "display_name",
+	url_key: String = "avatar",
+) -> void:
+	set_avatar_color(data.get(color_key, ThemeManager.get_color("accent")))
+	var display: String = data.get(name_key, "")
+	if display.length() > 0:
+		set_letter(display[0].to_upper())
+	else:
+		set_letter("")
+	var url = data.get(url_key, null)
+	if url is String and not url.is_empty():
+		set_avatar_url(url)
+
+
 func set_avatar_color(c: Color) -> void:
 	color = c
 	if not letter_label:

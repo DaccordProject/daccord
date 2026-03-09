@@ -46,14 +46,4 @@ func setup_recipients(recipients: Array) -> void:
 		grid.add_child(av)
 		av.custom_minimum_size = Vector2(mini_size, mini_size)
 		av.size = Vector2(mini_size, mini_size)
-		av.set_avatar_color(
-			r.get("color", ThemeManager.get_color("accent"))
-		)
-		var dn: String = r.get("display_name", "")
-		if dn.length() > 0:
-			av.set_letter(dn[0].to_upper())
-		else:
-			av.set_letter("")
-		var avatar_url = r.get("avatar", null)
-		if avatar_url is String and not avatar_url.is_empty():
-			av.set_avatar_url(avatar_url)
+		av.setup_from_dict(r)

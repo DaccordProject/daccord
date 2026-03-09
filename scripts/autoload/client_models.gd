@@ -9,6 +9,9 @@ enum ChannelType { TEXT, VOICE, ANNOUNCEMENT, FORUM, CATEGORY }
 # User statuses
 enum UserStatus { ONLINE, IDLE, DND, OFFLINE }
 
+# Voice session states (shared between LiveKitAdapter and WebVoiceSession)
+enum VoiceSessionState { DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING, FAILED }
+
 const Secondary := preload("res://scripts/autoload/client_models_secondary.gd")
 
 ## Known user flag bits and their labels (canonical copy in Secondary).

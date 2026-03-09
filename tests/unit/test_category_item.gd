@@ -1,5 +1,7 @@
 extends GutTest
 
+const TestDataFactory := preload("res://tests/helpers/test_data_factory.gd")
+
 var component: VBoxContainer
 
 
@@ -23,26 +25,11 @@ func after_each() -> void:
 
 
 func _cat_data(overrides: Dictionary = {}) -> Dictionary:
-	var d := {
-		"id": "cat_1",
-		"space_id": "g_1",
-		"name": "Text Channels",
-	}
-	d.merge(overrides, true)
-	return d
+	return TestDataFactory.category_data(overrides)
 
 
 func _ch_data(overrides: Dictionary = {}) -> Dictionary:
-	var d := {
-		"id": "c_1",
-		"space_id": "g_1",
-		"name": "general",
-		"type": ClientModels.ChannelType.TEXT,
-		"unread": false,
-		"voice_users": 0,
-	}
-	d.merge(overrides, true)
-	return d
+	return TestDataFactory.channel_data(overrides)
 
 
 # --- setup ---

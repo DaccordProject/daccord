@@ -86,15 +86,7 @@ func setup(space_id: String) -> void:
 		_desc_input.text = space.get("description", "")
 
 	# Icon preview
-	var sname: String = space.get("name", "")
-	_icon_preview.set_avatar_color(
-		space.get("icon_color", ThemeManager.get_color("accent"))
-	)
-	if sname.length() > 0:
-		_icon_preview.set_letter(sname[0].to_upper())
-	var icon_url = space.get("icon", null)
-	if icon_url is String and not icon_url.is_empty():
-		_icon_preview.set_avatar_url(icon_url)
+	_icon_preview.setup_from_dict(space, "icon_color", "name", "icon")
 
 	var ver: String = space.get("verification_level", "none")
 	match ver:

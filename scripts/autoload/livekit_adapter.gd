@@ -1,4 +1,3 @@
-class_name LiveKitAdapter
 extends Node
 
 ## Wraps godot-livekit's LiveKitRoom and exposes the signal surface
@@ -13,20 +12,14 @@ signal track_received(user_id: String, stream: RefCounted)
 signal track_removed(user_id: String)
 signal audio_level_changed(user_id: String, level: float)
 
-# --- State enum (matches what ClientVoice expects) ---
-enum State {
-	DISCONNECTED = 0,
-	CONNECTING = 1,
-	CONNECTED = 2,
-	RECONNECTING = 3,
-	FAILED = 4,
-}
+# --- State enum (aliases ClientModels.VoiceSessionState for local use) ---
+const VOICE_STATE := ClientModels.VoiceSessionState
 
 # --- Internal state ---
 const CONNECT_TIMEOUT_SEC := 15.0
 
 var _room: LiveKitRoom
-var _state: int = State.DISCONNECTED
+var _state: int = VOICE_STATE.DISCONNECTED
 var _muted: bool = false
 var _deafened: bool = false
 var _connect_timer: Timer
@@ -75,8 +68,8 @@ func connect_to_room(url: String, token: String) -> void:
 	# Restore stashed capture/preview for _on_connected to re-publish.
 	_screen_capture = saved_capture
 	_screen_preview = saved_preview
-	_state = State.CONNECTING
-	session_state_changed.emit(State.CONNECTING)
+	_state = VOICE_STATE.CONNECTING
+	session_state_changed.emit(VOICE_STATE.CONNECTING)
 	_start_connect_timer()
 	_room = LiveKitRoom.new()
 	_room.connected.connect(_on_connected)
@@ -115,8 +108,8 @@ func disconnect_voice() -> void:
 	if _room != null:
 		_room.disconnect_from_room()
 		_room = null
-	_state = State.DISCONNECTED
-	session_state_changed.emit(State.DISCONNECTED)
+	_state = VOICE_STATE.DISCONNECTED
+	session_state_changed.emit(VOICE_STATE.DISCONNECTED)
 
 func set_muted(muted: bool) -> void:
 	_muted = muted
@@ -289,8 +282,8 @@ func _process(_delta: float) -> void:
 
 func _on_connected() -> void:
 	_stop_connect_timer()
-	_state = State.CONNECTED
-	session_state_changed.emit(State.CONNECTED)
+	_state = VOICE_STATE.CONNECTED
+	session_state_changed.emit(VOICE_STATE.CONNECTED)
 	# Publish local microphone audio
 	_publish_local_audio()
 	# Re-publish screen share if capture survived the reconnection.
@@ -300,20 +293,20 @@ func _on_connected() -> void:
 func _on_connection_failed(error: String) -> void:
 	_stop_connect_timer()
 	push_error("[LiveKitAdapter] Connection failed: ", error)
-	_state = State.FAILED
-	session_state_changed.emit(State.FAILED)
+	_state = VOICE_STATE.FAILED
+	session_state_changed.emit(VOICE_STATE.FAILED)
 
 func _on_disconnected() -> void:
-	_state = State.DISCONNECTED
-	session_state_changed.emit(State.DISCONNECTED)
+	_state = VOICE_STATE.DISCONNECTED
+	session_state_changed.emit(VOICE_STATE.DISCONNECTED)
 
 func _on_reconnecting() -> void:
-	_state = State.RECONNECTING
-	session_state_changed.emit(State.RECONNECTING)
+	_state = VOICE_STATE.RECONNECTING
+	session_state_changed.emit(VOICE_STATE.RECONNECTING)
 
 func _on_reconnected() -> void:
-	_state = State.CONNECTED
-	session_state_changed.emit(State.CONNECTED)
+	_state = VOICE_STATE.CONNECTED
+	session_state_changed.emit(VOICE_STATE.CONNECTED)
 
 func _on_participant_connected(participant: LiveKitRemoteParticipant) -> void:
 	var identity: String = participant.get_identity()
@@ -576,11 +569,11 @@ func _stop_connect_timer() -> void:
 		_connect_timer = null
 
 func _on_connect_timeout() -> void:
-	if _state == State.CONNECTING:
+	if _state == VOICE_STATE.CONNECTING:
 		push_error("[LiveKitAdapter] Connection timed out after %ds" % int(CONNECT_TIMEOUT_SEC))
 		_stop_connect_timer()
-		_state = State.FAILED
-		session_state_changed.emit(State.FAILED)
+		_state = VOICE_STATE.FAILED
+		session_state_changed.emit(VOICE_STATE.FAILED)
 
 func _exit_tree() -> void:
 	_stop_connect_timer()

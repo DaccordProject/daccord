@@ -186,12 +186,7 @@ func _refresh_participants() -> void:
 		av.custom_minimum_size = Vector2(18, 18)
 		av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(av)
-		av.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
-		var dn: String = user.get("display_name", "?")
-		av.set_letter(dn.left(1).to_upper() if not dn.is_empty() else "?")
-		var avatar_url = user.get("avatar", null)
-		if avatar_url is String and not avatar_url.is_empty():
-			av.set_avatar_url(avatar_url)
+		av.setup_from_dict(user)
 
 		# Track avatar and apply current speaking state (no animation during rebuild)
 		var user_id: String = user.get("id", vs.get("user_id", ""))

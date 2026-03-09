@@ -1,5 +1,7 @@
 extends GutTest
 
+const TestDataFactory := preload("res://tests/helpers/test_data_factory.gd")
+
 var component: Button
 
 
@@ -17,18 +19,7 @@ func after_each() -> void:
 
 
 func _dm_data(overrides: Dictionary = {}) -> Dictionary:
-	var d := {
-		"id": "dm_1",
-		"user": {
-			"display_name": "Alice",
-			"username": "alice",
-			"color": Color(0.3, 0.5, 0.8),
-		},
-		"last_message": "Hey there!",
-		"unread": false,
-	}
-	d.merge(overrides, true)
-	return d
+	return TestDataFactory.dm_data(overrides)
 
 
 # --- setup ---

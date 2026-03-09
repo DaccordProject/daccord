@@ -79,18 +79,10 @@ func _update_grid_columns() -> void:
 		_grid.columns = 3
 
 func _apply_theme() -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeManager.get_color("panel_bg")
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel", ThemeManager.make_flat_style("panel_bg"))
 
 	_search_input.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
-	var input_style := StyleBoxFlat.new()
-	input_style.bg_color = ThemeManager.get_color("input_bg")
-	input_style.set_corner_radius_all(4)
-	input_style.content_margin_left = 12.0
-	input_style.content_margin_right = 12.0
-	input_style.content_margin_top = 8.0
-	input_style.content_margin_bottom = 8.0
+	var input_style := ThemeManager.make_flat_style("input_bg", 4, [12, 8, 12, 8])
 	_search_input.add_theme_stylebox_override("normal", input_style)
 	_search_input.add_theme_stylebox_override("focus", input_style)
 
@@ -192,25 +184,21 @@ func _populate_tags(spaces: Array) -> void:
 		_tag_bar.add_child(btn)
 
 func _style_tag_button(btn: Button, active: bool) -> void:
-	var style := StyleBoxFlat.new()
+	var margins := [12, 4, 12, 4]
 	if active:
-		style.bg_color = ThemeManager.get_color("accent")
 		btn.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+		btn.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style("accent", 12, margins))
+		btn.add_theme_stylebox_override("hover",
+			ThemeManager.make_flat_style("accent_hover", 12, margins))
 	else:
-		style.bg_color = ThemeManager.get_color("secondary_button")
-		btn.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
-	style.set_corner_radius_all(12)
-	style.content_margin_left = 12.0
-	style.content_margin_right = 12.0
-	style.content_margin_top = 4.0
-	style.content_margin_bottom = 4.0
-	btn.add_theme_stylebox_override("normal", style)
-	var hover := style.duplicate()
-	if active:
-		hover.bg_color = ThemeManager.get_color("accent_hover")
-	else:
-		hover.bg_color = ThemeManager.get_color("secondary_button_hover")
-	btn.add_theme_stylebox_override("hover", hover)
+		btn.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_body"))
+		btn.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style("secondary_button", 12, margins))
+		btn.add_theme_stylebox_override("hover",
+			ThemeManager.make_flat_style(
+				"secondary_button_hover", 12, margins))
 
 func _ping_servers(spaces: Array) -> void:
 	# Collect unique server URLs

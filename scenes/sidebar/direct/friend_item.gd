@@ -36,12 +36,7 @@ func setup(data: Dictionary) -> void:
 	tooltip_text = dname
 
 	# Avatar
-	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
-	if dname.length() > 0:
-		avatar.set_letter(dname[0].to_upper())
-	var avatar_url = user.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		avatar.set_avatar_url(avatar_url)
+	avatar.setup_from_dict(user)
 
 	# Status line
 	match rel_type:

@@ -4,18 +4,20 @@ extends GutTest
 ## These test the adapter's state machine, mute/deafen logic,
 ## and signal surface without requiring a real LiveKit server.
 
-var _adapter: LiveKitAdapter
+const LiveKitAdapterScript := preload("res://scripts/autoload/livekit_adapter.gd")
+
+var _adapter: Node
 
 
 func before_each() -> void:
-	_adapter = LiveKitAdapter.new()
+	_adapter = LiveKitAdapterScript.new()
 	add_child_autofree(_adapter)
 
 
 func test_initial_state_is_disconnected() -> void:
 	assert_eq(
 		_adapter.get_session_state(),
-		LiveKitAdapter.State.DISCONNECTED,
+		ClientModels.VoiceSessionState.DISCONNECTED,
 		"Initial state should be DISCONNECTED",
 	)
 
@@ -65,7 +67,7 @@ func test_disconnect_voice_from_disconnected() -> void:
 	_adapter.disconnect_voice()
 	assert_eq(
 		_adapter.get_session_state(),
-		LiveKitAdapter.State.DISCONNECTED,
+		ClientModels.VoiceSessionState.DISCONNECTED,
 		"Should remain DISCONNECTED",
 	)
 
@@ -104,7 +106,7 @@ func test_disconnect_emits_state_signal() -> void:
 	)
 	_adapter.disconnect_voice()
 	assert_true(
-		states.has(LiveKitAdapter.State.DISCONNECTED),
+		states.has(ClientModels.VoiceSessionState.DISCONNECTED),
 		"disconnect_voice should emit DISCONNECTED state",
 	)
 
@@ -114,7 +116,7 @@ func test_unpublish_camera_without_room() -> void:
 	_adapter.unpublish_camera()
 	assert_eq(
 		_adapter.get_session_state(),
-		LiveKitAdapter.State.DISCONNECTED,
+		ClientModels.VoiceSessionState.DISCONNECTED,
 		"Should remain DISCONNECTED after unpublish_camera with no room",
 	)
 
@@ -124,7 +126,7 @@ func test_unpublish_screen_without_room() -> void:
 	_adapter.unpublish_screen()
 	assert_eq(
 		_adapter.get_session_state(),
-		LiveKitAdapter.State.DISCONNECTED,
+		ClientModels.VoiceSessionState.DISCONNECTED,
 		"Should remain DISCONNECTED after unpublish_screen with no room",
 	)
 
@@ -139,7 +141,7 @@ func test_connect_to_room_preserves_screen_capture() -> void:
 		return
 
 	var capture: LiveKitScreenCapture = LiveKitScreenCapture.create_for_monitor(monitors[0])
-	var preview := LiveKitAdapter.LocalVideoPreview.new()
+	var preview := LiveKitAdapterScript.LocalVideoPreview.new()
 	assert_not_null(capture, "capture should be created")
 
 	# Simulate an active screen share by setting the adapter's internal state.
@@ -183,7 +185,7 @@ func test_disconnect_voice_destroys_screen_capture() -> void:
 		return
 
 	var capture: LiveKitScreenCapture = LiveKitScreenCapture.create_for_monitor(monitors[0])
-	var preview := LiveKitAdapter.LocalVideoPreview.new()
+	var preview := LiveKitAdapterScript.LocalVideoPreview.new()
 	_adapter._screen_capture = capture
 	_adapter._screen_preview = preview
 

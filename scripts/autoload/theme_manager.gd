@@ -154,6 +154,51 @@ func _set_font_color(theme: Theme, type: String, color_name: String, color_key: 
 		theme.set_color(color_name, type, _palette.get(color_key, Color.MAGENTA))
 
 
+## Create a StyleBoxFlat with the given background color, corner radius, and margins.
+## [param bg] can be a Color or a String palette key.
+## [param radius] sets all four corner radii (-1 to skip).
+## [param margins] is [left, top, right, bottom] or a single float for all sides.
+func make_flat_style(
+	bg: Variant,
+	radius: int = -1,
+	margins: Variant = null,
+) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg if bg is Color else get_color(str(bg))
+	if radius >= 0:
+		sb.set_corner_radius_all(radius)
+	if margins is float or margins is int:
+		sb.set_content_margin_all(float(margins))
+	elif margins is Array:
+		var m: Array = margins
+		if m.size() >= 4:
+			sb.content_margin_left = float(m[0])
+			sb.content_margin_top = float(m[1])
+			sb.content_margin_right = float(m[2])
+			sb.content_margin_bottom = float(m[3])
+	return sb
+
+
+## Apply normal / hover / pressed StyleBoxFlat overrides to a Button.
+## Each color param can be a Color or String palette key.
+func style_button(
+	btn: Button,
+	normal_bg: Variant,
+	hover_bg: Variant,
+	pressed_bg: Variant,
+	radius: int = 4,
+	margins: Variant = null,
+) -> void:
+	var normal := make_flat_style(normal_bg, radius, margins)
+	btn.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate()
+	hover.bg_color = hover_bg if hover_bg is Color else get_color(str(hover_bg))
+	btn.add_theme_stylebox_override("hover", hover)
+	var pressed := normal.duplicate()
+	pressed.bg_color = pressed_bg if pressed_bg is Color else get_color(str(pressed_bg))
+	btn.add_theme_stylebox_override("pressed", pressed)
+
+
 ## Recursively apply themed font colors to nodes with metadata/theme_font_color.
 ## Nodes in .tscn files can set metadata/theme_font_color = "key" (e.g. "text_muted",
 ## "accent", "error") and this method will apply the matching ThemeManager color as a

@@ -38,15 +38,7 @@ func build(
 	_profile_avatar.letter_font_size = 28
 	_profile_avatar.custom_minimum_size = Vector2(80, 80)
 	_profile_avatar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	_profile_avatar.set_avatar_color(
-		user.get("color", ThemeManager.get_color("accent"))
-	)
-	var dn: String = user.get("display_name", "")
-	if dn.length() > 0:
-		_profile_avatar.set_letter(dn[0].to_upper())
-	var avatar_url = user.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		_profile_avatar.set_avatar_url(avatar_url)
+	_profile_avatar.setup_from_dict(user)
 	page_vbox.add_child(_profile_avatar)
 
 	var avatar_btns := HBoxContainer.new()

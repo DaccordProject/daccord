@@ -48,15 +48,7 @@ func setup(data: Dictionary) -> void:
 	if role_color != null:
 		name_color = role_color
 	author_label.add_theme_color_override("font_color", name_color)
-	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
-	var display_name: String = user.get("display_name", "")
-	if display_name.length() > 0:
-		avatar.set_letter(display_name[0].to_upper())
-	else:
-		avatar.set_letter("")
-	var avatar_url = user.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		avatar.set_avatar_url(avatar_url)
+	avatar.setup_from_dict(user)
 	timestamp_label.text = data.get("timestamp", "")
 
 	# Reply reference
@@ -151,15 +143,7 @@ func update_author(user: Dictionary) -> void:
 	if role_color != null:
 		name_color = role_color
 	author_label.add_theme_color_override("font_color", name_color)
-	avatar.set_avatar_color(user.get("color", ThemeManager.get_color("accent")))
-	var display_name: String = user.get("display_name", "")
-	if display_name.length() > 0:
-		avatar.set_letter(display_name[0].to_upper())
-	else:
-		avatar.set_letter("")
-	var avatar_url = user.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		avatar.set_avatar_url(avatar_url)
+	avatar.setup_from_dict(user)
 
 func update_data(data: Dictionary) -> void:
 	_message_data = data

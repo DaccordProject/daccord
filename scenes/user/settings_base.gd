@@ -18,10 +18,9 @@ func _ready() -> void:
 	_setup_modal("", modal_size.x, modal_size.y, false, 0.0)
 
 	# Override panel style (settings uses slightly different bg)
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = ThemeManager.get_color("settings_bg")
-	panel_style.set_corner_radius_all(8)
-	_modal_panel.add_theme_stylebox_override("panel", panel_style)
+	_modal_panel.add_theme_stylebox_override("panel",
+		ThemeManager.make_flat_style("settings_bg", 8)
+	)
 
 	# Settings has its own header with smaller font and gray text
 	var header := HBoxContainer.new()
@@ -66,8 +65,7 @@ func _ready() -> void:
 	# Left nav panel
 	_nav_panel = PanelContainer.new()
 	_nav_panel.custom_minimum_size = Vector2(180, 0)
-	var nav_style := StyleBoxFlat.new()
-	nav_style.bg_color = ThemeManager.get_color("nav_bg")
+	var nav_style := ThemeManager.make_flat_style("nav_bg")
 	nav_style.corner_radius_bottom_left = 8
 	_nav_panel.add_theme_stylebox_override("panel", nav_style)
 	_body_hbox.add_child(_nav_panel)
@@ -210,86 +208,20 @@ func _error_label() -> Label:
 static func create_action_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = ThemeManager.get_color("accent")
-	normal.set_corner_radius_all(4)
-	normal.content_margin_left = 16
-	normal.content_margin_right = 16
-	normal.content_margin_top = 6
-	normal.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("normal", normal)
-	var hover := StyleBoxFlat.new()
-	hover.bg_color = ThemeManager.get_color("accent_hover")
-	hover.set_corner_radius_all(4)
-	hover.content_margin_left = 16
-	hover.content_margin_right = 16
-	hover.content_margin_top = 6
-	hover.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("hover", hover)
-	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = ThemeManager.get_color("accent_pressed")
-	pressed.set_corner_radius_all(4)
-	pressed.content_margin_left = 16
-	pressed.content_margin_right = 16
-	pressed.content_margin_top = 6
-	pressed.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("pressed", pressed)
+	ThemeManager.style_button(btn, "accent", "accent_hover", "accent_pressed", 4, [16, 6, 16, 6])
 	return btn
 
 static func create_secondary_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = ThemeManager.get_color("secondary_button")
-	normal.set_corner_radius_all(4)
-	normal.content_margin_left = 16
-	normal.content_margin_right = 16
-	normal.content_margin_top = 6
-	normal.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("normal", normal)
-	var hover := StyleBoxFlat.new()
-	hover.bg_color = ThemeManager.get_color("secondary_button_hover")
-	hover.set_corner_radius_all(4)
-	hover.content_margin_left = 16
-	hover.content_margin_right = 16
-	hover.content_margin_top = 6
-	hover.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("hover", hover)
-	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = ThemeManager.get_color("secondary_button_pressed")
-	pressed.set_corner_radius_all(4)
-	pressed.content_margin_left = 16
-	pressed.content_margin_right = 16
-	pressed.content_margin_top = 6
-	pressed.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("pressed", pressed)
+	ThemeManager.style_button(
+		btn, "secondary_button", "secondary_button_hover",
+		"secondary_button_pressed", 4, [16, 6, 16, 6]
+	)
 	return btn
 
 static func create_danger_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = ThemeManager.get_color("error")
-	normal.set_corner_radius_all(4)
-	normal.content_margin_left = 16
-	normal.content_margin_right = 16
-	normal.content_margin_top = 6
-	normal.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("normal", normal)
-	var hover := StyleBoxFlat.new()
-	hover.bg_color = ThemeManager.get_color("error_hover")
-	hover.set_corner_radius_all(4)
-	hover.content_margin_left = 16
-	hover.content_margin_right = 16
-	hover.content_margin_top = 6
-	hover.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("hover", hover)
-	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = ThemeManager.get_color("error_pressed")
-	pressed.set_corner_radius_all(4)
-	pressed.content_margin_left = 16
-	pressed.content_margin_right = 16
-	pressed.content_margin_top = 6
-	pressed.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("pressed", pressed)
+	ThemeManager.style_button(btn, "error", "error_hover", "error_pressed", 4, [16, 6, 16, 6])
 	return btn

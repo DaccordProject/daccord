@@ -42,14 +42,9 @@ func setup(data: Dictionary) -> void:
 		chip.text = str(tag)
 		chip.add_theme_font_size_override("font_size", 11)
 		chip.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-		var chip_style := StyleBoxFlat.new()
-		chip_style.bg_color = ThemeManager.get_color("secondary_button")
-		chip_style.set_corner_radius_all(4)
-		chip_style.content_margin_left = 6.0
-		chip_style.content_margin_right = 6.0
-		chip_style.content_margin_top = 2.0
-		chip_style.content_margin_bottom = 2.0
-		chip.add_theme_stylebox_override("normal", chip_style)
+		chip.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style("secondary_button", 4, [6, 2, 6, 2])
+		)
 		_tag_container.add_child(chip)
 
 	# Load icon asynchronously
@@ -85,20 +80,14 @@ func _apply_theme() -> void:
 	_apply_style()
 
 func _apply_style() -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeManager.get_color("nav_bg")
-	style.set_corner_radius_all(8)
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel", ThemeManager.make_flat_style("nav_bg", 8))
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		card_clicked.emit(_data)
 
 func _on_mouse_entered() -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeManager.get_color("button_hover")
-	style.set_corner_radius_all(8)
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel", ThemeManager.make_flat_style("button_hover", 8))
 
 func _on_mouse_exited() -> void:
 	_apply_style()

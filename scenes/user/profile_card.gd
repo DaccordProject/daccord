@@ -34,17 +34,9 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(300, 0)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeManager.get_color("popup_bg")
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	style.content_margin_left = 0.0
-	style.content_margin_right = 0.0
-	style.content_margin_top = 0.0
-	style.content_margin_bottom = 12.0
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel",
+		ThemeManager.make_flat_style("popup_bg", 8, [0, 0, 0, 12])
+	)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 0)
@@ -201,14 +193,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 	_username_label.text = user_data.get("username", "")
 
 	# Avatar
-	_avatar.set_avatar_color(
-		user_data.get("color", ThemeManager.get_color("accent"))
-	)
-	if dn.length() > 0:
-		_avatar.set_letter(dn[0].to_upper())
-	var avatar_url = user_data.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		_avatar.set_avatar_url(avatar_url)
+	_avatar.setup_from_dict(user_data)
 
 	# Status dot
 	var status: int = user_data.get(

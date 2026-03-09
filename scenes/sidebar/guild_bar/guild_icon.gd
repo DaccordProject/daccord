@@ -75,17 +75,8 @@ func _ready() -> void:
 func setup(data: Dictionary) -> void:
 	space_id = data.get("id", "")
 	space_name = data.get("name", "")
-	avatar_rect.set_avatar_color(data.get("icon_color", Color.GRAY))
+	avatar_rect.setup_from_dict(data, "icon_color", "name", "icon")
 	icon_button.tooltip_text = space_name
-
-	if space_name.length() > 0:
-		avatar_rect.set_letter(space_name[0].to_upper())
-	else:
-		avatar_rect.set_letter("")
-
-	var icon_url = data.get("icon", null)
-	if icon_url is String and not icon_url.is_empty():
-		avatar_rect.set_avatar_url(icon_url)
 
 	_has_unread = data.get("unread", false)
 	var mentions: int = data.get("mentions", 0)

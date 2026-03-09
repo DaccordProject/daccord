@@ -299,20 +299,20 @@ func _send_voice_state_update() -> void:
 func on_session_state_changed(state: int) -> void:
 	AppState.voice_session_state_changed.emit(state)
 	match state:
-		LiveKitAdapter.State.CONNECTING:
+		ClientModels.VoiceSessionState.CONNECTING:
 			_voice_log("session_state: CONNECTING")
-		LiveKitAdapter.State.CONNECTED:
+		ClientModels.VoiceSessionState.CONNECTED:
 			_voice_log("session_state: CONNECTED")
 			_auto_reconnect_attempted = false
-		LiveKitAdapter.State.RECONNECTING:
+		ClientModels.VoiceSessionState.RECONNECTING:
 			_voice_log("session_state: RECONNECTING")
-		LiveKitAdapter.State.FAILED:
+		ClientModels.VoiceSessionState.FAILED:
 			_voice_log("session_state: FAILED")
 			push_error("[Client] Voice session failed")
 			AppState.voice_error.emit(
 				"Voice connection failed"
 			)
-		LiveKitAdapter.State.DISCONNECTED:
+		ClientModels.VoiceSessionState.DISCONNECTED:
 			_voice_log("session_state: DISCONNECTED")
 			_try_auto_reconnect()
 

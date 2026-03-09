@@ -1,5 +1,7 @@
 extends GutTest
 
+const TestDataFactory := preload("res://tests/helpers/test_data_factory.gd")
+
 var component: HBoxContainer
 
 
@@ -17,21 +19,7 @@ func after_each() -> void:
 
 
 func _rel_data(overrides: Dictionary = {}) -> Dictionary:
-	var d := {
-		"id": "rel_1",
-		"user": {
-			"id": "u_1",
-			"display_name": "Alice",
-			"username": "alice",
-			"color": Color(0.3, 0.5, 0.8),
-			"status": ClientModels.UserStatus.ONLINE,
-			"avatar": null,
-		},
-		"type": 1,
-		"since": "2025-01-01T00:00:00Z",
-	}
-	d.merge(overrides, true)
-	return d
+	return TestDataFactory.rel_data(overrides)
 
 
 # --- setup: display name ---

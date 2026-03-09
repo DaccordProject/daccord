@@ -1,5 +1,7 @@
 extends GutTest
 
+const TestDataFactory := preload("res://tests/helpers/test_data_factory.gd")
+
 var component: HBoxContainer
 
 
@@ -25,16 +27,7 @@ func after_each() -> void:
 
 
 func _space_data(overrides: Dictionary = {}) -> Dictionary:
-	var d := {
-		"id": "g_1",
-		"name": "Test Space",
-		"icon_color": Color(0.3, 0.5, 0.7),
-		"icon": null,
-		"unread": false,
-		"mentions": 0,
-	}
-	d.merge(overrides, true)
-	return d
+	return TestDataFactory.space_data(overrides)
 
 
 # --- setup ---

@@ -1,5 +1,7 @@
 extends GutTest
 
+const TestDataFactory := preload("res://tests/helpers/test_data_factory.gd")
+
 var component: HBoxContainer
 
 
@@ -26,29 +28,7 @@ func after_each() -> void:
 
 
 func _msg_data(overrides: Dictionary = {}) -> Dictionary:
-	var d := {
-		"id": "m_1",
-		"channel_id": "c_1",
-		"author": {
-			"id": "u_author",
-			"display_name": "Alice",
-			"username": "alice",
-			"color": Color(0.8, 0.2, 0.2),
-			"status": 0,
-			"avatar": null,
-		},
-		"content": "Hello world",
-		"timestamp": "Today at 2:30 PM",
-		"edited": false,
-		"reactions": [],
-		"reply_to": "",
-		"embed": {},
-		"embeds": [],
-		"attachments": [],
-		"system": false,
-	}
-	d.merge(overrides, true)
-	return d
+	return TestDataFactory.msg_data(overrides)
 
 
 # --- setup ---

@@ -29,13 +29,9 @@ func _ready() -> void:
 	folder_button.pressed.connect(_toggle_expanded)
 	folder_button.tooltip_text = folder_name
 	# Style folder button
-	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeManager.get_color("secondary_button")
-	style.corner_radius_top_left = 16
-	style.corner_radius_top_right = 16
-	style.corner_radius_bottom_left = 16
-	style.corner_radius_bottom_right = 16
-	folder_button.add_theme_stylebox_override("normal", style)
+	folder_button.add_theme_stylebox_override("normal",
+		ThemeManager.make_flat_style("secondary_button", 16)
+	)
 
 	_apply_theme()
 
@@ -74,10 +70,7 @@ func setup(p_name: String, spaces: Array, folder_color := Color(-1, 0, 0)) -> vo
 		avatar.custom_minimum_size = Vector2(14, 14)
 		avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mini_grid.add_child(avatar)
-		avatar.set_avatar_color(spaces[i].get("icon_color", Color.GRAY))
-		var icon_url = spaces[i].get("icon", null)
-		if icon_url is String and not icon_url.is_empty():
-			avatar.set_avatar_url(icon_url)
+		avatar.setup_from_dict(spaces[i], "icon_color", "name", "icon")
 
 	# Create full space icons for expanded view
 	for child in space_list.get_children():

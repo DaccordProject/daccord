@@ -1,9 +1,9 @@
 extends PanelContainer
 
-const ScreenPickerDialog := preload("res://scenes/sidebar/screen_picker_dialog.tscn")
 const AppSettingsScene := preload("res://scenes/user/app_settings.tscn")
 const SoundboardPanelScene := preload("res://scenes/soundboard/soundboard_panel.tscn")
 
+var _screen_picker_scene: PackedScene
 var _soundboard_panel: PanelContainer = null
 var _saved_channel_label: String = ""
 var _error_tween: Tween
@@ -42,6 +42,8 @@ func _ready() -> void:
 	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)
 	if OS.get_name() == "Web":
 		share_btn.visible = false
+	else:
+		_screen_picker_scene = load("res://scenes/sidebar/screen_picker_dialog.tscn")
 	add_to_group("themed")
 
 func _apply_theme() -> void:
@@ -106,7 +108,7 @@ func _on_session_state_changed(state: int) -> void:
 	if not visible:
 		return
 	match state:
-		LiveKitAdapter.State.CONNECTING:
+		ClientModels.VoiceSessionState.CONNECTING:
 			_stop_pulse()
 			channel_label.text = "Connecting..."
 			channel_label.add_theme_color_override(
@@ -114,7 +116,7 @@ func _on_session_state_changed(state: int) -> void:
 			)
 			status_dot.color = ThemeManager.get_color("warning")
 			_start_pulse()
-		LiveKitAdapter.State.CONNECTED:
+		ClientModels.VoiceSessionState.CONNECTED:
 			_stop_pulse()
 			channel_label.text = _saved_channel_label
 			channel_label.add_theme_color_override(
@@ -122,7 +124,7 @@ func _on_session_state_changed(state: int) -> void:
 			)
 			status_dot.color = ThemeManager.get_color("success")
 			status_dot.modulate.a = 1.0
-		LiveKitAdapter.State.RECONNECTING:
+		ClientModels.VoiceSessionState.RECONNECTING:
 			_stop_pulse()
 			_saved_channel_label = channel_label.text
 			channel_label.text = "Reconnecting..."
@@ -156,7 +158,7 @@ func _on_share_pressed() -> void:
 	if AppState.is_screen_sharing:
 		Client.stop_screen_share()
 	else:
-		var picker := ScreenPickerDialog.instantiate()
+		var picker := _screen_picker_scene.instantiate()
 		picker.source_selected.connect(_on_screen_source_selected)
 		get_tree().root.add_child(picker)
 
@@ -209,13 +211,8 @@ func _update_button_visuals() -> void:
 	# Mute button
 	if AppState.is_voice_muted:
 		mute_btn.text = "Mic Off"
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(ThemeManager.get_color("error"), 0.3)
-		style.corner_radius_top_left = 4
-		style.corner_radius_top_right = 4
-		style.corner_radius_bottom_left = 4
-		style.corner_radius_bottom_right = 4
-		mute_btn.add_theme_stylebox_override("normal", style)
+		mute_btn.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style(Color(ThemeManager.get_color("error"), 0.3), 4))
 	else:
 		mute_btn.text = "Mic"
 		mute_btn.remove_theme_stylebox_override("normal")
@@ -223,13 +220,8 @@ func _update_button_visuals() -> void:
 	# Deafen button
 	if AppState.is_voice_deafened:
 		deafen_btn.text = "Deaf"
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(ThemeManager.get_color("error"), 0.3)
-		style.corner_radius_top_left = 4
-		style.corner_radius_top_right = 4
-		style.corner_radius_bottom_left = 4
-		style.corner_radius_bottom_right = 4
-		deafen_btn.add_theme_stylebox_override("normal", style)
+		deafen_btn.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style(Color(ThemeManager.get_color("error"), 0.3), 4))
 	else:
 		deafen_btn.text = "Deaf"
 		deafen_btn.remove_theme_stylebox_override("normal")
@@ -240,13 +232,8 @@ func _update_button_visuals() -> void:
 	video_btn.tooltip_text = "" if cam_available else "No camera detected"
 	if AppState.is_video_enabled:
 		video_btn.text = "Cam On"
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(ThemeManager.get_color("success"), 0.3)
-		style.corner_radius_top_left = 4
-		style.corner_radius_top_right = 4
-		style.corner_radius_bottom_left = 4
-		style.corner_radius_bottom_right = 4
-		video_btn.add_theme_stylebox_override("normal", style)
+		video_btn.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style(Color(ThemeManager.get_color("success"), 0.3), 4))
 	else:
 		video_btn.text = "Cam"
 		video_btn.remove_theme_stylebox_override("normal")
@@ -254,13 +241,8 @@ func _update_button_visuals() -> void:
 	# Share button (green when active)
 	if AppState.is_screen_sharing:
 		share_btn.text = "Sharing"
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(ThemeManager.get_color("success"), 0.3)
-		style.corner_radius_top_left = 4
-		style.corner_radius_top_right = 4
-		style.corner_radius_bottom_left = 4
-		style.corner_radius_bottom_right = 4
-		share_btn.add_theme_stylebox_override("normal", style)
+		share_btn.add_theme_stylebox_override("normal",
+			ThemeManager.make_flat_style(Color(ThemeManager.get_color("success"), 0.3), 4))
 	else:
 		share_btn.text = "Share"
 		share_btn.remove_theme_stylebox_override("normal")

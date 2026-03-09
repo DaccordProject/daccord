@@ -24,16 +24,7 @@ func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	# Normal style (transparent)
-	_normal_style = StyleBoxFlat.new()
-	_normal_style.bg_color = Color(0, 0, 0, 0)
-	_normal_style.content_margin_left = 12.0
-	_normal_style.content_margin_right = 12.0
-	_normal_style.content_margin_top = 10.0
-	_normal_style.content_margin_bottom = 10.0
-	_normal_style.corner_radius_top_left = 6
-	_normal_style.corner_radius_top_right = 6
-	_normal_style.corner_radius_bottom_left = 6
-	_normal_style.corner_radius_bottom_right = 6
+	_normal_style = ThemeManager.make_flat_style(Color(0, 0, 0, 0), 6, [12, 10, 12, 10])
 
 	# Hover style
 	_hover_style = _normal_style.duplicate()
@@ -139,12 +130,7 @@ func setup(data: Dictionary) -> void:
 	_author_label.text = display_name
 
 	# Avatar
-	var author_color: Color = author.get("color", Color.WHITE)
-	_avatar.set_avatar_color(author_color)
-	_avatar.set_letter(display_name.substr(0, 1).to_upper())
-	var avatar_url = author.get("avatar", null)
-	if avatar_url != null and avatar_url is String and not avatar_url.is_empty():
-		_avatar.set_avatar_url(avatar_url)
+	_avatar.setup_from_dict(author)
 
 	# Reply count
 	var reply_count: int = data.get("reply_count", 0)

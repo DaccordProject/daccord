@@ -79,8 +79,11 @@ func test_client_ready_creates_voice_session() -> void:
 		client._voice_session,
 		"Voice session is null",
 	)
+	var lk_script: GDScript = load(
+		"res://scripts/autoload/livekit_adapter.gd"
+	)
 	assert_true(
-		client._voice_session is LiveKitAdapter,
+		is_instance_of(client._voice_session, lk_script),
 		"Voice session is wrong type",
 	)
 	assert_true(
@@ -98,7 +101,7 @@ func test_client_ready_wires_voice_signals() -> void:
 	assert_not_null(client, "Client failed to instantiate")
 	if client == null:
 		return
-	var session: LiveKitAdapter = client._voice_session
+	var session: Node = client._voice_session
 	assert_true(
 		session.session_state_changed.is_connected(
 			client.voice.on_session_state_changed

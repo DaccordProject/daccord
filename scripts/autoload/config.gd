@@ -338,7 +338,6 @@ func is_category_collapsed(space_id: String, category_id: String) -> bool:
 	var section := "collapsed_%s" % space_id
 	return _config.get_value(section, category_id, false)
 
-
 func get_user_status() -> int:
 	return _config.get_value("state", "user_status", 0)
 
@@ -744,7 +743,6 @@ func import_config(path: String) -> Error:
 	_load_ok = true
 	_save()
 	return OK
-
 
 ## --- Directory helpers ---
 

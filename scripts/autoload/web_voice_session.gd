@@ -13,19 +13,13 @@ signal track_received(user_id: String, stream)
 signal track_removed(user_id: String)
 signal audio_level_changed(user_id: String, level: float)
 
-# --- State enum (same integer values as LiveKitAdapter.State) ---
-enum State {
-	DISCONNECTED = 0,
-	CONNECTING = 1,
-	CONNECTED = 2,
-	RECONNECTING = 3,
-	FAILED = 4,
-}
+# --- State enum (aliases ClientModels.VoiceSessionState for local use) ---
+const VOICE_STATE := ClientModels.VoiceSessionState
 
 const CONNECT_TIMEOUT_SEC := 15.0
 
 var _room  # JavaScriptObject (LivekitClient.Room) or null
-var _state: int = State.DISCONNECTED
+var _state: int = VOICE_STATE.DISCONNECTED
 var _muted: bool = false
 var _deafened: bool = false
 var _is_web: bool = false
@@ -66,15 +60,15 @@ func connect_to_room(url: String, token: String) -> void:
 		return
 	if _room != null:
 		disconnect_voice()
-	_state = State.CONNECTING
-	session_state_changed.emit(State.CONNECTING)
+	_state = VOICE_STATE.CONNECTING
+	session_state_changed.emit(VOICE_STATE.CONNECTING)
 	_start_connect_timer()
 	_room = JavaScriptBridge.eval("new LivekitClient.Room()")
 	if _room == null:
 		push_error("[WebVoiceSession] LivekitClient.Room not found — is livekit-client.js loaded?")
 		_stop_connect_timer()
-		_state = State.FAILED
-		session_state_changed.emit(State.FAILED)
+		_state = VOICE_STATE.FAILED
+		session_state_changed.emit(VOICE_STATE.FAILED)
 		return
 	_wire_room_events()
 	_room.call("connect", url, token)
@@ -89,8 +83,8 @@ func disconnect_voice() -> void:
 		_room.call("disconnect")
 		_room = null
 	_free_callbacks()
-	_state = State.DISCONNECTED
-	session_state_changed.emit(State.DISCONNECTED)
+	_state = VOICE_STATE.DISCONNECTED
+	session_state_changed.emit(VOICE_STATE.DISCONNECTED)
 
 
 func set_muted(muted: bool) -> void:
@@ -192,8 +186,8 @@ func _wire_room_events() -> void:
 
 func _on_connected(_args) -> void:
 	_stop_connect_timer()
-	_state = State.CONNECTED
-	session_state_changed.emit(State.CONNECTED)
+	_state = VOICE_STATE.CONNECTED
+	session_state_changed.emit(VOICE_STATE.CONNECTED)
 	# Enable microphone respecting the current mute state
 	if _room != null:
 		var local_p = _room["localParticipant"]
@@ -202,18 +196,18 @@ func _on_connected(_args) -> void:
 
 
 func _on_disconnected(_args) -> void:
-	_state = State.DISCONNECTED
-	session_state_changed.emit(State.DISCONNECTED)
+	_state = VOICE_STATE.DISCONNECTED
+	session_state_changed.emit(VOICE_STATE.DISCONNECTED)
 
 
 func _on_reconnecting(_args) -> void:
-	_state = State.RECONNECTING
-	session_state_changed.emit(State.RECONNECTING)
+	_state = VOICE_STATE.RECONNECTING
+	session_state_changed.emit(VOICE_STATE.RECONNECTING)
 
 
 func _on_reconnected(_args) -> void:
-	_state = State.CONNECTED
-	session_state_changed.emit(State.CONNECTED)
+	_state = VOICE_STATE.CONNECTED
+	session_state_changed.emit(VOICE_STATE.CONNECTED)
 
 
 func _on_participant_connected(args) -> void:
@@ -290,13 +284,13 @@ func _on_active_speakers_changed(args) -> void:
 func _js_state_to_enum(js_state: String) -> int:
 	match js_state:
 		"connecting":
-			return State.CONNECTING
+			return VOICE_STATE.CONNECTING
 		"connected":
-			return State.CONNECTED
+			return VOICE_STATE.CONNECTED
 		"reconnecting":
-			return State.RECONNECTING
+			return VOICE_STATE.RECONNECTING
 		_:
-			return State.DISCONNECTED
+			return VOICE_STATE.DISCONNECTED
 
 
 func _cleanup_all_remote() -> void:
@@ -334,13 +328,13 @@ func _stop_connect_timer() -> void:
 
 
 func _on_connect_timeout() -> void:
-	if _state == State.CONNECTING:
+	if _state == VOICE_STATE.CONNECTING:
 		push_error(
 			"[WebVoiceSession] Connection timed out after %ds" % int(CONNECT_TIMEOUT_SEC)
 		)
 		_stop_connect_timer()
-		_state = State.FAILED
-		session_state_changed.emit(State.FAILED)
+		_state = VOICE_STATE.FAILED
+		session_state_changed.emit(VOICE_STATE.FAILED)
 		if _room != null:
 			_room.call("disconnect")
 		_room = null

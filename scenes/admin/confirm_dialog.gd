@@ -25,20 +25,10 @@ func setup(
 	if _confirm_btn:
 		_confirm_btn.text = confirm_text
 		if danger:
-			var danger_style := StyleBoxFlat.new()
-			danger_style.bg_color = ThemeManager.get_color("error")
-			danger_style.corner_radius_top_left = 4
-			danger_style.corner_radius_top_right = 4
-			danger_style.corner_radius_bottom_left = 4
-			danger_style.corner_radius_bottom_right = 4
-			danger_style.content_margin_left = 12.0
-			danger_style.content_margin_top = 4.0
-			danger_style.content_margin_right = 12.0
-			danger_style.content_margin_bottom = 4.0
-			_confirm_btn.add_theme_stylebox_override("normal", danger_style)
-			var danger_hover := danger_style.duplicate()
-			danger_hover.bg_color = ThemeManager.get_color("error_hover")
-			_confirm_btn.add_theme_stylebox_override("hover", danger_hover)
+			ThemeManager.style_button(
+				_confirm_btn, "error", "error_hover", "error_pressed",
+				4, [12, 4, 12, 4]
+			)
 
 func _on_confirm() -> void:
 	confirmed.emit()

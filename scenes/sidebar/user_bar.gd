@@ -78,17 +78,7 @@ func setup(user: Dictionary) -> void:
 		"display_name", "User"
 	)
 	username.text = user.get("username", "user")
-	avatar.set_avatar_color(
-		user.get("color", ThemeManager.get_color("accent"))
-	)
-	var dn: String = user.get("display_name", "")
-	if dn.length() > 0:
-		avatar.set_letter(dn[0].to_upper())
-	else:
-		avatar.set_letter("")
-	var avatar_url = user.get("avatar", null)
-	if avatar_url is String and not avatar_url.is_empty():
-		avatar.set_avatar_url(avatar_url)
+	avatar.setup_from_dict(user)
 
 	var status: int = user.get(
 		"status", ClientModels.UserStatus.OFFLINE

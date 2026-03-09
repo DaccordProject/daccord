@@ -180,7 +180,10 @@ func _ready() -> void:
 		)
 		_voice_session = WebVoiceSessionClass.new()
 	else:
-		_voice_session = LiveKitAdapter.new()
+		var LiveKitAdapterClass = load(
+			"res://scripts/autoload/livekit_adapter.gd"
+		)
+		_voice_session = LiveKitAdapterClass.new()
 	add_child(_voice_session)
 	_voice_session.session_state_changed.connect(
 		voice.on_session_state_changed
@@ -790,13 +793,11 @@ func _on_profile_switched() -> void:
 	disconnect_all()
 	_forum_post_cache.clear()
 	_muted_channels.clear()
-	# Reset AppState navigation state
 	AppState.current_space_id = ""
 	AppState.current_channel_id = ""
 	AppState.is_dm_mode = false
 	AppState.replying_to_message_id = ""
 	AppState.editing_message_id = ""
-	# Reconnect with new config
 	if Config.has_servers():
 		for i in Config.get_servers().size():
 			connect_server(i)

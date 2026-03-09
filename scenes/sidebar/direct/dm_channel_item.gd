@@ -60,17 +60,7 @@ func setup(data: Dictionary) -> void:
 	else:
 		avatar.visible = true
 		group_avatar.visible = false
-		avatar.set_avatar_color(
-			user.get("color", ThemeManager.get_color("accent"))
-		)
-		var dn: String = user.get("display_name", "")
-		if dn.length() > 0:
-			avatar.set_letter(dn[0].to_upper())
-		else:
-			avatar.set_letter("")
-		var avatar_url = user.get("avatar", null)
-		if avatar_url is String and not avatar_url.is_empty():
-			avatar.set_avatar_url(avatar_url)
+		avatar.setup_from_dict(user)
 	unread_dot.visible = data.get("unread", false)
 
 	# Participant count badge for group DMs
@@ -161,13 +151,7 @@ func _leave_group() -> void:
 
 func set_active(active: bool) -> void:
 	if active:
-		var style := StyleBoxFlat.new()
-		style.bg_color = ThemeManager.get_color("button_hover")
-		style.corner_radius_top_left = 4
-		style.corner_radius_top_right = 4
-		style.corner_radius_bottom_left = 4
-		style.corner_radius_bottom_right = 4
-		add_theme_stylebox_override("normal", style)
+		add_theme_stylebox_override("normal", ThemeManager.make_flat_style("button_hover", 4))
 		username_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	else:
 		remove_theme_stylebox_override("normal")
