@@ -14,9 +14,6 @@ extends HBoxContainer
 signal text_changed(new_text: String)
 signal text_submitted(submitted_text: String)
 
-const _ICON_EYE: Texture2D = preload("res://assets/theme/icons/eye.svg")
-const _ICON_EYE_CLOSED: Texture2D = preload("res://assets/theme/icons/eye_closed.svg")
-
 ## Exported so the placeholder can be set directly in the scene file.
 @export var placeholder_text: String = "":
 	set(v):
@@ -51,11 +48,16 @@ var editable: bool:
 		_input.editable = v
 		_toggle_btn.visible = v
 
+var _icon_eye: Texture2D
+var _icon_eye_closed: Texture2D
+
 @onready var _input: LineEdit = $Input
 @onready var _toggle_btn: Button = $ToggleBtn
 
 
 func _ready() -> void:
+	_icon_eye = load("res://assets/theme/icons/eye.svg")
+	_icon_eye_closed = load("res://assets/theme/icons/eye_closed.svg")
 	_input.placeholder_text = placeholder_text
 	_input.text_changed.connect(func(t: String) -> void: text_changed.emit(t))
 	_input.text_submitted.connect(func(t: String) -> void: text_submitted.emit(t))
@@ -72,6 +74,6 @@ func _on_toggle() -> void:
 
 
 func _update_icon() -> void:
-	if _toggle_btn == null:
+	if _toggle_btn == null or _input == null:
 		return
-	_toggle_btn.icon = _ICON_EYE_CLOSED if _input.secret else _ICON_EYE
+	_toggle_btn.icon = _icon_eye_closed if _input.secret else _icon_eye
