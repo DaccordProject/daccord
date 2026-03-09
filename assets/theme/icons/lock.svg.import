@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://blcksvgdac28x"
-path="res://.godot/imported/lock.svg-blcksvgdac28x.ctex"
+path="res://.godot/imported/lock.svg-fd999129bee8aa741c23aeadbc41409a.ctex"
 metadata={
+"has_editor_variant": true,
 "vram_texture": false
 }
 
 [deps]
 
 source_file="res://assets/theme/icons/lock.svg"
-dest_files=["res://.godot/imported/lock.svg-blcksvgdac28x.ctex"]
+dest_files=["res://.godot/imported/lock.svg-fd999129bee8aa741c23aeadbc41409a.ctex"]
 
 [params]
 
