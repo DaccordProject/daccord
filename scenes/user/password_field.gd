@@ -20,10 +20,8 @@ const _ICON_EYE_CLOSED: Texture2D = preload("res://assets/theme/icons/eye_closed
 		if _input != null:
 			_input.placeholder_text = v
 
-@onready var _input: LineEdit = $Input
-@onready var _toggle_btn: Button = $ToggleBtn
-
 # --- Public API (mirrors LineEdit) ---
+# Getters/setters delegate to the inner LineEdit once the node is ready.
 
 var text: String:
 	get:
@@ -44,6 +42,9 @@ var editable: bool:
 	set(v):
 		_input.editable = v
 		_toggle_btn.visible = v
+
+@onready var _input: LineEdit = $Input
+@onready var _toggle_btn: Button = $ToggleBtn
 
 
 func _ready() -> void:
