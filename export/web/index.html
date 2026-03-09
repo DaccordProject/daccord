@@ -148,21 +148,16 @@
       })();
     </script>
 
-    <!-- livekit-client.js must load before the Godot WASM module so that
-         JavaScriptBridge.eval("new LivekitClient.Room()") works at runtime. -->
-    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+    <!-- livekit-client.js + godot-livekit-web.js must load before the Godot
+         WASM module so that GodotLiveKit.createRoom() works at runtime. -->
+    <script src="livekit-client.umd.min.js"></script>
+    <script src="godot-livekit-web.js"></script>
     <script src="$GODOT_URL"></script>
     <script>
       /* globals Engine */
 
-      const GODOT_CONFIG = {
-        canvas: document.getElementById("canvas"),
-        canvasResizePolicy: $GODOT_CANVAS_RESIZE_POLICY,
-        executable: "$GODOT_URL".replace(/\.js$/, ""),
-        experimentalVK: $GODOT_EXPERIMENTAL_VK,
-        focusCanvas: $GODOT_FOCUS_CANVAS,
-        gdextensionLibs: [],
-      };
+      const GODOT_CONFIG = $GODOT_CONFIG;
+      GODOT_CONFIG.canvas = document.getElementById("canvas");
 
       const statusEl = document.getElementById("status");
       const progressWrap = document.getElementById("status-progress-wrap");

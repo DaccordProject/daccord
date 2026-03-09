@@ -1,9 +1,13 @@
 class_name WebVoiceSession
 extends Node
 
-## Web-only voice session using livekit-client.js via JavaScriptBridge.
+## Web-only voice session using godot-livekit-web.js via JavaScriptBridge.
 ## Provides the same signal/API surface as LiveKitAdapter for web exports.
 ## On non-web builds all methods are no-ops (JavaScriptBridge unavailable).
+##
+## All JS interaction goes through JavaScriptBridge.eval() because Godot's
+## JavaScriptObject.call() cannot invoke methods on wrapped JS objects
+## (prototype or own-property — obj[method] lookup fails at the WASM boundary).
 
 # --- Signals (mirror LiveKitAdapter) ---
 signal session_state_changed(state: int)
@@ -18,14 +22,14 @@ const VOICE_STATE := ClientModels.VoiceSessionState
 
 const CONNECT_TIMEOUT_SEC := 15.0
 
-var _room  # JavaScriptObject (LivekitClient.Room) or null
+var _has_room: bool = false
 var _state: int = VOICE_STATE.DISCONNECTED
 var _muted: bool = false
 var _deafened: bool = false
 var _is_web: bool = false
 var _connect_timer: Timer
 
-# Remote video: participant identity -> JavaScriptObject (MediaStreamTrack)
+# Remote video: participant identity -> wrapped track object
 var _remote_video: Dictionary = {}
 
 # Participant identity -> user_id mapping
@@ -53,25 +57,46 @@ func _ready() -> void:
 	_is_web = OS.get_name() == "Web"
 
 
+# --- Helpers for JS eval ---
+
+func _js(code: String) -> Variant:
+	return JavaScriptBridge.eval(code, true)
+
+
+func _js_void(code: String) -> void:
+	JavaScriptBridge.eval(code, true)
+
+
 # --- Public API (mirrors LiveKitAdapter) ---
 
 func connect_to_room(url: String, token: String) -> void:
 	if not _is_web:
 		return
-	if _room != null:
+	if _has_room:
 		disconnect_voice()
 	_state = VOICE_STATE.CONNECTING
 	session_state_changed.emit(VOICE_STATE.CONNECTING)
 	_start_connect_timer()
-	_room = JavaScriptBridge.eval("new LivekitClient.Room()")
-	if _room == null:
-		push_error("[WebVoiceSession] LivekitClient.Room not found — is livekit-client.js loaded?")
+
+	# Create room and store on window (all access goes through eval)
+	_js_void("window._godotLkRoom = GodotLiveKit.createRoom()")
+	var check = _js("typeof window._godotLkRoom")
+	if str(check) != "object":
+		push_error(
+			"[WebVoiceSession] GodotLiveKit not found — is godot-livekit-web.js loaded?"
+		)
 		_stop_connect_timer()
 		_state = VOICE_STATE.FAILED
 		session_state_changed.emit(VOICE_STATE.FAILED)
 		return
+	_has_room = true
+
 	_wire_room_events()
-	_room.call("connect", url, token)
+
+	# Escape URL and token for JS string literals
+	var safe_url: String = url.replace("\\", "\\\\").replace("'", "\\'")
+	var safe_token: String = token.replace("\\", "\\\\").replace("'", "\\'")
+	_js_void("window._godotLkRoom.connectToRoom('%s', '%s')" % [safe_url, safe_token])
 
 
 func disconnect_voice() -> void:
@@ -79,9 +104,15 @@ func disconnect_voice() -> void:
 		return
 	_stop_connect_timer()
 	_cleanup_all_remote()
-	if _room != null:
-		_room.call("disconnect")
-		_room = null
+	if _has_room:
+		_js_void(
+			"if(window._godotLkRoom){window._godotLkRoom.disconnectFromRoom()}"
+		)
+		_js_void(
+			"delete window._godotLkRoom;"
+			+ "for(var i=0;i<9;i++)delete window['_glkCb'+i]"
+		)
+		_has_room = false
 	_free_callbacks()
 	_state = VOICE_STATE.DISCONNECTED
 	session_state_changed.emit(VOICE_STATE.DISCONNECTED)
@@ -89,11 +120,13 @@ func disconnect_voice() -> void:
 
 func set_muted(muted: bool) -> void:
 	_muted = muted
-	if not _is_web or _room == null:
+	if not _is_web or not _has_room:
 		return
-	var local_p = _room["localParticipant"]
-	if local_p != null:
-		local_p.call("setMicrophoneEnabled", not muted)
+	var enabled_str: String = "true" if not muted else "false"
+	_js_void(
+		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setMicrophoneEnabled(%s)}})()"
+		% enabled_str
+	)
 
 
 func set_deafened(deafened: bool) -> void:
@@ -115,21 +148,20 @@ func get_session_state() -> int:
 ## Enables the camera via livekit-client.js and returns a stub RefCounted
 ## so callers can detect success.  Local preview is not available on web.
 func publish_camera(_resolution: Vector2i, _fps: int) -> RefCounted:
-	if not _is_web or _room == null:
+	if not _is_web or not _has_room:
 		return null
-	var local_p = _room["localParticipant"]
-	if local_p == null:
-		return null
-	local_p.call("setCameraEnabled", true)
+	_js_void(
+		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setCameraEnabled(true)}})()"
+	)
 	return WebVideoStub.new()
 
 
 func unpublish_camera() -> void:
-	if not _is_web or _room == null:
+	if not _is_web or not _has_room:
 		return
-	var local_p = _room["localParticipant"]
-	if local_p != null:
-		local_p.call("setCameraEnabled", false)
+	_js_void(
+		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setCameraEnabled(false)}})()"
+	)
 
 
 ## Screen share is not supported on web exports.
@@ -144,12 +176,16 @@ func unpublish_screen() -> void:
 # --- Process: poll room state as safety-net for missed JS events ---
 
 func _process(_delta: float) -> void:
-	if not _is_web or _room == null:
+	if not _is_web or not _has_room:
 		return
-	var js_state: String = str(_room["state"])
-	var polled: int = _js_state_to_enum(js_state)
-	if polled != _state:
-		_state = polled
+	var polled = _js(
+		"window._godotLkRoom ? window._godotLkRoom.getConnectionState() : 0"
+	)
+	if polled == null:
+		return
+	var polled_int: int = int(polled)
+	if polled_int != _state:
+		_state = polled_int
 		session_state_changed.emit(_state)
 
 
@@ -167,17 +203,41 @@ func _wire_room_events() -> void:
 		_on_participant_disconnected
 	)
 	_cb_track_subscribed = JavaScriptBridge.create_callback(_on_track_subscribed)
-	_cb_track_unsubscribed = JavaScriptBridge.create_callback(_on_track_unsubscribed)
-	_cb_active_speakers = JavaScriptBridge.create_callback(_on_active_speakers_changed)
-	_room.call("on", "connected", _cb_connected)
-	_room.call("on", "disconnected", _cb_disconnected)
-	_room.call("on", "reconnecting", _cb_reconnecting)
-	_room.call("on", "reconnected", _cb_reconnected)
-	_room.call("on", "participantConnected", _cb_participant_connected)
-	_room.call("on", "participantDisconnected", _cb_participant_disconnected)
-	_room.call("on", "trackSubscribed", _cb_track_subscribed)
-	_room.call("on", "trackUnsubscribed", _cb_track_unsubscribed)
-	_room.call("on", "activeSpeakersChanged", _cb_active_speakers)
+	_cb_track_unsubscribed = JavaScriptBridge.create_callback(
+		_on_track_unsubscribed
+	)
+	_cb_active_speakers = JavaScriptBridge.create_callback(
+		_on_active_speakers_changed
+	)
+
+	# Store each callback on window individually, then wire via eval
+	var win: JavaScriptObject = JavaScriptBridge.get_interface("window")
+	win._glkCb0 = _cb_connected
+	win._glkCb1 = _cb_disconnected
+	win._glkCb2 = _cb_reconnecting
+	win._glkCb3 = _cb_reconnected
+	win._glkCb4 = _cb_participant_connected
+	win._glkCb5 = _cb_participant_disconnected
+	win._glkCb6 = _cb_track_subscribed
+	win._glkCb7 = _cb_track_unsubscribed
+	win._glkCb8 = _cb_active_speakers
+
+	_js_void(
+		"(function(){var r=window._godotLkRoom;if(!r)return;"
+		+ "r.on('connected',window._glkCb0);"
+		+ "r.on('disconnected',window._glkCb1);"
+		+ "r.on('reconnecting',window._glkCb2);"
+		+ "r.on('reconnected',window._glkCb3);"
+		+ "r.on('participantConnected',window._glkCb4);"
+		+ "r.on('participantDisconnected',window._glkCb5);"
+		+ "r.on('trackSubscribed',window._glkCb6);"
+		+ "r.on('trackUnsubscribed',window._glkCb7);"
+		+ "r.on('activeSpeakersChanged',window._glkCb8)"
+		+ "})()"
+	)
+	# Note: Event names match GDExtension signal names (camelCase for JS).
+	# The wrapper delivers pre-wrapped participant/track objects with
+	# getIdentity(), getKind(), etc. matching the GDExtension API.
 
 
 # --- JS event callbacks ---
@@ -189,10 +249,12 @@ func _on_connected(_args) -> void:
 	_state = VOICE_STATE.CONNECTED
 	session_state_changed.emit(VOICE_STATE.CONNECTED)
 	# Enable microphone respecting the current mute state
-	if _room != null:
-		var local_p = _room["localParticipant"]
-		if local_p != null:
-			local_p.call("setMicrophoneEnabled", not _muted)
+	if _has_room:
+		var enabled_str: String = "true" if not _muted else "false"
+		_js_void(
+			"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setMicrophoneEnabled(%s)}})()"
+			% enabled_str
+		)
 
 
 func _on_disconnected(_args) -> void:
@@ -233,36 +295,36 @@ func _on_participant_disconnected(args) -> void:
 
 
 func _on_track_subscribed(args) -> void:
-	# JS args: (track, publication, participant)
+	# Wrapper delivers: (wrappedTrack, wrappedPublication, wrappedParticipant)
 	var track = args[0]
 	var participant = args[2]
 	if track == null or participant == null:
 		return
 	var identity: String = str(participant["identity"])
 	var uid: String = _identity_to_user.get(identity, identity)
-	var kind: String = str(track["kind"])
-	if kind == "video":
+	var kind: int = int(track["kind"])
+	if kind == 1:  # TrackKind.VIDEO
 		_remote_video[identity] = track
 		track_received.emit(uid, track)
 	# Audio is played back automatically by the livekit-client.js SDK on web
 
 
 func _on_track_unsubscribed(args) -> void:
-	# JS args: (track, publication, participant)
+	# Wrapper delivers: (wrappedTrack, wrappedPublication, wrappedParticipant)
 	var track = args[0]
 	var participant = args[2]
 	if track == null or participant == null:
 		return
 	var identity: String = str(participant["identity"])
 	var uid: String = _identity_to_user.get(identity, identity)
-	var kind: String = str(track["kind"])
-	if kind == "video":
+	var kind: int = int(track["kind"])
+	if kind == 1:  # TrackKind.VIDEO
 		_remote_video.erase(identity)
 		track_removed.emit(uid)
 
 
 func _on_active_speakers_changed(args) -> void:
-	# JS args: (speakers: Participant[])
+	# Wrapper delivers: (speakers: Array of {identity, audioLevel})
 	if _deafened:
 		return
 	var speakers = args[0]
@@ -280,18 +342,6 @@ func _on_active_speakers_changed(args) -> void:
 
 
 # --- Helpers ---
-
-func _js_state_to_enum(js_state: String) -> int:
-	match js_state:
-		"connecting":
-			return VOICE_STATE.CONNECTING
-		"connected":
-			return VOICE_STATE.CONNECTED
-		"reconnecting":
-			return VOICE_STATE.RECONNECTING
-		_:
-			return VOICE_STATE.DISCONNECTED
-
 
 func _cleanup_all_remote() -> void:
 	_remote_video.clear()
@@ -330,14 +380,16 @@ func _stop_connect_timer() -> void:
 func _on_connect_timeout() -> void:
 	if _state == VOICE_STATE.CONNECTING:
 		push_error(
-			"[WebVoiceSession] Connection timed out after %ds" % int(CONNECT_TIMEOUT_SEC)
+			"[WebVoiceSession] Connection timed out after %ds"
+			% int(CONNECT_TIMEOUT_SEC)
 		)
 		_stop_connect_timer()
 		_state = VOICE_STATE.FAILED
 		session_state_changed.emit(VOICE_STATE.FAILED)
-		if _room != null:
-			_room.call("disconnect")
-		_room = null
+		_js_void(
+			"if(window._godotLkRoom){window._godotLkRoom.disconnectFromRoom()}"
+		)
+		_has_room = false
 
 
 func _exit_tree() -> void:

@@ -2,39 +2,39 @@
 
 ## Overview
 
-This flow covers exporting daccord to the web (Godot Web / WASM) and the runtime differences that impact voice and video. Today, daccord’s voice/video pipeline depends on the LiveKit GDExtension (`AccordVoiceSession`, device enumeration, track creation), which is unavailable in web exports; a web build needs a separate “voice session” backend implemented via browser Web APIs (WebRTC + `getUserMedia`) instead.
+This flow covers exporting daccord to the web (Godot Web / WASM). The web build produces static files (HTML/JS/WASM/PCK) that can be served from any static web host. Voice and video use the LiveKit JS SDK (`livekit-client`) via a custom JavaScript wrapper (`godot-livekit-web.js`) that mirrors the GDExtension API surface, bridged to GDScript through `WebVoiceSession` and `JavaScriptBridge`.
 
 ## User Steps
 
 ### Export & deploy (developer)
 
-1. Developer adds a Web export preset (not present in `export_presets.cfg` today) and exports the project to static files (HTML/JS/WASM/PCK).
-2. Developer hosts the exported folder on a static web server (local dev server or a CDN-backed host).
+1. Developer runs `./web-export.sh` which:
+   - Runs `godot --headless --export-release "Web"` producing output in `dist/web/`.
+   - Downloads the `livekit-client` UMD bundle into `dist/web/`.
+   - Copies `godot-livekit-web.js` from the addon into `dist/web/`.
+2. Developer hosts `dist/web/` on a static web server (must serve with COOP/COEP headers or use the bundled `coop_coep.js` service worker for cross-origin isolation).
 3. User opens the web URL in a browser; daccord boots into the same empty-state experience as desktop when no servers are configured.
 
 ### Text chat (user)
 
-4. User adds a server via “Add Server” and connects (same flow as desktop).
+4. User adds a server via "Add Server" and connects (same flow as desktop).
 5. User navigates channels and sends/receives messages (same flow as desktop).
 
-### Voice (basic, web target behavior)
+### Voice (web)
 
 6. User clicks a voice channel to join.
 7. Browser prompts for microphone permission (first use).
-8. Client joins voice via REST (`VoiceApi.join`) and receives `AccordVoiceServerUpdate` credentials.
-9. Client establishes a WebRTC connection using browser APIs:
-   - Create `RTCPeerConnection`
-   - Capture mic audio via `navigator.mediaDevices.getUserMedia({audio: ...})`
-   - Add the audio track to the peer connection
-10. Client sends SDP offer/answer and ICE candidates to the server using the existing gateway `VOICE_SIGNAL` mechanism.
-11. Voice bar appears; mute/deafen toggles update the server voice state and local WebRTC track state.
+8. `ClientVoice` calls REST `VoiceApi.join()` and receives voice server credentials.
+9. `WebVoiceSession` creates a LiveKit room via `JavaScriptBridge.eval("GodotLiveKit.createRoom()")` and calls `connectToRoom(url, token)`.
+10. The `livekit-client` JS SDK handles WebRTC transport, ICE negotiation, and media.
+11. Voice bar appears; mute/deafen toggles call `setMicrophoneEnabled()` on the local participant.
 
-### Video (basic, web target behavior)
+### Video (web)
 
-12. While in voice, user clicks “Cam” to enable camera.
+12. While in voice, user clicks "Cam" to enable camera.
 13. Browser prompts for camera permission (first use).
-14. Client captures camera video via `getUserMedia({video: ...})`, adds a video track to the peer connection, and renegotiates through `VOICE_SIGNAL`.
-15. Local self-video tile appears; remote video tiles render when remote tracks are received.
+14. `WebVoiceSession.publish_camera()` calls `setCameraEnabled(true)` on the local participant. Returns a `WebVideoStub` (no local preview on web).
+15. Remote video tracks arrive via `trackSubscribed` events and are forwarded through `track_received` signals.
 
 ## Signal Flow
 
@@ -44,108 +44,118 @@ voice_channel_item.gd            AppState                 Client / ClientVoice
      |-- channel_pressed(id) ------>|                              |
      |                              |-- join_voice_channel(id) --->|
      |                              |                              |-- VoiceApi.join(id)
-     |                              |                              |-- _validate_backend_info()
      |                              |                              |
-     |                              |-- (Desktop) _voice_session.connect_custom_sfu()
-     |                              |-- (Web)     WebVoiceSession.connect_custom_sfu()
+     |                              |-- (Desktop) LiveKitAdapter.connect_to_room()
+     |                              |-- (Web)     WebVoiceSession.connect_to_room()
      |                              |                              |
      |<-- voice_joined(id) ---------|                              |
-     |   (show voice bar)           |                              |
-     |                              |                              |
-gateway voice.signal event          |                              |
-     |-- ClientGatewayEvents.on_voice_signal(data) --------------->|
-     |                              |                              |-- (Desktop) _voice_session.handle_voice_signal()
-     |                              |                              |-- (Web)     WebVoiceSession.handle_voice_signal()
+
+WebVoiceSession (GDScript)   <-->   JavaScriptBridge   <-->   godot-livekit-web.js
+     |                                                              |
+     | createRoom() -------------------------------------------------|
+     | connectToRoom(url, token) ------------------------------------|
+     | on("connected", cb) <---- room events ------------------------|
+     | on("participantConnected", cb) <-----------------------------|
+     | on("trackSubscribed", cb) <----------------------------------|
+     | on("activeSpeakersChanged", cb) <----------------------------|
 ```
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `export_presets.cfg:1` | Export presets. No Web preset is defined today (only Linux/Windows/macOS/ARM). |
-| `.github/workflows/release.yml:209` | CI exports release presets via `godot --headless --export-release`; no web artifact is built. |
-| `scripts/autoload/client.gd:129` | Voice session wiring. Loads `LiveKit` singleton and instantiates `AccordVoiceSession` if available (lines 162-205). |
-| `scripts/autoload/client_voice.gd:26` | Voice join pipeline: calls REST join, validates backend info, then `_connect_voice_backend()` (lines 26-115). |
-| `scripts/autoload/client_voice.gd:120` | Backend connect currently no-ops if `_voice_session` is null (lines 120-123). |
-| `scripts/autoload/client_voice.gd:227` | Video/screen-share toggles require `_accord_stream` for camera/screen tracks; errors if unavailable (lines 227-285). |
-| `scripts/autoload/client_gateway_events.gd:89` | Gateway voice event handling and forwarding of `voice.signal` to `_voice_session` (lines 89-170). |
-| `addons/accordkit/gateway/gateway_socket.gd:449` | `send_voice_signal()` sends `VOICE_SIGNAL` op with `{type, payload}` for signaling. |
-| `scenes/sidebar/screen_picker_dialog.gd:5` | Screen/window picker depends on `LiveKit.get_screens()` / `get_windows()` (web builds need a different UI or no screen share). |
-| `scenes/user/user_settings.gd:190` | “Voice & Video” settings page enumerates devices via LiveKit when available (lines 190+). |
+| `web-export.sh` | One-step export script: runs Godot web export, downloads `livekit-client` UMD, copies `godot-livekit-web.js` into `dist/web/`. |
+| `export/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. Registers the `coop_coep.js` service worker for cross-origin isolation. |
+| `export/web/coop_coep.js` | Service worker that adds `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers (required for `SharedArrayBuffer` / WASM threads in Chrome). |
+| `export/web/godot-livekit-web.js` | JavaScript wrapper around `livekit-client.js` that mirrors the godot-livekit GDExtension API surface. Exposes `GodotLiveKit.createRoom()` globally. |
+| `export_presets.cfg` (preset `Web`) | Web export preset. `export_path="dist/web/Daccord.html"`, `custom_html_shell="res://export/web/index.html"`. Excludes `addons/godot-livekit/*` (GDExtension not used on web). |
+| `scripts/autoload/web_voice_session.gd` | `WebVoiceSession` — web-only voice session using `JavaScriptBridge` to call into `godot-livekit-web.js`. Mirrors `LiveKitAdapter` signal/API surface. No-ops on non-web builds. |
+| `scripts/autoload/client_voice.gd` | Voice join pipeline: calls REST join, then routes to `LiveKitAdapter` (desktop) or `WebVoiceSession` (web). |
+| `.github/workflows/ci.yml` (`web-export` job) | CI web export: builds to `dist/build/web/`, validates artifacts, copies `coop_coep.js`, runs Chrome headless smoke test. |
 
 ## Implementation Details
 
-### Export preset & hosting (not implemented)
+### HTML shell template (Godot 4.5)
 
-- `export_presets.cfg` has no Web preset; adding one is the first step to making a browser build repeatable.
-- Release CI (`.github/workflows/release.yml` line 210) exports only presets in the matrix; web export would need a new matrix entry and packaging steps.
+The custom HTML shell at `export/web/index.html` uses Godot 4.5's `$GODOT_CONFIG` placeholder — a single JSON object that Godot substitutes at export time containing `canvasResizePolicy`, `experimentalVK`, `focusCanvas`, `executable`, `gdextensionLibs`, etc. The template assigns the `canvas` element after substitution:
 
-### Runtime capability detection (partially implemented)
+```js
+const GODOT_CONFIG = $GODOT_CONFIG;
+GODOT_CONFIG.canvas = document.getElementById("canvas");
+```
 
-- `Client._ready()` checks for the LiveKit singleton (line 162) and the `AccordVoiceSession` class (line 164). If missing, it warns “voice disabled” (lines 202-205).
-- `ClientVoice.toggle_video()` and `start_screen_share()` hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274).
+Other valid Godot 4.5 placeholders used: `$GODOT_PROJECT_NAME`, `$GODOT_HEAD_INCLUDE`, `$GODOT_URL`, `$GODOT_SPLASH`.
 
-### Voice join behavior when the voice session is missing (implemented but incorrect for web)
+### Cross-origin isolation
 
-- `ClientVoice.join_voice_channel()` always calls REST join and then `_connect_voice_backend()` (client_voice.gd lines 46-103).
-- `_connect_voice_backend()` returns early if `_voice_session` is null (lines 120-123).
-- Despite having no active media session, `join_voice_channel()` still calls `AppState.join_voice()` (line 113) which shows the voice UI as “connected”.
+Chrome requires `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers for `SharedArrayBuffer` (used by WASM threads). The `coop_coep.js` service worker intercepts fetch events and adds these headers. On first visit the worker installs and the page reloads; subsequent loads are isolated.
 
-### Web voice/video session (not implemented)
+### LiveKit JS SDK integration
 
-Target shape for a web build is a second voice session implementation that matches the parts of `AccordVoiceSession` daccord depends on:
+The web voice pipeline bypasses the native GDExtension entirely:
 
-- `connect_custom_sfu(sfu_endpoint, ice_config, mic_id)` equivalent (but backed by `RTCPeerConnection`)
-- `disconnect_voice()`
-- `set_muted()` / `set_deafened()` (mute maps to track enabled/disabled; deafen maps to output gain/mix)
-- Outgoing signaling callback compatible with `ClientVoice.on_signal_outgoing()` (client_voice.gd line 401)
-- Incoming signaling handler compatible with `ClientGatewayEvents.on_voice_signal()` (client_gateway_events.gd lines 163-170)
+1. `livekit-client.umd.min.js` — the official LiveKit JS SDK, loaded as a UMD bundle exposing `window.LivekitClient`.
+2. `godot-livekit-web.js` — a thin wrapper that creates room objects matching the GDExtension method names (`connectToRoom`, `disconnectFromRoom`, `getLocalParticipant`, `setMicrophoneEnabled`, `setCameraEnabled`, etc.) and converts LiveKit events into a shape GDScript can consume via `JavaScriptBridge`.
+3. `WebVoiceSession` (GDScript) — creates rooms via `JavaScriptBridge.eval("GodotLiveKit.createRoom()")`, wires JS event callbacks (`connected`, `disconnected`, `participantConnected`, `trackSubscribed`, `activeSpeakersChanged`, etc.), and emits the same signals as `LiveKitAdapter`.
 
-The web implementation would use browser APIs via `JavaScriptBridge` and would likely skip advanced features (screen/window lists, per-device selection) initially.
+Audio playback is handled automatically by the `livekit-client` SDK (no GDScript involvement). Video tracks arrive as `trackSubscribed` events and are forwarded via `track_received` signals. A `_process()` poll checks connection state as a safety net for missed JS events.
+
+### WebVoiceSession limitations
+
+- **No local video preview:** `publish_camera()` returns a `WebVideoStub` (no actual video texture).
+- **No screen sharing:** `publish_screen()` returns `null`.
+- **No per-device selection:** Device enumeration in settings depends on the LiveKit GDExtension.
+- **Deafen is local only:** `set_deafened()` stores state but does not suppress remote audio playback (requires JS-side gain control).
+- **Connect timeout:** 15-second timer; emits `FAILED` state if room doesn't connect.
+
+### Export output paths
+
+- **Local:** `dist/web/Daccord.html` (from `export_presets.cfg`).
+- **CI:** `dist/build/web/index.html` (CI overrides the output name for consistency).
 
 ## Implementation Status
 
-- [ ] Web export preset exists and produces a working browser build
-- [ ] Web export hosted build can connect to a server and do text chat end-to-end
-- [ ] Voice on web uses browser WebRTC APIs (mic) instead of LiveKit
-- [ ] Video on web uses browser WebRTC APIs (camera) instead of LiveKit
-- [ ] Screen share on web (optional; can be deferred)
-- [x] Voice signaling transport exists via gateway `VOICE_SIGNAL` (`send_voice_signal`, `on_voice_signal`)
-- [x] UI state/signals for voice + video exist in `AppState` (voice_* / video_enabled_changed)
+- [x] Web export preset exists in `export_presets.cfg`
+- [x] Custom HTML shell uses Godot 4.5 `$GODOT_CONFIG` placeholder
+- [x] `web-export.sh` script handles full export + JS bundle setup
+- [x] `coop_coep.js` service worker for cross-origin isolation
+- [x] `godot-livekit-web.js` wrapper mirrors GDExtension API
+- [x] `WebVoiceSession` bridges JS room events to GDScript signals
+- [x] CI web export job with Chrome headless smoke test
+- [x] Web export hosted build can connect to a server and do text chat
+- [x] Voice on web uses LiveKit JS SDK via `WebVoiceSession`
+- [x] Video on web (camera publish, remote track receive)
+- [ ] Local video preview on web
+- [ ] Screen share on web
+- [ ] Per-device audio/video selection on web
+- [ ] Deafen suppresses remote audio playback
 
 ## Tasks
 
-### WEB-1: No Web export preset
+### WEB-1: Local video preview unavailable on web
 - **Status:** open
-- **Impact:** 3
-- **Effort:** 1
-- **Tags:** ci
-- **Notes:** Add a Web preset to `export_presets.cfg` and (optionally) CI packaging.
-
-### WEB-2: Voice “connects” in UI even when `_voice_session` is missing
-- **Status:** open
-- **Impact:** 4
+- **Impact:** 2
 - **Effort:** 3
-- **Tags:** ci, ui, voice
-- **Notes:** `_connect_voice_backend()` returns early (client_voice.gd lines 120-123) but `AppState.join_voice()` still fires (line 113). Web builds need to block join or provide a web voice session.
+- **Tags:** ui, video
+- **Notes:** `publish_camera()` returns a `WebVideoStub`; no local video texture is rendered. Would need to attach a `<video>` element via JS and overlay or pipe frames back to Godot.
 
-### WEB-3: Voice/video depend on LiveKit APIs
+### WEB-2: Screen share not supported on web
 - **Status:** open
-- **Impact:** 4
+- **Impact:** 2
 - **Effort:** 3
-- **Tags:** api, config, ui, video, voice
-- **Notes:** Camera/screen tracks hard-fail when `_accord_stream` is null (client_voice.gd lines 235-237, 272-274); settings UI assumes LiveKit for full device enumeration (user_settings.gd line 192).
+- **Tags:** ui, video
+- **Notes:** `publish_screen()` returns `null`. Browser `getDisplayMedia()` API is available but needs JS wrapper + GDScript integration.
 
-### WEB-4: `voice.signal` forwarding only targets `_voice_session`
-- **Status:** open
-- **Impact:** 3
-- **Effort:** 3
-- **Tags:** gateway, voice
-- **Notes:** `ClientGatewayEvents.on_voice_signal()` forwards to meta `_voice_session` only (client_gateway_events.gd lines 165-170). A web session needs the same hook.
-
-### WEB-5: Screen/window picker is desktop-only
+### WEB-3: Deafen does not suppress remote audio
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 2
-- **Tags:** ui, video, voice
-- **Notes:** `screen_picker_dialog.gd` assumes LiveKit screen/window enumeration (lines 31-59). Basic web voice/video can ship without screen sharing initially.
+- **Tags:** voice
+- **Notes:** `set_deafened()` stores the flag but doesn't mute incoming audio. Needs JS-side gain control or `AudioContext` manipulation.
+
+### WEB-4: No per-device selection on web
+- **Status:** open
+- **Impact:** 1
+- **Effort:** 2
+- **Tags:** ui, voice, video
+- **Notes:** Settings UI device enumeration depends on LiveKit GDExtension. Web could use `navigator.mediaDevices.enumerateDevices()` via `JavaScriptBridge`.

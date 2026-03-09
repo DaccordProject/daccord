@@ -332,12 +332,8 @@ When a user is blocked:
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | No server-side relationship API | High | accordserver has no `/users/@me/relationships` routes or database tables; entire backend must be built first |
-| No gateway relationship events | High | No `RELATIONSHIP_ADD/UPDATE/REMOVE` events defined in the gateway protocol |
-| No AccordRelationship model | Medium | `addons/accordkit/models/` needs a new model class |
-| No friends list UI | Medium | DM sidebar currently only shows DM channels; needs a friends tab |
-| No block enforcement | Medium | Neither client nor server enforces blocks on DM creation or message visibility |
-| Member context menu missing friend actions | Medium | `member_item.gd` context menu (line 79) has Message/Report/Kick/Ban but no Add Friend or Block |
-| Cross-server identity collision | Medium | `_relationship_cache` uses plain user_id keys; multi-server needs `conn_id:user_id` composite keys |
-| No "Add Friend by username" flow | Low | Discord lets users add friends by `username#discriminator`; daccord has no equivalent global lookup |
+| No server-side gateway relationship events | High | No `RELATIONSHIP_ADD/UPDATE/REMOVE` events defined in the gateway protocol |
+| No server-side block enforcement | High | Server does not enforce blocks on DM creation or friend requests |
+| No client-side block enforcement | Medium | Client does not filter DMs or auto-decline requests from blocked users |
 | No mutual friends display | Low | Profile cards / user popups don't show mutual friends count |
 | No friend activity / "Playing" status | Low | No rich presence system to show what a friend is doing |
