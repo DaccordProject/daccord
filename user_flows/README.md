@@ -54,7 +54,7 @@ Ordered by natural user journey:
 | 46 | [Master Server Discovery](master_server_discovery.md) | Public server directory via accordmasterserver: server registration, background indexing, search/browse/join flow, discovery panel UI |
 | 47 | [Text Channel Chat Bot](text_channel_chat_bot.md) | Bot message rendering, bot user flag, webhook messages, interaction model, slash command API, component support gaps |
 | 48 | [Server Update](server_update.md) | Reconnection after server restart/update, stale cache risks, permission race windows, API version gaps, data resync coverage |
-| 49 | [Web Export](web_export.md) | Browser export (Godot Web/WASM), hosting, and web-specific voice/video plan (Web APIs instead of LiveKit) |
+| 49 | [Web Export](web_export.md) | Browser export (Godot Web/WASM), shareable channel/forum/topic URLs, guest mode with grayed-out inputs, SEO via server-side HTML snapshots, web voice/video |
 | 50 | [Two-Factor Authentication](two_factor_authentication.md) | Enable/verify/disable 2FA from User Settings, backup codes, and current UX gaps |
 | 51 | [Godot-LiveKit](godot_livekit.md) | GDExtension addon wrapping LiveKit C++ SDK: native classes (Room, Track, Participant, Stream, Source, E2EE), LiveKitAdapter GDScript wrapper, audio/video pipelines, build process, platform binaries |
 | 52 | [Screen Sharing](screen_sharing.md) | Screen picker dialog, publishing screen share tracks via LiveKit, local/remote tile rendering, voice state sync, track cleanup |
@@ -75,5 +75,5 @@ Ordered by natural user journey:
 | 67 | [In-App Terms of Service](terms_of_service.md) | ToS acceptance during registration, rules channel interstitial, content policy display, complaint/appeal process, consistent enforcement |
 | 68 | [End-User Documentation](end_user_documentation.md) | Markdown docs in `docs/` for non-technical users: 7 sections, 18 pages, front matter conventions, page-to-user-flow mapping |
 | 69 | [Friends](friends.md) | Cross-server friends system: friend requests, accept/decline, friends list with filter tabs, block/unblock, DM sidebar integration, per-server relationships |
-| 70 | [Server Plugins](server_plugins.md) | Per-server plugin system with Lua (sandboxed) and native (GDScript) runtimes; on-demand bundle download with caching; lobby/role system (player/spectator); LiveKit data channels for real-time state sync, input forwarding, and peer-to-peer file sharing; plugin signing for native code; NES emulator worked example |
-| 71 | [Read Only Mode](read_only_mode.md) | Anonymous/unregistered users browse public channels without an account; read-only view, no actions, aggregated "N anonymous users" member list entry, upgrade-to-auth flow |
+| 70 | [Server Plugins](server_plugins.md) | Per-server plugin system with scripted (sandboxed GDScript via godot-sandbox RISC-V VM) and native (full GDScript scenes with code signing) runtimes; on-demand bundle download with caching; lobby/role system (player/spectator); LiveKit data channels for real-time state sync, input forwarding, and peer-to-peer file sharing; plugin signing for native code; chess (scripted) and NES emulator (native) worked examples |
+| 71 | [Read Only Mode](read_only_mode.md) | Anonymous browsing via web export shareable URLs; guest tokens, read-only UI, forum SEO, Open Graph previews, deep linking, crawler HTML snapshots, upgrade-to-auth flow |

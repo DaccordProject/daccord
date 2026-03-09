@@ -6,60 +6,104 @@ Server plugins allow individual accordserver instances to extend daccord with cu
 
 Two plugin runtimes are supported:
 
-- **Lua plugins** — lightweight, sandboxed scripts for simple activities (chess, polls, trivia). Fetched as a single script, executed in a constrained VM with a 2ms/frame CPU budget.
-- **Native plugins** — full GDScript scenes and resources for complex activities (emulators, collaborative editors). Downloaded as a bundle on first launch, cached locally, and instantiated as a Godot scene tree.
+- **Scripted plugins** — sandboxed GDScript programs for simple activities (chess, polls, trivia). Written in GDScript, compiled to RISC-V ELF binaries via [godot-sandbox](https://github.com/libriscv/godot-sandbox), and executed in an isolated virtual machine. The VM enforces memory isolation and restricts API access — sandboxed code can only call whitelisted functions. No access to the filesystem, network, autoloads, or Godot engine internals.
+- **Native plugins** — full GDScript scenes and resources for complex activities (emulators, collaborative editors). Downloaded as a bundle on first launch, cached locally, and instantiated as a Godot scene tree. Requires code signing (Ed25519) and explicit user trust approval.
 
 The first supported plugin type is **Activities**: interactive experiences users can launch from within a voice channel. Activities use a **lobby system** with player/spectator roles and communicate via **LiveKit data channels** for low-latency real-time state sync.
 
+### What this means for non-technical users
+
+Think of plugins like mini-apps that a server admin can install. When you join a voice channel on a server with plugins, you might see options like "Play Chess" or "Launch Trivia." Clicking one opens a small interactive panel right inside daccord — no browser or extra software needed.
+
+- **Scripted plugins** are lightweight and safe by design. They run in a secure sandbox that prevents them from accessing your files or personal data. These are ideal for simple games and interactive widgets.
+- **Native plugins** are more powerful but require a higher level of trust. Before running one for the first time, daccord asks for your permission and verifies the plugin's digital signature to confirm it hasn't been tampered with.
+
+Both types only work on the server that installed them. A plugin from Server A cannot see your activity on Server B.
+
+### Why GDScript instead of Lua?
+
+The original design proposed Lua for the scripted plugin tier. GDScript (via godot-sandbox) is a better fit because:
+
+1. **No external dependency** — Lua would require sourcing or building a Lua 5.4 GDExtension for Godot 4.x. godot-sandbox is an existing, maintained GDExtension that supports Godot 4.3+.
+2. **One language** — Plugin developers already know GDScript from Godot. No need to learn a second language for simple plugins.
+3. **Real VM isolation** — godot-sandbox compiles GDScript to RISC-V ELF binaries and runs them in an instruction-validated virtual machine with separate memory space. This is stronger isolation than a Lua VM with blocked APIs — the sandbox cannot be escaped through pointer manipulation or reflection.
+4. **Performance** — godot-sandbox reports 2.5–10x performance over interpreted GDScript (5–50x with binary translation/JIT). This matters for frame-rate-sensitive activities like emulators.
+5. **Cross-platform** — Compiled ELF binaries run on all platforms (desktop, mobile, web) without recompilation.
+
 ## User Steps
 
-### Browsing available activities (Activity plugin type)
+### Browsing available activities
+
+*Who this is for: any user in a voice channel.*
 
 1. User joins a voice channel
-2. A "Launch Activity" button appears in the voice bar (rocket icon)
+2. A "Launch Activity" button appears in the voice bar (rocket icon, next to the existing microphone/camera/screen share buttons)
 3. User clicks "Launch Activity" → a modal lists available activities published by the server
-4. Each activity card shows: icon, name, description, runtime badge (Lua/Native), max participants, bundle size (native only), and a "Launch" button
+4. Each activity card shows:
+   - Activity icon (64x64)
+   - Name and description
+   - Runtime badge ("Scripted" or "Native") so users know the trust level
+   - Max participants (e.g., "2 players")
+   - Bundle size (native only, e.g., "1.0 MB")
+   - "Launch" button
 5. User clicks "Launch" → activity opens in a panel alongside the voice channel view
 
-### Starting a Lua activity
+### Starting a scripted activity
 
-1. Activity panel loads; the activity's Lua script is fetched from the server and executed in a sandboxed `LuaRuntime` node
-2. The Lua script renders its UI into a dedicated `ActivityViewport` using Godot draw calls via the Lua bridge API
-3. Other voice participants see a "Join Activity" prompt
-4. Joining participants connect to the same activity session; the server broadcasts state via a plugin-specific WebSocket event
+*Who this is for: any user launching a lightweight plugin (chess, trivia, polls).*
+
+1. Activity panel loads; the plugin's compiled ELF binary is fetched from the server
+2. A `Sandbox` node is created and the ELF is loaded into it. The sandbox restricts the program to only the whitelisted `Plugin.*` bridge API — no filesystem, no network, no engine internals
+3. The sandboxed program renders its UI into a dedicated `SubViewport` using drawing primitives (rectangles, circles, lines, text, images)
+4. Other voice participants see a "Join Activity" prompt
+5. Joining participants connect to the same activity session; the server broadcasts state via a `plugin.event` gateway event
+
+**What happens under the hood (technical):** The GDScript source is compiled to a RISC-V ELF binary by godot-sandbox's toolchain (either in-editor or as part of the plugin build process). At runtime, the `ScriptedRuntime` node creates a `Sandbox` instance, loads the ELF resource, and exposes only the `Plugin` API table. The RISC-V VM enforces memory isolation — the program runs in its own address space and cannot access host memory, Godot singletons, or the scene tree outside its designated `SubViewport`.
 
 ### Starting a native activity
 
-1. Activity panel loads; `PluginDownloadManager` checks the local cache (`user://plugins/<server_id>/<plugin_id>/`)
-2. If not cached or version mismatch: download progress bar appears, bundle is fetched via `GET /plugins/{id}/bundle`, verified against `bundle_hash` from manifest, and extracted
-3. If cached and version matches: skip download
+*Who this is for: users launching a complex plugin (emulator, collaborative editor).*
+
+1. **Trust check (first time only):** If this is the first native plugin from this server, daccord shows a confirmation dialog: "This activity runs native code from [server name]. Trust this server's plugins?" The user can allow or deny. This preference is saved per-server in the user's profile config
+2. **Signature verification:** The plugin bundle's Ed25519 signature is verified against the server-provided public key. If verification fails, the plugin is rejected with an error message
+3. **Download/cache:** `PluginDownloadManager` checks the local cache (`user://plugins/<server_id>/<plugin_id>/`):
+   - If not cached or version mismatch: download progress bar appears, bundle is fetched via `GET /plugins/{id}/bundle`, SHA-256 hash verified, signature verified, and extracted
+   - If cached and version matches: skip download
 4. The entry point scene (`entry_point` from manifest) is instantiated as a child of `ActivityViewport`
-5. The scene receives a `PluginContext` resource with the plugin bridge API (data channels, participant info, session state)
+5. The scene receives a `PluginContext` resource — the bridge API for data channels, participant info, session state, and file sharing
 6. Activity enters `LOBBY` state — other voice participants see a "Join Activity" prompt
 
 ### Lobby phase
 
-1. Activity opens in `LOBBY` state; host sees a lobby panel with:
-   - Participant list showing each user's role (`PLAYER` or `SPECTATOR`)
-   - Player slots (number set by `max_participants` in manifest; e.g., 2 for an emulator)
-   - "Claim Slot" button for users to request a player slot
-   - "Start" button (host only, enabled when at least one player has joined)
+*Who this is for: all participants in an activity that uses the lobby system.*
+
+1. Activity opens in `LOBBY` state; the host (user who launched the activity) sees a lobby panel with:
+   - **Player slots** — numbered slots set by `max_participants` in the manifest (e.g., 2 for a chess game, 4 for a card game). Each slot is either empty or shows a user's avatar and display name
+   - **Spectator list** — all joined users who haven't claimed a player slot
+   - **"Claim Slot" button** — lets a user request a player slot (greyed out when all slots are full)
+   - **"Start" button** — visible only to the host, enabled when at least one player slot is filled
 2. Joining participants default to `SPECTATOR` role
-3. Users click "Claim Slot" → if a slot is available, their role changes to `PLAYER`
-4. Host clicks "Start" → session state moves to `RUNNING` via gateway broadcast
+3. Users click "Claim Slot" → if a slot is available, their role changes to `PLAYER`. They can release the slot to go back to spectating
+4. Host clicks "Start" → session state moves to `RUNNING` via a gateway broadcast to all participants
 5. Late joiners (users who join the voice channel after the activity started) see the activity in its current state and join as `SPECTATOR`
 
-### Interacting within a Lua activity (e.g., chess)
+### Interacting within a scripted activity (e.g., chess)
 
-1. User makes a move → Lua script calls `Plugin.send_action({move: "e2e4"})` → client POSTs to the plugin's custom REST endpoint `POST /plugins/{plugin_id}/sessions/{session_id}/actions`
-2. Server validates the move, updates game state, and broadcasts `plugin.event` via gateway with `{plugin_id, type: "state_update", data: {...}}`
-3. All participants' Lua runtimes receive the event via `Plugin.on_event(callback)` and re-render the board
+*Who this is for: players and spectators in a scripted activity.*
+
+1. User makes a move → the sandboxed script calls `Plugin.send_action({move = "e2e4"})` → the client POSTs to the plugin's REST endpoint `POST /plugins/{plugin_id}/sessions/{session_id}/actions`
+2. The server validates the move (via its server-side plugin handler), updates game state, and broadcasts a `plugin.event` via the gateway with `{plugin_id, type: "state_update", data: {...}}`
+3. All participants' sandboxed runtimes receive the event via `Plugin.on_event(callback)` and re-render the board
+
+**For non-technical users:** You interact with scripted activities by clicking, typing, or pressing keys inside the activity panel. Your actions are sent to the server, which validates them (e.g., checks if a chess move is legal) and sends the updated game state to everyone. You don't need to worry about the technical details — it works like any other multiplayer game.
 
 ### Interacting within a native activity (e.g., NES emulator)
 
-1. Host selects a ROM file from their local filesystem via a file dialog
-2. Plugin reads the ROM into memory (validated by extension whitelist and size cap from manifest `max_file_size`)
-3. Plugin sends the ROM to all participants via LiveKit reliable byte stream (`Plugin.send_file()`)
+*Who this is for: players and spectators in a native activity.*
+
+1. Host selects a ROM file from their local filesystem via a file dialog (the plugin calls `PluginContext.request_file()`, which opens a native OS file picker filtered by allowed extensions and capped by `max_file_size` from the manifest)
+2. Plugin reads the ROM into memory
+3. Plugin sends the ROM to all participants via LiveKit reliable byte stream (`PluginContext.send_file()`), auto-chunked at 15 KiB packets
 4. All participants receive the file and load it into their local emulator instance
 5. Host starts the game → emulator begins running and streaming frame diffs
 6. **Frame sync (host → all):** Emulator produces frame diffs (delta-compressed, typically 500B–2KB) sent via LiveKit **lossy** data channel at ~60Hz on topic `frame_sync`
@@ -67,17 +111,25 @@ The first supported plugin type is **Activities**: interactive experiences users
 8. **Keyframes (host → all):** Full frame state sent via LiveKit **reliable** data channel every N seconds (configurable) on topic `keyframe` for drift correction
 9. Spectators receive frame diffs and render them but do not send input
 
+**For non-technical users:** The host picks a game file from their computer, and the plugin automatically shares it with everyone in the activity. The host's computer runs the game and streams the video to all participants in real-time. Players send their button presses back to the host. Spectators just watch — they see the same game but can't control it.
+
 ### Installing a plugin (server admin)
 
+*Who this is for: server administrators.*
+
 1. Admin opens Server Settings → Plugins tab
-2. Admin uploads a `.daccord-plugin` bundle (ZIP containing `plugin.json` manifest + scripts/scenes + optional assets)
-3. Server validates the bundle: checks manifest schema, verifies code signature (native plugins require signing), stores contents
-4. Server registers the plugin and broadcasts `plugin.installed` gateway event to all connected clients
-5. Plugin appears in the Activities list (or other entry point) for all users on that server
+2. Admin uploads a `.daccord-plugin` bundle (a ZIP file containing a `plugin.json` manifest, scripts/scenes, and optional assets like images and sounds)
+3. Server validates the bundle: checks the manifest schema, verifies the code signature (native plugins require signing), and stores the contents
+4. Server registers the plugin and broadcasts a `plugin.installed` gateway event to all connected clients
+5. The plugin appears in the Activities list for all users on that server
+
+**What's in a plugin bundle:** A `.daccord-plugin` file is a ZIP archive. At minimum it contains a `plugin.json` file describing the plugin (name, type, runtime, permissions). Scripted plugins include a compiled `.elf` binary. Native plugins include GDScript scenes (`.tscn`) and scripts (`.gd`), plus a `plugin.sig` digital signature file. Both can include an `assets/` directory with images, sounds, and other resources.
 
 ### Uninstalling a plugin
 
-1. Admin clicks "Uninstall" on a plugin
+*Who this is for: server administrators.*
+
+1. Admin clicks "Uninstall" on a plugin in Server Settings → Plugins
 2. Server removes all plugin data and scripts
 3. Gateway broadcasts `plugin.uninstalled {plugin_id}` → clients unload the runtime for that plugin and close any open activity panels
 4. All users actively in the activity receive a "This activity has ended" message and the panel closes
@@ -85,7 +137,7 @@ The first supported plugin type is **Activities**: interactive experiences users
 
 ## Signal Flow
 
-### Activity Launch (Lua runtime)
+### Activity Launch (Scripted runtime)
 
 ```
 voice_bar.gd                  AppState                    Client / ClientPlugins
@@ -100,26 +152,26 @@ voice_bar.gd                  AppState                    Client / ClientPlugins
      |-- user selects activity ----->|                              |
      |                              |-- launch_activity(id) ------>|
      |                              |                              |-- POST /plugins/{id}/sessions
-     |                              |                              |-- fetch Lua script
-     |                              |                              |-- create LuaRuntime
+     |                              |                              |-- fetch ELF binary
+     |                              |                              |-- create Sandbox + ScriptedRuntime
      |                              |<- activity_started(id) ------|
      |<-- activity_panel_opened ----|                              |
      |   (ActivityViewport shown)   |                              |
      |                              |                              |
-     |   Lua: Plugin.send_action()  |                              |
+     |   Script: Plugin.send_action()|                             |
      |------------------------------|----------------------------->|
      |                              |                              |-- POST /plugins/{id}/actions
      |                              |                              |
      |   Gateway: plugin.event      |                              |
      |                              |<- plugin_event(id, data) ----|
      |                              |   (from GatewaySocket)       |
-     |                              |-- route to LuaRuntime ------>|
-     |<-- LuaRuntime.on_event() ----|                              |
+     |                              |-- route to ScriptedRuntime ->|
+     |<-- Sandbox.on_event() ------|                              |
      |   (re-render UI in viewport) |                              |
      |                              |                              |
      |-- user leaves voice -------->|                              |
      |                              |-- cleanup_activity(id) ----->|
-     |                              |                              |-- LuaRuntime.stop()
+     |                              |                              |-- ScriptedRuntime.stop()
      |                              |                              |-- ActivityViewport freed
      |                              |<- activity_ended(id) --------|
      |<-- activity_panel_closed ----|                              |
@@ -138,6 +190,7 @@ voice_bar.gd          AppState          ClientPlugins        PluginDownloadMgr  
      |                    |<- download_progress(%) ----------------|                  |
      |                    |                    |<-- bundle ready ---|                  |
      |                    |                    |-- verify hash      |                  |
+     |                    |                    |-- verify signature |                  |
      |                    |                    |-- extract to cache |                  |
      |                    |                    |                    |                  |
      |                    |                    |-- POST /sessions   |                  |
@@ -182,7 +235,7 @@ Admin uninstalls plugin
     -> DELETE /spaces/{space_id}/plugins/{plugin_id}
     -> Gateway broadcasts: plugin.uninstalled {plugin_id}
         -> ClientPlugins.on_plugin_uninstalled(plugin_id)
-            -> tears down active runtime (Lua or native) if running
+            -> tears down active runtime (scripted or native) if running
             -> removes from _plugin_cache
             -> AppState.plugins_updated emitted
             -> AppState.activity_ended(plugin_id) emitted if activity was open
@@ -233,8 +286,8 @@ Host (emulator plugin)            LiveKit SFU              Participants
 | `scenes/plugins/activity_panel.tscn` | Panel scene (new) |
 | `scenes/plugins/activity_lobby.gd` | Lobby UI: participant list, role assignment, player slots, start button (new) |
 | `scenes/plugins/activity_lobby.tscn` | Lobby scene (new) |
-| `scenes/plugins/lua_runtime.gd` | Sandboxed Lua VM node; owns SubViewport + LuaCanvas; exposes `Plugin.*` bridge API; executes server-fetched scripts (new) |
-| `scenes/plugins/lua_canvas.gd` | `LuaCanvas extends Node2D`: sole draw target inside the Lua SubViewport; translates `Plugin.draw_*` calls into CanvasItem draw commands (new) |
+| `scenes/plugins/scripted_runtime.gd` | Sandboxed GDScript host; creates `Sandbox` node, loads ELF binary, exposes `Plugin.*` bridge API via godot-sandbox whitelisting (new) |
+| `scenes/plugins/plugin_canvas.gd` | `PluginCanvas extends Node2D`: sole draw target inside the scripted plugin's `SubViewport`; translates `Plugin.draw_*` calls into CanvasItem draw commands (new) |
 | `scenes/plugins/native_runtime.gd` | Native plugin host: instantiates GDScript scene, injects `PluginContext`, manages lifecycle (new) |
 | `scenes/plugins/plugin_context.gd` | `PluginContext extends Resource`: bridge API for native plugins (data channels, participants, session state) (new) |
 | `scenes/main/main_window.gd` | Manage `ActivityPanel` alongside `MessageView` in the content area |
@@ -252,12 +305,12 @@ New `AccordPluginManifest extends RefCounted` with fields:
 var id: String = ""
 var name: String = ""
 var type: String = ""              # "activity", "bot", "theme", "command"
-var runtime: String = ""           # "lua" or "native"
+var runtime: String = ""           # "scripted" or "native"
 var description: String = ""
 var icon_url: String = ""          # nullable
-var script_url: String = ""        # relative path on server CDN (Lua plugins)
+var elf_url: String = ""           # relative path on server CDN (scripted plugins)
 var entry_point: String = ""       # scene path within bundle (native plugins)
-var bundle_size: int = 0           # bytes (native plugins; 0 for Lua)
+var bundle_size: int = 0           # bytes (native plugins; 0 for scripted)
 var bundle_hash: String = ""       # "sha256:<hex>" (native plugins)
 var max_participants: int = 0      # 0 = unlimited
 var max_spectators: int = 0        # 0 = unlimited; -1 = no spectators
@@ -273,7 +326,7 @@ var signature: String = ""         # detached signature (native plugins)
 ### Plugin Runtime Enum
 
 ```gdscript
-enum PluginRuntime { LUA, NATIVE }
+enum PluginRuntime { SCRIPTED, NATIVE }
 ```
 
 ### Session State Enum
@@ -309,9 +362,9 @@ func delete_plugin(space_id: String, plugin_id: String) -> RestResult
 func get_bundle(plugin_id: String) -> RestResult
     # GET /plugins/{plugin_id}/bundle (returns binary ZIP)
 
-# Fetch the Lua script content for a plugin
-func get_script(plugin_id: String) -> RestResult
-    # GET /plugins/{plugin_id}/script (returns plain text)
+# Fetch the compiled ELF binary for a scripted plugin
+func get_elf(plugin_id: String) -> RestResult
+    # GET /plugins/{plugin_id}/elf (returns binary ELF)
 
 # Start an activity session in a voice channel
 func create_session(plugin_id: String, channel_id: String) -> RestResult
@@ -330,7 +383,7 @@ func update_session_state(plugin_id: String, session_id: String, state: String) 
 func assign_role(plugin_id: String, session_id: String, user_id: String, role: String) -> RestResult
     # POST /plugins/{plugin_id}/sessions/{session_id}/roles { user_id, role: "player"|"spectator" }
 
-# Send a plugin action (e.g., game move) — Lua plugins only
+# Send a plugin action (e.g., game move) — scripted plugins only
 func send_action(plugin_id: String, session_id: String, data: Dictionary) -> RestResult
     # POST /plugins/{plugin_id}/sessions/{session_id}/actions
 ```
@@ -389,7 +442,7 @@ New `ClientPlugins extends RefCounted`. Instantiated in `Client._ready()` alongs
 ```gdscript
 # Plugin cache: conn_index -> { plugin_id -> manifest dict }
 var _plugin_cache: Dictionary = {}
-# Active runtime reference (Lua or native scene)
+# Active runtime reference (scripted Sandbox or native scene)
 var _active_runtime: Node = null
 var _active_session_id: String = ""
 var _active_conn_index: int = -1
@@ -398,25 +451,25 @@ func fetch_plugins(conn_index: int, space_id: String) -> void
 func launch_activity(plugin_id: String, channel_id: String) -> void
     # 1. Look up manifest to determine runtime type
     # 2. If native: delegate to PluginDownloadManager, wait for cache hit
-    # 3. If lua: call PluginsApi.get_script() to fetch Lua source
+    # 3. If scripted: call PluginsApi.get_elf() to fetch compiled binary
     # 4. Call PluginsApi.create_session()
-    # 5. Instantiate LuaRuntime or NativeRuntime with plugin content
+    # 5. Instantiate ScriptedRuntime or NativeRuntime with plugin content
     # 6. If manifest.lobby: enter LOBBY state
     # 7. Emit AppState.activity_started(plugin_id, channel_id)
 func stop_activity(plugin_id: String) -> void
     # 1. Call PluginsApi.delete_session()
-    # 2. Tear down runtime (LuaRuntime.stop() or native scene queue_free())
+    # 2. Tear down runtime (ScriptedRuntime.stop() or native scene queue_free())
     # 3. Emit AppState.activity_ended(plugin_id)
 func assign_role(user_id: String, role: String) -> void
     # POST role assignment to server
 func start_session() -> void
     # PATCH session state to "running" (host only)
 func send_action(plugin_id: String, data: Dictionary) -> void
-    # Routes Plugin.send_action() calls from Lua bridge
+    # Routes Plugin.send_action() calls from sandboxed scripts
 func on_plugin_installed(manifest: AccordPluginManifest, conn_index: int) -> void
 func on_plugin_uninstalled(plugin_id: String, conn_index: int) -> void
 func on_plugin_event(plugin_id: String, event_type: String, data: Dictionary) -> void
-    # Routes to active LuaRuntime if plugin_id matches
+    # Routes to active ScriptedRuntime if plugin_id matches
 func on_plugin_session_state(plugin_id: String, session_id: String, state: String) -> void
     # Updates AppState.active_activity_session_state
 func on_plugin_role_changed(plugin_id: String, session_id: String, user_id: String, role: String) -> void
@@ -454,128 +507,155 @@ func delete_cache(server_id: String, plugin_id: String) -> void
 func delete_server_cache(server_id: String) -> void
 ```
 
-### Lua Runtime Sandbox (`lua_runtime.gd`)
+### Scripted Runtime Sandbox (`scripted_runtime.gd`)
 
-`LuaRuntime extends Node` wraps a Lua 5.4 VM via a GDExtension (e.g., `lua_gdextension`). The sandbox exposes only the `Plugin` table; all Godot engine APIs are blocked. Lua plugins render into a dedicated `SubViewport` that is confined to the activity panel's display area — all drawing operations are clipped to the viewport bounds and cannot escape.
+`ScriptedRuntime extends Node` hosts a sandboxed GDScript program using [godot-sandbox](https://github.com/libriscv/godot-sandbox). The GDScript source is compiled to a RISC-V ELF binary (either by the plugin developer using the godot-sandbox editor toolchain, or server-side during upload). At runtime, the ELF is loaded into a `Sandbox` node which enforces memory isolation and API whitelisting.
+
+**How godot-sandbox works:**
+
+godot-sandbox is a GDExtension for Godot 4.3+ that runs programs inside a RISC-V virtual machine. Programs are compiled to ELF binaries and executed in an isolated address space — they cannot access host memory, escape through pointer manipulation, or use reflection to reach engine internals. The host application explicitly registers which functions are callable from inside the sandbox.
+
+For daccord, this means:
+- Plugin GDScript source is written using a restricted subset ("SafeGDScript") that compiles to RISC-V
+- The compiled ELF binary is what gets distributed in the plugin bundle (not raw source code)
+- The `ScriptedRuntime` creates a `Sandbox` node and registers only the `Plugin.*` bridge API
+- All other Godot APIs (filesystem, network, autoloads, scene tree) are unreachable from inside the sandbox
 
 **Rendering architecture:**
 
-The `LuaRuntime` owns a `SubViewport` (the "canvas") with a configurable resolution (default 480×360, set via `canvas_size` in the manifest). A `LuaCanvas` node (extends `Node2D`) is the sole child of this viewport and serves as the draw target. Each frame, the Lua script's `_draw()` callback is invoked, and all `Plugin.draw_*` calls are translated into `LuaCanvas._draw()` CanvasItem commands. The viewport's render output is displayed in the `ActivityPanel` via a `TextureRect`.
+The `ScriptedRuntime` owns a `SubViewport` (the "canvas") with a configurable resolution (default 480x360, set via `canvas_size` in the manifest). A `PluginCanvas` node (extends `Node2D`) is the sole child of this viewport and serves as the draw target. Each frame, the sandboxed script's `_draw()` callback is invoked, and all `Plugin.draw_*` calls are translated into `PluginCanvas._draw()` CanvasItem commands. The viewport's render output is displayed in the `ActivityPanel` via a `TextureRect`.
 
 ```
 ActivityPanel
- └─ TextureRect (displays viewport texture)
-     └─ SubViewport (480×360, owned by LuaRuntime)
-         └─ LuaCanvas (Node2D, sole draw target)
-             └─ all Plugin.draw_* calls render here
+ +-- TextureRect (displays viewport texture)
+     +-- SubViewport (480x360, owned by ScriptedRuntime)
+         +-- PluginCanvas (Node2D, sole draw target)
+             +-- all Plugin.draw_* calls render here
 ```
 
 **Confinement guarantees:**
-- The `SubViewport` uses `render_target_update_mode = ALWAYS` and is not added to the main scene tree — it is parented to the `LuaRuntime` node, not the root
-- `LuaCanvas` is the only node in the viewport; Lua cannot add, remove, or reference any other node
-- All coordinate arguments are clamped to `[0, canvas_width)` × `[0, canvas_height)` — drawing outside the bounds is silently clipped
-- The viewport texture is read-only from the Lua side; Lua can draw but cannot read back pixels
-- The `TextureRect` in `ActivityPanel` scales the viewport output to fit the panel (maintains aspect ratio with letterboxing)
 
-**Plugin bridge API available to Lua scripts:**
+- **VM-level isolation:** The RISC-V VM runs in its own memory space. The sandboxed program cannot read or write host process memory. This is enforced at the instruction level, not just by API restrictions
+- **API whitelisting:** Only the `Plugin.*` functions listed below are registered with the `Sandbox` node. All other Godot classes and methods are inaccessible
+- **SubViewport confinement:** The `SubViewport` uses `render_target_update_mode = ALWAYS` and is parented to the `ScriptedRuntime` node, not the root. The sandboxed program cannot reference any node outside the viewport
+- **Coordinate clamping:** All coordinate arguments are clamped to `[0, canvas_width)` x `[0, canvas_height)` — drawing outside the bounds is silently clipped
+- **Read-only viewport texture:** The sandboxed program can draw but cannot read back pixels
+- **Input confinement:** Input events are only delivered when the activity panel has focus; `_input` receives only key/mouse events within the viewport bounds, never global input
+- **Per-server VM isolation:** Each server connection gets its own `Sandbox` instance; programs from server A cannot call `Plugin` functions that affect server B's runtime
 
-```lua
--- Lifecycle (called by the runtime each frame)
-function _draw()          -- called once per frame; all draw calls go here
-function _ready()         -- called once after script loads
-function _input(event)    -- called on user input within the activity viewport
-                          -- event = {type, key, pressed, position_x, position_y, button}
+**Plugin bridge API (registered with the Sandbox):**
 
--- Canvas info
-Plugin.canvas_width       -- read-only, viewport width in pixels (e.g., 480)
-Plugin.canvas_height      -- read-only, viewport height in pixels (e.g., 360)
+```gdscript
+# Lifecycle callbacks (called by the runtime)
+func _draw():             # called once per frame; all draw calls go here
+func _ready():            # called once after ELF loads
+func _input(event: Dictionary):  # called on user input within the activity viewport
+                          # event = {type, key, pressed, position_x, position_y, button}
 
--- Drawing primitives (only valid inside _draw; all coords clamped to canvas bounds)
-Plugin.clear(color)                          -- fill entire canvas with color
-Plugin.draw_rect(x, y, w, h, color, filled) -- draw rectangle (filled or outline)
-Plugin.draw_circle(x, y, radius, color)      -- draw filled circle
-Plugin.draw_line(x1, y1, x2, y2, color, width) -- draw line segment
-Plugin.draw_text(x, y, text, color, size)    -- draw text (built-in bitmap font, size in px)
-Plugin.draw_pixel(x, y, color)               -- set a single pixel
+# Canvas info (read-only properties)
+Plugin.canvas_width       # viewport width in pixels (e.g., 480)
+Plugin.canvas_height      # viewport height in pixels (e.g., 360)
 
--- Image / sprite support
-Plugin.load_image(image_id, asset_path)      -- load image from plugin assets/ dir into cache
-                                              -- asset_path is relative to bundle root
-                                              -- returns true on success, false if not found or limit exceeded
-Plugin.draw_image(image_id, x, y)            -- draw cached image at position (top-left origin)
-Plugin.draw_image_region(image_id, x, y, src_x, src_y, src_w, src_h)
-                                              -- draw a sub-rectangle of a cached image (sprite sheet)
-Plugin.draw_image_scaled(image_id, x, y, scale_x, scale_y)
-                                              -- draw image scaled by factors
+# Drawing primitives (only valid inside _draw; all coords clamped to canvas bounds)
+Plugin.clear(color: Color)
+Plugin.draw_rect(x: float, y: float, w: float, h: float, color: Color, filled: bool)
+Plugin.draw_circle(x: float, y: float, radius: float, color: Color)
+Plugin.draw_line(x1: float, y1: float, x2: float, y2: float, color: Color, width: float)
+Plugin.draw_text(x: float, y: float, text: String, color: Color, size: int)
+Plugin.draw_pixel(x: float, y: float, color: Color)
 
--- Frame buffer (direct pixel manipulation for emulator-style rendering)
-Plugin.create_buffer(buffer_id, width, height) -- create an off-screen pixel buffer
-Plugin.set_buffer_pixel(buffer_id, x, y, color) -- set pixel in buffer
-Plugin.set_buffer_data(buffer_id, pixel_array)   -- bulk-set entire buffer from flat RGBA array
-                                                  -- pixel_array is a table of {r,g,b,a,...} values
-Plugin.draw_buffer(buffer_id, x, y)              -- blit buffer to canvas at position
-Plugin.draw_buffer_scaled(buffer_id, x, y, scale_x, scale_y) -- blit scaled
+# Image / sprite support
+Plugin.load_image(image_id: String, asset_path: String) -> bool
+    # load image from plugin assets/ dir into cache
+    # asset_path is relative to bundle root
+    # returns true on success, false if not found or limit exceeded
+Plugin.draw_image(image_id: String, x: float, y: float)
+Plugin.draw_image_region(image_id: String, x: float, y: float,
+                         src_x: float, src_y: float, src_w: float, src_h: float)
+Plugin.draw_image_scaled(image_id: String, x: float, y: float,
+                         scale_x: float, scale_y: float)
 
--- State & actions
-Plugin.send_action(data_table)     -- sends action to server REST endpoint
-Plugin.get_state() -> table        -- last received state from plugin.event
+# Frame buffer (direct pixel manipulation for emulator-style rendering)
+Plugin.create_buffer(buffer_id: String, width: int, height: int)
+Plugin.set_buffer_pixel(buffer_id: String, x: int, y: int, color: Color)
+Plugin.set_buffer_data(buffer_id: String, pixel_array: PackedByteArray)
+    # bulk-set entire buffer from flat RGBA byte array
+Plugin.draw_buffer(buffer_id: String, x: float, y: float)
+Plugin.draw_buffer_scaled(buffer_id: String, x: float, y: float,
+                          scale_x: float, scale_y: float)
 
--- Events
-Plugin.on_event(type, callback)    -- register handler for plugin.event type
+# State & actions
+Plugin.send_action(data: Dictionary)       # sends action to server REST endpoint
+Plugin.get_state() -> Dictionary           # last received state from plugin.event
 
--- Participants
-Plugin.get_participants() -> table  -- list of {user_id, display_name, role} in this activity
-Plugin.get_role() -> string         -- "player" or "spectator"
+# Events
+Plugin.on_event(type: String, callback: Callable)  # register handler for plugin.event type
 
--- Timer
-Plugin.set_interval(ms, callback)  -- recurring timer (capped at 16ms minimum for 60fps)
-Plugin.set_timeout(ms, callback)   -- one-shot timer
+# Participants
+Plugin.get_participants() -> Array   # list of {user_id, display_name, role}
+Plugin.get_role() -> String          # "player" or "spectator"
 
--- Audio (optional, requires "audio" permission in manifest)
-Plugin.play_sound(sound_id)        -- play a cached audio clip (loaded from assets/)
-Plugin.load_sound(sound_id, asset_path) -- load audio clip from plugin assets/
-Plugin.stop_sound(sound_id)
+# Timers
+Plugin.set_interval(ms: int, callback: Callable)  # recurring (capped at 16ms min for 60fps)
+Plugin.set_timeout(ms: int, callback: Callable)    # one-shot
+
+# Audio (optional, requires "audio" permission in manifest)
+Plugin.load_sound(sound_id: String, asset_path: String)
+Plugin.play_sound(sound_id: String)
+Plugin.stop_sound(sound_id: String)
 ```
 
 **Image and buffer limits:**
-- Max cached images: 64 (enforced by `load_image`; returns false when exceeded)
-- Max image dimensions: 1024×1024 per image
-- Max pixel buffers: 4
-- Max buffer dimensions: 512×512 per buffer (enough for NES 256×240 with headroom)
-- Total image memory budget: 16 MB (counted across images + buffers)
 
-**Manifest additions for Lua canvas:**
+| Resource | Limit | Reason |
+|----------|-------|--------|
+| Cached images | 64 max | Prevents unbounded memory growth |
+| Image dimensions | 1024x1024 per image | Keeps GPU texture allocations reasonable |
+| Pixel buffers | 4 max | Enough for double-buffering + scratch |
+| Buffer dimensions | 512x512 per buffer | Covers NES 256x240 with headroom |
+| Total image memory | 16 MB across images + buffers | Hard cap on sandbox memory footprint |
+
+**Manifest additions for scripted plugins:**
 
 ```json
 {
-  "runtime": "lua",
+  "runtime": "scripted",
   "canvas_size": [480, 360],
   "permissions": ["voice_activity"]
 }
 ```
 
-If `canvas_size` is omitted, defaults to `[480, 360]`. Maximum allowed canvas size is `1280×720`.
+If `canvas_size` is omitted, defaults to `[480, 360]`. Maximum allowed canvas size is `1280x720`.
 
-**Security constraints:**
-- No file I/O except `load_image`/`load_sound` which only read from the plugin's own `assets/` directory within the cached bundle — no access to the user's filesystem, other plugins' assets, or any path outside the bundle
-- No network calls (all network goes through `Plugin.send_action` → client proxy)
-- No access to Godot autoloads, scenes, or nodes outside the `SubViewport`
-- All draw calls are no-ops outside of the `_draw()` callback
-- Script execution time-limited per frame (configurable, default 4ms budget — increased from 2ms to accommodate frame buffer operations)
-- Memory limit per runtime (default 16 MB — increased from 8 MB to accommodate image/buffer caches)
-- Each server connection gets its own VM; scripts from server A cannot call `Plugin` functions that affect server B's runtime
-- Input events are only delivered when the activity panel has focus; `_input` receives only key/mouse events within the viewport bounds, never global input
+**Security constraints summary:**
+
+| Threat | Mitigation |
+|--------|-----------|
+| Filesystem access | RISC-V VM has no filesystem API; `load_image`/`load_sound` read only from the plugin's own `assets/` dir within the cached bundle |
+| Network access | No network APIs registered; all network goes through `Plugin.send_action()` → client proxy |
+| Engine API access | Only `Plugin.*` functions are registered with the Sandbox; all other Godot classes are unreachable |
+| Memory corruption | RISC-V VM runs in isolated address space; cannot read/write host process memory |
+| CPU exhaustion | Execution time-limited per frame (configurable, default 4ms budget) |
+| Memory exhaustion | Memory limit per runtime (default 16 MB) |
+| Cross-server data leak | Each server connection gets its own Sandbox instance |
+| Input snooping | `_input` only receives events when activity panel has focus, confined to viewport bounds |
 
 ### Native Runtime (`native_runtime.gd`)
 
-`NativeRuntime extends Node` hosts a GDScript scene instantiated from the cached plugin bundle. Unlike the Lua sandbox, native plugins run as regular Godot nodes but interact with the outside world exclusively through a `PluginContext` resource.
+`NativeRuntime extends Node` hosts a GDScript scene instantiated from the cached plugin bundle. Unlike the scripted sandbox, native plugins run as regular Godot nodes with full engine access. Security relies on code signing and user trust rather than VM isolation.
+
+**Why native plugins exist alongside scripted plugins:**
+
+Some use cases (emulators, collaborative document editors, complex visualizations) need capabilities that the scripted sandbox intentionally blocks: direct scene tree manipulation, custom shaders, multiple scene files, and LiveKit data channel access for peer-to-peer communication. Native plugins fill this gap at the cost of requiring a higher trust level.
+
+**For non-technical users:** Native plugins are like installing an app on your phone — you're trusting the developer. daccord verifies the plugin's digital signature (like an app store verifying the developer identity) and asks for your permission before running it. Once trusted, native plugins can do more powerful things than scripted plugins, like running a game emulator or a collaborative whiteboard.
 
 **Lifecycle:**
 
 ```gdscript
 func start(entry_scene_path: String, context: PluginContext) -> void
-    # 1. load(entry_scene_path) → PackedScene
-    # 2. instantiate() → add as child of ActivityViewport
+    # 1. load(entry_scene_path) -> PackedScene
+    # 2. instantiate() -> add as child of ActivityViewport
     # 3. Call scene.setup(context) if the method exists
 
 func stop() -> void
@@ -650,12 +730,12 @@ All plugin data channel messages use a topic prefix of `plugin:<plugin_id>:` to 
 
 | Topic | Direction | Mode | Payload | Rate |
 |-------|-----------|------|---------|------|
-| `plugin:<id>:frame_sync` | Host → all | Lossy | Delta-compressed frame diff | ~60 Hz |
-| `plugin:<id>:keyframe` | Host → all | Reliable | Full frame state | Every 2–5 sec |
-| `plugin:<id>:input` | Player → host | Lossy | Button state bitmask | ~60 Hz |
-| `plugin:<id>:file:<name>` | Host → all | Reliable (byte stream) | File chunks (15 KiB each) | Burst |
-| `plugin:<id>:state` | Host → all | Reliable | Serialized game state | On change |
-| `plugin:<id>:rpc` | Any → any | Reliable | Request/response | On demand |
+| `plugin:<id>:frame_sync` | Host -> all | Lossy | Delta-compressed frame diff | ~60 Hz |
+| `plugin:<id>:keyframe` | Host -> all | Reliable | Full frame state | Every 2-5 sec |
+| `plugin:<id>:input` | Player -> host | Lossy | Button state bitmask | ~60 Hz |
+| `plugin:<id>:file:<name>` | Host -> all | Reliable (byte stream) | File chunks (15 KiB each) | Burst |
+| `plugin:<id>:state` | Host -> all | Reliable | Serialized game state | On change |
+| `plugin:<id>:rpc` | Any -> any | Reliable | Request/response | On demand |
 
 **LiveKitAdapter additions:**
 
@@ -687,11 +767,11 @@ State-dependent views:
 - **ENDED state:** Shows "Activity ended" message with a dismiss button
 
 Connects to:
-- `AppState.activity_started` → `_on_activity_started(plugin_id, channel_id)`
-- `AppState.activity_ended` → `_on_activity_ended(plugin_id)` → hides panel
-- `AppState.activity_session_state_changed` → `_on_session_state_changed(state)` → swap lobby/running view
-- `AppState.activity_download_progress` → `_on_download_progress(progress)` → update progress bar
-- `AppState.voice_left` → calls `ClientPlugins.stop_activity()` if active
+- `AppState.activity_started` -> `_on_activity_started(plugin_id, channel_id)`
+- `AppState.activity_ended` -> `_on_activity_ended(plugin_id)` -> hides panel
+- `AppState.activity_session_state_changed` -> `_on_session_state_changed(state)` -> swap lobby/running view
+- `AppState.activity_download_progress` -> `_on_download_progress(progress)` -> update progress bar
+- `AppState.voice_left` -> calls `ClientPlugins.stop_activity()` if active
 
 ### Activity Lobby UI (`activity_lobby.gd`)
 
@@ -705,6 +785,8 @@ Shown when a native activity is in `LOBBY` state:
 
 ### Per-Server Isolation Mechanism
 
+*Why this matters: if you're connected to multiple servers, plugins from one server must never be able to access data from another server.*
+
 Isolation is enforced at four layers:
 
 1. **Cache layer:** `ClientPlugins._plugin_cache` is keyed by `conn_index`. Plugins from connection 0 are never visible in connection 1's UI. Plugin bundle cache is keyed by `server_id` under `user://plugins/`.
@@ -716,15 +798,18 @@ Isolation is enforced at four layers:
 
 A ZIP archive with the following structure:
 
-**Lua plugin:**
+**Scripted plugin:**
 ```
-plugin.json          # manifest (runtime: "lua")
-scripts/
-  main.lua           # entry-point script
-  lib/               # optional additional Lua modules
+plugin.json          # manifest (runtime: "scripted")
+bin/
+  plugin.elf         # compiled RISC-V ELF binary (from SafeGDScript source)
+src/                 # optional: original GDScript source for transparency/audit
+  main.gd            # entry-point script
+  lib/               # optional helper scripts
 assets/
   icon.png           # 64x64 activity icon
   images/            # optional images referenced by Plugin.draw_image()
+  sounds/            # optional audio clips referenced by Plugin.play_sound()
 ```
 
 **Native plugin:**
@@ -765,7 +850,11 @@ assets/
 
 ### Plugin Signing and Trust Model
 
-Native plugins execute arbitrary GDScript in the client process. Unlike Lua plugins (which run in a sandboxed VM with no engine access), native plugins have full access to the Godot API within their scene subtree. A code signing system is required to prevent malicious plugins.
+**For non-technical users:** Plugin signing works like a seal on a letter — it proves the plugin hasn't been tampered with since the developer created it. When you see "Signed by [developer]" in the activity picker, it means the plugin's code matches what the developer originally uploaded. Unsigned native plugins are always rejected.
+
+**For developers and admins:**
+
+Native plugins execute arbitrary GDScript in the client process. Unlike scripted plugins (which run in the godot-sandbox RISC-V VM with no engine access), native plugins have full access to the Godot API within their scene subtree. A code signing system is required to prevent malicious plugins.
 
 **Signing flow:**
 
@@ -780,15 +869,34 @@ Native plugins execute arbitrary GDScript in the client process. Unlike Lua plug
 
 | Level | Description | Requirements |
 |-------|-------------|--------------|
-| Unsigned | No signature | Lua plugins only; native plugins rejected |
+| Unsigned | No signature | Scripted plugins only; native plugins rejected |
 | Server-signed | Signed by the server admin's key | Admin has verified the plugin manually |
 | Developer-signed | Signed by a registered developer key | Developer key is registered with the server |
 
 **Client enforcement:**
-- Lua plugins: signature optional (sandboxed, low risk)
+- Scripted plugins: signature optional (RISC-V VM sandbox provides security)
 - Native plugins: signature required; unsigned native plugins are rejected with an error dialog
 - Users see a confirmation dialog before running any native plugin for the first time: "This activity runs native code from [server name]. Trust this server's plugins?"
 - Per-server trust preference stored in `Config` (per-profile)
+
+### Scripted vs Native: Choosing the Right Runtime
+
+*A guide for plugin developers.*
+
+| Factor | Scripted | Native |
+|--------|----------|--------|
+| **Language** | SafeGDScript (subset compiled to RISC-V) | Full GDScript + scenes |
+| **Isolation** | RISC-V VM sandbox (memory-isolated, API-whitelisted) | Code signing + user trust |
+| **Rendering** | `Plugin.draw_*` primitives into a SubViewport canvas | Full Godot scene tree (Control, Node2D, etc.) |
+| **Data exchange** | `Plugin.send_action()` → server REST → `plugin.event` gateway broadcast | LiveKit data channels (peer-to-peer, low-latency) |
+| **File sharing** | Not supported | `PluginContext.send_file()` via LiveKit byte stream |
+| **Custom shaders** | Not supported | Supported (bundled in `assets/shaders/`) |
+| **Multiple scenes** | Not supported (single ELF) | Supported (bundle contains multiple `.tscn` files) |
+| **Signing required** | No | Yes (Ed25519) |
+| **User trust prompt** | No | Yes (first-run confirmation dialog) |
+| **Best for** | Board games, card games, polls, trivia, simple arcade games, interactive widgets | Emulators, collaborative editors, complex visualizations, anything needing LiveKit data channels |
+| **Max complexity** | ~2,000 lines of GDScript (practical limit due to ELF size and API surface) | Unlimited |
+| **Bundle size** | Typically <100 KB (ELF + assets) | Up to 50 MB (configurable server limit) |
 
 ### Server-Side Requirements (accordserver)
 
@@ -799,26 +907,79 @@ New routes needed in accordserver:
 | GET | `/spaces/{space_id}/plugins` | List installed plugins |
 | POST | `/spaces/{space_id}/plugins` | Install plugin (admin; bundle upload) |
 | DELETE | `/spaces/{space_id}/plugins/{id}` | Uninstall plugin (admin) |
-| GET | `/plugins/{id}/script` | Serve Lua script text (authenticated) |
-| GET | `/plugins/{id}/bundle` | Serve full plugin bundle ZIP (authenticated) |
+| GET | `/plugins/{id}/elf` | Serve compiled ELF binary (scripted; authenticated) |
+| GET | `/plugins/{id}/bundle` | Serve full plugin bundle ZIP (native; authenticated) |
 | POST | `/plugins/{id}/sessions` | Create activity session (returns session_id, state) |
 | DELETE | `/plugins/{id}/sessions/{session_id}` | End session |
 | PATCH | `/plugins/{id}/sessions/{session_id}` | Update session state (host only) |
 | POST | `/plugins/{id}/sessions/{session_id}/roles` | Assign participant role |
-| POST | `/plugins/{id}/sessions/{session_id}/actions` | Send action (Lua plugins) |
+| POST | `/plugins/{id}/sessions/{session_id}/actions` | Send action (scripted plugins) |
 
 Gateway events to implement:
 - `plugin.installed` — broadcast to space when plugin is added
 - `plugin.uninstalled` — broadcast to space when plugin is removed
 - `plugin.event` — routed to session participants only (not whole space)
-- `plugin.session_state` — broadcast to session participants when state changes (lobby → running → ended)
+- `plugin.session_state` — broadcast to session participants when state changes (lobby -> running -> ended)
 - `plugin.role_changed` — broadcast to session participants when a role assignment changes
 
 Plugin action routing: the server plugin handler receives `POST /plugins/{id}/sessions/{session_id}/actions`, passes the body to the plugin's server-side handler (e.g., a WebAssembly module or a registered webhook), and then broadcasts a `plugin.event` to all session participants. Native plugins bypass this entirely — their data flows through LiveKit data channels, not the server.
 
-### Worked Example: NES Emulator Activity
+### Worked Example: Chess Activity (Scripted Plugin)
 
-This section walks through the complete lifecycle of an NES emulator plugin to illustrate how all the pieces fit together.
+This section walks through the complete lifecycle of a simple chess plugin to illustrate how the scripted runtime works.
+
+**Plugin bundle contents:**
+```
+plugin.json
+bin/
+  plugin.elf           # compiled from src/main.gd
+src/
+  main.gd              # chess game logic + rendering
+assets/
+  icon.png
+  images/
+    board.png          # chess board background
+    pieces.png         # sprite sheet of chess pieces
+```
+
+**Plugin manifest (`plugin.json`):**
+```json
+{
+  "id": "chess",
+  "name": "Chess",
+  "type": "activity",
+  "runtime": "scripted",
+  "description": "Play chess with a friend",
+  "version": "1.0.0",
+  "canvas_size": [480, 480],
+  "max_participants": 2,
+  "max_spectators": 0,
+  "lobby": true,
+  "permissions": ["voice_activity"]
+}
+```
+
+**Step 1 — Admin installs the plugin:**
+Admin uploads `chess.daccord-plugin` via Server Settings -> Plugins. Server validates the manifest, stores the ELF binary, and broadcasts `plugin.installed` to all clients. Clients cache the manifest (not the ELF).
+
+**Step 2 — User launches the activity:**
+User is in a voice channel. Clicks the rocket button -> activity modal shows "Chess" card with "Scripted" badge. Clicks "Launch."
+
+**Step 3 — ELF download and sandbox creation:**
+`ClientPlugins` calls `PluginsApi.get_elf()` to fetch the compiled binary (~50 KB). A `ScriptedRuntime` is created with a `Sandbox` node. The `Plugin.*` bridge API is registered as the only callable interface. The ELF is loaded into the sandbox.
+
+**Step 4 — Lobby:**
+Session created via `POST /plugins/{id}/sessions`. The lobby shows two player slots. Both players claim slots. Host clicks "Start."
+
+**Step 5 — Gameplay:**
+The sandboxed script's `_ready()` loads the board and piece images via `Plugin.load_image()`. Each frame, `_draw()` renders the board and pieces using `Plugin.draw_image_region()` (sprite sheet). When a player clicks a square, `_input()` detects it and calls `Plugin.send_action({from = "e2", to = "e4"})`. The server validates the move and broadcasts the updated board state. All participants' sandboxed runtimes receive the event and re-render.
+
+**Step 6 — Game ends:**
+When checkmate occurs, the script renders a "Checkmate!" overlay. Players leave the activity or the host closes it. The sandbox is freed and the session is deleted.
+
+### Worked Example: NES Emulator Activity (Native Plugin)
+
+This section walks through the complete lifecycle of an NES emulator plugin to illustrate how native plugins, LiveKit data channels, and file sharing work together.
 
 **Plugin bundle contents:**
 ```
@@ -835,26 +996,26 @@ assets/
 ```
 
 **Step 1 — Admin installs the plugin:**
-Admin uploads `nes-emulator.daccord-plugin` via Server Settings → Plugins. Server validates the manifest, stores the bundle, and broadcasts `plugin.installed` to all clients. Clients cache the manifest (not the bundle).
+Admin uploads `nes-emulator.daccord-plugin` via Server Settings -> Plugins. Server validates the manifest, verifies the Ed25519 signature, stores the bundle, and broadcasts `plugin.installed` to all clients. Clients cache the manifest (not the bundle).
 
 **Step 2 — User launches the activity:**
-User is in a voice channel. Clicks the rocket button → activity modal shows "NES Emulator" card with "Native" badge and "1.0 MB" size. Clicks "Launch."
+User is in a voice channel. Clicks the rocket button -> activity modal shows "NES Emulator" card with "Native" badge and "1.0 MB" size. Clicks "Launch."
 
-**Step 3 — Bundle download:**
-`PluginDownloadManager.is_cached()` returns false (first launch). Client fetches the bundle via `GET /plugins/{id}/bundle` (1 MB). Progress bar updates via `AppState.activity_download_progress`. SHA-256 hash verified. Ed25519 signature verified against server-provided public key. Bundle extracted to `user://plugins/<server_id>/nes-emulator/`. On subsequent launches, this step is skipped unless the server reports a new version.
+**Step 3 — Trust check and bundle download:**
+First time from this server: user sees "This activity runs native code from [server name]. Trust this server's plugins?" and clicks "Allow." `PluginDownloadManager.is_cached()` returns false (first launch). Client fetches the bundle via `GET /plugins/{id}/bundle` (1 MB). Progress bar updates via `AppState.activity_download_progress`. SHA-256 hash verified. Ed25519 signature verified. Bundle extracted to `user://plugins/<server_id>/nes-emulator/`. On subsequent launches, this step is skipped unless the server reports a new version.
 
 **Step 4 — Lobby:**
 Session created via `POST /plugins/{id}/sessions`. `NativeRuntime` instantiates `scenes/emulator.tscn` and calls `setup(context)`. The emulator scene shows a lobby: two player slots, spectator list, and a "Select ROM" button for the host.
 
 **Step 5 — ROM distribution:**
-Host clicks "Select ROM" → `PluginContext.request_file([".nes"], 1048576)` opens a file dialog. Host selects `mario.nes` (40 KB). Plugin calls `context.send_file("mario.nes", rom_data)`. LiveKit reliable byte stream sends the file in 15 KiB chunks. All participants receive `file_received("mario.nes", data, host_id)` and load the ROM into their local emulator instance.
+Host clicks "Select ROM" -> `PluginContext.request_file([".nes"], 1048576)` opens a file dialog. Host selects `mario.nes` (40 KB). Plugin calls `context.send_file("mario.nes", rom_data)`. LiveKit reliable byte stream sends the file in 15 KiB chunks. All participants receive `file_received("mario.nes", data, host_id)` and load the ROM into their local emulator instance.
 
 **Step 6 — Game starts:**
-Host clicks "Start" → `ClientPlugins.start_session()` → `PATCH /plugins/{id}/sessions/{sid}` → gateway broadcasts `plugin.session_state {state: "running"}`. All clients transition from lobby to running view.
+Host clicks "Start" -> `ClientPlugins.start_session()` -> `PATCH /plugins/{id}/sessions/{sid}` -> gateway broadcasts `plugin.session_state {state: "running"}`. All clients transition from lobby to running view.
 
 **Step 7 — Gameplay:**
-- **Host emulator** runs the NES CPU/PPU at 60 FPS, producing a 256×240 frame buffer each frame.
-- **Frame encoder** computes a delta from the previous frame. Typical NES frame diffs are 500 B – 2 KB (tiles are reused heavily). Diffs within 1,300 bytes go via lossy channel; larger diffs are sent reliable.
+- **Host emulator** runs the NES CPU/PPU at 60 FPS, producing a 256x240 frame buffer each frame.
+- **Frame encoder** computes a delta from the previous frame. Typical NES frame diffs are 500 B - 2 KB (tiles are reused heavily). Diffs within 1,300 bytes go via lossy channel; larger diffs are sent reliable.
 - **Host** calls `context.send_data(diff, false, "frame_sync")` at 60 Hz.
 - **Host** calls `context.send_data(full_frame, true, "keyframe")` every 2 seconds for drift correction.
 - **Players** capture local input each frame (8 NES buttons = 1 byte bitmask per controller). Call `context.send_data(input_bitmask, false, "input")` at 60 Hz.
@@ -862,9 +1023,9 @@ Host clicks "Start" → `ClientPlugins.start_session()` → `PATCH /plugins/{id}
 - **Spectators** receive frame diffs and keyframes, apply them to their local frame buffer, but never send input.
 
 **Step 8 — Bandwidth estimate:**
-- Frame diffs: ~1 KB × 60/sec = ~60 KB/sec (480 kbps) outbound from host
-- Keyframes: ~60 KB × 0.5/sec = ~30 KB/sec (240 kbps) outbound from host
-- Input: ~4 bytes × 60/sec × 2 players = ~480 B/sec inbound to host
+- Frame diffs: ~1 KB x 60/sec = ~60 KB/sec (480 kbps) outbound from host
+- Keyframes: ~60 KB x 0.5/sec = ~30 KB/sec (240 kbps) outbound from host
+- Input: ~4 bytes x 60/sec x 2 players = ~480 B/sec inbound to host
 - Total host upload: ~720 kbps — well within typical broadband and LiveKit capacity
 
 **Step 9 — Activity ends:**
@@ -883,17 +1044,18 @@ Host disconnects from voice or clicks "Leave Activity." `ClientPlugins.stop_acti
 - [ ] `ClientGateway` signal wiring for plugin signals
 - [ ] Per-server isolation enforced in `ClientPlugins` via `conn_index`
 
-### Lua runtime
-- [ ] `LuaRuntime` GDExtension (Lua 5.4 VM + bridge API)
-- [ ] `LuaCanvas` draw target inside sandboxed `SubViewport`
-- [ ] Lua rendering API: primitives (`draw_rect`, `draw_circle`, `draw_line`, `draw_text`, `draw_pixel`)
-- [ ] Lua image loading and sprite sheet rendering (`load_image`, `draw_image`, `draw_image_region`)
-- [ ] Lua frame buffer API (`create_buffer`, `set_buffer_data`, `draw_buffer`) for emulator-style rendering
-- [ ] Lua input routing (`_input` callback with viewport-confined events)
-- [ ] Lua audio playback (`load_sound`, `play_sound`) for plugin sound effects
+### Scripted runtime (godot-sandbox)
+- [ ] godot-sandbox GDExtension integrated as addon dependency (Godot 4.3+)
+- [ ] `ScriptedRuntime` node wrapping `Sandbox` with `Plugin.*` API registration
+- [ ] `PluginCanvas` draw target inside sandboxed `SubViewport`
+- [ ] Plugin bridge API: drawing primitives (`draw_rect`, `draw_circle`, `draw_line`, `draw_text`, `draw_pixel`)
+- [ ] Plugin image loading and sprite sheet rendering (`load_image`, `draw_image`, `draw_image_region`)
+- [ ] Plugin frame buffer API (`create_buffer`, `set_buffer_data`, `draw_buffer`) for emulator-style rendering
+- [ ] Plugin input routing (`_input` callback with viewport-confined events)
+- [ ] Plugin audio playback (`load_sound`, `play_sound`) for plugin sound effects
 - [ ] Canvas coordinate clamping and viewport confinement enforcement
 - [ ] Image/buffer memory budget enforcement (16 MB cap, 64 images, 4 buffers)
-- [ ] Lua sandbox memory/CPU limits enforced in `LuaRuntime`
+- [ ] SafeGDScript compilation toolchain (editor integration or CLI for plugin developers)
 
 ### Native runtime
 - [ ] `NativeRuntime` scene host with `PluginContext` injection
@@ -907,7 +1069,7 @@ Host disconnects from voice or clicks "Leave Activity." `ClientPlugins.stop_acti
 
 ### Lobby system
 - [ ] `ActivityLobby` scene (player slots, spectator list, start button)
-- [ ] Session state machine (LOBBY → RUNNING → ENDED)
+- [ ] Session state machine (LOBBY -> RUNNING -> ENDED)
 - [ ] Participant role assignment (PLAYER / SPECTATOR)
 - [ ] Late joiner handling (join as spectator, receive current state)
 
@@ -929,29 +1091,31 @@ Host disconnects from voice or clicks "Leave Activity." `ClientPlugins.stop_acti
 - [ ] Plugin bundle storage and manifest registry
 - [ ] REST routes for plugin management, bundle serving, sessions, roles
 - [ ] Gateway `plugin.*` event dispatch (installed, uninstalled, event, session_state, role_changed)
-- [ ] Plugin action routing for Lua plugins
+- [ ] Plugin action routing for scripted plugins
 - [ ] Session state machine with role assignment
+- [ ] SafeGDScript -> RISC-V ELF compilation (server-side or require pre-compiled upload)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No Lua GDExtension available | High | A Lua 5.4 GDExtension for Godot 4.x must be built or sourced (e.g., `luagdextension`); without this the Lua scripting layer cannot ship |
 | No accordserver plugin subsystem | High | Server has no plugin routes, no session management, no bundle storage, and no `plugin.*` gateway events; entire backend must be built first |
+| godot-sandbox addon not yet integrated | High | The [godot-sandbox](https://github.com/libriscv/godot-sandbox) GDExtension must be added as a project dependency; supports Godot 4.3+ and all target platforms |
+| SafeGDScript compilation toolchain | High | Plugin developers need a way to compile GDScript to RISC-V ELF binaries; godot-sandbox provides editor integration but the workflow for building `.daccord-plugin` bundles needs design |
 | `interaction_create` handler is a stub | High | `client_gateway_events.gd` line 95 handles `interaction_create` with `pass`; bot/plugin interactions need a real dispatch path |
-| No plugin sandbox isolation test suite | High | Sandbox security properties (no FS access, no cross-server calls, CPU budget) need automated tests before plugins ship to users |
+| No plugin sandbox isolation test suite | High | Sandbox security properties (no FS access, no cross-server calls, API whitelist enforcement) need automated tests before plugins ship to users |
 | No plugin signing implementation | High | Native plugins execute arbitrary GDScript; without Ed25519 signing + verification, any server admin can push malicious code to clients |
 | LiveKit data channels not wired in daccord | High | `publish_data()` and `data_received` are available in godot-livekit (see godot_livekit.md LIVEKIT-2) but `livekit_adapter.gd` has no data channel methods; must be added before any plugin data flow works |
 | No file transfer via LiveKit byte streams | High | LiveKit supports byte stream API for large payloads but godot-livekit may not expose it; if not, file transfer must be implemented as manual chunking over `publish_data(reliable=true)` with reassembly |
-| No native plugin scene sandboxing | High | Native plugins run as regular Godot nodes; they could potentially access autoloads, other scenes, or the filesystem. A `SubViewport` boundary + restricted `SceneTree` access needs design |
+| No native plugin scene sandboxing | High | Native plugins run as regular Godot nodes; they could potentially access autoloads, other scenes, or the filesystem. Mitigation: code signing + user trust (VM-level sandboxing is not feasible for native plugins in GDScript) |
 | `ChannelType` enum has no ACTIVITY type | Medium | `client_models.gd` line 7 enum has TEXT/VOICE/ANNOUNCEMENT/FORUM/CATEGORY; activities launched from voice don't need a new channel type, but a plugin-owned channel type may be needed for persistent activity channels |
-| No plugin asset CDN integration | Medium | Plugin images/icons served via the plugin script endpoint; the existing CDN URL pattern (`conn.cdn_url`) needs to extend to plugin assets |
+| No plugin asset CDN integration | Medium | Plugin images/icons served via the plugin ELF/bundle endpoint; the existing CDN URL pattern (`conn.cdn_url`) needs to extend to plugin assets |
 | Voice bar has no "Launch Activity" button | Medium | `voice_bar.gd` currently has Mic/Deaf/Cam/Share/SFX/Settings/Disconnect; the rocket button and its signal wiring need to be added |
 | No activity session state persistence | Medium | If the user closes and reopens the app during an active activity, there is no reconnect path; session recovery requires server-side session lookup |
 | No emulator core | Medium | The NES emulator plugin is a worked example; an actual NES CPU/PPU emulator must be written in GDScript or provided as a GDExtension within the plugin bundle |
 | Frame diff compression algorithm not specified | Medium | The emulator example assumes delta compression + RLE for frame diffs; the exact algorithm needs implementation and testing to stay within the 1,300-byte lossy packet limit for typical NES frames |
 | Max participants not enforced client-side | Low | `max_participants` in the manifest should grey out "Claim Slot" when all player slots are full; requires polling or a `plugin.session_full` event |
 | No activity join notification for late joiners | Low | Users who join a voice channel after an activity has started see no indication that an activity is running; a gateway `plugin.session_state` event or a voice state flag is needed |
-| Lua bitmap font limited | Low | `Plugin.draw_text()` uses a built-in bitmap font; no custom font loading is supported. Could add `Plugin.load_font()` for plugin-supplied `.fnt`/`.png` bitmap fonts in a future iteration |
+| Scripted plugin font support limited | Low | `Plugin.draw_text()` uses a built-in bitmap font; no custom font loading is supported. Could add `Plugin.load_font()` for plugin-supplied bitmap fonts in a future iteration |
 | No plugin update notification | Low | When a server updates a plugin to a new version, clients with a stale cached bundle need to be notified to re-download; could piggyback on `plugin.installed` with a version field |
 | No plugin size limits | Low | Server should enforce maximum bundle size to prevent abuse (e.g., 50 MB cap); client should also reject bundles exceeding a configurable limit |
