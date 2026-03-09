@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/user/create_profile_dialog.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/user/password_field.tscn" id="2"]
 
 [sub_resource type="StyleBoxFlat" id="panel_style"]
 bg_color = Color(0.184, 0.192, 0.212, 1)
@@ -71,11 +72,9 @@ layout_mode = 2
 text = "PASSWORD (optional)"
 theme_override_font_sizes/font_size = 11
 
-[node name="PasswordInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+[node name="PasswordInput" parent="CenterContainer/Panel/VBox" instance=ExtResource("2")]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 36)
 placeholder_text = "Protect this profile"
-secret = true
 
 [node name="ConfirmLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
@@ -83,12 +82,10 @@ layout_mode = 2
 text = "CONFIRM PASSWORD"
 theme_override_font_sizes/font_size = 11
 
-[node name="ConfirmInput" type="LineEdit" parent="CenterContainer/Panel/VBox"]
+[node name="ConfirmInput" parent="CenterContainer/Panel/VBox" instance=ExtResource("2")]
 visible = false
 layout_mode = 2
-custom_minimum_size = Vector2(0, 36)
 placeholder_text = "Confirm password"
-secret = true
 
 [node name="OptionLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2

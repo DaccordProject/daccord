@@ -1,12 +1,14 @@
 extends ModalBase
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var _slug: String = ""
 var _has_existing_pw: bool = false
 
 @onready var _current_label: Label = $CenterContainer/Panel/VBox/CurrentLabel
-@onready var _current_input: LineEdit = $CenterContainer/Panel/VBox/CurrentInput
-@onready var _new_input: LineEdit = $CenterContainer/Panel/VBox/NewInput
-@onready var _confirm_input: LineEdit = $CenterContainer/Panel/VBox/ConfirmInput
+@onready var _current_input: PasswordField = $CenterContainer/Panel/VBox/CurrentInput
+@onready var _new_input: PasswordField = $CenterContainer/Panel/VBox/NewInput
+@onready var _confirm_input: PasswordField = $CenterContainer/Panel/VBox/ConfirmInput
 @onready var _save_btn: Button = $CenterContainer/Panel/VBox/SaveButton
 @onready var _remove_btn: Button = $CenterContainer/Panel/VBox/RemoveButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel

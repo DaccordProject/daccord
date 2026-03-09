@@ -2,9 +2,11 @@ extends ModalBase
 
 signal profile_created(slug: String)
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 @onready var _name_input: LineEdit = $CenterContainer/Panel/VBox/NameInput
-@onready var _password_input: LineEdit = $CenterContainer/Panel/VBox/PasswordInput
-@onready var _confirm_input: LineEdit = $CenterContainer/Panel/VBox/ConfirmInput
+@onready var _password_input: PasswordField = $CenterContainer/Panel/VBox/PasswordInput
+@onready var _confirm_input: PasswordField = $CenterContainer/Panel/VBox/ConfirmInput
 @onready var _confirm_label: Label = $CenterContainer/Panel/VBox/ConfirmLabel
 @onready var _scratch_radio: CheckBox = $CenterContainer/Panel/VBox/ScratchRadio
 @onready var _copy_radio: CheckBox = $CenterContainer/Panel/VBox/CopyRadio

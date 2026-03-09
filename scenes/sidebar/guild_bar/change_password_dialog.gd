@@ -5,14 +5,16 @@ extends ModalBase
 
 signal password_changed(new_token: String)
 
+const PasswordField = preload("res://scenes/user/password_field.gd")
+
 var _base_url: String = ""
 var _token: String = ""
 var _username: String = ""
 
 @onready var _description: Label = $CenterContainer/Panel/VBox/Description
-@onready var _old_input: LineEdit = $CenterContainer/Panel/VBox/OldInput
-@onready var _new_input: LineEdit = $CenterContainer/Panel/VBox/NewInput
-@onready var _confirm_input: LineEdit = $CenterContainer/Panel/VBox/ConfirmInput
+@onready var _old_input: PasswordField = $CenterContainer/Panel/VBox/OldInput
+@onready var _new_input: PasswordField = $CenterContainer/Panel/VBox/NewInput
+@onready var _confirm_input: PasswordField = $CenterContainer/Panel/VBox/ConfirmInput
 @onready var _submit_btn: Button = $CenterContainer/Panel/VBox/SubmitButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
