@@ -92,10 +92,26 @@ jobs:
         with:
           cmdline-tools-version: 11076708
 
-      - name: Install Android SDK components (Android)
+      - name: Cache Android SDK components
         if: matrix.platform == 'android'
+        id: android-sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ANDROID_HOME }}/platform-tools
+            ${{ env.ANDROID_HOME }}/build-tools/34.0.0
+            ${{ env.ANDROID_HOME }}/platforms/android-34
+            ${{ env.ANDROID_HOME }}/ndk/23.2.8568313
+          key: android-sdk-34-ndk-23.2.8568313
+
+      - name: Install Android SDK components (Android)
+        if: matrix.platform == 'android' && steps.android-sdk-cache.outputs.cache-hit != 'true'
         run: |
           sdkmanager --install "platform-tools" "build-tools;34.0.0" "platforms;android-34" "ndk;23.2.8568313"
+
+      - name: Set Android SDK env vars
+        if: matrix.platform == 'android'
+        run: |
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/23.2.8568313" >> "$GITHUB_ENV"
 
@@ -654,12 +670,3 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: artifacts/*
-
-      - name: Trigger website rebuild
-        if: ${{ !contains(github.ref_name, '-') }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          gh api repos/DaccordProject/accordwebsite/dispatches \
-            -f event_type=web-export-updated \
-            -f "client_payload[version]=${{ github.ref_name }}"
