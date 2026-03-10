@@ -1,5 +1,7 @@
 # Group DMs
 
+Priority: 49
+Depends on: Direct Messages
 
 ## Overview
 

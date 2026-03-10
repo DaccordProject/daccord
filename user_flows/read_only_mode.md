@@ -1,5 +1,8 @@
 # Read Only Mode
 
+Priority: 63
+Depends on: Web Export
+
 ## Overview
 
 Read only mode allows anonymous (unregistered) users to browse public channels on an accordserver instance without creating an account. Anonymous viewers can read message history and see the member list, but cannot perform any actions. Multiple anonymous viewers are aggregated into a single "N anonymous users" entry in the member list rather than appearing as individual accounts.
@@ -350,32 +353,33 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 
 ### Core guest mode
 - [ ] `POST /auth/guest` server endpoint
-- [ ] `AuthApi.guest()` client method
-- [ ] `AccordUser.is_guest` field
-- [ ] `AccordChannel.allow_anonymous_read` field
-- [ ] `Client.connect_guest()` / `Client.upgrade_guest_connection()`
-- [ ] `AppState.guest_mode_changed` signal and `is_guest_mode` state
-- [ ] `GatewayIntents.GUEST` constant
-- [ ] Guest token refresh on expiry
+- [x] `AuthApi.guest()` client method
+- [x] `AccordUser.is_guest` field
+- [x] `AccordChannel.allow_anonymous_read` field
+- [x] `Client.connect_guest()` / `Client.upgrade_guest_connection()`
+- [x] `AppState.guest_mode_changed` signal and `is_guest_mode` state
+- [x] `GatewayIntents.guest()` static method (reduced intent set)
+- [x] Guest token refresh on expiry
 - [ ] Guest token rate limiting (server-side)
+- [x] Client mutation methods guarded in guest mode (send, edit, delete, react, typing, DM)
 
 ### Client UI (desktop + web)
-- [ ] "Browse without account" button in `auth_dialog.gd`
-- [ ] `add_server_dialog._connect_as_guest()` method
-- [ ] `GuestPrompt` shared utility for registration dialog
-- [ ] Persistent "You're browsing as a guest" banner with Sign In / Register buttons
-- [ ] Composer grayed out with "Sign in to send a message" placeholder; click shows registration prompt
-- [ ] Reaction buttons grayed out; click shows registration prompt
+- [x] "Browse without account" button in `auth_dialog.gd`
+- [x] `add_server_dialog._connect_as_guest()` method
+- [x] `GuestPrompt` shared utility for registration dialog
+- [x] Persistent "You're browsing as a guest" banner with Sign In / Register buttons
+- [x] Composer grayed out with "Sign in to send a message" placeholder; click shows registration prompt
+- [x] Reaction buttons grayed out; click shows registration prompt
 - [ ] Forum "New Post" button grayed out; click shows registration prompt
 - [ ] Thread composer grayed out; click shows registration prompt
-- [ ] Voice channel join grayed out; click shows registration prompt
-- [ ] Context menu actions grayed out; click shows registration prompt
-- [ ] DM button grayed out; click shows registration prompt
+- [x] Voice channel join grayed out; click shows registration prompt
+- [x] Context menu actions grayed out; click shows registration prompt
+- [x] DM button grayed out; click shows registration prompt
 - [ ] `anonymous_entry_item` scene + script
 - [ ] Member list anonymous count fetch + gateway event
-- [ ] Channel list guest filtering
+- [x] Channel list guest filtering
 - [ ] Discovery panel "Preview" button for guest-mode entry
-- [ ] Guest connections excluded from Config persistence / session restore
+- [x] Guest connections excluded from Config persistence / session restore
 
 ### Web-specific
 - [ ] URL fragment routing in HTML shell (`#space/channel/post-id`)
@@ -396,25 +400,16 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | No `POST /auth/guest` server endpoint | High | Entire feature blocked on accordserver support; client changes are meaningless without it |
-| No `allow_anonymous_read` channel flag | High | Server must expose per-channel guest visibility; currently no such field in `AccordChannel` model (`addons/accordkit/models/channel.gd`) |
-| No `Client.connect_guest()` method | High | `client.gd` only supports authenticated connections; new code path required |
-| No `AppState.guest_mode_changed` signal | High | All UI components rely on this for guest state transitions |
 | No anonymous member count endpoint | High | `GET /spaces/{id}/anonymous-count` and corresponding gateway event don't exist in accordkit REST layer |
 | No server-side HTML rendering for SEO | High | WASM content is invisible to search engines; requires accordserver-side work or a reverse proxy to serve HTML snapshots for crawlers |
 | No web URL routing for deep links | High | Without URL fragment parsing, shared links just load the default empty state instead of the target channel/post |
-| Composer has no grayed-out guest state | Medium | `composer.gd` has disabled state but no grayed-out "Sign in to send a message" mode with click-to-prompt |
-| Auth dialog has no "Browse without account" button | Medium | `auth_dialog.gd` only has Sign In / Register tabs (line 9) |
 | No `anonymous_entry_item` scene | Medium | Member list has no aggregated anonymous row; entirely new scene needed |
-| Guest connections not excluded from Config persistence | Medium | `add_server_dialog.gd` always calls `Config.add_server()`; guest must skip this |
-| No `GuestPrompt` utility | Medium | No shared utility for showing registration prompt from grayed-out inputs |
-| Message context menu not grayed out in guest mode | Medium | `cozy_message.gd` builds context menu without checking guest mode |
 | Forum view has no guest-mode adaptations | Medium | `forum_view.gd` shows "New Post" button and thread composer regardless of auth state |
 | No Open Graph meta tags for link previews | Medium | Shared links on social media show no title/description/image preview |
-| Reaction buttons not grayed out in guest mode | Low | `message_content.gd` reaction bar has no guest-mode branch |
-| No `GatewayIntents.GUEST` constant | Low | `addons/accordkit/models/intents.gd` has no reduced-scope guest intent set |
+| ~~Channel list guest filtering~~ | ~~Medium~~ | ~~Done: client filters by `allow_anonymous_read` in guest mode~~ |
 | Discovery panel has no "Preview" (guest entry) button | Low | `scenes/sidebar/guild_bar/discovery_panel.gd` only has "Join" |
 | Guest session not restored across launches | Low | By design: transient connections should not persist, but this should be documented in Config flow |
-| Token expiry handling for guest tokens | Low | Short-lived guest tokens will expire; client needs silent refresh or re-guest logic |
+| ~~Token expiry handling for guest tokens~~ | ~~Low~~ | ~~Done: silent refresh timer re-requests `POST /auth/guest` before expiry~~ |
 | No `<noscript>` fallback | Low | Users with JS disabled see a blank page; a fallback link to server-rendered content improves accessibility |
 
 ## Related User Flows

@@ -1,5 +1,8 @@
 # Android Release
 
+Priority: 43
+Depends on: Cross-Platform GitHub Releases
+
 ## Overview
 
 This flow documents both the build/release pipeline and the end-user experience for daccord on Android. Godot 4.5 supports Android export natively via the GL Compatibility renderer, which daccord already uses. The project has an Android export preset, CI pipeline entry with keystore management, touch interaction (long-press, edge-swipe drawer), responsive layout modes, and LiveKit Android binaries in the GDExtension manifest.

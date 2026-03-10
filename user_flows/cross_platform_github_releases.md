@@ -1,6 +1,8 @@
 # Cross-Platform GitHub Releases
 
 Last touched: 2026-03-05
+Priority: 40
+Depends on: Continuous Integration
 
 ## Overview
 

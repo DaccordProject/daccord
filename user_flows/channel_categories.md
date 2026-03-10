@@ -1,5 +1,7 @@
 # Channel Categories
 
+Priority: 13
+Depends on: Space & Channel Navigation
 
 ## Overview
 Channel categories are collapsible groups that organize channels within a space's sidebar. Categories are a special channel type (`ChannelType.CATEGORY`) that act as containers — other channels reference a category via their `parent_id` field. Users with `MANAGE_CHANNELS` permission can create, rename, delete, and reorder categories, as well as create channels directly within them. Collapse state persists across sessions via `Config`.

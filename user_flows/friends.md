@@ -1,5 +1,8 @@
 # Friends
 
+Priority: 70
+Depends on: User Management, Direct Messages
+
 ## Overview
 
 A cross-server friends system that lets users manage relationships (friend, blocked, pending) independently of any particular space. Friends appear in the DM sidebar with online/offline status, activity display, "since" dates, and mutual friend counts. They can be messaged directly. Friendships are per-server -- each accordserver maintains its own relationship table, so the same person on two servers appears as two separate entries.

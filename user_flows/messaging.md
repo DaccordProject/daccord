@@ -1,5 +1,7 @@
 # Messaging
 
+Priority: 5
+Depends on: Space & Channel Navigation, Gateway Events
 
 ## Overview
 

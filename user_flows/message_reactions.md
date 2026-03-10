@@ -1,5 +1,7 @@
 # Message Reactions
 
+Priority: 11
+Depends on: Messaging
 
 ## Overview
 

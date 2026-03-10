@@ -1,5 +1,7 @@
 # User Onboarding
 
+Priority: 15
+Depends on: Server Connection, Space & Channel Navigation
 
 ## Overview
 

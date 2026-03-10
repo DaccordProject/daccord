@@ -1,6 +1,8 @@
 # Messages Performance
 
 Last touched: 2026-02-19
+Priority: 69
+Depends on: Messaging
 
 ## Overview
 

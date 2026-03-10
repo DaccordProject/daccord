@@ -1,5 +1,8 @@
 # Screen Sharing
 
+Priority: 24
+Depends on: Video Chat
+
 ## Overview
 
 Screen sharing in daccord lets users broadcast their display or a specific window to other participants in a voice channel. The flow uses the godot-livekit GDExtension's `LiveKitScreenCapture` API for native screen/window enumeration and capture, publishing frames via `LiveKitVideoSource.capture_frame()` to a `LiveKitLocalVideoTrack` with `SOURCE_SCREENSHARE`. The published stream renders both as a local preview tile and as a live remote tile for other participants in the voice channel.

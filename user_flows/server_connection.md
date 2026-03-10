@@ -1,5 +1,7 @@
 # Server Connection
 
+Priority: 1
+Depends on: None
 
 ## Overview
 

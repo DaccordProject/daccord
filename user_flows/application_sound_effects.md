@@ -1,5 +1,7 @@
 # Application Sound Effects
 
+Priority: 36
+Depends on: None
 
 ## Overview
 

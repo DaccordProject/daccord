@@ -1,5 +1,7 @@
 # UI Animations
 
+Priority: 33
+Depends on: None
 
 ## Overview
 

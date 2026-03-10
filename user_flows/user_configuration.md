@@ -1,6 +1,8 @@
 # User Configuration
 
 Last touched: 2026-02-25
+Priority: 27
+Depends on: User Management
 
 ## Overview
 

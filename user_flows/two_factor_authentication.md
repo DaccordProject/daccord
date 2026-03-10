@@ -1,5 +1,8 @@
 # Two-Factor Authentication
 
+Priority: 66
+Depends on: User Management
+
 ## Overview
 Two-factor authentication (2FA) is managed from two places: the login dialog (MFA challenge during sign-in) and the User Settings panel under "Two-Factor Auth" (enable/disable/backup codes). The login flow detects `mfa_required` responses and presents a TOTP/backup code input before issuing a token. The settings flow lets a user enable 2FA by providing their password, verifying a TOTP code, and receiving backup codes.
 

@@ -1,5 +1,7 @@
 # Data Model
 
+Priority: 2
+Depends on: Server Connection
 
 ## Overview
 

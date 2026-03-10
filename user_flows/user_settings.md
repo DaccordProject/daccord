@@ -1,5 +1,8 @@
 # User Settings Menu
 
+Priority: 29
+Depends on: User Configuration, Profiles
+
 ## Overview
 
 The user settings menu is a fullscreen panel with a left navigation sidebar and right content area, hosting 10 pages: Profiles, My Account, Profile (edit), Voice & Video, Sound, Notifications, Change Password, Delete Account, Two-Factor Auth, and Connections. It is opened from the user bar context menu and dismissed via the Close button or Escape key.

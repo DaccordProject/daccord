@@ -1,5 +1,7 @@
 # Gateway Events
 
+Priority: 3
+Depends on: Server Connection, Data Model
 
 ## Overview
 

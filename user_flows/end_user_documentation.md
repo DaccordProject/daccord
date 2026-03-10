@@ -1,5 +1,8 @@
 # End-User Documentation
 
+Priority: 56
+Depends on: None
+
 ## Overview
 
 End-user documentation is a set of Markdown pages in the `docs/` directory that explain daccord to non-technical users. Each page uses YAML front matter for metadata and is organized into seven sections: Getting Started, Messaging, Navigation, Voice & Video, Customization, Administration, and Troubleshooting. The content is designed to be consumed by external static site generators or help portals.

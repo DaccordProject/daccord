@@ -1,6 +1,7 @@
 # Moderation
 
-> Last touched: 2026-03-06
+Priority: 51
+Depends on: Role-Based Permissions, Administrative User Management
 
 ## Overview
 

@@ -1,5 +1,8 @@
 # End-to-End Encryption (E2EE)
 
+Priority: 26
+Depends on: Godot-LiveKit
+
 ## Overview
 
 End-to-end encryption ensures that voice/video media streams are encrypted at the sender and only decrypted at the intended recipients — the LiveKit server (SFU) relays opaque ciphertext and cannot read the media. The godot-livekit GDExtension has E2EE classes compiled behind a `LIVEKIT_E2EE_SUPPORTED` build flag, but the current release binaries are **not** built with E2EE enabled, and daccord does not wire the E2EE API into its voice pipeline. Text messages are not covered by this flow — they travel over REST/WebSocket with transport-layer TLS only.

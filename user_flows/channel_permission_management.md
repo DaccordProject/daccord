@@ -1,5 +1,7 @@
 # Channel Permission Management
 
+Priority: 20
+Depends on: Role-Based Permissions, Channel Categories
 
 ## Overview
 

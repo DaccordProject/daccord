@@ -1,6 +1,8 @@
 # Space & Channel Navigation
 
 Last touched: 2026-02-19
+Priority: 4
+Depends on: Server Connection, Data Model, Gateway Events
 
 ## Overview
 

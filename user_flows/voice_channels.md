@@ -1,5 +1,7 @@
 # Voice Channels
 
+Priority: 21
+Depends on: Space & Channel Navigation, Godot-LiveKit
 
 ## Overview
 

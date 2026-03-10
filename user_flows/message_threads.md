@@ -1,5 +1,8 @@
 # Message Threads
 
+Priority: 47
+Depends on: Messaging
+
 ## Overview
 
 Message threads allow users to branch off a conversation from a specific message in a channel, keeping focused discussions contained without cluttering the main message feed. Threads behave like Slack-style threads: clicking "Start Thread" or "Reply in Thread" on any message opens a side panel showing the parent message and its thread replies, with its own composer for sending threaded messages. Thread activity is summarized inline in the main channel as a compact reply count indicator.

@@ -1,5 +1,7 @@
 # Responsive Layout
 
+Priority: 9
+Depends on: Space & Channel Navigation, Messaging
 
 ## Overview
 

@@ -1,6 +1,7 @@
 # Age Restrictions
 
-> Last touched: 2026-03-06
+Priority: 54
+Depends on: Moderation
 
 ## Overview
 

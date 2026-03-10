@@ -1,5 +1,8 @@
 # Server Plugins
 
+Priority: 72
+Depends on: None
+
 ## Overview
 
 Server plugins allow individual accordserver instances to extend daccord with custom behavior: additional REST endpoints, WebSocket events, and client-side logic. Plugins are strictly scoped to the server that installed them — no plugin can read data from or affect the UI of another connected server.

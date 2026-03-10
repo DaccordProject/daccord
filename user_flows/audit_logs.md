@@ -1,5 +1,8 @@
 # Audit Logs
 
+Priority: 52
+Depends on: Moderation
+
 ## Overview
 The audit log lets server admins review administrative actions performed within a space. Users with the `VIEW_AUDIT_LOG` permission can open the audit log dialog from the space icon context menu or the channel banner dropdown, browse paginated entries, filter by action type, and search by action/user/reason.
 

@@ -1,5 +1,8 @@
 # Imposter Mode
 
+Priority: 71
+Depends on: Role-Based Permissions
+
 ## Overview
 Imposter mode lets a space admin temporarily preview the client as if they had a different set of permissions — for example, viewing the space as a regular member, a moderator, or a user with a specific role. The admin's actual permissions are swapped out for the impersonated role's permissions, so the entire UI (context menus, channel visibility, admin panels, composer restrictions) reflects what that role would experience. No data is modified; the mode is purely a client-side preview.
 

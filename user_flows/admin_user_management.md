@@ -1,6 +1,7 @@
 # Administrative User Management
 
-> Last touched: 2026-02-19 (updated: audit log viewer, parallel bulk operations, role member counts)
+Priority: 19
+Depends on: Role-Based Permissions, User Management
 
 ## Overview
 

@@ -1,5 +1,7 @@
 # Admin Server Management
 
+Priority: 18
+Depends on: Role-Based Permissions, Space & Channel Navigation
 
 ## Overview
 

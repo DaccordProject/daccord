@@ -1,5 +1,8 @@
 # Theming
 
+Priority: 32
+Depends on: None
+
 ## Overview
 
 daccord uses a centralized `ThemeManager` autoload that holds a semantic color palette with 37 keys. Five built-in presets (Dark, Light, Nord, Monokai, Solarized) and a Custom mode with per-color pickers are available from the Appearance settings page. Theme sharing works via base64-encoded JSON strings that can be copied/pasted or detected inline in chat messages. The global Godot Theme resource (`discord_dark.tres`) is patched at runtime by ThemeManager, and 49 components join the `"themed"` group to receive live `_apply_theme()` callbacks when the palette changes. All panel backgrounds, font colors, and shader uniforms update via `_apply_theme()` so theme changes propagate to every surface. Font colors in `.tscn` files use `metadata/theme_font_color` annotations that `ThemeManager.apply_font_colors()` resolves at runtime, while `text_body`-colored labels inherit from the project theme directly.

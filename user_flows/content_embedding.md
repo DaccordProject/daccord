@@ -1,6 +1,8 @@
 # Content Embedding
 
 Last touched: 2026-02-19
+Priority: 31
+Depends on: Messaging
 
 ## Overview
 

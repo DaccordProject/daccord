@@ -1,6 +1,8 @@
 # File Sharing
 
 Last touched: 2026-02-19
+Priority: 30
+Depends on: Messaging
 
 ## Overview
 

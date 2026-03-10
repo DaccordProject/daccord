@@ -1,5 +1,7 @@
 # Reducing Build Size
 
+Priority: 44
+Depends on: Cross-Platform GitHub Releases
 
 ## Overview
 

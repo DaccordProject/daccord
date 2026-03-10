@@ -1,5 +1,8 @@
 # In-App Terms of Service
 
+Priority: 55
+Depends on: None
+
 ## Overview
 
 Server owners can define custom Terms of Service (ToS) for their instance, or disable ToS entirely. When enabled, users must accept the ToS during registration and when it changes. daccord ships with sensible default ToS text that server owners can use as-is, customize, or replace completely.

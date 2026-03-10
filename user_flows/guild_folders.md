@@ -1,6 +1,8 @@
 # Space Folders
 
 Last touched: 2026-02-20
+Priority: 50
+Depends on: Space & Channel Navigation
 
 ## Overview
 

@@ -1,6 +1,8 @@
 # Video Chat
 
 Last touched: 2026-03-05 (verified line numbers, screen capture via LiveKitScreenCapture, window sharing, voice+text, config_changed republish)
+Priority: 23
+Depends on: Voice Channels
 
 ## Overview
 

@@ -1,6 +1,8 @@
 # Editing Messages
 
 Last touched: 2026-02-19
+Priority: 10
+Depends on: Messaging
 
 ## Overview
 

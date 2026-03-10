@@ -1,6 +1,8 @@
 # Emoji Picker
 
 Last touched: 2026-03-06
+Priority: 12
+Depends on: Messaging
 
 ## Overview
 

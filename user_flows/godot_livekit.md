@@ -1,5 +1,8 @@
 # Godot-LiveKit
 
+Priority: 25
+Depends on: None
+
 ## Overview
 
 Godot-LiveKit is a GDExtension addon that wraps the [LiveKit C++ SDK](https://github.com/livekit/client-sdk-cpp) for real-time voice, video, and data streaming within Godot 4.5. It is developed in a separate repository (`godot-livekit`) and its compiled binaries are vendored into daccord at `addons/godot-livekit/`. The extension exposes 15+ native classes to GDScript, and daccord wraps them via `LiveKitAdapter` (a GDScript adapter) to bridge room-based media into the signal surface that `Client` and `ClientVoice` expect.

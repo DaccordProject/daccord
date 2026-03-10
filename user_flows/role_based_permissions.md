@@ -1,5 +1,8 @@
 # Role-Based Permissions
 
+Priority: 17
+Depends on: Data Model, User Management
+
 ## Overview
 daccord implements a Discord-style role-based permission system. Each space has an ordered set of roles with attached permission strings. A user's effective permissions are the union of their assigned roles' permissions plus the @everyone role. Channel-level overwrites can further allow or deny specific permissions per-role or per-user. The client resolves permissions locally for UI gating and delegates enforcement to the server.
 

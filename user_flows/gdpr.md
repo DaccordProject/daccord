@@ -1,5 +1,8 @@
 # GDPR & Data Privacy
 
+Priority: 57
+Depends on: User Management
+
 ## Overview
 
 daccord provides several GDPR-relevant features across its client and server interactions: account deletion (right to erasure), client-side data export (profile config), opt-in error reporting with PII scrubbing, and password/2FA management for data security. Full GDPR compliance depends on the accordserver backend; this document covers the client-side controls and identifies gaps.

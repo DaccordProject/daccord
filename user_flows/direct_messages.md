@@ -1,5 +1,7 @@
 # Direct Messages
 
+Priority: 8
+Depends on: Messaging
 
 ## Overview
 

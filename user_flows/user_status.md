@@ -1,5 +1,7 @@
 # User Status
 
+Priority: 6
+Depends on: Server Connection, Data Model
 
 ## Overview
 

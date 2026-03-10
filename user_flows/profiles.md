@@ -1,6 +1,8 @@
 # Profiles
 
 Last touched: 2026-02-19
+Priority: 28
+Depends on: User Configuration
 
 ## Overview
 

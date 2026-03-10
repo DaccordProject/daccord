@@ -1,5 +1,8 @@
 # Signal Wiring
 
+Priority: 67
+Depends on: Gateway Events
+
 ## Overview
 
 daccord uses a central signal bus (`AppState`) for all cross-component communication. `AppState` declares 75+ signals that are emitted by backend modules (client, gateway, config) and connected to by UI components. This document maps the complete signal wiring — every emit site and every connection — to identify dead signals, under-connected signals, and propagation gaps.

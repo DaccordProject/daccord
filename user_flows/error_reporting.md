@@ -1,6 +1,8 @@
 # Error Reporting
 
 Last touched: 2026-02-27
+Priority: 45
+Depends on: None
 
 ## Overview
 

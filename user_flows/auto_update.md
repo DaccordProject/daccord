@@ -1,5 +1,7 @@
 # Auto-Update
 
+Priority: 42
+Depends on: Cross-Platform GitHub Releases
 
 ## Overview
 

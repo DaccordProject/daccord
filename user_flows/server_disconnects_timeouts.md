@@ -1,5 +1,7 @@
 # Server Disconnects & Timeouts
 
+Priority: 14
+Depends on: Server Connection, Gateway Events
 
 ## Overview
 

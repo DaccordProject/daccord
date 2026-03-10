@@ -1,5 +1,7 @@
 # Master Server Discovery
 
+Priority: 59
+Depends on: Server Connection
 
 ## Overview
 

@@ -1,5 +1,8 @@
 # Forums
 
+Priority: 48
+Depends on: Message Threads, Channel Categories
+
 ## Overview
 
 Forum channels present a threaded discussion view where each top-level message acts as a "post" with its own title and reply thread, similar to Discord's forum channels. Forums piggyback on the message threads feature (see [Message Threads](message_threads.md)) — a forum channel is a `FORUM`-type channel where the main view shows a post list (top-level messages with thread metadata) instead of a flat message feed, and clicking a post opens the thread panel to display its replies.

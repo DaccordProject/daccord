@@ -1,5 +1,7 @@
 # In-App Notifications
 
+Priority: 16
+Depends on: Messaging, Gateway Events
 
 ## Overview
 

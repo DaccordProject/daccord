@@ -1,5 +1,8 @@
 # URL Protocol (`daccord://`)
 
+Priority: 61
+Depends on: Server Connection
+
 ## Overview
 
 A custom `daccord://` URL scheme enabling deep links into the application -- connecting to servers, accepting invites, and navigating to specific spaces/channels from external sources (browser links, QR codes, chat messages, desktop shortcuts). Requires platform-specific registration (Windows registry, Linux `.desktop` MimeType, macOS `CFBundleURLTypes`), CLI argument handling, and IPC to forward URIs to an already-running instance.

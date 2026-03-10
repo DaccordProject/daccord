@@ -1,5 +1,8 @@
 # Voice Text Chat
 
+Priority: 22
+Depends on: Voice Channels, Messaging
+
 ## Overview
 
 Discord-style text chat within voice channels. Each voice channel item in the sidebar has a small chat icon button (visible on hover). Clicking this button opens the voice channel's text chat as a separate column to the right of the current content area -- the same way Discord shows voice channel text. The chat button stops click propagation so it does **not** also trigger the voice channel click (join/leave/open voice view).

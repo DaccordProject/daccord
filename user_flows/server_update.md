@@ -1,5 +1,8 @@
 # Server Update
 
+Priority: 60
+Depends on: Server Disconnects & Timeouts
+
 ## Overview
 When an accordserver instance restarts or updates (e.g., deploying a new version), the WebSocket gateway drops and the client must reconnect and resync all cached data. This flow documents the reconnection lifecycle and identifies scenarios where stale data — especially permissions, roles, and channel configurations — may persist after a server update.
 

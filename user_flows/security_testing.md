@@ -1,5 +1,8 @@
 # Security Testing
 
+Priority: 46
+Depends on: None
+
 ## Overview
 
 This document maps daccord's client-side security surface: authentication and token handling, input sanitization, encrypted storage, network transport, credential exposure, and permission gating. It identifies what is implemented, what has known weaknesses, and what testing should cover. Server-side security (accordserver) is out of scope -- this covers only the Godot client.

@@ -1,6 +1,8 @@
 # Continuous Integration
 
 Last touched: 2026-02-27
+Priority: 39
+Depends on: Test Coverage
 
 ## Overview
 

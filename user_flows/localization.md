@@ -1,6 +1,8 @@
 # Localization
 
 Last touched: 2026-02-19
+Priority: 34
+Depends on: None
 
 ## Overview
 

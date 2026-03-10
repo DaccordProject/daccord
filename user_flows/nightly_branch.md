@@ -1,5 +1,8 @@
 # Nightly Branch
 
+Priority: 41
+Depends on: Cross-Platform GitHub Releases
+
 ## Overview
 
 This flow describes how daccord maintains a separate `nightly` branch that receives automatic builds from the latest development commits, and how clients built from that branch listen for nightly release updates instead of stable releases. The goal is a two-channel update system: **stable** (tagged releases from `master`) and **nightly** (automated pre-release builds from `nightly`), where each build knows which channel it belongs to and only checks for updates within its channel.

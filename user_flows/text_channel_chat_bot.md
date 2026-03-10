@@ -1,5 +1,8 @@
 # Text Channel Chat Bot
 
+Priority: 58
+Depends on: Messaging
+
 ## Overview
 
 Text channel chat bots are server-side applications that send and receive messages in text channels via the accordserver API. daccord supports bot messages at the data model and gateway layers — bot users have a `bot: bool` flag, messages can carry a `webhook_id`, and the interaction system (slash commands) is wired through the gateway — but the client UI does not yet distinguish bot messages visually or expose any bot-specific interaction features.

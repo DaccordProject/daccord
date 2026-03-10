@@ -1,7 +1,10 @@
 # PostgreSQL Support
 
+Priority: 64
+Depends on: None
+
 ## Overview
-accordserver currently uses SQLite as its sole database backend. Adding PostgreSQL support enables production deployments with concurrent connections, better write performance under load, and standard operational tooling (backups, replication, monitoring). This flow covers the full migration path: dual-driver support in sqlx, schema translation, query rewriting, and runtime database selection via `DATABASE_URL`.
+accordserver supports both SQLite and PostgreSQL as database backends via sqlx's `Any` driver. The backend is selected at runtime by the `DATABASE_URL` environment variable — SQLite remains the default for easy single-binary deployment, while PostgreSQL enables production deployments with concurrent connections, better write performance under load, and standard operational tooling (backups, replication, monitoring). This flow covers the dual-driver architecture, remaining gaps, and what's needed for full production readiness.
 
 ## User Steps
 1. Instance admin installs PostgreSQL and creates a database (e.g. `accord`).
@@ -12,139 +15,66 @@ accordserver currently uses SQLite as its sole database backend. Adding PostgreS
 ## Key Files
 | File | Role |
 |------|------|
-| `Cargo.toml` | sqlx feature flags (`sqlite` and/or `postgres`) |
-| `src/config.rs` | Reads `DATABASE_URL`, default is `sqlite:data/accord.db?mode=rwc` (line 100) |
-| `src/db/mod.rs` | `create_pool()` — SQLite-specific pool options (WAL, FK pragma, create_if_missing) |
-| `src/state.rs` | `pub db: SqlitePool` hardcoded pool type (line 27) |
-| `src/main.rs` | `strip_prefix("sqlite:")` for directory creation |
-| `src/bin/seed.rs` | Test seeder, hardcoded `SqlitePool` |
-| `src/db/users.rs` | User CRUD queries |
-| `src/db/channels.rs` | Channel CRUD queries |
-| `src/db/messages.rs` | Message CRUD queries, `MIN(rowid)` in reaction aggregation (line 419) |
-| `src/db/spaces.rs` | Space CRUD queries |
-| `src/db/roles.rs` | Role CRUD queries |
-| `src/db/members.rs` | Member/member_role queries, `INSERT OR IGNORE` |
-| `src/db/bans.rs` | Ban queries, `INSERT OR REPLACE` |
-| `src/db/emojis.rs` | Emoji CRUD queries |
-| `src/db/soundboard.rs` | Soundboard sound queries |
-| `src/db/settings.rs` | Server settings singleton |
-| `src/db/admin.rs` | Admin management queries |
-| `src/db/dm_participants.rs` | DM participant queries |
-| `src/db/permission_overwrites.rs` | Permission overwrite upserts (already uses `ON CONFLICT ... DO UPDATE`) |
-| `src/db/attachments.rs` | Attachment queries |
-| `src/routes/auth.rs` | Auth routes with inline `INSERT OR IGNORE` queries |
-| `src/routes/reactions.rs` | Reaction routes with `INSERT OR IGNORE` |
-| `src/gateway/mod.rs` | Token expiry check using `datetime('now')` |
-| `src/middleware/auth.rs` | Token timestamp string comparison |
-| `migrations/` | 13 migration files with SQLite DDL |
+| `Cargo.toml` | sqlx feature flags (`sqlite`, `postgres`, `any`) |
+| `src/config.rs` | Reads `DATABASE_URL`, default is `sqlite:data/accord.db?mode=rwc` |
+| `src/db/mod.rs` | `create_pool()` — detects backend via `url_is_postgres()`, creates `AnyPool` with backend-appropriate options. Provides `now_sql(is_postgres)` helper |
+| `src/state.rs` | `pub db: AnyPool` + `db_is_postgres: bool` runtime flag |
+| `src/main.rs` | Uses `db::url_is_postgres()` to set the `db_is_postgres` flag |
+| `src/bin/seed.rs` | Test seeder, uses `create_pool()` for `AnyPool` |
+| `src/db/users.rs` | User CRUD queries (migrated to `AnyRow`, `is_postgres` param) |
+| `src/db/channels.rs` | Channel CRUD queries (migrated) |
+| `src/db/messages.rs` | Message CRUD queries (migrated, `MIN(rowid)` replaced with `MIN(created_at)`) |
+| `src/db/spaces.rs` | Space CRUD queries (migrated) |
+| `src/db/roles.rs` | Role CRUD queries (migrated) |
+| `src/db/members.rs` | Member/member_role queries (migrated, conditional `INSERT OR IGNORE` / `ON CONFLICT`) |
+| `src/db/bans.rs` | Ban queries (migrated) |
+| `src/db/emojis.rs` | Emoji CRUD queries (migrated) |
+| `src/db/soundboard.rs` | Soundboard sound queries (migrated) |
+| `src/db/settings.rs` | Server settings singleton (migrated) |
+| `src/db/admin.rs` | Admin management queries (migrated) |
+| `src/db/dm_participants.rs` | DM participant queries (migrated) |
+| `src/db/read_states.rs` | Read state queries (migrated to `AnyPool`, `is_postgres` param, `now_sql()`) |
+| `src/db/permission_overwrites.rs` | Permission overwrite upserts (uses `ON CONFLICT ... DO UPDATE`) |
+| `src/db/attachments.rs` | Attachment queries (migrated) |
+| `src/routes/read_states.rs` | REST endpoints for read state ack + unread channels |
+| `src/bin/migrate_to_postgres.rs` | SQLite → PostgreSQL data migration CLI tool |
+| `tests/common/mod.rs` | Test infrastructure with `DATABASE_URL`-driven backend selection |
+| `.github/workflows/test.yml` | CI workflow with SQLite + PostgreSQL test matrix |
+| `migrations/` | SQLite migration files |
+| `migrations/017_read_states.sql` | SQLite read_states table migration |
+| `migrations/postgres/001_initial_schema.sql` | Postgres-native schema (covers migrations 001–017, includes `read_states` table) |
 
 ## Implementation Details
 
 ### Current Database Stack
 - **ORM:** None. Raw SQL via [sqlx](https://github.com/launchbadge/sqlx) with runtime query strings (`sqlx::query(...)`, not compile-time `query!()` macros).
-- **Pool:** `SqlitePoolOptions::new().max_connections(5)` with WAL journal mode and FK enforcement (line 10–25 of `src/db/mod.rs`).
-- **Migrations:** sqlx's built-in `sqlx::migrate!()` macro reads the `migrations/` directory at compile time.
-- **Row extraction:** Manual `row.get("column")` on `sqlx::sqlite::SqliteRow` in 6 db modules (`messages`, `channels`, `spaces`, `members`, `users`, `attachments`).
+- **Driver:** `sqlx::Any` — runtime polymorphism via `AnyPool`, `AnyRow`, `AnyConnectOptions`. Backend determined by `DATABASE_URL` prefix at startup.
+- **Pool:** `AnyPoolOptions` in `src/db/mod.rs`. SQLite path uses WAL journal mode and FK enforcement. Postgres path uses standard `PgConnectOptions`.
+- **Migrations:** Separate migration directories — `migrations/` for SQLite, `migrations/postgres/` for Postgres. `create_pool()` selects the correct set based on the URL.
+- **Row extraction:** Manual `row.get("column")` on `sqlx::any::AnyRow` in all migrated db modules.
+- **SQL dialect abstraction:** `now_sql(is_postgres: bool)` helper returns `"NOW()"` or `"datetime('now')"`. Most db modules accept `is_postgres` and use conditional SQL for `INSERT OR IGNORE` vs `ON CONFLICT DO NOTHING`.
 - **Config:** Single env var `DATABASE_URL`, default `sqlite:data/accord.db?mode=rwc`.
 
-### SQLite-Specific Constructs to Replace
+### Remaining SQLite-Specific Code
 
-#### 1. Bind parameter placeholders: `?` → `$1, $2, ...`
-SQLite uses `?` for positional bind params. PostgreSQL uses `$1`, `$2`, etc. This is the most pervasive change — roughly 150+ bind sites across all 16 db modules, route files, and the gateway. Using sqlx's `query!()` macros would make this automatic, but the codebase currently uses runtime strings exclusively.
+No remaining SQLite-specific code. All db modules use `AnyPool` with `is_postgres` conditionals where needed.
 
-#### 2. `datetime('now')` → `NOW()`
-Found in every db module and the gateway (20+ occurrences). SQLite stores timestamps as TEXT with `datetime('now')`; Postgres uses native `TIMESTAMPTZ` with `NOW()`.
+### Architecture Decisions (Adopted)
 
-**Source locations:**
-- `src/db/users.rs` — 3 occurrences
-- `src/db/channels.rs` — 1
-- `src/db/messages.rs` — 2
-- `src/db/spaces.rs` — 1
-- `src/db/roles.rs` — 1
-- `src/db/emojis.rs` — 1
-- `src/db/soundboard.rs` — 2
-- `src/db/settings.rs` — 1
-- `src/db/admin.rs` — 2
-- `src/gateway/mod.rs` — 1 (token expiry check)
+**Driver approach: `sqlx::Any` (runtime polymorphism)**
+- Single codebase, database chosen entirely by `DATABASE_URL` format.
+- Bind parameter syntax: `Any` driver normalizes to `?` placeholders, so existing queries did not need rewriting.
+- Database-specific SQL (`INSERT OR IGNORE`, `datetime('now')`) abstracted into helper functions that emit the correct SQL per backend.
 
-#### 3. `INSERT OR IGNORE INTO` → `INSERT INTO ... ON CONFLICT DO NOTHING`
-Used in 7 locations: `db/messages.rs` (pinned), `db/members.rs` (members, member_roles), `db/dm_participants.rs`, `db/admin.rs`, `routes/auth.rs`, `routes/reactions.rs`, `bin/seed.rs`.
+**Migration strategy: Fresh Postgres schema + separate SQLite chain**
+- Existing SQLite deployments keep their incremental migration chain under `migrations/`.
+- Postgres deployments get a single idiomatic `001_initial_schema.sql` under `migrations/postgres/`.
 
-#### 4. `INSERT OR REPLACE INTO` → `INSERT INTO ... ON CONFLICT (...) DO UPDATE SET ...`
-Used in `db/bans.rs` and `migrations/011_server_settings.sql`.
-
-#### 5. `MIN(rowid)` — SQLite virtual column
-`src/db/messages.rs` (line 419) uses `ORDER BY message_id, MIN(rowid)` for reaction aggregation ordering. `rowid` does not exist in Postgres. Replace with `MIN(created_at)` or add a serial column to `reactions`.
-
-#### 6. `PRAGMA foreign_keys`
-`migrations/003_space_invites_and_public.sql` uses `PRAGMA foreign_keys = OFF/ON` to disable FK checks during table recreation. Postgres enforces FKs natively and uses `ALTER TABLE ... DISABLE TRIGGER ALL` or deferred constraints instead. For Postgres migrations, the table recreation pattern isn't needed — Postgres supports `ALTER TABLE ... ALTER COLUMN` and `ALTER TABLE ... DROP COLUMN` natively.
-
-#### 7. Type differences in schema DDL
-| SQLite | PostgreSQL | Columns affected |
-|--------|-----------|-----------------|
-| `INTEGER` for booleans | `BOOLEAN` | `bot`, `system`, `is_admin`, `disabled`, `force_password_reset`, `tts`, `pinned`, `mention_everyone`, `nsfw`, `hoist`, `managed`, `mentionable`, `pending`, `deaf`, `mute`, `temporary`, `animated`, `available`, `require_colons`, `public`, `archived`, `bot_public` |
-| `TEXT` for timestamps | `TIMESTAMPTZ` | All `created_at`, `updated_at`, `edited_at`, `expires_at`, `joined_at`, `pinned_at`, `premium_since`, `timed_out_until` |
-| `TEXT DEFAULT (datetime('now'))` | `TIMESTAMPTZ DEFAULT NOW()` | All auto-timestamped columns |
-| `INTEGER DEFAULT 0` (bool) | `BOOLEAN DEFAULT FALSE` | All boolean columns with defaults |
-
-#### 8. Timestamp string comparison in Rust
-`src/middleware/auth.rs` and `src/routes/auth.rs` compare token expiry timestamps as strings (e.g., `if row.1 < now`). With Postgres native timestamps, the Rust layer should use `chrono::DateTime` types for proper comparison.
-
-### Hardcoded SQLite Types in Rust
-
-| Location | Current | Postgres equivalent |
-|----------|---------|-------------------|
-| `src/state.rs:27` | `pub db: SqlitePool` | `PgPool` (or `AnyPool`) |
-| `src/db/mod.rs` | `SqliteConnectOptions`, `SqliteJournalMode`, `SqlitePoolOptions` | `PgConnectOptions`, `PgPoolOptions` |
-| `src/db/messages.rs` | `fn row_to_message(row: SqliteRow)` | `PgRow` (or generic `Row`) |
-| `src/db/channels.rs` | `fn row_to_channel(row: SqliteRow)` | `PgRow` |
-| `src/db/spaces.rs` | `fn row_to_space(row: SqliteRow)` | `PgRow` |
-| `src/db/members.rs` | `fn row_to_member(row: SqliteRow)` | `PgRow` |
-| `src/db/users.rs` | `fn row_to_user(row: SqliteRow)` | `PgRow` |
-| `src/db/attachments.rs` | `fn row_to_attachment(row: SqliteRow)` | `PgRow` |
-| `src/main.rs` | `strip_prefix("sqlite:")` directory creation | Skip or use Postgres-aware startup |
-| `src/bin/seed.rs` | `SqlitePool` | `PgPool` |
-
-### Approach: sqlx `Any` Driver vs Dual-Driver
-
-**Option A — `sqlx::Any` (runtime polymorphism):**
-- sqlx provides `AnyPool`, `AnyRow`, and `AnyConnectOptions` that work with any supported backend at runtime.
-- Pros: Single codebase, database chosen entirely by `DATABASE_URL` format.
-- Cons: No compile-time query checking even with macros; `AnyRow` has limited type mapping; some database-specific features (e.g., Postgres `RETURNING`, `LISTEN/NOTIFY`) unavailable through the `Any` abstraction.
-- Bind parameter syntax: `Any` driver normalizes to `?` placeholders, so existing queries would NOT need rewriting.
-
-**Option B — Feature-flag compilation (e.g., `#[cfg(feature = "postgres")]`):**
-- Compile the server for one backend at a time using Cargo features.
-- Pros: Full access to backend-specific features; compile-time query checking possible.
-- Cons: Conditional compilation throughout; two sets of migrations; more maintenance.
-
-**Option C — Postgres-only (drop SQLite):**
-- Replace SQLite entirely with Postgres.
-- Pros: Simplest code; no conditional logic.
-- Cons: Removes easy single-binary deployment that SQLite provides.
-
-**Recommended: Option A (`sqlx::Any`)** for the initial migration. It minimizes code changes (no placeholder rewriting, no conditional compilation), keeps SQLite available for development/small deployments, and lets the `DATABASE_URL` determine the backend at runtime. Database-specific SQL (`INSERT OR IGNORE`, `datetime('now')`) would need abstraction into helper functions that emit the correct SQL per backend.
-
-### Migration Strategy for Schema Files
-
-The existing 13 migration files use SQLite DDL. Two approaches:
-
-**Approach 1 — Parallel migration directories:**
-sqlx supports `migrations/sqlite/` and `migrations/postgres/` with a custom migrator. Each backend gets its own migration files with native DDL.
-
-**Approach 2 — Compatible SQL migrations:**
-Write new migrations in a subset of SQL that works on both SQLite and Postgres. Use helper migration logic where they diverge. This is harder because the existing migrations use `PRAGMA`, `INSERT OR IGNORE`, and SQLite type conventions.
-
-**Approach 3 — Fresh Postgres schema + data migration tool:**
-Write a single `001_initial_schema.sql` for Postgres that creates all tables with correct types. Provide a separate `migrate_sqlite_to_postgres` CLI tool for existing deployments. New Postgres deployments start clean.
-
-**Recommended: Approach 3** for clean separation. Existing SQLite deployments keep their migration chain. New Postgres deployments get a fresh, idiomatic schema.
-
-### Tables (Complete List — 23 tables)
+### Tables (Complete List — 26 tables)
 
 | Table | Primary Key | Notes |
 |-------|-------------|-------|
-| `users` | `id TEXT` | Boolean columns stored as `INTEGER` |
+| `users` | `id TEXT` | Boolean columns stored as `INTEGER` (SQLite) / `BOOLEAN` (Postgres) |
 | `spaces` | `id TEXT` | `slug UNIQUE`, `owner_id` FK |
 | `channels` | `id TEXT` | `space_id` FK, `parent_id` self-ref |
 | `messages` | `id TEXT` | JSON columns: `mentions`, `mention_roles`, `embeds` |
@@ -153,12 +83,12 @@ Write a single `001_initial_schema.sql` for Postgres that creates all tables wit
 | `member_roles` | `(user_id, space_id, role_id)` | Composite PK |
 | `permission_overwrites` | `(id, channel_id)` | JSON `allow`/`deny` columns |
 | `invites` | `code TEXT` | Nullable `channel_id` |
-| `user_tokens` | `token_hash TEXT` | String timestamp comparison in auth |
+| `user_tokens` | `token_hash TEXT` | — |
 | `bot_tokens` | `token_hash TEXT` | — |
 | `applications` | `id TEXT` | — |
-| `bans` | `(user_id, space_id)` | Uses `INSERT OR REPLACE` |
+| `bans` | `(user_id, space_id)` | — |
 | `attachments` | `id TEXT` | — |
-| `reactions` | `(message_id, user_id, emoji_name)` | `MIN(rowid)` used for ordering |
+| `reactions` | `(message_id, user_id, emoji_name)` | Uses `MIN(created_at)` for ordering |
 | `pinned_messages` | `(channel_id, message_id)` | — |
 | `dm_participants` | `(channel_id, user_id)` | — |
 | `emojis` | `id TEXT` | Image metadata columns |
@@ -166,6 +96,10 @@ Write a single `001_initial_schema.sql` for Postgres that creates all tables wit
 | `soundboard_sounds` | `id TEXT` | `volume REAL` |
 | `relationships` | `id TEXT` | `UNIQUE(user_id, target_user_id)` |
 | `server_settings` | `id INTEGER CHECK(id=1)` | Singleton pattern |
+| `backup_codes` | `id TEXT` | 2FA backup codes per user |
+| `channel_mutes` | `(user_id, channel_id)` | Per-user channel mutes |
+| `read_states` | `(user_id, channel_id)` | — |
+| `reports` | `id TEXT` | — |
 
 ## Signal Flow
 
@@ -179,56 +113,135 @@ DATABASE_URL env var
         │
         ▼
   src/db/mod.rs ──► create_pool()
-        │            ├── SQLite path: SqlitePoolOptions + WAL + FK pragma
-        │            └── Postgres path: PgPoolOptions + standard options
+        │            ├── SQLite path: AnyConnectOptions + WAL + FK pragma
+        │            └── Postgres path: AnyConnectOptions + standard options
         │
         ▼
   sqlx::migrate!() ──► run correct migration set
+        │                ├── SQLite: migrations/
+        │                └── Postgres: migrations/postgres/
         │
         ▼
-  src/state.rs ──► AppState { db: AnyPool }
+  src/state.rs ──► AppState { db: AnyPool, db_is_postgres: bool }
         │
         ▼
   All db modules ──► sqlx::query(...) with AnyPool
-  All routes         (helper fns abstract SQL dialect differences)
+  All routes         (now_sql() + conditional SQL for dialect differences)
   Gateway
 ```
 
 ## Implementation Status
 - [x] SQLite backend fully functional
-- [x] sqlx migration system in place (13 migrations)
+- [x] sqlx migration system in place
 - [x] All queries use parameterized binds (no SQL injection risk)
-- [x] `DATABASE_URL` env var already configurable
-- [ ] `postgres` feature in `Cargo.toml`
-- [ ] `AnyPool` / `PgPool` support in pool creation
-- [ ] `AnyRow` / `PgRow` support in row extraction functions
-- [ ] `datetime('now')` → `NOW()` abstraction
-- [ ] `INSERT OR IGNORE` → `ON CONFLICT DO NOTHING` abstraction
-- [ ] `INSERT OR REPLACE` → `ON CONFLICT ... DO UPDATE` abstraction
-- [ ] `MIN(rowid)` removal in reaction query
-- [ ] Postgres-native migration set (all 23 tables)
-- [ ] Boolean columns as `BOOLEAN` in Postgres schema
-- [ ] Timestamp columns as `TIMESTAMPTZ` in Postgres schema
-- [ ] `chrono::DateTime` for timestamp comparison in auth middleware
-- [ ] SQLite → Postgres data migration tool
-- [ ] CI test matrix for both backends
-- [ ] Documentation for Postgres deployment
+- [x] `DATABASE_URL` env var configurable
+- [x] `postgres` and `any` features in `Cargo.toml`
+- [x] `AnyPool` support in pool creation (`src/db/mod.rs`)
+- [x] `AnyRow` in all row extraction functions
+- [x] `now_sql(is_postgres)` helper for `datetime('now')` / `NOW()` abstraction
+- [x] `INSERT OR IGNORE` → `ON CONFLICT DO NOTHING` conditional in all db modules
+- [x] `INSERT OR REPLACE` → `ON CONFLICT ... DO UPDATE` migration
+- [x] `MIN(rowid)` replaced with `MIN(created_at)` in reaction query
+- [x] Postgres-native migration (`migrations/postgres/001_initial_schema.sql`) with `BOOLEAN`, `TIMESTAMPTZ`, `NOW()`
+- [x] `state.rs` uses `AnyPool` + `db_is_postgres` runtime flag
+- [x] Migrate `read_states.rs` to `AnyPool` with `is_postgres` param
+- [x] Add `read_states` table to Postgres migration
+- [x] Fix conditional `INSERT OR IGNORE` / `ON CONFLICT DO NOTHING` in `seed.rs` reactions query
+- [x] SQLite → Postgres data migration tool (`src/bin/migrate_to_postgres.rs`)
+- [x] CI test matrix for both backends (`.github/workflows/test.yml`)
+- [x] REST endpoints for read states (`src/routes/read_states.rs`)
+- [x] Documentation for Postgres deployment
+
+## Postgres Deployment Guide
+
+### Prerequisites
+- PostgreSQL 16+ installed and running
+- An empty database created for accordserver (e.g. `accord`)
+- A database user with full privileges on that database
+
+### Fresh Postgres Deployment
+
+1. **Create the database and user:**
+   ```sql
+   CREATE USER accord WITH PASSWORD 'your_secure_password';
+   CREATE DATABASE accord OWNER accord;
+   ```
+
+2. **Set the `DATABASE_URL` environment variable:**
+   ```bash
+   export DATABASE_URL="postgres://accord:your_secure_password@localhost:5432/accord"
+   ```
+   Both `postgres://` and `postgresql://` prefixes are accepted.
+
+3. **Start accordserver:**
+   ```bash
+   ./accordserver
+   ```
+   Migrations run automatically on startup — no manual SQL is needed. The server detects the Postgres URL prefix and applies `migrations/postgres/001_initial_schema.sql`, which creates all 26 tables with Postgres-native types (`BOOLEAN`, `TIMESTAMPTZ`, `NOW()`).
+
+4. **Verify:** The server logs should show successful migration and pool creation. The API behaves identically to the SQLite path — no client changes are required.
+
+### Migrating from SQLite to Postgres
+
+For existing deployments that want to switch from SQLite to Postgres:
+
+1. **Ensure Postgres is set up** (database created, empty, no prior data).
+
+2. **Run the migration tool:**
+   ```bash
+   SQLITE_URL="sqlite:data/accord.db?mode=rwc" \
+   POSTGRES_URL="postgres://accord:your_secure_password@localhost:5432/accord" \
+   cargo run --bin accord-migrate-pg
+   ```
+
+3. **What it does:**
+   - Connects to both databases and runs migrations on each
+   - Copies all 26 tables in dependency order (users → spaces → channels → … → reports)
+   - Uses `ON CONFLICT DO NOTHING` to skip duplicates safely
+   - Reports per-table row counts and warns on any insert failures
+   - Prints a total rows-transferred summary at the end
+
+4. **After migration:** Update `DATABASE_URL` to point to Postgres and restart the server.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `sqlite:data/accord.db?mode=rwc` | Database connection URL. Prefix determines backend |
+| `PORT` | `39099` | HTTP server port |
+| `ACCORD_TEST_MODE` | unset | Set to `true` or `1` for test mode |
+| `TOTP_ENCRYPTION_KEY` | unset | Optional key for encrypting TOTP secrets |
+| `ACCORD_STORAGE_PATH` | `./data/cdn` | File storage path for uploads |
+
+### Connection Pool
+
+- Pool size: 5 max connections (for both backends)
+- Postgres path uses standard `PgConnectOptions` via `AnyConnectOptions`
+- No additional tuning is required for typical deployments
+
+### CI Reference
+
+The GitHub Actions workflow (`.github/workflows/test.yml`) provides a working Postgres setup example:
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    env:
+      POSTGRES_USER: accord
+      POSTGRES_PASSWORD: accord_test
+      POSTGRES_DB: accord_test
+    options: >-
+      --health-cmd pg_isready
+      --health-interval 10s
+      --health-timeout 5s
+      --health-retries 5
+    ports:
+      - 5432:5432
+env:
+  DATABASE_URL: "postgres://accord:accord_test@localhost:5432/accord_test"
+```
 
 ## Gaps / TODO
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| `Cargo.toml` only enables `sqlite` feature | High | Add `postgres` (and optionally `any`) feature to sqlx dependency |
-| `SqlitePool` hardcoded in `state.rs:27` | High | Change to `AnyPool` or use feature-gated type alias |
-| `SqliteRow` in 6 `row_to_*` functions | High | Change to `AnyRow` or `PgRow`; affects `messages`, `channels`, `spaces`, `members`, `users`, `attachments` |
-| `?` bind placeholders everywhere | High | ~150+ sites; `AnyPool` normalizes these automatically, but direct Postgres would need `$1..$N` |
-| `datetime('now')` in 20+ query strings | High | Abstract into helper fn returning correct SQL per backend |
-| `INSERT OR IGNORE` in 7 locations | High | Abstract into `ON CONFLICT DO NOTHING` for Postgres |
-| `INSERT OR REPLACE` in `bans.rs` | Medium | Rewrite as `ON CONFLICT ... DO UPDATE SET` |
-| `MIN(rowid)` in `messages.rs:419` | Medium | Replace with `MIN(created_at)` or add serial column to `reactions` |
-| `PRAGMA` in migration 003 | Medium | Postgres migrations must not use `PRAGMA`; use native DDL instead |
-| Timestamp string comparison in auth | Medium | `middleware/auth.rs` and `routes/auth.rs` compare timestamps as strings; use `chrono` types with Postgres |
-| `strip_prefix("sqlite:")` in `main.rs` | Low | Postgres URLs don't need directory creation; guard with URL prefix check |
-| `create_if_missing(true)` in pool setup | Low | SQLite-only option; Postgres databases must be created externally |
-| No Postgres CI test job | Low | Add a GitHub Actions job with a Postgres service container |
-| `server_settings` singleton `CHECK(id=1)` | Low | Works in Postgres but `INSERT OR IGNORE` in migration 011 needs rewriting |
-| `seed.rs` hardcodes `SqlitePool` | Low | Update test seeder for `AnyPool`/`PgPool` |
+| — | — | No remaining gaps |
