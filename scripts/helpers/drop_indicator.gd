@@ -22,4 +22,8 @@ static func draw_line_indicator(control: Control, drop_hovered: bool, drop_above
 	if drop_above:
 		control.draw_line(Vector2(0, 0), Vector2(control.size.x, 0), line_color, 2.0)
 	else:
-		control.draw_line(Vector2(0, control.size.y), Vector2(control.size.x, control.size.y), line_color, 2.0)
+		var y: float = control.size.y
+		control.draw_line(
+			Vector2(0, y), Vector2(control.size.x, y),
+			line_color, 2.0
+		)

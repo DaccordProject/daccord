@@ -195,7 +195,10 @@ func _on_toggle_mute() -> void:
 		Client.mute_channel(cat_id)
 
 func _on_create_channel() -> void:
-	DialogHelper.open(CreateChannelDialogScene, get_tree()).setup(space_id, _category_data.get("id", ""))
+	var cat_id: String = _category_data.get("id", "")
+	DialogHelper.open(
+		CreateChannelDialogScene, get_tree()
+	).setup(space_id, cat_id)
 
 func _on_edit_category() -> void:
 	DialogHelper.open(CategoryEditDialogScene, get_tree()).setup(_category_data)

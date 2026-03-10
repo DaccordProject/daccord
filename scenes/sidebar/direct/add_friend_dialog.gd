@@ -49,26 +49,23 @@ func _on_send() -> void:
 	# FRND-16: Check existing relationships
 	var existing = Client.relationships.get_relationship(user_id)
 	if existing != null:
-		_send_btn.disabled = false
-		_send_btn.text = "Send Request"
 		var rel_type: int = existing.get("type", 0)
+		var msg: String = ""
 		match rel_type:
 			1:  # FRIEND
-				_error_label.text = "You're already friends with this user."
-				_error_label.visible = true
-				return
+				msg = "You're already friends with this user."
 			2:  # BLOCKED
-				_error_label.text = "You have this user blocked."
-				_error_label.visible = true
-				return
+				msg = "You have this user blocked."
 			3:  # PENDING_INCOMING
-				_error_label.text = "This user already sent you a friend request. Check the Pending tab."
-				_error_label.visible = true
-				return
+				msg = "This user already sent you a friend request. Check the Pending tab."
 			4:  # PENDING_OUTGOING
-				_error_label.text = "You already sent a friend request to this user."
-				_error_label.visible = true
-				return
+				msg = "You already sent a friend request to this user."
+		if not msg.is_empty():
+			_send_btn.disabled = false
+			_send_btn.text = "Send Request"
+			_error_label.text = msg
+			_error_label.visible = true
+			return
 
 	_send_btn.text = "Sending..."
 	var result: RestResult = await Client.relationships.send_friend_request(user_id)

@@ -124,8 +124,9 @@ func set_muted(muted: bool) -> void:
 		return
 	var enabled_str: String = "true" if not muted else "false"
 	_js_void(
-		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setMicrophoneEnabled(%s)}})()"
-		% enabled_str
+		"(function(){var r=window._godotLkRoom;if(r){"
+		+ "var p=r.getLocalParticipant();"
+		+ "if(p)p.setMicrophoneEnabled(%s)}})()" % enabled_str
 	)
 
 
@@ -151,7 +152,9 @@ func publish_camera(_resolution: Vector2i, _fps: int) -> RefCounted:
 	if not _is_web or not _has_room:
 		return null
 	_js_void(
-		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setCameraEnabled(true)}})()"
+		"(function(){var r=window._godotLkRoom;if(r){"
+		+ "var p=r.getLocalParticipant();"
+		+ "if(p)p.setCameraEnabled(true)}})()"
 	)
 	return WebVideoStub.new()
 
@@ -160,7 +163,9 @@ func unpublish_camera() -> void:
 	if not _is_web or not _has_room:
 		return
 	_js_void(
-		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setCameraEnabled(false)}})()"
+		"(function(){var r=window._godotLkRoom;if(r){"
+		+ "var p=r.getLocalParticipant();"
+		+ "if(p)p.setCameraEnabled(false)}})()"
 	)
 
 
@@ -252,8 +257,9 @@ func _on_connected(_args) -> void:
 	if _has_room:
 		var enabled_str: String = "true" if not _muted else "false"
 		_js_void(
-			"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setMicrophoneEnabled(%s)}})()"
-			% enabled_str
+			"(function(){var r=window._godotLkRoom;if(r){"
+			+ "var p=r.getLocalParticipant();"
+			+ "if(p)p.setMicrophoneEnabled(%s)}})()" % enabled_str
 		)
 
 
