@@ -122,31 +122,37 @@ func _setup_channel_routing(
 func test_create_space_null_client_returns_null() -> void:
 	var result: RestResult = await admin.create_space({"name": "x"})
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 func test_list_all_spaces_null_client_returns_null() -> void:
 	var result: RestResult = await admin.list_all_spaces()
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 func test_list_all_users_null_client_returns_null() -> void:
 	var result: RestResult = await admin.list_all_users()
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 func test_get_server_settings_null_client_returns_null() -> void:
 	var result: RestResult = await admin.get_server_settings()
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 func test_update_server_settings_null_client_returns_null() -> void:
 	var result: RestResult = await admin.update_server_settings({})
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 func test_admin_delete_user_null_client_returns_null() -> void:
 	var result: RestResult = await admin.admin_delete_user("u_1")
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 func test_reset_user_password_null_client_returns_null() -> void:
@@ -154,6 +160,7 @@ func test_reset_user_password_null_client_returns_null() -> void:
 		"u_1", "newpass123"
 	)
 	assert_null(result)
+	assert_push_error("[Client] No connected server")
 
 
 # ==================================================================
@@ -165,11 +172,13 @@ func test_update_space_no_connection_returns_null() -> void:
 		"g_missing", {}
 	)
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_delete_space_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.delete_space("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_create_channel_no_connection_returns_null() -> void:
@@ -177,6 +186,7 @@ func test_create_channel_no_connection_returns_null() -> void:
 		"g_missing", {}
 	)
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_update_channel_no_connection_returns_null() -> void:
@@ -184,21 +194,25 @@ func test_update_channel_no_connection_returns_null() -> void:
 		"c_missing", {}
 	)
 	assert_null(result)
+	assert_push_error("[Client] No connection for channel:")
 
 
 func test_delete_channel_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.delete_channel("c_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for channel:")
 
 
 func test_create_role_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.create_role("g_missing", {})
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_get_bans_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.get_bans("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_ban_member_no_connection_returns_null() -> void:
@@ -206,31 +220,37 @@ func test_ban_member_no_connection_returns_null() -> void:
 		"g_missing", "u_1"
 	)
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_get_invites_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.get_invites("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_get_emojis_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.get_emojis("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_get_sounds_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.get_sounds("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_get_audit_log_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.get_audit_log("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 func test_get_reports_no_connection_returns_null() -> void:
 	var result: RestResult = await admin.get_reports("g_missing")
 	assert_null(result)
+	assert_push_error("[Client] No connection for space:")
 
 
 # ==================================================================
@@ -417,6 +437,7 @@ func test_update_channel_overwrites_null_client_returns_null() -> void:
 		"c_missing", []
 	)
 	assert_null(result)
+	assert_push_error("[Client] No connection for channel:")
 
 
 func test_update_channel_overwrites_empty_success() -> void:
