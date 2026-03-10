@@ -445,6 +445,9 @@ func test_update_channel_overwrites_empty_success() -> void:
 	var ac := _make_accord_client()
 	_setup_connection(ac, "g_1")
 	_setup_channel_routing("c_text", "g_1")
+	# Stub channels fetch to prevent push_error from fetch_channels
+	_stub_rest.responses["GET /spaces/g_1/channels"] = \
+		RestResult.success(200, [])
 	var result: RestResult = await admin.update_channel_overwrites(
 		"c_text", [], []
 	)
