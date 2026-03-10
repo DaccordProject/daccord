@@ -136,8 +136,8 @@ func test_app_settings_all_pages_created() -> void:
 	).new()
 	add_child(panel)
 	await get_tree().process_frame
-	# App settings has 6 pages
-	assert_eq(panel._pages.size(), 6)
+	# App settings has 7 pages (includes About)
+	assert_eq(panel._pages.size(), 7)
 	for page in panel._pages:
 		assert_true(is_instance_valid(page))
 	panel.queue_free()
