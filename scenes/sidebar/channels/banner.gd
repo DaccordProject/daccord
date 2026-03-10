@@ -21,7 +21,6 @@ var _has_admin: bool = false
 
 func _ready() -> void:
 	add_to_group("themed")
-	settings_button.texture_normal = IconEmoji.get_texture("settings")
 	_admin_menu = PopupMenu.new()
 	_admin_menu.id_pressed.connect(_on_admin_menu_pressed)
 	add_child(_admin_menu)

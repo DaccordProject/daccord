@@ -22,8 +22,6 @@ var _notify_popup: PopupMenu
 
 func _ready() -> void:
 	add_to_group("themed")
-	notify_button.icon = IconEmoji.get_texture("bell")
-	send_button.icon = IconEmoji.get_texture("send")
 	_apply_theme()
 	close_button.pressed.connect(_on_close)
 	notify_button.pressed.connect(_on_notify_pressed)

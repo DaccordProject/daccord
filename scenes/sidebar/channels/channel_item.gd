@@ -2,13 +2,20 @@ extends Button
 
 signal channel_pressed(channel_id: String)
 
+const TEXT_ICON := preload("res://assets/theme/icons/text_channel.svg")
+const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
+const ANNOUNCEMENT_ICON := preload("res://assets/theme/icons/announcement_channel.svg")
+const FORUM_ICON := preload("res://assets/theme/icons/forum_channel.svg")
+const LOCK_ICON := preload("res://assets/theme/icons/lock.svg")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
 
 var channel_id: String = ""
 var space_id: String = ""
 var _is_locked: bool = false
-var _is_nsfw: bool = false
+var _icon_color_default: Color = ThemeManager.get_color("icon_default")
+var _icon_color_hover: Color = ThemeManager.get_color("icon_hover")
+var _icon_color_active: Color = ThemeManager.get_color("icon_active")
 var _channel_data: Dictionary = {}
 var _context_menu: PopupMenu
 var _notification_submenu: PopupMenu
@@ -49,7 +56,11 @@ func _ready() -> void:
 	AppState.channel_notification_updated.connect(_on_notification_updated)
 
 func _apply_theme() -> void:
+	_icon_color_default = ThemeManager.get_color("icon_default")
+	_icon_color_hover = ThemeManager.get_color("icon_hover")
+	_icon_color_active = ThemeManager.get_color("icon_active")
 	_apply_text_color()
+	_apply_icon_color()
 	queue_redraw()
 
 func setup(data: Dictionary) -> void:
@@ -62,7 +73,7 @@ func setup(data: Dictionary) -> void:
 	# Locked channels are visible to admins in imposter mode but not interactive.
 	_is_locked = data.get("locked", false)
 	if _is_locked:
-		type_icon.texture = IconEmoji.get_texture("lock")
+		type_icon.texture = LOCK_ICON
 		modulate = Color(1.0, 1.0, 1.0, 0.4)
 		disabled = true
 		mouse_default_cursor_shape = CURSOR_ARROW
@@ -71,17 +82,20 @@ func setup(data: Dictionary) -> void:
 	var type: int = data.get("type", ClientModels.ChannelType.TEXT)
 	match type:
 		ClientModels.ChannelType.TEXT:
-			type_icon.texture = IconEmoji.get_texture("text_channel")
+			type_icon.texture = TEXT_ICON
 		ClientModels.ChannelType.VOICE:
-			type_icon.texture = IconEmoji.get_texture("voice_channel")
+			type_icon.texture = VOICE_ICON
 		ClientModels.ChannelType.ANNOUNCEMENT:
-			type_icon.texture = IconEmoji.get_texture("announcement_channel")
+			type_icon.texture = ANNOUNCEMENT_ICON
 		ClientModels.ChannelType.FORUM:
-			type_icon.texture = IconEmoji.get_texture("forum_channel")
+			type_icon.texture = FORUM_ICON
 		_:
-			type_icon.texture = IconEmoji.get_texture("text_channel")
-	# NSFW indicator - dim the icon
-	_is_nsfw = data.get("nsfw", false)
+			type_icon.texture = TEXT_ICON
+	# NSFW indicator - tint icon red
+	if data.get("nsfw", false):
+		type_icon.modulate = ThemeManager.get_color("error")
+	else:
+		_apply_icon_color()
 
 	# Voice channel participant count
 	var voice_users: int = data.get("voice_users", 0)
@@ -118,6 +132,7 @@ func set_active(active: bool) -> void:
 	active_bg.visible = active
 	active_pill.visible = active
 	_apply_text_color()
+	_apply_icon_color()
 
 func _apply_text_color() -> void:
 	if _has_unread or _is_active:
@@ -130,25 +145,36 @@ func _apply_text_color() -> void:
 		Config.get_channel_notification_level(channel_id) == "muted"
 	)
 	if is_dimmed:
-		type_icon.modulate.a = 0.4
+		if not _channel_data.get("nsfw", false):
+			type_icon.modulate.a = 0.4
 		channel_name.modulate.a = 0.4
-	elif _is_nsfw:
-		type_icon.modulate.a = 0.6
-		channel_name.modulate.a = 1.0
 	else:
-		type_icon.modulate.a = 1.0
+		if not _channel_data.get("nsfw", false) and not _is_active:
+			type_icon.modulate.a = 1.0
 		channel_name.modulate.a = 1.0
 
 func _on_mutes_updated() -> void:
 	_apply_text_color()
+	_apply_icon_color()
+
+func _apply_icon_color() -> void:
+	if _channel_data.get("nsfw", false):
+		return
+	if _is_active:
+		type_icon.modulate = _icon_color_active
+	else:
+		type_icon.modulate = _icon_color_default
 
 func _on_mouse_entered() -> void:
 	if _gear_btn:
 		_gear_btn.visible = true
+	if not _is_active and not _channel_data.get("nsfw", false):
+		type_icon.modulate = _icon_color_hover
 
 func _on_mouse_exited() -> void:
 	if _gear_btn:
 		_gear_btn.visible = false
+	_apply_icon_color()
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:

@@ -63,8 +63,8 @@ var _icon_eye_closed: Texture2D
 
 
 func _ready() -> void:
-	_icon_eye = EmojiData.get_texture("eyes")
-	_icon_eye_closed = EmojiData.get_texture("locked")
+	_icon_eye = load("res://assets/theme/icons/eye.svg")
+	_icon_eye_closed = load("res://assets/theme/icons/eye_closed.svg")
 	_input.placeholder_text = placeholder_text
 	_input.text_changed.connect(func(t: String) -> void: text_changed.emit(t))
 	_input.text_submitted.connect(func(t: String) -> void: text_submitted.emit(t))

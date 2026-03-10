@@ -119,7 +119,6 @@ const CATALOG := {
 		{"name": "writing_hand", "codepoint": "270d"},
 		{"name": "nail_polish", "codepoint": "1f485"},
 		{"name": "selfie", "codepoint": "1f933"},
-		{"name": "busts_in_silhouette", "codepoint": "1f465"},
 	],
 	Category.NATURE: [
 		{"name": "dog_face", "codepoint": "1f436"},
@@ -279,7 +278,6 @@ const CATALOG := {
 		{"name": "sunrise", "codepoint": "1f305"},
 		{"name": "fireworks", "codepoint": "1f386"},
 		{"name": "sparkler", "codepoint": "1f387"},
-		{"name": "compass", "codepoint": "1f9ed"},
 	],
 	Category.OBJECTS: [
 		{"name": "watch", "codepoint": "231a"},
@@ -321,12 +319,6 @@ const CATALOG := {
 		{"name": "pill", "codepoint": "1f48a"},
 		{"name": "syringe", "codepoint": "1f489"},
 		{"name": "credit_card", "codepoint": "1f4b3"},
-		{"name": "megaphone", "codepoint": "1f4e3"},
-		{"name": "speech_balloon", "codepoint": "1f4ac"},
-		{"name": "left_speech_bubble", "codepoint": "1f5e8"},
-		{"name": "wastebasket", "codepoint": "1f5d1"},
-		{"name": "gear", "codepoint": "2699"},
-		{"name": "clipboard", "codepoint": "1f4cb"},
 	],
 	Category.SYMBOLS: [
 		{"name": "heart", "codepoint": "2764"},
@@ -363,10 +355,6 @@ const CATALOG := {
 		{"name": "peace", "codepoint": "262e"},
 		{"name": "yin_yang", "codepoint": "262f"},
 		{"name": "trident", "codepoint": "1f531"},
-		{"name": "heavy_plus_sign", "codepoint": "2795"},
-		{"name": "down_triangle", "codepoint": "1f53d"},
-		{"name": "play_button", "codepoint": "25b6"},
-		{"name": "left_hook_arrow", "codepoint": "21a9"},
 	],
 	Category.FLAGS: [
 		{"name": "flag_us", "codepoint": "1f1fa-1f1f8"},

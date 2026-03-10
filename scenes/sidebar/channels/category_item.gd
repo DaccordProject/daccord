@@ -2,6 +2,9 @@ extends VBoxContainer
 
 signal channel_pressed(channel_id: String)
 
+const CHEVRON_DOWN := preload("res://assets/theme/icons/chevron_down.svg")
+const CHEVRON_RIGHT := preload("res://assets/theme/icons/chevron_right.svg")
+const PLUS_ICON := preload("res://assets/theme/icons/plus.svg")
 const ChannelItemScene := preload("res://scenes/sidebar/channels/channel_item.tscn")
 const VoiceChannelItemScene := preload("res://scenes/sidebar/channels/voice_channel_item.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
@@ -27,7 +30,7 @@ var _drop_style: StyleBoxFlat
 func _ready() -> void:
 	add_to_group("themed")
 	header.pressed.connect(_toggle_collapsed)
-	chevron.texture = IconEmoji.get_texture("chevron_down")
+	chevron.texture = CHEVRON_DOWN
 	category_name.add_theme_font_size_override("font_size", 11)
 
 	# Display-only children should not intercept mouse events (especially drag)
@@ -56,11 +59,15 @@ func _ready() -> void:
 	AppState.channel_mutes_updated.connect(_on_mutes_updated)
 
 func _apply_theme() -> void:
+	chevron.modulate = ThemeManager.get_color("icon_default")
 	category_name.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_drop_style.bg_color = Color(ThemeManager.get_color("accent"), 0.25)
 	_drop_style.border_color = ThemeManager.get_color("accent")
 	if _count_label:
 		_count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	if _plus_btn:
+		_plus_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("icon_default"))
+		_plus_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("icon_active"))
 	queue_redraw()
 
 func setup(data: Dictionary, child_channels: Array) -> void:
@@ -97,9 +104,11 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		_plus_btn.visible = false
 		_plus_btn.custom_minimum_size = Vector2(16, 16)
 		_plus_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_plus_btn.icon = IconEmoji.get_texture("plus")
+		_plus_btn.icon = PLUS_ICON
 		_plus_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_plus_btn.expand_icon = true
+		_plus_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("icon_default"))
+		_plus_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("icon_active"))
 		_plus_btn.tooltip_text = "Create Channel"
 		_plus_btn.pressed.connect(_on_create_channel)
 		$Header/HBox.add_child(_plus_btn)
@@ -107,7 +116,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 func _toggle_collapsed() -> void:
 	is_collapsed = !is_collapsed
 	channel_container.visible = !is_collapsed
-	chevron.texture = IconEmoji.get_texture("chevron_right") if is_collapsed else IconEmoji.get_texture("chevron_down")
+	chevron.texture = CHEVRON_RIGHT if is_collapsed else CHEVRON_DOWN
 	if _count_label:
 		_count_label.visible = is_collapsed
 	var cat_id: String = _category_data.get("id", "")
@@ -122,7 +131,7 @@ func restore_collapse_state() -> void:
 	if collapsed:
 		is_collapsed = true
 		channel_container.visible = false
-		chevron.texture = IconEmoji.get_texture("chevron_right")
+		chevron.texture = CHEVRON_RIGHT
 		if _count_label:
 			_count_label.visible = true
 

@@ -19,7 +19,6 @@ var _older_btn: Button
 
 func _ready() -> void:
 	add_to_group("themed")
-	send_button.icon = IconEmoji.get_texture("send")
 	_apply_theme()
 	close_button.pressed.connect(_on_close)
 	send_button.pressed.connect(_on_send)

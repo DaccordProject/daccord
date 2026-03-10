@@ -1,7 +1,10 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" uid="uid://b8vxlclp37paw" path="res://scenes/main/welcome_screen.gd" id="1"]
 [ext_resource type="Shader" uid="uid://lowy6r500esh" path="res://assets/theme/welcome_bg.gdshader" id="2"]
+[ext_resource type="Texture2D" uid="uid://d12a4fhl6lojk" path="res://assets/theme/icons/menu.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="4"]
+[ext_resource type="Texture2D" uid="uid://bmgp245o2nmko" path="res://assets/theme/icons/voice_channel.svg" id="5"]
 
 [sub_resource type="ShaderMaterial" id="shader_mat"]
 shader = ExtResource("2")
@@ -151,6 +154,7 @@ alignment = 1
 [node name="Icon" type="TextureRect" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature1/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(24, 24)
+texture = ExtResource("4")
 stretch_mode = 5
 size_flags_horizontal = 4
 
@@ -182,6 +186,7 @@ alignment = 1
 [node name="Icon" type="TextureRect" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature2/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(24, 24)
+texture = ExtResource("3")
 stretch_mode = 5
 size_flags_horizontal = 4
 
@@ -213,6 +218,7 @@ alignment = 1
 [node name="Icon" type="TextureRect" parent="ContentCenter/ContentVBox/FeaturesHBox/Feature3/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(24, 24)
+texture = ExtResource("5")
 stretch_mode = 5
 size_flags_horizontal = 4
 

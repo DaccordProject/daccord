@@ -43,33 +43,33 @@ func test_setup_sets_channel_name() -> void:
 
 func test_setup_text_icon() -> void:
 	component.setup(_ch_data({"type": ClientModels.ChannelType.TEXT}))
-	assert_eq(component.type_icon.texture, IconEmoji.get_texture("text_channel"))
+	assert_eq(component.type_icon.texture, component.TEXT_ICON)
 
 
 func test_setup_voice_icon() -> void:
 	component.setup(_ch_data({"type": ClientModels.ChannelType.VOICE}))
-	assert_eq(component.type_icon.texture, IconEmoji.get_texture("voice_channel"))
+	assert_eq(component.type_icon.texture, component.VOICE_ICON)
 
 
 func test_setup_announcement_icon() -> void:
 	component.setup(_ch_data({"type": ClientModels.ChannelType.ANNOUNCEMENT}))
-	assert_eq(component.type_icon.texture, IconEmoji.get_texture("announcement_channel"))
+	assert_eq(component.type_icon.texture, component.ANNOUNCEMENT_ICON)
 
 
 func test_setup_forum_icon() -> void:
 	component.setup(_ch_data({"type": ClientModels.ChannelType.FORUM}))
-	assert_eq(component.type_icon.texture, IconEmoji.get_texture("forum_channel"))
+	assert_eq(component.type_icon.texture, component.FORUM_ICON)
 
 
-func test_setup_nsfw_dimmed() -> void:
+func test_setup_nsfw_red_tint() -> void:
 	component.setup(_ch_data({"nsfw": true}))
-	# NSFW dims the icon
-	assert_almost_eq(component.type_icon.modulate.a, 0.6, 0.01)
+	# NSFW tints the icon with the theme's error color
+	assert_eq(component.type_icon.modulate, ThemeManager.get_color("error"))
 
 
-func test_setup_non_nsfw_full_alpha() -> void:
+func test_setup_non_nsfw_default_tint() -> void:
 	component.setup(_ch_data({"nsfw": false}))
-	assert_almost_eq(component.type_icon.modulate.a, 1.0, 0.01)
+	assert_eq(component.type_icon.modulate, ThemeManager.get_color("icon_default"))
 
 
 func test_setup_unread_dot_visible() -> void:
@@ -124,7 +124,7 @@ func test_stores_channel_data() -> void:
 
 func test_locked_shows_lock_icon() -> void:
 	component.setup(_ch_data({"locked": true}))
-	assert_eq(component.type_icon.texture, IconEmoji.get_texture("lock"))
+	assert_eq(component.type_icon.texture, component.LOCK_ICON)
 
 
 func test_locked_is_disabled() -> void:

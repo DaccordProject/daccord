@@ -20,11 +20,6 @@ var _fade_tween: Tween
 
 func _ready() -> void:
 	add_to_group("themed")
-	react_btn.icon = IconEmoji.get_texture("smile")
-	reply_btn.icon = IconEmoji.get_texture("reply")
-	thread_btn.icon = IconEmoji.get_texture("thread")
-	edit_btn.icon = IconEmoji.get_texture("edit")
-	delete_btn.icon = IconEmoji.get_texture("delete")
 	_apply_theme()
 	react_btn.pressed.connect(_on_react_pressed)
 	reply_btn.pressed.connect(_on_reply_pressed)

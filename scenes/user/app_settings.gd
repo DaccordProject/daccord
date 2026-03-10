@@ -15,13 +15,9 @@ const ServerManagementPanel := preload(
 const AppSettingsUpdatesPage := preload(
 	"res://scenes/user/app_settings_updates_page.gd"
 )
-const AppSettingsAboutPage := preload(
-	"res://scenes/user/app_settings_about_page.gd"
-)
 
 var _profiles_pg: RefCounted
 var _updates_pg: RefCounted
-var _about_pg: RefCounted
 var _idle_dropdown: OptionButton
 
 # Mic test state
@@ -56,7 +52,7 @@ var _color_pickers: Dictionary = {} # key -> ColorPickerButton
 func _get_sections() -> Array:
 	var sections := [
 		"Profiles", "Voice & Video", "Sound",
-		"Appearance", "Notifications", "Updates", "About",
+		"Appearance", "Notifications", "Updates",
 	]
 	if Client.current_user.get("is_admin", false):
 		sections.append("Instance Admin")
@@ -70,7 +66,6 @@ func _build_pages() -> Array:
 		_build_appearance_page(),
 		_build_notifications_page(),
 		_build_updates_page(),
-		_build_about_page(),
 	]
 	if Client.current_user.get("is_admin", false):
 		pages.append(_build_admin_page())
@@ -670,13 +665,6 @@ func _build_updates_page() -> VBoxContainer:
 		self, _page_vbox, _section_label,
 	)
 	return _updates_pg.build()
-
-# --- About page ---
-func _build_about_page() -> VBoxContainer:
-	_about_pg = AppSettingsAboutPage.new(
-		self, _page_vbox, _section_label,
-	)
-	return _about_pg.build()
 
 # --- Instance Admin page ---
 func _build_admin_page() -> VBoxContainer:

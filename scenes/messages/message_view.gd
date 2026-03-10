@@ -43,7 +43,6 @@ var _banner: MessageViewBanner
 @onready var loading_label: Label = $VBox/ScrollContainer/MessageList/LoadingLabel
 
 func _ready() -> void:
-	threads_button.icon = IconEmoji.get_texture("thread")
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.message_sent.connect(_on_message_sent)
 	AppState.message_edited.connect(_on_message_edited)

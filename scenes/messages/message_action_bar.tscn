@@ -1,6 +1,11 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" uid="uid://dobitanfd68rl" path="res://scenes/messages/message_action_bar.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://cmv58ms0mvvin" path="res://assets/theme/icons/smile.svg" id="2"]
+[ext_resource type="Texture2D" path="res://assets/theme/icons/reply.svg" id="3"]
+[ext_resource type="Texture2D" uid="uid://blv6l01t36i0q" path="res://assets/theme/icons/edit.svg" id="4"]
+[ext_resource type="Texture2D" uid="uid://c8ot78lof3j8n" path="res://assets/theme/icons/delete.svg" id="5"]
+[ext_resource type="Texture2D" uid="uid://dwrmq65j76jea" path="res://assets/theme/icons/thread.svg" id="6"]
 
 [sub_resource type="StyleBoxFlat" id="bar_bg"]
 bg_color = Color(0.176, 0.188, 0.208, 1)
@@ -34,6 +39,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 28)
 tooltip_text = "Add Reaction"
 flat = true
+icon = ExtResource("2")
 icon_alignment = 1
 
 [node name="ReplyButton" type="Button" parent="HBox"]
@@ -41,6 +47,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 28)
 tooltip_text = "Reply"
 flat = true
+icon = ExtResource("3")
 icon_alignment = 1
 
 [node name="ThreadButton" type="Button" parent="HBox"]
@@ -48,6 +55,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 28)
 tooltip_text = "Thread"
 flat = true
+icon = ExtResource("6")
 icon_alignment = 1
 
 [node name="EditButton" type="Button" parent="HBox"]
@@ -55,6 +63,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 28)
 tooltip_text = "Edit"
 flat = true
+icon = ExtResource("4")
 icon_alignment = 1
 
 [node name="DeleteButton" type="Button" parent="HBox"]
@@ -62,4 +71,5 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 28)
 tooltip_text = "Delete"
 flat = true
+icon = ExtResource("5")
 icon_alignment = 1

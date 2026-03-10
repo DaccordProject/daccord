@@ -21,15 +21,9 @@ var _update_btn: Button
 @onready var cta_button: Button = $ContentCenter/ContentVBox/CTAButton
 @onready var particles: CPUParticles2D = $ParticlesLayer/FloatingParticles
 @onready var settings_button: Button = $SettingsButton
-@onready var feature1_icon: TextureRect = $ContentCenter/ContentVBox/FeaturesHBox/Feature1/VBox/Icon
-@onready var feature2_icon: TextureRect = $ContentCenter/ContentVBox/FeaturesHBox/Feature2/VBox/Icon
-@onready var feature3_icon: TextureRect = $ContentCenter/ContentVBox/FeaturesHBox/Feature3/VBox/Icon
 
 
 func _ready() -> void:
-	feature1_icon.texture = IconEmoji.get_texture("send")
-	feature2_icon.texture = IconEmoji.get_texture("menu")
-	feature3_icon.texture = IconEmoji.get_texture("voice_channel")
 	cta_button.pressed.connect(_on_cta_pressed)
 	settings_button.pressed.connect(_on_settings_pressed)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
@@ -39,12 +33,20 @@ func _ready() -> void:
 	_update_btn = Button.new()
 	_update_btn.text = "Update Available"
 	_update_btn.flat = true
-	_update_btn.icon = IconEmoji.get_texture("update")
+	_update_btn.icon = preload(
+		"res://assets/theme/icons/update.svg"
+	)
 	_update_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("error")
 	)
 	_update_btn.add_theme_color_override(
 		"font_hover_color", ThemeManager.get_color("error_hover")
+	)
+	_update_btn.add_theme_color_override(
+		"icon_normal_color", ThemeManager.get_color("error")
+	)
+	_update_btn.add_theme_color_override(
+		"icon_hover_color", ThemeManager.get_color("error_hover")
 	)
 	_update_btn.add_theme_font_size_override("font_size", 14)
 	_update_btn.visible = false
@@ -313,6 +315,12 @@ func _apply_theme() -> void:
 	)
 	_update_btn.add_theme_color_override(
 		"font_hover_color", ThemeManager.get_color("error_hover")
+	)
+	_update_btn.add_theme_color_override(
+		"icon_normal_color", ThemeManager.get_color("error")
+	)
+	_update_btn.add_theme_color_override(
+		"icon_hover_color", ThemeManager.get_color("error_hover")
 	)
 	ThemeManager.apply_font_colors(self)
 
