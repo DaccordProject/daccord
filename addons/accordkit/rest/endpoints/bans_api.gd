@@ -1,14 +1,8 @@
 class_name BansApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for ban management within a space: listing,
 ## fetching, creating, and removing bans.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Lists bans in a space. Supports pagination query parameters such as

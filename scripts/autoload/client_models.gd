@@ -232,7 +232,13 @@ static func relationship_to_dict(
 ) -> Dictionary:
 	var user_dict: Dictionary = {}
 	if rel.user != null:
-		user_dict = user_to_dict(rel.user, ClientModels.UserStatus.OFFLINE, cdn_url)
+		var status: int = ClientModels.UserStatus.OFFLINE
+		if not rel.user_status.is_empty():
+			status = _status_string_to_enum(rel.user_status)
+		user_dict = user_to_dict(rel.user, status, cdn_url)
+		# Carry through activities from the relationship response
+		if rel.user_activities.size() > 0:
+			user_dict["activities"] = rel.user_activities
 	return {
 		"id": rel.id,
 		"user": user_dict,
@@ -604,6 +610,30 @@ static func voice_state_to_dict(
 		"deaf": state.deaf,
 		"user": user_dict,
 	}
+
+static func format_activity(activity: Dictionary) -> String:
+	var act_name: String = activity.get("name", "")
+	if act_name.is_empty():
+		return ""
+	var act_type: String = str(activity.get("type", "playing")).to_lower()
+	match act_type:
+		"playing":
+			return "Playing " + act_name
+		"streaming":
+			return "Streaming " + act_name
+		"listening":
+			return "Listening to " + act_name
+		"watching":
+			return "Watching " + act_name
+		"competing":
+			return "Competing in " + act_name
+		"custom":
+			var state_str: String = str(activity.get("state", ""))
+			if not state_str.is_empty():
+				return state_str
+			return act_name
+		_:
+			return act_name
 
 static func markdown_to_bbcode(text: String) -> String:
 	return ClientMarkdown.markdown_to_bbcode(text)

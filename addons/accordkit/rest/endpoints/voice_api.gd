@@ -1,15 +1,9 @@
 class_name VoiceApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for voice-related operations: querying voice
 ## backend info, joining/leaving voice channels, listing regions, and
 ## checking voice channel status.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Returns information about the server's voice backend configuration.
@@ -23,9 +17,7 @@ func get_info() -> RestResult:
 func join(channel_id: String, self_mute: bool = false, self_deaf: bool = false) -> RestResult:
 	var body := {"self_mute": self_mute, "self_deaf": self_deaf}
 	var result := await _rest.make_request("POST", "/channels/" + channel_id + "/voice/join", body)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordVoiceServerUpdate.from_dict(result.data)
-	return result
+	return result.deserialize(AccordVoiceServerUpdate.from_dict)
 
 
 ## Leaves the voice channel the authenticated user is currently in.

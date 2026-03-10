@@ -241,47 +241,20 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 	if idx < 0:
 		return
 	var label: String = _admin_submenu.get_item_text(idx)
-	match label:
-		"Space Settings":
-			var dialog := SpaceSettingsScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Channels":
-			var dialog := ChannelMgmtScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Roles":
-			var dialog := RoleMgmtScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Bans":
-			var dialog := BanListScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Invites":
-			var dialog := InviteMgmtScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Emojis":
-			var dialog := EmojiMgmtScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Audit Log":
-			var dialog := AuditLogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Reports":
-			var dialog := ReportListScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"Soundboard":
-			var dialog := SoundboardMgmtScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
-		"View As...":
-			var dialog := ImposterPickerScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id)
+	var scene_map := {
+		"Space Settings": SpaceSettingsScene,
+		"Channels": ChannelMgmtScene,
+		"Roles": RoleMgmtScene,
+		"Bans": BanListScene,
+		"Invites": InviteMgmtScene,
+		"Emojis": EmojiMgmtScene,
+		"Audit Log": AuditLogScene,
+		"Reports": ReportListScene,
+		"Soundboard": SoundboardMgmtScene,
+		"View As...": ImposterPickerScene,
+	}
+	if scene_map.has(label):
+		DialogHelper.open(scene_map[label], get_tree()).setup(space_id)
 
 func _on_context_menu_id_pressed(id: int) -> void:
 	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
@@ -291,16 +264,11 @@ func _on_context_menu_id_pressed(id: int) -> void:
 				"res://scenes/user/server_settings.tscn"
 			)
 			if ServerSettingsScene:
-				var settings: ColorRect = ServerSettingsScene.instantiate()
-				settings.setup(space_id)
-				get_tree().root.add_child(settings)
+				DialogHelper.open(ServerSettingsScene, get_tree()).setup(space_id)
 		"Server Settings":
-			var panel := ServerManagementPanel.instantiate()
-			get_tree().root.add_child(panel)
+			DialogHelper.open(ServerManagementPanel, get_tree())
 		"Server Reports":
-			var dialog := ReportListScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup_server_wide()
+			DialogHelper.open(ReportListScene, get_tree()).setup_server_wide()
 		"Reconnect":
 			var conn_idx: int = _server_index \
 				if _is_disconnected \
@@ -329,20 +297,15 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			Config.set_space_folder(space_id, "")
 			Client.update_space_folder(space_id, "")
 		"Remove Server":
-			var dialog := ConfirmDialogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(
+			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
 				"Remove Server",
 				"Are you sure you want to remove '%s' from your server list?" % space_name,
-				"Remove",
-				true
-			)
-			dialog.confirmed.connect(func():
-				if _is_disconnected and _server_index >= 0:
-					Config.remove_server(_server_index)
-					AppState.spaces_updated.emit()
-				else:
-					Client.disconnect_server(space_id)
+				"Remove", true, func():
+					if _is_disconnected and _server_index >= 0:
+						Config.remove_server(_server_index)
+						AppState.spaces_updated.emit()
+					else:
+						Client.disconnect_server(space_id)
 			)
 
 func _show_folder_dialog() -> void:
@@ -465,17 +428,17 @@ func _space_get_drag_data(_at_position: Vector2) -> Variant:
 
 func _space_can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary or data.get("type", "") != "space_bar_item":
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	var source: Control = data.get("source_node")
 	if source == self:
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	if not _is_top_level_in_space_bar():
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	if source == null or source.get_parent() != get_parent():
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	_drop_above = at_position.y < size.y / 2.0
 	_drop_hovered = true
@@ -483,7 +446,7 @@ func _space_can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	return true
 
 func _space_drop_data(_at_position: Vector2, data: Variant) -> void:
-	_clear_drop_indicator()
+	_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 	var source: Control = data.get("source_node")
 	if source == null or source.get_parent() != get_parent():
 		return
@@ -496,21 +459,10 @@ func _space_drop_data(_at_position: Vector2, data: Variant) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
-		_clear_drop_indicator()
-
-func _clear_drop_indicator() -> void:
-	if _drop_hovered:
-		_drop_hovered = false
-		queue_redraw()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 
 func _draw() -> void:
-	if not _drop_hovered:
-		return
-	var line_color := ThemeManager.get_color("accent")
-	if _drop_above:
-		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
-	else:
-		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+	DropIndicator.draw_line_indicator(self, _drop_hovered, _drop_above)
 
 static func _save_space_bar_order_from(container: Node) -> void:
 	var order: Array = []

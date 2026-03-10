@@ -28,19 +28,60 @@ func _on_send() -> void:
 		_error_label.visible = true
 		return
 
-	var user_id: String = _find_user_id(username)
+	_send_btn.disabled = true
+	_send_btn.text = "Searching..."
+	var user_id: String = await Client.relationships.search_user_by_username(username)
 	if user_id.is_empty():
-		_error_label.text = "User not found. Make sure you share a server with them."
+		_send_btn.disabled = false
+		_send_btn.text = "Send Request"
+		_error_label.text = "User not found."
 		_error_label.visible = true
 		return
 
-	_send_btn.disabled = true
-	_send_btn.text = "Sending..."
-	await Client.relationships.send_friend_request(user_id)
-	_close()
+	# FRND-15: Prevent self-friending
+	if user_id == Client.current_user.get("id", ""):
+		_send_btn.disabled = false
+		_send_btn.text = "Send Request"
+		_error_label.text = "You can't add yourself as a friend."
+		_error_label.visible = true
+		return
 
-func _find_user_id(username: String) -> String:
-	return Client.find_user_id_by_username(username)
+	# FRND-16: Check existing relationships
+	var existing = Client.relationships.get_relationship(user_id)
+	if existing != null:
+		_send_btn.disabled = false
+		_send_btn.text = "Send Request"
+		var rel_type: int = existing.get("type", 0)
+		match rel_type:
+			1:  # FRIEND
+				_error_label.text = "You're already friends with this user."
+				_error_label.visible = true
+				return
+			2:  # BLOCKED
+				_error_label.text = "You have this user blocked."
+				_error_label.visible = true
+				return
+			3:  # PENDING_INCOMING
+				_error_label.text = "This user already sent you a friend request. Check the Pending tab."
+				_error_label.visible = true
+				return
+			4:  # PENDING_OUTGOING
+				_error_label.text = "You already sent a friend request to this user."
+				_error_label.visible = true
+				return
+
+	_send_btn.text = "Sending..."
+	var result: RestResult = await Client.relationships.send_friend_request(user_id)
+
+	# FRND-7: Handle send failure
+	if result == null or not result.ok:
+		_send_btn.disabled = false
+		_send_btn.text = "Send Request"
+		_error_label.text = "Failed to send friend request. Please try again."
+		_error_label.visible = true
+		return
+
+	_close()
 
 func _close() -> void:
 	queue_free()

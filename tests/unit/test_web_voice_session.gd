@@ -53,7 +53,7 @@ func test_signal_audio_level_changed_declared() -> void:
 func test_initial_state_is_disconnected() -> void:
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.DISCONNECTED
+		WebVoiceSession.VOICE_STATE.DISCONNECTED
 	)
 
 
@@ -113,7 +113,7 @@ func test_connect_to_room_non_web_does_not_change_state() -> void:
 	wvs.connect_to_room("ws://example.com", "token")
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.DISCONNECTED
+		WebVoiceSession.VOICE_STATE.DISCONNECTED
 	)
 
 
@@ -142,7 +142,7 @@ func test_unpublish_screen_does_not_crash() -> void:
 	# No assertion needed — test passes if no error is thrown.
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.DISCONNECTED
+		WebVoiceSession.VOICE_STATE.DISCONNECTED
 	)
 
 
@@ -155,68 +155,68 @@ func test_unpublish_screen_does_not_crash() -> void:
 # -----------------------------------------------------------------------
 
 func test_on_connected_sets_state_connected() -> void:
-	wvs._state = WebVoiceSession.State.CONNECTING
+	wvs._state = WebVoiceSession.VOICE_STATE.CONNECTING
 	wvs._on_connected(null)
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.CONNECTED
+		WebVoiceSession.VOICE_STATE.CONNECTED
 	)
 
 
 func test_on_connected_emits_session_state_changed() -> void:
-	wvs._state = WebVoiceSession.State.CONNECTING
+	wvs._state = WebVoiceSession.VOICE_STATE.CONNECTING
 	wvs._on_connected(null)
 	assert_signal_emitted_with_parameters(
 		wvs, "session_state_changed",
-		[WebVoiceSession.State.CONNECTED]
+		[WebVoiceSession.VOICE_STATE.CONNECTED]
 	)
 
 
 func test_on_disconnected_sets_state_disconnected() -> void:
-	wvs._state = WebVoiceSession.State.CONNECTED
+	wvs._state = WebVoiceSession.VOICE_STATE.CONNECTED
 	wvs._on_disconnected(null)
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.DISCONNECTED
+		WebVoiceSession.VOICE_STATE.DISCONNECTED
 	)
 
 
 func test_on_disconnected_emits_session_state_changed() -> void:
-	wvs._state = WebVoiceSession.State.CONNECTED
+	wvs._state = WebVoiceSession.VOICE_STATE.CONNECTED
 	wvs._on_disconnected(null)
 	assert_signal_emitted_with_parameters(
 		wvs, "session_state_changed",
-		[WebVoiceSession.State.DISCONNECTED]
+		[WebVoiceSession.VOICE_STATE.DISCONNECTED]
 	)
 
 
 func test_on_reconnecting_sets_state_reconnecting() -> void:
-	wvs._state = WebVoiceSession.State.CONNECTED
+	wvs._state = WebVoiceSession.VOICE_STATE.CONNECTED
 	wvs._on_reconnecting(null)
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.RECONNECTING
+		WebVoiceSession.VOICE_STATE.RECONNECTING
 	)
 
 
 func test_on_reconnected_sets_state_connected() -> void:
-	wvs._state = WebVoiceSession.State.RECONNECTING
+	wvs._state = WebVoiceSession.VOICE_STATE.RECONNECTING
 	wvs._on_reconnected(null)
 	assert_eq(
 		wvs.get_session_state(),
-		WebVoiceSession.State.CONNECTED
+		WebVoiceSession.VOICE_STATE.CONNECTED
 	)
 
 
 func test_state_machine_full_sequence() -> void:
 	# DISCONNECTED -> CONNECTING (simulated) -> CONNECTED -> RECONNECTING -> CONNECTED
-	assert_eq(wvs.get_session_state(), WebVoiceSession.State.DISCONNECTED)
-	wvs._state = WebVoiceSession.State.CONNECTING
+	assert_eq(wvs.get_session_state(), WebVoiceSession.VOICE_STATE.DISCONNECTED)
+	wvs._state = WebVoiceSession.VOICE_STATE.CONNECTING
 	wvs._on_connected(null)
-	assert_eq(wvs.get_session_state(), WebVoiceSession.State.CONNECTED)
+	assert_eq(wvs.get_session_state(), WebVoiceSession.VOICE_STATE.CONNECTED)
 	wvs._on_reconnecting(null)
-	assert_eq(wvs.get_session_state(), WebVoiceSession.State.RECONNECTING)
+	assert_eq(wvs.get_session_state(), WebVoiceSession.VOICE_STATE.RECONNECTING)
 	wvs._on_reconnected(null)
-	assert_eq(wvs.get_session_state(), WebVoiceSession.State.CONNECTED)
+	assert_eq(wvs.get_session_state(), WebVoiceSession.VOICE_STATE.CONNECTED)
 	wvs._on_disconnected(null)
-	assert_eq(wvs.get_session_state(), WebVoiceSession.State.DISCONNECTED)
+	assert_eq(wvs.get_session_state(), WebVoiceSession.VOICE_STATE.DISCONNECTED)

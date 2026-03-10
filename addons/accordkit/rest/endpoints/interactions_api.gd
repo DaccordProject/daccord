@@ -1,15 +1,9 @@
 class_name InteractionsApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for application command and interaction response
 ## management: registering global and space-scoped commands, responding to
 ## interactions, editing original responses, and sending follow-ups.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Lists all global application commands.

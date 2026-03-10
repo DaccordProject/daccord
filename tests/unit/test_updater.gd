@@ -156,7 +156,10 @@ func test_is_newer_next_version_prerelease() -> void:
 # _parse_release
 # ------------------------------------------------------------------
 
-func test_parse_release_valid_with_linux_asset() -> void:
+func test_parse_release_valid_with_platform_asset() -> void:
+	var platform: String = OS.get_name().to_lower()
+	var arch: String = Engine.get_architecture_name()
+	var asset_name: String = "daccord-%s-%s.tar.gz" % [platform, arch]
 	var data := {
 		"tag_name": "v1.2.0",
 		"html_url": "https://github.com/DaccordProject/daccord/releases/tag/v1.2.0",
@@ -164,8 +167,8 @@ func test_parse_release_valid_with_linux_asset() -> void:
 		"prerelease": false,
 		"assets": [
 			{
-				"name": "daccord-linux-x86_64.tar.gz",
-				"browser_download_url": "https://github.com/download/linux.tar.gz",
+				"name": asset_name,
+				"browser_download_url": "https://github.com/download/platform.tar.gz",
 				"size": 50000000,
 			},
 			{
@@ -181,7 +184,7 @@ func test_parse_release_valid_with_linux_asset() -> void:
 	assert_eq(r["release_url"], "https://github.com/DaccordProject/daccord/releases/tag/v1.2.0")
 	assert_eq(r["notes"], "Release notes here")
 	assert_eq(r["prerelease"], false)
-	assert_eq(r["download_url"], "https://github.com/download/linux.tar.gz")
+	assert_eq(r["download_url"], "https://github.com/download/platform.tar.gz")
 	assert_eq(r["download_size"], 50000000)
 
 
@@ -240,6 +243,9 @@ func test_is_update_ready_default_false() -> void:
 
 
 func test_parse_release_prerelease_tag() -> void:
+	var platform: String = OS.get_name().to_lower()
+	var arch: String = Engine.get_architecture_name()
+	var asset_name: String = "daccord-%s-%s.tar.gz" % [platform, arch]
 	var data := {
 		"tag_name": "v1.3.0-beta.1",
 		"html_url": "https://example.com/pre",
@@ -247,8 +253,8 @@ func test_parse_release_prerelease_tag() -> void:
 		"prerelease": true,
 		"assets": [
 			{
-				"name": "daccord-linux-x86_64.tar.gz",
-				"browser_download_url": "https://example.com/linux-beta.tar.gz",
+				"name": asset_name,
+				"browser_download_url": "https://example.com/platform-beta.tar.gz",
 				"size": 48000000,
 			},
 		],
@@ -256,4 +262,4 @@ func test_parse_release_prerelease_tag() -> void:
 	var r: Dictionary = Updater._parse_release(data)
 	assert_eq(r["version"], "1.3.0-beta.1")
 	assert_eq(r["prerelease"], true)
-	assert_eq(r["download_url"], "https://example.com/linux-beta.tar.gz")
+	assert_eq(r["download_url"], "https://example.com/platform-beta.tar.gz")

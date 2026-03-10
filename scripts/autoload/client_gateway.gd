@@ -523,21 +523,34 @@ func on_typing_start(data: Dictionary) -> void:
 	_typing_timers[channel_id] = timer
 
 func on_presence_update(presence: AccordPresence, conn_index: int) -> void:
+	var new_status: int = ClientModels._status_string_to_enum(presence.status)
+	var act_arr: Array = []
+	for a in presence.activities:
+		if a is AccordActivity:
+			act_arr.append(a.to_dict())
+
 	if _c._user_cache.has(presence.user_id):
-		_c._user_cache[presence.user_id]["status"] = ClientModels._status_string_to_enum(presence.status)
-		# Store per-device status and activities
+		_c._user_cache[presence.user_id]["status"] = new_status
 		_c._user_cache[presence.user_id]["client_status"] = presence.client_status
-		var act_arr: Array = []
-		for a in presence.activities:
-			if a is AccordActivity:
-				act_arr.append(a.to_dict())
 		_c._user_cache[presence.user_id]["activities"] = act_arr
 		AppState.user_updated.emit(presence.user_id)
+
+	# Update relationship cache for friends
+	var rel_updated := false
+	for key in _c._relationship_cache:
+		var rel: Dictionary = _c._relationship_cache[key]
+		if rel["user"].get("id", "") == presence.user_id:
+			rel["user"]["status"] = new_status
+			rel["user"]["activities"] = act_arr
+			rel_updated = true
+			break
+	if rel_updated:
+		AppState.relationships_updated.emit()
+
 	if conn_index < _c._connections.size() and _c._connections[conn_index] != null:
 		var space_id: String = _c._connections[conn_index]["space_id"]
 		var idx: int = _c._member_index_for(space_id, presence.user_id)
 		if idx != -1:
-			var new_status: int = ClientModels._status_string_to_enum(presence.status)
 			var old_status: int = _c._member_cache[space_id][idx].get("status", -1)
 			_c._member_cache[space_id][idx]["status"] = new_status
 			if old_status != new_status:

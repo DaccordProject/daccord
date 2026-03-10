@@ -195,21 +195,15 @@ func _on_toggle_mute() -> void:
 		Client.mute_channel(cat_id)
 
 func _on_create_channel() -> void:
-	var dialog := CreateChannelDialogScene.instantiate()
-	get_tree().root.add_child(dialog)
-	dialog.setup(space_id, _category_data.get("id", ""))
+	DialogHelper.open(CreateChannelDialogScene, get_tree()).setup(space_id, _category_data.get("id", ""))
 
 func _on_edit_category() -> void:
-	var dialog := CategoryEditDialogScene.instantiate()
-	get_tree().root.add_child(dialog)
-	dialog.setup(_category_data)
+	DialogHelper.open(CategoryEditDialogScene, get_tree()).setup(_category_data)
 
 func _on_delete_category() -> void:
-	var dialog := ConfirmDialogScene.instantiate()
-	get_tree().root.add_child(dialog)
 	var child_count: int = channel_container.get_child_count()
-	var msg: String
 	var cat_name: String = _category_data.get("name", "")
+	var msg: String
 	if child_count > 0:
 		msg = "Are you sure you want to delete \"%s\"?" % cat_name \
 			+ " It contains %d channel(s)" % child_count \
@@ -218,14 +212,9 @@ func _on_delete_category() -> void:
 	else:
 		msg = "Are you sure you want to delete \"%s\"?" % cat_name \
 			+ " This cannot be undone."
-	dialog.setup(
-		"Delete Category",
-		msg,
-		"Delete",
-		true
-	)
-	dialog.confirmed.connect(func():
-		Client.admin.delete_channel(_category_data.get("id", ""))
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+		"Delete Category", msg, "Delete", true, func():
+			Client.admin.delete_channel(_category_data.get("id", ""))
 	)
 
 func get_category_id() -> String:
@@ -349,13 +338,6 @@ func _clear_drop_indicator() -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	if not _drop_hovered:
-		return
 	if _drop_channel_hover:
-		# Channel-on-category indicator is shown via header StyleBox override
 		return
-	var line_color := ThemeManager.get_color("accent")
-	if _drop_above:
-		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
-	else:
-		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+	DropIndicator.draw_line_indicator(self, _drop_hovered, _drop_above)

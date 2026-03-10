@@ -62,6 +62,11 @@ flat = true
 text = "+"
 tooltip_text = "Add Friend"
 
+[node name="CountLabel" type="Label" parent="."]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_constants/line_spacing = 0
+
 [node name="EmptyLabel" type="Label" parent="."]
 layout_mode = 2
 size_flags_horizontal = 3

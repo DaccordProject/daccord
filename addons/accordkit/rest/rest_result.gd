@@ -29,3 +29,22 @@ static func failure(status: int, err) -> RestResult:
 	r.status_code = status
 	r.error = err
 	return r
+
+
+## Deserializes a successful Dictionary response using the given converter.
+func deserialize(from_dict: Callable) -> RestResult:
+	if ok and data is Dictionary:
+		data = from_dict.call(data)
+	return self
+
+
+## Deserializes a successful Array response, converting each Dictionary
+## element using the given converter.
+func deserialize_array(from_dict: Callable) -> RestResult:
+	if ok and data is Array:
+		var items := []
+		for item in data:
+			if item is Dictionary:
+				items.append(from_dict.call(item))
+		data = items
+	return self

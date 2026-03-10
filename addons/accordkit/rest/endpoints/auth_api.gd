@@ -1,15 +1,9 @@
 class_name AuthApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for authentication routes (register and login).
 ## These endpoints are unauthenticated -- the server returns a bearer token
 ## on success.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Registers a new user account.

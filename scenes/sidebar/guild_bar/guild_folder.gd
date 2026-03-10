@@ -299,15 +299,15 @@ func _folder_get_drag_data(_at_position: Vector2) -> Variant:
 
 func _folder_can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary or data.get("type", "") != "space_bar_item":
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	var source: Control = data.get("source_node")
 	if source == self:
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	# Accept sibling reorder or standalone space being dropped onto folder
 	if source == null or source.get_parent() != get_parent():
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	# at_position is relative to folder_button (via set_drag_forwarding)
 	var btn_h: float = folder_button.size.y
@@ -327,7 +327,7 @@ func _folder_can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	return true
 
 func _folder_drop_data(at_position: Vector2, data: Variant) -> void:
-	_clear_drop_indicator()
+	_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 	var source: Control = data.get("source_node")
 	if source == null or source.get_parent() != get_parent():
 		return
@@ -360,21 +360,10 @@ func _folder_drop_data(at_position: Vector2, data: Variant) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
-		_clear_drop_indicator()
-
-func _clear_drop_indicator() -> void:
-	if _drop_hovered:
-		_drop_hovered = false
-		queue_redraw()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 
 func _draw() -> void:
-	if not _drop_hovered:
-		return
-	var line_color := ThemeManager.get_color("accent")
-	if _drop_above:
-		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
-	else:
-		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+	DropIndicator.draw_line_indicator(self, _drop_hovered, _drop_above)
 
 func _save_space_bar_order() -> void:
 	var container := get_parent()

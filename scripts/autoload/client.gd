@@ -41,7 +41,13 @@ var channels: Array:
 	get: return _channel_cache.values()
 
 var dm_channels: Array:
-	get: return _dm_channel_cache.values()
+	get:
+		return _dm_channel_cache.values().filter(func(dm):
+			if dm.get("is_group", false):
+				return true
+			var user_id: String = dm.get("user", {}).get("id", "")
+			return user_id.is_empty() or not relationships.is_user_blocked(user_id)
+		)
 
 var pending_servers: Array:
 	get:
@@ -214,8 +220,8 @@ func _ready() -> void:
 	add_child(_speaking_timer)
 	_speaking_timer.start()
 	AppState.channel_selected.connect(unread.on_channel_selected_clear_unread)
-	AppState.profile_switched.connect(_on_profile_switched)
-	AppState.server_reconnected.connect(_flush_message_queue)
+	AppState.profile_switched.connect(connection.on_profile_switched)
+	AppState.server_reconnected.connect(connection.flush_message_queue)
 	AppState.config_changed.connect(voice.on_voice_config_changed)
 	# Idle timer setup
 	_last_input_time = Time.get_ticks_msec() / 1000.0
@@ -404,6 +410,14 @@ func find_user_id_by_username(username: String) -> String:
 				or u.get("display_name", "").to_lower() == lower:
 			return uid
 	return ""
+
+func send_presence(status: String, activity: Dictionary = {}) -> void:
+	for conn in _connections:
+		if conn == null or conn.get("status", "") != "connected":
+			continue
+		var client: AccordClient = conn.get("client")
+		if client != null:
+			client.update_presence(status, activity)
 
 func get_active_user() -> Dictionary:
 	var conn = _conn_for_active_view()
@@ -738,25 +752,6 @@ func is_nsfw_acked(space_id: String) -> bool:
 func reconnect_server(index: int) -> void:
 	connection.reconnect_server(index)
 
-func _flush_message_queue(space_id: String) -> void:
-	var to_send: Array = []
-	var remaining: Array = []
-	for entry in _message_queue:
-		var gid: String = _channel_to_space.get(
-			entry["channel_id"], ""
-		)
-		if gid == space_id:
-			to_send.append(entry)
-		else:
-			remaining.append(entry)
-	_message_queue = remaining
-	for entry in to_send:
-		await send_message_to_channel(
-			entry["channel_id"], entry["content"],
-			entry.get("reply_to", ""),
-			entry.get("attachments", [])
-		)
-
 ## Forwarding method for deferred calls from ClientGateway.
 func _handle_gateway_reconnect_failed(
 	conn_index: int,
@@ -789,15 +784,3 @@ func _member_index_for(space_id: String, user_id: String) -> int:
 	var index: Dictionary = _member_id_index.get(space_id, {})
 	return index.get(user_id, -1)
 
-func _on_profile_switched() -> void:
-	disconnect_all()
-	_forum_post_cache.clear()
-	_muted_channels.clear()
-	AppState.current_space_id = ""
-	AppState.current_channel_id = ""
-	AppState.is_dm_mode = false
-	AppState.replying_to_message_id = ""
-	AppState.editing_message_id = ""
-	if Config.has_servers():
-		for i in Config.get_servers().size():
-			connect_server(i)

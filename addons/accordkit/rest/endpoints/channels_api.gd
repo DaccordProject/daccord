@@ -1,39 +1,27 @@
 class_name ChannelsApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for channel-level routes (get, update, delete).
 ## Message and reaction operations live in their own dedicated API classes.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Fetches a channel by its snowflake ID.
 func fetch(channel_id: String) -> RestResult:
 	var result := await _rest.make_request("GET", "/channels/" + channel_id)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordChannel.from_dict(result.data)
-	return result
+	return result.deserialize(AccordChannel.from_dict)
 
 
 ## Updates a channel's settings (name, topic, permissions, etc.).
 func update(channel_id: String, data: Dictionary) -> RestResult:
 	var result := await _rest.make_request("PATCH", "/channels/" + channel_id, data)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordChannel.from_dict(result.data)
-	return result
+	return result.deserialize(AccordChannel.from_dict)
 
 
 ## Deletes or closes a channel. For DM channels this closes the channel
 ## rather than permanently deleting it.
 func delete(channel_id: String) -> RestResult:
 	var result := await _rest.make_request("DELETE", "/channels/" + channel_id)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordChannel.from_dict(result.data)
-	return result
+	return result.deserialize(AccordChannel.from_dict)
 
 
 ## Lists all permission overwrites for a channel.

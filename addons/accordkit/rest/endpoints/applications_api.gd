@@ -1,14 +1,8 @@
 class_name ApplicationsApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for application management: creating applications,
 ## fetching and updating the current application, and resetting the bot token.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Creates a new application.

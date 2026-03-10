@@ -86,6 +86,11 @@ func _show_context_menu(pos: Vector2i) -> void:
 	elif rel["type"] == 3:  # PENDING_INCOMING
 		_context_menu.add_item("Accept Friend Request", idx)
 		idx += 1
+		_context_menu.add_item("Decline Friend Request", idx)
+		idx += 1
+	elif rel["type"] == 4:  # PENDING_OUTGOING
+		_context_menu.add_item("Cancel Friend Request", idx)
+		idx += 1
 
 	var is_blocked: bool = rel != null and rel["type"] == 2
 	if is_blocked:
@@ -162,50 +167,46 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		"Add Friend":
 			Client.relationships.send_friend_request(user_id)
 		"Remove Friend":
-			Client.relationships.remove_friend(user_id)
+			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+				"Remove Friend",
+				"Remove %s from your friends?" % dname,
+				"Remove", true, func():
+					Client.relationships.remove_friend(user_id)
+			)
 		"Accept Friend Request":
 			Client.relationships.accept_friend_request(user_id)
+		"Decline Friend Request":
+			Client.relationships.decline_friend_request(user_id)
+		"Cancel Friend Request":
+			Client.relationships.decline_friend_request(user_id)
 		"Block":
 			Client.relationships.block_user(user_id)
 		"Unblock":
 			Client.relationships.unblock_user(user_id)
 		"Report":
-			var dialog := ReportDialogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup_user(space_id, user_id, dname)
+			DialogHelper.open(ReportDialogScene, get_tree()).setup_user(space_id, user_id, dname)
 		"Kick":
-			var dialog := ConfirmDialogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(
+			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
 				"Kick %s" % dname,
 				"Are you sure you want to kick %s from this server?" % dname,
-				"Kick",
-				true
-			)
-			dialog.confirmed.connect(func():
-				var result: RestResult = await Client.admin.kick_member(
-					space_id, user_id
-				)
-				if result == null or not result.ok:
-					var err: String = "unknown error"
-					if result != null and result.error:
-						err = result.error.message
-					push_warning(
-						"[Kick] Failed to kick member: ", err
+				"Kick", true, func():
+					var result: RestResult = await Client.admin.kick_member(
+						space_id, user_id
 					)
+					if result == null or not result.ok:
+						var err: String = "unknown error"
+						if result != null and result.error:
+							err = result.error.message
+						push_warning(
+							"[Kick] Failed to kick member: ", err
+						)
 			)
 		"Ban":
-			var dialog := BanDialogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id, user_id, dname)
+			DialogHelper.open(BanDialogScene, get_tree()).setup(space_id, user_id, dname)
 		"Moderate":
-			var dialog := ModerateMemberDialogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(space_id, user_id, dname, _member_data)
+			DialogHelper.open(ModerateMemberDialogScene, get_tree()).setup(space_id, user_id, dname, _member_data)
 		"Edit Nickname":
-			var dialog := NicknameDialogScene.instantiate()
-			get_tree().root.add_child(dialog)
-			dialog.setup(
+			DialogHelper.open(NicknameDialogScene, get_tree()).setup(
 				space_id, user_id, dname,
 				_member_data.get("nickname", "")
 			)

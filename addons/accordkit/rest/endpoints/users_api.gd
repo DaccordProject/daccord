@@ -1,71 +1,45 @@
 class_name UsersApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for user-related API routes. All methods return
 ## RestResult via await and deserialize successful responses into the
 ## appropriate AccordKit model types.
 
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
-
 
 ## Fetches the currently authenticated user.
 func get_me() -> RestResult:
 	var result := await _rest.make_request("GET", "/users/@me")
-	if result.ok and result.data is Dictionary:
-		result.data = AccordUser.from_dict(result.data)
-	return result
+	return result.deserialize(AccordUser.from_dict)
 
 
 ## Updates the currently authenticated user's profile.
 func update_me(data: Dictionary) -> RestResult:
 	var result := await _rest.make_request("PATCH", "/users/@me", data)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordUser.from_dict(result.data)
-	return result
+	return result.deserialize(AccordUser.from_dict)
 
 
 ## Fetches a user by their snowflake ID.
 func fetch(user_id: String) -> RestResult:
 	var result := await _rest.make_request("GET", "/users/" + user_id)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordUser.from_dict(result.data)
-	return result
+	return result.deserialize(AccordUser.from_dict)
 
 
 ## Lists all spaces (guilds) the current user belongs to.
 func list_spaces() -> RestResult:
 	var result := await _rest.make_request("GET", "/users/@me/spaces")
-	if result.ok and result.data is Array:
-		var spaces := []
-		for item in result.data:
-			if item is Dictionary:
-				spaces.append(AccordSpace.from_dict(item))
-		result.data = spaces
-	return result
+	return result.deserialize_array(AccordSpace.from_dict)
 
 
 ## Lists all DM channels for the current user.
 func list_channels() -> RestResult:
 	var result := await _rest.make_request("GET", "/users/@me/channels")
-	if result.ok and result.data is Array:
-		var channels := []
-		for item in result.data:
-			if item is Dictionary:
-				channels.append(AccordChannel.from_dict(item))
-		result.data = channels
-	return result
+	return result.deserialize_array(AccordChannel.from_dict)
 
 
 ## Creates a new DM channel with the specified user(s).
 func create_dm(data: Dictionary) -> RestResult:
 	var result := await _rest.make_request("POST", "/users/@me/channels", data)
-	if result.ok and result.data is Dictionary:
-		result.data = AccordChannel.from_dict(result.data)
-	return result
+	return result.deserialize(AccordChannel.from_dict)
 
 
 ## Deletes the currently authenticated user's account.
@@ -90,16 +64,26 @@ func list_unread() -> RestResult:
 	return await _rest.make_request("GET", "/users/@me/unread")
 
 
+## Returns mutual friends between the current user and the given user.
+func get_mutual_friends(user_id: String) -> RestResult:
+	var result: RestResult = await _rest.make_request(
+		"GET", "/users/" + user_id + "/mutual-friends"
+	)
+	return result.deserialize_array(AccordUser.from_dict)
+
+
+## Searches for users by username or display name.
+func search_users(query: String, limit: int = 25) -> RestResult:
+	var result: RestResult = await _rest.make_request(
+		"GET", "/users/search?query=%s&limit=%d" % [query.uri_encode(), limit]
+	)
+	return result.deserialize_array(AccordUser.from_dict)
+
+
 ## Lists all relationships for the current user.
 func list_relationships() -> RestResult:
 	var result: RestResult = await _rest.make_request("GET", "/users/@me/relationships")
-	if result.ok and result.data is Array:
-		var rels := []
-		for item in result.data:
-			if item is Dictionary:
-				rels.append(AccordRelationship.from_dict(item))
-		result.data = rels
-	return result
+	return result.deserialize_array(AccordRelationship.from_dict)
 
 
 ## Creates or updates a relationship with another user.

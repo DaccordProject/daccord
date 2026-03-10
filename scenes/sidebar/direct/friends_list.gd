@@ -24,6 +24,7 @@ var _current_tab: int = TAB_ALL
 @onready var pending_badge: Label = $TabBar/PendingBtn/PendingBadge
 @onready var blocked_btn: Button = $TabBar/BlockedBtn
 @onready var add_friend_btn: Button = $TabBar/AddFriendBtn
+@onready var count_label: Label = $CountLabel
 @onready var scroll: ScrollContainer = $ScrollContainer
 @onready var list_vbox: VBoxContainer = $ScrollContainer/ListVBox
 @onready var empty_label: Label = $EmptyLabel
@@ -71,18 +72,76 @@ func _refresh() -> void:
 	empty_label.visible = rels.is_empty()
 	scroll.visible = not rels.is_empty()
 
-	for rel in rels:
-		var item: HBoxContainer = FriendItemScene.instantiate()
-		list_vbox.add_child(item)
-		item.setup(rel)
-		var user_id: String = rel["user"].get("id", "")
-		item.message_pressed.connect(_on_message_pressed)
-		item.remove_pressed.connect(_on_remove_pressed)
-		item.block_pressed.connect(_on_block_pressed)
-		item.accept_pressed.connect(_on_accept_pressed)
-		item.decline_pressed.connect(_on_decline_pressed)
-		item.cancel_pressed.connect(_on_cancel_pressed)
-		item.unblock_pressed.connect(_on_unblock_pressed)
+	# FRND-14: Contextual empty state
+	match _current_tab:
+		TAB_ALL:
+			empty_label.text = "No friends yet. Add someone!"
+		TAB_ONLINE:
+			empty_label.text = "No friends online."
+		TAB_PENDING:
+			empty_label.text = "No pending requests."
+		TAB_BLOCKED:
+			empty_label.text = "No blocked users."
+
+	# FRND-12: Count header
+	var tab_name: String
+	match _current_tab:
+		TAB_ALL: tab_name = "ALL FRIENDS"
+		TAB_ONLINE: tab_name = "ONLINE"
+		TAB_PENDING: tab_name = "PENDING"
+		TAB_BLOCKED: tab_name = "BLOCKED"
+	count_label.text = "%s — %d" % [tab_name, rels.size()]
+	count_label.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+
+	# FRND-10 & FRND-11: Section labels for pending, alphabetical sort
+	if _current_tab == TAB_PENDING:
+		var incoming: Array = Client.relationships.get_pending_incoming()
+		var outgoing: Array = Client.relationships.get_pending_outgoing()
+		_sort_by_name(incoming)
+		_sort_by_name(outgoing)
+		if not incoming.is_empty():
+			_add_section_label("INCOMING")
+			for rel in incoming:
+				_add_friend_item(rel)
+		if not outgoing.is_empty():
+			_add_section_label("OUTGOING")
+			for rel in outgoing:
+				_add_friend_item(rel)
+	else:
+		_sort_by_name(rels)
+		for rel in rels:
+			_add_friend_item(rel)
+
+func _sort_by_name(arr: Array) -> void:
+	arr.sort_custom(func(a, b):
+		var na: String = a["user"].get("display_name", "").to_lower()
+		var nb: String = b["user"].get("display_name", "").to_lower()
+		return na < nb
+	)
+
+func _add_section_label(text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	lbl.add_theme_constant_override("margin_left", 8)
+	list_vbox.add_child(lbl)
+
+func _add_friend_item(rel: Dictionary) -> void:
+	var item: HBoxContainer = FriendItemScene.instantiate()
+	list_vbox.add_child(item)
+	item.setup(rel)
+	item.message_pressed.connect(_on_message_pressed)
+	item.remove_pressed.connect(_on_remove_pressed)
+	item.block_pressed.connect(_on_block_pressed)
+	item.accept_pressed.connect(_on_accept_pressed)
+	item.decline_pressed.connect(_on_decline_pressed)
+	item.cancel_pressed.connect(_on_cancel_pressed)
+	item.unblock_pressed.connect(_on_unblock_pressed)
 
 func _get_filtered_rels() -> Array:
 	match _current_tab:
@@ -102,8 +161,7 @@ func _get_filtered_rels() -> Array:
 	return []
 
 func _on_add_friend_pressed() -> void:
-	var dialog := AddFriendDialogScene.instantiate()
-	get_tree().root.add_child(dialog)
+	DialogHelper.open(AddFriendDialogScene, get_tree())
 
 func _on_friend_request_received(_user_id: String) -> void:
 	# Switch to Pending tab so the user sees the new request
@@ -114,18 +172,19 @@ func _on_message_pressed(user_id: String) -> void:
 
 func _on_remove_pressed(user_id: String) -> void:
 	var dname: String = _display_name_for(user_id)
-	var dialog := ConfirmDialogScene.instantiate()
-	get_tree().root.add_child(dialog)
-	dialog.setup(
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
 		"Remove Friend",
 		"Remove %s from your friends?" % dname,
-		"Remove",
-		true
+		"Remove", true, func(): Client.relationships.remove_friend(user_id)
 	)
-	dialog.confirmed.connect(func(): Client.relationships.remove_friend(user_id))
 
 func _on_block_pressed(user_id: String) -> void:
-	Client.relationships.block_user(user_id)
+	var dname: String = _display_name_for(user_id)
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+		"Block %s" % dname,
+		"They won't be able to message you or send friend requests.",
+		"Block", true, func(): Client.relationships.block_user(user_id)
+	)
 
 func _on_accept_pressed(user_id: String) -> void:
 	Client.relationships.accept_friend_request(user_id)

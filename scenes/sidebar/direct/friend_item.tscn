@@ -27,6 +27,10 @@ layout_mode = 2
 [node name="StatusLabel" type="Label" parent="InfoBox"]
 layout_mode = 2
 
+[node name="ActivityLabel" type="Label" parent="InfoBox"]
+layout_mode = 2
+visible = false
+
 [node name="ActionBox" type="HBoxContainer" parent="."]
 layout_mode = 2
 size_flags_vertical = 4

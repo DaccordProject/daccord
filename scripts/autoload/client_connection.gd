@@ -299,3 +299,35 @@ func handle_gateway_reconnect_failed(
 		return
 	_c._auto_reconnect_attempted[conn_index] = true
 	reconnect_server(conn_index)
+
+func flush_message_queue(space_id: String) -> void:
+	var to_send: Array = []
+	var remaining: Array = []
+	for entry in _c._message_queue:
+		var gid: String = _c._channel_to_space.get(
+			entry["channel_id"], ""
+		)
+		if gid == space_id:
+			to_send.append(entry)
+		else:
+			remaining.append(entry)
+	_c._message_queue = remaining
+	for entry in to_send:
+		await _c.send_message_to_channel(
+			entry["channel_id"], entry["content"],
+			entry.get("reply_to", ""),
+			entry.get("attachments", [])
+		)
+
+func on_profile_switched() -> void:
+	disconnect_all()
+	_c._forum_post_cache.clear()
+	_c._muted_channels.clear()
+	AppState.current_space_id = ""
+	AppState.current_channel_id = ""
+	AppState.is_dm_mode = false
+	AppState.replying_to_message_id = ""
+	AppState.editing_message_id = ""
+	if Config.has_servers():
+		for i in Config.get_servers().size():
+			connect_server(i)

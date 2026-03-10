@@ -343,21 +343,14 @@ func _on_toggle_mute() -> void:
 
 func _on_edit_channel() -> void:
 	_gear_just_pressed = true
-	var dialog := ChannelEditScene.instantiate()
-	get_tree().root.add_child(dialog)
-	dialog.setup(_channel_data)
+	DialogHelper.open(ChannelEditScene, get_tree()).setup(_channel_data)
 
 func _on_delete_channel() -> void:
-	var dialog := ConfirmDialogScene.instantiate()
-	get_tree().root.add_child(dialog)
-	dialog.setup(
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
 		"Delete Channel",
 		"Are you sure you want to delete #%s? This cannot be undone." % _channel_data.get("name", ""),
-		"Delete",
-		true
-	)
-	dialog.confirmed.connect(func():
-		Client.admin.delete_channel(channel_id)
+		"Delete", true, func():
+			Client.admin.delete_channel(channel_id)
 	)
 
 # --- Drag-and-drop reordering ---
@@ -373,16 +366,16 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 
 func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	if not data is Dictionary or data.get("type", "") != "channel":
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	var source: Control = data.get("source_node")
 	if source == self or source == null:
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	# Accept drops from any channel in the same space
 	var source_data: Dictionary = data.get("channel_data", {})
 	if source_data.get("space_id", "") != space_id:
-		_clear_drop_indicator()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 		return false
 	_drop_above = at_position.y < size.y / 2.0
 	_drop_hovered = true
@@ -390,7 +383,7 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 	return true
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
-	_clear_drop_indicator()
+	_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 	var source: Control = data.get("source_node")
 	if source == null:
 		return
@@ -423,18 +416,7 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
-		_clear_drop_indicator()
-
-func _clear_drop_indicator() -> void:
-	if _drop_hovered:
-		_drop_hovered = false
-		queue_redraw()
+		_drop_hovered = DropIndicator.clear(self, _drop_hovered)
 
 func _draw() -> void:
-	if not _drop_hovered:
-		return
-	var line_color := ThemeManager.get_color("accent")
-	if _drop_above:
-		draw_line(Vector2(0, 0), Vector2(size.x, 0), line_color, 2.0)
-	else:
-		draw_line(Vector2(0, size.y), Vector2(size.x, size.y), line_color, 2.0)
+	DropIndicator.draw_line_indicator(self, _drop_hovered, _drop_above)

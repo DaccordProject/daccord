@@ -22,6 +22,9 @@ func create_dm(user_id: String) -> void:
 	if not my_id.is_empty() and user_id == my_id:
 		push_warning("[Client] Skipping DM create for self")
 		return
+	if _c.relationships.is_user_blocked(user_id):
+		push_warning("[Client] Cannot DM blocked user")
+		return
 	var cdn_url: String = _c._first_connected_cdn()
 	var result: RestResult = await client.users.create_dm(
 		{"recipient_id": user_id}

@@ -1,15 +1,9 @@
 class_name DirectoryApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint wrapper for the master server directory API. Unlike other
 ## AccordKit endpoint classes, this talks to the master server (not an
 ## accordserver instance) and does not require authentication.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Browses the public space directory with optional search query, tag filter,

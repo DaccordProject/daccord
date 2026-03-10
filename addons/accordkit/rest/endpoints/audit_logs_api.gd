@@ -1,13 +1,7 @@
 class_name AuditLogsApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for fetching audit log entries within a space.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Lists audit log entries in a space. Supports query parameters such as

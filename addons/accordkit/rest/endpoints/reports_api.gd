@@ -1,14 +1,8 @@
 class_name ReportsApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for report management within a space: creating,
 ## listing, fetching, and resolving reports.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Creates a report in a space. Data should include: target_type, target_id,

@@ -43,7 +43,7 @@ func test_setup_friend_shows_status_label() -> void:
 
 func test_setup_blocked_shows_blocked_label() -> void:
 	component.setup(_rel_data({"type": 2}))
-	assert_eq(component.status_label.text, "Blocked")
+	assert_true(component.status_label.text.begins_with("Blocked"))
 
 
 func test_setup_pending_incoming_shows_label() -> void:

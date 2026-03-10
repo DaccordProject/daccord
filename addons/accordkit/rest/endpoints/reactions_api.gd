@@ -1,14 +1,8 @@
 class_name ReactionsApi
-extends RefCounted
+extends EndpointBase
 
 ## REST endpoint helpers for message reaction operations: adding, removing,
 ## and listing reactions on messages.
-
-var _rest: AccordRest
-
-
-func _init(rest: AccordRest) -> void:
-	_rest = rest
 
 
 ## Adds a reaction to a message. The emoji string should be a Unicode emoji
@@ -61,13 +55,7 @@ func list_users(
 		+ "/reactions/" + encoded_emoji
 	)
 	var result := await _rest.make_request("GET", path, null, query)
-	if result.ok and result.data is Array:
-		var users := []
-		for item in result.data:
-			if item is Dictionary:
-				users.append(AccordUser.from_dict(item))
-		result.data = users
-	return result
+	return result.deserialize_array(AccordUser.from_dict)
 
 
 ## Removes all reactions from a message. Requires MANAGE_MESSAGES permission.

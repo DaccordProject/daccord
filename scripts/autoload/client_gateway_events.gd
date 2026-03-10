@@ -215,7 +215,10 @@ func on_relationship_add(rel: AccordRelationship, conn_index: int) -> void:
 	_c._relationship_cache[key] = d
 	AppState.relationships_updated.emit()
 	if rel.type == 3:  # PENDING_INCOMING
-		AppState.friend_request_received.emit(user_id)
+		if _c.relationships.is_user_blocked(user_id):
+			_c.relationships.decline_friend_request(user_id)
+		else:
+			AppState.friend_request_received.emit(user_id)
 
 func on_relationship_update(rel: AccordRelationship, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
