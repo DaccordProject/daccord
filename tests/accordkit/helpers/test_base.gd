@@ -44,11 +44,11 @@ func before_all() -> void:
 
 	var user_info: Dictionary = seed_data.get("user", {})
 	user_id = str(user_info.get("id", ""))
-	user_token = user_info.get("token", "")
+	user_token = str(user_info.get("token", ""))
 
 	var bot_info: Dictionary = seed_data.get("bot", {})
 	bot_id = str(bot_info.get("id", ""))
-	bot_token = bot_info.get("token", "")
+	bot_token = str(bot_info.get("token", ""))
 	bot_application_id = str(bot_info.get("application_id", ""))
 
 	var space_info: Dictionary = seed_data.get("space", {})

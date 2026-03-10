@@ -283,7 +283,7 @@ jobs:
       - name: Wait for server readiness
         run: |
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:39099/health > /dev/null 2>&1; then
+            if curl -sf http://127.0.0.1:39099/api/v1/gateway > /dev/null 2>&1; then
               echo "Server is ready"
               exit 0
             fi
@@ -603,8 +603,8 @@ jobs:
         run: |
           mkdir -p dist/build/web
           godot --headless --export-release "Web" 2>&1 | tee /tmp/web_export.log
-          if [ ! -f dist/build/web/index.html ]; then
-            echo "::error::Web export failed — index.html not produced"
+          if [ ! -f dist/build/web/Daccord.html ]; then
+            echo "::error::Web export failed — Daccord.html not produced"
             cat /tmp/web_export.log
             exit 1
           fi
@@ -615,7 +615,7 @@ jobs:
       - name: Validate web export artifacts
         run: |
           # Godot 4 web export must produce these files
-          REQUIRED=(index.html index.js index.wasm index.pck)
+          REQUIRED=(Daccord.html Daccord.js Daccord.wasm Daccord.pck)
           failed=0
           for f in "${REQUIRED[@]}"; do
             if [ ! -f "dist/build/web/$f" ]; then
@@ -684,7 +684,7 @@ jobs:
             --remote-debugging-port=9222 \
             --enable-logging=stderr \
             --log-level=0 \
-            "http://127.0.0.1:8060/" \
+            "http://127.0.0.1:8060/Daccord.html" \
             > /tmp/chrome_stdout.txt 2> /tmp/chrome_stderr.txt &
           CHROME_PID=$!
           sleep 10
@@ -723,7 +723,7 @@ jobs:
         if: always()
         run: |
           echo "## Web Export" >> $GITHUB_STEP_SUMMARY
-          if [ -f dist/build/web/index.html ]; then
+          if [ -f dist/build/web/Daccord.html ]; then
             echo "Build artifacts:" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             ls -lah dist/build/web/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
