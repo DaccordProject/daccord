@@ -111,7 +111,7 @@ start_server() {
 
     # Build first so startup is fast
     info "Building AccordServer..."
-    (cd "$SERVER_DIR" && cargo build --quiet 2>&1) || {
+    (cd "$SERVER_DIR" && cargo build --features test-seed --quiet 2>&1) || {
         err "Failed to build AccordServer"
         exit 1
     }

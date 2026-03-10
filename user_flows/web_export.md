@@ -4,7 +4,7 @@
 
 This flow covers exporting daccord to the web (Godot Web / WASM). The web build produces static files (HTML/JS/WASM/PCK) that can be served from any static web host. Voice and video use the LiveKit JS SDK (`livekit-client`) via a custom JavaScript wrapper (`godot-livekit-web.js`) that mirrors the GDExtension API surface, bridged to GDScript through `WebVoiceSession` and `JavaScriptBridge`.
 
-Beyond a functional chat client, the web export serves as a **public-facing front door** for accordserver communities. Shareable URLs link directly to channels, forums, and forum topics. Servers that allow guests render content in a read-only view with grayed-out inputs that prompt visitors to register when clicked. Server-side HTML snapshots make public content crawlable by search engines, turning forum posts into indexable web pages.
+Beyond a functional chat client, the web export serves as a **public-facing front door** for accordserver communities. Shareable URLs link directly to channels, forums, and forum topics. Servers that allow guests can enable [Read Only Mode](read_only_mode.md), which renders content in a read-only view for anonymous visitors. Server-side HTML snapshots make public content crawlable by search engines, turning forum posts into indexable web pages.
 
 ## User Steps
 
@@ -54,31 +54,9 @@ Beyond a functional chat client, the web export serves as a **public-facing fron
 | `https://chat.example.com/#community/help-forum` | The "help-forum" forum channel (shows post list) |
 | `https://chat.example.com/#community/help-forum/1234567890` | A specific forum post and its thread |
 
-### Guest browsing (server allows guests)
+### Guest browsing
 
-20. A visitor clicks a shared link to a server that has `allow_guest_access` enabled.
-21. The web client detects no stored credentials and the URL contains a target.
-22. The client automatically requests a guest token from the server via `POST /auth/guest`.
-23. Content loads in **read-only mode**: all interactive inputs (composer, reaction buttons, "New Post" button, context menu actions) are **grayed out** (visible but visually disabled).
-24. When the visitor **clicks any grayed-out input**, a prompt appears: **"Create an account to join the conversation"** with **Register** and **Sign In** buttons.
-25. The visitor can freely browse public channels, read forum posts and replies, and scroll message history -- all without an account.
-26. A persistent banner above the message view reads: **"You're browsing as a guest"** with **Sign In** / **Register** buttons.
-
-### Guest browsing a forum
-
-27. Visitor navigates to a forum channel (or arrives via a direct link to a forum post).
-28. The forum post list loads with titles, authors, reply counts, and content previews -- all readable.
-29. Clicking a post opens the thread panel with full replies visible.
-30. The thread composer at the bottom is grayed out. Clicking it shows the registration prompt.
-31. The "New Post" button is grayed out. Clicking it shows the registration prompt.
-32. Sort/filter controls remain fully interactive (they are read-only operations).
-
-### Upgrading from guest to authenticated
-
-33. Visitor clicks "Register" or "Sign In" from the banner, the composer prompt, or any grayed-out input prompt.
-34. Auth dialog opens (same as normal server connection flow).
-35. On successful auth, the guest token is replaced with a real token, the client reconnects as an authenticated user, and all inputs re-enable.
-36. On web, a `localStorage` token persists the session for future visits.
+See [Read Only Mode](read_only_mode.md) for the full guest mode specification (auth, grayed-out inputs, registration prompts, forum browsing, upgrade flow).
 
 ### SEO (server-side)
 
@@ -119,9 +97,7 @@ browser loads https://chat.example.com/#community/help
     -> index.html parses URL fragment -> { space: "community", channel: "help" }
     -> Godot engine starts
     -> Client._ready() detects web deep link args
-        -> [no credentials] POST /auth/guest -> { token, expires_at, space_id }
-        -> Client.connect_guest(base_url, guest_token, space_id)
-        -> AppState.guest_mode_changed.emit(true)
+        -> [no credentials] enters guest mode (see Read Only Mode user flow)
         -> [has credentials] Client.connect_server() (normal auth flow)
     -> AppState.select_channel_by_name("help")
         -> channel navigates to target
@@ -131,26 +107,6 @@ user navigates between channels
     -> [web] JavaScriptBridge.eval("history.replaceState(null, '', '#community/general')")
         -> browser URL updates without page reload
         -> URL is always copy-pasteable and shareable
-
-=== GUEST MODE — GRAYED-OUT INPUTS ===
-
-guest clicks grayed-out composer / reaction / New Post button
-    -> _on_disabled_input_clicked()
-    -> _show_registration_prompt()
-        -> prompt dialog: "Create an account to join the conversation"
-            -> [Register] auth_dialog.open(base_url, mode=REGISTER)
-            -> [Sign In]  auth_dialog.open(base_url, mode=SIGN_IN)
-
-guest clicks "Register" on banner
-    -> auth_dialog.open(base_url, mode=REGISTER)
-        -> auth_completed(base_url, token, username, password)
-            -> Client.upgrade_guest_connection(idx, token, username, password)
-                -> Config.add_server(base_url, token, space_name, username, password)
-                -> Client.connect_server(idx) (re-connects as real user)
-                -> AppState.guest_mode_changed.emit(false)
-                    -> all grayed-out inputs re-enable
-                    -> banner disappears
-                -> [web] localStorage.setItem("auth_token", token)
 
 === SEO (SERVER-SIDE) ===
 
@@ -187,11 +143,7 @@ crawler requests https://chat.example.com/#community/help-forum/1234567890
 | `export_presets.cfg` (preset `Web`) | Web export preset. `export_path="dist/web/Daccord.html"`, `custom_html_shell="res://export/web/index.html"`. Excludes `addons/godot-livekit/*` (GDExtension not used on web). |
 | `scripts/autoload/web_voice_session.gd` | `WebVoiceSession` — web-only voice session using `JavaScriptBridge` to call into `godot-livekit-web.js`. Mirrors `LiveKitAdapter` signal/API surface. No-ops on non-web builds. |
 | `scripts/autoload/client_voice.gd` | Voice join pipeline: calls REST join, then routes to `LiveKitAdapter` (desktop) or `WebVoiceSession` (web). |
-| `scripts/autoload/app_state.gd` | `guest_mode_changed` signal, `is_guest_mode` state for toggling read-only UI. |
-| `scripts/autoload/client.gd` | `connect_guest()`, `upgrade_guest_connection()`, `guest_mode` flag; URL fragment navigation on web. |
-| `scenes/messages/composer/composer.gd` | Grayed-out state in guest mode; click triggers registration prompt. |
-| `scenes/messages/forum_view.gd` | Forum post list; grayed-out "New Post" button in guest mode. |
-| `addons/accordkit/rest/endpoints/auth_api.gd` | `guest()` method: `POST /auth/guest`. |
+| `scripts/autoload/client.gd` | Server connections, URL fragment navigation on web. Guest mode: see [Read Only Mode](read_only_mode.md). |
 | `.github/workflows/ci.yml` (`web-export` job) | CI web export: builds to `dist/build/web/`, validates artifacts, copies `coop_coep.js`, runs Chrome headless smoke test. |
 | `.github/workflows/release.yml` (`web` matrix entry) | Release build: exports web, downloads `livekit-client` UMD bundle, copies `godot-livekit-web.js` and `coop_coep.js`, packages everything into `daccord-web.zip` for the GitHub release. |
 
@@ -256,44 +208,6 @@ The web export uses URL fragment routing so that every view has a shareable URL.
 | Forum channel (post list) | `#space/forum-channel` | `#community/help-forum` |
 | Forum topic (specific post) | `#space/forum-channel/post-id` | `#community/help-forum/1234567890` |
 | Voice channel | `#space/voice-channel` | `#community/lounge` (opens channel view; joining voice still requires auth) |
-
-### Guest mode — grayed-out inputs
-
-When the server has `allow_guest_access` enabled and the user is browsing without an account, all interactive inputs are rendered in a **grayed-out disabled state** rather than hidden. This lets visitors see what they *could* do if they had an account, creating a natural upgrade path.
-
-**Grayed-out elements:**
-
-| Element | Guest appearance | On click |
-|---------|-----------------|----------|
-| Message composer | Visible but grayed out, placeholder text: "Sign in to send a message" | Shows registration prompt |
-| Reaction `+` button | Grayed out | Shows registration prompt |
-| Existing reaction pills | Visible with counts, grayed out | Shows registration prompt |
-| Forum "New Post" button | Grayed out | Shows registration prompt |
-| Thread composer | Grayed out, placeholder: "Sign in to reply" | Shows registration prompt |
-| Voice channel join | Channel visible in sidebar, grayed out join indicator | Shows registration prompt |
-| Context menu actions | Reply/Edit/Delete items grayed out | Shows registration prompt |
-| DM button | Grayed out | Shows registration prompt |
-
-**Registration prompt:** A modal dialog that appears when any grayed-out input is clicked:
-
-```
-┌──────────────────────────────────────┐
-│   Create an account to join the      │
-│         conversation                 │
-│                                      │
-│   ┌────────────┐  ┌───────────────┐  │
-│   │  Register  │  │   Sign In     │  │
-│   └────────────┘  └───────────────┘  │
-│                                      │
-│              No thanks               │
-└──────────────────────────────────────┘
-```
-
-**Implementation approach:**
-- `AppState.is_guest_mode` drives a global check.
-- Interactive components check `AppState.is_guest_mode` and apply a `modulate` alpha (e.g. 0.5) + set `mouse_filter = MOUSE_FILTER_STOP` so clicks are caught.
-- A shared `GuestPrompt` utility shows the registration dialog from any component: `GuestPrompt.show_if_guest() -> bool` returns `true` (and shows the dialog) if in guest mode, `false` if authenticated.
-- After successful registration/sign-in, `AppState.guest_mode_changed.emit(false)` causes all components to re-enable.
 
 ### SEO and server-side rendering
 
@@ -365,24 +279,8 @@ This is implemented **server-side** (in accordserver or as a reverse proxy middl
 - [ ] Browser back/forward (`popstate`) triggers in-app navigation
 - [ ] Forum post links include post ID in fragment
 
-### Guest mode (grayed-out inputs)
-- [ ] `POST /auth/guest` server endpoint (accordserver)
-- [ ] `AuthApi.guest()` client method
-- [ ] `Client.connect_guest()` / `Client.upgrade_guest_connection()`
-- [ ] `AppState.guest_mode_changed` signal and `is_guest_mode` state
-- [ ] Auto-guest-connect on web when URL contains a target and no credentials
-- [ ] Guest token stored in `sessionStorage` on web
-- [ ] Guest token silent refresh on expiry
-- [ ] Composer grayed out with "Sign in to send a message" placeholder; click shows registration prompt
-- [ ] Reaction buttons grayed out; click shows registration prompt
-- [ ] Forum "New Post" button grayed out; click shows registration prompt
-- [ ] Thread composer grayed out; click shows registration prompt
-- [ ] Voice channel join grayed out; click shows registration prompt
-- [ ] Context menu actions grayed out; click shows registration prompt
-- [ ] DM button grayed out; click shows registration prompt
-- [ ] `GuestPrompt` shared utility for registration dialog
-- [ ] Persistent "You're browsing as a guest" banner with Sign In / Register buttons
-- [ ] Guest connections excluded from Config persistence
+### Guest mode
+See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-status) for all guest mode items.
 
 ### SEO and link previews
 - [ ] Server-side HTML snapshots for crawler user agents (accordserver)
@@ -455,14 +353,7 @@ This is implemented **server-side** (in accordserver or as a reverse proxy middl
 - **Tags:** ui, web
 - **Notes:** The HTML shell needs to parse `#space/channel/post-id` fragments, pass them to the Godot engine on startup, and update the URL as the user navigates. Browser back/forward should trigger in-app navigation via `popstate` events.
 
-### WEB-9: Guest mode with grayed-out inputs
-- **Status:** open
-- **Impact:** 4
-- **Effort:** 3
-- **Tags:** ui, web, auth
-- **Notes:** Requires `POST /auth/guest` on the server. Client-side: all interactive inputs render grayed-out (modulate alpha + click intercept) and show a shared registration prompt dialog on click. `GuestPrompt.show_if_guest()` utility to standardize the pattern across components. Blocked on accordserver guest endpoint.
-
-### WEB-10: SEO — server-side HTML snapshots
+### WEB-9: SEO — server-side HTML snapshots
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 3

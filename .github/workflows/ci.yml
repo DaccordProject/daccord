@@ -264,10 +264,10 @@ jobs:
 
       - name: Build accordserver
         run: |
-          if ! cargo build --release --manifest-path .accordserver_repo/Cargo.toml; then
+          if ! cargo build --release --features test-seed --manifest-path .accordserver_repo/Cargo.toml; then
             echo "::warning::Build failed with sccache, retrying without it"
             RUSTC_WRAPPER="" SCCACHE_GHA_ENABLED="false" \
-              cargo build --release --manifest-path .accordserver_repo/Cargo.toml
+              cargo build --release --features test-seed --manifest-path .accordserver_repo/Cargo.toml
           fi
         env:
           RUSTC_WRAPPER: ${{ steps.sccache.outcome == 'success' && 'sccache' || '' }}

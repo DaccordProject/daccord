@@ -294,7 +294,7 @@ func _switch_features_to_hbox() -> void:
 
 
 func _apply_shader_accent() -> void:
-	var bg: ColorRect = $Background
+	var bg: ColorRect = $ShaderBg
 	if bg and bg.material is ShaderMaterial:
 		var accent: Color = ThemeManager.get_color("accent")
 		bg.material.set_shader_parameter("accent_color", accent)

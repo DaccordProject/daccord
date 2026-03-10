@@ -53,30 +53,59 @@ The client authenticates with a short-lived guest token from `POST /auth/guest`,
 
 ### Browsing as an Anonymous User
 
+All interactive inputs are rendered in a **grayed-out disabled state** rather than hidden. This lets visitors see what they *could* do if they had an account, creating a natural upgrade path. When a visitor **clicks any grayed-out input**, a registration prompt appears.
+
 8. User clicks a public channel -- messages load in read-only view
-9. Composer area is replaced by a call-to-action: **"Sign in to join the conversation"** with Sign In / Register buttons
-10. Right-click context menu on messages shows no options (empty / "No actions available")
-11. Member list shows authenticated members grouped by role/status as normal, plus a single aggregated entry at the bottom: **"N anonymous users"** (N = server-reported count, updated periodically)
-12. Reaction pills are visible but clicking them shows a tooltip: "Sign in to react"
-13. Voice channel items are visible but clicking shows: "Sign in to join voice"
-14. No DM button or DM list is accessible
+9. All interactive inputs are visible but grayed out (modulate alpha ~0.5); clicking any of them shows a registration prompt
+10. Member list shows authenticated members grouped by role/status as normal, plus a single aggregated entry at the bottom: **"N anonymous users"** (N = server-reported count, updated periodically)
+11. A persistent banner above the message view reads: **"You're browsing as a guest"** with **Sign In** / **Register** buttons
+12. The visitor can freely browse public channels, read forum posts and replies, and scroll message history -- all without an account
+
+**Grayed-out elements:**
+
+| Element | Guest appearance | On click |
+|---------|-----------------|----------|
+| Message composer | Visible but grayed out, placeholder text: "Sign in to send a message" | Shows registration prompt |
+| Reaction `+` button | Grayed out | Shows registration prompt |
+| Existing reaction pills | Visible with counts, grayed out | Shows registration prompt |
+| Forum "New Post" button | Grayed out | Shows registration prompt |
+| Thread composer | Grayed out, placeholder: "Sign in to reply" | Shows registration prompt |
+| Voice channel join | Channel visible in sidebar, grayed out join indicator | Shows registration prompt |
+| Context menu actions | Reply/Edit/Delete items grayed out | Shows registration prompt |
+| DM button | Grayed out | Shows registration prompt |
+
+**Registration prompt:** A modal dialog that appears when any grayed-out input is clicked:
+
+```
+┌──────────────────────────────────────┐
+│   Create an account to join the      │
+│         conversation                 │
+│                                      │
+│   ┌────────────┐  ┌───────────────┐  │
+│   │  Register  │  │   Sign In     │  │
+│   └────────────┘  └───────────────┘  │
+│                                      │
+│              No thanks               │
+└──────────────────────────────────────┘
+```
 
 ### Browsing a Forum as an Anonymous User
 
-15. User navigates to a forum channel (or arrives via a direct link to a forum post)
-16. The forum post list loads showing titles, authors, reply counts, and content previews -- all read-only
-17. Clicking a post opens the thread panel with full replies visible
-18. The thread composer is replaced with the same sign-up CTA as the main composer
-19. "New Post" button is hidden or replaced with: **"Sign in to start a discussion"**
+13. User navigates to a forum channel (or arrives via a direct link to a forum post)
+14. The forum post list loads showing titles, authors, reply counts, and content previews -- all readable
+15. Clicking a post opens the thread panel with full replies visible
+16. The thread composer at the bottom is grayed out; clicking it shows the registration prompt
+17. The "New Post" button is grayed out; clicking it shows the registration prompt
+18. Sort/filter controls remain fully interactive (they are read-only operations)
 
 ### Upgrading from Anonymous to Authenticated
 
-20. User clicks "Sign In" or "Register" from the banner or composer CTA
-21. Auth dialog opens in Sign In / Register mode (same as normal server connection flow)
-22. On successful auth, the guest token is discarded, a real token is saved to Config, and the client reconnects as an authenticated user
-23. `AppState.guest_mode_changed` fires (`false`), UI re-enables all interactive elements
-24. The anonymous banner disappears; composer re-enables
-25. On web, the browser URL updates to remove any guest-mode query params; a cookie or `localStorage` token persists the session
+19. User clicks "Sign In" or "Register" from the banner, the composer prompt, or any grayed-out input prompt
+20. Auth dialog opens in Sign In / Register mode (same as normal server connection flow)
+21. On successful auth, the guest token is replaced with a real token, the client reconnects as an authenticated user, and all inputs re-enable
+22. `AppState.guest_mode_changed` fires (`false`), UI re-enables all interactive elements
+23. The anonymous banner disappears
+24. On web, a `localStorage` token persists the session for future visits
 
 ### Server Discovery Integration
 
@@ -174,7 +203,8 @@ user clicks a public channel in guest mode
 | `scripts/autoload/client.gd` | `connect_guest()`, `upgrade_guest_connection()`, `guest_mode` flag |
 | `scripts/autoload/app_state.gd` | `guest_mode_changed` signal, `is_guest_mode` state |
 | `scenes/messages/message_view.gd` | Show/hide anonymous banner; disable composer in guest mode |
-| `scenes/messages/composer/composer.gd` | Read-only CTA state replacing input area |
+| `scenes/messages/composer/composer.gd` | Grayed-out state in guest mode; click triggers registration prompt |
+| `scripts/autoload/guest_prompt.gd` | Shared `GuestPrompt` utility: `show_if_guest() -> bool` for all grayed-out inputs |
 | `scenes/messages/forum_view.gd` | Hide "New Post" button in guest mode; thread composer CTA |
 | `scenes/members/member_list.gd` | `anonymous_entry_item` aggregated count row |
 | `scenes/members/anonymous_entry_item.gd` | New scene: renders "N anonymous users" row |
@@ -201,9 +231,17 @@ The server must expose `POST /auth/guest` (or `GET /auth/guest`) returning a sho
 
 `app_state.gd` needs a new `signal guest_mode_changed(is_guest: bool)` and `var is_guest_mode: bool = false`. All interactive components connect to this signal to toggle their read-only state.
 
+### GuestPrompt Utility
+
+A shared `GuestPrompt` utility standardizes the registration dialog across all components: `GuestPrompt.show_if_guest() -> bool` returns `true` (and shows the dialog) if in guest mode, `false` if authenticated. Every grayed-out interactive element calls this on click.
+
+### Grayed-Out Input Implementation
+
+Interactive components check `AppState.is_guest_mode` and apply a `modulate` alpha (e.g. 0.5) + set `mouse_filter = MOUSE_FILTER_STOP` so clicks are caught. After successful registration/sign-in, `AppState.guest_mode_changed.emit(false)` causes all components to re-enable.
+
 ### Composer Read-Only State
 
-`composer.gd` needs a third visual state alongside normal and disabled: a CTA panel showing "Sign in to join the conversation" with Sign In / Register buttons. This replaces the entire input area rather than just disabling it, providing a clearer affordance.
+`composer.gd` shows a grayed-out state with placeholder text "Sign in to send a message". Clicking the grayed-out composer triggers `GuestPrompt.show_if_guest()` which shows the registration prompt dialog.
 
 ### Anonymous Member Count Entry
 
@@ -215,11 +253,11 @@ The server marks individual channels with `allow_anonymous_read: true`. The `Acc
 
 ### Message Context Menu
 
-`cozy_message.gd` and `collapsed_message.gd` right-click context menus are currently built with Reply / Edit / Delete items. In guest mode, all items must be suppressed. The context menu should either not open at all or show a single disabled item: "Sign in to interact".
+`cozy_message.gd` and `collapsed_message.gd` right-click context menus are currently built with Reply / Edit / Delete items. In guest mode, all action items are grayed out. Clicking any grayed-out item triggers `GuestPrompt.show_if_guest()` which shows the registration prompt.
 
 ### Reaction Bar
 
-`message_content.gd` reaction pills show count and emoji but clicking them in guest mode shows an inline tooltip: "Sign in to react". The `+` reaction button is hidden entirely in guest mode.
+`message_content.gd` reaction pills show count and emoji but are grayed out in guest mode. Clicking any reaction pill or the `+` button triggers `GuestPrompt.show_if_guest()` which shows the registration prompt.
 
 ### Gateway Subscription
 
@@ -292,8 +330,8 @@ Forum channels in guest mode have specific UI adaptations:
 | Element | Authenticated | Guest Mode |
 |---------|--------------|------------|
 | Post list | Full post list with sort/filter | Same -- read-only browsing |
-| New Post button | Visible, opens creation form | Replaced with "Sign in to start a discussion" |
-| Thread replies | Full composer at bottom | Composer replaced with sign-up CTA |
+| New Post button | Visible, opens creation form | Grayed out; click shows registration prompt |
+| Thread replies | Full composer at bottom | Composer grayed out; click shows registration prompt |
 | Post context menu | Open Thread, Edit, Delete | Open Thread only (read actions) |
 | Sort/filter bar | Fully interactive | Fully interactive (read-only operation) |
 | Reply count / activity | Visible | Visible |
@@ -324,14 +362,18 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 ### Client UI (desktop + web)
 - [ ] "Browse without account" button in `auth_dialog.gd`
 - [ ] `add_server_dialog._connect_as_guest()` method
-- [ ] Anonymous banner in `message_view.gd`
-- [ ] Composer CTA read-only state in `composer.gd`
+- [ ] `GuestPrompt` shared utility for registration dialog
+- [ ] Persistent "You're browsing as a guest" banner with Sign In / Register buttons
+- [ ] Composer grayed out with "Sign in to send a message" placeholder; click shows registration prompt
+- [ ] Reaction buttons grayed out; click shows registration prompt
+- [ ] Forum "New Post" button grayed out; click shows registration prompt
+- [ ] Thread composer grayed out; click shows registration prompt
+- [ ] Voice channel join grayed out; click shows registration prompt
+- [ ] Context menu actions grayed out; click shows registration prompt
+- [ ] DM button grayed out; click shows registration prompt
 - [ ] `anonymous_entry_item` scene + script
 - [ ] Member list anonymous count fetch + gateway event
 - [ ] Channel list guest filtering
-- [ ] Message context menu suppression in guest mode
-- [ ] Reaction bar guest-mode tooltip / hide `+` button
-- [ ] Forum view guest mode (hide New Post, CTA in thread composer)
 - [ ] Discovery panel "Preview" button for guest-mode entry
 - [ ] Guest connections excluded from Config persistence / session restore
 
@@ -360,14 +402,15 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 | No anonymous member count endpoint | High | `GET /spaces/{id}/anonymous-count` and corresponding gateway event don't exist in accordkit REST layer |
 | No server-side HTML rendering for SEO | High | WASM content is invisible to search engines; requires accordserver-side work or a reverse proxy to serve HTML snapshots for crawlers |
 | No web URL routing for deep links | High | Without URL fragment parsing, shared links just load the default empty state instead of the target channel/post |
-| Composer has no CTA read-only state | Medium | `composer.gd` has disabled state but no "sign in" CTA panel |
+| Composer has no grayed-out guest state | Medium | `composer.gd` has disabled state but no grayed-out "Sign in to send a message" mode with click-to-prompt |
 | Auth dialog has no "Browse without account" button | Medium | `auth_dialog.gd` only has Sign In / Register tabs (line 9) |
 | No `anonymous_entry_item` scene | Medium | Member list has no aggregated anonymous row; entirely new scene needed |
 | Guest connections not excluded from Config persistence | Medium | `add_server_dialog.gd` always calls `Config.add_server()`; guest must skip this |
-| Message context menu not suppressed in guest mode | Medium | `cozy_message.gd` builds context menu without checking guest mode |
+| No `GuestPrompt` utility | Medium | No shared utility for showing registration prompt from grayed-out inputs |
+| Message context menu not grayed out in guest mode | Medium | `cozy_message.gd` builds context menu without checking guest mode |
 | Forum view has no guest-mode adaptations | Medium | `forum_view.gd` shows "New Post" button and thread composer regardless of auth state |
 | No Open Graph meta tags for link previews | Medium | Shared links on social media show no title/description/image preview |
-| Reaction `+` button not hidden in guest mode | Low | `message_content.gd` reaction bar has no guest-mode branch |
+| Reaction buttons not grayed out in guest mode | Low | `message_content.gd` reaction bar has no guest-mode branch |
 | No `GatewayIntents.GUEST` constant | Low | `addons/accordkit/models/intents.gd` has no reduced-scope guest intent set |
 | Discovery panel has no "Preview" (guest entry) button | Low | `scenes/sidebar/guild_bar/discovery_panel.gd` only has "Join" |
 | Guest session not restored across launches | Low | By design: transient connections should not persist, but this should be documented in Config flow |
