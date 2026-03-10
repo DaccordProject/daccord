@@ -50,11 +50,8 @@ func _on_voice_text_opened(channel_id: String) -> void:
 	visible = true
 
 	# Look up channel name
-	_channel_name = channel_id
-	for ch in Client.channels:
-		if ch["id"] == channel_id:
-			_channel_name = ch.get("name", channel_id)
-			break
+	var ch_data: Dictionary = Client._channel_cache.get(channel_id, {})
+	_channel_name = ch_data.get("name", channel_id)
 	header_label.text = _channel_name
 	text_input.placeholder_text = "Message #" + _channel_name
 
