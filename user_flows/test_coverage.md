@@ -1,6 +1,6 @@
 # Test Coverage
 
-Last touched: 2026-03-02
+Last touched: 2026-03-10
 
 ## Overview
 
@@ -75,6 +75,17 @@ cleanup() --> kill server + rm accord_test.db
 | `tests/unit/test_embed.gd` | Unit tests for embed component -- setup, title/URL, author, fields, footer, color, type (12 tests) |
 | `tests/unit/test_user_settings.gd` | Smoke tests for settings panels -- script loading, instantiation, page building, navigation, input sensitivity, Escape close (16 tests) |
 | `tests/unit/test_message_view_scroll.gd` | Unit tests for MessageViewScroll -- old_message_count, auto_scroll, is_loading_older, get_last_message_child (8 tests) |
+| `tests/unit/test_add_friend_dialog.gd` | Unit tests for the add-friend dialog -- UI elements, validation, signal existence (9 tests) |
+| `tests/unit/test_friend_item.gd` | Unit tests for friend_item sidebar component -- display name, status, avatar, action buttons, all relationship states (22 tests) |
+| `tests/unit/test_friends_list.gd` | Unit tests for friends_list container -- tab switching, list population per tab, empty state (15 tests) |
+| `tests/unit/test_password_field.gd` | Unit tests for password_field component -- structure, initial secret mode, visibility toggle, text get/set (12 tests) |
+| `tests/unit/test_screen_picker_dialog.gd` | Unit tests for screen_picker_dialog -- UI elements, source list population, empty state, signal existence (13 tests) |
+| `tests/unit/test_sync_encryption.gd` | Unit tests for SyncManager AES-256-CBC encryption -- roundtrip, IV uniqueness, auth failure, key derivation (PBKDF2), token cipher, config-safe password handling (19 tests) |
+| `tests/unit/test_sync_manager.gd` | Unit tests for SyncManager state machine (DISCONNECTED/AUTHENTICATING/IDLE/SYNCING/ERROR), setup/sync_now/disconnect_sync, push debounce timer, and SyncAPI endpoint routing (20 tests) |
+| `tests/unit/test_uri_handler.gd` | Unit tests for UriHandler.parse_uri -- connect route, profile route, unknown route, malformed inputs (25 tests) |
+| `tests/unit/test_web_voice_session.gd` | Unit tests for WebVoiceSession -- signal declarations, state machine transitions via JS callback handlers, mute/deafen (25 tests) |
+| `tests/unit/test_client_voice.gd` | Unit tests for ClientVoice.join_voice_channel -- signal emission, null voice session guard (7 tests) |
+| `tests/unit/test_client_fetch_secondary.gd` | Unit tests for ClientFetch secondary methods -- fetch_members, fetch_roles, fetch_voice_states, refresh_current_user, fetch_dm_channels, resync_voice_states (21 tests) |
 | `tests/unit/helpers/mock_message_view.gd` | Minimal mock of MessageView for testing MessageViewScroll |
 | `tests/accordkit/helpers/test_base.gd` | AccordTestBase -- seeds server, creates clients per test |
 | `tests/accordkit/helpers/seed_client.gd` | SeedClient -- POSTs to `/test/seed` for test data |
@@ -254,13 +265,13 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 30 | 599 | No |
+| Unit (`tests/unit/`) | 42 | 773 | No |
 | AccordKit unit (`tests/accordkit/unit/`) | 11 | 129 | No |
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
 | AccordKit e2e (`tests/accordkit/e2e/`) | 3 | 7 | Yes |
 | LiveKit (`tests/livekit/unit/`) | 1 | 10 | No |
-| **Total** | **53** | **796** | |
+| **Total** | **65** | **970** | |
 
 ## Implementation Status
 
@@ -313,6 +324,16 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - [x] Smoke tests for Client `_ready()` startup -- sub-modules, AccordVoiceSession, signal wiring (6 tests)
 - [x] Smoke tests for settings panels -- script loading, pages, navigation, input sensitivity (16 tests)
 - [x] Unit tests for MessageViewScroll -- old_message_count, auto_scroll, get_last_message_child (8 tests)
+- [x] Unit tests for add-friend dialog (9 tests)
+- [x] Unit tests for friend_item -- display name, status, avatar, action buttons, all relationship states (22 tests)
+- [x] Unit tests for friends_list -- tab switching, list population, empty state (15 tests)
+- [x] Unit tests for password_field -- structure, toggle, secret mode (12 tests)
+- [x] Unit tests for screen_picker_dialog -- UI elements, source list, empty state, signals (13 tests)
+- [x] Unit tests for SyncManager encryption -- AES-256-CBC roundtrip, IV uniqueness, PBKDF2, token cipher (19 tests)
+- [x] Unit tests for UriHandler -- connect/profile routes, malformed inputs (25 tests)
+- [x] Unit tests for WebVoiceSession -- state machine, mute/deafen, signal declarations (25 tests)
+- [x] Unit tests for ClientVoice.join_voice_channel -- signal emission, null session guard (7 tests)
+- [x] Unit tests for ClientFetch secondary methods -- members, roles, voice states, current user, DM channels (21 tests)
 - [ ] No mock/stub/double usage anywhere (real objects only)
 
 ## Tasks
@@ -414,6 +435,62 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Effort:** 3
 - **Tags:** ci, testing
 - **Notes:** All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree.
+
+### TEST-17: No tests for `ClientRelationships`
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** testing, friends
+- **Notes:** `scripts/autoload/client_relationships.gd` handles the friends/block/relationship cache (`fetch_relationships`, `get_friends`, `get_blocked`, `get_pending_incoming`, `get_pending_outgoing`, `is_user_blocked`, `get_relationship`, `send_friend_request`, `block_user`, `remove_friend`). No unit tests despite being the core logic for the friends feature.
+
+### TEST-18: No tests for `ClientPermissions` channel-level checks
+- **Status:** open
+- **Impact:** 4
+- **Effort:** 2
+- **Tags:** testing, permissions
+- **Notes:** `scripts/autoload/client_permissions.gd` contains `has_channel_permission()` which applies per-channel overwrite logic (allow/deny arrays for roles and users). Space-level `has_permission()` is tested via `test_client.gd` (indirect), but the extracted channel permission logic with per-overwrite evaluation is untested. Security-critical code path.
+
+### TEST-19: No tests for `SyncManager` state machine and `SyncAPI` HTTP layer
+- **Status:** done
+- **Impact:** 3
+- **Effort:** 2
+- **Tags:** testing, sync
+- **Notes:** `scripts/autoload/sync_manager.gd` has AES-256-CBC encryption tested in `test_sync_encryption.gd`, but the state machine transitions (DISCONNECTED → AUTHENTICATING → IDLE → SYNCING → ERROR), `setup()` register/login flow, `sync_now()`, `disconnect_sync()`, and the 5-second push debounce timer are untested. `scripts/autoload/sync_api.gd` HTTP request layer (register, login, push, pull) is also untested.
+
+### TEST-20: No tests for forum/thread UI components
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** testing, ui
+- **Notes:** `scenes/messages/forum_view.gd`, `scenes/messages/forum_post_row.gd`, and `scenes/messages/thread_panel.gd` have zero test coverage. Forum and threads are significant channel types. Basic setup, post rendering, and signal existence should be covered.
+
+### TEST-21: No tests for voice UI components
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** testing, ui, voice
+- **Notes:** `scenes/sidebar/voice_bar.gd` (connected-voice status bar), `scenes/messages/voice_text_panel.gd` (voice channel text chat overlay), and `scenes/sidebar/channels/voice_channel_item.gd` (voice channel row with participant avatars) have no tests. Basic setup and signal existence should be covered.
+
+### TEST-22: No tests for message view sub-components
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** testing, ui
+- **Notes:** `scenes/messages/message_action_bar.gd`, `scenes/messages/message_view_actions.gd`, `scenes/messages/message_view_banner.gd`, `scenes/messages/message_view_hover.gd`, and `scenes/messages/reaction_picker.gd` have no tests. These sub-components back the message view but are decoupled enough for unit testing.
+
+### TEST-23: No tests for DM list container and group DM dialog
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** testing, ui
+- **Notes:** `scenes/sidebar/direct/dm_list.gd` (parent container for DM channel items) and `scenes/sidebar/direct/create_group_dm_dialog.gd` (group DM creation UI) have no tests. Individual `dm_channel_item` leaves are tested.
+
+### TEST-24: No tests for profile management dialogs
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** testing, ui
+- **Notes:** `scenes/user/create_profile_dialog.gd`, `scenes/user/profile_password_dialog.gd`, `scenes/user/profile_set_password_dialog.gd`, and `scenes/user/user_settings_profiles_page.gd` have no unit tests despite password/profile management being security-sensitive functionality.
 
 ### TEST-15: GDExtension binary staleness undetected
 - **Status:** open
