@@ -348,18 +348,18 @@ jobs:
             "export/android/java_sdk_path = \"$JAVA_HOME\"" \
             > "$SETTINGS_DIR/editor_settings-4.tres"
 
-      - name: Inject Android keystore into export preset
+      - name: Set Android keystore env vars
         if: matrix.platform == 'android'
         env:
           RELEASE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
           RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          # Use release secret values if available, otherwise fall back to debug keystore env vars
+          # Godot 4.3+ reads keystore from GODOT_ANDROID_KEYSTORE_* env vars
           KS_USER="${RELEASE_USER:-$ANDROID_KEYSTORE_USER}"
           KS_PASS="${RELEASE_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
-          sed -i "s|keystore/release=\"\"|keystore/release=\"$ANDROID_KEYSTORE_PATH\"|" export_presets.cfg
-          sed -i "s|keystore/release_user=\"\"|keystore/release_user=\"$KS_USER\"|" export_presets.cfg
-          sed -i "s|keystore/release_password=\"\"|keystore/release_password=\"$KS_PASS\"|" export_presets.cfg
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$ANDROID_KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$KS_USER" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
 
       - name: Create build directory
         run: mkdir -p dist/build/${{ matrix.platform }}
