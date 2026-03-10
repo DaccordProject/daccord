@@ -1,7 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/channels/banner.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/theme/icons/settings.svg" id="2"]
 
 [node name="Banner" type="Control"]
 custom_minimum_size = Vector2(240, 80)
@@ -56,5 +55,3 @@ grow_horizontal = 0
 grow_vertical = 2
 ignore_texture_size = true
 stretch_mode = 4
-texture_normal = ExtResource("2")
-modulate = Color(0.8, 0.8, 0.8, 0.7)

@@ -60,6 +60,10 @@ var _update_indicator: Button = null
 
 func _ready() -> void:
 	add_to_group("themed")
+	hamburger_button.icon = IconEmoji.get_texture("menu")
+	sidebar_toggle.icon = IconEmoji.get_texture("sidebar_toggle")
+	search_toggle.icon = IconEmoji.get_texture("search")
+	member_toggle.icon = IconEmoji.get_texture("members")
 	_tabs = MainWindowTabs.new(tab_bar, self)
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
@@ -112,15 +116,7 @@ func _ready() -> void:
 	_update_indicator.custom_minimum_size = Vector2(44, 44)
 	_update_indicator.flat = true
 	_update_indicator.tooltip_text = "Update available"
-	_update_indicator.icon = preload(
-		"res://assets/theme/icons/update.svg"
-	)
-	_update_indicator.add_theme_color_override(
-		"icon_normal_color", ThemeManager.get_color("error")
-	)
-	_update_indicator.add_theme_color_override(
-		"icon_hover_color", ThemeManager.get_color("error_hover")
-	)
+	_update_indicator.icon = IconEmoji.get_texture("update")
 	_update_indicator.visible = false
 	_update_indicator.pressed.connect(_on_update_indicator_pressed)
 	var header: HBoxContainer = $LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox
@@ -762,10 +758,4 @@ func _apply_theme() -> void:
 	# Re-apply inline color overrides for long-lived nodes
 	topic_bar.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
-	)
-	_update_indicator.add_theme_color_override(
-		"icon_normal_color", ThemeManager.get_color("error")
-	)
-	_update_indicator.add_theme_color_override(
-		"icon_hover_color", ThemeManager.get_color("error_hover")
 	)

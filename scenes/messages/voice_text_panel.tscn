@@ -1,7 +1,6 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/messages/voice_text_panel.gd" id="1"]
-[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/messages/typing_indicator.tscn" id="3"]
 
 [sub_resource type="StyleBoxFlat" id="panel_bg"]
@@ -70,4 +69,3 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 tooltip_text = "Send"
 flat = true
-icon = ExtResource("2")

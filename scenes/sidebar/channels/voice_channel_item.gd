@@ -2,9 +2,6 @@ extends VBoxContainer
 
 signal channel_pressed(channel_id: String)
 
-const VOICE_ICON := preload("res://assets/theme/icons/voice_channel.svg")
-const CHAT_ICON := preload("res://assets/theme/icons/chat.svg")
-const LOCK_ICON := preload("res://assets/theme/icons/lock.svg")
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ChannelEditScene := preload("res://scenes/admin/channel_edit_dialog.tscn")
@@ -84,27 +81,25 @@ func setup(data: Dictionary) -> void:
 
 	# Locked channels are shown to admins in imposter mode but are not interactive.
 	if data.get("locked", false):
-		type_icon.texture = LOCK_ICON
+		type_icon.texture = IconEmoji.get_texture("lock")
 		channel_button.modulate = Color(1.0, 1.0, 1.0, 0.4)
 		channel_button.disabled = true
 		channel_button.mouse_default_cursor_shape = CURSOR_ARROW
 		return
 
-	type_icon.texture = VOICE_ICON
+	type_icon.texture = IconEmoji.get_texture("voice_channel")
 
 	_has_unread = data.get("unread", false)
 	unread_dot.visible = _has_unread
 
 	# Chat button (voice text chat)
 	_chat_btn = Button.new()
-	_chat_btn.icon = CHAT_ICON
+	_chat_btn.icon = IconEmoji.get_texture("chat")
 	_chat_btn.flat = true
 	_chat_btn.visible = false
 	_chat_btn.custom_minimum_size = Vector2(20, 20)
 	_chat_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_chat_btn.mouse_filter = Control.MOUSE_FILTER_PASS
-	_chat_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("text_muted"))
-	_chat_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("text_white"))
 	_chat_btn.tooltip_text = "Open Text Chat"
 	_chat_btn.pressed.connect(_on_chat_pressed)
 	$ChannelButton/HBox.add_child(_chat_btn)
@@ -160,11 +155,8 @@ func _refresh_participants() -> void:
 	else:
 		user_count.visible = false
 
-	# Green tint when we are connected to this channel
-	if AppState.voice_channel_id == channel_id:
-		type_icon.modulate = ThemeManager.get_color("success")
-	else:
-		type_icon.modulate = ThemeManager.get_color("icon_default")
+	# Reset modulate (no color tinting for Twemoji)
+	type_icon.modulate = Color.WHITE
 	_apply_text_color()
 
 	# Build participant items
@@ -297,8 +289,6 @@ func _on_mouse_entered() -> void:
 		_chat_btn.visible = true
 	if _gear_btn:
 		_gear_btn.visible = true
-	if AppState.voice_channel_id != channel_id:
-		type_icon.modulate = ThemeManager.get_color("icon_hover")
 	channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 
 func _on_mouse_exited() -> void:
@@ -306,8 +296,6 @@ func _on_mouse_exited() -> void:
 		_chat_btn.visible = false
 	if _gear_btn:
 		_gear_btn.visible = false
-	if AppState.voice_channel_id != channel_id:
-		type_icon.modulate = ThemeManager.get_color("icon_default")
 	_apply_text_color()
 
 func _on_gui_input(event: InputEvent) -> void:

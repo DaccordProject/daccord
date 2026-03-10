@@ -10,6 +10,7 @@ var _hover_style: StyleBoxFlat
 
 func _ready() -> void:
 	add_to_group("themed")
+	icon_button.icon = IconEmoji.get_texture("compass")
 	icon_button.pressed.connect(_on_pressed)
 	icon_button.tooltip_text = "Discover Servers"
 	# Style the button as a circle

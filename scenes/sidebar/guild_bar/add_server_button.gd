@@ -11,6 +11,7 @@ var _hover_style: StyleBoxFlat
 
 func _ready() -> void:
 	add_to_group("themed")
+	icon_button.icon = IconEmoji.get_texture("plus")
 	icon_button.pressed.connect(_on_pressed)
 	icon_button.tooltip_text = "Add a Server"
 	AppState.reduce_motion_changed.connect(_on_reduce_motion_changed)

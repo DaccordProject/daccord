@@ -15,6 +15,8 @@ var _is_hovered: bool = false
 @onready var reply_preview: Label = $ContentColumn/ReplyRef/ReplyPreview
 @onready var message_content = $ContentColumn/MessageContent
 
+@onready var reply_icon: TextureRect = $ContentColumn/ReplyRef/ReplyIcon
+@onready var thread_icon: TextureRect = $ContentColumn/ThreadIndicator/ThreadIcon
 @onready var content_column: VBoxContainer = $ContentColumn
 @onready var header: HBoxContainer = $ContentColumn/Header
 @onready var thread_indicator: HBoxContainer = $ContentColumn/ThreadIndicator
@@ -22,6 +24,8 @@ var _is_hovered: bool = false
 
 func _ready() -> void:
 	add_to_group("themed")
+	reply_icon.texture = IconEmoji.get_texture("reply_arrow")
+	thread_icon.texture = IconEmoji.get_texture("thread")
 	# Allow mouse events to pass through child controls so hover
 	# detection covers the entire message area, not just gaps.
 	content_column.mouse_filter = Control.MOUSE_FILTER_PASS

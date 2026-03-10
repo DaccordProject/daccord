@@ -22,6 +22,9 @@ var _file_dialog: FileDialog = null
 @onready var attachment_bar: HBoxContainer = $VBox/AttachmentBar
 
 func _ready() -> void:
+	upload_button.icon = IconEmoji.get_texture("plus")
+	emoji_button.icon = IconEmoji.get_texture("smile")
+	send_button.icon = IconEmoji.get_texture("send")
 	send_button.pressed.connect(_on_send)
 	upload_button.pressed.connect(_on_upload_button)
 	emoji_button.pressed.connect(_on_emoji_button)

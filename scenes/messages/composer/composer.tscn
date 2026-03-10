@@ -1,10 +1,7 @@
-[gd_scene load_steps=7 format=3 uid="uid://d2tbslwtfxe4b"]
+[gd_scene load_steps=4 format=3 uid="uid://d2tbslwtfxe4b"]
 
 [ext_resource type="Script" uid="uid://ch8elogiow0b6" path="res://scenes/messages/composer/composer.gd" id="1"]
-[ext_resource type="Texture2D" uid="uid://cprwmqd0vyvem" path="res://assets/theme/icons/plus.svg" id="2"]
-[ext_resource type="Texture2D" uid="uid://cmv58ms0mvvin" path="res://assets/theme/icons/smile.svg" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/messages/composer/message_input.tscn" id="3_input"]
-[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="4"]
 
 [sub_resource type="StyleBoxFlat" id="composer_bg"]
 content_margin_left = 4.0
@@ -64,7 +61,6 @@ theme_override_constants/separation = 4
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "Upload"
-icon = ExtResource("2")
 flat = true
 
 [node name="TextInput" parent="VBox/HBox" instance=ExtResource("3_input")]
@@ -76,12 +72,10 @@ theme_override_constants/line_spacing = 9
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "Emoji"
-icon = ExtResource("3")
 flat = true
 
 [node name="SendButton" type="Button" parent="VBox/HBox"]
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "Send"
-icon = ExtResource("4")
 flat = true

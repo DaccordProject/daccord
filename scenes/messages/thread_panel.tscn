@@ -1,9 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" uid="uid://betsu8sbbb877" path="res://scenes/messages/thread_panel.gd" id="1"]
-[ext_resource type="Texture2D" uid="uid://iqi2q8llaggv" path="res://assets/theme/icons/send.svg" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/messages/typing_indicator.tscn" id="3"]
-[ext_resource type="Texture2D" path="res://assets/theme/icons/bell.svg" id="4"]
 
 [sub_resource type="StyleBoxFlat" id="panel_bg"]
 bg_color = Color(0.176, 0.188, 0.208, 1)
@@ -36,7 +34,6 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 tooltip_text = "Notification Settings"
 flat = true
-icon = ExtResource("4")
 
 [node name="CloseButton" type="Button" parent="VBox/Header"]
 layout_mode = 2
@@ -92,7 +89,6 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 tooltip_text = "Send"
 flat = true
-icon = ExtResource("2")
 
 [node name="AlsoSendCheck" type="CheckBox" parent="VBox/ComposerBox"]
 layout_mode = 2
