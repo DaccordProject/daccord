@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-03-10
+
+### Added
+- About page and PostgreSQL user flow
+- Password visibility toggle on all password fields
+- SyncManager autoload with E2E-encrypted config sync
+- Web export support with COOP/COEP service worker for Chrome
+- Friends/relationships system with REST endpoints and helpers
+- Read-only mode user flow
+
+### Changed
+- Refactored theme styling and avatar setup
+- Refactored REST endpoints
+
+### Fixed
+- SyncAPI URL paths
+- Sync security audit improvements
+
 ## [0.1.9] - 2026-03-05
 
 ### Added
