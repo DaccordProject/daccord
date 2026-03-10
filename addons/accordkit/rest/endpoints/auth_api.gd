@@ -42,6 +42,14 @@ func login_mfa(data: Dictionary) -> RestResult:
 	return result
 
 
+## Requests a short-lived guest token for anonymous read-only access.
+## No credentials required. The server returns a token scoped to public
+## channels with allow_anonymous_read = true.
+## Returns RestResult with data = { "token": String, "expires_at": String, "space_id": String }.
+func guest() -> RestResult:
+	return await _rest.make_request("POST", "/auth/guest")
+
+
 ## Changes the current user's password.
 ## data should contain: { "old_password": String, "new_password": String }.
 ## Clears force_password_reset flag and revokes all other sessions.

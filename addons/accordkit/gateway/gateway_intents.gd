@@ -33,3 +33,8 @@ static func all() -> Array:
 
 static func default() -> Array:
 	return [SPACES, MESSAGES, MESSAGE_CONTENT]
+
+## Reduced intent set for anonymous guest connections.
+## Only receives space structure, messages, and member count updates.
+static func guest() -> Array:
+	return [SPACES, MESSAGES, MESSAGE_CONTENT, MEMBERS]

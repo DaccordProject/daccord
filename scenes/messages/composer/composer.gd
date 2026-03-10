@@ -35,6 +35,7 @@ func _ready() -> void:
 	AppState.server_reconnected.connect(func(_gid): update_enabled_state())
 	AppState.server_synced.connect(func(_gid): update_enabled_state())
 	AppState.server_connection_failed.connect(func(_gid, _r): update_enabled_state())
+	AppState.guest_mode_changed.connect(func(_a): update_enabled_state())
 	AppState.imposter_mode_changed.connect(func(_a): update_enabled_state())
 	AppState.roles_updated.connect(func(_s): update_enabled_state())
 	AppState.channel_selected.connect(func(_c): update_enabled_state())
@@ -87,6 +88,10 @@ func _on_send() -> void:
 		error_label.visible = true
 
 func _on_text_input(event: InputEvent) -> void:
+	if AppState.is_guest_mode:
+		if event is InputEventMouseButton and event.pressed:
+			GuestPrompt.show_if_guest()
+		return
 	if event is InputEventKey and event.pressed:
 		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and not event.shift_pressed:
 			_on_send()
@@ -313,6 +318,17 @@ func _on_message_send_failed(channel_id: String, content: String, error: String)
 func update_enabled_state() -> void:
 	var space_id: String = Client._channel_to_space.get(AppState.current_channel_id, "")
 	var connected := Client.is_space_connected(space_id) if not space_id.is_empty() else true
+
+	# Guest mode: disable all inputs with sign-in prompt
+	if AppState.is_guest_mode:
+		text_input.editable = false
+		send_button.disabled = true
+		upload_button.disabled = true
+		emoji_button.disabled = true
+		if _saved_placeholder.is_empty():
+			_saved_placeholder = text_input.placeholder_text
+		text_input.placeholder_text = "Sign in to send a message"
+		return
 
 	# Imposter mode: always disable sending (view-only preview)
 	if AppState.is_imposter_mode and space_id == AppState.imposter_space_id:

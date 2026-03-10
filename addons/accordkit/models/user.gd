@@ -17,6 +17,7 @@ var public_flags: int = 0
 var is_admin: bool = false
 var mfa_enabled: bool = false
 var disabled: bool = false
+var is_guest: bool = false
 var created_at: String = ""
 
 
@@ -36,6 +37,7 @@ static func from_dict(d: Dictionary) -> AccordUser:
 	u.is_admin = d.get("is_admin", false)
 	u.mfa_enabled = d.get("mfa_enabled", false)
 	u.disabled = d.get("disabled", false)
+	u.is_guest = d.get("is_guest", false)
 	u.created_at = d.get("created_at", "")
 	return u
 
@@ -51,6 +53,7 @@ func to_dict() -> Dictionary:
 		"is_admin": is_admin,
 		"mfa_enabled": mfa_enabled,
 		"disabled": disabled,
+		"is_guest": is_guest,
 		"created_at": created_at,
 	}
 	if display_name != null:

@@ -46,6 +46,13 @@ func setup(data: Dictionary) -> void:
 func _on_toggled(toggled_on: bool) -> void:
 	if _in_setup:
 		return
+	if AppState.is_guest_mode:
+		# Revert the toggle and show registration prompt
+		_in_setup = true
+		button_pressed = not toggled_on
+		_in_setup = false
+		GuestPrompt.show_if_guest()
+		return
 	# Optimistic local update
 	if toggled_on:
 		reaction_count += 1

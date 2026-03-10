@@ -51,6 +51,34 @@ theme_override_font_sizes/font_size = 12
 [node name="ImposterBanner" parent="VBox" instance=ExtResource("4")]
 layout_mode = 2
 
+[node name="GuestBanner" type="PanelContainer" parent="VBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+
+[node name="HBox" type="HBoxContainer" parent="VBox/GuestBanner"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="GuestLabel" type="Label" parent="VBox/GuestBanner/HBox"]
+layout_mode = 2
+text = "You're browsing as a guest"
+theme_override_font_sizes/font_size = 13
+metadata/theme_font_color = "text_white"
+
+[node name="SignInButton" type="Button" parent="VBox/GuestBanner/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Sign In"
+theme_override_font_sizes/font_size = 12
+
+[node name="RegisterButton" type="Button" parent="VBox/GuestBanner/HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 0)
+text = "Register"
+theme_override_font_sizes/font_size = 12
+
 [node name="TopicBar" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 28)

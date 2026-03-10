@@ -49,6 +49,31 @@ func load_space(space_id: String) -> void:
 
 	var channels := Client.get_channels_for_space(space_id)
 
+	# In guest mode, only show channels marked as publicly readable.
+	if AppState.is_guest_mode:
+		var guest_filtered: Array = []
+		for ch in channels:
+			if ch["type"] == ClientModels.ChannelType.CATEGORY:
+				guest_filtered.append(ch)
+				continue
+			if ch.get("allow_anonymous_read", false):
+				guest_filtered.append(ch)
+		# Remove empty categories (no visible children)
+		var cat_ids_with_children: Dictionary = {}
+		for ch in guest_filtered:
+			if ch["type"] != ClientModels.ChannelType.CATEGORY:
+				var pid: String = ch.get("parent_id", "")
+				if not pid.is_empty():
+					cat_ids_with_children[pid] = true
+		var final_filtered: Array = []
+		for ch in guest_filtered:
+			if ch["type"] == ClientModels.ChannelType.CATEGORY:
+				if cat_ids_with_children.has(ch["id"]):
+					final_filtered.append(ch)
+			else:
+				final_filtered.append(ch)
+		channels = final_filtered
+
 	# Filter channels by VIEW_CHANNEL permission.
 	# In imposter mode, show hidden channels with a lock icon so the admin
 	# can see which channels the previewed role cannot access.
@@ -213,6 +238,9 @@ func _on_channel_pressed(channel_id: String) -> void:
 			ch_data = ch
 			break
 	if ch_data.get("type", 0) == ClientModels.ChannelType.VOICE:
+		# Guest mode: show registration prompt instead of joining
+		if GuestPrompt.show_if_guest():
+			return
 		# Check CONNECT permission before joining
 		if not Client.has_channel_permission(
 			_current_space_id, channel_id, AccordPermission.CONNECT

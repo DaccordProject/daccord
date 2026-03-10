@@ -244,6 +244,10 @@ func _on_add_pressed() -> void:
 			func(resolved_url: String, t: String, u: String, _p: String, dn: String):
 				_connect_with_token(resolved_url, space_name, t, invite_code, u, dn)
 		)
+		auth_dialog.guest_requested.connect(
+			func(guest_url: String):
+				_connect_as_guest(guest_url, space_name)
+		)
 		get_parent().add_child(auth_dialog)
 
 
@@ -293,6 +297,64 @@ func _connect_with_token(
 		_show_error(result["error"])
 	else:
 		server_added.emit(result.get("space_id", ""))
+		_close()
+
+
+func _connect_as_guest(base_url: String, _space_name: String) -> void:
+	_add_btn.disabled = true
+	_add_btn.text = "Connecting..."
+	_status_label.text = ""
+	_status_label.visible = true
+	var step_cb := func(step: String): _status_label.text = step
+	AppState.connection_step.connect(step_cb)
+
+	# Request a guest token
+	var api_url := base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	add_child(rest)
+
+	var auth := AuthApi.new(rest)
+	var result: RestResult = await auth.guest()
+	rest.queue_free()
+
+	if not result.ok:
+		AppState.connection_step.disconnect(step_cb)
+		_status_label.visible = false
+		_add_btn.disabled = false
+		_add_btn.text = "Add"
+		var err_msg: String = (
+			result.error.message
+			if result.error else "Guest access not available"
+		)
+		_show_error(err_msg)
+		return
+
+	var token: String = result.data.get("token", "") if result.data is Dictionary else ""
+	var space_id: String = result.data.get("space_id", "") if result.data is Dictionary else ""
+	var expires_at: String = result.data.get("expires_at", "") if result.data is Dictionary else ""
+
+	if token.is_empty() or space_id.is_empty():
+		AppState.connection_step.disconnect(step_cb)
+		_status_label.visible = false
+		_add_btn.disabled = false
+		_add_btn.text = "Add"
+		_show_error("Invalid guest token response.")
+		return
+
+	var conn_result: Dictionary = await Client.connect_guest(
+		base_url, token, space_id, expires_at
+	)
+	AppState.connection_step.disconnect(step_cb)
+	_status_label.visible = false
+	_add_btn.disabled = false
+	_add_btn.text = "Add"
+
+	if conn_result.has("error"):
+		_show_error(conn_result["error"])
+	else:
+		server_added.emit(conn_result.get("space_id", ""))
 		_close()
 
 

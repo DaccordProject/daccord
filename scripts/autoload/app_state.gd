@@ -102,6 +102,8 @@ signal server_synced(space_id: String)
 @warning_ignore("unused_signal")
 signal profile_switched()
 @warning_ignore("unused_signal")
+signal guest_mode_changed(is_guest: bool)
+@warning_ignore("unused_signal")
 signal imposter_mode_changed(active: bool)
 @warning_ignore("unused_signal")
 signal connection_step(step: String)
@@ -214,6 +216,8 @@ var current_thread_id: String = ""
 var thread_panel_visible: bool = false
 var voice_text_channel_id: String = ""
 var is_discovery_open: bool = false
+var is_guest_mode: bool = false
+var guest_base_url: String = ""
 var is_imposter_mode: bool = false
 var imposter_permissions: Array = []
 var imposter_role_name: String = ""
@@ -230,7 +234,21 @@ func select_channel(channel_id: String) -> void:
 	current_channel_id = channel_id
 	channel_selected.emit(channel_id)
 
+func enter_guest_mode(base_url: String) -> void:
+	is_guest_mode = true
+	guest_base_url = base_url
+	guest_mode_changed.emit(true)
+
+func exit_guest_mode() -> void:
+	if not is_guest_mode:
+		return
+	is_guest_mode = false
+	guest_base_url = ""
+	guest_mode_changed.emit(false)
+
 func enter_dm_mode() -> void:
+	if is_guest_mode:
+		return
 	if is_imposter_mode:
 		exit_imposter_mode()
 	is_dm_mode = true

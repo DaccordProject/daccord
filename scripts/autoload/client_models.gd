@@ -308,6 +308,8 @@ static func channel_to_dict(channel: AccordChannel) -> Dictionary:
 		d["topic"] = topic_str
 	if channel.nsfw:
 		d["nsfw"] = true
+	if channel.allow_anonymous_read:
+		d["allow_anonymous_read"] = true
 	# Include permission overwrites for admin UI
 	if channel.permission_overwrites.size() > 0:
 		var ow_list: Array = []

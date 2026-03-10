@@ -167,6 +167,235 @@ func connect_server(
 			_c.update_presence(saved_status)
 	return {"space_id": found_space_id}
 
+## Connects to a server as an anonymous guest (read-only, transient).
+## Does not persist the connection to Config.
+func connect_guest(
+	base_url: String, token: String, space_id: String,
+	expires_at: String = "",
+) -> Dictionary:
+	var gw_url: String = _c._derive_gateway_url(base_url)
+	var cdn_url: String = _c._derive_cdn_url(base_url)
+
+	var index: int = _c._connections.size()
+	var conn := {
+		"config": {"base_url": base_url, "token": token},
+		"client": null,
+		"space_id": "",
+		"cdn_url": cdn_url,
+		"status": "connecting",
+		"guest": true,
+		"guest_expires_at": expires_at,
+	}
+	_c._connections.append(conn)
+
+	var client := _make_guest_client(token, base_url, gw_url, cdn_url)
+	conn["client"] = client
+
+	# Fetch current user (server returns a synthetic guest user)
+	AppState.connection_step.emit("Connecting as guest...")
+	var me_result: RestResult = await client.users.get_me()
+	if not me_result.ok:
+		var err_msg: String = (
+			me_result.error.message
+			if me_result.error
+			else "Failed to connect as guest"
+		)
+		push_error("[Client] Guest auth failed for ", base_url, ": ", err_msg)
+		conn["status"] = "error"
+		client.queue_free()
+		conn["client"] = null
+		return {"error": err_msg}
+
+	var me_user: AccordUser = me_result.data
+	var me_dict := ClientModels.user_to_dict(
+		me_user, ClientModels.UserStatus.ONLINE, cdn_url
+	)
+	_c._user_cache[me_user.id] = me_dict
+	conn["user_id"] = me_user.id
+	conn["user"] = me_dict
+	if _c.current_user.is_empty():
+		_c.current_user = me_dict
+
+	# Fetch the specific space
+	AppState.connection_step.emit("Fetching space...")
+	var sp: RestResult = await client.spaces.fetch(space_id)
+	if not sp.ok:
+		var err_msg: String = (
+			sp.error.message if sp.error else "Space not found"
+		)
+		push_error("[Client] Guest space fetch failed: ", err_msg)
+		conn["status"] = "error"
+		client.queue_free()
+		conn["client"] = null
+		return {"error": err_msg}
+
+	var d := ClientModels.space_to_dict(sp.data, cdn_url)
+	_c._space_cache[d["id"]] = d
+
+	conn["space_id"] = space_id
+	_c._space_to_conn[space_id] = index
+	_c._gw.connect_signals(client, index)
+	AppState.connection_step.emit("Connecting to gateway...")
+	client.login()
+	await client.connected
+
+	conn["status"] = "connected"
+	_c.mode = Client.Mode.LIVE
+	AppState.spaces_updated.emit()
+	AppState.enter_guest_mode(base_url)
+	_start_guest_refresh_timer(index)
+	return {"space_id": space_id}
+
+## Upgrades a guest connection to an authenticated one.
+## Replaces the transient guest token with real credentials and persists
+## the connection to Config.
+func upgrade_guest_connection(
+	base_url: String, token: String,
+	space_name: String, username: String,
+	display_name: String = "",
+) -> Dictionary:
+	# Find and disconnect the guest connection
+	var guest_idx: int = -1
+	for i in _c._connections.size():
+		var conn = _c._connections[i]
+		if conn != null and conn.get("guest", false):
+			var cfg: Dictionary = conn.get("config", {})
+			if cfg.get("base_url", "") == base_url:
+				guest_idx = i
+				break
+
+	if guest_idx != -1:
+		var conn = _c._connections[guest_idx]
+		# Stop guest token refresh timer
+		var timer = conn.get("_guest_refresh_timer")
+		if timer is Timer and is_instance_valid(timer):
+			timer.stop()
+			timer.queue_free()
+		if conn["client"] != null:
+			conn["client"].logout()
+			conn["client"].queue_free()
+		# Clean up caches for the guest space
+		var sid: String = conn.get("space_id", "")
+		if not sid.is_empty():
+			_c._space_cache.erase(sid)
+			_c._space_to_conn.erase(sid)
+		_c._connections[guest_idx] = null
+
+	AppState.exit_guest_mode()
+
+	# Add as a real server and connect
+	Config.add_server(base_url, token, space_name, username, display_name)
+	var server_index: int = Config.get_servers().size() - 1
+	return await connect_server(server_index)
+
+func _make_guest_client(
+	token: String, base_url: String,
+	gw_url: String, cdn_url: String
+) -> AccordClient:
+	var c := AccordClient.new()
+	c.token = token
+	c.token_type = "Bearer"
+	c.base_url = base_url
+	c.gateway_url = gw_url
+	c.cdn_url = cdn_url
+	c.intents = GatewayIntents.guest()
+	_c.add_child(c)
+	return c
+
+## Starts a timer that silently refreshes the guest token before it expires.
+## If expires_at is empty or unparseable, defaults to refreshing every 45 minutes.
+func _start_guest_refresh_timer(conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	if not conn.get("guest", false):
+		return
+	var wait_sec: float = 45.0 * 60.0 # default: 45 minutes
+	var expires_str: String = conn.get("guest_expires_at", "")
+	if not expires_str.is_empty():
+		var expires_unix: float = _parse_iso_to_unix(expires_str)
+		if expires_unix > 0.0:
+			var now: float = Time.get_unix_time_from_system()
+			# Refresh 5 minutes before expiry, minimum 30 seconds
+			wait_sec = maxf(expires_unix - now - 300.0, 30.0)
+	var timer := Timer.new()
+	timer.wait_time = wait_sec
+	timer.one_shot = true
+	timer.timeout.connect(_refresh_guest_token.bind(conn_index))
+	_c.add_child(timer)
+	timer.start()
+	conn["_guest_refresh_timer"] = timer
+
+## Silently refreshes the guest token for a connection.
+func _refresh_guest_token(conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	if not conn.get("guest", false) or conn.get("status", "") != "connected":
+		return
+	var base_url: String = conn["config"].get("base_url", "")
+	if base_url.is_empty():
+		return
+	var api_url: String = base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	_c.add_child(rest)
+	var auth := AuthApi.new(rest)
+	var result: RestResult = await auth.guest()
+	rest.queue_free()
+	if not result.ok or not result.data is Dictionary:
+		push_warning("[Client] Guest token refresh failed; connection may expire")
+		return
+	var new_token: String = result.data.get("token", "")
+	if new_token.is_empty():
+		return
+	# Update the token on the AccordClient's REST layer
+	var client: AccordClient = conn.get("client")
+	if client != null and client.rest != null:
+		client.rest.token = new_token
+		client.token = new_token
+	conn["config"]["token"] = new_token
+	conn["guest_expires_at"] = str(result.data.get("expires_at", ""))
+	# Schedule next refresh
+	_start_guest_refresh_timer(conn_index)
+
+## Parses an ISO 8601 timestamp to Unix time. Returns 0.0 on failure.
+static func _parse_iso_to_unix(iso: String) -> float:
+	var t_idx: int = iso.find("T")
+	if t_idx == -1:
+		return 0.0
+	var date_part: String = iso.substr(0, t_idx)
+	var date_parts: PackedStringArray = date_part.split("-")
+	if date_parts.size() < 3:
+		return 0.0
+	var time_part: String = iso.substr(t_idx + 1)
+	# Strip timezone suffix (keep only HH:MM:SS)
+	for suffix in ["Z", "+"]:
+		var s_idx: int = time_part.find(suffix)
+		if s_idx != -1:
+			time_part = time_part.substr(0, s_idx)
+	# Handle negative timezone offset (but not the leading minus in date)
+	var dash_idx: int = time_part.rfind("-")
+	if dash_idx > 0:
+		time_part = time_part.substr(0, dash_idx)
+	# Strip milliseconds
+	var dot_idx: int = time_part.find(".")
+	if dot_idx != -1:
+		time_part = time_part.substr(0, dot_idx)
+	var time_parts: PackedStringArray = time_part.split(":")
+	if time_parts.size() < 2:
+		return 0.0
+	var dt := {
+		"year": date_parts[0].to_int(),
+		"month": date_parts[1].to_int(),
+		"day": date_parts[2].to_int(),
+		"hour": time_parts[0].to_int(),
+		"minute": time_parts[1].to_int(),
+		"second": time_parts[2].to_int() if time_parts.size() > 2 else 0,
+	}
+	return Time.get_unix_time_from_datetime_dict(dt)
+
 func _make_client(
 	token: String, base_url: String,
 	gw_url: String, cdn_url: String
@@ -187,9 +416,14 @@ func disconnect_all() -> void:
 		AppState.leave_voice()
 	# Logout and free all clients
 	for conn in _c._connections:
-		if conn != null and conn["client"] != null:
-			conn["client"].logout()
-			conn["client"].queue_free()
+		if conn != null:
+			var timer = conn.get("_guest_refresh_timer")
+			if timer is Timer and is_instance_valid(timer):
+				timer.stop()
+				timer.queue_free()
+			if conn["client"] != null:
+				conn["client"].logout()
+				conn["client"].queue_free()
 	# Clear all caches
 	_c._connections.clear()
 	_c._user_cache.clear()
@@ -252,7 +486,10 @@ func disconnect_server(space_id: String) -> void:
 				_c._message_id_index.erase(msg.get("id", ""))
 			_c._message_cache.erase(ch_id)
 	_c._space_to_conn.erase(space_id)
-	Config.remove_server(idx)
+	# Guest connections are transient -- don't touch Config
+	var is_guest: bool = conn.get("guest", false) if conn != null else false
+	if not is_guest:
+		Config.remove_server(idx)
 	_c._space_to_conn.clear()
 	for i in _c._connections.size():
 		if _c._connections[i] != null:

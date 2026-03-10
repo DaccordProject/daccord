@@ -22,7 +22,9 @@ func _ready() -> void:
 	add_server_button.add_server_pressed.connect(_on_add_server_pressed)
 	discover_button.discover_pressed.connect(_on_discover_pressed)
 	AppState.spaces_updated.connect(_on_spaces_updated)
+	AppState.guest_mode_changed.connect(_on_guest_mode_changed)
 	_populate_spaces()
+	_update_guest_state()
 
 func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")
@@ -157,7 +159,18 @@ func _on_server_added(space_id: String) -> void:
 func _on_discover_pressed() -> void:
 	AppState.open_discovery()
 
+func _on_guest_mode_changed(_is_guest: bool) -> void:
+	_update_guest_state()
+
+func _update_guest_state() -> void:
+	var is_guest := AppState.is_guest_mode
+	dm_button.modulate.a = 0.4 if is_guest else 1.0
+	add_server_button.modulate.a = 0.4 if is_guest else 1.0
+
 func _on_dm_pressed() -> void:
+	if AppState.is_guest_mode:
+		GuestPrompt.show_if_guest()
+		return
 	if active_space_id != "" and space_icon_nodes.has(active_space_id):
 		var prev = space_icon_nodes[active_space_id]
 		if prev.has_method("set_active"):

@@ -84,6 +84,16 @@ func on_context_menu_requested(
 	pos: Vector2i, msg_data: Dictionary,
 ) -> void:
 	_context_menu_data = msg_data
+
+	# Guest mode: disable all action items
+	if AppState.is_guest_mode:
+		for i in _context_menu.item_count:
+			_context_menu.set_item_disabled(i, true)
+		_context_menu.hide()
+		_context_menu.position = pos
+		_context_menu.popup()
+		return
+
 	var author: Dictionary = msg_data.get("author", {})
 	var is_own: bool = (
 		author.get("id", "")
@@ -119,6 +129,8 @@ func on_context_menu_requested(
 
 
 func on_context_menu_id_pressed(id: int) -> void:
+	if GuestPrompt.show_if_guest():
+		return
 	match id:
 		0: # Reply
 			AppState.initiate_reply(

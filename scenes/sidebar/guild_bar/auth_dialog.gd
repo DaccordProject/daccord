@@ -5,6 +5,7 @@ signal auth_completed(
 	username: String, password: String,
 	display_name: String,
 )
+signal guest_requested(base_url: String)
 
 enum Mode { SIGN_IN, REGISTER }
 
@@ -31,6 +32,7 @@ var _mfa_ticket: String = ""
 @onready var _mfa_input: LineEdit = $CenterContainer/Panel/VBox/MfaInput
 @onready var _submit_btn: Button = $CenterContainer/Panel/VBox/SubmitButton
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
+@onready var _guest_btn: Button = $CenterContainer/Panel/VBox/GuestButton
 
 
 func _ready() -> void:
@@ -43,6 +45,7 @@ func _ready() -> void:
 	_username_input.text_submitted.connect(func(_t): _password_input.grab_focus())
 	_password_input.text_submitted.connect(func(_t): _on_submit())
 	_mfa_input.text_submitted.connect(func(_t): _on_submit())
+	_guest_btn.pressed.connect(_on_guest_pressed)
 
 	_set_mode(Mode.SIGN_IN)
 
@@ -286,6 +289,40 @@ func _show_change_password_dialog(token: String, username: String) -> void:
 		queue_free()
 	)
 	get_parent().add_child(dialog)
+
+
+func _on_guest_pressed() -> void:
+	_error_label.visible = false
+	_guest_btn.disabled = true
+	_guest_btn.text = "Connecting..."
+
+	var api_url := _base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	add_child(rest)
+
+	var auth := AuthApi.new(rest)
+	var result: RestResult = await auth.guest()
+	rest.queue_free()
+
+	_guest_btn.disabled = false
+	_guest_btn.text = "Browse without account"
+
+	if not result.ok:
+		var err_msg: String = (
+			result.error.message
+			if result.error else "Guest access not available"
+		)
+		_show_error(err_msg)
+		return
+
+	if not result.data is Dictionary:
+		_show_error("Unexpected response from server.")
+		return
+
+	guest_requested.emit(_base_url)
+	queue_free()
 
 
 func _show_error(msg: String) -> void:

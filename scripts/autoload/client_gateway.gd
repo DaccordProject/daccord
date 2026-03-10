@@ -231,9 +231,9 @@ func _refetch_data(conn: Dictionary, conn_index: int) -> void:
 	var space_id: String = conn["space_id"]
 	conn["_syncing"] = true
 	if not space_id.is_empty():
-		await _c.fetch.fetch_channels(space_id)
-		await _c.fetch.fetch_members(space_id)
 		await _c.fetch.fetch_roles(space_id)
+		await _c.fetch.fetch_members(space_id)
+		await _c.fetch.fetch_channels(space_id)
 		_c.fetch.resync_voice_states(space_id)
 		await _c.fetch.refresh_current_user(conn_index)
 	await _c.fetch.fetch_dm_channels()

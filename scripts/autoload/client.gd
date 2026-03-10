@@ -279,6 +279,17 @@ func _derive_cdn_url(base_url: String) -> String:
 func connect_server(index: int, invite_code: String = "") -> Dictionary:
 	return await connection.connect_server(index, invite_code)
 
+func connect_guest(
+	url: String, token: String, sid: String,
+	expires_at: String = "",
+) -> Dictionary:
+	return await connection.connect_guest(url, token, sid, expires_at)
+
+func upgrade_guest_connection(
+	url: String, token: String, space: String, user: String, dn: String = "",
+) -> Dictionary:
+	return await connection.upgrade_guest_connection(url, token, space, user, dn)
+
 # --- Client routing ---
 
 func _conn_for_space(space_id: String):
@@ -506,6 +517,8 @@ func send_message_to_channel(
 	attachments: Array = [], thread_id: String = "",
 	title: String = ""
 ) -> bool:
+	if AppState.is_guest_mode:
+		return false
 	return await mutations.send_message_to_channel(
 		cid, content, reply_to, attachments, thread_id, title
 	)
@@ -513,21 +526,29 @@ func send_message_to_channel(
 func update_message_content(
 	mid: String, new_content: String
 ) -> bool:
+	if AppState.is_guest_mode:
+		return false
 	return await mutations.update_message_content(
 		mid, new_content
 	)
 
 func remove_message(mid: String) -> bool:
+	if AppState.is_guest_mode:
+		return false
 	return await mutations.remove_message(mid)
 
 func add_reaction(
 	cid: String, mid: String, emoji: String
 ) -> void:
+	if AppState.is_guest_mode:
+		return
 	await mutations.add_reaction(cid, mid, emoji)
 
 func remove_reaction(
 	cid: String, mid: String, emoji: String
 ) -> void:
+	if AppState.is_guest_mode:
+		return
 	await mutations.remove_reaction(cid, mid, emoji)
 
 func remove_all_reactions(
@@ -541,6 +562,8 @@ func update_presence(
 	mutations.update_presence(status, activity)
 
 func send_typing(cid: String) -> void:
+	if AppState.is_guest_mode:
+		return
 	mutations.send_typing(cid)
 
 # --- Voice API (delegates to ClientVoice) ---
@@ -589,31 +612,21 @@ func delete_account(password: String) -> Dictionary:
 	return await mutations.delete_account(password)
 
 func create_dm(user_id: String) -> void:
+	if AppState.is_guest_mode:
+		return
 	await mutations.dm.create_dm(user_id)
 
 func create_group_dm(user_ids: Array) -> void:
 	await mutations.dm.create_group_dm(user_ids)
 
-func add_dm_member(
-	channel_id: String, user_id: String,
-) -> bool:
-	return await mutations.dm.add_dm_member(
-		channel_id, user_id
-	)
+func add_dm_member(channel_id: String, user_id: String) -> bool:
+	return await mutations.dm.add_dm_member(channel_id, user_id)
 
-func remove_dm_member(
-	channel_id: String, user_id: String,
-) -> bool:
-	return await mutations.dm.remove_dm_member(
-		channel_id, user_id
-	)
+func remove_dm_member(channel_id: String, user_id: String) -> bool:
+	return await mutations.dm.remove_dm_member(channel_id, user_id)
 
-func rename_group_dm(
-	channel_id: String, new_name: String,
-) -> bool:
-	return await mutations.dm.rename_group_dm(
-		channel_id, new_name
-	)
+func rename_group_dm(channel_id: String, new_name: String) -> bool:
+	return await mutations.dm.rename_group_dm(channel_id, new_name)
 
 func close_dm(channel_id: String) -> void:
 	await mutations.dm.close_dm(channel_id)

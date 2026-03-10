@@ -27,6 +27,9 @@ var _banner_hide_timer: Timer
 var _loading_timeout_timer: Timer
 var _banner: MessageViewBanner
 
+@onready var guest_banner: PanelContainer = $VBox/GuestBanner
+@onready var guest_sign_in_btn: Button = $VBox/GuestBanner/HBox/SignInButton
+@onready var guest_register_btn: Button = $VBox/GuestBanner/HBox/RegisterButton
 @onready var connection_banner: PanelContainer = $VBox/ConnectionBanner
 @onready var banner_status_label: Label = $VBox/ConnectionBanner/HBox/StatusLabel
 @onready var banner_retry_button: Button = $VBox/ConnectionBanner/HBox/RetryButton
@@ -90,6 +93,12 @@ func _ready() -> void:
 		_banner.on_server_connection_failed
 	)
 
+	# Guest banner
+	AppState.guest_mode_changed.connect(_on_guest_mode_changed)
+	guest_sign_in_btn.pressed.connect(func(): GuestPrompt._open_auth_dialog())
+	guest_register_btn.pressed.connect(func(): GuestPrompt._open_auth_dialog())
+	guest_banner.visible = AppState.is_guest_mode
+
 	threads_button.pressed.connect(_on_threads_button_pressed)
 
 	# Loading timeout timer
@@ -129,6 +138,18 @@ func _is_persistent_node(child: Node) -> bool:
 		child == older_btn or child == empty_state
 		or child == loading_skeleton or child == loading_label
 	)
+
+func _on_guest_mode_changed(is_guest: bool) -> void:
+	guest_banner.visible = is_guest
+	# Style the banner
+	if is_guest:
+		var style := StyleBoxFlat.new()
+		style.bg_color = ThemeManager.get_color("accent")
+		style.content_margin_left = 8.0
+		style.content_margin_right = 8.0
+		style.content_margin_top = 4.0
+		style.content_margin_bottom = 4.0
+		guest_banner.add_theme_stylebox_override("panel", style)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if AppState.is_imposter_mode and event is InputEventKey \

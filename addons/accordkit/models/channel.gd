@@ -18,6 +18,7 @@ var recipients = null
 var owner_id = null
 var last_message_id = null
 var permission_overwrites: Array = []
+var allow_anonymous_read: bool = false
 var archived = null
 var auto_archive_after = null
 var created_at: String = ""
@@ -59,6 +60,8 @@ static func from_dict(d: Dictionary) -> AccordChannel:
 	var raw_last = d.get("last_message_id", null)
 	if raw_last != null:
 		c.last_message_id = str(raw_last)
+
+	c.allow_anonymous_read = d.get("allow_anonymous_read", false)
 
 	c.permission_overwrites = []
 	var raw_overwrites = d.get("permission_overwrites", [])
@@ -112,6 +115,8 @@ func to_dict() -> Dictionary:
 		d["owner_id"] = owner_id
 	if last_message_id != null:
 		d["last_message_id"] = last_message_id
+	if allow_anonymous_read:
+		d["allow_anonymous_read"] = true
 	if archived != null:
 		d["archived"] = archived
 	if auto_archive_after != null:
