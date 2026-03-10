@@ -75,6 +75,8 @@ cleanup() --> kill server + rm accord_test.db
 | `tests/unit/test_embed.gd` | Unit tests for embed component -- setup, title/URL, author, fields, footer, color, type (12 tests) |
 | `tests/unit/test_user_settings.gd` | Smoke tests for settings panels -- script loading, instantiation, page building, navigation, input sensitivity, Escape close (16 tests) |
 | `tests/unit/test_message_view_scroll.gd` | Unit tests for MessageViewScroll -- old_message_count, auto_scroll, is_loading_older, get_last_message_child (8 tests) |
+| `tests/unit/test_forum_post_row.gd` | Unit tests for ForumPostRow -- title/fallback/untitled, author, reply count, preview, truncation, post_pressed signal (14 tests) |
+| `tests/unit/test_thread_panel.gd` | Unit tests for ThreadPanel -- UI structure, thread_closed state, send guard, close button wiring, AppState signal connections (13 tests) |
 | `tests/unit/helpers/mock_message_view.gd` | Minimal mock of MessageView for testing MessageViewScroll |
 | `tests/accordkit/helpers/test_base.gd` | AccordTestBase -- seeds server, creates clients per test |
 | `tests/accordkit/helpers/seed_client.gd` | SeedClient -- POSTs to `/test/seed` for test data |
@@ -428,3 +430,10 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Effort:** 3
 - **Tags:** testing, ui
 - **Notes:** Layout mode breakpoints are tested in `test_app_state.gd`, but the actual UI response (sidebar drawer, hamburger button, panel visibility) in `main_window.gd` is untested.
+
+### TEST-20: No tests for forum/thread UI components
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** testing, ui
+- **Notes:** `scenes/messages/forum_post_row.gd` and `scenes/messages/thread_panel.gd` now have unit tests covering setup, signals, and AppState wiring. `forum_view.gd` depends on `Client.fetch.fetch_forum_posts()` and is deferred.
