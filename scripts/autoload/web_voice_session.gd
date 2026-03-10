@@ -123,10 +123,12 @@ func set_muted(muted: bool) -> void:
 	if not _is_web or not _has_room:
 		return
 	var enabled_str: String = "true" if not muted else "false"
-	_js_void(
-		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setMicrophoneEnabled(%s)}})()"
-		% enabled_str
-	)
+	var js_set_mic: String = (
+		"(function(){var r=window._godotLkRoom;if(r){"
+		+ "var p=r.getLocalParticipant();"
+		+ "if(p)p.setMicrophoneEnabled(%s)}})()"
+	) % enabled_str
+	_js_void(js_set_mic)
 
 
 func set_deafened(deafened: bool) -> void:
@@ -150,18 +152,24 @@ func get_session_state() -> int:
 func publish_camera(_resolution: Vector2i, _fps: int) -> RefCounted:
 	if not _is_web or not _has_room:
 		return null
-	_js_void(
-		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setCameraEnabled(true)}})()"
+	var js_cam_on: String = (
+		"(function(){var r=window._godotLkRoom;if(r){"
+		+ "var p=r.getLocalParticipant();"
+		+ "if(p)p.setCameraEnabled(true)}})()"
 	)
+	_js_void(js_cam_on)
 	return WebVideoStub.new()
 
 
 func unpublish_camera() -> void:
 	if not _is_web or not _has_room:
 		return
-	_js_void(
-		"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setCameraEnabled(false)}})()"
+	var js_cam_off: String = (
+		"(function(){var r=window._godotLkRoom;if(r){"
+		+ "var p=r.getLocalParticipant();"
+		+ "if(p)p.setCameraEnabled(false)}})()"
 	)
+	_js_void(js_cam_off)
 
 
 ## Screen share is not supported on web exports.
@@ -251,10 +259,12 @@ func _on_connected(_args) -> void:
 	# Enable microphone respecting the current mute state
 	if _has_room:
 		var enabled_str: String = "true" if not _muted else "false"
-		_js_void(
-			"(function(){var r=window._godotLkRoom;if(r){var p=r.getLocalParticipant();if(p)p.setMicrophoneEnabled(%s)}})()"
-			% enabled_str
-		)
+		var js_mic_on: String = (
+			"(function(){var r=window._godotLkRoom;if(r){"
+			+ "var p=r.getLocalParticipant();"
+			+ "if(p)p.setMicrophoneEnabled(%s)}})()"
+		) % enabled_str
+		_js_void(js_mic_on)
 
 
 func _on_disconnected(_args) -> void:

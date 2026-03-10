@@ -204,7 +204,8 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		"Ban":
 			DialogHelper.open(BanDialogScene, get_tree()).setup(space_id, user_id, dname)
 		"Moderate":
-			DialogHelper.open(ModerateMemberDialogScene, get_tree()).setup(space_id, user_id, dname, _member_data)
+			DialogHelper.open(ModerateMemberDialogScene, get_tree()) \
+					.setup(space_id, user_id, dname, _member_data)
 		"Edit Nickname":
 			DialogHelper.open(NicknameDialogScene, get_tree()).setup(
 				space_id, user_id, dname,
