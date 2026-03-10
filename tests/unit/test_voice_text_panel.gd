@@ -19,10 +19,10 @@ func before_each() -> void:
 		"status": 0,
 		"avatar": null,
 	}
-	# Stub Client.channels so channel name lookup doesn't crash
-	Client.channels = [
-		{"id": "vc_1", "name": "Voice Chat"},
-	]
+	# Stub Client._channel_cache so channel name lookup works.
+	# Client.channels is a computed property (getter only), so we must
+	# populate the backing dictionary directly.
+	Client._channel_cache = {"vc_1": {"id": "vc_1", "name": "Voice Chat"}}
 	component = load("res://scenes/messages/voice_text_panel.tscn").instantiate()
 	add_child(component)
 	await get_tree().process_frame
@@ -30,7 +30,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Client.channels = []
+	Client._channel_cache = {}
 	if is_instance_valid(component):
 		component.queue_free()
 		await get_tree().process_frame
