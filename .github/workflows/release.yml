@@ -654,3 +654,12 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: artifacts/*
+
+      - name: Trigger website rebuild
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh api repos/DaccordProject/accordwebsite/dispatches \
+            -f event_type=web-export-updated \
+            -f "client_payload[version]=${{ github.ref_name }}"
