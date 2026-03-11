@@ -41,12 +41,15 @@ func before_all() -> void:
 	reg_client.queue_free()
 
 	# Pre-create the user<->bot DM so subsequent tests can reuse the channel.
-	var dm_result: RestResult = await user_client.users.create_dm({
+	# user_client is only available in before_each(), so use a temporary client.
+	var tmp_client := _create_client(user_token, "Bearer")
+	var dm_result: RestResult = await tmp_client.users.create_dm({
 		"recipient_id": bot_id,
 	})
 	assert_true(dm_result.ok, "pre-create DM should succeed")
 	assert_not_null(dm_result.data, "pre-create DM should return channel data")
 	_dm_channel_id = dm_result.data["id"]
+	tmp_client.queue_free()
 
 
 func before_each() -> void:
