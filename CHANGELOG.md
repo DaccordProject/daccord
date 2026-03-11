@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-03-11
+
+### Added
+- Guest/anonymous read-only access and emoji catalog refactor
+- Unit tests for ClientAdmin, ClientRelationships, and ClientPermissions autoloads
+- Unit tests for DM list, group DM dialog, message action bar, and message view banner
+- Unit tests for voice UI components and profile management dialogs
+- Strengthened gateway disconnect test with real assertions
+
+### Fixed
+- Web export canvas sizing and skip window resize on web
+- Android keystore environment variables for export
+- CI integration test auth and web export path mismatches
+- DM integration tests resilient to idempotent server responses
+- gdlint errors (line length, max-returns)
+
+### Changed
+- Moved web export templates from export/web/ to dist/web/
+- Spring clean: removed duplicate EmojiCatalog, fixed risky tests
+- Cached Android SDK in CI and removed website rebuild trigger
+- Added priority and dependency metadata to all user flows
+
 ## [0.1.10] - 2026-03-10
 
 ### Added

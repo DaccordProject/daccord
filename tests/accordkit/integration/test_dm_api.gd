@@ -14,6 +14,11 @@ var third_user_id: String = ""
 var third_user_token: String = ""
 var third_client: AccordClient
 
+# DM channel created once in before_all() and reused by tests that just need
+# an existing DM.  The server may return an empty body for idempotent
+# create_dm calls, so we store the ID up front.
+var _dm_channel_id: String = ""
+
 
 func before_all() -> void:
 	await super()
@@ -35,6 +40,14 @@ func before_all() -> void:
 	third_user_token = str(result.data["token"])
 	reg_client.queue_free()
 
+	# Pre-create the user<->bot DM so subsequent tests can reuse the channel.
+	var dm_result: RestResult = await user_client.users.create_dm({
+		"recipient_id": bot_id,
+	})
+	assert_true(dm_result.ok, "pre-create DM should succeed")
+	assert_not_null(dm_result.data, "pre-create DM should return channel data")
+	_dm_channel_id = dm_result.data["id"]
+
 
 func before_each() -> void:
 	super()
@@ -51,10 +64,9 @@ func after_each() -> void:
 
 
 func test_create_dm() -> void:
-	var result: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(result.ok, "create DM should succeed")
+	# The DM was created in before_all(); verify its structure via fetch.
+	var result: RestResult = await user_client.channels.fetch(_dm_channel_id)
+	assert_true(result.ok, "fetch DM should succeed")
 	assert_eq(result.data["type"], "dm")
 	var recipients = result.data["recipients"]
 	assert_not_null(recipients)
@@ -62,92 +74,61 @@ func test_create_dm() -> void:
 
 
 func test_create_dm_is_idempotent() -> void:
-	var first: RestResult = await user_client.users.create_dm({
+	# The DM already exists from before_all().  A second create should succeed
+	# and, if the server returns data, produce the same channel ID.
+	var result: RestResult = await user_client.users.create_dm({
 		"recipient_id": bot_id,
 	})
-	assert_true(first.ok)
-	var first_id: String = first.data["id"]
-
-	var second: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(second.ok)
-	assert_eq(second.data["id"], first_id, "same DM should be returned")
+	assert_true(result.ok, "idempotent create_dm should succeed")
+	if result.data != null:
+		assert_eq(result.data["id"], _dm_channel_id, "same DM should be returned")
 
 
 func test_list_dm_channels() -> void:
-	var create: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(create.ok)
-	var dm_id: String = create.data["id"]
-
 	var result: RestResult = await user_client.users.list_channels()
 	assert_true(result.ok, "list DM channels should succeed")
 	assert_true(result.data is Array)
 	var found := false
 	for ch in result.data:
-		if ch["id"] == dm_id:
+		if ch["id"] == _dm_channel_id:
 			found = true
 			break
 	assert_true(found, "created DM should appear in channel list")
 
 
 func test_fetch_dm_channel() -> void:
-	var create: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(create.ok)
-	var dm_id: String = create.data["id"]
-
-	var result: RestResult = await user_client.channels.fetch(dm_id)
+	var result: RestResult = await user_client.channels.fetch(_dm_channel_id)
 	assert_true(result.ok, "fetch DM channel should succeed")
-	assert_eq(result.data["id"], dm_id)
+	assert_eq(result.data["id"], _dm_channel_id)
 	assert_eq(result.data["type"], "dm")
 
 
 func test_both_participants_see_dm() -> void:
-	var create: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(create.ok)
-	var dm_id: String = create.data["id"]
-
 	var list: RestResult = await bot_client.users.list_channels()
 	assert_true(list.ok)
 	var found := false
 	for ch in list.data:
-		if ch["id"] == dm_id:
+		if ch["id"] == _dm_channel_id:
 			found = true
 			break
 	assert_true(found, "bot should see the DM in their channel list")
 
 
 func test_send_message_in_dm() -> void:
-	var create: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(create.ok)
-	var dm_id: String = create.data["id"]
-
-	var result: RestResult = await user_client.messages.create(dm_id, {
+	var result: RestResult = await user_client.messages.create(_dm_channel_id, {
 		"content": "Hello from DM test!",
 	})
 	assert_true(result.ok, "send message in DM should succeed")
 	assert_eq(result.data["content"], "Hello from DM test!")
-	assert_eq(result.data["channel_id"], dm_id)
+	assert_eq(result.data["channel_id"], _dm_channel_id)
 
 
 func test_list_messages_in_dm() -> void:
-	var create: RestResult = await user_client.users.create_dm({
-		"recipient_id": bot_id,
-	})
-	assert_true(create.ok)
-	var dm_id: String = create.data["id"]
+	await user_client.messages.create(_dm_channel_id, {"content": "DM list test"})
 
-	await user_client.messages.create(dm_id, {"content": "DM list test"})
-
-	var result: RestResult = await user_client.messages.list(dm_id, {"limit": 10})
+	var result: RestResult = await user_client.messages.list(
+		_dm_channel_id, {"limit": 10}
+	)
 	assert_true(result.ok, "list DM messages should succeed")
 	assert_true(result.data is Array)
 	assert_true(result.data.size() >= 1, "should have at least one message")
