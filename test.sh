@@ -111,7 +111,7 @@ start_server() {
 
     # Build first so startup is fast
     info "Building AccordServer..."
-    (cd "$SERVER_DIR" && cargo build --features test-seed --quiet 2>&1) || {
+    (cd "$SERVER_DIR" && cargo build --bin accordserver --features test-seed --quiet 2>&1) || {
         err "Failed to build AccordServer"
         exit 1
     }
@@ -129,7 +129,7 @@ start_server() {
     ACCORD_TEST_MODE=true \
     DATABASE_URL="sqlite:accord_test.db?mode=rwc" \
     RUST_LOG="accordserver=debug,tower_http=info" \
-        cargo run --quiet --manifest-path "$SERVER_DIR/Cargo.toml" \
+        cargo run --quiet --bin accordserver --features test-seed --manifest-path "$SERVER_DIR/Cargo.toml" \
         > "$SERVER_LOG" 2>&1 &
     SERVER_PID=$!
 
