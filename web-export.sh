@@ -12,9 +12,9 @@ VERSION="${1:-2}"
 SDK_URL="https://cdn.jsdelivr.net/npm/livekit-client@${VERSION}/dist/livekit-client.umd.min.js"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="${SCRIPT_DIR}/dist/build/web"
-TEMPLATE_DIR="${SCRIPT_DIR}/export/web"
+TEMPLATE_DIR="${SCRIPT_DIR}/dist/web"
 
-# Path to the godot-livekit web wrapper (custom JS bridge in export/web/).
+# Path to the godot-livekit web wrapper (custom JS bridge in dist/web/).
 GODOT_LIVEKIT_WEB="${GODOT_LIVEKIT_WEB:-${TEMPLATE_DIR}/godot-livekit-web.js}"
 
 # --- 1. Run Godot web export ---------------------------------------------------

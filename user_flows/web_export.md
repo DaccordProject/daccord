@@ -140,10 +140,10 @@ crawler requests https://chat.example.com/#community/help-forum/1234567890
 | File | Role |
 |------|------|
 | `web-export.sh` | One-step export script: runs Godot web export, downloads `livekit-client` UMD, copies `godot-livekit-web.js` into `dist/web/`. |
-| `export/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. Registers the `coop_coep.js` service worker for cross-origin isolation. Parses URL fragment on load for deep link routing. |
-| `export/web/coop_coep.js` | Service worker that adds `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers (required for `SharedArrayBuffer` / WASM threads in Chrome). |
-| `export/web/godot-livekit-web.js` | JavaScript wrapper around `livekit-client.js` that mirrors the godot-livekit GDExtension API surface. Exposes `GodotLiveKit.createRoom()` globally. |
-| `export_presets.cfg` (preset `Web`) | Web export preset. `export_path="dist/web/Daccord.html"`, `custom_html_shell="res://export/web/index.html"`. Excludes `addons/godot-livekit/*` (GDExtension not used on web). |
+| `dist/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. Registers the `coop_coep.js` service worker for cross-origin isolation. Parses URL fragment on load for deep link routing. |
+| `dist/web/coop_coep.js` | Service worker that adds `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers (required for `SharedArrayBuffer` / WASM threads in Chrome). |
+| `dist/web/godot-livekit-web.js` | JavaScript wrapper around `livekit-client.js` that mirrors the godot-livekit GDExtension API surface. Exposes `GodotLiveKit.createRoom()` globally. |
+| `export_presets.cfg` (preset `Web`) | Web export preset. `export_path="dist/web/Daccord.html"`, `custom_html_shell="res://dist/web/index.html"`. Excludes `addons/godot-livekit/*` (GDExtension not used on web). |
 | `scripts/autoload/web_voice_session.gd` | `WebVoiceSession` — web-only voice session using `JavaScriptBridge` to call into `godot-livekit-web.js`. Mirrors `LiveKitAdapter` signal/API surface. No-ops on non-web builds. |
 | `scripts/autoload/client_voice.gd` | Voice join pipeline: calls REST join, then routes to `LiveKitAdapter` (desktop) or `WebVoiceSession` (web). |
 | `scripts/autoload/client.gd` | Server connections, URL fragment navigation on web. Guest mode: see [Read Only Mode](read_only_mode.md). |
@@ -154,7 +154,7 @@ crawler requests https://chat.example.com/#community/help-forum/1234567890
 
 ### HTML shell template (Godot 4.5)
 
-The custom HTML shell at `export/web/index.html` uses Godot 4.5's `$GODOT_CONFIG` placeholder — a single JSON object that Godot substitutes at export time containing `canvasResizePolicy`, `experimentalVK`, `focusCanvas`, `executable`, `gdextensionLibs`, etc. The template assigns the `canvas` element after substitution:
+The custom HTML shell at `dist/web/index.html` uses Godot 4.5's `$GODOT_CONFIG` placeholder — a single JSON object that Godot substitutes at export time containing `canvasResizePolicy`, `experimentalVK`, `focusCanvas`, `executable`, `gdextensionLibs`, etc. The template assigns the `canvas` element after substitution:
 
 ```js
 const GODOT_CONFIG = $GODOT_CONFIG;
@@ -187,7 +187,7 @@ Audio playback is handled automatically by the `livekit-client` SDK (no GDScript
 
 ### Shareable URLs and deep link routing
 
-The web export uses URL fragment routing so that every view has a shareable URL. The HTML shell (`export/web/index.html`) parses the URL fragment on load and passes it to the Godot engine via `JavaScriptBridge`.
+The web export uses URL fragment routing so that every view has a shareable URL. The HTML shell (`dist/web/index.html`) parses the URL fragment on load and passes it to the Godot engine via `JavaScriptBridge`.
 
 **URL format:** `https://<host>/#<space-slug>/<channel-slug>[/<post-id>]`
 

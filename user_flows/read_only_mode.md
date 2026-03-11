@@ -214,7 +214,7 @@ user clicks a public channel in guest mode
 | `scenes/sidebar/guild_bar/discovery_panel.gd` | "Preview" button for guest-mode entry from directory |
 | `addons/accordkit/rest/endpoints/auth_api.gd` | `guest()` method: `POST /auth/guest` |
 | `addons/accordkit/models/user.gd` | `is_guest: bool` field on `AccordUser` |
-| `export/web/index.html` | Web HTML shell; handles URL fragment parsing for deep links |
+| `dist/web/index.html` | Web HTML shell; handles URL fragment parsing for deep links |
 
 ## Implementation Details
 
@@ -268,7 +268,7 @@ In guest mode, the WebSocket gateway connection should subscribe only to public 
 
 ### Web Deep Links and URL Routing
 
-The web export needs URL-based routing so that shared links open the correct channel or forum post. The HTML shell (`export/web/index.html`) parses the URL fragment on load and passes it to the Godot engine as a command-line argument or via `JavaScriptBridge`.
+The web export needs URL-based routing so that shared links open the correct channel or forum post. The HTML shell (`dist/web/index.html`) parses the URL fragment on load and passes it to the Godot engine as a command-line argument or via `JavaScriptBridge`.
 
 **URL format:** `https://chat.example.com/#<space>/<channel>[/<post-id>]`
 

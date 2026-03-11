@@ -22,5 +22,4 @@ addons/sentry
 test_server.log
 .DS_Store
 .claude/settings.local.json
-dist/web/
-export/web/livekit-client.umd.min.js
+dist/web/livekit-client.umd.min.js

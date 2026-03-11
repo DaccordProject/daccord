@@ -629,7 +629,7 @@ jobs:
 
       - name: Copy COOP/COEP service worker into web build
         run: |
-          cp export/web/coop_coep.js dist/build/web/coop_coep.js
+          cp dist/web/coop_coep.js dist/build/web/coop_coep.js
           echo "Service worker copied: $(du -h dist/build/web/coop_coep.js | cut -f1)"
 
       - name: Start HTTP server with COOP/COEP headers
