@@ -717,7 +717,7 @@ jobs:
       - name: Upload web build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: daccord-web-build
+          name: ci-web-build
           path: dist/build/web/
           retention-days: 7
 
