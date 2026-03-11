@@ -57,13 +57,9 @@ func test_user_connect_receives_ready() -> void:
 
 func test_disconnect_clean_state() -> void:
 	var ready_received := false
-	var disconnect_received := false
 
 	bot_client.ready_received.connect(func(_data):
 		ready_received = true
-	)
-	bot_client.disconnected.connect(func(_code, _reason):
-		disconnect_received = true
 	)
 
 	bot_client.login()
@@ -78,11 +74,19 @@ func test_disconnect_clean_state() -> void:
 	if not ready_received:
 		return
 
+	# Watch signals before disconnecting so GUT captures the emission
+	watch_signals(bot_client)
+
 	# Disconnect
 	bot_client.logout()
 
 	# Give some time for disconnect to propagate
 	await get_tree().create_timer(0.5).timeout
 
-	# Gateway should be in disconnected state
-	assert_true(true, "Disconnect completed without error")
+	# Verify disconnected signal was emitted
+	assert_signal_emitted(bot_client, "disconnected",
+		"Should emit disconnected signal on logout")
+
+	# Verify gateway internal state is DISCONNECTED (not CONNECTED)
+	assert_eq(bot_client.gateway._state, GatewaySocket.State.DISCONNECTED,
+		"Gateway _state should be DISCONNECTED after logout")
