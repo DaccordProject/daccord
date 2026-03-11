@@ -128,6 +128,7 @@ func _seed_message(
 func test_send_message_null_client_emits_failed() -> void:
 	# No connection registered → _client_for_channel returns null
 	await mutations.send_message_to_channel("c_x", "hi")
+	assert_push_error("No connection for channel")
 	assert_signal_emitted(AppState, "message_send_failed")
 
 
@@ -135,6 +136,7 @@ func test_send_message_null_client_returns_false() -> void:
 	var ok: bool = await mutations.send_message_to_channel(
 		"c_x", "hi"
 	)
+	assert_push_error("No connection for channel")
 	assert_false(ok)
 
 
@@ -149,6 +151,7 @@ func test_send_message_rest_error_emits_failed() -> void:
 	_stub_rest.responses["POST /channels/c_1/messages"] = \
 		RestResult.failure(500, null)
 	await mutations.send_message_to_channel("c_1", "hello")
+	assert_push_error("Failed to send message")
 	assert_signal_emitted(AppState, "message_send_failed")
 
 
@@ -159,6 +162,7 @@ func test_send_message_rest_error_signal_has_channel_id() -> void:
 	_stub_rest.responses["POST /channels/c_1/messages"] = \
 		RestResult.failure(500, null)
 	await mutations.send_message_to_channel("c_1", "hello")
+	assert_push_error("Failed to send message")
 	assert_signal_emitted_with_parameters(
 		AppState, "message_send_failed",
 		["c_1", "hello", "unknown"]
@@ -174,6 +178,7 @@ func test_send_message_rest_error_returns_false() -> void:
 	var ok: bool = await mutations.send_message_to_channel(
 		"c_1", "hello"
 	)
+	assert_push_error("Failed to send message")
 	assert_false(ok)
 
 
@@ -184,6 +189,7 @@ func test_send_message_rest_error_returns_false() -> void:
 func test_update_message_no_channel_emits_edit_failed() -> void:
 	# Message not in any cache → _find_channel_for_message returns ""
 	await mutations.update_message_content("m_x", "new")
+	assert_push_error("Cannot find channel for message")
 	assert_signal_emitted(AppState, "message_edit_failed")
 
 
@@ -192,6 +198,7 @@ func test_update_message_null_client_emits_edit_failed() -> void:
 	_seed_message("c_orphan", "m_1")
 	# Don't set up a connection → client is null for c_orphan
 	await mutations.update_message_content("m_1", "new")
+	assert_push_error("No connection for channel")
 	assert_signal_emitted(AppState, "message_edit_failed")
 
 
@@ -200,6 +207,7 @@ func test_update_message_null_client_returns_false() -> void:
 	var ok: bool = await mutations.update_message_content(
 		"m_1", "new"
 	)
+	assert_push_error("No connection for channel")
 	assert_false(ok)
 
 
@@ -209,18 +217,21 @@ func test_update_message_null_client_returns_false() -> void:
 
 func test_remove_message_no_channel_emits_delete_failed() -> void:
 	await mutations.remove_message("m_missing")
+	assert_push_error("Cannot find channel for message")
 	assert_signal_emitted(AppState, "message_delete_failed")
 
 
 func test_remove_message_null_client_emits_delete_failed() -> void:
 	_seed_message("c_orphan", "m_2")
 	await mutations.remove_message("m_2")
+	assert_push_error("No connection for channel")
 	assert_signal_emitted(AppState, "message_delete_failed")
 
 
 func test_remove_message_null_client_returns_false() -> void:
 	_seed_message("c_orphan", "m_2")
 	var ok: bool = await mutations.remove_message("m_2")
+	assert_push_error("No connection for channel")
 	assert_false(ok)
 
 
