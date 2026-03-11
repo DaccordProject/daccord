@@ -18,6 +18,7 @@ var _current_space_id: String = ""
 
 @onready var banner: Control = $VBox/Banner
 @onready var channel_vbox: VBoxContainer = $VBox/ScrollContainer/ChannelVBox
+@onready var channel_skeleton: VBoxContainer = $VBox/ScrollContainer/ChannelVBox/ChannelSkeleton
 @onready var empty_state: VBoxContainer = $VBox/ScrollContainer/ChannelVBox/EmptyState
 
 func _ready() -> void:
@@ -27,6 +28,10 @@ func _ready() -> void:
 	AppState.spaces_updated.connect(_on_spaces_updated)
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 	AppState.channel_selected.connect(_on_app_channel_selected)
+	# Show skeleton immediately if servers are configured but not yet connected
+	if Config.has_servers() and Client.spaces.is_empty():
+		channel_skeleton.visible = true
+		channel_skeleton.reset_shimmer()
 
 func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")
@@ -34,15 +39,30 @@ func _apply_theme() -> void:
 		style.bg_color = ThemeManager.get_color("panel_bg")
 	ThemeManager.apply_font_colors(self)
 
-func load_space(space_id: String) -> void:
-	_current_space_id = space_id
-	# Clear existing (keep the persistent EmptyState node)
+func show_connecting(space_data: Dictionary) -> void:
+	_current_space_id = space_data.get("id", "")
 	for child in channel_vbox.get_children():
-		if child == empty_state:
+		if child == empty_state or child == channel_skeleton:
 			continue
 		child.queue_free()
 	channel_item_nodes.clear()
 	active_channel_id = ""
+	banner.setup(space_data)
+	empty_state.visible = false
+	channel_skeleton.visible = true
+	channel_skeleton.reset_shimmer()
+
+func load_space(space_id: String) -> void:
+	_current_space_id = space_id
+	var was_skeleton: bool = channel_skeleton.visible
+	# Clear existing (keep the persistent EmptyState and ChannelSkeleton nodes)
+	for child in channel_vbox.get_children():
+		if child == empty_state or child == channel_skeleton:
+			continue
+		child.queue_free()
+	channel_item_nodes.clear()
+	active_channel_id = ""
+	channel_skeleton.visible = false
 
 	var space_data := Client.get_space_by_id(space_id)
 	banner.setup(space_data)
@@ -229,6 +249,13 @@ func load_space(space_id: String) -> void:
 	pending_channel_id = ""
 	if select_id != "":
 		_on_channel_pressed(select_id)
+
+	# Fade in channel content when replacing skeleton
+	if was_skeleton and not Config.get_reduced_motion():
+		channel_vbox.modulate.a = 0.0
+		var tween := create_tween()
+		tween.tween_property(channel_vbox, "modulate:a", 1.0, 0.25) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 func _on_channel_pressed(channel_id: String) -> void:
 	# Check if this is a voice channel

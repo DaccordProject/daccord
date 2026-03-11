@@ -72,6 +72,7 @@ var pending_servers: Array:
 						),
 						"icon": "",
 						"disconnected": true,
+						"connecting": conn["status"] == "connecting",
 						"server_index": i,
 					})
 			else:
@@ -82,6 +83,7 @@ var pending_servers: Array:
 					),
 					"icon": "",
 					"disconnected": true,
+					"connecting": false,
 					"server_index": i,
 				})
 		return result

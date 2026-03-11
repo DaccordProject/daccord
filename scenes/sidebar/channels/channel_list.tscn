@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/channels/channel_list.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/channels/banner.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/sidebar/channels/channel_skeleton.tscn" id="3"]
 
 [sub_resource type="StyleBoxFlat" id="channel_panel_bg"]
 bg_color = Color(0.184, 0.192, 0.212, 1)
@@ -41,6 +42,9 @@ horizontal_scroll_mode = 0
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
+
+[node name="ChannelSkeleton" parent="VBox/ScrollContainer/ChannelVBox" instance=ExtResource("3")]
+layout_mode = 2
 
 [node name="EmptyState" type="VBoxContainer" parent="VBox/ScrollContainer/ChannelVBox"]
 visible = false

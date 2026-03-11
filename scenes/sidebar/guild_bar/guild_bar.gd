@@ -133,6 +133,7 @@ func _on_space_pressed(space_id: String) -> void:
 
 func _on_spaces_updated() -> void:
 	var prev_active := active_space_id
+	var had_only_pending: bool = _has_only_pending_icons()
 	for child in space_list.get_children():
 		space_list.remove_child(child)
 		child.queue_free()
@@ -146,6 +147,19 @@ func _on_spaces_updated() -> void:
 			node.set_active_space(prev_active)
 		elif node.has_method("set_active"):
 			node.set_active(true)
+	# Fade in when real spaces replace pending-only icons
+	if had_only_pending and Client.spaces.size() > 0 \
+			and not Config.get_reduced_motion():
+		space_list.modulate.a = 0.0
+		var tween := create_tween()
+		tween.tween_property(space_list, "modulate:a", 1.0, 0.25) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
+func _has_only_pending_icons() -> bool:
+	for id in space_icon_nodes:
+		if not str(id).begins_with("__pending_"):
+			return false
+	return true
 
 func _on_add_server_pressed() -> void:
 	var dialog := AddServerDialogScene.instantiate()

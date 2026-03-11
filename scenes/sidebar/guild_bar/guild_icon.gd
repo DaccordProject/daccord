@@ -23,7 +23,9 @@ var is_active: bool = false
 var _is_hovered: bool = false
 var _has_unread: bool = false
 var _is_disconnected: bool = false
+var _is_connecting: bool = false
 var _server_index: int = -1
+var _pulse_tween: Tween
 
 var _context_menu: PopupMenu
 var _admin_submenu: PopupMenu
@@ -90,11 +92,18 @@ func setup(data: Dictionary) -> void:
 		pill.pill_state = pill.PillState.HIDDEN
 
 	_is_disconnected = data.get("disconnected", false)
+	_is_connecting = data.get("connecting", false)
 	_server_index = data.get("server_index", -1)
 	if _is_disconnected:
 		icon_button.modulate = ThemeManager.get_color("icon_default")
-		icon_button.tooltip_text = space_name + " (Disconnected)"
+		if _is_connecting:
+			icon_button.tooltip_text = space_name + " (Connecting...)"
+			_start_pulse()
+		else:
+			icon_button.tooltip_text = space_name + " (Disconnected)"
+			_stop_pulse()
 	else:
+		_stop_pulse()
 		_update_muted_visual()
 
 func set_active(active: bool) -> void:
@@ -297,9 +306,29 @@ func _on_context_menu_id_pressed(id: int) -> void:
 			Config.set_space_folder(space_id, "")
 			Client.update_space_folder(space_id, "")
 		"Remove Server":
+			var srv_url: String = ""
+			if _is_disconnected and _server_index >= 0:
+				var servers: Array = Config.get_servers()
+				if _server_index < servers.size():
+					srv_url = servers[_server_index].get("base_url", "")
+			else:
+				srv_url = Client.get_base_url_for_space(space_id)
+			var friend_count: int = 0
+			if not srv_url.is_empty():
+				friend_count = Client.relationships \
+					.get_friends_count_for_server(srv_url)
+			var msg: String
+			if friend_count > 0:
+				var plural: String = "s" if friend_count != 1 else ""
+				msg = (
+					"Are you sure you want to remove '%s'?\n\n"
+					+ "You have %d friend%s on this server. "
+					+ "They will become unavailable but remain in your friend book."
+				) % [space_name, friend_count, plural]
+			else:
+				msg = "Are you sure you want to remove '%s' from your server list?" % space_name
 			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-				"Remove Server",
-				"Are you sure you want to remove '%s' from your server list?" % space_name,
+				"Remove Server", msg,
 				"Remove", true, func():
 					if _is_disconnected and _server_index >= 0:
 						Config.remove_server(_server_index)
@@ -363,6 +392,23 @@ func _show_folder_dialog() -> void:
 	)
 	get_tree().root.add_child(dialog)
 	dialog.popup_centered()
+
+func _start_pulse() -> void:
+	if Config.get_reduced_motion():
+		return
+	_stop_pulse()
+	_pulse_tween = create_tween().set_loops()
+	_pulse_tween.tween_property(icon_button, "modulate:a", 0.4, 0.8) \
+		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_pulse_tween.tween_property(icon_button, "modulate:a", 1.0, 0.8) \
+		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+
+func _stop_pulse() -> void:
+	if _pulse_tween:
+		_pulse_tween.kill()
+		_pulse_tween = null
+	if icon_button:
+		icon_button.modulate.a = 1.0
 
 func _apply_theme() -> void:
 	if _is_disconnected:
