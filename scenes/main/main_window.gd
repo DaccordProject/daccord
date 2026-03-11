@@ -202,6 +202,9 @@ func _apply_ui_scale() -> void:
 		scale = _auto_ui_scale()
 	var win := get_window()
 	win.content_scale_factor = scale
+	# On web the browser owns the viewport — skip window resize/reposition.
+	if OS.has_feature("web"):
+		return
 	# Grow/shrink the window to compensate so the effective viewport stays the same.
 	var base_size := Vector2i(
 		ProjectSettings.get_setting("display/window/size/viewport_width"),

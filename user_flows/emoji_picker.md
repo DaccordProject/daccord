@@ -1,6 +1,6 @@
 # Emoji Picker
 
-Last touched: 2026-03-06
+Last touched: 2026-03-11
 Priority: 12
 Depends on: Messaging
 
@@ -167,7 +167,7 @@ Gateway reaction events:
 | `scenes/messages/composer/emoji_picker.tscn` | Picker layout: 352x360px PanelContainer, CategoryBar, SearchInput, 8-column EmojiGrid in ScrollContainer |
 | `scenes/messages/composer/emoji_button_cell.gd` | Individual emoji button: displays texture with skin tone, emits `emoji_selected` on click |
 | `scenes/messages/composer/emoji_button_cell.tscn` | Cell layout: 36x36px flat Button with hover highlight, centered icon |
-| `scripts/emoji_data.gd` | Static catalog: `Category` enum (9 categories), `CATALOG` (~340 entries), lazy-loaded texture cache, skin tone support (`get_texture()`, `get_codepoint_with_tone()`), multi-codepoint `codepoint_to_char()` |
+| `scripts/emoji_data.gd` | Static catalog: `Category` enum (9 categories), `catalog` (~340 entries), lazy-loaded texture cache, skin tone support (`get_texture()`, `get_codepoint_with_tone()`), multi-codepoint `codepoint_to_char()` |
 | `scripts/autoload/client_markdown.gd` | `markdown_to_bbcode()` renders `:name:` shortcodes as inline `[img]` BBCode tags (extracted from `client_models.gd`) |
 | `scripts/autoload/client_models.gd` | Holds `custom_emoji_paths` and `custom_emoji_textures` static dictionaries; `emoji_to_dict()` converts `AccordEmoji` models |
 | `scenes/messages/message_content.gd` | Calls `markdown_to_bbcode()` for emoji rendering, passes `channel_id` and `message_id` to reaction bar |
@@ -191,12 +191,12 @@ Gateway reaction events:
 ### EmojiData Catalog (emoji_data.gd)
 
 - `Category` enum: `SMILEYS`, `PEOPLE`, `NATURE`, `FOOD`, `ACTIVITIES`, `TRAVEL`, `OBJECTS`, `SYMBOLS`, `FLAGS`
-- `CATEGORY_NAMES`: Human-readable names for tooltip text (e.g., "Smileys & Emotion", "People & Body", "Flags")
-- `CATEGORY_ICONS`: Maps each category to its representative codepoint (used as the tab icon). FLAGS uses `1f1fa-1f1f8` (US flag)
-- `CATALOG`: Dictionary mapping each `Category` to an array of `{name, codepoint}` entries. ~56 smileys, ~28 people, ~40 nature, ~40 food, ~36 activities, ~35 travel, ~39 objects, ~34 symbols, ~50 flags (~340 total). This is a curated subset of the ~3600+ Unicode emoji set
+- `category_names`: Human-readable names for tooltip text (e.g., "Smileys & Emotion", "People & Body", "Flags")
+- `category_icons`: Maps each category to its representative codepoint (used as the tab icon). FLAGS uses `1f1fa-1f1f8` (US flag)
+- `catalog`: Dictionary mapping each `Category` to an array of `{name, codepoint}` entries. ~56 smileys, ~28 people, ~40 nature, ~40 food, ~36 activities, ~35 travel, ~39 objects, ~34 symbols, ~50 flags (~340 total). This is a curated subset of the ~3600+ Unicode emoji set
 - `_texture_cache` (static var): Lazily-loaded cache of base emoji textures (keyed by emoji name). Textures are loaded on first access via `get_texture()` instead of preloading all at startup
-- `SKIN_TONE_MODIFIERS`: Array of 6 entries (index 0 = empty/default, 1-5 = skin tone hex codepoints `1f3fb`..`1f3ff`)
-- `SKIN_TONE_EMOJI`: Array of 27 emoji names in the People category that support skin tone variants (all except `handshake`)
+- `skin_tone_modifiers`: Array of 6 entries (index 0 = empty/default, 1-5 = skin tone hex codepoints `1f3fb`..`1f3ff`)
+- `skin_tone_emoji`: Array of 27 emoji names in the People category that support skin tone variants (all except `handshake`)
 - `_skin_tone_textures` (static var): Lazily-loaded cache of skin tone variant textures (keyed by full codepoint like `"1f44d-1f3fb"`)
 - `_name_lookup` (static var): Lazily-built dictionary mapping emoji name to `{name, codepoint}` entry for O(1) lookup
 - `get_texture(emoji_name, tone)`: Returns the texture for the emoji with optional skin tone. Lazy-loads from `res://assets/theme/emoji/` on first access and caches in `_texture_cache` or `_skin_tone_textures`. Returns `null` if the SVG doesn't exist

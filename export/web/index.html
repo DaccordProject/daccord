@@ -22,9 +22,8 @@
 
       #canvas {
         display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
+        width: 100vw;
+        height: 100vh;
       }
 
       #status {
@@ -136,7 +135,13 @@
       /* globals Engine */
 
       const GODOT_CONFIG = $GODOT_CONFIG;
-      GODOT_CONFIG.canvas = document.getElementById("canvas");
+      const canvas = document.getElementById("canvas");
+      GODOT_CONFIG.canvas = canvas;
+
+      // Set canvas pixel buffer to match actual display size before Godot
+      // initializes, so the engine starts at the correct resolution.
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
 
       const statusEl = document.getElementById("status");
       const progressWrap = document.getElementById("status-progress-wrap");

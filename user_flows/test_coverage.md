@@ -1,6 +1,6 @@
 # Test Coverage
 
-Last touched: 2026-03-02
+Last touched: 2026-03-11
 Priority: 38
 Depends on: None
 
@@ -62,6 +62,7 @@ cleanup() --> kill server + rm accord_test.db
 | `tests/unit/test_reaction_pill.gd` | Unit tests for reaction pill setup + optimistic update (7 tests) |
 | `tests/unit/test_dm_channel_item.gd` | Unit tests for DM channel item setup + active state (9 tests) |
 | `tests/unit/test_client_startup.gd` | Smoke tests for Client `_ready()` startup -- sub-module creation, AccordVoiceSession, signal wiring (6 tests) |
+| `tests/unit/test_client_admin.gd` | Unit tests for ClientAdmin -- null-client guard clauses, ban/unban, invite creation, emoji operations, audit log (35 tests) |
 | `tests/unit/test_client.gd` | Unit tests for Client autoload -- data access, routing, permissions, unread tracking (60 tests) |
 | `tests/unit/test_client_gateway.gd` | Unit tests for ClientGateway -- event handlers, cache mutation, signal routing (36 tests) |
 | `tests/unit/test_client_fetch.gd` | Unit tests for ClientFetch -- REST data fetching, cache population, signal emission, error paths (48 tests) |
@@ -97,7 +98,7 @@ cleanup() --> kill server + rm accord_test.db
 | `tests/accordkit/integration/test_messages_api.gd` | REST /messages CRUD + typing (6 tests) |
 | `tests/accordkit/integration/test_members_api.gd` | REST /members endpoints (4 tests) |
 | `tests/accordkit/integration/test_permissions_api.gd` | Server-enforced permission checks (23 tests) |
-| `tests/accordkit/gateway/test_gateway_connect.gd` | WebSocket connect/disconnect lifecycle (3 tests) |
+| `tests/accordkit/gateway/test_gateway_connect.gd` | WebSocket connect/disconnect lifecycle (3 tests) -- disconnect test verifies `disconnected` signal and gateway `_state == DISCONNECTED` |
 | `tests/accordkit/gateway/test_gateway_events.gd` | Real-time gateway event delivery (1 test) |
 | `tests/accordkit/e2e/test_full_lifecycle.gd` | Full login-to-logout lifecycle (1 test) |
 | `tests/accordkit/e2e/test_add_server.gd` | Full invite flow -- create space, create invite, bot accepts, gateway event, REST verify, send message (1 test) |
@@ -174,6 +175,8 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 **test_client_startup.gd** -- 6 smoke tests for the Client `_ready()` startup path. Verifies `ClientVoice` instantiation (the sub-module most likely to break from GDExtension changes), full `_ready()` sub-module creation (ClientGateway, ClientFetch, ClientAdmin, ClientVoice, ClientMutations), AccordVoiceSession GDExtension construction and parent attachment, voice session signal wiring (session_state_changed, peer_joined, peer_left, signal_outgoing -> ClientVoice callbacks), AppState.channel_selected connection, and post-_ready() initial state (CONNECTING mode, empty current_user). Uses `add_child_autofree` to trigger `_ready()`, unlike `test_client.gd` which skips it.
 
+**test_client_admin.gd** -- 35 tests for the `ClientAdmin` autoload. Uses a `StubRest` inner class to intercept REST calls. Tests null-client guard clauses for all admin methods (ban, unban, get_bans, create_invite, get_invites, delete_invite, create_emoji, get_emojis, delete_emoji, get_audit_log, update_channel_overwrites), happy-path routing to the correct AccordClient based on space/channel ID, and success-path side effects including cache updates and signal emissions.
+
 **test_client.gd** -- 60 tests for the Client autoload's pure logic (no network). Tests URL derivation (HTTPS->WSS, HTTP->WS, CDN), cache getters (`get_channels_for_space`, `get_messages_for_channel`, `get_user_by_id`, `get_space_by_id`, `get_members_for_space`, `get_roles_for_space`, `get_message_by_id` with index hit/fallback/miss), routing helpers (`_conn_for_space`, `_client_for_space`, `_cdn_for_space`, `_cdn_for_channel`, `_first_connected_client/cdn`), permission checking (admin bypass, owner bypass, role-based grant/deny, everyone role, no members), unread tracking (`mark_channel_unread` for channels/DMs/mentions, `_on_channel_selected_clear_unread`, `_update_space_unread` aggregation), user cache trimming (below cap no-op, preserves current user + space members), space folder update, connection state helpers (`is_server_connected`, `is_space_connected`, `get_space_connection_status`), and `_find_channel_for_message` (indexed/fallback/miss). Uses `load().new()` without `add_child` to skip `_ready()` and avoid AccordVoiceSession dependency.
 
 **test_client_gateway.gd** -- 36 tests for ClientGateway event handlers. Calls `on_*` methods directly with `AccordMessage.from_dict()` etc. Tests message create (append, index update, bucket creation, MESSAGE_CAP eviction, unread marking), message update (in-place replacement), message delete (single + bulk), typing (signal emission, own-user skip), presence/user updates (user cache status, member cache status, current_user update), space CRUD (preserves unread/mentions/folder on update, delete removes, create adds), channel CRUD (text vs DM, preserves unread/voice_users on update), role CRUD (create/update/delete), reactions via `gw._reactions` (add new emoji, increment existing, active flag for current user, remove decrement, remove at zero, clear all, clear specific emoji), voice state via `gw._events` (add user, move user between channels), and gateway lifecycle (reconnected sets status, disconnected non-fatal).
@@ -229,7 +232,7 @@ Six test files, all extending `AccordTestBase`:
 
 ### AccordKit Gateway Tests (`tests/accordkit/gateway/`)
 
-- **test_gateway_connect.gd** (3 tests) -- Bot and user connect, poll for `ready_received` signal (up to 10s with 0.1s timer), verify `ready_data` contains `user` or `session_id`, clean disconnect.
+- **test_gateway_connect.gd** (3 tests) -- Bot and user connect, poll for `ready_received` signal (up to 15s with 0.1s timer), verify `ready_data` contains `user` or `session_id`. Disconnect test uses `watch_signals()` and `assert_signal_emitted()` to verify the `disconnected` signal fires, plus `assert_eq` to verify gateway `_state == GatewaySocket.State.DISCONNECTED`.
 - **test_gateway_events.gd** (1 test) -- Bot connects, user sends message via REST, bot waits up to 5s for `message_create` signal with matching content and channel_id.
 
 ### AccordKit E2E Tests (`tests/accordkit/e2e/`)
@@ -256,13 +259,13 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 30 | 599 | No |
+| Unit (`tests/unit/`) | 31 | 634 | No |
 | AccordKit unit (`tests/accordkit/unit/`) | 11 | 129 | No |
 | AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
 | AccordKit e2e (`tests/accordkit/e2e/`) | 3 | 7 | Yes |
 | LiveKit (`tests/livekit/unit/`) | 1 | 10 | No |
-| **Total** | **53** | **796** | |
+| **Total** | **54** | **831** | |
 
 ## Implementation Status
 
@@ -301,6 +304,7 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - [x] LiveKit adapter unit tests -- state machine, mute/deafen, signals (10 tests)
 - [x] Unit tests for Client autoload -- data access, routing, permissions, unread (60 tests)
 - [x] Unit tests for ClientGateway -- event dispatch, cache mutation (36 tests)
+- [x] Unit tests for ClientAdmin -- null-client guard clauses, ban/unban, invite, emoji, audit log (35 tests)
 - [x] Unit tests for ClientFetch -- REST data fetching, cache population, error paths (48 tests)
 - [x] Unit tests for channel_item sidebar component (15 tests)
 - [x] Unit tests for category_item sidebar component (10 tests)
@@ -327,11 +331,11 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Notes:** `tests/unit/test_client_fetch.gd` -- 48 tests covering all public methods. Uses StubRest to intercept REST calls.
 
 ### TEST-2: No tests for `ClientAdmin`
-- **Status:** open
+- **Status:** closed
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** testing
-- **Notes:** `scripts/autoload/client_admin.gd` handles admin operations. No unit tests.
+- **Notes:** Resolved: `tests/unit/test_client_admin.gd` -- 35 tests covering null-client guard clauses for all admin methods, plus happy-path routing and signal emission for ban, unban, create_invite, create_emoji, and audit log.
 
 ### TEST-3: No tests for `ClientMutations`
 - **Status:** open
@@ -404,11 +408,11 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Notes:** `.github/workflows/ci.yml` gateway + e2e step runs with `continue-on-error: true` (line 330). LiveKit tests also use `continue-on-error: true` (line 141). AccordKit unit and REST integration tests are blocking.
 
 ### TEST-13: `test_disconnect_clean_state` is a smoke test
-- **Status:** open
+- **Status:** closed
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** gateway, testing
-- **Notes:** `tests/accordkit/gateway/test_gateway_connect.gd` -- the disconnect test just asserts `true` after logout; does not verify internal connection state.
+- **Notes:** Resolved: `test_disconnect_clean_state` now uses `watch_signals()` and `assert_signal_emitted()` to verify the `disconnected` signal fires, plus `assert_eq` to verify gateway `_state == GatewaySocket.State.DISCONNECTED`.
 
 ### TEST-14: No mock/stub/double usage
 - **Status:** open
