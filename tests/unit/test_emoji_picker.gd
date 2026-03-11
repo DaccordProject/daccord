@@ -86,9 +86,10 @@ func test_search_changed_smile_populates_grid() -> void:
 	picker._current_category = EmojiData.Category.SMILEYS
 	picker._is_recent_selected = false
 	picker._is_custom_selected = false
-	picker._on_search_changed("smile")
+	# "smil" matches "smiling_eyes", "slightly_smiling", etc.
+	picker._on_search_changed("smil")
 	await get_tree().process_frame
-	# "smile" should match at least one emoji
+	# "smil" should match at least one emoji
 	assert_true(picker.emoji_grid.get_child_count() > 0)
 
 
