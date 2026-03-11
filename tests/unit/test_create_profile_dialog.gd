@@ -78,28 +78,28 @@ func test_empty_name_does_not_emit_signal() -> void:
 
 # --- validation: name too long ---
 
-func test_name_too_long_shows_error() -> void:
+func test_name_too_long_truncated_by_line_edit() -> void:
+	# LineEdit has max_length=32, so setting 33 chars gets truncated
 	dialog._name_input.text = "a".repeat(33)
-	dialog._on_create()
-	await get_tree().process_frame
-	assert_true(dialog._error_label.visible)
-	assert_string_contains(dialog._error_label.text, "32")
+	assert_eq(dialog._name_input.text.length(), 32,
+		"LineEdit should truncate to max_length")
 
 
-func test_name_at_max_length_clears_error_path() -> void:
-	# 32 chars is valid — error label should NOT be shown for length reason
-	# (may still fail later if Config.profiles is called, but validation passes)
+func test_name_at_max_length_accepted() -> void:
+	# 32 chars is valid — the length validation in _on_create should not trigger
 	dialog._name_input.text = "a".repeat(32)
-	# No password — would pass length validation
-	# We only assert the length error is NOT triggered
+	assert_eq(dialog._name_input.text.length(), 32)
 	dialog._error_label.visible = false
 	dialog._on_create()
-	await get_tree().process_frame
+	# Error may show for other reasons (Config.profiles not available in test),
+	# but NOT for the length reason
 	if dialog._error_label.visible:
 		assert_false(
 			dialog._error_label.text.contains("32"),
 			"A 32-char name should not trigger the length error"
 		)
+	else:
+		pass_test("No error shown for valid-length name")
 
 
 # --- validation: password mismatch ---
