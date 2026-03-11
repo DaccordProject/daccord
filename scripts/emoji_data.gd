@@ -8,20 +8,28 @@ enum Category { SMILEYS, PEOPLE, NATURE, FOOD, ACTIVITIES, TRAVEL, OBJECTS, SYMB
 
 static var _catalog_res: EmojiCatalog = preload("res://scripts/emoji_catalog.tres")
 
-static var CATEGORY_NAMES: Dictionary:
+static var category_names: Dictionary:
 	get:
 		_ensure_initialized()
 		return _category_names
 
-static var CATEGORY_ICONS: Dictionary:
+static var category_icons: Dictionary:
 	get:
 		_ensure_initialized()
 		return _category_icons
 
-static var CATALOG: Dictionary:
+static var catalog: Dictionary:
 	get:
 		_ensure_initialized()
 		return _catalog
+
+# Skin tone modifier codepoints (index matches Config value: 0=none, 1-5=tones)
+static var skin_tone_modifiers: PackedStringArray:
+	get: return _catalog_res.skin_tone_modifiers
+
+# Emoji names that support skin tone modifiers
+static var skin_tone_emoji: PackedStringArray:
+	get: return _catalog_res.skin_tone_emoji
 
 static var _category_names: Dictionary = {}
 static var _category_icons: Dictionary = {}
@@ -50,14 +58,6 @@ static func _ensure_initialized() -> void:
 			"name": _catalog_res.names[i],
 			"codepoint": _catalog_res.codepoints[i],
 		})
-
-# Skin tone modifier codepoints (index matches Config value: 0=none, 1-5=tones)
-static var SKIN_TONE_MODIFIERS: PackedStringArray:
-	get: return _catalog_res.skin_tone_modifiers
-
-# Emoji names that support skin tone modifiers
-static var SKIN_TONE_EMOJI: PackedStringArray:
-	get: return _catalog_res.skin_tone_emoji
 
 static func _build_name_lookup() -> void:
 	_ensure_initialized()

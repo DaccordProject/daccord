@@ -62,21 +62,21 @@ func _build_category_bar() -> void:
 		_custom_btn.pressed.connect(_on_custom_category_pressed)
 		category_bar.add_child(_custom_btn)
 
-	for cat in EmojiData.CATEGORY_ICONS:
+	for cat in EmojiData.category_icons:
 		var btn := Button.new()
 		btn.flat = true
 		btn.custom_minimum_size = Vector2(36, 36)
 		btn.expand_icon = true
-		var icon_name: String = EmojiData.CATEGORY_ICONS[cat]
+		var icon_name: String = EmojiData.category_icons[cat]
 		# Find the emoji name for this codepoint to get its texture
 		var tex: Texture2D = null
-		for entry in EmojiData.CATALOG[cat]:
+		for entry in EmojiData.catalog[cat]:
 			if entry["codepoint"] == icon_name:
 				tex = EmojiData.get_texture(entry["name"])
 				break
 		if tex:
 			btn.icon = tex
-		btn.tooltip_text = EmojiData.CATEGORY_NAMES[cat]
+		btn.tooltip_text = EmojiData.category_names[cat]
 		btn.pressed.connect(_on_category_pressed.bind(cat))
 		category_bar.add_child(btn)
 		_category_buttons[cat] = btn
@@ -236,8 +236,8 @@ func _on_search_changed(query: String) -> void:
 			_load_category(_current_category)
 		return
 	# Search built-in emoji
-	for cat in EmojiData.CATALOG:
-		for entry in EmojiData.CATALOG[cat]:
+	for cat in EmojiData.catalog:
+		for entry in EmojiData.catalog[cat]:
 			if entry["name"].to_lower().contains(lower_query):
 				_add_emoji_cell(entry)
 	# Also search cached custom emoji
