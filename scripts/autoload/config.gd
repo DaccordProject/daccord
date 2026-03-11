@@ -291,6 +291,62 @@ func remove_server(index: int) -> void:
 	_config.set_value("servers", "count", count - 1)
 	_save()
 
+## --- Friend book (local persistence of relationships) ---
+
+func get_friend_book() -> Array:
+	var count: int = _config.get_value("friend_book", "count", 0)
+	var entries: Array = []
+	for i in count:
+		var section := "friend_book_%d" % i
+		entries.append({
+			"user_id": _config.get_value(section, "user_id", ""),
+			"display_name": _config.get_value(section, "display_name", ""),
+			"username": _config.get_value(section, "username", ""),
+			"avatar_hash": _config.get_value(section, "avatar_hash", ""),
+			"server_url": _config.get_value(section, "server_url", ""),
+			"space_name": _config.get_value(section, "space_name", ""),
+			"since": _config.get_value(section, "since", ""),
+			"type": _config.get_value(section, "type", 1),
+			"last_synced": _config.get_value(section, "last_synced", ""),
+		})
+	return entries
+
+func save_friend_book(entries: Array) -> void:
+	# Erase existing sections
+	var old_count: int = _config.get_value("friend_book", "count", 0)
+	for i in old_count:
+		var section := "friend_book_%d" % i
+		if _config.has_section(section):
+			_config.erase_section(section)
+	# Write new entries
+	for i in entries.size():
+		var section := "friend_book_%d" % i
+		var entry: Dictionary = entries[i]
+		_config.set_value(section, "user_id", entry.get("user_id", ""))
+		_config.set_value(section, "display_name", entry.get("display_name", ""))
+		_config.set_value(section, "username", entry.get("username", ""))
+		_config.set_value(section, "avatar_hash", entry.get("avatar_hash", ""))
+		_config.set_value(section, "server_url", entry.get("server_url", ""))
+		_config.set_value(section, "space_name", entry.get("space_name", ""))
+		_config.set_value(section, "since", entry.get("since", ""))
+		_config.set_value(section, "type", entry.get("type", 1))
+		_config.set_value(section, "last_synced", entry.get("last_synced", ""))
+	_config.set_value("friend_book", "count", entries.size())
+	_save()
+
+func remove_friend_from_book(server_url: String, user_id: String) -> void:
+	var entries: Array = get_friend_book()
+	var filtered: Array = entries.filter(func(e):
+		return e["server_url"] != server_url or e["user_id"] != user_id
+	)
+	if filtered.size() != entries.size():
+		save_friend_book(filtered)
+
+func get_friend_book_for_server(server_url: String) -> Array:
+	return get_friend_book().filter(func(e):
+		return e["server_url"] == server_url
+	)
+
 func update_server_token(index: int, new_token: String) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
 	if index < 0 or index >= count:

@@ -460,7 +460,17 @@ func disconnect_server(space_id: String) -> void:
 	# If user is in voice on this server, leave
 	if AppState.voice_space_id == space_id:
 		AppState.leave_voice()
+	# Sync friend book before losing the connection data
+	if _c.relationships != null:
+		_c.relationships._sync_to_friend_book()
 	var conn = _c._connections[idx]
+	# Clean up relationship cache entries for this connection
+	var rel_keys_to_remove: Array = []
+	for key in _c._relationship_cache:
+		if key.begins_with(str(idx) + ":"):
+			rel_keys_to_remove.append(key)
+	for key in rel_keys_to_remove:
+		_c._relationship_cache.erase(key)
 	# Null the slot first so gateway disconnect handlers see null and
 	# bail out instead of triggering reconnection / banner signals.
 	_c._connections[idx] = null

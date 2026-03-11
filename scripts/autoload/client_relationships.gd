@@ -19,13 +19,19 @@ func fetch_relationships() -> void:
 		if client == null:
 			continue
 		var cdn: String = conn.get("cdn_url", "")
+		var cfg: Dictionary = conn.get("config", {})
+		var srv_url: String = cfg.get("base_url", "")
+		var sp_name: String = cfg.get("space_name", "")
 		var result: RestResult = await client.users.list_relationships()
 		if result.ok and result.data is Array:
 			for rel in result.data:
 				if rel is AccordRelationship:
-					var d: Dictionary = ClientModels.relationship_to_dict(rel, cdn)
+					var d: Dictionary = ClientModels.relationship_to_dict(
+						rel, cdn, srv_url, sp_name
+					)
 					var key: String = str(i) + ":" + d["user"].get("id", "")
 					_c._relationship_cache[key] = d
+	_sync_to_friend_book()
 	AppState.relationships_updated.emit()
 
 func get_relationship(user_id: String) -> Variant:
@@ -43,7 +49,27 @@ func is_user_blocked(user_id: String) -> bool:
 	return false
 
 func get_friends() -> Array:
-	return _c._relationship_cache.values().filter(func(r): return r["type"] == 1)
+	var live: Array = _c._relationship_cache.values().filter(
+		func(r): return r["type"] == 1
+	)
+	# Build set of live friend keys (server_url:user_id)
+	var live_keys: Dictionary = {}
+	for rel in live:
+		var key: String = rel.get("server_url", "") + ":" + rel["user"].get("id", "")
+		live_keys[key] = true
+	# Merge unavailable friends from the local book
+	var book: Array = Config.get_friend_book()
+	for entry in book:
+		if entry.get("type", 1) != 1:
+			continue
+		var key: String = entry["server_url"] + ":" + entry["user_id"]
+		if live_keys.has(key):
+			continue
+		# Server still connected means friend was removed server-side
+		if _is_server_connected(entry["server_url"]):
+			continue
+		live.append(ClientModels.friend_book_entry_to_dict(entry))
+	return live
 
 func get_blocked() -> Array:
 	return _c._relationship_cache.values().filter(func(r): return r["type"] == 2)
@@ -131,3 +157,95 @@ func unblock_user(user_id: String) -> RestResult:
 
 func remove_friend(user_id: String) -> RestResult:
 	return await decline_friend_request(user_id)
+
+## Sync live type-1 relationships into the local friend book.
+## Entries for connected servers are upserted; entries for
+## disconnected servers are left untouched.
+func _sync_to_friend_book() -> void:
+	var book: Array = Config.get_friend_book()
+	# Index existing book by composite key
+	var book_index: Dictionary = {}
+	for i in book.size():
+		var e: Dictionary = book[i]
+		book_index[e["server_url"] + ":" + e["user_id"]] = i
+	# Collect connected server URLs
+	var connected_urls: Dictionary = {}
+	for conn in _c._connections:
+		if conn != null and conn.get("status", "") == "connected":
+			var url: String = conn.get("config", {}).get("base_url", "")
+			if not url.is_empty():
+				connected_urls[url] = true
+	# Upsert live friends
+	var live_keys: Dictionary = {}
+	var now: String = Time.get_datetime_string_from_system(true)
+	for rel in _c._relationship_cache.values():
+		if rel.get("type", 0) != 1:
+			continue
+		var srv: String = rel.get("server_url", "")
+		var uid: String = rel["user"].get("id", "")
+		if srv.is_empty() or uid.is_empty():
+			continue
+		var key: String = srv + ":" + uid
+		live_keys[key] = true
+		var entry := {
+			"user_id": uid,
+			"display_name": rel["user"].get("display_name", ""),
+			"username": rel["user"].get("username", ""),
+			"avatar_hash": _extract_avatar_hash(rel["user"].get("avatar")),
+			"server_url": srv,
+			"space_name": rel.get("space_name", ""),
+			"since": rel.get("since", ""),
+			"type": 1,
+			"last_synced": now,
+		}
+		if book_index.has(key):
+			book[book_index[key]] = entry
+		else:
+			book.append(entry)
+			book_index[key] = book.size() - 1
+	# Remove entries whose server IS connected but are no longer live
+	# (i.e. the user was unfriended on the server)
+	var filtered: Array = []
+	for entry in book:
+		var key: String = entry["server_url"] + ":" + entry["user_id"]
+		var server_connected: bool = connected_urls.has(entry["server_url"])
+		if server_connected and not live_keys.has(key):
+			continue # unfriended
+		filtered.append(entry)
+	Config.save_friend_book(filtered)
+
+static func _extract_avatar_hash(avatar_value) -> String:
+	if avatar_value == null:
+		return ""
+	var s: String = str(avatar_value)
+	# If it's a full URL, extract just the hash/filename
+	var slash_idx: int = s.rfind("/")
+	if slash_idx != -1:
+		s = s.substr(slash_idx + 1)
+	var dot_idx: int = s.rfind(".")
+	if dot_idx != -1:
+		s = s.substr(0, dot_idx)
+	return s
+
+func _is_server_connected(server_url: String) -> bool:
+	for conn in _c._connections:
+		if conn != null and conn.get("status", "") == "connected":
+			if conn.get("config", {}).get("base_url", "") == server_url:
+				return true
+	return false
+
+func get_friends_count_for_server(server_url: String) -> int:
+	var count: int = 0
+	for rel in _c._relationship_cache.values():
+		if rel.get("type", 0) == 1 and rel.get("server_url", "") == server_url:
+			count += 1
+	# Also count book entries for this server (in case already disconnected)
+	if not _is_server_connected(server_url):
+		for entry in Config.get_friend_book_for_server(server_url):
+			if entry.get("type", 1) == 1:
+				count += 1
+	return count
+
+func remove_unavailable_friend(server_url: String, user_id: String) -> void:
+	Config.remove_friend_from_book(server_url, user_id)
+	AppState.relationships_updated.emit()

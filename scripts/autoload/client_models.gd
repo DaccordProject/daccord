@@ -228,7 +228,8 @@ static func user_to_dict(
 	}
 
 static func relationship_to_dict(
-	rel: AccordRelationship, cdn_url: String = ""
+	rel: AccordRelationship, cdn_url: String = "",
+	server_url: String = "", space_name: String = "",
 ) -> Dictionary:
 	var user_dict: Dictionary = {}
 	if rel.user != null:
@@ -244,6 +245,41 @@ static func relationship_to_dict(
 		"user": user_dict,
 		"type": rel.type,
 		"since": rel.since,
+		"server_url": server_url,
+		"space_name": space_name,
+		"available": true,
+	}
+
+## Build a relationship dict from a local friend book entry (unavailable friend).
+static func friend_book_entry_to_dict(entry: Dictionary) -> Dictionary:
+	var user_id: String = entry.get("user_id", "")
+	var user_dict := {
+		"id": user_id,
+		"display_name": entry.get("display_name", "Unknown"),
+		"username": entry.get("username", "unknown"),
+		"color": _color_from_id(user_id),
+		"status": ClientModels.UserStatus.OFFLINE,
+		"avatar": null,
+		"is_admin": false,
+		"bio": "",
+		"banner": null,
+		"accent_color": 0,
+		"flags": 0,
+		"public_flags": 0,
+		"created_at": "",
+		"bot": false,
+		"mfa_enabled": false,
+		"client_status": {},
+		"activities": [],
+	}
+	return {
+		"id": "",
+		"user": user_dict,
+		"type": entry.get("type", 1),
+		"since": entry.get("since", ""),
+		"server_url": entry.get("server_url", ""),
+		"space_name": entry.get("space_name", ""),
+		"available": false,
 	}
 
 static func space_to_dict(

@@ -8,6 +8,7 @@ signal dm_opened(channel_id: String)
 const FriendItemScene := preload("res://scenes/sidebar/direct/friend_item.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const AddFriendDialogScene := preload("res://scenes/sidebar/direct/add_friend_dialog.tscn")
+const AddServerDialogScene := preload("res://scenes/sidebar/guild_bar/add_server_dialog.tscn")
 
 # Filter tab indices
 const TAB_ALL := 0
@@ -116,6 +117,11 @@ func _refresh() -> void:
 
 func _sort_by_name(arr: Array) -> void:
 	arr.sort_custom(func(a, b):
+		# Available friends sort before unavailable
+		var a_avail: bool = a.get("available", true)
+		var b_avail: bool = b.get("available", true)
+		if a_avail != b_avail:
+			return a_avail # true < false = available first
 		var na: String = a["user"].get("display_name", "").to_lower()
 		var nb: String = b["user"].get("display_name", "").to_lower()
 		return na < nb
@@ -142,6 +148,8 @@ func _add_friend_item(rel: Dictionary) -> void:
 	item.decline_pressed.connect(_on_decline_pressed)
 	item.cancel_pressed.connect(_on_cancel_pressed)
 	item.unblock_pressed.connect(_on_unblock_pressed)
+	item.rejoin_pressed.connect(_on_rejoin_pressed)
+	item.remove_local_pressed.connect(_on_remove_local_pressed)
 
 func _get_filtered_rels() -> Array:
 	match _current_tab:
@@ -197,6 +205,24 @@ func _on_cancel_pressed(user_id: String) -> void:
 
 func _on_unblock_pressed(user_id: String) -> void:
 	Client.relationships.unblock_user(user_id)
+
+func _on_rejoin_pressed(server_url: String, space_name: String) -> void:
+	var prefill: String = server_url
+	if not space_name.is_empty():
+		prefill += "#" + space_name
+	var dialog: Node = DialogHelper.open(AddServerDialogScene, get_tree())
+	# open_prefilled must be called after _ready, and DialogHelper.open adds
+	# to tree synchronously, so it's safe to call immediately.
+	if dialog.has_method("open_prefilled"):
+		dialog.open_prefilled(prefill)
+
+func _on_remove_local_pressed(server_url: String, user_id: String) -> void:
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+		"Remove Friend",
+		"Remove this friend from your local friend book? This cannot be undone.",
+		"Remove", true, func():
+			Client.relationships.remove_unavailable_friend(server_url, user_id)
+	)
 
 func _display_name_for(user_id: String) -> String:
 	var rel = Client.relationships.get_relationship(user_id)

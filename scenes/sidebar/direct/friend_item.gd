@@ -7,6 +7,8 @@ signal accept_pressed(user_id: String)
 signal decline_pressed(user_id: String)
 signal cancel_pressed(user_id: String)
 signal unblock_pressed(user_id: String)
+signal rejoin_pressed(server_url: String, space_name: String)
+signal remove_local_pressed(server_url: String, user_id: String)
 
 # RelationshipType enum (mirrors AccordRelationship)
 const FRIEND := 1
@@ -20,6 +22,7 @@ var _rel_data: Dictionary = {}
 @onready var info_box: VBoxContainer = $InfoBox
 @onready var name_label: Label = $InfoBox/NameLabel
 @onready var status_label: Label = $InfoBox/StatusLabel
+@onready var server_tag: Label = $InfoBox/ServerTag
 @onready var activity_label: Label = $InfoBox/ActivityLabel
 @onready var action_box: HBoxContainer = $ActionBox
 
@@ -37,6 +40,9 @@ func setup(data: Dictionary) -> void:
 	var user: Dictionary = data.get("user", {})
 	var rel_type: int = data.get("type", 0)
 	var dname: String = user.get("display_name", "Unknown")
+	var is_available: bool = data.get("available", true)
+	var srv_url: String = data.get("server_url", "")
+	var sp_name: String = data.get("space_name", "")
 
 	name_label.text = dname
 	tooltip_text = dname
@@ -44,42 +50,60 @@ func setup(data: Dictionary) -> void:
 	# Avatar
 	avatar.setup_from_dict(user)
 
+	# Server tag (show for all friends that have server info)
+	server_tag.visible = false
+	if not sp_name.is_empty():
+		server_tag.text = "from %s" % sp_name
+		server_tag.visible = true
+		server_tag.add_theme_font_size_override("font_size", 11)
+		server_tag.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
+		)
+
 	# Status line
 	var since_str: String = data.get("since", "")
-	match rel_type:
-		FRIEND:
-			var status: int = user.get("status", ClientModels.UserStatus.OFFLINE)
-			var status_text: String = ClientModels.status_label(status)
-			var since_formatted: String = _format_since(since_str)
-			if not since_formatted.is_empty():
-				status_text += " · Friends since " + since_formatted
-			status_label.text = status_text
-			status_label.add_theme_color_override(
-				"font_color", ClientModels.status_color(status)
-			)
-		BLOCKED:
-			var blocked_text := "Blocked"
-			var since_formatted: String = _format_since(since_str)
-			if not since_formatted.is_empty():
-				blocked_text += " · Since " + since_formatted
-			status_label.text = blocked_text
-			status_label.add_theme_color_override(
-				"font_color", ThemeManager.get_color("text_muted")
-			)
-		PENDING_INCOMING:
-			status_label.text = "Incoming Friend Request"
-			status_label.add_theme_color_override(
-				"font_color", ThemeManager.get_color("text_muted")
-			)
-		PENDING_OUTGOING:
-			status_label.text = "Outgoing Friend Request"
-			status_label.add_theme_color_override(
-				"font_color", ThemeManager.get_color("text_muted")
-			)
+	if not is_available:
+		# Unavailable friend from disconnected server
+		var host: String = _extract_host(srv_url)
+		status_label.text = "Unavailable · %s on %s" % [sp_name, host]
+		status_label.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
+		)
+	else:
+		match rel_type:
+			FRIEND:
+				var status: int = user.get("status", ClientModels.UserStatus.OFFLINE)
+				var status_text: String = ClientModels.status_label(status)
+				var since_formatted: String = _format_since(since_str)
+				if not since_formatted.is_empty():
+					status_text += " · Friends since " + since_formatted
+				status_label.text = status_text
+				status_label.add_theme_color_override(
+					"font_color", ClientModels.status_color(status)
+				)
+			BLOCKED:
+				var blocked_text := "Blocked"
+				var since_formatted: String = _format_since(since_str)
+				if not since_formatted.is_empty():
+					blocked_text += " · Since " + since_formatted
+				status_label.text = blocked_text
+				status_label.add_theme_color_override(
+					"font_color", ThemeManager.get_color("text_muted")
+				)
+			PENDING_INCOMING:
+				status_label.text = "Incoming Friend Request"
+				status_label.add_theme_color_override(
+					"font_color", ThemeManager.get_color("text_muted")
+				)
+			PENDING_OUTGOING:
+				status_label.text = "Outgoing Friend Request"
+				status_label.add_theme_color_override(
+					"font_color", ThemeManager.get_color("text_muted")
+				)
 
-	# Activity line (FRIEND only)
+	# Activity line (FRIEND only, available only)
 	activity_label.visible = false
-	if rel_type == FRIEND:
+	if rel_type == FRIEND and is_available:
 		var activities: Array = user.get("activities", [])
 		if activities.size() > 0:
 			var act_text: String = ClientModels.format_activity(activities[0])
@@ -87,26 +111,38 @@ func setup(data: Dictionary) -> void:
 				activity_label.text = act_text
 				activity_label.visible = true
 
-	# Lazy-load mutual friend count for friends
+	# Lazy-load mutual friend count for available friends
 	var user_id: String = user.get("id", "")
-	if rel_type == FRIEND and not user_id.is_empty():
+	if rel_type == FRIEND and is_available and not user_id.is_empty():
 		_fetch_mutual_count(user_id)
+
+	# Grey out unavailable friends
+	if not is_available:
+		modulate.a = 0.5
 
 	# Rebuild action buttons
 	for child in action_box.get_children():
 		child.queue_free()
-	match rel_type:
-		FRIEND:
-			_add_action_btn("Message", func(): message_pressed.emit(user_id))
-			_add_action_btn("Remove", func(): remove_pressed.emit(user_id))
-			_add_action_btn("Block", func(): block_pressed.emit(user_id))
-		BLOCKED:
-			_add_action_btn("Unblock", func(): unblock_pressed.emit(user_id))
-		PENDING_INCOMING:
-			_add_action_btn("Accept", func(): accept_pressed.emit(user_id))
-			_add_action_btn("Decline", func(): decline_pressed.emit(user_id))
-		PENDING_OUTGOING:
-			_add_action_btn("Cancel", func(): cancel_pressed.emit(user_id))
+	if not is_available:
+		_add_action_btn("Rejoin Server", func():
+			rejoin_pressed.emit(srv_url, sp_name)
+		)
+		_add_action_btn("Remove", func():
+			remove_local_pressed.emit(srv_url, user_id)
+		)
+	else:
+		match rel_type:
+			FRIEND:
+				_add_action_btn("Message", func(): message_pressed.emit(user_id))
+				_add_action_btn("Remove", func(): remove_pressed.emit(user_id))
+				_add_action_btn("Block", func(): block_pressed.emit(user_id))
+			BLOCKED:
+				_add_action_btn("Unblock", func(): unblock_pressed.emit(user_id))
+			PENDING_INCOMING:
+				_add_action_btn("Accept", func(): accept_pressed.emit(user_id))
+				_add_action_btn("Decline", func(): decline_pressed.emit(user_id))
+			PENDING_OUTGOING:
+				_add_action_btn("Cancel", func(): cancel_pressed.emit(user_id))
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed \
@@ -159,3 +195,15 @@ func _add_action_btn(label: String, callback: Callable) -> void:
 		callback.call()
 	)
 	action_box.add_child(btn)
+
+static func _extract_host(url: String) -> String:
+	var s: String = url
+	# Strip protocol
+	var proto_idx: int = s.find("://")
+	if proto_idx != -1:
+		s = s.substr(proto_idx + 3)
+	# Strip path
+	var slash_idx: int = s.find("/")
+	if slash_idx != -1:
+		s = s.substr(0, slash_idx)
+	return s

@@ -4,6 +4,8 @@ var component: VBoxContainer
 
 
 func before_each() -> void:
+	# Clear friend book to isolate tests
+	Config.save_friend_book([])
 	component = load("res://scenes/sidebar/direct/friends_list.tscn").instantiate()
 	add_child(component)
 	await get_tree().process_frame

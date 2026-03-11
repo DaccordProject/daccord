@@ -62,6 +62,8 @@ func before_each() -> void:
 	}
 	client._user_cache["me_1"] = client.current_user
 	rel_obj = client.relationships
+	# Clear friend book to isolate tests
+	Config.save_friend_book([])
 	watch_signals(AppState)
 
 
