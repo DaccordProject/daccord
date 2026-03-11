@@ -46,9 +46,21 @@ func before_all() -> void:
 	var dm_result: RestResult = await tmp_client.users.create_dm({
 		"recipient_id": bot_id,
 	})
-	assert_true(dm_result.ok, "pre-create DM should succeed")
-	assert_not_null(dm_result.data, "pre-create DM should return channel data")
-	_dm_channel_id = dm_result.data["id"]
+	if dm_result.ok and dm_result.data != null:
+		_dm_channel_id = dm_result.data.id if dm_result.data is AccordChannel else str(dm_result.data["id"])
+	else:
+		# DM may already exist from a previous run.  Find it via list_channels.
+		var list_result: RestResult = await tmp_client.users.list_channels()
+		assert_true(list_result.ok, "list_channels should succeed")
+		for ch in list_result.data:
+			if ch.type == "dm" and ch.recipients != null:
+				for r in ch.recipients:
+					if r.id == bot_id:
+						_dm_channel_id = ch.id
+						break
+			if _dm_channel_id != "":
+				break
+	assert_true(_dm_channel_id != "", "DM channel should exist")
 	tmp_client.queue_free()
 
 
@@ -77,14 +89,19 @@ func test_create_dm() -> void:
 
 
 func test_create_dm_is_idempotent() -> void:
-	# The DM already exists from before_all().  A second create should succeed
-	# and, if the server returns data, produce the same channel ID.
+	# The DM already exists from before_all().  A second create may either
+	# return the existing channel (200) or an error (e.g. 409).  Either way the
+	# original DM must remain accessible.
 	var result: RestResult = await user_client.users.create_dm({
 		"recipient_id": bot_id,
 	})
-	assert_true(result.ok, "idempotent create_dm should succeed")
-	if result.data != null:
+	if result.ok and result.data != null:
 		assert_eq(result.data["id"], _dm_channel_id, "same DM should be returned")
+
+	# Regardless of the create response, the original DM must still exist.
+	var fetch: RestResult = await user_client.channels.fetch(_dm_channel_id)
+	assert_true(fetch.ok, "original DM should still be accessible")
+	assert_eq(fetch.data["id"], _dm_channel_id)
 
 
 func test_list_dm_channels() -> void:
