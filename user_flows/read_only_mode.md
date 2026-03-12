@@ -15,7 +15,7 @@ Most chat platforms are walled gardens -- you must create an account before you 
 
 ### Shareable URLs for the web
 
-The web export produces a hosted version of daccord that runs in any modern browser. Read only mode means a server admin can share a URL like `https://chat.example.com/#general` and anyone who clicks it lands directly in the channel, reading messages immediately. No download, no account, no friction. This turns every public channel into a webpage anyone can visit.
+The web export produces a hosted version of daccord that runs in any modern browser, pre-configured with a [preset server](web_export.md#preset-servers) so visitors auto-connect as guests instantly. A server admin can share a URL like `https://chat.example.com/#general` and anyone who clicks it lands directly in the channel, reading messages immediately. No download, no account, no login dialog, no friction. This turns every public channel into a webpage anyone can visit.
 
 ### Forums and SEO
 
@@ -31,7 +31,7 @@ Read only mode lets you open your community's doors to the public internet. You 
 
 ### For developers (technical summary)
 
-The client authenticates with a short-lived guest token from `POST /auth/guest`, scoped to channels with `allow_anonymous_read: true`. The guest connection is transient (not persisted to Config), uses a reduced gateway intent set, and all write operations are blocked both client-side (UI disabled) and server-side (token lacks write permissions). Upgrading to a full account replaces the guest token in-place without reconnecting from scratch. The web export serves the client as static WASM/HTML that connects to the same accordserver REST + WebSocket APIs as the desktop client.
+On web, each deployment is configured with a **preset server** (`window.daccordPresetServer` in the HTML shell) that the client auto-connects to as a guest. The client authenticates with a short-lived guest token from `POST /auth/guest`, scoped to channels with `allow_anonymous_read: true`. The guest connection is transient (not persisted to Config), uses a reduced gateway intent set, and all write operations are blocked both client-side (UI disabled) and server-side (token lacks write permissions). Authentication is **lazy**: visitors are never prompted until they attempt a write action (send, react, join voice), at which point a registration prompt appears. Upgrading to a full account replaces the guest token in-place without reconnecting from scratch. Auth tokens persist to `localStorage` so return visits connect as authenticated users immediately. The web export serves the client as static WASM/HTML that connects to the same accordserver REST + WebSocket APIs as the desktop client.
 
 ## User Steps
 
@@ -45,21 +45,24 @@ The client authenticates with a short-lived guest token from `POST /auth/guest`,
 6. Channel list loads showing only channels the server has marked as readable by guests (`allow_anonymous_read: true`)
 7. A persistent **"You're browsing anonymously"** banner appears above the message view with a **"Sign In"** and **"Register"** button
 
-### Entering Read Only Mode (Web)
+### Entering Read Only Mode (Web — auto-guest via preset server)
 
-1. Someone shares a link to the hosted web client, e.g. `https://chat.example.com/#general` or `https://chat.example.com/forum/post-title`
+The web export is configured with a [preset server](web_export.md#preset-servers) baked into the HTML shell. This means visitors are **instantly** connected as guests with zero interaction required -- no login dialog, no server selection, no waiting.
+
+1. Someone shares a link to the hosted web client, e.g. `https://chat.example.com/#general` or `https://chat.example.com/#community/help-forum/1234567890`
 2. The browser loads the daccord WASM app (see [Web Export](web_export.md))
-3. The web client detects no stored credentials and the URL contains a server + channel/post target
-4. The client automatically requests a guest token from the server (`POST /auth/guest`) -- no dialog needed
-5. The target channel or forum post loads directly in read-only view
-6. The anonymous banner and sign-up CTAs appear as in the desktop flow
+3. The web client reads the preset server config (`window.daccordPresetServer`) from the HTML shell
+4. If the visitor has a stored auth token in `localStorage` (from a previous sign-in), the client connects as an authenticated user and skips guest mode entirely
+5. If no auth token exists, the client silently requests a guest token from the preset server (`POST /auth/guest`) -- no dialog, no user interaction whatsoever
+6. The client connects as an anonymous guest and navigates directly to the target channel or forum post (from the URL fragment), or the space's default channel if no fragment is present
+7. Content appears instantly. The anonymous banner and sign-up CTAs appear as in the desktop flow
 
-### Browsing as an Anonymous User
+### Browsing as an Anonymous User (lazy auth)
 
-All interactive inputs are rendered in a **grayed-out disabled state** rather than hidden. This lets visitors see what they *could* do if they had an account, creating a natural upgrade path. When a visitor **clicks any grayed-out input**, a registration prompt appears.
+All interactive inputs are rendered in a **grayed-out disabled state** rather than hidden. This lets visitors see what they *could* do if they had an account, creating a natural upgrade path. The key design principle is **lazy authentication**: visitors are never stopped or prompted until they attempt to perform an action. Browsing is completely frictionless.
 
 8. User clicks a public channel -- messages load in read-only view
-9. All interactive inputs are visible but grayed out (modulate alpha ~0.5); clicking any of them shows a registration prompt
+9. All interactive inputs are visible but grayed out (modulate alpha ~0.5); clicking any of them shows a registration prompt -- this is the **only** point where authentication is requested
 10. Member list shows authenticated members grouped by role/status as normal, plus a single aggregated entry at the bottom: **"N anonymous users"** (N = server-reported count, updated periodically)
 11. A persistent banner above the message view reads: **"You're browsing as a guest"** with **Sign In** / **Register** buttons
 12. The visitor can freely browse public channels, read forum posts and replies, and scroll message history -- all without an account
@@ -103,12 +106,12 @@ All interactive inputs are rendered in a **grayed-out disabled state** rather th
 
 ### Upgrading from Anonymous to Authenticated
 
-19. User clicks "Sign In" or "Register" from the banner, the composer prompt, or any grayed-out input prompt
+19. User clicks "Sign In" or "Register" from the banner, the composer prompt, or any grayed-out input prompt -- this is the **first and only** point where credentials are requested
 20. Auth dialog opens in Sign In / Register mode (same as normal server connection flow)
 21. On successful auth, the guest token is replaced with a real token, the client reconnects as an authenticated user, and all inputs re-enable
 22. `AppState.guest_mode_changed` fires (`false`), UI re-enables all interactive elements
 23. The anonymous banner disappears
-24. On web, a `localStorage` token persists the session for future visits
+24. On web, the auth token persists to `localStorage` so future visits to the same URL connect as an authenticated user immediately (bypassing the auto-guest flow entirely)
 
 ### Server Discovery Integration
 
@@ -139,18 +142,29 @@ auth_dialog: user clicks "Browse without account"
                 -> guild_bar._on_guest_mode_changed() -> hide DM button
                 -> forum_view._on_guest_mode_changed() -> hide New Post, CTA in thread
 
-=== ANONYMOUS ENTRY (WEB — DEEP LINK) ===
+=== ANONYMOUS ENTRY (WEB — AUTO-GUEST VIA PRESET SERVER) ===
 
 browser loads https://chat.example.com/#community/help
-    -> index.html parses URL fragment -> { space: "community", channel: "help" }
-    -> Godot engine starts, Client._ready() detects web deep link args
-        -> base_url = window.location.origin (same origin as web host)
-        -> POST /auth/guest -> { token, expires_at, space_id }
-        -> Client.connect_guest(base_url, guest_token, space_id)
-            -> (same flow as desktop guest entry above)
-        -> AppState.select_channel_by_name("help")
+    -> index.html parses URL fragment -> window.daccordDeepLink = { space: "community", channel: "help" }
+    -> index.html has window.daccordPresetServer = { base_url: "https://api.example.com", space_slug: "community" }
+    -> Godot engine starts
+    -> Client._ready() -> ClientWebLinks.setup()
+        -> _read_deep_link(): reads hash from window.location.hash
+        -> _read_preset_server(): reads window.daccordPresetServer
+    -> ClientWebLinks checks localStorage for auth token:
+        -> [has auth token] Client.connect_server() using stored credentials (skip guest entirely)
+        -> [no auth token, preset server exists] auto-guest flow:
+            -> base_url from preset server config (or window.location.origin if omitted)
+            -> POST /auth/guest -> { token, expires_at, space_id }
+            -> Client.connect_guest(base_url, guest_token, space_id, expires_at)
+                -> (same flow as desktop guest entry above)
+            -> sessionStorage.setItem("guest_token", token)
+        -> [no auth token, no preset] empty state with Add Server prompt
+    -> gateway READY -> AppState.channels_updated
+        -> ClientWebLinks._on_channels_updated() -> _navigate_to_deep_link()
+            -> finds space by slug, channel by name
+            -> AppState.select_space() + AppState.select_channel()
             -> channel_list auto-navigates to target channel
-        -> sessionStorage.setItem("guest_token", token)
 
 === ANONYMOUS MEMBER COUNT ===
 
@@ -214,7 +228,8 @@ user clicks a public channel in guest mode
 | `scenes/sidebar/guild_bar/discovery_panel.gd` | "Preview" button for guest-mode entry from directory |
 | `addons/accordkit/rest/endpoints/auth_api.gd` | `guest()` method: `POST /auth/guest` |
 | `addons/accordkit/models/user.gd` | `is_guest: bool` field on `AccordUser` |
-| `dist/web/index.html` | Web HTML shell; handles URL fragment parsing for deep links |
+| `dist/web/index.html` | Web HTML shell; handles URL fragment parsing for deep links; contains `window.daccordPresetServer` config for auto-guest |
+| `scripts/autoload/client_web_links.gd` | `ClientWebLinks` — reads preset server config, triggers auto-guest connection, manages URL fragment routing |
 
 ## Implementation Details
 
@@ -266,24 +281,39 @@ The server marks individual channels with `allow_anonymous_read: true`. The `Acc
 
 In guest mode, the WebSocket gateway connection should subscribe only to public channel events. The `GatewayIntents` bitmask sent on login should use a new `GatewayIntents.GUEST` constant (messages + member count only, no presence, no DMs, no voice).
 
-### Web Deep Links and URL Routing
+### Web Deep Links, Preset Servers, and Auto-Guest
 
-The web export needs URL-based routing so that shared links open the correct channel or forum post. The HTML shell (`dist/web/index.html`) parses the URL fragment on load and passes it to the Godot engine as a command-line argument or via `JavaScriptBridge`.
+The web export uses URL-based routing so that shared links open the correct channel or forum post. Each web deployment is configured with a **preset server** -- the accordserver instance baked into the HTML shell via `window.daccordPresetServer`. This eliminates all manual server configuration for visitors.
 
 **URL format:** `https://chat.example.com/#<space>/<channel>[/<post-id>]`
 
 Examples:
+- `https://chat.example.com/` -- opens the preset server's default channel in guest mode
 - `https://chat.example.com/#general` -- opens the "general" channel in guest mode
 - `https://chat.example.com/#community/help` -- opens the "help" channel in the "community" space
 - `https://chat.example.com/#community/forum/1234567890` -- opens a specific forum post
 
-On load, the web client:
-1. Parses the URL fragment to extract space name, channel name, and optional post ID
-2. Requests a guest token from the server embedded in the URL's origin
-3. Connects in guest mode and navigates directly to the target channel/post
-4. Updates the URL fragment as the user navigates between public channels (so the browser URL always reflects the current view and can be copied/shared)
+**Preset server configuration** (in `dist/web/index.html`):
+```html
+<script>
+  window.daccordPresetServer = {
+    base_url: "https://api.example.com",  // omit to use window.location.origin
+    space_slug: "community"
+  };
+</script>
+```
 
-If the user signs in, the fragment routing continues to work but with full permissions. The server base URL is implicit from the hosting origin (the web client is served from the same domain as the accordserver, or a configured API base URL).
+On load, the web client:
+1. Reads the preset server config from `window.daccordPresetServer`
+2. Checks `localStorage` for a stored auth token from a previous sign-in
+3. If auth token exists: connects as authenticated user (normal flow, skip guest entirely)
+4. If no auth token: silently requests a guest token from the preset server (`POST /auth/guest`) -- no dialog, no user interaction
+5. Connects as guest and navigates directly to the target channel/post from the URL fragment
+6. Updates the URL fragment as the user navigates between public channels (so the browser URL always reflects the current view and can be copied/shared)
+
+**Lazy authentication:** The visitor is never stopped or prompted during browsing. Only when they click a grayed-out interactive element (composer, reaction button, etc.) does a registration prompt appear. After sign-in/register, the auth token is stored in `localStorage` so future visits connect as an authenticated user immediately.
+
+If the user signs in, the fragment routing continues to work but with full permissions. The server base URL comes from the preset config (or defaults to `window.location.origin` when the web client is served from the same domain as the accordserver).
 
 ### SEO and Server-Side Rendering
 
@@ -347,7 +377,7 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 
 **Rate limiting:** The server should rate-limit `POST /auth/guest` by IP address to prevent abuse (e.g., max 10 guest tokens per IP per hour). Excessive requests return `429 Too Many Requests`.
 
-**Web session persistence:** On web, the guest token is stored in `sessionStorage` (not `localStorage`) so it is automatically cleared when the browser tab closes. This ensures anonymous sessions are truly transient.
+**Web session persistence:** Guest tokens are stored in `sessionStorage` (cleared when the tab closes -- anonymous sessions are truly transient). Authenticated tokens (after sign-in/register) are stored in `localStorage` (persists across sessions -- return visits connect as the authenticated user immediately, skipping the auto-guest flow). On startup, the client checks `localStorage` first; if an auth token exists for the preset server, it connects as an authenticated user. Otherwise, it falls through to the auto-guest path.
 
 ## Implementation Status
 
@@ -381,36 +411,43 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 - [ ] Discovery panel "Preview" button for guest-mode entry
 - [x] Guest connections excluded from Config persistence / session restore
 
-### Web-specific
-- [ ] URL fragment routing in HTML shell (`#space/channel/post-id`)
-- [ ] Auto-guest-connect on web when URL contains a channel target
-- [ ] URL fragment updates as user navigates public channels
+### Web-specific (preset server & auto-guest)
+- [x] URL fragment routing in HTML shell (`#space/channel/post-id`)
+- [ ] `window.daccordPresetServer` config block in HTML shell
+- [ ] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge
+- [ ] Auto-guest-connect on web via preset server (no user interaction required)
+- [ ] `localStorage` auth token check: skip guest flow if authenticated session exists
+- [ ] Same-origin fallback for `base_url` when omitted from preset config
+- [x] URL fragment updates as user navigates public channels
 - [ ] Guest token stored in `sessionStorage` on web
-- [ ] `<noscript>` fallback link to server-rendered content
+- [ ] Auth token stored in `localStorage` on web after sign-in/register
+- [x] `<noscript>` fallback link to server-rendered content
 
 ### SEO and link previews
-- [ ] Server-side HTML snapshots for crawler user agents (accordserver)
-- [ ] Open Graph / Twitter Card `<meta>` tags on HTML snapshots
-- [ ] `<link rel="canonical">` on server-rendered pages
-- [ ] Forum post content rendered as semantic HTML for crawlers
-- [ ] `rel="next"` pagination for threaded forum replies
+- [x] Server-side HTML snapshots for crawler user agents (accordserver)
+- [x] Open Graph / Twitter Card `<meta>` tags on HTML snapshots
+- [x] `<link rel="canonical">` on server-rendered pages
+- [x] Forum post content rendered as semantic HTML for crawlers
+- [x] `rel="next"` pagination for threaded forum replies
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | No `POST /auth/guest` server endpoint | High | Entire feature blocked on accordserver support; client changes are meaningless without it |
-| No anonymous member count endpoint | High | `GET /spaces/{id}/anonymous-count` and corresponding gateway event don't exist in accordkit REST layer |
-| No server-side HTML rendering for SEO | High | WASM content is invisible to search engines; requires accordserver-side work or a reverse proxy to serve HTML snapshots for crawlers |
-| No web URL routing for deep links | High | Without URL fragment parsing, shared links just load the default empty state instead of the target channel/post |
+| No `window.daccordPresetServer` in HTML shell | High | Preset server config block not yet added to `dist/web/index.html`; required for auto-guest |
+| No `ClientWebLinks._read_preset_server()` | High | Client-side code to read preset config and trigger auto-guest connection does not exist yet |
+| No `localStorage` auth token persistence on web | High | After sign-in/register, auth token must persist to `localStorage` so return visits skip guest flow |
+| No anonymous member count endpoint | Medium | `GET /spaces/{id}/anonymous-count` and corresponding gateway event don't exist in accordkit REST layer |
 | No `anonymous_entry_item` scene | Medium | Member list has no aggregated anonymous row; entirely new scene needed |
 | Forum view has no guest-mode adaptations | Medium | `forum_view.gd` shows "New Post" button and thread composer regardless of auth state |
-| No Open Graph meta tags for link previews | Medium | Shared links on social media show no title/description/image preview |
-| ~~Channel list guest filtering~~ | ~~Medium~~ | ~~Done: client filters by `allow_anonymous_read` in guest mode~~ |
 | Discovery panel has no "Preview" (guest entry) button | Low | `scenes/sidebar/guild_bar/discovery_panel.gd` only has "Join" |
-| Guest session not restored across launches | Low | By design: transient connections should not persist, but this should be documented in Config flow |
+| ~~Channel list guest filtering~~ | ~~Medium~~ | ~~Done: client filters by `allow_anonymous_read` in guest mode~~ |
 | ~~Token expiry handling for guest tokens~~ | ~~Low~~ | ~~Done: silent refresh timer re-requests `POST /auth/guest` before expiry~~ |
-| No `<noscript>` fallback | Low | Users with JS disabled see a blank page; a fallback link to server-rendered content improves accessibility |
+| ~~No web URL routing for deep links~~ | ~~High~~ | ~~Done: URL fragment routing implemented in `ClientWebLinks`~~ |
+| ~~No server-side HTML rendering for SEO~~ | ~~High~~ | ~~Done: implemented in `accordserver/src/routes/seo.rs`~~ |
+| ~~No Open Graph meta tags~~ | ~~Medium~~ | ~~Done: OG/Twitter Card tags on server-rendered HTML snapshots~~ |
+| ~~No `<noscript>` fallback~~ | ~~Low~~ | ~~Done: added to HTML shell~~ |
 
 ## Related User Flows
 

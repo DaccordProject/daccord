@@ -7,7 +7,7 @@ Depends on: None
 
 This flow covers exporting daccord to the web (Godot Web / WASM). The web build produces static files (HTML/JS/WASM/PCK) that can be served from any static web host. Voice and video use the LiveKit JS SDK (`livekit-client`) via a custom JavaScript wrapper (`godot-livekit-web.js`) that mirrors the GDExtension API surface, bridged to GDScript through `WebVoiceSession` and `JavaScriptBridge`.
 
-Beyond a functional chat client, the web export serves as a **public-facing front door** for accordserver communities. Shareable URLs link directly to channels, forums, and forum topics. Servers that allow guests can enable [Read Only Mode](read_only_mode.md), which renders content in a read-only view for anonymous visitors. Server-side HTML snapshots make public content crawlable by search engines, turning forum posts into indexable web pages.
+Beyond a functional chat client, the web export serves as a **public-facing front door** for accordserver communities. Each web deployment is tied to a specific accordserver instance via a **preset server** configuration baked into the HTML shell. Visitors who open the URL are instantly connected as anonymous guests -- no server selection, no login prompt, no friction. They see content immediately. Only when they attempt to perform an action (send a message, react, etc.) are they prompted to sign in. Shareable URLs link directly to channels, forums, and forum topics. Server-side HTML snapshots make public content crawlable by search engines, turning forum posts into indexable web pages.
 
 ## User Steps
 
@@ -17,36 +17,49 @@ Beyond a functional chat client, the web export serves as a **public-facing fron
    - Runs `godot --headless --export-release "Web"` producing output in `dist/web/`.
    - Downloads the `livekit-client` UMD bundle into `dist/web/`.
    - Copies `godot-livekit-web.js` from the addon into `dist/web/`.
-2. Developer hosts `dist/web/` on a static web server (must serve with COOP/COEP headers or use the bundled `coop_coep.js` service worker for cross-origin isolation).
-3. User opens the web URL in a browser; daccord boots into the same empty-state experience as desktop when no servers are configured.
+2. Developer edits `dist/web/index.html` to set the preset server configuration (see [Preset servers](#preset-servers) below). This tells the web client which accordserver to auto-connect to.
+3. Developer hosts `dist/web/` on a static web server (must serve with COOP/COEP headers or use the bundled `coop_coep.js` service worker for cross-origin isolation).
 
-### Text chat (user)
+### Arriving on the web client (visitor)
 
-4. User adds a server via "Add Server" and connects (same flow as desktop).
-5. User navigates channels and sends/receives messages (same flow as desktop).
+4. Visitor opens a URL (e.g. `https://chat.example.com/` or `https://chat.example.com/#community/general`).
+5. The web client reads the preset server config from the HTML shell and immediately requests a guest token (`POST /auth/guest`) -- no dialog, no user interaction.
+6. The client connects as an anonymous guest and navigates directly to the target channel (from the URL fragment) or the space's default channel.
+7. Content loads instantly. The visitor can browse public channels, read messages, scroll history, and view forum posts -- all without creating an account.
+
+### Lazy authentication (action-triggered)
+
+8. When the visitor attempts any write action (send a message, add a reaction, join voice, etc.), the grayed-out input intercepts the click and shows a registration prompt (see [Read Only Mode](read_only_mode.md)).
+9. After signing in or registering, the guest connection upgrades to an authenticated one. All inputs re-enable and the visitor can now participate fully.
+10. On web, `localStorage` persists the auth token so future visits to the same URL skip the guest flow and connect as the authenticated user directly.
+
+### Text chat (authenticated user)
+
+11. Authenticated user navigates channels and sends/receives messages (same flow as desktop).
+12. Users can also add additional servers via "Add Server" if they want to connect to other accordserver instances beyond the preset.
 
 ### Voice (web)
 
-6. User clicks a voice channel to join.
-7. Browser prompts for microphone permission (first use).
-8. `ClientVoice` calls REST `VoiceApi.join()` and receives voice server credentials.
-9. `WebVoiceSession` creates a LiveKit room via `JavaScriptBridge.eval("GodotLiveKit.createRoom()")` and calls `connectToRoom(url, token)`.
-10. The `livekit-client` JS SDK handles WebRTC transport, ICE negotiation, and media.
-11. Voice bar appears; mute/deafen toggles call `setMicrophoneEnabled()` on the local participant.
+13. User clicks a voice channel to join. (If guest, registration prompt appears first.)
+14. Browser prompts for microphone permission (first use).
+15. `ClientVoice` calls REST `VoiceApi.join()` and receives voice server credentials.
+16. `WebVoiceSession` creates a LiveKit room via `JavaScriptBridge.eval("GodotLiveKit.createRoom()")` and calls `connectToRoom(url, token)`.
+17. The `livekit-client` JS SDK handles WebRTC transport, ICE negotiation, and media.
+18. Voice bar appears; mute/deafen toggles call `setMicrophoneEnabled()` on the local participant.
 
 ### Video (web)
 
-12. While in voice, user clicks "Cam" to enable camera.
-13. Browser prompts for camera permission (first use).
-14. `WebVoiceSession.publish_camera()` calls `setCameraEnabled(true)` on the local participant. Returns a `WebVideoStub` (no local preview on web).
-15. Remote video tracks arrive via `trackSubscribed` events and are forwarded through `track_received` signals.
+19. While in voice, user clicks "Cam" to enable camera.
+20. Browser prompts for camera permission (first use).
+21. `WebVoiceSession.publish_camera()` calls `setCameraEnabled(true)` on the local participant. Returns a `WebVideoStub` (no local preview on web).
+22. Remote video tracks arrive via `trackSubscribed` events and are forwarded through `track_received` signals.
 
 ### Shareable links
 
-16. User navigates to a channel or forum post on the web client.
-17. The browser URL updates in real time to reflect the current view (e.g. `https://chat.example.com/#community/general`).
-18. User copies the URL from the browser address bar and shares it (chat, social media, email, etc.).
-19. Recipient clicks the link; the web client loads and navigates directly to that channel or post.
+23. User navigates to a channel or forum post on the web client.
+24. The browser URL updates in real time to reflect the current view (e.g. `https://chat.example.com/#community/general`).
+25. User copies the URL from the browser address bar and shares it (chat, social media, email, etc.).
+26. Recipient clicks the link; the web client loads and navigates directly to that channel or post (auto-guest if not authenticated).
 
 **URL format:** `https://<host>/#<space-slug>/<channel-slug>[/<post-id>]`
 
@@ -57,9 +70,9 @@ Beyond a functional chat client, the web export serves as a **public-facing fron
 | `https://chat.example.com/#community/help-forum` | The "help-forum" forum channel (shows post list) |
 | `https://chat.example.com/#community/help-forum/1234567890` | A specific forum post and its thread |
 
-### Guest browsing
+### Guest browsing (auto-guest via preset server)
 
-See [Read Only Mode](read_only_mode.md) for the full guest mode specification (auth, grayed-out inputs, registration prompts, forum browsing, upgrade flow).
+The web export's default experience **is** guest mode. Visitors arrive and are immediately connected as anonymous guests via the preset server -- there is no empty state, no "Add Server" prompt, and no login wall. All interactive inputs are visible but grayed out; clicking any of them triggers a registration prompt. See [Read Only Mode](read_only_mode.md) for the full specification (grayed-out inputs, registration prompts, forum browsing, upgrade flow, token lifecycle).
 
 ### SEO (server-side)
 
@@ -94,22 +107,37 @@ WebVoiceSession (GDScript)   <-->   JavaScriptBridge   <-->   godot-livekit-web.
      | on("trackSubscribed", cb) <----------------------------------|
      | on("activeSpeakersChanged", cb) <----------------------------|
 
-=== SHAREABLE LINKS & URL ROUTING ===
+=== PRESET SERVER & AUTO-GUEST (WEB) ===
 
 browser loads https://chat.example.com/#community/help
     -> index.html <script> parses hash into window.daccordDeepLink
+    -> index.html <script> reads window.daccordPresetServer = { base_url, space_slug }
     -> Godot engine starts
     -> Client._ready() creates ClientWebLinks, calls setup()
         -> _read_deep_link(): reads window.location.hash via JavaScriptBridge.eval()
+        -> _read_preset_server(): reads window.daccordPresetServer via JavaScriptBridge.eval()
         -> _setup_popstate_listener(): registers popstate JS callback
         -> connects to AppState.channel_selected, thread_opened/closed, channels_updated
-    -> [no credentials] enters guest mode (see Read Only Mode user flow)
-    -> [has credentials] Client.connect_server() (normal auth flow)
+    -> [has localStorage auth token] Client.connect_server() (authenticated — skip guest)
+    -> [no auth token, preset server exists] auto-guest flow:
+        -> POST /auth/guest to preset server base_url
+            -> returns { token, expires_at, space_id }
+        -> Client.connect_guest(base_url, token, space_id, expires_at)
+            -> AccordClient created with guest token + GatewayIntents.guest()
+            -> GET /users/@me -> synthetic guest user
+            -> GET /spaces/{space_id} -> cache space
+            -> WebSocket gateway login (guest intents)
+            -> mode = LIVE, AppState.enter_guest_mode(base_url)
+            -> _start_guest_refresh_timer()
+        -> sessionStorage.setItem("guest_token", token)
+    -> [no preset, no auth] empty state with Add Server prompt (desktop-like)
     -> gateway READY populates channel cache -> AppState.channels_updated emits
         -> ClientWebLinks._on_channels_updated() -> _navigate_to_deep_link()
             -> finds space by slug in _space_cache -> AppState.select_space()
             -> finds channel by name in _channel_cache -> AppState.select_channel()
             -> if post_id present: AppState.open_thread(post_id)
+
+=== SHAREABLE LINKS & URL ROUTING ===
 
 user navigates between channels
     -> AppState.channel_selected(channel_id)
@@ -168,7 +196,7 @@ crawler or unfurler requests /s/community/help-forum/1234567890
 | File | Role |
 |------|------|
 | `web-export.sh` | One-step export script: runs Godot web export, downloads `livekit-client` UMD, copies `godot-livekit-web.js` into `dist/web/`. |
-| `dist/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. Registers the `coop_coep.js` service worker for cross-origin isolation. Parses URL fragment on load for deep link routing. |
+| `dist/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. Registers the `coop_coep.js` service worker for cross-origin isolation. Parses URL fragment on load for deep link routing. Contains the `window.daccordPresetServer` configuration block for auto-guest. |
 | `dist/web/coop_coep.js` | Service worker that adds `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers (required for `SharedArrayBuffer` / WASM threads in Chrome). |
 | `dist/web/godot-livekit-web.js` | JavaScript wrapper around `livekit-client.js` that mirrors the godot-livekit GDExtension API surface. Exposes `GodotLiveKit.createRoom()` globally. |
 | `export_presets.cfg` (preset `Web`) | Web export preset. `export_path="dist/web/Daccord.html"`, `custom_html_shell="res://dist/web/index.html"`. Excludes `addons/godot-livekit/*` (GDExtension not used on web). |
@@ -193,6 +221,40 @@ GODOT_CONFIG.canvas = document.getElementById("canvas");
 ```
 
 Other valid Godot 4.5 placeholders used: `$GODOT_PROJECT_NAME`, `$GODOT_HEAD_INCLUDE`, `$GODOT_URL`, `$GODOT_SPLASH`.
+
+### Preset servers
+
+Each web deployment is configured with a **preset server** -- the accordserver instance that visitors connect to automatically. This is set in the HTML shell (`dist/web/index.html`) as a `window.daccordPresetServer` JavaScript object:
+
+```html
+<script>
+  window.daccordPresetServer = {
+    base_url: "https://api.example.com",
+    space_slug: "community"
+  };
+</script>
+```
+
+**How it works:**
+
+1. The developer sets `window.daccordPresetServer` in `dist/web/index.html` after export. This is the only manual configuration step.
+2. On startup, `ClientWebLinks._read_preset_server()` reads this object via `JavaScriptBridge.eval()`.
+3. If the visitor has no stored auth token in `localStorage`, the client automatically requests a guest token from the preset server (`POST /auth/guest`).
+4. The guest connection is established silently -- no dialogs, no prompts. The visitor sees content immediately.
+5. If the visitor has a stored auth token (from a previous sign-in), the client connects as an authenticated user instead, skipping the guest flow entirely.
+
+**Preset vs. user-added servers:** The preset server is the default entry point for the web deployment. Users can still add additional servers via "Add Server" if they want to connect to other accordserver instances. The preset server is not persisted to Config (it's read from the HTML shell on every page load) and cannot be removed by the user.
+
+**Same-origin shortcut:** If `base_url` is omitted from the preset config, the client defaults to `window.location.origin` -- useful when the web client is served from the same domain as the accordserver (e.g. behind a reverse proxy).
+
+**Auto-guest connection priority:**
+
+| State | Behavior |
+|-------|----------|
+| `localStorage` has auth token for preset server | Connect as authenticated user (skip guest) |
+| No auth token, preset server configured | Auto-guest: `POST /auth/guest` silently |
+| No auth token, no preset server | Empty state with "Add Server" prompt (desktop-like) |
+| URL has `?token=` query param | Use provided token (invite link flow) |
 
 ### Cross-origin isolation
 
@@ -239,9 +301,10 @@ The web export uses URL fragment routing so that every view has a shareable URL.
 1. A `<script>` block in `index.html` parses `window.location.hash` and stores the result in `window.daccordDeepLink = { space, channel, postId }` before the Godot engine starts.
 2. `Client._ready()` creates a `ClientWebLinks` instance and calls `setup()`. On non-web builds, `setup()` is a no-op.
 3. `ClientWebLinks._read_deep_link()` reads the hash fragment via `JavaScriptBridge.eval()` and stores the parsed space slug, channel name, and post ID.
-4. `ClientWebLinks._setup_popstate_listener()` creates a GDScript callback via `JavaScriptBridge.create_callback()`, assigns it to `window._daccordPopStateCb`, and registers a `popstate` event listener that parses the new hash and invokes the callback.
-5. The client connects normally (or enters guest mode if no credentials exist).
-6. When `AppState.channels_updated` fires (after gateway READY populates the channel cache), `ClientWebLinks._on_channels_updated()` calls `_navigate_to_deep_link()`, which resolves the space slug and channel name to IDs via the caches and navigates using `AppState.select_space()`, `select_channel()`, and optionally `open_thread()`.
+4. `ClientWebLinks._read_preset_server()` reads `window.daccordPresetServer` and stores the preset server config.
+5. `ClientWebLinks._setup_popstate_listener()` creates a GDScript callback via `JavaScriptBridge.create_callback()`, assigns it to `window._daccordPopStateCb`, and registers a `popstate` event listener that parses the new hash and invokes the callback.
+6. The client checks for stored auth in `localStorage`. If found, connects as authenticated user. If not, auto-connects as guest via the preset server (see [Preset servers](#preset-servers)). If no preset server is configured, shows the empty state.
+7. When `AppState.channels_updated` fires (after gateway READY populates the channel cache), `ClientWebLinks._on_channels_updated()` calls `_navigate_to_deep_link()`, which resolves the space slug and channel name to IDs via the caches and navigates using `AppState.select_space()`, `select_channel()`, and optionally `open_thread()`.
 
 **During navigation:**
 - `ClientWebLinks` listens to `AppState.channel_selected`, `thread_opened`, and `thread_closed`. Each handler calls `_update_url_for_channel()`, which looks up the channel name and space slug from `_channel_cache` / `_space_cache` and calls `history.replaceState()` via `JavaScriptBridge.eval()` to update the browser URL without reloading.
@@ -342,7 +405,15 @@ This is implemented **server-side** in `accordserver/src/routes/seo.rs`, not in 
 - [x] Browser back/forward (`popstate`) triggers in-app navigation
 - [x] Forum post links include post ID in fragment
 
-### Guest mode
+### Preset servers & auto-guest
+- [ ] `window.daccordPresetServer` config block in HTML shell
+- [ ] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge
+- [ ] Auto-guest: client requests `POST /auth/guest` from preset server on startup when no auth token exists
+- [ ] `localStorage` auth token check: skip guest flow if authenticated session exists
+- [ ] Same-origin fallback: default `base_url` to `window.location.origin` when omitted
+- [ ] Preset server is non-removable (not shown in server management UI)
+
+### Guest mode (read only)
 See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-status) for all guest mode items.
 
 ### SEO and link previews
