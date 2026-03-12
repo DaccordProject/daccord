@@ -32,6 +32,7 @@ var _mic_testing: bool = false
 var _mic_test_player: AudioStreamPlayer
 var _mic_test_effect: AudioEffectCapture
 var _mic_test_bus_idx: int = -1
+var _web_mic_monitor_active: bool = false
 
 # Volume controls
 var _input_vol_slider: HSlider
@@ -286,31 +287,47 @@ func _on_mic_test_toggled() -> void:
 		_start_mic_test()
 
 func _on_mic_monitor_toggled(pressed: bool) -> void:
-	if _mic_testing and _mic_test_bus_idx >= 0:
+	if not _mic_testing:
+		return
+	if OS.get_name() == "Web":
+		if pressed:
+			_web_start_mic_monitor()
+		else:
+			_web_stop_mic_monitor()
+	elif _mic_test_bus_idx >= 0:
 		AudioServer.set_bus_mute(_mic_test_bus_idx, not pressed)
 
 func _start_mic_test() -> void:
 	_mic_testing = true
 	_mic_test_btn.text = "Stop Test"
 	Config.voice.apply_devices()
-	_mic_test_bus_idx = AudioServer.bus_count
-	AudioServer.add_bus(_mic_test_bus_idx)
-	AudioServer.set_bus_name(_mic_test_bus_idx, "MicTest")
-	AudioServer.set_bus_mute(
-		_mic_test_bus_idx, not _mic_monitor_cb.button_pressed
-	)
-	var gain: float = Config.voice.get_input_volume() / 100.0
-	AudioServer.set_bus_volume_db(
-		_mic_test_bus_idx, linear_to_db(gain)
-	)
-	var effect := AudioEffectCapture.new()
-	AudioServer.add_bus_effect(_mic_test_bus_idx, effect)
-	_mic_test_effect = effect
-	_mic_test_player = AudioStreamPlayer.new()
-	_mic_test_player.stream = AudioStreamMicrophone.new()
-	_mic_test_player.bus = "MicTest"
-	add_child(_mic_test_player)
-	_mic_test_player.play()
+	var is_web: bool = OS.get_name() == "Web"
+	if is_web:
+		# On web, AudioStreamMicrophone cannot be sampled — use getUserMedia
+		# with an AnalyserNode for the level meter and a GainNode for monitor
+		# playback, all through the Web Audio API.
+		_web_start_mic_analyser()
+		if _mic_monitor_cb.button_pressed:
+			_web_start_mic_monitor()
+	else:
+		_mic_test_bus_idx = AudioServer.bus_count
+		AudioServer.add_bus(_mic_test_bus_idx)
+		AudioServer.set_bus_name(_mic_test_bus_idx, "MicTest")
+		AudioServer.set_bus_mute(
+			_mic_test_bus_idx, not _mic_monitor_cb.button_pressed
+		)
+		var gain: float = Config.voice.get_input_volume() / 100.0
+		AudioServer.set_bus_volume_db(
+			_mic_test_bus_idx, linear_to_db(gain)
+		)
+		var effect := AudioEffectCapture.new()
+		AudioServer.add_bus_effect(_mic_test_bus_idx, effect)
+		_mic_test_effect = effect
+		_mic_test_player = AudioStreamPlayer.new()
+		_mic_test_player.stream = AudioStreamMicrophone.new()
+		_mic_test_player.bus = "MicTest"
+		add_child(_mic_test_player)
+		_mic_test_player.play()
 	set_process(true)
 
 func _stop_mic_test() -> void:
@@ -332,6 +349,8 @@ func _update_threshold_position() -> void:
 	_threshold_marker.size.y = _mic_test_bar.size.y
 
 func _cleanup_mic_test() -> void:
+	_web_stop_mic_monitor()
+	_web_stop_mic_analyser()
 	if _mic_test_player != null:
 		_mic_test_player.stop()
 		_mic_test_player.queue_free()
@@ -342,22 +361,27 @@ func _cleanup_mic_test() -> void:
 	_mic_test_bus_idx = -1
 
 func _process(_delta: float) -> void:
-	if _mic_test_effect == null or _mic_test_bar == null:
+	if _mic_test_bar == null:
 		return
 	_update_threshold_position()
-	var frames: int = _mic_test_effect.get_frames_available()
-	if frames <= 0:
-		return
-	var buf: PackedVector2Array = _mic_test_effect.get_buffer(frames)
-	var rms: float = 0.0
-	for i in buf.size():
-		var sample: float = (buf[i].x + buf[i].y) * 0.5
-		rms += sample * sample
-	if buf.size() > 0:
-		rms = sqrt(rms / buf.size())
-	# Scale by input volume gain
-	var gain: float = _input_vol_slider.value / 100.0
-	var display_rms: float = rms * gain
+	var display_rms: float = 0.0
+	if OS.get_name() == "Web":
+		display_rms = _web_get_mic_rms()
+	else:
+		if _mic_test_effect == null:
+			return
+		var frames: int = _mic_test_effect.get_frames_available()
+		if frames <= 0:
+			return
+		var buf: PackedVector2Array = _mic_test_effect.get_buffer(frames)
+		var rms: float = 0.0
+		for i in buf.size():
+			var sample: float = (buf[i].x + buf[i].y) * 0.5
+			rms += sample * sample
+		if buf.size() > 0:
+			rms = sqrt(rms / buf.size())
+		var gain: float = _input_vol_slider.value / 100.0
+		display_rms = rms * gain
 	_mic_test_bar.value = pow(clampf(display_rms / 0.1, 0.0, 1.0), 0.4)
 	# Bar color: green when above threshold, gray when below
 	var thr: float = Config.voice.get_speaking_threshold()
@@ -366,12 +390,114 @@ func _process(_delta: float) -> void:
 		_bar_fill.bg_color = ThemeManager.get_color("success")
 	else:
 		_bar_fill.bg_color = ThemeManager.get_color("button_hover")
-	# Gate monitor output: mute when below threshold or monitor disabled
-	if _mic_test_bus_idx >= 0:
+	# Gate monitor output: mute when below threshold or monitor disabled.
+	if OS.get_name() == "Web":
+		_web_set_mic_monitor_gate(
+			_mic_monitor_cb.button_pressed and above_thr
+		)
+	elif _mic_test_bus_idx >= 0:
 		var should_mute: bool = (
 			not _mic_monitor_cb.button_pressed or not above_thr
 		)
 		AudioServer.set_bus_mute(_mic_test_bus_idx, should_mute)
+
+# --- Web mic analyser (level meter via Web Audio API) ---
+# On web, AudioStreamMicrophone cannot be sampled by Godot's audio engine.
+# We use getUserMedia + AnalyserNode to compute RMS for the level meter.
+# The monitor (playback) reuses the same stream via a separate GainNode.
+
+func _web_start_mic_analyser() -> void:
+	if OS.get_name() != "Web":
+		return
+	JavaScriptBridge.eval("""
+	(function() {
+		if (window._daccordMicAnalyser) return;
+		var ctx = new (window.AudioContext || window.webkitAudioContext)();
+		navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+			var src = ctx.createMediaStreamSource(stream);
+			var analyser = ctx.createAnalyser();
+			analyser.fftSize = 2048;
+			src.connect(analyser);
+			window._daccordMicAnalyser = {
+				ctx: ctx, stream: stream, src: src, analyser: analyser,
+				buf: new Float32Array(analyser.fftSize)
+			};
+		});
+	})();
+	""", true)
+
+func _web_stop_mic_analyser() -> void:
+	if OS.get_name() != "Web":
+		return
+	JavaScriptBridge.eval("""
+	(function() {
+		var a = window._daccordMicAnalyser;
+		if (!a) return;
+		a.src.disconnect();
+		a.stream.getTracks().forEach(function(t) { t.stop(); });
+		if (a.ctx.state !== 'closed') a.ctx.close();
+		window._daccordMicAnalyser = null;
+	})();
+	""", true)
+
+func _web_get_mic_rms() -> float:
+	if OS.get_name() != "Web":
+		return 0.0
+	var val: float = JavaScriptBridge.eval("""
+	(function() {
+		var a = window._daccordMicAnalyser;
+		if (!a) return 0.0;
+		a.analyser.getFloatTimeDomainData(a.buf);
+		var sum = 0.0;
+		for (var i = 0; i < a.buf.length; i++) sum += a.buf[i] * a.buf[i];
+		return Math.sqrt(sum / a.buf.length);
+	})();
+	""", true)
+	return val
+
+# --- Web mic monitor (Web Audio API loopback) ---
+# Reuses the analyser's mic stream to play back through a GainNode.
+
+func _web_start_mic_monitor() -> void:
+	if OS.get_name() != "Web" or _web_mic_monitor_active:
+		return
+	_web_mic_monitor_active = true
+	JavaScriptBridge.eval("""
+	(function() {
+		if (window._daccordMicMonitor) return;
+		var a = window._daccordMicAnalyser;
+		if (!a) return;
+		var gain = a.ctx.createGain();
+		gain.gain.value = 1.0;
+		a.src.connect(gain);
+		gain.connect(a.ctx.destination);
+		window._daccordMicMonitor = { gain: gain };
+	})();
+	""", true)
+
+func _web_stop_mic_monitor() -> void:
+	if OS.get_name() != "Web" or not _web_mic_monitor_active:
+		return
+	_web_mic_monitor_active = false
+	JavaScriptBridge.eval("""
+	(function() {
+		var m = window._daccordMicMonitor;
+		if (!m) return;
+		m.gain.disconnect();
+		window._daccordMicMonitor = null;
+	})();
+	""", true)
+
+
+func _web_set_mic_monitor_gate(open: bool) -> void:
+	if OS.get_name() != "Web" or not _web_mic_monitor_active:
+		return
+	var val: float = 1.0 if open else 0.0
+	JavaScriptBridge.eval(
+		"if(window._daccordMicMonitor) window._daccordMicMonitor.gain.gain.value=%f;" % val,
+		true
+	)
+
 
 func _exit_tree() -> void:
 	_cleanup_mic_test()
