@@ -127,6 +127,9 @@
   function createRoom() {
     var room = new LK.Room();
     var listeners = {};
+    // participant SID -> HTMLAudioElement for remote audio tracks
+    var audioElements = {};
+    var isDeafened = false;
 
     function emit(event) {
       var cbs = listeners[event];
@@ -170,6 +173,21 @@
     room.on(
       LK.RoomEvent.TrackSubscribed,
       function (track, publication, participant) {
+        // Attach remote audio tracks to the DOM for playback
+        if (track.kind === LK.Track.Kind.Audio) {
+          var el = document.createElement("audio");
+          el.id = "lk-audio-" + participant.sid;
+          el.autoplay = true;
+          el.muted = isDeafened;
+          track.attach(el);
+          document.body.appendChild(el);
+          audioElements[participant.sid] = el;
+          console.log(
+            "[godot-livekit-web] Attached audio element for",
+            participant.identity,
+            "srcObject:", !!el.srcObject
+          );
+        }
         emit(
           "trackSubscribed",
           dataTrack(track),
@@ -182,6 +200,19 @@
     room.on(
       LK.RoomEvent.TrackUnsubscribed,
       function (track, publication, participant) {
+        // Detach and remove audio elements
+        if (track.kind === LK.Track.Kind.Audio) {
+          var el = audioElements[participant.sid];
+          if (el) {
+            track.detach(el);
+            el.remove();
+            delete audioElements[participant.sid];
+            console.log(
+              "[godot-livekit-web] Detached audio element for",
+              participant.identity
+            );
+          }
+        }
         emit(
           "trackUnsubscribed",
           dataTrack(track),
@@ -282,6 +313,22 @@
 
       getMetadata: function () {
         return room.metadata || "";
+      },
+
+      setDeafened: function (deafened) {
+        isDeafened = !!deafened;
+        for (var sid in audioElements) {
+          audioElements[sid].muted = isDeafened;
+        }
+      },
+
+      cleanupAudio: function () {
+        for (var sid in audioElements) {
+          var el = audioElements[sid];
+          el.srcObject = null;
+          el.remove();
+        }
+        audioElements = {};
       },
     };
   }

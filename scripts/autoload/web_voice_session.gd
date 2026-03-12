@@ -106,7 +106,9 @@ func disconnect_voice() -> void:
 	_cleanup_all_remote()
 	if _has_room:
 		_js_void(
-			"if(window._godotLkRoom){window._godotLkRoom.disconnectFromRoom()}"
+			"if(window._godotLkRoom){"
+			+ "window._godotLkRoom.cleanupAudio();"
+			+ "window._godotLkRoom.disconnectFromRoom()}"
 		)
 		_js_void(
 			"delete window._godotLkRoom;"
@@ -132,6 +134,12 @@ func set_muted(muted: bool) -> void:
 
 func set_deafened(deafened: bool) -> void:
 	_deafened = deafened
+	if _is_web and _has_room:
+		var val: String = "true" if deafened else "false"
+		_js_void(
+			"(function(){var r=window._godotLkRoom;if(r&&r.setDeafened)"
+			+ "r.setDeafened(%s)})()" % val
+		)
 
 
 func is_muted() -> bool:
@@ -312,7 +320,7 @@ func _on_track_subscribed(args) -> void:
 	if kind == 1:  # TrackKind.VIDEO
 		_remote_video[identity] = track
 		track_received.emit(uid, track)
-	# Audio is played back automatically by the livekit-client.js SDK on web
+	# Audio playback is handled by track.attach() in godot-livekit-web.js
 
 
 func _on_track_unsubscribed(args) -> void:
