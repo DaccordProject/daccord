@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="EmojiCatalog" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EmojiCatalog" load_steps=2 format=3 uid="uid://c2ooipp77kh33"]
 
-[ext_resource type="Script" path="res://scripts/emoji_catalog.gd" id="1"]
+[ext_resource type="Script" uid="uid://crs7dy4vd2sdi" path="res://scripts/emoji_catalog.gd" id="1"]
 
 [resource]
 script = ExtResource("1")

@@ -31,6 +31,7 @@ var emoji # ClientEmoji (typed reference causes circular dep)
 var permissions: RefCounted
 var connection: ClientConnection
 var relationships: ClientRelationships
+var web_links: ClientWebLinks
 
 # --- Data access API (properties) ---
 
@@ -178,6 +179,8 @@ func _ready() -> void:
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
 	relationships = ClientRelationships.new(self)
+	web_links = ClientWebLinks.new(self)
+	web_links.setup()
 	# On Android, request dangerous permissions (microphone, camera) early so
 	# they are granted before the user tries to join a voice channel.
 	if OS.get_name() == "Android":
@@ -779,14 +782,11 @@ func _find_channel_for_message(mid: String) -> String:
 	var cid: String = _message_id_index.get(mid, "")
 	if not cid.is_empty() and _message_cache.has(cid):
 		return cid
-	# Fallback: linear search
 	for ch_id in _message_cache:
 		for msg in _message_cache[ch_id]:
 			if msg.get("id", "") == mid:
 				return ch_id
 	return ""
-
-# --- Member index helpers ---
 
 func _rebuild_member_index(space_id: String) -> void:
 	var index: Dictionary = {}

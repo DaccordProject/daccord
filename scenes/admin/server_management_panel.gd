@@ -22,6 +22,9 @@ const ResetPasswordDialogScene := preload(
 const ReportListDialogScene := preload(
 	"res://scenes/admin/report_list_dialog.tscn"
 )
+const ServerManagementReportsScript := preload(
+	"res://scenes/admin/server_management_reports.gd"
+)
 
 # Spaces tab
 var _spaces_list: VBoxContainer
@@ -36,6 +39,9 @@ var _users_error: Label
 var _users_data: Array = []
 var _users_has_more: bool = false
 var _users_load_more_btn: Button
+
+# Reports tab (delegated to server_management_reports.gd)
+var _reports_helper
 
 # Settings tab
 var _server_name_input: LineEdit
@@ -252,30 +258,13 @@ func _on_delete_space(space_id: String, sname: String) -> void:
 			_fetch_spaces()
 	)
 
-# ── Reports tab ─────────────────────────────────────────────
+# ── Reports tab (delegated to ServerManagementReports) ──────
 
 func _build_reports_page() -> VBoxContainer:
-	var vbox := _page_vbox("Reports (All Spaces)")
-
-	var open_btn := SettingsBase.create_action_button(
-		"Open Server-wide Reports"
+	_reports_helper = ServerManagementReportsScript.new(self)
+	return _reports_helper.build_page(
+		_page_vbox, _error_label, _clear_children
 	)
-	open_btn.pressed.connect(func() -> void:
-		var dialog := ReportListDialogScene.instantiate()
-		get_tree().root.add_child(dialog)
-		dialog.setup_server_wide()
-	)
-	vbox.add_child(open_btn)
-
-	var desc := Label.new()
-	desc.text = "View and moderate reports from all spaces on this server."
-	desc.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
-	vbox.add_child(desc)
-
-	return vbox
 
 # ── Users tab ───────────────────────────────────────────────
 
@@ -615,7 +604,8 @@ func _fetch_settings() -> void:
 		_max_members_spin.value = d.get(
 			"max_members_per_space", 0
 		)
-		_motd_input.text = d.get("motd", "")
+		var motd = d.get("motd", "")
+		_motd_input.text = motd if motd != null else ""
 		_public_listing_cb.button_pressed = d.get(
 			"public_listing", false
 		)

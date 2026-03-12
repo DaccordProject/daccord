@@ -1,19 +1,20 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3 uid="uid://dcx2pkn08i5nv"]
 
-[ext_resource type="Script" path="res://scenes/sidebar/user_bar.gd" id="1"]
+[ext_resource type="Script" uid="uid://hbkrlj5g4byf" path="res://scenes/sidebar/user_bar.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/common/avatar.tscn" id="2"]
-[ext_resource type="Shader" path="res://assets/theme/status_circle.gdshader" id="3"]
-
-[sub_resource type="ShaderMaterial" id="status_circle_mat"]
-shader = ExtResource("3")
-shader_parameter/circle_radius = 0.21875
+[ext_resource type="Shader" uid="uid://bp3mtt8rgmkrp" path="res://assets/theme/status_circle.gdshader" id="3"]
+[ext_resource type="Texture2D" uid="uid://bmgp245o2nmko" path="res://assets/theme/icons/voice_channel.svg" id="4_voice"]
 
 [sub_resource type="StyleBoxFlat" id="user_bar_bg"]
-bg_color = Color(0.114, 0.118, 0.129, 1)
 content_margin_left = 8.0
 content_margin_top = 4.0
 content_margin_right = 8.0
 content_margin_bottom = 4.0
+bg_color = Color(0.114, 0.118, 0.129, 1)
+
+[sub_resource type="ShaderMaterial" id="status_circle_mat"]
+shader = ExtResource("3")
+shader_parameter/circle_radius = 0.21875
 
 [node name="UserBar" type="PanelContainer"]
 custom_minimum_size = Vector2(0, 52)
@@ -29,7 +30,6 @@ theme_override_constants/separation = 8
 [node name="Avatar" parent="HBox" instance=ExtResource("2")]
 layout_mode = 2
 size_flags_vertical = 4
-avatar_size = 32
 show_letter = true
 
 [node name="Info" type="VBoxContainer" parent="HBox"]
@@ -39,33 +39,31 @@ size_flags_vertical = 4
 
 [node name="DisplayName" type="Label" parent="HBox/Info"]
 layout_mode = 2
-text = "CoolDev"
 
 [node name="Username" type="Label" parent="HBox/Info"]
 layout_mode = 2
-text = "cooldev"
 
 [node name="StatusIcon" type="ColorRect" parent="HBox"]
 material = SubResource("status_circle_mat")
-layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
-size_flags_vertical = 4
-color = Color(0.231, 0.647, 0.365, 1)
-mouse_filter = 0
-mouse_default_cursor_shape = 2
-tooltip_text = "Change status"
-
-[node name="VoiceIndicator" type="Label" parent="HBox"]
-visible = false
 layout_mode = 2
 size_flags_vertical = 4
-text = "🎙"
-theme_override_font_sizes/font_size = 14
-metadata/theme_font_color = "status_online"
+tooltip_text = "Change status"
+mouse_default_cursor_shape = 2
+color = Color(0.231, 0.647, 0.365, 1)
+
+[node name="VoiceIndicator" type="TextureRect" parent="HBox"]
+visible = false
+custom_minimum_size = Vector2(16, 16)
+layout_mode = 2
+size_flags_vertical = 4
+texture = ExtResource("4_voice")
+expand_mode = 1
+stretch_mode = 5
+modulate = Color(0.231, 0.647, 0.365, 1)
 
 [node name="MenuButton" type="MenuButton" parent="HBox"]
-layout_mode = 2
 custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
 size_flags_vertical = 4
-flat = true
 text = "..."

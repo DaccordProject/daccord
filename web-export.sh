@@ -3,16 +3,42 @@
 # and copy the godot-livekit web wrapper into the output directory so voice/video
 # works at runtime.
 #
-# Usage:  ./web-export.sh [livekit-client-version]
-#   livekit-client-version  livekit-client major version (default: 2)
+# Usage:
+#   ./web-export.sh [livekit-client-version]   Export the web build
+#   ./web-export.sh serve [port]               Serve dist/build/web with COOP/COEP headers
 
 set -euo pipefail
 
-VERSION="${1:-2}"
-SDK_URL="https://cdn.jsdelivr.net/npm/livekit-client@${VERSION}/dist/livekit-client.umd.min.js"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="${SCRIPT_DIR}/dist/build/web"
 TEMPLATE_DIR="${SCRIPT_DIR}/dist/web"
+
+# --- serve subcommand ---------------------------------------------------------
+if [ "${1:-}" = "serve" ]; then
+  PORT="${2:-8060}"
+  if [ ! -f "${DIST_DIR}/Daccord.html" ]; then
+    echo "ERROR: No web build found. Run ./web-export.sh first."
+    exit 1
+  fi
+  echo "Serving ${DIST_DIR} on http://localhost:${PORT}"
+  exec python3 -c "
+import http.server, sys
+PORT = int(sys.argv[1])
+DIR = sys.argv[2]
+class H(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, directory=DIR, **kw)
+    def end_headers(self):
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
+        super().end_headers()
+http.server.HTTPServer(('0.0.0.0', PORT), H).serve_forever()
+" "$PORT" "$DIST_DIR"
+fi
+
+# --- export -------------------------------------------------------------------
+VERSION="${1:-2}"
+SDK_URL="https://cdn.jsdelivr.net/npm/livekit-client@${VERSION}/dist/livekit-client.umd.min.js"
 
 # Path to the godot-livekit web wrapper (custom JS bridge in dist/web/).
 GODOT_LIVEKIT_WEB="${GODOT_LIVEKIT_WEB:-${TEMPLATE_DIR}/godot-livekit-web.js}"
@@ -43,6 +69,12 @@ if [ -f "$GODOT_LIVEKIT_WEB" ]; then
 else
   echo "WARNING: godot-livekit-web.js not found at ${GODOT_LIVEKIT_WEB}"
   echo "  Voice/video will not work in the web export."
+fi
+
+# --- 4. Copy COOP/COEP service worker -----------------------------------------
+if [ -f "${TEMPLATE_DIR}/coop_coep.js" ]; then
+  cp "${TEMPLATE_DIR}/coop_coep.js" "${DIST_DIR}/coop_coep.js"
+  echo "Copied coop_coep.js"
 fi
 
 echo "Done. Output in ${DIST_DIR}/"

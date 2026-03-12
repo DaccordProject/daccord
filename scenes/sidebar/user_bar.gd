@@ -7,7 +7,7 @@ var _status_popup: PopupMenu = null
 @onready var avatar: ColorRect = $HBox/Avatar
 @onready var display_name: Label = $HBox/Info/DisplayName
 @onready var username: Label = $HBox/Info/Username
-@onready var voice_indicator: Label = $HBox/VoiceIndicator
+@onready var voice_indicator: TextureRect = $HBox/VoiceIndicator
 @onready var status_icon: ColorRect = $HBox/StatusIcon
 @onready var menu_button: MenuButton = $HBox/MenuButton
 

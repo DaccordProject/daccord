@@ -154,6 +154,8 @@ func _on_icon_gui_input(event: InputEvent) -> void:
 		_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
 
 func _show_context_menu(pos: Vector2i) -> void:
+	if _admin_submenu.get_parent() == _context_menu:
+		_context_menu.remove_child(_admin_submenu)
 	_context_menu.clear()
 	_admin_submenu.clear()
 	var idx: int = 0
@@ -210,9 +212,6 @@ func _show_context_menu(pos: Vector2i) -> void:
 		idx += 1
 
 	# --- General items ---
-	_context_menu.add_item("Account Settings", idx)
-	idx += 1
-
 	if Client.current_user.get("is_admin", false):
 		_context_menu.add_item("Server Settings", idx)
 		idx += 1
@@ -268,12 +267,6 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 func _on_context_menu_id_pressed(id: int) -> void:
 	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
 	match label:
-		"Account Settings":
-			var ServerSettingsScene: PackedScene = load(
-				"res://scenes/user/server_settings.tscn"
-			)
-			if ServerSettingsScene:
-				DialogHelper.open(ServerSettingsScene, get_tree()).setup(space_id)
 		"Server Settings":
 			DialogHelper.open(ServerManagementPanel, get_tree())
 		"Server Reports":

@@ -219,12 +219,10 @@ func _on_action_report(report_id: String, action_type: String) -> void:
 func _resolve_and_reload(
 	sid: String, report_id: String, action_taken: String,
 ) -> void:
-	var result: RestResult = await Client.admin.resolve_report(
+	await Client.admin.resolve_report(
 		sid, report_id,
 		{"status": "actioned", "action_taken": action_taken}
 	)
-	if result != null and result.ok:
-		_load_reports()
 
 func _resolve_user_id(report: Dictionary) -> String:
 	var target_type: String = str(report.get("target_type", ""))
@@ -247,11 +245,9 @@ func _find_report(report_id: String) -> Dictionary:
 func _on_dismiss_report(report_id: String) -> void:
 	var report: Dictionary = _find_report(report_id)
 	var sid: String = report.get("_space_id", _space_id)
-	var result: RestResult = await Client.admin.resolve_report(
+	await Client.admin.resolve_report(
 		sid, report_id, {"status": "dismissed"}
 	)
-	if result != null and result.ok:
-		_load_reports()
 
 func _on_reports_updated(space_id: String) -> void:
 	if _is_server_wide or space_id == _space_id:

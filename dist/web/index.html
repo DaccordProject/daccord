@@ -101,6 +101,15 @@
       Your browser does not support the HTML5 canvas element.
     </canvas>
 
+    <noscript>
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1e1f22;color:#dcddde;font-family:sans-serif;text-align:center;padding:24px">
+        <div>
+          <h1 style="margin-bottom:12px">daccord requires JavaScript</h1>
+          <p>Enable JavaScript to use the chat client, or <a href="/s/" style="color:#5865f2">browse server content</a> directly.</p>
+        </div>
+      </div>
+    </noscript>
+
     <div id="status">
       <img
         id="status-splash"
@@ -115,6 +124,25 @@
       <div id="status-indeterminate"></div>
       <div id="status-notice"></div>
     </div>
+
+    <!-- Parse URL fragment for deep link routing (#space/channel/post-id).
+         The Godot engine reads window.daccordDeepLink on startup to navigate
+         directly to the linked content. -->
+    <script>
+      (function () {
+        var h = window.location.hash;
+        if (h && h.length > 1) {
+          var parts = h.substring(1).split("/");
+          window.daccordDeepLink = {
+            space: parts[0] || "",
+            channel: parts[1] || "",
+            postId: parts[2] || "",
+          };
+        } else {
+          window.daccordDeepLink = null;
+        }
+      })();
+    </script>
 
     <!-- Unregister any leftover COOP/COEP service worker from older builds. -->
     <script>

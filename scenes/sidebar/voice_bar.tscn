@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/voice_bar.gd" id="1"]
 [ext_resource type="Shader" path="res://assets/theme/status_circle.gdshader" id="2"]
+[ext_resource type="Texture2D" uid="uid://rsduw67blobt" path="res://assets/theme/icons/settings.svg" id="3_settings"]
 
 [sub_resource type="ShaderMaterial" id="status_circle_mat"]
 shader = ExtResource("2")
@@ -87,13 +88,13 @@ theme_override_font_sizes/font_size = 11
 [node name="SettingsBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(36, 32)
-text = "⚙"
+icon = ExtResource("3_settings")
 tooltip_text = "Voice Settings"
-theme_override_font_sizes/font_size = 14
+expand_icon = true
 
 [node name="DisconnectBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(48, 32)
-text = "✕"
+text = "X"
 theme_override_font_sizes/font_size = 14
 metadata/theme_font_color = "error"

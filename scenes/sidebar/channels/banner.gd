@@ -48,7 +48,6 @@ func _has_any_admin_perm() -> bool:
 		Client.has_permission(_space_id, AccordPermission.MANAGE_CHANNELS) or
 		Client.has_permission(_space_id, AccordPermission.MANAGE_ROLES) or
 		Client.has_permission(_space_id, AccordPermission.BAN_MEMBERS) or
-		Client.has_permission(_space_id, AccordPermission.CREATE_INVITES) or
 		Client.has_permission(_space_id, AccordPermission.MANAGE_EMOJIS) or
 		Client.has_permission(_space_id, AccordPermission.VIEW_AUDIT_LOG) or
 		Client.has_permission(_space_id, AccordPermission.MODERATE_MEMBERS) or
@@ -76,7 +75,7 @@ func _show_admin_menu() -> void:
 		_admin_menu.add_item("Bans", idx)
 		idx += 1
 
-	if Client.has_permission(_space_id, AccordPermission.CREATE_INVITES):
+	if Client.has_permission(_space_id, AccordPermission.MANAGE_CHANNELS):
 		_admin_menu.add_item("Invites", idx)
 		idx += 1
 

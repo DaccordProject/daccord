@@ -5,17 +5,23 @@ const _SALT := "daccord-config-v1"
 const _PROFILE_SALT := "daccord-profile-v1"
 const _RECENT_EMOJI_MAX := 16
 const _BACKUP_THROTTLE_SEC := 60
-## Keys that are never imported from external config files.
-const _IMPORT_BLOCKED_KEYS: Array[String] = ["token", "password"]
 const ConfigProfilesScript := preload(
 	"res://scripts/autoload/config_profiles.gd"
 )
 const ConfigVoiceScript := preload(
 	"res://scripts/autoload/config_voice.gd"
 )
+const ConfigFriendBookScript := preload(
+	"res://scripts/autoload/config_friend_book.gd"
+)
+const ConfigExportScript := preload(
+	"res://scripts/autoload/config_export.gd"
+)
 
 var profiles # ConfigProfiles
 var voice # ConfigVoice
+var friend_book # ConfigFriendBook
+var exporter # ConfigExport
 
 var _config := ConfigFile.new()
 var _registry := ConfigFile.new()
@@ -39,6 +45,8 @@ func get_emoji_cache_path(emoji_id: String) -> String:
 func _ready() -> void:
 	profiles = ConfigProfilesScript.new(self , _PROFILE_SALT)
 	voice = ConfigVoiceScript.new(self )
+	friend_book = ConfigFriendBookScript.new(self)
+	exporter = ConfigExportScript.new(self)
 	# Parse --profile CLI arg
 	for i in OS.get_cmdline_args().size():
 		var arg: String = OS.get_cmdline_args()[i]
@@ -291,61 +299,31 @@ func remove_server(index: int) -> void:
 	_config.set_value("servers", "count", count - 1)
 	_save()
 
-## --- Friend book (local persistence of relationships) ---
+## --- Friend book (delegated to ConfigFriendBook) ---
+
+func _ensure_friend_book() -> void:
+	if friend_book == null:
+		friend_book = ConfigFriendBookScript.new(self)
 
 func get_friend_book() -> Array:
-	var count: int = _config.get_value("friend_book", "count", 0)
-	var entries: Array = []
-	for i in count:
-		var section := "friend_book_%d" % i
-		entries.append({
-			"user_id": _config.get_value(section, "user_id", ""),
-			"display_name": _config.get_value(section, "display_name", ""),
-			"username": _config.get_value(section, "username", ""),
-			"avatar_hash": _config.get_value(section, "avatar_hash", ""),
-			"server_url": _config.get_value(section, "server_url", ""),
-			"space_name": _config.get_value(section, "space_name", ""),
-			"since": _config.get_value(section, "since", ""),
-			"type": _config.get_value(section, "type", 1),
-			"last_synced": _config.get_value(section, "last_synced", ""),
-		})
-	return entries
+	_ensure_friend_book()
+	return friend_book.get_entries()
 
 func save_friend_book(entries: Array) -> void:
-	# Erase existing sections
-	var old_count: int = _config.get_value("friend_book", "count", 0)
-	for i in old_count:
-		var section := "friend_book_%d" % i
-		if _config.has_section(section):
-			_config.erase_section(section)
-	# Write new entries
-	for i in entries.size():
-		var section := "friend_book_%d" % i
-		var entry: Dictionary = entries[i]
-		_config.set_value(section, "user_id", entry.get("user_id", ""))
-		_config.set_value(section, "display_name", entry.get("display_name", ""))
-		_config.set_value(section, "username", entry.get("username", ""))
-		_config.set_value(section, "avatar_hash", entry.get("avatar_hash", ""))
-		_config.set_value(section, "server_url", entry.get("server_url", ""))
-		_config.set_value(section, "space_name", entry.get("space_name", ""))
-		_config.set_value(section, "since", entry.get("since", ""))
-		_config.set_value(section, "type", entry.get("type", 1))
-		_config.set_value(section, "last_synced", entry.get("last_synced", ""))
-	_config.set_value("friend_book", "count", entries.size())
-	_save()
+	_ensure_friend_book()
+	friend_book.save_entries(entries)
 
-func remove_friend_from_book(server_url: String, user_id: String) -> void:
-	var entries: Array = get_friend_book()
-	var filtered: Array = entries.filter(func(e):
-		return e["server_url"] != server_url or e["user_id"] != user_id
-	)
-	if filtered.size() != entries.size():
-		save_friend_book(filtered)
+func remove_friend_from_book(
+	server_url: String, user_id: String,
+) -> void:
+	_ensure_friend_book()
+	friend_book.remove_entry(server_url, user_id)
 
-func get_friend_book_for_server(server_url: String) -> Array:
-	return get_friend_book().filter(func(e):
-		return e["server_url"] == server_url
-	)
+func get_friend_book_for_server(
+	server_url: String,
+) -> Array:
+	_ensure_friend_book()
+	return friend_book.get_for_server(server_url)
 
 func update_server_token(index: int, new_token: String) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -751,54 +729,19 @@ func update_server_username(
 	_config.set_value(section, "username", username)
 	_save()
 
-## Config export/import
+## Config export/import (delegated to ConfigExport)
+
+func _ensure_exporter() -> void:
+	if exporter == null:
+		exporter = ConfigExportScript.new(self)
 
 func export_config(path: String) -> Error:
-	if not _load_ok:
-		push_warning("[Config] export blocked — config was not loaded")
-		return ERR_INVALID_DATA
-	# Create a sanitized copy that strips secrets from server sections
-	var sanitized := ConfigFile.new()
-	for section in _config.get_sections():
-		for key in _config.get_section_keys(section):
-			# Strip token and password from server_N sections
-			if section.begins_with("server_") and key in ["token", "password"]:
-				continue
-			sanitized.set_value(section, key, _config.get_value(section, key))
-	return sanitized.save(path)
+	_ensure_exporter()
+	return exporter.export_config(path)
 
 func import_config(path: String) -> Error:
-	var new_cfg := ConfigFile.new()
-	var err := new_cfg.load(path)
-	if err != OK:
-		return err
-	# Back up current config before replacing
-	var cur_path := _config_path()
-	if FileAccess.file_exists(cur_path):
-		var pre_import := cur_path + ".pre-import.bak"
-		DirAccess.copy_absolute(
-			ProjectSettings.globalize_path(cur_path),
-			ProjectSettings.globalize_path(pre_import)
-		)
-	# Selectively copy sections/keys, stripping sensitive keys
-	var stripped_count := 0
-	for section in new_cfg.get_sections():
-		for key in new_cfg.get_section_keys(section):
-			if key in _IMPORT_BLOCKED_KEYS:
-				stripped_count += 1
-				continue
-			_config.set_value(
-				section, key,
-				new_cfg.get_value(section, key)
-			)
-	if stripped_count > 0:
-		push_warning(
-			"[Config] Import: stripped %d blocked key(s) (token/password)"
-			% stripped_count
-		)
-	_load_ok = true
-	_save()
-	return OK
+	_ensure_exporter()
+	return exporter.import_config(path)
 
 ## --- Directory helpers ---
 

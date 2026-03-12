@@ -66,8 +66,10 @@ func setup(data: Dictionary) -> void:
 
 	var desc = data.get("description", null)
 	if desc is String and not desc.is_empty():
-		_desc_label.text = desc
-		_desc_label.visible = true
+		_desc_label.text = "Reason: %s" % desc
+	else:
+		_desc_label.text = "No reason provided"
+	_desc_label.visible = true
 
 	_resolve_reporter(data)
 

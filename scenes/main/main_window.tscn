@@ -72,6 +72,7 @@ drag_to_rearrange_enabled = true
 
 [node name="HeaderSpacer" type="Control" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
 layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="SearchToggle" type="Button" parent="LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox"]
 unique_name_in_owner = true

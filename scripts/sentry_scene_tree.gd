@@ -113,8 +113,12 @@ static func _read_consent_from_disk() -> bool:
 	if not FileAccess.file_exists(path):
 		return false
 	var config := ConfigFile.new()
-	var key := _SALT + OS.get_user_data_dir()
+	var key := _SALT
 	var err := config.load_encrypted_pass(path, key)
+	if err != OK:
+		# Try legacy key (salt + data dir) used in older versions
+		var legacy_key := _SALT + OS.get_user_data_dir()
+		err = config.load_encrypted_pass(path, legacy_key)
 	if err != OK:
 		# Try plain-text fallback (pre-encryption migration)
 		err = config.load(path)

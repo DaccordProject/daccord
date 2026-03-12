@@ -303,6 +303,7 @@ static func space_to_dict(
 	return {
 		"id": space.id,
 		"name": space.name,
+		"slug": space.slug,
 		"icon_color": _color_from_id(space.id),
 		"icon": icon_url,
 		"folder": "",
