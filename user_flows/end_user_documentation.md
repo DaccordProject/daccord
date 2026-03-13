@@ -41,6 +41,20 @@ The docs/ directory is consumed by external tooling, not by the Godot applicatio
 | `docs/getting-started/adding-a-server.md` | Add Server dialog, URL format, multi-server, removing a server |
 | `docs/getting-started/creating-an-account.md` | Sign In / Register flow, credential persistence |
 | `docs/getting-started/your-first-message.md` | Sending, reading, and replying to a message |
+| `docs/messaging/sending-messages.md` | Send, reply, edit, delete, typing indicator |
+| `docs/messaging/direct-messages.md` | DM mode, DM list, group DMs, search |
+| `docs/messaging/reactions-and-emoji.md` | Emoji picker, reactions, skin tone |
+| `docs/messaging/file-sharing.md` | Upload, paste, inline preview |
+| `docs/navigation/spaces-and-channels.md` | Space bar, folders, channels, categories, tabs, responsive |
+| `docs/voice-and-video/voice-channels.md` | Join, controls, screen share, video, settings |
+| `docs/customization/themes.md` | Presets, custom colors, sharing, reduce motion, UI scale |
+| `docs/customization/user-settings.md` | Settings pages overview |
+| `docs/customization/profiles.md` | Create, switch, password, delete profiles |
+| `docs/administration/managing-your-space.md` | Channels, roles, categories, channel permissions |
+| `docs/administration/moderation.md` | Kick, ban, timeout, message deletion, audit log |
+| `docs/administration/invites.md` | Create, join, manage invites |
+| `docs/troubleshooting/common-issues.md` | Connection, sound, messages, app start, error reporting |
+| `docs/troubleshooting/keyboard-shortcuts.md` | Messaging and general keyboard shortcuts |
 
 ## Implementation Details
 
@@ -113,49 +127,49 @@ Each page maps to implemented features in the codebase. The following summarizes
 | `creating-an-account.md` | Sign In / Register toggle, password generation, session persistence | `scenes/sidebar/guild_bar/auth_dialog.gd` |
 | `your-first-message.md` | Send with Enter, Shift+Enter newline, reply flow, cozy/collapsed layout | `scenes/messages/composer/composer.gd`, `scenes/messages/message_view.gd` |
 
-#### Messaging (4 pages to write)
+#### Messaging (complete)
 
 | Page | Content | Source |
 |------|---------|--------|
-| `sending-messages.md` | Edit (inline, Enter saves, Escape cancels), delete with confirmation, Up Arrow to edit last, drafts per channel, markdown formatting, context menu | `scenes/messages/message_content.gd`, `scenes/messages/message_view_actions.gd`, `scenes/messages/composer/composer.gd` |
-| `direct-messages.md` | DM button in space bar, DM list with online status, search, group DMs, close DM, mention/unread badges | `scenes/sidebar/direct/dm_list.gd`, `scenes/sidebar/direct/dm_channel_item.gd` |
-| `reactions-and-emoji.md` | Emoji picker (8 categories, search, recently used), add reaction via context menu or picker, reaction pills with count, remove reaction | `scenes/messages/composer/emoji_picker.gd`, `scenes/messages/reaction_bar.gd`, `scenes/messages/reaction_pill.gd` |
-| `file-sharing.md` | Upload via file picker, paste images from clipboard, 25 MB limit, inline image preview with lightbox, audio player, video fallback, file size display | `scenes/messages/composer/composer.gd`, `scenes/messages/message_content.gd` |
+| `sending-messages.md` | Send, reply, edit (inline, Enter saves, Escape cancels), delete with confirmation, Up Arrow to edit last, markdown formatting, typing indicator | `scenes/messages/message_content.gd`, `scenes/messages/composer/composer.gd` |
+| `direct-messages.md` | DM button in space bar, DM list, search, group DMs, sending messages in DMs | `scenes/sidebar/direct/dm_list.gd`, `scenes/sidebar/direct/dm_channel_item.gd` |
+| `reactions-and-emoji.md` | Emoji picker (8 categories, search), add/remove reaction, reaction pills, skin tone setting | `scenes/messages/composer/emoji_picker.gd`, `scenes/messages/reaction_bar.gd`, `scenes/messages/reaction_pill.gd` |
+| `file-sharing.md` | Upload via attachment button, drag-and-drop, paste images from clipboard, inline image preview, file download links | `scenes/messages/composer/composer.gd`, `scenes/messages/message_content.gd` |
 
-#### Navigation (1 page to write)
-
-| Page | Content | Source |
-|------|---------|--------|
-| `spaces-and-channels.md` | Space bar icons, space folders (collapsible groups), channel list with categories, five channel types (text/voice/announcement/forum/category), mention badges, unread indicators, tab management | `scenes/sidebar/guild_bar/guild_bar.gd`, `scenes/sidebar/channels/channel_list.gd`, `scenes/sidebar/channels/channel_item.gd` |
-
-#### Voice & Video (1 page to write)
+#### Navigation (complete)
 
 | Page | Content | Source |
 |------|---------|--------|
-| `voice-channels.md` | Click to join, voice bar (mute/deafen/video/screen share/disconnect), screen picker, soundboard, voice connection indicator, participant list | `scenes/sidebar/voice_bar.gd`, `scenes/main/main_window_voice_view.gd`, `scripts/autoload/client_voice.gd` |
+| `spaces-and-channels.md` | Space bar icons, space folders (collapsible groups), channel list with categories, four channel types (text/voice/announcement/forum), tabs, responsive drawer | `scenes/sidebar/guild_bar/guild_bar.gd`, `scenes/sidebar/channels/channel_list.gd`, `scenes/sidebar/channels/channel_item.gd` |
 
-#### Customization (3 pages to write)
-
-| Page | Content | Source |
-|------|---------|--------|
-| `themes.md` | 5 presets (Dark, Light, Nord, Monokai, Solarized), custom color editor, base64 theme sharing in chat, live preview | `scripts/autoload/theme_manager.gd` |
-| `user-settings.md` | Settings panel pages (Profiles, Voice & Video, Sound, Appearance, Notifications, Updates), device selection, volume sliders | `scenes/user/app_settings.gd` |
-| `profiles.md` | Create/switch/rename/delete profiles, password protection, per-profile config, import profiles | `scripts/autoload/config_profiles.gd`, `scenes/user/user_settings_profiles_page.gd` |
-
-#### Administration (3 pages to write)
+#### Voice & Video (complete)
 
 | Page | Content | Source |
 |------|---------|--------|
-| `managing-your-space.md` | Space settings (name, description, icon), channel CRUD, category management, role management, channel permissions | `scenes/admin/space_settings_dialog.gd`, `scenes/admin/channel_management_dialog.gd` |
-| `moderation.md` | Kick/ban/unban, timeout durations, ban list with reasons, message deletion, permission requirements | `scenes/admin/moderate_member_dialog.gd`, `scenes/admin/ban_dialog.gd`, `scenes/admin/ban_list_dialog.gd` |
-| `invites.md` | Create invite with expiration and max uses, temporary invites, invite list, bulk revoke, copy link | `scenes/admin/invite_management_dialog.gd`, `scenes/admin/invite_row.gd` |
+| `voice-channels.md` | Click to join, voice bar (mute/deafen/video/screen share/soundboard/settings/disconnect), screen picker, speaking indicator, voice settings | `scenes/sidebar/voice_bar.gd`, `scenes/main/main_window_voice_view.gd`, `scripts/autoload/client_voice.gd` |
 
-#### Troubleshooting (2 pages to write)
+#### Customization (complete)
 
 | Page | Content | Source |
 |------|---------|--------|
-| `common-issues.md` | Connection failures, HTTPS issues, token expiry, gateway reconnects, blank UI on startup, update problems | `user_flows/server_disconnects_timeouts.md`, `user_flows/auto_update.md` |
-| `keyboard-shortcuts.md` | Enter/Shift+Enter, Up Arrow edit, Escape cancel, Ctrl+V paste, context menu | `scenes/messages/composer/composer.gd`, `scenes/messages/message_content.gd` |
+| `themes.md` | 5 presets (Dark, Light, Nord, Monokai, Solarized), custom color editor, theme sharing (copy/paste/inline apply), reduce motion, UI scale, skin tone | `scripts/autoload/theme_manager.gd` |
+| `user-settings.md` | Settings panel pages (My Account, Profile, Voice & Video, Sound, Notifications, Appearance, Change Password, 2FA, Delete Account) | `scenes/user/app_settings.gd` |
+| `profiles.md` | Create/switch/delete profiles, password protection, per-profile config, CLI `--profile` flag | `scripts/autoload/config_profiles.gd`, `scenes/user/user_settings_profiles_page.gd` |
+
+#### Administration (complete)
+
+| Page | Content | Source |
+|------|---------|--------|
+| `managing-your-space.md` | Space settings, channel CRUD, categories, role management, channel permission overrides | `scenes/admin/space_settings_dialog.gd`, `scenes/admin/channel_management_dialog.gd` |
+| `moderation.md` | Kick/ban/unban, timeout, mute/deafen, bulk unban, message deletion, audit log | `scenes/admin/moderate_member_dialog.gd`, `scenes/admin/ban_dialog.gd`, `scenes/admin/ban_list_dialog.gd` |
+| `invites.md` | Create invite, `daccord://` deep link joining, manage/revoke invites | `scenes/admin/invite_management_dialog.gd`, `scenes/admin/invite_row.gd` |
+
+#### Troubleshooting (complete)
+
+| Page | Content | Source |
+|------|---------|--------|
+| `common-issues.md` | Connection failures, reconnection, no voice sound, messages not loading, app won't start, error reporting | `user_flows/server_disconnects_timeouts.md`, `user_flows/auto_update.md` |
+| `keyboard-shortcuts.md` | Enter/Shift+Enter, Up Arrow edit, Escape cancel, Ctrl+V paste | `scenes/messages/composer/composer.gd`, `scenes/messages/message_content.gd` |
 
 ### Relationship to user flows
 
@@ -188,64 +202,79 @@ User flows (`user_flows/`) are developer-facing documents verified against the c
 - [x] `docs/getting-started/adding-a-server.md`
 - [x] `docs/getting-started/creating-an-account.md`
 - [x] `docs/getting-started/your-first-message.md`
-- [ ] `docs/messaging/sending-messages.md`
-- [ ] `docs/messaging/direct-messages.md`
-- [ ] `docs/messaging/reactions-and-emoji.md`
-- [ ] `docs/messaging/file-sharing.md`
-- [ ] `docs/navigation/spaces-and-channels.md`
-- [ ] `docs/voice-and-video/voice-channels.md`
-- [ ] `docs/customization/themes.md`
-- [ ] `docs/customization/user-settings.md`
-- [ ] `docs/customization/profiles.md`
-- [ ] `docs/administration/managing-your-space.md`
-- [ ] `docs/administration/moderation.md`
-- [ ] `docs/administration/invites.md`
-- [ ] `docs/troubleshooting/common-issues.md`
-- [ ] `docs/troubleshooting/keyboard-shortcuts.md`
+- [x] `docs/messaging/sending-messages.md`
+- [x] `docs/messaging/direct-messages.md`
+- [x] `docs/messaging/reactions-and-emoji.md`
+- [x] `docs/messaging/file-sharing.md`
+- [x] `docs/navigation/spaces-and-channels.md`
+- [x] `docs/voice-and-video/voice-channels.md`
+- [x] `docs/customization/themes.md`
+- [x] `docs/customization/user-settings.md`
+- [x] `docs/customization/profiles.md`
+- [x] `docs/administration/managing-your-space.md`
+- [x] `docs/administration/moderation.md`
+- [x] `docs/administration/invites.md`
+- [x] `docs/troubleshooting/common-issues.md`
+- [x] `docs/troubleshooting/keyboard-shortcuts.md`
+
+## Gaps / TODO
+
+| Gap | Severity | Notes |
+|-----|----------|-------|
+| `installation.md` lists Windows file as `daccord-windows-installer.exe` | Medium | Actual release artifact is `daccord-windows-x86_64-setup.exe` (release.yml line 635) |
+| `installation.md` missing Web platform | Low | Release CI builds `daccord-web.zip` but installation docs don't mention the web export |
+| `adding-a-server.md` missing query parameter docs | Medium | Code supports `?token=value` and `?invite=code` in URLs (add_server_dialog.gd line 37) but docs don't mention these |
+| `sending-messages.md` missing drafts | Low | Composer auto-saves per-channel draft text (composer.gd lines 414-419) but docs don't mention it |
+| `sending-messages.md` missing message queue | Low | Messages queue while disconnected and send on reconnect (composer.gd lines 70-87) -- not documented |
+| `direct-messages.md` missing friends tab | Medium | DM panel has Friends vs Messages tabs (dm_list.gd lines 36-45) but docs only describe the DM list |
+| `direct-messages.md` missing close DM | Low | Users can close DMs from the list (dm_list.gd lines 67-69) -- not documented |
+| `file-sharing.md` missing 25 MB limit | Low | Upload has a 25 MB size limit with error message but docs don't mention the cap |
+| `file-sharing.md` missing audio/video attachments | Low | Audio attachments get inline player with progress slider; video gets clickable thumbnail (message_content.gd lines 399-537) -- not documented |
+| `user-settings.md` missing Connections page | Low | App settings has a Connections page (app_settings.gd) but docs don't mention it |
+| `user-settings.md` missing idle timeout | Low | Auto-idle status after configurable timeout (app_settings.gd lines 759-775) -- not documented |
+| `invites.md` missing expiration/max-uses options | Medium | Invite creation supports expiration (30min to never) and max uses (invite_management_dialog.gd lines 37-48) but docs don't mention these options |
+| `invites.md` missing temporary member flag | Low | Invites can mark joiners as temporary members who are removed when they leave (invite_management_dialog.gd line 19) -- not documented |
+| `keyboard-shortcuts.md` sparse | Medium | Only covers 5 shortcuts; missing thread navigation, tab switching, DM search, and other shortcuts |
+| No build pipeline for docs | Low | No static site generator, CI build, or deployment configured. The Markdown is ready for external tooling but nothing consumes it yet |
+| No screenshots or images | Medium | README.md specifies an `images/` convention per section but no screenshots exist. Visual guides would significantly help non-technical users |
 
 ## Tasks
 
 ### DOCS-1: Write messaging section (4 pages)
-- **Status:** todo
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** docs
-- **Notes:** `sending-messages.md` (edit/delete/drafts/markdown), `direct-messages.md` (DM mode/groups/search), `reactions-and-emoji.md` (picker/pills), `file-sharing.md` (upload/paste/inline preview).
 
 ### DOCS-2: Write navigation page
-- **Status:** todo
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** docs
-- **Notes:** `spaces-and-channels.md` covering space bar, folders, channel categories, five channel types, unread/mention badges, tab management.
 
 ### DOCS-3: Write voice & video page
-- **Status:** todo
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** docs
-- **Notes:** `voice-channels.md` covering join/leave, mute/deafen, video, screen share, soundboard. Note which features require the godot-livekit addon.
 
 ### DOCS-4: Write customization section (3 pages)
-- **Status:** todo
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** docs
-- **Notes:** `themes.md` (presets/custom/sharing), `user-settings.md` (settings panel pages), `profiles.md` (create/switch/password/import).
 
 ### DOCS-5: Write administration section (3 pages)
-- **Status:** todo
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** docs
-- **Notes:** `managing-your-space.md` (space settings/channels/roles), `moderation.md` (kick/ban/timeout), `invites.md` (create/revoke/copy).
 
 ### DOCS-6: Write troubleshooting section (2 pages)
-- **Status:** todo
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** docs
-- **Notes:** `common-issues.md` (connection/auth/update problems), `keyboard-shortcuts.md` (full shortcut reference).
 
 ### DOCS-7: No build pipeline for docs
 - **Status:** todo
@@ -260,3 +289,10 @@ User flows (`user_flows/`) are developer-facing documents verified against the c
 - **Effort:** 3
 - **Tags:** docs
 - **Notes:** README.md specifies an `images/` convention per section but no screenshots exist. Visual guides would significantly help non-technical users understand the UI.
+
+### DOCS-9: Fix inaccuracies in existing pages
+- **Status:** todo
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** docs
+- **Notes:** Fix Windows installer filename in `installation.md`, add query parameter docs to `adding-a-server.md`, add friends tab to `direct-messages.md`, add invite options to `invites.md`.
