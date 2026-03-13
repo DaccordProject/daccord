@@ -79,6 +79,16 @@ func connect_signals(
 		_events.on_emoji_delete.bind(idx))
 	client.interaction_create.connect(
 		_events.on_interaction_create.bind(idx))
+	client.plugin_installed.connect(
+		_events.on_plugin_installed.bind(idx))
+	client.plugin_uninstalled.connect(
+		_events.on_plugin_uninstalled.bind(idx))
+	client.plugin_event.connect(
+		_events.on_plugin_event.bind(idx))
+	client.plugin_session_state.connect(
+		_events.on_plugin_session_state.bind(idx))
+	client.plugin_role_changed.connect(
+		_events.on_plugin_role_changed.bind(idx))
 	client.soundboard_create.connect(
 		_events.on_soundboard_create.bind(idx))
 	client.soundboard_update.connect(
