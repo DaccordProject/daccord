@@ -67,6 +67,13 @@ signal invite_delete(data: Dictionary)
 # Interactions
 signal interaction_create(interaction: AccordInteraction)
 
+# Plugins
+signal plugin_installed(data: Dictionary)
+signal plugin_uninstalled(data: Dictionary)
+signal plugin_event(data: Dictionary)
+signal plugin_session_state(data: Dictionary)
+signal plugin_role_changed(data: Dictionary)
+
 # Emojis
 signal emoji_create(data: Dictionary)
 signal emoji_update(data: Dictionary)
@@ -374,6 +381,16 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			invite_delete.emit(data)
 		"interaction.create":
 			interaction_create.emit(AccordInteraction.from_dict(data))
+		"plugin.installed":
+			plugin_installed.emit(data)
+		"plugin.uninstalled":
+			plugin_uninstalled.emit(data)
+		"plugin.event":
+			plugin_event.emit(data)
+		"plugin.session_state":
+			plugin_session_state.emit(data)
+		"plugin.role_changed":
+			plugin_role_changed.emit(data)
 		"emoji.create":
 			emoji_create.emit(data)
 		"emoji.update":
