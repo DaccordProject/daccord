@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-03-14
+
+### Added
+- Web deep links and UI icon cleanup
+- Local friend book for cross-server relationship persistence
+- Loading animations for server connection
+
+### Fixed
+- Attach remote audio tracks on web so web client can hear desktop clients
+- Use Web Audio API for mic test on web to avoid unsupported AudioStreamMicrophone
+- Loose web files in release packaging
+
+### Changed
+- Updated responsive layout and other user flow documentation
+- Code extraction refactors
+
 ## [0.1.11] - 2026-03-11
 
 ### Added
