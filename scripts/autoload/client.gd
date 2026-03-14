@@ -32,6 +32,7 @@ var permissions: RefCounted
 var connection: ClientConnection
 var relationships: ClientRelationships
 var web_links: ClientWebLinks
+var plugins: ClientPlugins
 
 # --- Data access API (properties) ---
 
@@ -180,6 +181,7 @@ func _ready() -> void:
 	connection = ClientConnection.new(self)
 	relationships = ClientRelationships.new(self)
 	web_links = ClientWebLinks.new(self)
+	plugins = ClientPlugins.new(self)
 	web_links.setup()
 	# On Android, request dangerous permissions (microphone, camera) early so
 	# they are granted before the user tries to join a voice channel.

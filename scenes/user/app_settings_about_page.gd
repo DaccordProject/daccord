@@ -73,6 +73,13 @@ func build() -> VBoxContainer:
 			"MIT License",
 			"https://github.com/bitwes/Gut",
 		],
+		[
+			"Godot Sandbox",
+			"Safe modding and sandboxed scripting for Godot.",
+			"Copyright (c) 2024, Alf-André Walla",
+			"BSD 3-Clause License",
+			"https://github.com/libriscv/godot-sandbox",
+		],
 	]
 
 	for entry in credits:

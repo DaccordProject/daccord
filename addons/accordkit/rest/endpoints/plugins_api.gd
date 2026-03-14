@@ -34,14 +34,16 @@ func delete_plugin(space_id: String, plugin_id: String) -> RestResult:
 
 
 ## Downloads the compiled ELF binary for a scripted plugin.
+## On success, result.data is a PackedByteArray containing the ELF binary.
 func get_elf(plugin_id: String) -> RestResult:
-	var result := await _rest.make_request("GET", "/plugins/" + plugin_id + "/elf")
+	var result := await _rest.make_raw_request("/plugins/" + plugin_id + "/elf")
 	return result
 
 
 ## Downloads the full plugin bundle ZIP for a native plugin.
+## On success, result.data is a PackedByteArray containing the ZIP bundle.
 func get_bundle(plugin_id: String) -> RestResult:
-	var result := await _rest.make_request("GET", "/plugins/" + plugin_id + "/bundle")
+	var result := await _rest.make_raw_request("/plugins/" + plugin_id + "/bundle")
 	return result
 
 

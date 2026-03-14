@@ -676,6 +676,28 @@ func set_nsfw_ack(server_url: String) -> void:
 	_config.set_value("nsfw_ack", server_url, true)
 	_save()
 
+## Plugin trust (per-server, per-plugin)
+
+func get_plugin_trust(server_id: String, plugin_id: String) -> bool:
+	return _config.get_value("plugin_trust_" + server_id, plugin_id, false)
+
+func set_plugin_trust(server_id: String, plugin_id: String, trusted: bool) -> void:
+	if trusted:
+		_config.set_value("plugin_trust_" + server_id, plugin_id, true)
+	else:
+		_config.set_value("plugin_trust_" + server_id, plugin_id, null)
+	_save()
+
+func is_plugin_trust_all(server_id: String) -> bool:
+	return _config.get_value("plugin_trust_" + server_id, "_trust_all", false)
+
+func set_plugin_trust_all(server_id: String, trust_all: bool) -> void:
+	if trust_all:
+		_config.set_value("plugin_trust_" + server_id, "_trust_all", true)
+	else:
+		_config.set_value("plugin_trust_" + server_id, "_trust_all", null)
+	_save()
+
 ## Draft text persistence
 
 func set_draft_text(channel_id: String, text: String) -> void:
