@@ -558,7 +558,7 @@ jobs:
           cd $GITHUB_WORKSPACE
           rm -rf $RUNNER_TEMP/macos_staple
 
-      - name: Create macOS DMG
+      - name: Create macOS DMGs
         if: matrix.platform == 'macos'
         run: |
           TMPDIR="$RUNNER_TEMP/dmg_build"
@@ -566,18 +566,25 @@ jobs:
           mkdir -p "$TMPDIR"
           unzip -o ${{ matrix.artifact }}.zip -d "$TMPDIR"
           ln -s /Applications "$TMPDIR/Applications"
+          # Build is universal (arm64 + x86_64) — create arch-specific DMGs
+          # so download links for both architectures resolve
           hdiutil create \
             -volname "daccord" \
             -srcfolder "$TMPDIR" \
             -ov -format UDZO \
-            "$GITHUB_WORKSPACE/${{ matrix.artifact }}.dmg"
+            "$GITHUB_WORKSPACE/daccord-macos-arm64.dmg"
+          cp "$GITHUB_WORKSPACE/daccord-macos-arm64.dmg" \
+            "$GITHUB_WORKSPACE/daccord-macos-x86_64.dmg"
           rm -rf "$TMPDIR"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.*
+          path: |
+            ${{ matrix.artifact }}.*
+            daccord-macos-arm64.dmg
+            daccord-macos-x86_64.dmg
 
   windows-installer:
     name: Build Windows installer
