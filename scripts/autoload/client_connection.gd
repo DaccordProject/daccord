@@ -160,6 +160,8 @@ func connect_server(
 	var was_connecting: bool = int(_c.mode) == Client.Mode.CONNECTING
 	_c.mode = Client.Mode.LIVE
 	AppState.spaces_updated.emit()
+	# Fetch plugins for this space
+	_c.plugins.fetch_plugins(index, found_space_id)
 	# Restore saved status on first connection
 	if was_connecting:
 		var saved_status: int = Config.get_user_status()

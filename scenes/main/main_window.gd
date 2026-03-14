@@ -52,6 +52,7 @@ var _update_indicator: Button = null
 @onready var voice_text_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/VoiceTextPanel
 @onready var discovery_panel: PanelContainer = $LayoutHBox/DiscoveryPanel
 @onready var message_view: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MessageView
+@onready var activity_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ActivityPanel
 @onready var thread_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ThreadPanel
 @onready var member_list: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MemberList
 @onready var search_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/SearchPanel
@@ -106,6 +107,8 @@ func _ready() -> void:
 	AppState.voice_text_closed.connect(_on_voice_text_closed)
 	AppState.discovery_opened.connect(_on_discovery_opened)
 	AppState.discovery_closed.connect(_on_discovery_closed)
+	AppState.activity_started.connect(_on_activity_started)
+	AppState.activity_ended.connect(_on_activity_ended)
 
 	# Update indicator in content header (hidden until update available)
 	_update_indicator = Button.new()
@@ -756,6 +759,18 @@ func _on_tab_bar_input(event: InputEvent) -> void:
 	if close_rect.has_point(event.position):
 		_tabs.on_tab_close(i)
 		tab_bar.accept_event()
+
+func _on_activity_started(_plugin_id: String, _channel_id: String) -> void:
+	# Activity panel makes itself visible via its own signal handler.
+	# In compact mode, hide message view to give activity full space.
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		message_view.visible = false
+
+func _on_activity_ended(_plugin_id: String) -> void:
+	# Restore message view when activity ends
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		if not AppState.thread_panel_visible:
+			message_view.visible = true
 
 func _apply_theme() -> void:
 	drawer_backdrop.color = ThemeManager.get_color("overlay")

@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/messages/thread_panel.tscn" id="11"]
 [ext_resource type="PackedScene" path="res://scenes/discovery/discovery_panel.tscn" id="12"]
 [ext_resource type="PackedScene" path="res://scenes/messages/voice_text_panel.tscn" id="13"]
+[ext_resource type="Script" path="res://scenes/plugins/activity_panel.gd" id="14_activity"]
 
 [node name="MainWindow" type="Control"]
 layout_mode = 3
@@ -105,6 +106,12 @@ theme_override_constants/separation = 0
 
 [node name="MessageView" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("3")]
 layout_mode = 2
+
+[node name="ActivityPanel" type="PanelContainer" parent="LayoutHBox/ContentArea/ContentBody"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("14_activity")
 
 [node name="ThreadPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("11")]
 layout_mode = 2

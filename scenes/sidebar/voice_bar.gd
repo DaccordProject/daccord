@@ -2,6 +2,18 @@ extends PanelContainer
 
 const AppSettingsScene := preload("res://scenes/user/app_settings.tscn")
 const SoundboardPanelScene := preload("res://scenes/soundboard/soundboard_panel.tscn")
+const ActivityModalScript := preload("res://scenes/plugins/activity_modal.gd")
+
+const ICON_MIC := preload("res://assets/theme/icons/microphone.svg")
+const ICON_MIC_OFF := preload("res://assets/theme/icons/microphone_off.svg")
+const ICON_HEADPHONES := preload("res://assets/theme/icons/headphones.svg")
+const ICON_HEADPHONES_OFF := preload("res://assets/theme/icons/headphones_off.svg")
+const ICON_CAMERA := preload("res://assets/theme/icons/camera.svg")
+const ICON_CAMERA_OFF := preload("res://assets/theme/icons/camera_off.svg")
+const ICON_SCREEN_SHARE := preload("res://assets/theme/icons/screen_share.svg")
+const ICON_SCREEN_SHARE_OFF := preload(
+	"res://assets/theme/icons/screen_share_off.svg"
+)
 
 var _screen_picker_scene: PackedScene
 var _soundboard_panel: PanelContainer = null
@@ -16,6 +28,7 @@ var _pulse_tween: Tween
 @onready var deafen_btn: Button = $VBox/ButtonRow/DeafenBtn
 @onready var video_btn: Button = $VBox/ButtonRow/VideoBtn
 @onready var share_btn: Button = $VBox/ButtonRow/ShareBtn
+@onready var activity_btn: Button = $VBox/ButtonRow/ActivityBtn
 @onready var sfx_btn: Button = $VBox/ButtonRow/SfxBtn
 @onready var settings_btn: Button = $VBox/ButtonRow/SettingsBtn
 @onready var disconnect_btn: Button = $VBox/ButtonRow/DisconnectBtn
@@ -29,6 +42,7 @@ func _ready() -> void:
 	video_btn.pressed.connect(_on_video_pressed)
 	share_btn.pressed.connect(_on_share_pressed)
 	sfx_btn.pressed.connect(_on_sfx_pressed)
+	activity_btn.pressed.connect(_on_activity_pressed)
 	settings_btn.pressed.connect(_on_settings_pressed)
 	disconnect_btn.pressed.connect(_on_disconnect_pressed)
 	AppState.voice_joined.connect(_on_voice_joined)
@@ -165,6 +179,15 @@ func _on_share_pressed() -> void:
 func _on_screen_source_selected(source: Dictionary) -> void:
 	Client.start_screen_share(source)
 
+func _on_activity_pressed() -> void:
+	var modal: ColorRect = ActivityModalScript.new()
+	get_tree().root.add_child(modal)
+	modal.setup(AppState.voice_space_id, AppState.voice_channel_id)
+	modal.activity_launched.connect(_on_activity_launched)
+
+func _on_activity_launched(plugin_id: String, channel_id: String) -> void:
+	Client.plugins.launch_activity(plugin_id, channel_id)
+
 func _on_sfx_pressed() -> void:
 	if _soundboard_panel != null and is_instance_valid(_soundboard_panel):
 		_close_soundboard_panel()
@@ -210,41 +233,50 @@ func _on_screen_share_changed(_is_sharing: bool) -> void:
 func _update_button_visuals() -> void:
 	# Mute button
 	if AppState.is_voice_muted:
-		mute_btn.text = "Mic Off"
+		mute_btn.icon = ICON_MIC_OFF
+		mute_btn.tooltip_text = "Unmute"
 		mute_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("error"), 0.3), 4))
 	else:
-		mute_btn.text = "Mic"
+		mute_btn.icon = ICON_MIC
+		mute_btn.tooltip_text = "Mute"
 		mute_btn.remove_theme_stylebox_override("normal")
 
 	# Deafen button
 	if AppState.is_voice_deafened:
-		deafen_btn.text = "Deaf"
+		deafen_btn.icon = ICON_HEADPHONES_OFF
+		deafen_btn.tooltip_text = "Undeafen"
 		deafen_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("error"), 0.3), 4))
 	else:
-		deafen_btn.text = "Deaf"
+		deafen_btn.icon = ICON_HEADPHONES
+		deafen_btn.tooltip_text = "Deafen"
 		deafen_btn.remove_theme_stylebox_override("normal")
 
 	# Video button (green when active, disabled when no camera)
 	var cam_available := _has_camera()
 	video_btn.disabled = not cam_available
-	video_btn.tooltip_text = "" if cam_available else "No camera detected"
-	if AppState.is_video_enabled:
-		video_btn.text = "Cam On"
+	if not cam_available:
+		video_btn.tooltip_text = "No camera detected"
+	elif AppState.is_video_enabled:
+		video_btn.icon = ICON_CAMERA_OFF
+		video_btn.tooltip_text = "Stop Camera"
 		video_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("success"), 0.3), 4))
 	else:
-		video_btn.text = "Cam"
+		video_btn.icon = ICON_CAMERA
+		video_btn.tooltip_text = "Camera"
 		video_btn.remove_theme_stylebox_override("normal")
 
 	# Share button (green when active)
 	if AppState.is_screen_sharing:
-		share_btn.text = "Sharing"
+		share_btn.icon = ICON_SCREEN_SHARE_OFF
+		share_btn.tooltip_text = "Stop Sharing"
 		share_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("success"), 0.3), 4))
 	else:
-		share_btn.text = "Share"
+		share_btn.icon = ICON_SCREEN_SHARE
+		share_btn.tooltip_text = "Screen Share"
 		share_btn.remove_theme_stylebox_override("normal")
 
 func _has_camera() -> bool:

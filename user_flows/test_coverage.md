@@ -1,6 +1,6 @@
 # Test Coverage
 
-Last touched: 2026-03-11
+Last touched: 2026-03-13
 Priority: 38
 Depends on: None
 
@@ -92,17 +92,20 @@ cleanup() --> kill server + rm accord_test.db
 | `tests/accordkit/unit/test_model_space.gd` | AccordSpace/Channel/Role/Emoji/PermOverwrite models (17 tests) |
 | `tests/accordkit/unit/test_model_interaction.gd` | AccordInteraction/Application/Command/Invite models (17 tests) |
 | `tests/accordkit/unit/test_model_voice.gd` | AccordVoiceState/VoiceServerUpdate models (11 tests) |
+| `tests/accordkit/unit/test_model_plugin_manifest.gd` | AccordPluginManifest model from_dict/to_dict/enums (5 tests) |
 | `tests/accordkit/integration/test_users_api.gd` | REST /users endpoints (6 tests) |
 | `tests/accordkit/integration/test_spaces_api.gd` | REST /spaces endpoints (5 tests) |
 | `tests/accordkit/integration/test_channels_api.gd` | REST /channels endpoints (3 tests) |
 | `tests/accordkit/integration/test_messages_api.gd` | REST /messages CRUD + typing (6 tests) |
 | `tests/accordkit/integration/test_members_api.gd` | REST /members endpoints (4 tests) |
 | `tests/accordkit/integration/test_permissions_api.gd` | Server-enforced permission checks (23 tests) |
+| `tests/accordkit/integration/test_plugins_api.gd` | REST /plugins endpoints -- list, filter, manifest fields, sessions, roles, actions (10 tests) |
 | `tests/accordkit/gateway/test_gateway_connect.gd` | WebSocket connect/disconnect lifecycle (3 tests) -- disconnect test verifies `disconnected` signal and gateway `_state == DISCONNECTED` |
 | `tests/accordkit/gateway/test_gateway_events.gd` | Real-time gateway event delivery (1 test) |
 | `tests/accordkit/e2e/test_full_lifecycle.gd` | Full login-to-logout lifecycle (1 test) |
 | `tests/accordkit/e2e/test_add_server.gd` | Full invite flow -- create space, create invite, bot accepts, gateway event, REST verify, send message (1 test) |
 | `tests/accordkit/e2e/test_voice_auth_handshake.gd` | Voice REST join/leave flow -- backend probe, channel creation, LiveKit credential validation, mute/deaf flags, graceful leave (5 tests) |
+| `tests/unit/test_client_plugins.gd` | Unit tests for ClientPlugins -- caching, gateway event handling, voice disconnect cleanup (18 tests) |
 | `tests/livekit/unit/test_livekit_adapter.gd` | Unit tests for LiveKitAdapter -- state machine, mute/deafen, signal surface, disconnect, unpublish (10 tests) |
 
 ## Implementation Details
@@ -133,11 +136,11 @@ Minimal config: three directories with `include_subdirs=true`, `prefix=test_`, `
 
 Base class for all server-dependent tests. Constants `BASE_URL` and `GATEWAY_URL` point to `127.0.0.1:39099` (lines 3-4).
 
-`before_all()` (line 21): calls `SeedClient.seed(self)` which POSTs to `/test/seed`. Extracts `user_id`, `user_token`, `bot_id`, `bot_token`, `bot_application_id`, `space_id`, `general_channel_id`, and `testing_channel_id` from the response.
+`before_all()` (line 41): calls `SeedClient.seed(self)` which POSTs to `/test/seed`. Extracts `user_id`, `user_token`, `bot_id`, `bot_token`, `bot_application_id`, `space_id`, `general_channel_id`, `testing_channel_id`, and `plugin_id` from the response.
 
-`before_each()` (line 47): creates fresh `bot_client` (Bot token) and `user_client` (Bearer token) via `_create_client()`. Each `AccordClient` gets full `GatewayIntents.all()` and is added as a child node.
+`before_each()` (line 71): creates fresh `bot_client` (Bot token) and `user_client` (Bearer token) via `_create_client()`. Each `AccordClient` gets full `GatewayIntents.all()` and is added as a child node.
 
-`after_each()` (line 52): calls `queue_free()` on both clients.
+`after_each()` (line 76): calls `queue_free()` on both clients.
 
 ### SeedClient (`tests/accordkit/helpers/seed_client.gd`)
 
@@ -207,9 +210,11 @@ Static helper class. `seed()` (line 5) creates an `HTTPRequest`, POSTs `{}` to `
 
 **test_updater.gd** -- 34 tests for the Updater semver utilities. Covers `parse_semver` (basic version, v-prefix, prerelease tag, combined v-prefix + prerelease, invalid too-few-parts, non-numeric, empty string, whitespace stripping), `compare_semver` (equal, major/minor/patch greater/less, release beats prerelease, prerelease less than release, prerelease lexicographic ordering, prerelease equal, v-prefix, invalid returns zero), `is_newer` (true, false-equal, false-older, prerelease not newer than release, release newer than prerelease, next-version prerelease is newer), `parse_release` (valid release with Linux asset, missing tag, invalid tag, no Linux asset, prerelease tag), and instance state (`is_downloading` default false, `is_update_ready` default false).
 
+**test_client_plugins.gd** -- 18 tests for the `ClientPlugins` helper class. Uses a directly instantiated `ClientPlugins` with a mock `Client` node. Plugin cache tests (3): `get_plugins` returns empty by default, `get_plugin` returns empty dict when not found, `get_conn_index_for_plugin` returns -1 when not found. Gateway install tests (3): `on_plugin_installed` adds manifest to cache (verified via `get_plugins` size and `get_plugin` fields), ignores empty-ID manifests, updates existing plugin in-place (V1→V2 same cache size). Gateway uninstall tests (2): `on_plugin_uninstalled` removes from cache while preserving other plugins, no-op for unknown plugin IDs. Role changed tests (2): `on_plugin_role_changed` updates `AppState.active_activity_role` for the current user, ignores role changes for other users. Session state tests (3): `on_plugin_session_state` updates `AppState.active_activity_session_state` for the active session, "ended" state clears active activity and session ID, ignores events for non-matching session IDs. Voice disconnect tests (2): `_on_voice_left` clears active activity and emits `activity_ended` signal, no-op when no active activity. Connection isolation tests (2): `get_conn_index_for_plugin` returns correct index, plugins on different connections are isolated.
+
 ### AccordKit Unit Tests (`tests/accordkit/unit/`)
 
-Eleven test files covering AccordKit's utility classes and model layer:
+Twelve test files covering AccordKit's utility classes and model layer:
 
 - **test_snowflake.gd** (9 tests) -- Encode/decode roundtrip, epoch constant (`1704067200000`), nonce uniqueness (100 nonces), datetime conversion.
 - **test_rest_result.gd** (8 tests) -- Success/failure construction, cursor/has_more, null data (204), array data.
@@ -217,11 +222,12 @@ Eleven test files covering AccordKit's utility classes and model layer:
 - **test_cdn.gd** (12 tests) -- URL generation for avatars, default avatars, space icons/banners, emojis (static + gif), attachments, animated hash detection.
 - **test_permissions.gd** (7 tests) -- All permissions count (39), has/has-not, administrator grants all, empty set, uniqueness.
 - **test_multipart_form.gd** (8 tests) -- Content-type boundary, field/JSON/file parts, closing boundary, empty form, multiple parts.
+- **test_model_plugin_manifest.gd** (5 tests) -- `from_dict` full (19 fields including canvas_size array, permissions array, data_topics, signed/signature), `from_dict` minimal (empty dict defaults), `to_dict` roundtrip, `canvas_size` from separate `canvas_width`/`canvas_height` fields, enum value definitions (PluginRuntime.SCRIPTED/NATIVE, SessionState.LOBBY/RUNNING/ENDED, ParticipantRole.SPECTATOR/PLAYER).
 - **test_model_*.gd** (5 files, 77 tests total) -- `from_dict` (full/minimal), `to_dict` roundtrip, null field omission, field aliases (`space_id`/`space_id`, `nick`/`nickname`), nested dict extraction for user/member fields.
 
 ### AccordKit Integration Tests (`tests/accordkit/integration/`)
 
-Six test files, all extending `AccordTestBase`:
+Seven test files, all extending `AccordTestBase`:
 
 - **test_users_api.gd** (6 tests) -- `get_me` for bot and user, `get_user` by ID, 404 for nonexistent, `list_spaces`, `update_me`.
 - **test_spaces_api.gd** (5 tests) -- `get_space`, `create_space` (checks `owner_id`), `update_space`, `list_channels`, `create_channel`.
@@ -229,6 +235,7 @@ Six test files, all extending `AccordTestBase`:
 - **test_messages_api.gd** (6 tests) -- Create, list, get, edit, delete (verify 404 after), typing indicator.
 - **test_members_api.gd** (4 tests) -- List members (>=2), get member (handles nested `user.id`), get bot member, update nickname.
 - **test_permissions_api.gd** (23 tests) -- Verifies server-enforced permissions: bot (regular member) gets 403 for space/channel/role/ban/member-role/invite/emoji management; owner succeeds. Includes an escalation test where owner grants `manage_channels` role to bot, then bot creates a channel successfully.
+- **test_plugins_api.gd** (10 tests) -- Plugin REST endpoints against a live server. Uses seeded `plugin_id` from `AccordTestBase`. Tests: `list_plugins` (returns array with ≥1 seeded plugin), `list_plugins` with type filter "activity" (verifies all results match type), `list_plugins` with type filter "bot" (returns empty), `seeded_plugin_manifest_fields` (verifies name="Test Plugin", runtime="scripted", type="activity", version="1.0.0", max_participants=8, lobby=true), `create_and_delete_session` (creates session on testing_channel_id, verifies id/plugin_id/channel_id/state="lobby"/host_user_id, then deletes), `session_state_transitions` (lobby→running→ended), `assign_role` (switches host from player to spectator, verifies in participants array, switches back), `send_action` (transitions to running, sends action with {"action":"test_move","value":42}), `send_action_requires_running_state` (action in lobby state fails), `invalid_state_transition` (lobby→lobby fails).
 
 ### AccordKit Gateway Tests (`tests/accordkit/gateway/`)
 
@@ -259,13 +266,13 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 
 | Suite | Files | Tests | Server needed |
 |-------|-------|-------|---------------|
-| Unit (`tests/unit/`) | 31 | 634 | No |
-| AccordKit unit (`tests/accordkit/unit/`) | 11 | 129 | No |
-| AccordKit integration (`tests/accordkit/integration/`) | 6 | 47 | Yes |
+| Unit (`tests/unit/`) | 32 | 652 | No |
+| AccordKit unit (`tests/accordkit/unit/`) | 12 | 134 | No |
+| AccordKit integration (`tests/accordkit/integration/`) | 7 | 57 | Yes |
 | AccordKit gateway (`tests/accordkit/gateway/`) | 2 | 4 | Yes |
 | AccordKit e2e (`tests/accordkit/e2e/`) | 3 | 7 | Yes |
 | LiveKit (`tests/livekit/unit/`) | 1 | 10 | No |
-| **Total** | **54** | **831** | |
+| **Total** | **57** | **864** | |
 
 ## Implementation Status
 
@@ -293,7 +300,7 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - [x] Unit tests for typing indicator (6 tests)
 - [x] Unit tests for reaction pill (7 tests)
 - [x] Unit tests for DM channel item (9 tests)
-- [x] AccordKit model serialization tests (77 tests across 5 files)
+- [x] AccordKit model serialization tests (82 tests across 6 files)
 - [x] AccordKit utility tests -- snowflake, REST result, intents, CDN, permissions, multipart (52 tests)
 - [x] AccordKit REST integration tests -- users, spaces, channels, messages, members (24 tests)
 - [x] AccordKit permission enforcement tests (23 tests)
@@ -319,6 +326,9 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - [x] Smoke tests for Client `_ready()` startup -- sub-modules, AccordVoiceSession, signal wiring (6 tests)
 - [x] Smoke tests for settings panels -- script loading, pages, navigation, input sensitivity (16 tests)
 - [x] Unit tests for MessageViewScroll -- old_message_count, auto_scroll, get_last_message_child (8 tests)
+- [x] Unit tests for ClientPlugins -- caching, gateway events, voice disconnect cleanup (18 tests)
+- [x] AccordKit PluginManifest model tests -- from_dict, to_dict roundtrip, enums (5 tests)
+- [x] AccordKit plugins REST integration tests -- list, filter, sessions, roles, actions (10 tests)
 - [ ] No mock/stub/double usage anywhere (real objects only)
 
 ## Tasks
@@ -427,6 +437,13 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Effort:** 3
 - **Tags:** ci, voice
 - **Notes:** LiveKit source changes (e.g., adding `set_output_device()`) are not automatically rebuilt. Stale binaries cause GDScript parse errors that cascade through dependent scripts. CI doesn't verify that the binary matches the source.
+
+### TEST-17: No tests for plugin UI scenes and runtimes
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 3
+- **Tags:** plugins, testing, ui
+- **Notes:** `scenes/plugins/` has 7 untested files: `plugin_canvas.gd`, `scripted_runtime.gd`, `native_runtime.gd`, `activity_modal.gd`, `activity_lobby.gd`, `activity_panel.gd`, `plugin_context.gd`, `plugin_trust_dialog.gd`. `scenes/admin/plugin_management_dialog.gd` is also untested. The `ClientPlugins` gateway handlers and caching logic are covered, but `launch_activity`, `stop_activity`, `start_session`, `send_action`, `assign_role`, and the download/trust flow require network and scene tree setup.
 
 ### TEST-16: No tests for responsive layout behavior
 - **Status:** open

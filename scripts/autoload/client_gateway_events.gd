@@ -102,42 +102,27 @@ func on_interaction_create(
 func on_plugin_installed(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	if _c.has_method("_on_plugin_installed"):
-		_c._on_plugin_installed(data, conn_index)
-	AppState.plugins_updated.emit()
+	_c.plugins.on_plugin_installed(data, conn_index)
 
 func on_plugin_uninstalled(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	if _c.has_method("_on_plugin_uninstalled"):
-		_c._on_plugin_uninstalled(data, conn_index)
-	AppState.plugins_updated.emit()
+	_c.plugins.on_plugin_uninstalled(data, conn_index)
 
 func on_plugin_event(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	if _c.has_method("_on_plugin_event"):
-		_c._on_plugin_event(data, conn_index)
+	_c.plugins.on_plugin_event(data, conn_index)
 
 func on_plugin_session_state(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var plugin_id: String = str(data.get("plugin_id", ""))
-	var session_id: String = str(data.get("session_id", ""))
-	var state: String = str(data.get("state", ""))
-	if AppState.active_activity_session_id == session_id:
-		AppState.active_activity_session_state = state
-		AppState.activity_session_state_changed.emit(plugin_id, state)
+	_c.plugins.on_plugin_session_state(data, conn_index)
 
 func on_plugin_role_changed(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
-	var plugin_id: String = str(data.get("plugin_id", ""))
-	var user_id: String = str(data.get("user_id", ""))
-	var role: String = str(data.get("role", ""))
-	if user_id == _c.current_user.get("id", ""):
-		AppState.active_activity_role = role
-	AppState.activity_role_changed.emit(plugin_id, user_id, role)
+	_c.plugins.on_plugin_role_changed(data, conn_index)
 
 # --- Voice events ---
 
