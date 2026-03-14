@@ -189,10 +189,13 @@ static func _parse_release(data: Dictionary) -> Dictionary:
 			if fallback_asset.is_empty():
 				fallback_asset = asset
 		elif platform_key == "macos":
-			if aname.ends_with(".zip"):
+			var arch: String = Engine.get_architecture_name()
+			if aname.ends_with(".dmg") and aname.contains(arch):
 				best_asset = asset
 				break
-			if fallback_asset.is_empty():
+			if aname.ends_with(".dmg") and fallback_asset.is_empty():
+				fallback_asset = asset
+			elif aname.ends_with(".zip") and fallback_asset.is_empty():
 				fallback_asset = asset
 		else:
 			if fallback_asset.is_empty():
@@ -266,7 +269,13 @@ func download_update(version_info: Dictionary) -> void:
 
 	_downloading = true
 	_download_version = version
-	var ext: String = ".tar.gz" if OS.get_name() == "Linux" else ".zip"
+	var ext: String
+	if OS.get_name() == "Linux":
+		ext = ".tar.gz"
+	elif download_url.ends_with(".dmg"):
+		ext = ".dmg"
+	else:
+		ext = ".zip"
 	_download_path = "user://daccord-update-%s%s" % [version, ext]
 	var global_path: String = ProjectSettings.globalize_path(_download_path)
 
@@ -353,28 +362,9 @@ func _extract_update(archive_path: String) -> Dictionary:
 	DirAccess.make_dir_recursive_absolute(staging_dir)
 
 	# Extract archive
-	var output: Array = []
-	if OS.get_name() == "Linux":
-		var exit_code: int = OS.execute(
-			"tar", ["xzf", global_archive, "-C", staging_dir], output
-		)
-		if exit_code != 0:
-			return {
-				"error": "Failed to extract update (exit code %d)" % exit_code
-			}
-	elif OS.get_name() == "macOS":
-		# Use unzip command to preserve symlinks in .app bundle
-		var exit_code: int = OS.execute(
-			"unzip", ["-o", global_archive, "-d", staging_dir], output
-		)
-		if exit_code != 0:
-			return {
-				"error": "Failed to extract update (exit code %d)" % exit_code
-			}
-	else:
-		var zip_err := _extract_zip(global_archive, staging_dir)
-		if zip_err != OK:
-			return {"error": "Failed to extract update (error %d)" % zip_err}
+	var extract_err: String = _run_extraction(global_archive, staging_dir)
+	if not extract_err.is_empty():
+		return {"error": extract_err}
 
 	# Find the update payload (binary on Linux/Windows, .app on macOS)
 	var payload_path: String = _find_update_payload(staging_dir)
@@ -385,6 +375,49 @@ func _extract_update(archive_path: String) -> Dictionary:
 		OS.execute("chmod", ["+x", payload_path])
 
 	return {"binary_path": payload_path}
+
+
+func _run_extraction(archive: String, staging_dir: String) -> String:
+	var output: Array = []
+	if OS.get_name() == "Linux":
+		var exit_code: int = OS.execute(
+			"tar", ["xzf", archive, "-C", staging_dir], output
+		)
+		if exit_code != 0:
+			return "Failed to extract update (exit code %d)" % exit_code
+	elif OS.get_name() == "macOS":
+		if archive.ends_with(".dmg"):
+			return _extract_dmg(archive, staging_dir)
+		var exit_code: int = OS.execute(
+			"unzip", ["-o", archive, "-d", staging_dir], output
+		)
+		if exit_code != 0:
+			return "Failed to extract update (exit %d)" % exit_code
+	else:
+		var zip_err := _extract_zip(archive, staging_dir)
+		if zip_err != OK:
+			return "Failed to extract update (error %d)" % zip_err
+	return ""
+
+
+func _extract_dmg(dmg_path: String, staging_dir: String) -> String:
+	var output: Array = []
+	var mount_point: String = staging_dir + "/_dmg_mount"
+	DirAccess.make_dir_recursive_absolute(mount_point)
+	var m_exit: int = OS.execute(
+		"hdiutil", ["attach", dmg_path, "-nobrowse",
+		"-mountpoint", mount_point], output
+	)
+	if m_exit != 0:
+		return "Failed to mount DMG (exit %d)" % m_exit
+	var cp_exit: int = OS.execute(
+		"cp", ["-R", mount_point + "/daccord.app",
+		staging_dir + "/daccord.app"], output
+	)
+	OS.execute("hdiutil", ["detach", mount_point, "-quiet"], output)
+	if cp_exit != 0:
+		return "Failed to copy app from DMG (exit %d)" % cp_exit
+	return ""
 
 
 func _extract_zip(zip_path: String, dest_dir: String) -> int:
