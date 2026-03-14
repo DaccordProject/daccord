@@ -395,16 +395,19 @@ jobs:
           WORK=$(mktemp -d)
           unzip -o "$EXPORT_ZIP" -d "$WORK"
 
-          # Copy stashed LiveKit dylibs into the app bundle's Frameworks dir
+          # Copy stashed LiveKit dylibs into the app bundle, mirroring the
+          # res:// directory structure so Godot can resolve GDExtension paths.
+          # Godot looks for res://addons/... under Contents/Frameworks/ on macOS.
           FW="$WORK/daccord.app/Contents/Frameworks"
-          mkdir -p "$FW"
-          cp "$LIVEKIT_DYLIB_STASH"/*.dylib "$FW/"
-          # Also copy arch-specific subdirectory dylibs
+          BIN="$FW/addons/godot-livekit/bin"
+          mkdir -p "$BIN"
+          cp "$LIVEKIT_DYLIB_STASH"/*.dylib "$BIN/"
+          # Also copy arch-specific subdirectory dylibs (liblivekit, liblivekit_ffi)
           for subdir in "$LIVEKIT_DYLIB_STASH"/macos-*/; do
             [ -d "$subdir" ] || continue
             dirname=$(basename "$subdir")
-            mkdir -p "$FW/$dirname"
-            cp "$subdir"*.dylib "$FW/$dirname/"
+            mkdir -p "$BIN/$dirname"
+            cp "$subdir"*.dylib "$BIN/$dirname/"
           done
           echo "Injected dylibs into Contents/Frameworks/:"
           find "$FW" -name "*.dylib" -exec ls -lh {} \;
@@ -422,6 +425,32 @@ jobs:
 
           # Ad-hoc sign each injected dylib so macOS doesn't reject them
           find "$FW" -name "*.dylib" -exec codesign --force --sign - {} \;
+
+          # Verify every macOS dylib referenced in the .gdextension exists
+          # in the app bundle at the path Godot will resolve at runtime.
+          # res:// paths resolve under Contents/Frameworks/ on macOS.
+          GDEXT="addons/godot-livekit/godot-livekit.gdextension"
+          if [ -f "$GDEXT" ]; then
+            MISSING=0
+            # Only check lines containing "macos" — extract all res:// dylib paths
+            grep 'macos' "$GDEXT" | grep -o 'res://[^"]*\.dylib' | while read -r res_url; do
+              rel_path="${res_url#res://}"
+              expected="$FW/$rel_path"
+              if [ ! -f "$expected" ]; then
+                echo "::error::Missing dylib in app bundle: $expected (from $GDEXT)"
+                # Write to temp file since this runs in a subshell (pipe)
+                echo 1 >> "$WORK/.dylib_missing"
+              else
+                echo "  OK: $expected"
+              fi
+            done
+            if [ -f "$WORK/.dylib_missing" ]; then
+              MISSING=$(wc -l < "$WORK/.dylib_missing" | tr -d ' ')
+              echo "::error::$MISSING dylib(s) missing from app bundle — the app will crash on launch"
+              exit 1
+            fi
+            echo "All GDExtension macOS dylibs verified in app bundle"
+          fi
 
           # Re-package
           cd "$WORK"
