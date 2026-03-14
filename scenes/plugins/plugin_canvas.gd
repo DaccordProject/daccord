@@ -132,10 +132,12 @@ func create_buffer(width: int, height: int) -> int:
 		return -1
 	width = clampi(width, 1, canvas_width)
 	height = clampi(height, 1, canvas_height)
-	var img := Image.create(
-		width, height, false, Image.FORMAT_RGBA8
+	var data := PackedByteArray()
+	data.resize(width * height * 4)
+	data.fill(0)
+	var img: Image = Image.create_from_data(
+		width, height, false, Image.FORMAT_RGBA8, data
 	)
-	img.fill(Color.TRANSPARENT)
 	var handle: int = _next_buffer_handle
 	_next_buffer_handle += 1
 	_buffers[handle] = {
