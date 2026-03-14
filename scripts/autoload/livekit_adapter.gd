@@ -394,7 +394,7 @@ func _on_track_unmuted(
 func _on_data_received(
 	data: PackedByteArray,
 	participant: LiveKitRemoteParticipant,
-	kind: int,
+	_kind: int,
 	topic: String,
 ) -> void:
 	var identity: String = participant.get_identity() if participant != null else ""

@@ -37,12 +37,12 @@ func get_cache_dir(server_id: String, plugin_id: String) -> String:
 func download_bundle(
 	conn_index: int, plugin_id: String, manifest: Dictionary,
 ) -> String:
-	if conn_index < 0 or conn_index >= _c._connections.size():
+	if conn_index < 0 or conn_index >= _c._connections.size() \
+		or _c._connections[conn_index] == null \
+		or _c._connections[conn_index].get("client") == null:
 		push_error("[PluginDownloadManager] Invalid conn_index: ", conn_index)
 		return ""
 	var conn: Dictionary = _c._connections[conn_index]
-	if conn == null or conn.get("client") == null:
-		return ""
 	var client: AccordClient = conn["client"]
 	var server_id: String = _server_id_for_conn(conn)
 	var expected_hash: String = str(manifest.get("bundle_hash", ""))
@@ -67,26 +67,22 @@ func download_bundle(
 		return ""
 
 	var bundle_data: PackedByteArray = result.data
+	var validation_err: String = ""
 	if bundle_data.is_empty():
-		push_error("[PluginDownloadManager] Bundle is empty")
-		AppState.activity_download_progress.emit(plugin_id, -1.0)
-		return ""
-
-	if bundle_data.size() > MAX_BUNDLE_SIZE:
-		push_error("[PluginDownloadManager] Bundle exceeds %d MB limit" % (MAX_BUNDLE_SIZE / 1024 / 1024))
-		AppState.activity_download_progress.emit(plugin_id, -1.0)
-		return ""
-
-	# Verify hash
-	if not expected_hash.is_empty():
+		validation_err = "Bundle is empty"
+	elif bundle_data.size() > MAX_BUNDLE_SIZE:
+		validation_err = "Bundle exceeds %d MB limit" % (MAX_BUNDLE_SIZE / 1024 / 1024)
+	elif not expected_hash.is_empty():
 		var actual_hash: String = _sha256_hex(bundle_data)
 		if actual_hash != expected_hash:
-			push_error(
-				"[PluginDownloadManager] Hash mismatch: expected=%s actual=%s"
+			validation_err = (
+				"Hash mismatch: expected=%s actual=%s"
 				% [expected_hash, actual_hash]
 			)
-			AppState.activity_download_progress.emit(plugin_id, -1.0)
-			return ""
+	if not validation_err.is_empty():
+		push_error("[PluginDownloadManager] ", validation_err)
+		AppState.activity_download_progress.emit(plugin_id, -1.0)
+		return ""
 
 	AppState.activity_download_progress.emit(plugin_id, 0.7)
 
