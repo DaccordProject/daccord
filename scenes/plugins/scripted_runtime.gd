@@ -1,16 +1,16 @@
 class_name ScriptedRuntime
 extends Node
 
-## Loads a scripted plugin's ELF binary into a godot-sandbox Sandbox
-## node, renders into a SubViewport via PluginCanvas, and exposes a
-## Plugin.* bridge API that the sandboxed code can call.
+## Loads a Lua plugin into a sandboxed LuaState, renders into a SubViewport
+## via PluginCanvas, and exposes a bridge API table that Lua code calls directly.
 
 signal runtime_error(message: String)
 
-# Sandbox memory/execution limits
-const MAX_MEMORY := 16 * 1024 * 1024  # 16 MB
-const EXECUTION_TIMEOUT := 8000        # ms per vmcall
 const MAX_SOUNDS := 16
+
+# Safe Lua libraries bitmask (no io, os, package, debug, ffi)
+# LUA_BASE=1 | LUA_COROUTINE=4 | LUA_STRING=8 | LUA_MATH=32 | LUA_TABLE=64
+const SAFE_LIBS := 1 | 4 | 8 | 32 | 64
 
 # Session context (set by ClientPlugins before start)
 var session_id: String = ""
@@ -20,10 +20,17 @@ var local_role: String = "player"
 
 var _viewport: SubViewport
 var _canvas: PluginCanvas
-var _sandbox: Node  # Sandbox (typed as Node — GDExtension)
+var _lua: RefCounted  # LuaState (typed as RefCounted — GDExtension)
 var _manifest: Dictionary = {}
 var _plugin_id: String = ""
 var _running: bool = false
+
+# Cached Lua lifecycle functions
+var _fn_ready = null   # LuaFunction
+var _fn_draw = null    # LuaFunction
+var _fn_input = null   # LuaFunction
+var _fn_on_event = null # LuaFunction
+var _fn_build_array = null  # LuaFunction — packs varargs into a 1-indexed table
 
 # Timer tracking for set_interval / set_timeout
 var _timers: Dictionary = {}  # id -> Timer
@@ -33,6 +40,12 @@ var _next_timer_id: int = 1
 var _sounds: Dictionary = {}  # handle -> AudioStreamPlayer
 var _next_sound_handle: int = 1
 
+# Bundled assets (path -> PackedByteArray), set by ClientPlugins before start()
+var _assets: Dictionary = {}
+
+# Lua module sources (module_name -> source string), set by ClientPlugins before start()
+var _modules: Dictionary = {}
+
 # Reference to ClientPlugins for send_action
 var _client_plugins = null  # ClientPlugins
 
@@ -41,19 +54,15 @@ func _ready() -> void:
 	set_process(false)
 
 
-## Starts the scripted runtime with the given ELF binary and manifest.
-func start(
-	elf_data: PackedByteArray, manifest: Dictionary,
-) -> bool:
+## Starts the scripted runtime with the given Lua source and manifest.
+func start(lua_source: String, manifest: Dictionary) -> bool:
 	if _running:
 		stop()
 
 	_manifest = manifest
 	_plugin_id = str(manifest.get("id", ""))
 
-	var canvas_size: Array = manifest.get(
-		"canvas_size", [480, 360]
-	)
+	var canvas_size: Array = manifest.get("canvas_size", [480, 360])
 	var cw: int = clampi(
 		int(canvas_size[0]) if canvas_size.size() >= 1 else 480,
 		64, 1920,
@@ -65,9 +74,7 @@ func start(
 
 	_viewport = SubViewport.new()
 	_viewport.size = Vector2i(cw, ch)
-	_viewport.render_target_update_mode = (
-		SubViewport.UPDATE_ALWAYS
-	)
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_viewport.transparent_bg = false
 	add_child(_viewport)
 
@@ -75,39 +82,44 @@ func start(
 	_canvas.setup(cw, ch)
 	_viewport.add_child(_canvas)
 
-	if not ClassDB.class_exists(&"Sandbox"):
-		var msg := "godot-sandbox GDExtension not available"
+	if not ClassDB.class_exists(&"LuaState"):
+		var msg := "lua-gdextension not available"
 		push_error("[ScriptedRuntime] " + msg)
 		runtime_error.emit(msg)
 		_cleanup()
 		return false
 
-	_sandbox = ClassDB.instantiate(&"Sandbox")
-	if _sandbox == null:
-		var msg := "Failed to create Sandbox instance"
+	_lua = ClassDB.instantiate(&"LuaState")
+	if _lua == null:
+		var msg := "Failed to create LuaState instance"
 		push_error("[ScriptedRuntime] " + msg)
 		runtime_error.emit(msg)
 		_cleanup()
 		return false
 
-	add_child(_sandbox)
+	# Open only safe libraries (no io, os, package, debug, ffi)
+	_lua.open_libraries(SAFE_LIBS)
 
-	if "max_memory" in _sandbox:
-		_sandbox.max_memory = MAX_MEMORY
-	if "execution_timeout" in _sandbox:
-		_sandbox.execution_timeout = EXECUTION_TIMEOUT
+	# Build and inject the bridge API table
+	_inject_bridge_api()
 
-	if _sandbox.has_method("load_buffer"):
-		_sandbox.load_buffer(elf_data)
-	else:
-		var msg := "Sandbox missing load_buffer()"
+	# Load plugin source
+	var result = _lua.do_string(lua_source, "plugin")
+	if _is_lua_error(result):
+		var msg := "Lua load error: %s" % str(result)
 		push_error("[ScriptedRuntime] " + msg)
 		runtime_error.emit(msg)
 		_cleanup()
 		return false
 
-	_register_bridge_api()
-	_vmcall_safe("_ready")
+	# Cache lifecycle functions
+	_fn_ready = _lua.globals["_ready"]
+	_fn_draw = _lua.globals["_draw"]
+	_fn_input = _lua.globals["_input"]
+	_fn_on_event = _lua.globals["_on_event"]
+
+	# Call _ready
+	_lua_call_safe(_fn_ready)
 
 	_running = true
 	set_process(true)
@@ -137,12 +149,10 @@ func stop() -> void:
 
 
 ## Forwards a plugin event from the gateway to sandboxed code.
-func on_plugin_event(
-	event_type: String, data: Dictionary,
-) -> void:
+func on_plugin_event(event_type: String, data: Dictionary) -> void:
 	if not _running:
 		return
-	_vmcall_safe("_on_event", event_type, data)
+	_lua_call_safe(_fn_on_event, [event_type, _dict_to_lua(data)])
 
 
 ## Returns the SubViewport's texture for display.
@@ -156,11 +166,11 @@ func _process(_delta: float) -> void:
 	if not _running or _canvas == null:
 		return
 	_canvas.clear_commands()
-	_vmcall_safe("_draw")
+	_lua_call_safe(_fn_draw)
 	_canvas.flush()
 
 
-## Forwards input events to the sandboxed code.
+## Forwards input events to the Lua code.
 func forward_input(event: InputEvent) -> void:
 	if not _running:
 		return
@@ -194,223 +204,303 @@ func forward_input(event: InputEvent) -> void:
 	else:
 		return
 
-	_vmcall_safe("_input", d)
+	_lua_call_safe(_fn_input, [_dict_to_lua(d)])
 
 
-# --- Bridge API registration ---
+# --- Safe Lua function call wrapper ---
 
-func _register_bridge_api() -> void:
-	# Only push the API dict if the guest ELF exposes _set_api in its
-	# public API.  Older / minimal plugins may not define it.
-	if _sandbox != null and _sandbox.has_method("has_function") \
-			and not _sandbox.has_function("_set_api"):
-		push_warning(
-			"[ScriptedRuntime] ELF has no _set_api — bridge API "
-			+ "not injected. Plugin may have limited functionality."
-		)
-		return
-	var api := _build_bridge_api()
-	_vmcall_safe("_set_api", api)
+func _lua_call_safe(fn, args: Array = []) -> Variant:
+	if fn == null:
+		return null
+	var result = fn.invokev(args)
+	if _is_lua_error(result):
+		var msg := "Lua runtime error: %s" % str(result)
+		push_error("[ScriptedRuntime] " + msg)
+		runtime_error.emit(msg)
+	return result
 
 
-func _build_bridge_api() -> Dictionary:
-	return {
-		# Canvas info
-		"canvas_width": func() -> int:
-			return _canvas.canvas_width,
-		"canvas_height": func() -> int:
-			return _canvas.canvas_height,
-
-		# Drawing
-		"clear": func() -> void:
-			_canvas.clear_commands(),
-		"draw_rect": _bridge_draw_rect,
-		"draw_circle": _bridge_draw_circle,
-		"draw_line": _bridge_draw_line,
-		"draw_text": _bridge_draw_text,
-		"draw_pixel": _bridge_draw_pixel,
-
-		# Images
-		"load_image": func(data: PackedByteArray) -> int:
-			return _canvas.load_image(data),
-		"draw_image": _bridge_draw_image,
-		"draw_image_region": _bridge_draw_image_region,
-		"draw_image_scaled": _bridge_draw_image_scaled,
-
-		# Buffers
-		"create_buffer": func(w: int, h: int) -> int:
-			return _canvas.create_buffer(w, h),
-		"set_buffer_pixel": _bridge_set_buffer_pixel,
-		"set_buffer_data": _bridge_set_buffer_data,
-		"draw_buffer": _bridge_draw_buffer,
-		"draw_buffer_scaled": _bridge_draw_buffer_scaled,
-
-		# State / networking
-		"send_action": func(data: Dictionary) -> void:
-			_bridge_send_action(data),
-		"get_state": func() -> Dictionary:
-			return _manifest,
-		"get_participants": func() -> Array:
-			return participants.duplicate(),
-		"get_role": func() -> String:
-			return local_role,
-		"get_user_id": func() -> String:
-			return local_user_id,
-
-		# Timers
-		"set_interval": _bridge_set_interval,
-		"set_timeout": _bridge_set_timeout,
-		"clear_timer": func(tid: int) -> void:
-			_bridge_clear_timer(tid),
-
-		# Audio
-		"load_sound": func(data: PackedByteArray) -> int:
-			return _bridge_load_sound(data),
-		"play_sound": func(h: int) -> void:
-			_bridge_play_sound(h),
-		"stop_sound": func(h: int) -> void:
-			_bridge_stop_sound(h),
-	}
+## Converts a GDScript Dictionary to a native Lua table so plugins can index it.
+func _dict_to_lua(d: Dictionary):
+	var t = _lua.create_table()
+	for key in d:
+		var val = d[key]
+		if val is Dictionary:
+			t[key] = _dict_to_lua(val)
+		elif val is Array:
+			t[key] = _array_to_lua(val)
+		else:
+			t[key] = val
+	return t
 
 
-# --- Bridge draw helpers ---
+## Converts a GDScript Array to a native Lua table (1-indexed).
+func _array_to_lua(arr: Array):
+	var converted: Array = []
+	for val in arr:
+		if val is Dictionary:
+			converted.append(_dict_to_lua(val))
+		elif val is Array:
+			converted.append(_array_to_lua(val))
+		else:
+			converted.append(val)
+	return _fn_build_array.invokev(converted)
 
-func _bridge_draw_rect(
-	x: float, y: float, w: float, h: float,
-	color, filled: bool,
-) -> void:
-	_canvas.push_command({
-		"type": "rect", "x": x, "y": y,
-		"w": w, "h": h, "color": color, "filled": filled,
-	})
 
-func _bridge_draw_circle(
-	x: float, y: float, r: float, color,
-) -> void:
-	_canvas.push_command({
-		"type": "circle", "x": x, "y": y,
-		"r": r, "color": color,
-	})
+func _is_lua_error(value) -> bool:
+	if value == null:
+		return false
+	if value is Object and ClassDB.class_exists(&"LuaError"):
+		return value.is_class("LuaError")
+	return false
 
-func _bridge_draw_line(
-	x1: float, y1: float, x2: float, y2: float,
-	color, width: float,
-) -> void:
-	_canvas.push_command({
-		"type": "line",
-		"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-		"color": color, "width": width,
-	})
 
-func _bridge_draw_text(
-	x: float, y: float, text: String,
-	color, font_size: int,
-) -> void:
-	_canvas.push_command({
-		"type": "text", "x": x, "y": y,
-		"text": text, "color": color,
-		"font_size": font_size,
-	})
+# --- Bridge API injection ---
 
-func _bridge_draw_pixel(
-	x: float, y: float, color,
-) -> void:
-	_canvas.push_command({
-		"type": "pixel", "x": x, "y": y, "color": color,
-	})
+func _inject_bridge_api() -> void:
+	var api = _lua.create_table()
 
-func _bridge_draw_image(
-	handle: int, x: float, y: float,
-) -> void:
-	_canvas.push_command({
-		"type": "image", "handle": handle,
-		"x": x, "y": y,
-	})
+	# Canvas info
+	api["canvas_width"] = _canvas.canvas_width
+	api["canvas_height"] = _canvas.canvas_height
 
-func _bridge_draw_image_region(
-	handle: int, x: float, y: float,
-	sx: float, sy: float, sw: float, sh: float,
-) -> void:
-	_canvas.push_command({
-		"type": "image_region", "handle": handle,
-		"x": x, "y": y, "sx": sx, "sy": sy,
-		"sw": sw, "sh": sh,
-	})
+	# Drawing
+	api["clear"] = func(): _canvas.clear_commands()
 
-func _bridge_draw_image_scaled(
-	handle: int, x: float, y: float,
-	w: float, h: float,
-) -> void:
-	_canvas.push_command({
-		"type": "image_scaled", "handle": handle,
-		"x": x, "y": y, "w": w, "h": h,
-	})
+	api["draw_rect"] = func(
+		x: float, y: float, w: float, h: float, color, filled: bool,
+	):
+		_canvas.push_command({
+			"type": "rect", "x": x, "y": y,
+			"w": w, "h": h, "color": color, "filled": filled,
+		})
 
-func _bridge_set_buffer_pixel(
-	handle: int, x: int, y: int, color,
-) -> void:
-	_canvas.set_buffer_pixel(
-		handle, x, y, _canvas._parse_color(color),
+	api["draw_circle"] = func(x: float, y: float, r: float, color):
+		_canvas.push_command({
+			"type": "circle", "x": x, "y": y, "r": r, "color": color,
+		})
+
+	api["draw_line"] = func(
+		x1: float, y1: float, x2: float, y2: float, color, width: float,
+	):
+		_canvas.push_command({
+			"type": "line",
+			"x1": x1, "y1": y1, "x2": x2, "y2": y2,
+			"color": color, "width": width,
+		})
+
+	api["draw_text"] = func(
+		x: float, y: float, text: String, color, font_size: int,
+	):
+		_canvas.push_command({
+			"type": "text", "x": x, "y": y,
+			"text": text, "color": color, "font_size": font_size,
+		})
+
+	api["draw_pixel"] = func(x: float, y: float, color):
+		_canvas.push_command({
+			"type": "pixel", "x": x, "y": y, "color": color,
+		})
+
+	# Images
+	api["load_image"] = func(data: PackedByteArray) -> int:
+		return _canvas.load_image(data)
+
+	api["draw_image"] = func(handle: int, x: float, y: float):
+		_canvas.push_command({
+			"type": "image", "handle": handle, "x": x, "y": y,
+		})
+
+	api["draw_image_region"] = func(
+		handle: int, x: float, y: float,
+		sx: float, sy: float, sw: float, sh: float,
+	):
+		_canvas.push_command({
+			"type": "image_region", "handle": handle,
+			"x": x, "y": y, "sx": sx, "sy": sy, "sw": sw, "sh": sh,
+		})
+
+	api["draw_image_scaled"] = func(
+		handle: int, x: float, y: float, w: float, h: float,
+	):
+		_canvas.push_command({
+			"type": "image_scaled", "handle": handle,
+			"x": x, "y": y, "w": w, "h": h,
+		})
+
+	# Buffers
+	api["create_buffer"] = func(w: int, h: int) -> int:
+		return _canvas.create_buffer(w, h)
+
+	api["set_buffer_pixel"] = func(handle: int, x: int, y: int, color):
+		_canvas.set_buffer_pixel(handle, x, y, _canvas._parse_color(color))
+
+	api["set_buffer_data"] = func(handle: int, data: PackedByteArray):
+		_canvas.set_buffer_data(handle, data)
+
+	api["draw_buffer"] = func(handle: int, x: float, y: float):
+		_canvas.update_buffer_texture(handle)
+		_canvas.push_command({
+			"type": "buffer", "handle": handle, "x": x, "y": y,
+		})
+
+	api["draw_buffer_scaled"] = func(
+		handle: int, x: float, y: float, w: float, h: float,
+	):
+		_canvas.update_buffer_texture(handle)
+		_canvas.push_command({
+			"type": "buffer_scaled", "handle": handle,
+			"x": x, "y": y, "w": w, "h": h,
+		})
+
+	# State / networking
+	api["send_action"] = func(data: Dictionary): _bridge_send_action(data)
+	api["get_state"] = func() -> Dictionary: return _manifest
+	api["get_participants"] = func() -> Array: return participants.duplicate()
+	api["get_participant_count"] = func() -> int: return participants.size()
+	api["get_participant"] = func(index: int) -> Dictionary:
+		if index >= 0 and index < participants.size():
+			return participants[index]
+		return {}
+	api["get_role"] = func() -> String: return local_role
+	api["get_user_id"] = func() -> String: return local_user_id
+
+	# Timers
+	api["set_interval"] = func(callback_name: String, interval_ms: int) -> int:
+		return _bridge_set_interval(callback_name, interval_ms)
+	api["set_timeout"] = func(callback_name: String, delay_ms: int) -> int:
+		return _bridge_set_timeout(callback_name, delay_ms)
+	api["clear_timer"] = func(tid: int): _bridge_clear_timer(tid)
+
+	# Assets
+	api["read_asset"] = func(path: String) -> PackedByteArray:
+		if _assets.has(path):
+			return _assets[path]
+		push_warning("[ScriptedRuntime] Asset not found: %s" % path)
+		return PackedByteArray()
+
+	# Audio
+	api["load_sound"] = func(data: PackedByteArray) -> int:
+		return _bridge_load_sound(data)
+	api["play_sound"] = func(h: int): _bridge_play_sound(h)
+	api["stop_sound"] = func(h: int): _bridge_stop_sound(h)
+
+	# Helpers for constructing Godot Dictionaries/Arrays from Lua tables.
+	api["_new_dict"] = func() -> Dictionary: return {}
+	api["_new_array"] = func() -> Array: return []
+	api["_dict_set"] = func(d: Dictionary, key: String, value) -> Dictionary:
+		d[key] = value
+		return d
+	api["_array_append"] = func(a: Array, value) -> Array:
+		a.append(value)
+		return a
+
+	_lua.globals["api"] = api
+
+	# Module sources for require()
+	api["_has_module"] = func(name: String) -> bool: return _modules.has(name)
+	api["_get_module"] = func(name: String) -> String:
+		return _modules.get(name, "")
+
+	# Override Lua's built-in print(), provide Dictionary/Array constructors,
+	# and implement a sandboxed require() that loads modules from the bundle.
+	_lua.do_string("""
+		local _api = api
+		function print(...)
+			local parts = {}
+			for i = 1, select('#', ...) do
+				parts[#parts + 1] = tostring(select(i, ...))
+			end
+			_api._gd_print(table.concat(parts, '\t'))
+		end
+		function Dictionary(t)
+			local d = _api._new_dict()
+			if t == nil then return d end
+			for k, v in pairs(t) do
+				if type(v) == "table" then
+					d = _api._dict_set(d, tostring(k), Dictionary(v))
+				else
+					d = _api._dict_set(d, tostring(k), v)
+				end
+			end
+			return d
+		end
+		function Array(t)
+			local a = _api._new_array()
+			if t == nil then return a end
+			for i = 1, #t do
+				local v = t[i]
+				if type(v) == "table" then
+					a = _api._array_append(a, Dictionary(v))
+				else
+					a = _api._array_append(a, v)
+				end
+			end
+			return a
+		end
+		local _loaded = {}
+		function require(name)
+			if _loaded[name] ~= nil then
+				return _loaded[name]
+			end
+			if not _api._has_module(name) then
+				error("module '" .. name .. "' not found", 2)
+			end
+			local src = _api._get_module(name)
+			local fn, err = load(src, name)
+			if fn == nil then
+				error("error loading module '" .. name .. "': " .. tostring(err), 2)
+			end
+			local result = fn()
+			if result == nil then result = true end
+			_loaded[name] = result
+			return result
+		end
+	""", "print_override")
+	api["_gd_print"] = func(msg: String):
+		print("[%s] %s" % [_plugin_id, msg])
+
+	# Helper for _array_to_lua: packs varargs into a 1-indexed Lua table
+	_lua.do_string(
+		"function _gd_build_array(...) return {...} end", "_gd_build_array"
 	)
-
-func _bridge_set_buffer_data(
-	handle: int, data: PackedByteArray,
-) -> void:
-	_canvas.set_buffer_data(handle, data)
-
-func _bridge_draw_buffer(
-	handle: int, x: float, y: float,
-) -> void:
-	_canvas.update_buffer_texture(handle)
-	_canvas.push_command({
-		"type": "buffer", "handle": handle,
-		"x": x, "y": y,
-	})
-
-func _bridge_draw_buffer_scaled(
-	handle: int, x: float, y: float,
-	w: float, h: float,
-) -> void:
-	_canvas.update_buffer_texture(handle)
-	_canvas.push_command({
-		"type": "buffer_scaled", "handle": handle,
-		"x": x, "y": y, "w": w, "h": h,
-	})
+	_fn_build_array = _lua.globals["_gd_build_array"]
 
 
-# --- Bridge implementations ---
+# --- Bridge send action ---
 
 func _bridge_send_action(data: Dictionary) -> void:
-	if _client_plugins != null \
-			and _client_plugins.has_method("send_action"):
+	if _client_plugins != null and _client_plugins.has_method("send_action"):
 		_client_plugins.send_action(_plugin_id, data)
 
 
-func _bridge_set_interval(
-	callback_name: String, interval_ms: int,
-) -> int:
+# --- Timer/Sound implementations ---
+
+func _bridge_set_interval(callback_name: String, interval_ms: int) -> int:
 	var t := Timer.new()
 	t.wait_time = maxf(float(interval_ms) / 1000.0, 0.016)
 	t.one_shot = false
 	var tid: int = _next_timer_id
-	_next_timer_id += 1
-	t.timeout.connect(func(): _vmcall_safe(callback_name))
+	_next_timer_id = _next_timer_id + 1
+	t.timeout.connect(func():
+		var fn = _lua.globals[callback_name]
+		_lua_call_safe(fn)
+	)
 	add_child(t)
 	t.start()
 	_timers[tid] = t
 	return tid
 
 
-func _bridge_set_timeout(
-	callback_name: String, delay_ms: int,
-) -> int:
+func _bridge_set_timeout(callback_name: String, delay_ms: int) -> int:
 	var t := Timer.new()
 	t.wait_time = maxf(float(delay_ms) / 1000.0, 0.016)
 	t.one_shot = true
 	var tid: int = _next_timer_id
-	_next_timer_id += 1
+	_next_timer_id = _next_timer_id + 1
 	t.timeout.connect(func():
-		_vmcall_safe(callback_name)
+		var fn = _lua.globals[callback_name]
+		_lua_call_safe(fn)
 		_timers.erase(tid)
 		t.queue_free()
 	)
@@ -430,13 +520,9 @@ func _bridge_clear_timer(timer_id: int) -> void:
 
 func _bridge_load_sound(data: PackedByteArray) -> int:
 	if _sounds.size() >= MAX_SOUNDS:
-		push_warning(
-			"[ScriptedRuntime] Sound limit (%d)" % MAX_SOUNDS
-		)
+		push_warning("[ScriptedRuntime] Sound limit (%d)" % MAX_SOUNDS)
 		return -1
-	var stream: AudioStream = null
-	# Try OGG Vorbis first (most common for plugins)
-	stream = AudioStreamOggVorbis.load_from_buffer(data)
+	var stream: AudioStream = AudioStreamOggVorbis.load_from_buffer(data)
 	if stream == null:
 		push_warning("[ScriptedRuntime] Failed to load sound")
 		return -1
@@ -444,7 +530,7 @@ func _bridge_load_sound(data: PackedByteArray) -> int:
 	player.stream = stream
 	add_child(player)
 	var handle: int = _next_sound_handle
-	_next_sound_handle += 1
+	_next_sound_handle = _next_sound_handle + 1
 	_sounds[handle] = player
 	return handle
 
@@ -461,29 +547,15 @@ func _bridge_stop_sound(handle: int) -> void:
 		player.stop()
 
 
-# --- Safe vmcall wrapper ---
-
-func _vmcall_safe(
-	fn: String,
-	arg1 = null, arg2 = null, arg3 = null,
-) -> Variant:
-	if _sandbox == null or not _sandbox.has_method("vmcall"):
-		return null
-	if arg3 != null:
-		return _sandbox.vmcall(fn, arg1, arg2, arg3)
-	if arg2 != null:
-		return _sandbox.vmcall(fn, arg1, arg2)
-	if arg1 != null:
-		return _sandbox.vmcall(fn, arg1)
-	return _sandbox.vmcall(fn)
-
-
 # --- Cleanup ---
 
 func _cleanup() -> void:
-	if _sandbox != null:
-		_sandbox.queue_free()
-		_sandbox = null
+	_fn_ready = null
+	_fn_draw = null
+	_fn_input = null
+	_fn_on_event = null
+	_fn_build_array = null
+	_lua = null
 	if _canvas != null:
 		_canvas.free_resources()
 		_canvas = null

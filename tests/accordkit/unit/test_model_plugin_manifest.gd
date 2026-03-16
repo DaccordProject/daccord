@@ -11,7 +11,7 @@ func test_from_dict_full() -> void:
 		"runtime": "scripted",
 		"description": "Word guessing game",
 		"icon_url": "https://cdn.example.com/icon.png",
-		"elf_url": "https://cdn.example.com/plugin.elf",
+		"source_url": "https://cdn.example.com/plugin.lua",
 		"entry_point": "scenes/main.tscn",
 		"bundle_size": 1024000,
 		"bundle_hash": "sha256:abc123",
@@ -33,7 +33,7 @@ func test_from_dict_full() -> void:
 	assert_eq(m.runtime, "scripted")
 	assert_eq(m.description, "Word guessing game")
 	assert_eq(m.icon_url, "https://cdn.example.com/icon.png")
-	assert_eq(m.elf_url, "https://cdn.example.com/plugin.elf")
+	assert_eq(m.source_url, "https://cdn.example.com/plugin.lua")
 	assert_eq(m.entry_point, "scenes/main.tscn")
 	assert_eq(m.bundle_size, 1024000)
 	assert_eq(m.bundle_hash, "sha256:abc123")
@@ -57,7 +57,7 @@ func test_from_dict_minimal() -> void:
 	assert_eq(m.runtime, "")
 	assert_eq(m.description, "")
 	assert_null(m.icon_url)
-	assert_null(m.elf_url)
+	assert_null(m.source_url)
 	assert_null(m.entry_point)
 	assert_eq(m.bundle_size, 0)
 	assert_eq(m.max_participants, 0)

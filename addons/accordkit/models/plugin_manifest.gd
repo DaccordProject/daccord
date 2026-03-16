@@ -13,8 +13,9 @@ var type: String = ""              # "activity", "bot", "theme", "command"
 var runtime: String = ""           # "scripted" or "native"
 var description: String = ""
 var icon_url = null
-var elf_url = null
+var source_url = null              # Lua source URL (scripted plugins)
 var entry_point = null             # scene path within bundle (native plugins)
+var format: String = ""            # "lua" for scripted plugins
 var bundle_size: int = 0
 var bundle_hash: String = ""       # "sha256:<hex>" (native plugins)
 var max_participants: int = 0      # 0 = unlimited
@@ -38,9 +39,10 @@ static func from_dict(d: Dictionary) -> AccordPluginManifest:
 	m.description = d.get("description", "")
 	var raw_icon = d.get("icon_url", null)
 	m.icon_url = str(raw_icon) if raw_icon != null else null
-	var raw_elf = d.get("elf_url", null)
-	m.elf_url = str(raw_elf) if raw_elf != null else null
+	var raw_source = d.get("source_url", null)
+	m.source_url = str(raw_source) if raw_source != null else null
 	var raw_entry = d.get("entry_point", null)
+	m.format = d.get("format", "")
 	m.entry_point = str(raw_entry) if raw_entry != null else null
 	m.bundle_size = int(d.get("bundle_size", 0))
 	m.bundle_hash = d.get("bundle_hash", "")
@@ -81,10 +83,12 @@ func to_dict() -> Dictionary:
 		"signed": signed,
 		"canvas_size": canvas_size,
 	}
+	if not format.is_empty():
+		d["format"] = format
 	if icon_url != null:
 		d["icon_url"] = icon_url
-	if elf_url != null:
-		d["elf_url"] = elf_url
+	if source_url != null:
+		d["source_url"] = source_url
 	if entry_point != null:
 		d["entry_point"] = entry_point
 	if signature != null:

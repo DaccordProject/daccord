@@ -33,10 +33,10 @@ func delete_plugin(space_id: String, plugin_id: String) -> RestResult:
 	return result
 
 
-## Downloads the compiled ELF binary for a scripted plugin.
-## On success, result.data is a PackedByteArray containing the ELF binary.
-func get_elf(plugin_id: String) -> RestResult:
-	var result := await _rest.make_raw_request("/plugins/" + plugin_id + "/elf")
+## Downloads the Lua source for a scripted plugin.
+## On success, result.data is a PackedByteArray containing the Lua source.
+func get_source(plugin_id: String) -> RestResult:
+	var result := await _rest.make_raw_request("/plugins/" + plugin_id + "/source")
 	return result
 
 

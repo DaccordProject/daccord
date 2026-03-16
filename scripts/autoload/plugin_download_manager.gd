@@ -194,7 +194,7 @@ func _verify_signature(dir_path: String, _server_id: String) -> bool:
 		return false
 	# Ed25519 verification requires a trusted public key.
 	# For now, check that the signature file exists. Full Ed25519 verification
-	# will be implemented when godot-sandbox or a GDExtension provides
+	# will be implemented when a GDExtension provides
 	# Ed25519 primitives. The trust confirmation dialog gates execution.
 	return true
 

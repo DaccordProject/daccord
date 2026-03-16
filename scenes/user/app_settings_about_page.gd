@@ -74,11 +74,11 @@ func build() -> VBoxContainer:
 			"https://github.com/bitwes/Gut",
 		],
 		[
-			"Godot Sandbox",
-			"Safe modding and sandboxed scripting for Godot.",
-			"Copyright (c) 2024, Alf-André Walla",
-			"BSD 3-Clause License",
-			"https://github.com/libriscv/godot-sandbox",
+			"Lua GDExtension",
+			"Lua scripting for Godot.",
+			"Copyright (c) 2024, Wilson E. Alvarez",
+			"MIT License",
+			"https://github.com/WilsonE/lua-gdextension",
 		],
 	]
 

@@ -28,4 +28,4 @@ dist/web/livekit-client.umd.min.js
 !AGENTS.user.db
 AGENTS.local.db
 .mcp.json
-addons/godot_sandbox
+addons/lua-gdextension

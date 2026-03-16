@@ -236,6 +236,10 @@ func _on_file_selected(path: String) -> void:
 			err_msg = result.error.message
 		_error_label.text = err_msg
 		_error_label.visible = true
+		return
+	if result.data != null:
+		_all_plugins.append(result.data.to_dict())
+		_rebuild_list()
 
 
 func _extract_manifest(zip_bytes: PackedByteArray) -> Dictionary:
@@ -285,12 +289,17 @@ func _on_delete_plugin(plugin_id: String, plugin_name: String) -> void:
 			var result: RestResult = await client.plugins.delete_plugin(
 				_space_id, plugin_id
 			)
-			if result != null and not result.ok:
+			if result == null or not result.ok:
 				var err_msg: String = "Failed to uninstall plugin"
-				if result.error:
+				if result != null and result.error:
 					err_msg = result.error.message
 				_error_label.text = err_msg
 				_error_label.visible = true
+				return
+			_all_plugins = _all_plugins.filter(
+				func(p: Dictionary) -> bool: return str(p.get("id", "")) != plugin_id
+			)
+			_rebuild_list()
 	)
 
 

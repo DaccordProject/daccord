@@ -66,8 +66,8 @@ func get_conn_index_for_plugin(plugin_id: String) -> int:
 	return -1
 
 
-## Launches an activity: creates a session on the server, downloads the ELF
-## (for scripted plugins), starts the runtime, and updates AppState.
+## Launches an activity: creates a session on the server, downloads the Lua
+## source (for scripted plugins), starts the runtime, and updates AppState.
 func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	var conn_idx: int = get_conn_index_for_plugin(plugin_id)
 	if conn_idx == -1:
@@ -98,21 +98,25 @@ func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	AppState.activity_started.emit(plugin_id, channel_id)
 
 	# Prepare the appropriate runtime based on plugin type.
-	# The runtime doesn't start processing until the session is "running".
 	var manifest: Dictionary = get_plugin(plugin_id)
+	var session_participants: Array = session.get("participants", [])
 	var runtime_type: String = manifest.get("runtime", "")
 	if runtime_type == "scripted":
-		await _download_and_prepare_scripted_runtime(plugin_id, manifest, conn_idx)
+		await _download_and_prepare_scripted_runtime(
+			plugin_id, manifest, conn_idx, session_participants,
+		)
 	elif runtime_type == "native":
-		await _download_and_prepare_native_runtime(plugin_id, manifest, conn_idx)
+		await _download_and_prepare_native_runtime(
+			plugin_id, manifest, conn_idx, session_participants,
+		)
 
 	return session
 
 
-## Downloads the ELF binary and creates a ScriptedRuntime (but does not start
-## it until the session transitions to "running").
+## Downloads the plugin bundle ZIP and creates a ScriptedRuntime.
 func _download_and_prepare_scripted_runtime(
 	plugin_id: String, manifest: Dictionary, conn_idx: int,
+	session_participants: Array = [],
 ) -> void:
 	var conn: Dictionary = _c._connections[conn_idx]
 	if conn == null or conn.get("client") == null:
@@ -120,19 +124,25 @@ func _download_and_prepare_scripted_runtime(
 	var client: AccordClient = conn["client"]
 
 	AppState.activity_download_progress.emit(plugin_id, 0.0)
-	var elf_result: RestResult = await client.plugins.get_elf(plugin_id)
+	var src_result: RestResult = await client.plugins.get_source(plugin_id)
 	AppState.activity_download_progress.emit(plugin_id, 1.0)
 
-	if not elf_result.ok or not (elf_result.data is PackedByteArray):
-		var err: String = "Failed to download ELF"
-		if elf_result.error:
-			err = elf_result.error.message
+	if not src_result.ok or not (src_result.data is PackedByteArray):
+		var err: String = "Failed to download plugin bundle"
+		if src_result.error:
+			err = src_result.error.message
 		push_error("[ClientPlugins] ", err)
 		return
 
-	var elf_data: PackedByteArray = elf_result.data
-	if elf_data.is_empty():
-		push_error("[ClientPlugins] ELF binary is empty")
+	var zip_bytes: PackedByteArray = src_result.data
+	if zip_bytes.is_empty():
+		push_error("[ClientPlugins] Plugin bundle is empty")
+		return
+
+	# Extract entry source, modules, and assets from the bundle ZIP
+	var bundle: Dictionary = _extract_bundle(zip_bytes, manifest)
+	if bundle.is_empty():
+		push_error("[ClientPlugins] Failed to extract plugin bundle")
 		return
 
 	if _scripted_runtime_class == null:
@@ -143,10 +153,13 @@ func _download_and_prepare_scripted_runtime(
 	runtime.session_id = _active_session_id
 	runtime.local_user_id = _c.current_user.get("id", "")
 	runtime.local_role = AppState.active_activity_role
+	runtime.participants = session_participants
 	runtime._client_plugins = self
+	runtime._modules = bundle.get("modules", {})
+	runtime._assets = bundle.get("assets", {})
 	_c.add_child(runtime)
 
-	var ok: bool = runtime.start(elf_data, manifest)
+	var ok: bool = runtime.start(bundle["lua_source"], manifest)
 	if not ok:
 		push_error("[ClientPlugins] ScriptedRuntime failed to start")
 		runtime.queue_free()
@@ -155,10 +168,62 @@ func _download_and_prepare_scripted_runtime(
 	_active_runtime = runtime
 
 
+## Extracts entry Lua source, modules, and assets from a plugin bundle ZIP.
+## Returns { "lua_source": String, "modules": Dictionary, "assets": Dictionary }
+## or an empty Dictionary on failure.
+func _extract_bundle(
+	zip_bytes: PackedByteArray, manifest: Dictionary,
+) -> Dictionary:
+	var tmp_path: String = "user://tmp_plugin_bundle.zip"
+	var f := FileAccess.open(tmp_path, FileAccess.WRITE)
+	if f == null:
+		return {}
+	f.store_buffer(zip_bytes)
+	f.close()
+
+	var reader := ZIPReader.new()
+	var err: Error = reader.open(tmp_path)
+	if err != OK:
+		DirAccess.remove_absolute(tmp_path)
+		return {}
+
+	var entry: String = str(manifest.get("entry_point", ""))
+	if entry.is_empty():
+		entry = str(manifest.get("entry", "src/main.lua"))
+
+	var files: PackedStringArray = reader.get_files()
+
+	# Read entry file
+	var entry_bytes: PackedByteArray = reader.read_file(entry)
+	if entry_bytes.is_empty():
+		reader.close()
+		DirAccess.remove_absolute(tmp_path)
+		push_error("[ClientPlugins] Entry file not found in bundle: ", entry)
+		return {}
+
+	var lua_source: String = entry_bytes.get_string_from_utf8()
+	var modules: Dictionary = {}
+	var assets: Dictionary = {}
+
+	for file_path in files:
+		if file_path.ends_with(".lua") and file_path != entry:
+			var module_name: String = file_path.get_file().get_basename()
+			var src: PackedByteArray = reader.read_file(file_path)
+			modules[module_name] = src.get_string_from_utf8()
+		elif file_path.begins_with("assets/") and not file_path.ends_with("/"):
+			assets[file_path] = reader.read_file(file_path)
+
+	reader.close()
+	DirAccess.remove_absolute(tmp_path)
+
+	return {"lua_source": lua_source, "modules": modules, "assets": assets}
+
+
 ## Downloads the native plugin bundle, extracts it, creates a NativeRuntime,
 ## and wires up data channel routing via LiveKitAdapter.
 func _download_and_prepare_native_runtime(
 	plugin_id: String, manifest: Dictionary, conn_idx: int,
+	session_participants: Array = [],
 ) -> void:
 	var bundle_dir: String = await _download_manager.download_bundle(
 		conn_idx, plugin_id, manifest,
@@ -192,6 +257,7 @@ func _download_and_prepare_native_runtime(
 	context.local_user_id = _c.current_user.get("id", "")
 	context.host_user_id = _c.current_user.get("id", "")
 	context.session_state = AppState.active_activity_session_state
+	context.participants = session_participants
 	context._client_plugins = self
 	# Wire LiveKit data channels if available
 	if _c.has_node("LiveKitAdapter"):
@@ -418,18 +484,39 @@ func on_plugin_role_changed(data: Dictionary, _conn_index: int) -> void:
 	var role: String = str(data.get("role", ""))
 	if user_id == _c.current_user.get("id", ""):
 		AppState.active_activity_role = role
-		if _active_runtime != null:
-			if _active_runtime is ScriptedRuntime:
-				_active_runtime.local_role = role
-			elif _active_runtime is NativeRuntime and _active_runtime._context != null:
-				# Update PluginContext and emit signal
-				_active_runtime._context.role_changed.emit(user_id, role)
-	# Notify native context for all role changes (not just local user)
-	if _active_runtime != null and _active_runtime is NativeRuntime:
-		var ctx: PluginContext = _active_runtime._context
-		if ctx != null:
-			ctx.role_changed.emit(user_id, role)
+		if _active_runtime != null and _active_runtime is ScriptedRuntime:
+			_active_runtime.local_role = role
+	# Update participants list on the active runtime
+	if _active_runtime != null:
+		if _active_runtime is ScriptedRuntime:
+			_update_scripted_participants(user_id, role)
+		elif _active_runtime is NativeRuntime:
+			var ctx: PluginContext = _active_runtime._context
+			if ctx != null:
+				_update_context_participants(ctx, user_id, role)
+				ctx.role_changed.emit(user_id, role)
 	AppState.activity_role_changed.emit(plugin_id, user_id, role)
+
+
+func _update_scripted_participants(user_id: String, role: String) -> void:
+	var parts: Array = _active_runtime.participants
+	for i in parts.size():
+		if parts[i] is Dictionary and str(parts[i].get("user_id", "")) == user_id:
+			parts[i]["role"] = role
+			return
+	# New participant
+	parts.append({"user_id": user_id, "role": role})
+
+
+func _update_context_participants(
+	ctx: PluginContext, user_id: String, role: String,
+) -> void:
+	var parts: Array = ctx.participants
+	for i in parts.size():
+		if parts[i] is Dictionary and str(parts[i].get("user_id", "")) == user_id:
+			parts[i]["role"] = role
+			return
+	parts.append({"user_id": user_id, "role": role})
 
 
 # --- Voice disconnect cleanup ---

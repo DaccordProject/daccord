@@ -223,7 +223,7 @@ func _on_download_progress(plugin_id: String, progress: float) -> void:
 func _on_activity_ended(plugin_id: String) -> void:
 	if plugin_id != _plugin_id:
 		return
-	_update_state_view("ended")
+	hide_panel()
 
 
 func _on_leave_pressed() -> void:
