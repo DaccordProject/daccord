@@ -85,4 +85,3 @@ func _on_ban_pressed() -> void:
 	else:
 		ban_confirmed.emit(_user_id, reason)
 		_close()
-

@@ -35,11 +35,13 @@ func build_page(
 	var content := ReportsPageContentScene.instantiate()
 	vbox.add_child(content)
 
-	_reports_filter = content.filter_option
-	_reports_error = content.error_label
-	_reports_empty = content.empty_label
-	_reports_list = content.reports_list
-	_reports_load_more_btn = content.load_more_btn
+	# Access nodes by path — @onready vars are not yet set
+	# because _ready() has not run at this point.
+	_reports_filter = content.get_node("FilterRow/FilterOption")
+	_reports_error = content.get_node("ErrorLabel")
+	_reports_empty = content.get_node("EmptyLabel")
+	_reports_list = content.get_node("ReportsList")
+	_reports_load_more_btn = content.get_node("LoadMoreButton")
 
 	_reports_filter.item_selected.connect(
 		func(_idx: int) -> void: fetch_reports()

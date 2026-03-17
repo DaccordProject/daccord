@@ -151,11 +151,17 @@ func get_my_highest_role_position(gid: String) -> int:
 	)[mi].get("roles", [])
 	var roles: Array = _c._role_cache.get(gid, [])
 	var highest: int = 0
+	var has_admin: bool = false
 	for role in roles:
 		if role.get("id", "") in my_roles:
 			var pos: int = role.get("position", 0)
 			if pos > highest:
 				highest = pos
+			var perms: Array = role.get("permissions", [])
+			if AccordPermission.ADMINISTRATOR in perms:
+				has_admin = true
+	if has_admin:
+		return 999999
 	return highest
 
 

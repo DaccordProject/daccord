@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-03-17
+
+### Added
+- Grouped channel permissions UI
+- Swedish (sv) internationalization support
+- Server plugins system (client-side)
+- Shared modal helpers and refactored admin dialogs
+- i18n support, read-only mode, and moderation improvements
+
+### Fixed
+- Remove lua-gdextension from CI to fix SIGSEGV crash on Godot 4.5
+- Use standard Lua variant in CI to fix SIGSEGV crash
+- Modal close behavior
+- Lint line-length violation
+
 ## [0.1.12] - 2026-03-14
 
 ### Added
