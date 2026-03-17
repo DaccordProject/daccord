@@ -55,7 +55,7 @@ mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
 layout_mode = 2
-custom_minimum_size = Vector2(640, 480)
+custom_minimum_size = Vector2(800, 560)
 theme_override_styles/panel = SubResource("panel_style")
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/Panel"]

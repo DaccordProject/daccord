@@ -12,7 +12,8 @@ var deny: Array = []
 static func from_dict(d: Dictionary) -> AccordPermissionOverwrite:
 	var o := AccordPermissionOverwrite.new()
 	o.id = str(d.get("id", ""))
-	o.type = d.get("type", "role")
+	var raw_type: String = d.get("type", "role")
+	o.type = "user" if raw_type == "member" else raw_type
 	o.allow = d.get("allow", [])
 	o.deny = d.get("deny", [])
 	return o

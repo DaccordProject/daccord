@@ -27,7 +27,7 @@ func delete(channel_id: String) -> RestResult:
 ## Lists all permission overwrites for a channel.
 func list_overwrites(channel_id: String) -> RestResult:
 	return await _rest.make_request(
-		"GET", "/channels/" + channel_id + "/overwrites"
+		"GET", "/channels/" + channel_id + "/permissions"
 	)
 
 
@@ -37,7 +37,7 @@ func upsert_overwrite(
 ) -> RestResult:
 	return await _rest.make_request(
 		"PUT",
-		"/channels/" + channel_id + "/overwrites/" + overwrite_id,
+		"/channels/" + channel_id + "/permissions/" + overwrite_id,
 		data,
 	)
 
@@ -48,7 +48,7 @@ func delete_overwrite(
 ) -> RestResult:
 	return await _rest.make_request(
 		"DELETE",
-		"/channels/" + channel_id + "/overwrites/" + overwrite_id,
+		"/channels/" + channel_id + "/permissions/" + overwrite_id,
 	)
 
 

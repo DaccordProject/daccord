@@ -29,10 +29,10 @@ func setup(perm: String, state: int) -> void:
 	update_state(state)
 
 func update_state(state: int) -> void:
-	var inactive := ThemeManager.get_color("icon_default")
+	var dim := Color(ThemeManager.get_color("icon_default"), 0.3)
 	_allow_btn.add_theme_color_override("font_color",
-		ThemeManager.get_color("success") if state == ALLOW else inactive)
+		ThemeManager.get_color("success") if state == ALLOW else dim)
 	_inherit_btn.add_theme_color_override("font_color",
-		ThemeManager.get_color("text_muted") if state == INHERIT else inactive)
+		ThemeManager.get_color("text_body") if state == INHERIT else dim)
 	_deny_btn.add_theme_color_override("font_color",
-		ThemeManager.get_color("error") if state == DENY else inactive)
+		ThemeManager.get_color("error") if state == DENY else dim)

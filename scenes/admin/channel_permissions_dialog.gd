@@ -24,6 +24,55 @@ const TEXT_ONLY_PERMS := [
 	"use_external_stickers", "send_in_threads",
 ]
 
+## Permission groups for visual organisation in the UI.
+const PERM_GROUPS: Array = [
+	{
+		"label": "General",
+		"perms": [
+			"view_channel", "create_invites", "change_nickname",
+			"manage_nicknames", "use_commands",
+		],
+	},
+	{
+		"label": "Text",
+		"perms": [
+			"send_messages", "send_tts", "embed_links",
+			"attach_files", "read_history", "mention_everyone",
+			"use_external_emojis", "use_external_stickers",
+			"add_reactions",
+		],
+	},
+	{
+		"label": "Threads",
+		"perms": [
+			"manage_threads", "create_threads", "send_in_threads",
+		],
+	},
+	{
+		"label": "Voice",
+		"perms": [
+			"connect", "speak", "stream", "use_vad",
+			"priority_speaker", "mute_members", "deafen_members",
+			"move_members", "use_soundboard", "manage_soundboard",
+		],
+	},
+	{
+		"label": "Moderation",
+		"perms": [
+			"kick_members", "ban_members", "moderate_members",
+			"manage_messages", "manage_automod", "view_audit_log",
+		],
+	},
+	{
+		"label": "Administration",
+		"perms": [
+			"administrator", "manage_channels", "manage_space",
+			"manage_roles", "manage_webhooks", "manage_emojis",
+			"manage_events",
+		],
+	},
+]
+
 var _selected_bg: Color:
 	get: return ThemeManager.get_color("secondary_button")
 
@@ -53,7 +102,7 @@ var _original_overwrite_types: Dictionary = {}
 @onready var _error_label: Label = $CenterContainer/Panel/VBox/ErrorLabel
 
 func _ready() -> void:
-	_bind_modal_nodes($CenterContainer/Panel, 640, 480)
+	_bind_modal_nodes($CenterContainer/Panel, 800, 560)
 	_close_btn.pressed.connect(_try_close)
 	_save_btn.pressed.connect(_on_save)
 	_reset_btn.pressed.connect(_on_reset)
@@ -80,7 +129,11 @@ func _load_overwrites() -> void:
 		if ow_id.is_empty():
 			continue
 		_original_overwrite_ids.append(ow_id)
-		_overwrite_types[ow_id] = ow_dict.get("type", "role")
+		var ow_type: String = ow_dict.get("type", "role")
+		# Server sends "member"; normalize to "user" for UI
+		if ow_type == "member":
+			ow_type = "user"
+		_overwrite_types[ow_id] = ow_type
 		var data: Dictionary = {}
 		for perm in AccordPermission.all():
 			if perm in ow_dict.get("allow", []):
@@ -279,14 +332,33 @@ func _rebuild_perm_list() -> void:
 		return
 
 	var data: Dictionary = _overwrite_data.get(_selected_role_id, {})
+	var visible_perms: Array = _perms_for_channel_type()
 
-	for perm in _perms_for_channel_type():
-		var state: int = data.get(perm, OverwriteState.INHERIT)
-		var row := PermOverwriteRowScene.instantiate()
-		_perm_list.add_child(row)
-		row.setup(perm, state)
-		row.state_changed.connect(_toggle_perm)
-		_perm_rows[perm] = row
+	for group in PERM_GROUPS:
+		var group_perms: Array = (group["perms"] as Array).filter(
+			func(p: String) -> bool: return p in visible_perms
+		)
+		if group_perms.is_empty():
+			continue
+
+		# Section header
+		var header := Label.new()
+		header.text = tr(group["label"])
+		header.add_theme_font_size_override("font_size", 11)
+		header.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
+		)
+		header.custom_minimum_size.y = 24
+		header.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		_perm_list.add_child(header)
+
+		for perm in group_perms:
+			var state: int = data.get(perm, OverwriteState.INHERIT)
+			var row := PermOverwriteRowScene.instantiate()
+			_perm_list.add_child(row)
+			row.setup(perm, state)
+			row.state_changed.connect(_toggle_perm)
+			_perm_rows[perm] = row
 
 func _toggle_perm(perm: String, new_state: int) -> void:
 	if _selected_role_id.is_empty():
@@ -394,7 +466,8 @@ func _try_close() -> void:
 		queue_free()
 
 func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
 		_try_close()
 
 func _unhandled_input(event: InputEvent) -> void:

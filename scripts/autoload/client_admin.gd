@@ -506,8 +506,12 @@ func update_channel_overwrites(
 	var last_result: RestResult = null
 	for ow in overwrites:
 		var ow_id: String = ow.get("id", "")
+		var ow_type: String = ow.get("type", "role")
+		# Server expects "member" not "user"
+		if ow_type == "user":
+			ow_type = "member"
 		var data: Dictionary = {
-			"type": ow.get("type", "role"),
+			"type": ow_type,
 			"allow": ow.get("allow", []),
 			"deny": ow.get("deny", []),
 		}
