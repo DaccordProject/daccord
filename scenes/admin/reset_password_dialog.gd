@@ -42,24 +42,16 @@ func _on_submit() -> void:
 		return
 
 	_error_label.visible = false
-	_submit_btn.disabled = true
-	_submit_btn.text = tr("Resetting...")
-
-	var result: RestResult = await Client.admin.reset_user_password(
-		_user_id, pw
+	var result: RestResult = await _with_button_loading(
+		_submit_btn, tr("Reset Password"),
+		func() -> RestResult:
+			return await Client.admin.reset_user_password(
+				_user_id, pw
+			)
 	)
 
-	_submit_btn.disabled = false
-	_submit_btn.text = tr("Reset Password")
-
-	if result == null or not result.ok:
-		var msg := tr("Failed to reset password")
-		if result != null and result.error:
-			msg = result.error.message
-		_show_error(msg)
-		return
-
-	_close()
+	if not _show_rest_error(result, tr("Failed to reset password")):
+		_close()
 
 func _show_error(msg: String) -> void:
 	_error_label.text = msg

@@ -284,8 +284,8 @@ func _download_and_prepare_native_runtime(
 func _show_trust_dialog(
 	plugin_name: String, server_id: String, plugin_id: String,
 ) -> bool:
-	var dialog_class = load("res://scenes/plugins/plugin_trust_dialog.gd")
-	var dialog: ModalBase = dialog_class.new()
+	var dialog_scene: PackedScene = load("res://scenes/plugins/plugin_trust_dialog.tscn")
+	var dialog: ModalBase = dialog_scene.instantiate()
 	dialog.setup(plugin_name, server_id)
 	_c.get_tree().root.add_child(dialog)
 	# Wait for user response

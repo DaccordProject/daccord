@@ -6,71 +6,36 @@ extends VBoxContainer
 signal start_requested()
 signal role_change_requested(user_id: String, role: String)
 
-var _slots_grid: GridContainer
-var _spectator_list: VBoxContainer
-var _start_btn: Button
-var _status_label: Label
 var _max_participants: int = 0
 var _is_host: bool = false
 
+@onready var _slots_grid: GridContainer = $SlotsGrid
+@onready var _spectator_list: VBoxContainer = $SpectatorList
+@onready var _start_btn: Button = $StartButton
+@onready var _status_label: Label = $StatusLabel
+
 
 func _ready() -> void:
-	add_theme_constant_override("separation", 12)
-
-	var title := Label.new()
-	title.text = tr("Lobby")
-	title.add_theme_font_size_override("font_size", 16)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(title)
-
-	_status_label = Label.new()
-	_status_label.text = tr("Waiting for players...")
-	_status_label.add_theme_font_size_override("font_size", 12)
 	_status_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
-	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_status_label)
-
-	# Player slot grid
-	var slots_label := Label.new()
-	slots_label.text = tr("Players")
-	slots_label.add_theme_font_size_override("font_size", 13)
-	add_child(slots_label)
-
-	_slots_grid = GridContainer.new()
-	_slots_grid.columns = 2
-	_slots_grid.add_theme_constant_override("h_separation", 8)
-	_slots_grid.add_theme_constant_override("v_separation", 8)
-	add_child(_slots_grid)
-
-	# Spectator section
-	var spec_label := Label.new()
-	spec_label.text = tr("Spectators")
-	spec_label.add_theme_font_size_override("font_size", 13)
-	add_child(spec_label)
-
-	_spectator_list = VBoxContainer.new()
-	_spectator_list.add_theme_constant_override("separation", 4)
-	add_child(_spectator_list)
-
-	# Start button (host only)
-	_start_btn = Button.new()
-	_start_btn.text = tr("Start Activity")
-	_start_btn.custom_minimum_size = Vector2(0, 40)
-	var btn_style := ThemeManager.make_flat_style("accent", 4, [16, 8, 16, 8])
-	_start_btn.add_theme_stylebox_override("normal", btn_style)
+	ThemeManager.style_button(
+		_start_btn, "accent", "accent_hover",
+		"accent_pressed", 4, [16, 8, 16, 8]
+	)
 	_start_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_white")
 	)
-	_start_btn.pressed.connect(func() -> void: start_requested.emit())
-	_start_btn.visible = false
-	add_child(_start_btn)
+	_start_btn.pressed.connect(
+		func() -> void: start_requested.emit()
+	)
 
 
 func setup(manifest: Dictionary, is_host: bool) -> void:
 	_max_participants = manifest.get("max_participants", 0)
 	_is_host = is_host
+	if not is_inside_tree():
+		await ready
 	_start_btn.visible = is_host
 	_start_btn.disabled = true
 	_rebuild_slots([])

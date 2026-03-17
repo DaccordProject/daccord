@@ -39,19 +39,13 @@ func setup(space_id: String) -> void:
 	_load_sounds()
 
 func _load_sounds() -> void:
-	for child in _sound_list.get_children():
-		child.queue_free()
+	_clear_children(_sound_list)
 	_empty_label.visible = false
 	_error_label.visible = false
 	_all_sounds.clear()
 
 	var result: RestResult = await Client.admin.get_sounds(_space_id)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to load sounds")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to load sounds")):
 		return
 
 	var sounds: Array = result.data if result.data is Array else []
@@ -72,8 +66,7 @@ func _load_sounds() -> void:
 	_rebuild_list(_all_sounds)
 
 func _rebuild_list(sounds: Array) -> void:
-	for child in _sound_list.get_children():
-		child.queue_free()
+	_clear_children(_sound_list)
 
 	if sounds.is_empty():
 		_empty_label.visible = _all_sounds.is_empty()
@@ -150,25 +143,15 @@ func _on_file_selected(path: String) -> void:
 			_error_label.visible = true
 			return
 
-	_upload_btn.disabled = true
-	_upload_btn.text = tr("Uploading...")
 	_error_label.visible = false
+	var data := {"name": sound_name, "audio": data_uri}
 
-	var data := {
-		"name": sound_name,
-		"audio": data_uri,
-	}
-
-	var result: RestResult = await Client.admin.create_sound(_space_id, data)
-	_upload_btn.disabled = false
-	_upload_btn.text = tr("Upload Sound")
-
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to upload sound")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	var result: RestResult = await _with_button_loading(
+		_upload_btn, tr("Upload Sound"),
+		func() -> RestResult:
+			return await Client.admin.create_sound(_space_id, data)
+	)
+	_show_rest_error(result, tr("Failed to upload sound"))
 
 func _on_delete_sound(sound: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
@@ -200,12 +183,7 @@ func _on_rename_sound(sound: Dictionary, new_name: String) -> void:
 	var result: RestResult = await Client.admin.update_sound(
 		_space_id, sound.get("id", ""), {"name": new_name}
 	)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to rename sound")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	_show_rest_error(result, tr("Failed to rename sound"))
 
 func _on_volume_changed(sound: Dictionary, new_volume: float) -> void:
 	var sound_id: String = sound.get("id", "")
@@ -222,12 +200,7 @@ func _on_volume_changed(sound: Dictionary, new_volume: float) -> void:
 	var result: RestResult = await Client.admin.update_sound(
 		_space_id, sound_id, {"volume": new_volume}
 	)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to update volume")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	_show_rest_error(result, tr("Failed to update volume"))
 
 func _on_soundboard_updated(space_id: String) -> void:
 	if space_id == _space_id:

@@ -56,7 +56,7 @@ func _ready() -> void:
 	rules_row.add_child(rules_label)
 
 	var rules_info := Label.new()
-	rules_info.text = "\u24d8"
+	rules_info.text = "ⓘ"
 	rules_info.tooltip_text = \
 		tr("New members will be shown the rules channel " \
 		+ "content before they can interact. " \
@@ -176,10 +176,7 @@ func setup(space_id: String) -> void:
 	_dirty = false
 
 func _on_save() -> void:
-	_save_btn.disabled = true
-	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
-
 	var ver_levels := ["none", "low", "medium", "high"]
 	var notif_levels := ["all", "mentions"]
 	var nsfw_levels := ["default", "moderate", "explicit"]
@@ -209,17 +206,13 @@ func _on_save() -> void:
 	elif _icon_removed:
 		data["icon"] = ""
 
-	var result: RestResult = await Client.admin.update_space(_space_id, data)
-	_save_btn.disabled = false
-	_save_btn.text = tr("Save")
+	var result: RestResult = await _with_button_loading(
+		_save_btn, tr("Save"),
+		func() -> RestResult:
+			return await Client.admin.update_space(_space_id, data)
+	)
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to update space")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to update space")):
 		_dirty = false
 		queue_free()
 
@@ -279,21 +272,7 @@ func _on_delete() -> void:
 	)
 
 func _try_close() -> void:
-	if _dirty:
-		var dialog := ConfirmDialogScene.instantiate()
-		get_tree().root.add_child(dialog)
-		dialog.setup(
-			tr("Unsaved Changes"),
-			tr("You have unsaved changes. Discard?"),
-			tr("Discard"),
-			true
-		)
-		dialog.confirmed.connect(func():
-			_dirty = false
-			queue_free()
-		)
-	else:
-		queue_free()
+	_try_close_dirty(_dirty, ConfirmDialogScene)
 
 func _close() -> void:
 	_try_close()

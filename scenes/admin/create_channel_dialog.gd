@@ -53,10 +53,7 @@ func _on_create() -> void:
 		_error_label.visible = true
 		return
 
-	_create_btn.disabled = true
-	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
-
 	var type_map := ["text", "voice", "announcement", "forum", "category"]
 	var data := {
 		"name": ch_name,
@@ -75,16 +72,12 @@ func _on_create() -> void:
 			if pid is String and not pid.is_empty():
 				data["parent_id"] = pid
 
-	var result: RestResult = await Client.admin.create_channel(_space_id, data)
-	_create_btn.disabled = false
-	_create_btn.text = tr("Create")
+	var result: RestResult = await _with_button_loading(
+		_create_btn, tr("Create"),
+		func() -> RestResult:
+			return await Client.admin.create_channel(_space_id, data)
+	)
 
-	if result == null or not result.ok:
-		var msg: String = tr("Failed to create channel")
-		if result != null and result.error:
-			msg = result.error.message
-		_error_label.text = msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to create channel")):
 		queue_free()
 

@@ -11,7 +11,7 @@ const SpaceSettingsDialogScene := preload(
 )
 const AvatarScene := preload("res://scenes/common/avatar.tscn")
 const CreateSpaceDialogScene := preload(
-	"res://scenes/admin/create_space_dialog.gd"
+	"res://scenes/admin/create_space_dialog.tscn"
 )
 const TransferOwnershipDialogScene := preload(
 	"res://scenes/admin/transfer_ownership_dialog.gd"
@@ -258,7 +258,7 @@ func _build_space_row(
 	return row
 
 func _on_create_space() -> void:
-	var dialog: ColorRect = CreateSpaceDialogScene.new()
+	var dialog: ColorRect = CreateSpaceDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.tree_exited.connect(_fetch_spaces)
 
@@ -288,9 +288,7 @@ func _on_delete_space(space_id: String, sname: String) -> void:
 
 func _build_reports_page() -> VBoxContainer:
 	_reports_helper = ServerManagementReportsScript.new(self)
-	return _reports_helper.build_page(
-		_page_vbox, _error_label, _clear_children
-	)
+	return _reports_helper.build_page(_page_vbox)
 
 # ── Users tab ───────────────────────────────────────────────
 
@@ -711,7 +709,7 @@ func _on_save_settings() -> void:
 
 # ── Helpers ─────────────────────────────────────────────────
 
-func _clear_children(container: Control) -> void:
+static func _clear_children(container: Node) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
 		child.queue_free()

@@ -1,6 +1,6 @@
 ---
-description: Run tests, fix lint errors, break down large files, and clean up debug artifacts
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(./test.sh:*), Bash(bash lint.sh:*), Bash(wc:*), Bash(git status:*), Bash(git diff:*), Task
+description: Run tests, fix lint errors, break down large files, clean up debug artifacts, and smoke-test the app
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(./test.sh:*), Bash(bash lint.sh:*), Bash(wc:*), Bash(git status:*), Bash(git diff:*), Bash(timeout *godot*), Task
 ---
 
 You are performing a "spring clean" of the daccord codebase. Work through each phase in order. Fix issues as you go rather than just reporting them.
@@ -83,13 +83,50 @@ Do NOT delete:
 - `addons/` directory contents
 - Any file tracked by git that isn't clearly an artifact
 
-## Phase 5: Verify
+## Phase 5: Smoke Bomb Test
+
+Launch the application headless for a few seconds and capture its console output to catch runtime warnings and errors that tests and lint don't surface (missing resources, broken autoloads, scene instantiation errors, deprecation warnings, etc.):
+
+```
+timeout 15 godot --headless 2>&1 | tee /tmp/daccord_smoke.log || true
+```
+
+Parse the output for lines containing:
+- `ERROR` / `error` / `SCRIPT ERROR`
+- `WARNING` / `warning`
+- `Cannot` / `Failed` / `Invalid`
+- `Condition ".*" is true` (Godot assertion pattern)
+- Stack traces or `at:` lines
+
+Ignore these known-benign patterns:
+- `Vulkan` / `OpenGL` / `RenderingDevice` messages (headless has no GPU)
+- `XDG_RUNTIME_DIR` or display-server warnings
+- `Main::iteration: Navigation` warnings (timing-dependent in headless)
+- Messages originating from `addons/gut/` or `addons/sentry/`
+
+For each real warning or error:
+1. Identify the source file and line from the log
+2. Read the relevant code
+3. Fix the root cause (missing resource path, typo, bad preload, null access guard, etc.)
+4. If a fix requires a scene change, update the `.tscn` as well
+
+After fixing, re-run the smoke test to confirm the warnings/errors are gone:
+
+```
+timeout 15 godot --headless 2>&1 | tee /tmp/daccord_smoke.log || true
+```
+
+Repeat until the output is clean (only benign messages remain).
+
+## Phase 6: Verify
 
 After all phases:
 1. Run `./test.sh unit` one final time to confirm nothing is broken
 2. Run `bash lint.sh` one final time to confirm it's clean
-3. Summarize what was done:
+3. Run `timeout 15 godot --headless 2>&1` one final time to confirm no new warnings
+4. Summarize what was done:
    - Number of test failures fixed
    - Number of lint issues fixed
    - Files that were broken down (with before/after line counts)
    - Debug logs and artifacts removed
+   - Smoke test warnings/errors fixed

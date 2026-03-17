@@ -161,7 +161,7 @@ text = "NSFW Level"
 
 [node name="NsfwLevelInfo" type="Label" parent="CenterContainer/Panel/VBox/NsfwLevelRow"]
 layout_mode = 2
-text = "\u24d8"
+text = "ⓘ"
 tooltip_text = "Controls the age restriction level of this space. 'Explicit' marks the entire space as NSFW and requires users to acknowledge an age gate."
 mouse_filter = 0
 metadata/theme_font_color = "text_muted"
@@ -181,7 +181,7 @@ text = "Explicit Content Filter"
 
 [node name="ContentFilterInfo" type="Label" parent="CenterContainer/Panel/VBox/ContentFilterRow"]
 layout_mode = 2
-text = "\u24d8"
+text = "ⓘ"
 tooltip_text = "Automatically scan and filter media content in messages. 'Members Without Roles' scans only members with no roles. 'Everyone' scans all messages."
 mouse_filter = 0
 metadata/theme_font_color = "text_muted"

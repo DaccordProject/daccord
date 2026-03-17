@@ -52,8 +52,7 @@ func setup_server_wide() -> void:
 	_load_reports()
 
 func _load_reports() -> void:
-	for child in _report_list.get_children():
-		child.queue_free()
+	_clear_children(_report_list)
 	_empty_label.visible = false
 	_error_label.visible = false
 	_all_reports.clear()
@@ -78,12 +77,7 @@ func _fetch_page() -> void:
 	var result: RestResult = await Client.admin.get_reports(
 		_space_id, query
 	)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to load reports")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to load reports")):
 		return
 
 	var reports: Array = result.data if result.data is Array else []
@@ -132,8 +126,7 @@ func _fetch_all_spaces() -> void:
 	_rebuild_list()
 
 func _rebuild_list() -> void:
-	for child in _report_list.get_children():
-		child.queue_free()
+	_clear_children(_report_list)
 
 	if _all_reports.is_empty():
 		_empty_label.visible = true
@@ -165,11 +158,9 @@ func _on_filter_changed(_idx: int) -> void:
 	_load_reports()
 
 func _on_load_more() -> void:
-	_load_more_btn.disabled = true
-	_load_more_btn.text = tr("Loading...")
-	await _fetch_page()
-	_load_more_btn.disabled = false
-	_load_more_btn.text = tr("Load More")
+	await _with_button_loading(
+		_load_more_btn, tr("Load More"), _fetch_page
+	)
 
 func _on_action_report(report_id: String, action_type: String) -> void:
 	var report: Dictionary = _find_report(report_id)

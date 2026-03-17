@@ -122,6 +122,63 @@ func set_modal_title(text: String) -> void:
 		_modal_title_label.text = text
 
 
+## Show a REST error on _error_label if the result failed. Returns true on error.
+## Requires the subclass to have an `_error_label: Label` node.
+func _show_rest_error(result: RestResult, fallback: String) -> bool:
+	if result != null and result.ok:
+		return false
+	var msg: String = fallback
+	if result != null and result.error:
+		msg = result.error.message
+	if "_error_label" in self and _error_label_node() != null:
+		_error_label_node().text = msg
+		_error_label_node().visible = true
+	return true
+
+
+## Run an async action while showing a loading state on a button.
+## Returns the result of the action callable.
+func _with_button_loading(
+	btn: Button, normal_text: String, action: Callable,
+) -> Variant:
+	btn.disabled = true
+	btn.text = tr("Loading...")
+	var result: Variant = await action.call()
+	btn.disabled = false
+	btn.text = normal_text
+	return result
+
+
+## Remove all children from a container node.
+static func _clear_children(container: Node) -> void:
+	for child in container.get_children():
+		child.queue_free()
+
+
+## Try to close with unsaved-changes guard. Requires _dirty var in subclass.
+## Pass a ConfirmDialog packed scene to show the discard prompt.
+func _try_close_dirty(
+	dirty: bool, confirm_scene: PackedScene,
+) -> void:
+	if dirty:
+		var dialog: Node = confirm_scene.instantiate()
+		get_tree().root.add_child(dialog)
+		dialog.setup(
+			tr("Unsaved Changes"),
+			tr("You have unsaved changes. Discard?"),
+			tr("Discard"),
+			true
+		)
+		dialog.confirmed.connect(queue_free)
+	else:
+		queue_free()
+
+
+## Helper to access _error_label in subclasses without requiring it here.
+func _error_label_node() -> Label:
+	return get("_error_label") as Label
+
+
 func _close() -> void:
 	closed.emit()
 	queue_free()

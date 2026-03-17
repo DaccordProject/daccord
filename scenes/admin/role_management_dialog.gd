@@ -70,8 +70,7 @@ func _format_perm_name(perm: String) -> String:
 	return perm.replace("_", " ").capitalize()
 
 func _rebuild_role_list() -> void:
-	for child in _role_list.get_children():
-		child.queue_free()
+	_clear_children(_role_list)
 
 	_all_roles = Client.get_roles_for_space(_space_id)
 	_all_roles.sort_custom(func(a: Dictionary, b: Dictionary):
@@ -81,8 +80,7 @@ func _rebuild_role_list() -> void:
 	_build_role_buttons(_all_roles)
 
 func _build_role_buttons(roles: Array) -> void:
-	for child in _role_list.get_children():
-		child.queue_free()
+	_clear_children(_role_list)
 
 	var role_counts: Dictionary = _compute_role_member_counts()
 
@@ -152,12 +150,7 @@ func _on_move_role(role: Dictionary, direction: int) -> void:
 	]
 
 	var result: RestResult = await Client.admin.reorder_roles(_space_id, data)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to reorder roles")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	_show_rest_error(result, tr("Failed to reorder roles"))
 
 func _select_role(role: Dictionary) -> void:
 	_selected_role = role
@@ -203,25 +196,21 @@ func _select_role(role: Dictionary) -> void:
 	_dirty = false
 
 func _on_new_role() -> void:
-	_new_role_btn.disabled = true
 	_error_label.visible = false
-	var result: RestResult = await Client.admin.create_role(_space_id, {"name": tr("New Role")})
-	_new_role_btn.disabled = false
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to create role")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	var result: RestResult = await _with_button_loading(
+		_new_role_btn, _new_role_btn.text,
+		func() -> RestResult:
+			return await Client.admin.create_role(
+				_space_id, {"name": tr("New Role")}
+			)
+	)
+	_show_rest_error(result, tr("Failed to create role"))
 
 func _on_save() -> void:
 	if _selected_role.is_empty():
 		return
 
-	_save_btn.disabled = true
-	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
-
 	var perms: Array = []
 	for perm in _perm_checks:
 		if _perm_checks[perm].button_pressed:
@@ -235,19 +224,15 @@ func _on_save() -> void:
 		"permissions": perms,
 	}
 
-	var result: RestResult = await Client.admin.update_role(
-		_space_id, _selected_role.get("id", ""), data
+	var result: RestResult = await _with_button_loading(
+		_save_btn, tr("Save"),
+		func() -> RestResult:
+			return await Client.admin.update_role(
+				_space_id, _selected_role.get("id", ""), data
+			)
 	)
-	_save_btn.disabled = false
-	_save_btn.text = tr("Save")
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to update role")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to update role")):
 		_dirty = false
 
 func _on_delete() -> void:
@@ -277,21 +262,7 @@ func _on_roles_updated(space_id: String) -> void:
 		_rebuild_role_list()
 
 func _try_close() -> void:
-	if _dirty:
-		var dialog := ConfirmDialogScene.instantiate()
-		get_tree().root.add_child(dialog)
-		dialog.setup(
-			tr("Unsaved Changes"),
-			tr("You have unsaved changes. Discard?"),
-			tr("Discard"),
-			true
-		)
-		dialog.confirmed.connect(func():
-			_dirty = false
-			queue_free()
-		)
-	else:
-		queue_free()
+	_try_close_dirty(_dirty, ConfirmDialogScene)
 
 func _close() -> void:
 	_try_close()

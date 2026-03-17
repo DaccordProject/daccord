@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/plugins/activity_lobby.gd" id="1"]
+
+[node name="ActivityLobby" type="VBoxContainer"]
+theme_override_constants/separation = 12
+script = ExtResource("1")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 2
+text = "Lobby"
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="."]
+layout_mode = 2
+text = "Waiting for players..."
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="PlayersLabel" type="Label" parent="."]
+layout_mode = 2
+text = "Players"
+theme_override_font_sizes/font_size = 13
+
+[node name="SlotsGrid" type="GridContainer" parent="."]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="SpectatorsLabel" type="Label" parent="."]
+layout_mode = 2
+text = "Spectators"
+theme_override_font_sizes/font_size = 13
+
+[node name="SpectatorList" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="StartButton" type="Button" parent="."]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+text = "Start Activity"

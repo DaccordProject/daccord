@@ -309,7 +309,7 @@ func _on_plugins_updated() -> void:
 		_rebuild_list()
 
 
-func _clear_children(container: Control) -> void:
+static func _clear_children(container: Node) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
 		child.queue_free()

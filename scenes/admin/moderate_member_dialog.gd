@@ -50,10 +50,7 @@ func setup(
 	_remove_timeout_btn.visible = not timeout.is_empty()
 
 func _on_apply() -> void:
-	_apply_btn.disabled = true
-	_apply_btn.text = tr("Applying...")
 	_error_label.visible = false
-
 	var data: Dictionary = {
 		"mute": _mute_check.button_pressed,
 		"deaf": _deaf_check.button_pressed,
@@ -73,39 +70,29 @@ func _on_apply() -> void:
 				dt["hour"], dt["minute"], dt["second"],
 			]
 
-	var result: RestResult = await Client.admin.update_member(
-		_space_id, _user_id, data
+	var result: RestResult = await _with_button_loading(
+		_apply_btn, tr("Apply"),
+		func() -> RestResult:
+			return await Client.admin.update_member(
+				_space_id, _user_id, data
+			)
 	)
-	_apply_btn.disabled = false
-	_apply_btn.text = tr("Apply")
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to moderate member")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to moderate member")):
 		_close()
 
 func _on_remove_timeout() -> void:
-	_remove_timeout_btn.disabled = true
 	_error_label.visible = false
+	var data: Dictionary = {"communication_disabled_until": ""}
 
-	var data: Dictionary = {
-		"communication_disabled_until": "",
-	}
-	var result: RestResult = await Client.admin.update_member(
-		_space_id, _user_id, data
+	var result: RestResult = await _with_button_loading(
+		_remove_timeout_btn, _remove_timeout_btn.text,
+		func() -> RestResult:
+			return await Client.admin.update_member(
+				_space_id, _user_id, data
+			)
 	)
-	_remove_timeout_btn.disabled = false
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to remove timeout")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to remove timeout")):
 		_close()
 

@@ -29,19 +29,13 @@ func setup(space_id: String) -> void:
 	_load_emojis()
 
 func _load_emojis() -> void:
-	for child in _emoji_grid.get_children():
-		child.queue_free()
+	_clear_children(_emoji_grid)
 	_empty_label.visible = false
 	_error_label.visible = false
 	_all_emojis.clear()
 
 	var result: RestResult = await Client.admin.get_emojis(_space_id)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to load emojis")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to load emojis")):
 		return
 
 	var emojis: Array = result.data if result.data is Array else []
@@ -62,8 +56,7 @@ func _load_emojis() -> void:
 	_rebuild_grid(_all_emojis)
 
 func _rebuild_grid(emojis: Array) -> void:
-	for child in _emoji_grid.get_children():
-		child.queue_free()
+	_clear_children(_emoji_grid)
 
 	if emojis.is_empty():
 		_empty_label.visible = _all_emojis.is_empty()
@@ -129,25 +122,15 @@ func _on_file_selected(path: String) -> void:
 			_error_label.visible = true
 			return
 
-	_upload_btn.disabled = true
-	_upload_btn.text = tr("Uploading...")
 	_error_label.visible = false
+	var data := {"name": emoji_name, "image": data_uri}
 
-	var data := {
-		"name": emoji_name,
-		"image": data_uri,
-	}
-
-	var result: RestResult = await Client.admin.create_emoji(_space_id, data)
-	_upload_btn.disabled = false
-	_upload_btn.text = tr("Upload Emoji")
-
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to upload emoji")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	var result: RestResult = await _with_button_loading(
+		_upload_btn, tr("Upload Emoji"),
+		func() -> RestResult:
+			return await Client.admin.create_emoji(_space_id, data)
+	)
+	_show_rest_error(result, tr("Failed to upload emoji"))
 
 func _on_delete_emoji(emoji: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()

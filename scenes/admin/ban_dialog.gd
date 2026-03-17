@@ -60,10 +60,7 @@ func _on_ban_pressed() -> void:
 		return
 
 	# Second press: execute ban
-	_ban_btn.disabled = true
-	_ban_btn.text = tr("Banning...")
 	_error_label.visible = false
-
 	var data: Dictionary = {}
 	if not reason.is_empty():
 		data["reason"] = reason
@@ -71,21 +68,20 @@ func _on_ban_pressed() -> void:
 	if purge_idx > 0 and purge_idx < PURGE_OPTIONS.size():
 		data["delete_message_seconds"] = PURGE_OPTIONS[purge_idx][0]
 
-	var result: RestResult = await Client.admin.ban_member(_space_id, _user_id, data)
+	var result: RestResult = await _with_button_loading(
+		_ban_btn, tr("Ban"),
+		func() -> RestResult:
+			return await Client.admin.ban_member(
+				_space_id, _user_id, data
+			)
+	)
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to ban user")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to ban user")):
 		# Reset confirmation state on failure
 		_confirmed = false
 		_reason_input.editable = true
 		_purge_option.disabled = false
 		_summary_label.visible = false
-		_ban_btn.disabled = false
-		_ban_btn.text = tr("Ban")
 	else:
 		ban_confirmed.emit(_user_id, reason)
 		_close()

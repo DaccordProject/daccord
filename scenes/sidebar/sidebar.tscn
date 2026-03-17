@@ -1,11 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=7 format=3 uid="uid://c3kf0htyeleuj"]
 
-[ext_resource type="Script" path="res://scenes/sidebar/sidebar.gd" id="1"]
+[ext_resource type="Script" uid="uid://dnlnl1bjq4qy8" path="res://scenes/sidebar/sidebar.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/guild_bar/guild_bar.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/channels/channel_list.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/direct/dm_list.tscn" id="4"]
+[ext_resource type="PackedScene" uid="uid://dcx2pkn08i5nv" path="res://scenes/sidebar/user_bar.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/voice_bar.tscn" id="5_voice"]
-[ext_resource type="PackedScene" path="res://scenes/sidebar/user_bar.tscn" id="5"]
 
 [node name="Sidebar" type="HBoxContainer"]
 offset_right = 308.0
@@ -18,8 +18,8 @@ script = ExtResource("1")
 layout_mode = 2
 
 [node name="ChannelPanel" type="VBoxContainer" parent="."]
-layout_mode = 2
 custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
 theme_override_constants/separation = 0
 
 [node name="ChannelList" parent="ChannelPanel" instance=ExtResource("3")]

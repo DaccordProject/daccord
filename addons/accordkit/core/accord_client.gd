@@ -60,6 +60,9 @@ signal voice_signal(data: Dictionary)
 signal ban_create(data: Dictionary)
 signal ban_delete(data: Dictionary)
 
+# Reports
+signal report_create(data: Dictionary)
+
 # Invites
 signal invite_create(invite: AccordInvite)
 signal invite_delete(data: Dictionary)
@@ -89,6 +92,9 @@ signal soundboard_play(data: Dictionary)
 signal relationship_add(relationship: AccordRelationship)
 signal relationship_update(relationship: AccordRelationship)
 signal relationship_remove(data: Dictionary)
+
+# Anonymous
+signal anonymous_count_updated(data: Dictionary)
 
 # Raw
 signal raw_event(event_type: String, data: Dictionary)
@@ -255,6 +261,8 @@ func _connect_gateway_signals() -> void:
 	gateway.ban_create.connect(func(d): ban_create.emit(d))
 	gateway.ban_delete.connect(func(d): ban_delete.emit(d))
 
+	gateway.report_create.connect(func(d): report_create.emit(d))
+
 	gateway.invite_create.connect(func(i): invite_create.emit(i))
 	gateway.invite_delete.connect(func(d): invite_delete.emit(d))
 
@@ -274,4 +282,5 @@ func _connect_gateway_signals() -> void:
 	gateway.relationship_add.connect(func(r): relationship_add.emit(r))
 	gateway.relationship_update.connect(func(r): relationship_update.emit(r))
 	gateway.relationship_remove.connect(func(d): relationship_remove.emit(d))
+	gateway.anonymous_count_updated.connect(func(d): anonymous_count_updated.emit(d))
 	gateway.raw_event.connect(func(t, d): raw_event.emit(t, d))

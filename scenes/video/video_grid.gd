@@ -5,8 +5,8 @@ enum GridMode { INLINE, FULL_AREA }
 const VideoTileScene := preload(
 	"res://scenes/video/video_tile.tscn"
 )
-const ActivityLobbyScript := preload(
-	"res://scenes/plugins/activity_lobby.gd"
+const ActivityLobbyScene := preload(
+	"res://scenes/plugins/activity_lobby.tscn"
 )
 const VerticalResizeHandle := preload(
 	"res://scenes/video/vertical_resize_handle.gd"
@@ -439,7 +439,7 @@ func _rebuild_activity(tiles: Array) -> void:
 	var session_state: String = AppState.active_activity_session_state
 	match session_state:
 		"lobby":
-			var lobby: VBoxContainer = ActivityLobbyScript.new()
+			var lobby: VBoxContainer = ActivityLobbyScene.instantiate()
 			lobby.set_anchors_preset(Control.PRESET_FULL_RECT)
 			lobby.start_requested.connect(_on_activity_start)
 			lobby.setup(_activity_manifest, _activity_is_host)

@@ -5,6 +5,9 @@ enum OverwriteState { INHERIT, ALLOW, DENY }
 
 const PermOverwriteRowScene := preload("res://scenes/admin/perm_overwrite_row.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
+const MemberPickerContentScene := preload(
+	"res://scenes/admin/member_picker_content.tscn"
+)
 
 # Permissions only relevant to voice channels
 const VOICE_ONLY_PERMS := [
@@ -206,28 +209,14 @@ func _on_entity_selected(
 	_rebuild_perm_list()
 
 func _on_add_member_overwrite() -> void:
-	# Create a popup with a search input for member selection
 	var popup := PopupPanel.new()
-	var vbox := VBoxContainer.new()
-	vbox.custom_minimum_size = Vector2(200, 200)
-
-	var search := LineEdit.new()
-	search.placeholder_text = tr("Search members...")
-	search.custom_minimum_size = Vector2(0, 32)
-	vbox.add_child(search)
-
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(scroll)
-
-	var member_list := VBoxContainer.new()
-	member_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(member_list)
-
-	popup.add_child(vbox)
+	var content := MemberPickerContentScene.instantiate()
+	popup.add_child(content)
 	add_child(popup)
 
 	var members: Array = Client.get_members_for_space(_space_id)
+	var search: LineEdit = content.search_input
+	var member_list: VBoxContainer = content.member_list
 
 	var build_list := func(query: String) -> void:
 		for child in member_list.get_children():

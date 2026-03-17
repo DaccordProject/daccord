@@ -45,8 +45,7 @@ func setup(space_id: String) -> void:
 	_load_entries()
 
 func _load_entries() -> void:
-	for child in _entry_list.get_children():
-		child.queue_free()
+	_clear_children(_entry_list)
 	_empty_label.visible = false
 	_error_label.visible = false
 	_all_entries.clear()
@@ -67,12 +66,7 @@ func _fetch_page() -> void:
 	var result: RestResult = await Client.admin.get_audit_log(
 		_space_id, query
 	)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to load audit log")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to load audit log")):
 		return
 
 	var entries: Array = result.data if result.data is Array else []
@@ -92,8 +86,7 @@ func _fetch_page() -> void:
 	_rebuild_list(_all_entries)
 
 func _rebuild_list(entries: Array) -> void:
-	for child in _entry_list.get_children():
-		child.queue_free()
+	_clear_children(_entry_list)
 
 	if entries.is_empty():
 		_empty_label.visible = _all_entries.is_empty()
@@ -135,9 +128,7 @@ func _on_filter_changed(_idx: int) -> void:
 	_load_entries()
 
 func _on_load_more() -> void:
-	_load_more_btn.disabled = true
-	_load_more_btn.text = tr("Loading...")
-	await _fetch_page()
-	_load_more_btn.disabled = false
-	_load_more_btn.text = tr("Load More")
+	await _with_button_loading(
+		_load_more_btn, tr("Load More"), _fetch_page
+	)
 

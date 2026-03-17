@@ -1,0 +1,38 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/plugins/activity_card.gd" id="1"]
+
+[node name="ActivityCard" type="PanelContainer"]
+script = ExtResource("1")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Info" type="VBoxContainer" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="NameLabel" type="Label" parent="HBox/Info"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+
+[node name="DescLabel" type="Label" parent="HBox/Info"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="MetaRow" type="HBoxContainer" parent="HBox/Info"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RuntimeLabel" type="Label" parent="HBox/Info/MetaRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+
+[node name="LaunchButton" type="Button" parent="HBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(80, 36)
+size_flags_vertical = 4
+text = "Launch"

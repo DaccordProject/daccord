@@ -36,6 +36,22 @@ static var _hsv_colors := [
 	Color.from_hsv(0.95, 0.7, 0.9),
 ]
 
+## Resolve a media field (avatar/icon/banner) to a full URL, or null.
+static func _resolve_media_url(
+	raw_value: Variant, owner_id: String, cdn_url: String,
+	cdn_builder: Callable = Callable(),
+) -> Variant:
+	if raw_value == null:
+		return null
+	var val: String = str(raw_value)
+	if val.is_empty():
+		return null
+	if val.begins_with("/"):
+		return AccordCDN.resolve_path(val, cdn_url)
+	if cdn_builder.is_valid():
+		return cdn_builder.call(owner_id, val, "png", cdn_url)
+	return null
+
 static func _color_from_id(id: String) -> Color:
 	var count: int = _hsv_colors.size()
 	if count == 0:
@@ -175,33 +191,15 @@ static func user_to_dict(
 	status: int = ClientModels.UserStatus.OFFLINE,
 	cdn_url: String = "",
 ) -> Dictionary:
-	var dname: String = ""
-	if user.display_name != null:
-		dname = str(user.display_name)
-	if dname.is_empty():
-		dname = user.username
+	var dname: String = str(user.display_name) if user.display_name else user.username
 
-	var avatar_url = null
-	if user.avatar != null and not str(user.avatar).is_empty():
-		var av: String = str(user.avatar)
-		if av.begins_with("/"):
-			avatar_url = AccordCDN.resolve_path(av, cdn_url)
-		else:
-			avatar_url = AccordCDN.avatar(user.id, av, "png", cdn_url)
-
-	var bio_str: String = ""
-	if user.bio != null:
-		bio_str = str(user.bio)
-
-	var banner_url = null
-	if user.banner != null and not str(user.banner).is_empty():
-		var bn: String = str(user.banner)
-		if bn.begins_with("/"):
-			banner_url = AccordCDN.resolve_path(bn, cdn_url)
-		else:
-			banner_url = AccordCDN.space_banner(
-				user.id, bn, "png", cdn_url
-			)
+	var avatar_url = _resolve_media_url(
+		user.avatar, user.id, cdn_url, AccordCDN.avatar
+	)
+	var bio_str: String = str(user.bio) if user.bio != null else ""
+	var banner_url = _resolve_media_url(
+		user.banner, user.id, cdn_url, AccordCDN.space_banner
+	)
 
 	var accent: int = 0
 	if user.accent_color != null:
@@ -238,7 +236,7 @@ static func relationship_to_dict(
 			status = _status_string_to_enum(rel.user_status)
 		user_dict = user_to_dict(rel.user, status, cdn_url)
 		# Carry through activities from the relationship response
-		if rel.user_activities.size() > 0:
+		if not rel.user_activities.is_empty():
 			user_dict["activities"] = rel.user_activities
 	return {
 		"id": rel.id,
@@ -285,20 +283,12 @@ static func friend_book_entry_to_dict(entry: Dictionary) -> Dictionary:
 static func space_to_dict(
 	space: AccordSpace, cdn_url: String = ""
 ) -> Dictionary:
-	var desc: String = ""
-	if space.description != null:
-		desc = str(space.description)
+	var desc: String = str(space.description) if space.description != null else ""
 	var is_public: bool = space.public or "PUBLIC" in space.features or "public" in space.features
 
-	var icon_url = null
-	if space.icon != null and not str(space.icon).is_empty():
-		var ic: String = str(space.icon)
-		if ic.begins_with("/"):
-			icon_url = AccordCDN.resolve_path(ic, cdn_url)
-		else:
-			icon_url = AccordCDN.space_icon(
-				space.id, ic, "png", cdn_url
-			)
+	var icon_url = _resolve_media_url(
+		space.icon, space.id, cdn_url, AccordCDN.space_icon
+	)
 
 	return {
 		"id": space.id,
@@ -350,7 +340,7 @@ static func channel_to_dict(channel: AccordChannel) -> Dictionary:
 	if channel.allow_anonymous_read:
 		d["allow_anonymous_read"] = true
 	# Include permission overwrites for admin UI
-	if channel.permission_overwrites.size() > 0:
+	if not channel.permission_overwrites.is_empty():
 		var ow_list: Array = []
 		for ow in channel.permission_overwrites:
 			if ow is AccordPermissionOverwrite:
@@ -418,7 +408,7 @@ static func message_to_dict(
 						"value": f.get("value", ""),
 						"inline": f.get("inline", false),
 					})
-			if fields_arr.size() > 0:
+			if not fields_arr.is_empty():
 				ed["fields"] = fields_arr
 		if e.url != null:
 			ed["url"] = str(e.url)
@@ -426,7 +416,7 @@ static func message_to_dict(
 			ed["type"] = str(e.type)
 		embeds_arr.append(ed)
 	# First embed for backward compat
-	var embed_dict: Dictionary = embeds_arr[0] if embeds_arr.size() > 0 else {}
+	var embed_dict: Dictionary = embeds_arr[0] if not embeds_arr.is_empty() else {}
 
 	# Convert attachments
 	var attachments_arr: Array = []
@@ -538,10 +528,10 @@ static func member_to_dict(
 	user_dict["joined_at"] = member.joined_at
 	user_dict["mute"] = member.mute
 	user_dict["deaf"] = member.deaf
-	var timeout_str: String = ""
+	var tout: String = ""
 	if member.timed_out_until != null:
-		timeout_str = str(member.timed_out_until)
-	user_dict["timed_out_until"] = timeout_str
+		tout = str(member.timed_out_until)
+	user_dict["timed_out_until"] = tout
 	return user_dict
 
 static func dm_channel_to_dict(channel: AccordChannel, user_cache: Dictionary) -> Dictionary:
@@ -549,9 +539,7 @@ static func dm_channel_to_dict(channel: AccordChannel, user_cache: Dictionary) -
 	var all_recipients: Array = []
 	var is_group: bool = false
 
-	if channel.recipients != null \
-			and channel.recipients is Array \
-			and channel.recipients.size() > 0:
+	if channel.recipients is Array and not channel.recipients.is_empty():
 		is_group = channel.recipients.size() > 1
 		for recipient in channel.recipients:
 			var r: AccordUser = recipient

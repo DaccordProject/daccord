@@ -8,6 +8,9 @@ const ConfirmDialogScene := preload(
 	"res://scenes/admin/confirm_dialog.tscn"
 )
 const ReportRowScene := preload("res://scenes/admin/report_row.tscn")
+const ReportsPageContentScene := preload(
+	"res://scenes/admin/reports_page_content.tscn"
+)
 
 var _panel: Control
 var _reports_list: VBoxContainer
@@ -26,74 +29,39 @@ func _init(panel: Control) -> void:
 
 func build_page(
 	page_vbox: Callable,
-	error_label: Callable,
-	clear_children: Callable,
 ) -> VBoxContainer:
 	var vbox: VBoxContainer = page_vbox.call(tr("Reports (All Spaces)"))
 
-	# Filter row
-	var filter_row := HBoxContainer.new()
-	filter_row.add_theme_constant_override("separation", 8)
-	var filter_lbl := Label.new()
-	filter_lbl.text = tr("Status:")
-	filter_lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	filter_row.add_child(filter_lbl)
+	var content := ReportsPageContentScene.instantiate()
+	vbox.add_child(content)
 
-	_reports_filter = OptionButton.new()
-	_reports_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_reports_filter.add_item(tr("All"), 0)
-	_reports_filter.add_item(tr("Pending"), 1)
-	_reports_filter.add_item(tr("Actioned"), 2)
-	_reports_filter.add_item(tr("Dismissed"), 3)
+	_reports_filter = content.filter_option
+	_reports_error = content.error_label
+	_reports_empty = content.empty_label
+	_reports_list = content.reports_list
+	_reports_load_more_btn = content.load_more_btn
+
 	_reports_filter.item_selected.connect(
-		func(_idx: int) -> void: fetch_reports(clear_children)
+		func(_idx: int) -> void: fetch_reports()
 	)
-	filter_row.add_child(_reports_filter)
-	vbox.add_child(filter_row)
-
-	# Error label
-	_reports_error = error_label.call()
-	vbox.add_child(_reports_error)
-
-	# Empty label
-	_reports_empty = Label.new()
-	_reports_empty.text = tr("No reports.")
-	_reports_empty.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	_reports_empty.visible = false
-	vbox.add_child(_reports_empty)
-
-	# Report list
-	_reports_list = VBoxContainer.new()
-	_reports_list.add_theme_constant_override("separation", 4)
-	vbox.add_child(_reports_list)
-
-	# Load More button
-	_reports_load_more_btn = SettingsBase.create_secondary_button(
-		"Load More"
-	)
-	_reports_load_more_btn.visible = false
-	_reports_load_more_btn.pressed.connect(
-		func() -> void: _fetch_more_reports(clear_children)
-	)
-	vbox.add_child(_reports_load_more_btn)
+	_reports_load_more_btn.pressed.connect(_fetch_more_reports)
 
 	AppState.reports_updated.connect(
-		func(_sid: String) -> void: fetch_reports(clear_children)
+		func(_sid: String) -> void: fetch_reports()
 	)
-	fetch_reports.call_deferred(clear_children)
+	fetch_reports.call_deferred()
 	return vbox
 
 
-func fetch_reports(
-	clear_children: Callable, append: bool = false,
-) -> void:
+static func _clear_list(container: Node) -> void:
+	for child in container.get_children():
+		child.queue_free()
+
+
+func fetch_reports(append: bool = false) -> void:
 	_reports_error.visible = false
 	if not append:
-		clear_children.call(_reports_list)
+		_clear_list(_reports_list)
 		_reports_data = []
 		_reports_last_id = ""
 		_reports_has_more = false
@@ -118,7 +86,7 @@ func fetch_reports(
 
 	if space_ids.is_empty():
 		if not append:
-			clear_children.call(_reports_list)
+			_clear_list(_reports_list)
 		_reports_empty.visible = true
 		return
 
@@ -147,7 +115,7 @@ func fetch_reports(
 				all_new.append(rd)
 
 	if not append:
-		clear_children.call(_reports_list)
+		_clear_list(_reports_list)
 
 	if all_new.is_empty() and _reports_data.is_empty():
 		_reports_empty.visible = true
@@ -181,10 +149,10 @@ func fetch_reports(
 		row.tooltip_text = tr("Space: %s") % sname
 
 
-func _fetch_more_reports(clear_children: Callable) -> void:
+func _fetch_more_reports() -> void:
 	_reports_load_more_btn.disabled = true
 	_reports_load_more_btn.text = tr("Loading...")
-	await fetch_reports(clear_children, true)
+	await fetch_reports(true)
 	_reports_load_more_btn.disabled = false
 	_reports_load_more_btn.text = tr("Load More")
 

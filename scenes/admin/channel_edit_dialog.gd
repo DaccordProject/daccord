@@ -34,47 +34,26 @@ func setup(channel: Dictionary) -> void:
 	_dirty = false
 
 func _on_save() -> void:
-	_save_btn.disabled = true
-	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
-
 	var data := {
 		"name": _name_input.text.strip_edges(),
 		"topic": _topic_input.text.strip_edges(),
 		"nsfw": _nsfw_check.button_pressed,
 	}
 
-	var result: RestResult = await Client.admin.update_channel(_channel_id, data)
-	_save_btn.disabled = false
-	_save_btn.text = tr("Save")
+	var result: RestResult = await _with_button_loading(
+		_save_btn, tr("Save"),
+		func() -> RestResult:
+			return await Client.admin.update_channel(_channel_id, data)
+	)
 
-	if result == null or not result.ok:
-		var msg: String = tr("Failed to update channel")
-		if result != null and result.error:
-			msg = result.error.message
-		_error_label.text = msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to update channel")):
 		_dirty = false
 		saved.emit()
 		queue_free()
 
 func _try_close() -> void:
-	if _dirty:
-		var dialog := ConfirmDialogScene.instantiate()
-		get_tree().root.add_child(dialog)
-		dialog.setup(
-			tr("Unsaved Changes"),
-			tr("You have unsaved changes. Discard?"),
-			tr("Discard"),
-			true
-		)
-		dialog.confirmed.connect(func():
-			_dirty = false
-			queue_free()
-		)
-	else:
-		queue_free()
+	_try_close_dirty(_dirty, ConfirmDialogScene)
 
 func _close() -> void:
 	_try_close()

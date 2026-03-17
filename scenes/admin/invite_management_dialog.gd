@@ -54,8 +54,7 @@ func setup(space_id: String) -> void:
 	_load_invites()
 
 func _load_invites() -> void:
-	for child in _invite_list.get_children():
-		child.queue_free()
+	_clear_children(_invite_list)
 	_empty_label.visible = false
 	_error_label.visible = false
 	_all_invites.clear()
@@ -63,12 +62,7 @@ func _load_invites() -> void:
 	_update_bulk_ui()
 
 	var result: RestResult = await Client.admin.get_invites(_space_id)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to load invites")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to load invites")):
 		return
 
 	var invites: Array = result.data if result.data is Array else []
@@ -90,8 +84,7 @@ func _load_invites() -> void:
 	_bulk_bar.visible = _all_invites.size() > 0
 
 func _rebuild_list(invites: Array) -> void:
-	for child in _invite_list.get_children():
-		child.queue_free()
+	_clear_children(_invite_list)
 
 	if invites.is_empty():
 		_empty_label.visible = _all_invites.is_empty()
@@ -169,10 +162,7 @@ func _toggle_create() -> void:
 	_create_toggle.text = tr("Cancel") if _create_form.visible else tr("Create Invite")
 
 func _on_create() -> void:
-	_create_btn.disabled = true
-	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
-
 	var age_map := [1800, 3600, 21600, 43200, 86400, 604800, 0]
 	var data := {
 		"max_age": age_map[_max_age_option.selected],
@@ -180,17 +170,13 @@ func _on_create() -> void:
 		"temporary": _temporary_check.button_pressed,
 	}
 
-	var result: RestResult = await Client.admin.create_invite(_space_id, data)
-	_create_btn.disabled = false
-	_create_btn.text = tr("Create")
+	var result: RestResult = await _with_button_loading(
+		_create_btn, tr("Create"),
+		func() -> RestResult:
+			return await Client.admin.create_invite(_space_id, data)
+	)
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to create invite")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to create invite")):
 		_create_form.visible = false
 		_create_toggle.text = tr("Create Invite")
 		_load_invites()

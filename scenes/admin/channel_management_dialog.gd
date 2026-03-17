@@ -63,8 +63,7 @@ func _rebuild_list() -> void:
 	_bulk_bar.visible = _all_channels.size() > 0
 
 func _build_channel_rows(channels: Array) -> void:
-	for child in _channel_list.get_children():
-		child.queue_free()
+	_clear_children(_channel_list)
 
 	for ch in channels:
 		var row := ChannelRowScene.instantiate()
@@ -158,11 +157,7 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 	_build_channel_rows(_all_channels)
 
 	var result: RestResult = await Client.admin.reorder_channels(_space_id, data)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to reorder channels")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_show_error(err_msg)
+	if _show_rest_error(result, tr("Failed to reorder channels")):
 		# Revert on failure — refetch will restore server state
 		_rebuild_list()
 
@@ -187,10 +182,7 @@ func _on_create() -> void:
 		_show_error(tr("Channel name cannot be empty."))
 		return
 
-	_create_btn.disabled = true
-	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
-
 	var type_map := ["text", "voice", "announcement", "forum", "category"]
 	var data := {
 		"name": ch_name,
@@ -203,15 +195,14 @@ func _on_create() -> void:
 		if parent_id is String and not parent_id.is_empty():
 			data["parent_id"] = parent_id
 
-	var result: RestResult = await Client.admin.create_channel(_space_id, data)
-	_create_btn.disabled = false
-	_create_btn.text = tr("Create")
+	var result: RestResult = await _with_button_loading(
+		_create_btn, tr("Create"),
+		func() -> RestResult:
+			return await Client.admin.create_channel(_space_id, data)
+	)
 
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to create channel")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_show_error(err_msg)
+	if _show_rest_error(result, tr("Failed to create channel")):
+		pass
 	else:
 		_create_name.text = ""
 		_create_form.visible = false

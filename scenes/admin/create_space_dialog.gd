@@ -1,86 +1,49 @@
 extends ModalBase
 
 ## Dialog for creating a new space on the instance.
-## Instantiate via `var d = CreateSpaceDialog.new(); root.add_child(d)`.
+## Instantiate via the .tscn scene file.
 
-const AvatarScene := preload("res://scenes/common/avatar.tscn")
-
-var _name_input: LineEdit
-var _desc_input: TextEdit
-var _icon_preview: ColorRect
 var _pending_icon_data_uri: String = ""
-var _create_btn: Button
-var _error_label: Label
+
+@onready var _close_btn: Button = \
+	$CenterContainer/Panel/VBox/Header/CloseButton
+@onready var _icon_preview = \
+	$CenterContainer/Panel/VBox/Content/IconRow/IconPreview
+@onready var _upload_btn: Button = \
+	$CenterContainer/Panel/VBox/Content/IconRow/UploadButton
+@onready var _name_input: LineEdit = \
+	$CenterContainer/Panel/VBox/Content/NameInput
+@onready var _desc_input: TextEdit = \
+	$CenterContainer/Panel/VBox/Content/DescInput
+@onready var _error_label: Label = \
+	$CenterContainer/Panel/VBox/Content/ErrorLabel
+@onready var _create_btn: Button = \
+	$CenterContainer/Panel/VBox/Content/CreateButton
+
 
 func _ready() -> void:
-	_setup_modal(tr("Create Space"), 440.0, 400.0, true, 20.0)
+	_bind_modal_nodes($CenterContainer/Panel, 440, 400)
+	_close_btn.pressed.connect(_close)
+	_upload_btn.pressed.connect(_on_icon_upload)
+	_create_btn.pressed.connect(_on_create)
 
-	# Override title font size to match original
-	if _modal_title_label:
-		_modal_title_label.add_theme_font_size_override("font_size", 18)
-
-	# Icon upload
-	var icon_section := Label.new()
-	icon_section.text = tr("SPACE ICON")
-	icon_section.add_theme_font_size_override("font_size", 11)
-	icon_section.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	content_container.add_child(icon_section)
-
-	var icon_row := HBoxContainer.new()
-	icon_row.add_theme_constant_override("separation", 12)
-	_icon_preview = AvatarScene.instantiate()
+	# Configure avatar preview
 	_icon_preview.avatar_size = 48
 	_icon_preview.show_letter = true
 	_icon_preview.letter_font_size = 18
-	_icon_preview.custom_minimum_size = Vector2(48, 48)
-	icon_row.add_child(_icon_preview)
-	var upload_btn := SettingsBase.create_secondary_button(
-		tr("Upload Icon")
-	)
-	upload_btn.pressed.connect(_on_icon_upload)
-	icon_row.add_child(upload_btn)
-	content_container.add_child(icon_row)
 
-	# Name
-	var name_label := Label.new()
-	name_label.text = tr("SPACE NAME")
-	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
+	# Style buttons
+	ThemeManager.style_button(
+		_upload_btn, "secondary_button",
+		"secondary_button_hover",
+		"secondary_button_pressed", 4, [16, 6, 16, 6]
 	)
-	content_container.add_child(name_label)
-	_name_input = LineEdit.new()
-	_name_input.placeholder_text = tr("My Space")
-	content_container.add_child(_name_input)
-
-	# Description
-	var desc_label := Label.new()
-	desc_label.text = tr("DESCRIPTION (optional)")
-	desc_label.add_theme_font_size_override("font_size", 11)
-	desc_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
+	ThemeManager.style_button(
+		_create_btn, "accent", "accent_hover",
+		"accent_pressed", 4, [16, 6, 16, 6]
 	)
-	content_container.add_child(desc_label)
-	_desc_input = TextEdit.new()
-	_desc_input.custom_minimum_size = Vector2(0, 60)
-	_desc_input.placeholder_text = tr("What is this space about?")
-	content_container.add_child(_desc_input)
+	ThemeManager.apply_font_colors(self)
 
-	# Error
-	_error_label = Label.new()
-	_error_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("error")
-	)
-	_error_label.add_theme_font_size_override("font_size", 13)
-	_error_label.visible = false
-	content_container.add_child(_error_label)
-
-	# Create button
-	_create_btn = SettingsBase.create_action_button(tr("Create"))
-	_create_btn.pressed.connect(_on_create)
-	content_container.add_child(_create_btn)
 
 func _on_icon_upload() -> void:
 	var fd := FileDialog.new()
@@ -118,10 +81,7 @@ func _on_create() -> void:
 		_error_label.visible = true
 		return
 
-	_create_btn.disabled = true
-	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
-
 	var data: Dictionary = {"name": sname}
 	var desc: String = _desc_input.text.strip_edges()
 	if not desc.is_empty():
@@ -129,16 +89,11 @@ func _on_create() -> void:
 	if not _pending_icon_data_uri.is_empty():
 		data["icon"] = _pending_icon_data_uri
 
-	var result: RestResult = await Client.admin.create_space(data)
+	var result: RestResult = await _with_button_loading(
+		_create_btn, tr("Create"),
+		func() -> RestResult:
+			return await Client.admin.create_space(data)
+	)
 
-	_create_btn.disabled = false
-	_create_btn.text = tr("Create")
-
-	if result == null or not result.ok:
-		var msg := tr("Failed to create space")
-		if result != null and result.error:
-			msg = result.error.message
-		_error_label.text = msg
-		_error_label.visible = true
-	else:
+	if not _show_rest_error(result, tr("Failed to create space")):
 		queue_free()

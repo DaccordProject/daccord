@@ -586,10 +586,11 @@ func _build_appearance_page() -> VBoxContainer:
 	# Language
 	vbox.add_child(_section_label(tr("LANGUAGE")))
 	var locale_dropdown := OptionButton.new()
-	var locale_codes := ["en", "fr", "de", "es", "pt", "ja", "zh", "ko", "ar", "ru"]
+	var locale_codes := ["en", "fr", "de", "es", "pt", "ja", "zh", "ko", "ar", "ru", "sv"]
 	var locale_names := [
 		"English", "Français", "Deutsch", "Español",
 		"Português", "日本語", "中文", "한국어", "العربية", "Русский",
+		"Svenska",
 	]
 	for i in locale_names.size():
 		locale_dropdown.add_item(locale_names[i])

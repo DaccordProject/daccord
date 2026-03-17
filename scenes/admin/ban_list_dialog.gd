@@ -36,8 +36,7 @@ func setup(space_id: String) -> void:
 	_load_bans()
 
 func _load_bans() -> void:
-	for child in _ban_list.get_children():
-		child.queue_free()
+	_clear_children(_ban_list)
 	_empty_label.visible = false
 	_error_label.visible = false
 	_all_bans.clear()
@@ -56,12 +55,7 @@ func _fetch_page() -> void:
 	var result: RestResult = await Client.admin.get_bans(
 		_space_id, query
 	)
-	if result == null or not result.ok:
-		var err_msg: String = tr("Failed to load bans")
-		if result != null and result.error:
-			err_msg = result.error.message
-		_error_label.text = err_msg
-		_error_label.visible = true
+	if _show_rest_error(result, tr("Failed to load bans")):
 		return
 
 	var bans: Array = result.data if result.data is Array else []
@@ -83,8 +77,7 @@ func _fetch_page() -> void:
 	_bulk_bar.visible = _all_bans.size() > 0
 
 func _rebuild_list(bans: Array) -> void:
-	for child in _ban_list.get_children():
-		child.queue_free()
+	_clear_children(_ban_list)
 
 	if bans.is_empty():
 		_empty_label.visible = _all_bans.is_empty()
@@ -185,11 +178,9 @@ func _on_unban(user_id: String, username: String) -> void:
 	)
 
 func _on_load_more() -> void:
-	_load_more_btn.disabled = true
-	_load_more_btn.text = tr("Loading...")
-	await _fetch_page()
-	_load_more_btn.disabled = false
-	_load_more_btn.text = tr("Load More")
+	await _with_button_loading(
+		_load_more_btn, tr("Load More"), _fetch_page
+	)
 
 func _on_bans_updated(space_id: String) -> void:
 	if space_id == _space_id:
