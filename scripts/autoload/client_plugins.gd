@@ -430,13 +430,13 @@ func forward_activity_input(event: InputEvent) -> void:
 # --- Gateway event handlers ---
 
 func on_plugin_installed(data: Dictionary, conn_index: int) -> void:
-	var manifest: Dictionary = data.get("manifest", data)
-	var pid: String = str(manifest.get("id", ""))
-	if pid.is_empty():
+	var raw: Dictionary = data.get("manifest", data)
+	var parsed := AccordPluginManifest.from_dict(raw)
+	if parsed.id.is_empty():
 		return
 	if not _plugin_cache.has(conn_index):
 		_plugin_cache[conn_index] = {}
-	_plugin_cache[conn_index][pid] = manifest
+	_plugin_cache[conn_index][parsed.id] = parsed.to_dict()
 	AppState.plugins_updated.emit()
 
 

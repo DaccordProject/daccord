@@ -64,6 +64,12 @@ func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")
 	if style is StyleBoxFlat:
 		style.bg_color = ThemeManager.get_color("nav_bg")
+	disconnect_btn.add_theme_color_override(
+		"icon_normal_color", ThemeManager.get_color("error"))
+	disconnect_btn.add_theme_color_override(
+		"icon_hover_color", ThemeManager.get_color("error_hover"))
+	disconnect_btn.add_theme_color_override(
+		"icon_pressed_color", ThemeManager.get_color("error_pressed"))
 	if visible:
 		_update_button_visuals()
 	ThemeManager.apply_font_colors(self)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://dfdj5l4hj5t18"]
+[gd_scene load_steps=13 format=3 uid="uid://dfdj5l4hj5t18"]
 
 [ext_resource type="Script" uid="uid://cpxq3kjxgwtsg" path="res://scenes/main/main_window.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/sidebar.tscn" id="2"]
@@ -13,7 +13,6 @@
 [ext_resource type="PackedScene" path="res://scenes/messages/thread_panel.tscn" id="11"]
 [ext_resource type="PackedScene" path="res://scenes/discovery/discovery_panel.tscn" id="12"]
 [ext_resource type="PackedScene" path="res://scenes/messages/voice_text_panel.tscn" id="13"]
-[ext_resource type="Script" path="res://scenes/plugins/activity_panel.gd" id="14_activity"]
 
 [node name="MainWindow" type="Control"]
 layout_mode = 3
@@ -99,6 +98,12 @@ vertical_alignment = 1
 
 [node name="VideoGrid" parent="LayoutHBox/ContentArea" instance=ExtResource("10")]
 
+[node name="VoiceViewBody" type="HBoxContainer" parent="LayoutHBox/ContentArea"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
 [node name="ContentBody" type="HBoxContainer" parent="LayoutHBox/ContentArea"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -106,12 +111,6 @@ theme_override_constants/separation = 0
 
 [node name="MessageView" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("3")]
 layout_mode = 2
-
-[node name="ActivityPanel" type="PanelContainer" parent="LayoutHBox/ContentArea/ContentBody"]
-visible = false
-layout_mode = 2
-size_flags_horizontal = 3
-script = ExtResource("14_activity")
 
 [node name="ThreadPanel" parent="LayoutHBox/ContentArea/ContentBody" instance=ExtResource("11")]
 layout_mode = 2

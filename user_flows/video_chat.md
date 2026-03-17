@@ -1,14 +1,16 @@
 # Video Chat
 
-Last touched: 2026-03-05 (verified line numbers, screen capture via LiveKitScreenCapture, window sharing, voice+text, config_changed republish)
+Last touched: 2026-03-17 (added activity system integration, vertical resize handle, voice view reparenting, resize bar visibility gap)
 Priority: 23
-Depends on: Voice Channels
+Depends on: Voice Channels, Server Plugins
 
 ## Overview
 
 Video chat in daccord enables camera video and screen/window sharing within voice channels. The godot-livekit GDExtension (`addons/godot-livekit/`) provides WebRTC infrastructure via `LiveKitRoom`, and the `LiveKitAdapter` GDScript wrapper manages publishing/unpublishing video tracks through `LiveKitLocalVideoTrack` and `LiveKitVideoSource`. The AccordVoiceState model tracks `self_video` and `self_stream` flags per user. Voice channels have full join/leave/mute/deafen support via `client.gd`, with a dedicated `voice_channel_item` scene and `voice_bar` for controls. The full pipeline is implemented: voice bar has Cam/Share buttons, the video grid renders local camera and screen share tiles live via `LiveKitVideoStream.poll()` + `.get_texture()`, and the remote rendering pipeline uses `track_received` signal on `LiveKitAdapter` to create live video tiles for remote peers. Screen capture uses `LiveKitScreenCapture` for native monitor and window frame capture with dynamic downscaling.
 
 **Discord-style target design:** The video UI replaces the message content area with a full-area video view when the user is in a voice channel and wants to see video. Clicking the voice channel name in the voice bar (or the voice channel itself when already connected) opens this full-area view. Clicking any text channel returns to the normal message view while voice continues in the background. A screen share appears as the dominant/spotlight view with other participants as small tiles. A mini picture-in-picture preview appears when navigating away from the video view.
+
+**Activity integration:** Server plugins can launch activities (games, collaborative tools) that render inside the spotlight area of the video grid. The activity lifecycle (lobby → running → ended) is managed through AppState signals, with the activity viewport rendered via `SubViewport` texture forwarding and input coordinate remapping. A vertical resize handle between the spotlight/activity area and the participant grid allows users to adjust the split, though the handle is currently invisible until hovered (see Gaps).
 
 ## User Steps
 
@@ -138,8 +140,11 @@ Video chat in daccord enables camera video and screen/window sharing within voic
 | `scenes/main/main_window.tscn` | VideoGrid placed between TopicBar and ContentBody |
 | `scenes/video/video_tile.gd` | Video frame rendering component: live feed via `_process()` poll + `get_texture()`, or `frame_received` signal; placeholder with initials; speaking border (line 54); double-click spotlight (line 68); `detach_stream()` cleanup (line 77) |
 | `scenes/video/video_tile.tscn` | Video tile scene: PanelContainer with TextureRect (160x120 min), InitialsLabel, NameBar |
-| `scenes/video/video_grid.gd` | Self-managing video grid: rebuilds tiles from AppState signals, responsive column layout, INLINE (140px strip) and FULL_AREA modes with spotlight layout for screen shares, deferred rebuild batching |
+| `scenes/video/video_grid.gd` | Self-managing video grid: rebuilds tiles from AppState signals, responsive column layout, INLINE (140px strip) and FULL_AREA modes with spotlight layout for screen shares and activities, deferred rebuild batching, activity viewport rendering |
 | `scenes/video/video_grid.tscn` | Video grid scene: PanelContainer > VBoxContainer with SpotlightArea (PanelContainer) + ParticipantGrid (GridContainer) |
+| `scenes/video/vertical_resize_handle.gd` | Draggable vertical resize bar between spotlight/activity area and participant grid: 6px hit area, hover/drag line, double-click reset, themed |
+| `scenes/plugins/activity_lobby.gd` | Activity lobby UI: player slot grid, spectator list, start button (host only), participant count, role filtering |
+| `scenes/main/main_window_voice_view.gd` | Voice view lifecycle: reparents VideoGrid + voice text panel into VoiceViewBody on open, restores on close, PiP spawn/removal |
 | `scenes/video/video_pip.gd` | Picture-in-picture overlay: small floating video tile showing screen share or camera or first remote track, click to return to full video view, Escape to dismiss |
 | `scenes/video/video_pip.tscn` | PiP scene: PanelContainer anchored bottom-right with Margin > TileSlot |
 | `tests/livekit/unit/test_livekit_adapter.gd` | LiveKitAdapter tests: state machine, mute/deafen, signals, disconnect, unpublish |
@@ -456,6 +461,61 @@ The `AccordVoiceState` model includes two video-related boolean flags:
 
 These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-50), and are sent/received through the gateway `voice.state_update` event. The `voice_state_to_dict()` conversion in `client_models.gd` (line 578) includes both `self_video` and `self_stream` in its output dict.
 
+### Vertical Resize Handle -- Implemented (vertical_resize_handle.gd)
+
+Draggable `Control` placed between the spotlight/activity area and the participant grid in `video_grid.gd` (lines 72-79). Allows the user to resize the spotlight area height.
+
+**Parameters:** `_init(target, min_h, default_h, max_ratio)` — target is the `spotlight_area` PanelContainer, min height 100px, default 200px, max 70% of parent.
+
+**Interaction:**
+- Drag: tracks mouse delta, clamps target `custom_minimum_size.y` between `_min_height` and `_max_ratio * parent.size.y` (lines 74-90)
+- Double-click: resets to `_default_height` (line 60-63, 105-109)
+- Hover: sets `CURSOR_VSIZE` cursor shape (line 32)
+
+**Rendering:** Draws a horizontal line in `icon_default` theme color, but **only when hovered or dragging** (line 43). When idle the 6px control is completely invisible — no resting indicator exists (see Gaps).
+
+**Visibility:** Shown only when spotlight or activity is active (`_rebuild_spotlight` line 609, `_rebuild_activity` line 418), hidden otherwise (`_clear` line 274, `_rebuild_grid_only` line 627).
+
+**Theming:** Added to `"themed"` group (line 35), `_apply_theme()` calls `queue_redraw()` to pick up color changes.
+
+### Activity Integration -- Implemented (video_grid.gd lines 133-601)
+
+Server plugins can launch activities that render inside the video grid's spotlight area. Activity state is tracked via AppState signals:
+- `activity_started(plugin_id, channel_id)` (app_state.gd line 195)
+- `activity_ended(plugin_id)` (line 197)
+- `activity_download_progress(plugin_id, progress)` (line 199)
+- `activity_session_state_changed(plugin_id, state)` (line 201)
+- `activity_role_changed(plugin_id, user_id, role)` (line 203)
+
+**State vars** (app_state.gd lines 233-237): `active_activity_plugin_id`, `active_activity_channel_id`, `active_activity_session_id`, `active_activity_session_state` ("lobby"/"running"/"ended"), `active_activity_role` ("player"/"spectator").
+
+**`_rebuild_activity(tiles)`** (video_grid.gd line 416):
+Activity takes priority over standard spotlight layout in FULL_AREA mode. Builds a VBoxContainer inside `spotlight_area` containing:
+1. **Header** (line 486): activity name, runtime label, Start button (host only, accent styled), Leave button (error styled)
+2. **Content** (line 433): state-dependent view:
+   - `"lobby"` → `ActivityLobbyScript` with player slots and spectator list
+   - `"running"` → `TextureRect` bound to `Client.plugins.get_activity_viewport_texture()` with input coordinate remapping via `_on_activity_viewport_input()` (line 578)
+   - `"ended"` → simple "Activity ended." label
+3. **Download progress bar** (line 469): hidden by default, shown during plugin download
+4. **Footer** (line 545): role label ("Role: Player"/"Role: Spectator")
+
+All video tiles go into the `ParticipantGrid` strip below the activity area.
+
+**Input forwarding** (`_on_activity_viewport_input`, line 578): Remaps mouse coordinates from `TextureRect` display space to SubViewport canvas space, accounting for aspect-ratio letterboxing. Forwards via `Client.plugins.forward_activity_input()`.
+
+**Activity lobby** (`activity_lobby.gd`):
+VBoxContainer with title, status label, player slot grid (2-column GridContainer), spectator list, and host Start button. `setup(manifest, is_host)` reads `max_participants` from manifest. `update_participants(participants)` rebuilds slots, enables Start when at least 1 player exists.
+
+### Voice View Reparenting -- Implemented (main_window_voice_view.gd)
+
+Extracted as `RefCounted` helper owned by `main_window.gd` (line 68). Manages the lifecycle of the full-area voice view and PiP overlay.
+
+**`on_voice_view_opened()`** (line 19): Hides content_header, topic_bar, content_body. Reparents `VideoGrid` and voice text panel/handle from their original parents into `VoiceViewBody` (HBoxContainer in ContentArea). Saves original parent references and child indices for later restoration. Calls `video_grid.set_full_area(true)`. Auto-opens voice text chat in non-COMPACT mode.
+
+**`on_voice_view_closed()`** (line 66): Reparents VideoGrid and voice text panel/handle back to their saved positions. Restores content_header, content_body, message_view visibility. Calls `set_full_area(false)`. Closes voice text. Spawns PiP if any video content exists.
+
+**PiP management:** `maybe_spawn_pip()` (line 120) checks for local camera/screen track or any remote peer with `self_video`/`self_stream`. `remove_pip()` (line 149) cleans up. PiP click navigates back to voice view via `AppState.open_voice_view()`.
+
 ## Implementation Status
 
 - [x] godot-livekit GDExtension with LiveKitRoom-based connections (Linux, Windows, macOS)
@@ -516,6 +576,12 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 - [x] **Dynamic screen downscaling** (caps at max screen capture size, capped at 4K)
 - [x] **Noise gate** (silences mic input below speaking threshold)
 - [x] **Android permission request** (camera/mic permissions requested at startup)
+- [x] **Vertical resize handle** (draggable bar between spotlight/activity area and participant grid, double-click to reset)
+- [x] **Activity rendering in spotlight area** (lobby/running/ended states, viewport texture, input forwarding)
+- [x] **Activity lobby UI** (player slot grid, spectator list, host start button)
+- [x] **Activity download progress** (progress bar during plugin download)
+- [x] **Voice view reparenting** (VideoGrid + voice text reparented into VoiceViewBody on open, restored on close)
+- [ ] Resize handle not visible until hovered (no resting visual indicator)
 - [ ] Bandwidth adaptation for video streams
 - [ ] Camera device selection applied at publish time (Config value persisted but not routed to LiveKit source)
 
@@ -541,3 +607,10 @@ These are serialized via `from_dict()` (lines 35-36) and `to_dict()` (lines 49-5
 - **Effort:** 3
 - **Tags:** video
 - **Notes:** Switching cameras requires stopping the old track and creating a new one. No seamless hot-swap mechanism
+
+### VIDEO-4: Resize handle invisible until hovered
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** ux, video, activity
+- **Notes:** `vertical_resize_handle.gd` `_draw()` (line 43) only renders the handle line when `_hovered or _dragging`. The 6px control is completely invisible at rest — users have no visual affordance that they can resize the spotlight/activity area. A subtle resting indicator (dimmed line, dots, or grip marks) should always be drawn so users can discover the resize functionality without accidentally hovering over the exact 6px strip

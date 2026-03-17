@@ -4,6 +4,14 @@ var _view: Control # MainWindow
 var _pip: PanelContainer = null
 var _video_pip_scene: PackedScene
 
+# Saved indices for reparenting back
+var _video_grid_parent: Control = null
+var _video_grid_index: int = -1
+var _voice_text_parent: Control = null
+var _voice_text_index: int = -1
+var _voice_text_handle_parent: Control = null
+var _voice_text_handle_index: int = -1
+
 func _init(view: Control) -> void:
 	_view = view
 	_video_pip_scene = preload("res://scenes/video/video_pip.tscn")
@@ -15,18 +23,45 @@ func on_voice_view_opened(
 	content_body: Control,
 	voice_text_panel: Control,
 	video_grid: PanelContainer,
+	voice_view_body: HBoxContainer,
+	voice_text_handle: Control,
 ) -> void:
 	remove_pip()
 	content_header.visible = false
 	topic_bar.visible = false
-	# Hide content_body children except voice text panel
-	if voice_text_panel.visible:
-		for child in content_body.get_children():
-			if child != voice_text_panel:
-				child.visible = false
-	else:
-		content_body.visible = false
+	content_body.visible = false
+
+	# Save original parents and indices
+	_video_grid_parent = video_grid.get_parent()
+	_video_grid_index = video_grid.get_index()
+	_voice_text_parent = voice_text_panel.get_parent()
+	_voice_text_index = voice_text_panel.get_index()
+	_voice_text_handle_parent = voice_text_handle.get_parent()
+	_voice_text_handle_index = voice_text_handle.get_index()
+
+	# Reparent VideoGrid into VoiceViewBody
+	_video_grid_parent.remove_child(video_grid)
+	voice_view_body.add_child(video_grid)
+
+	# Reparent voice text handle + panel into VoiceViewBody
+	_voice_text_handle_parent.remove_child(voice_text_handle)
+	voice_view_body.add_child(voice_text_handle)
+	_voice_text_parent.remove_child(voice_text_panel)
+	voice_view_body.add_child(voice_text_panel)
+
+	voice_view_body.visible = true
 	video_grid.set_full_area(true)
+
+	# Auto-open voice text chat
+	var is_compact: bool = (
+		AppState.current_layout_mode
+		== AppState.LayoutMode.COMPACT
+	)
+	if not is_compact:
+		AppState.open_voice_text(AppState.voice_channel_id)
+	voice_text_handle.visible = (
+		voice_text_panel.visible and not is_compact
+	)
 
 func on_voice_view_closed(
 	content_header: Control,
@@ -34,13 +69,36 @@ func on_voice_view_closed(
 	message_view: Control,
 	topic_bar: Control,
 	video_grid: PanelContainer,
+	voice_view_body: HBoxContainer,
+	voice_text_handle: Control,
 	sync_handle_fn: Callable,
 ) -> void:
+	voice_view_body.visible = false
+
+	# Reparent VideoGrid back to original parent
+	voice_view_body.remove_child(video_grid)
+	_video_grid_parent.add_child(video_grid)
+	_video_grid_parent.move_child(
+		video_grid, _video_grid_index
+	)
+
+	# Reparent voice text panel + handle back
+	voice_view_body.remove_child(voice_text_handle)
+	_voice_text_handle_parent.add_child(voice_text_handle)
+	_voice_text_handle_parent.move_child(
+		voice_text_handle, _voice_text_handle_index
+	)
+	var vtp: Control = _view.voice_text_panel
+	voice_view_body.remove_child(vtp)
+	_voice_text_parent.add_child(vtp)
+	_voice_text_parent.move_child(vtp, _voice_text_index)
+
+	# Restore normal layout
 	content_header.visible = true
 	content_body.visible = true
-	# Restore visibility of content_body children hidden during voice view
 	message_view.visible = true
 	sync_handle_fn.call()
+
 	# Restore topic bar based on current channel
 	var topic := ""
 	for ch in Client.channels:
@@ -49,6 +107,10 @@ func on_voice_view_closed(
 			break
 	topic_bar.visible = topic != ""
 	video_grid.set_full_area(false)
+
+	# Close voice text since we're leaving voice view
+	AppState.close_voice_text()
+
 	# Spawn PiP if still in voice with active video
 	maybe_spawn_pip()
 
@@ -72,7 +134,10 @@ func maybe_spawn_pip() -> void:
 			var uid: String = state.get("user_id", "")
 			if uid == my_id:
 				continue
-			if state.get("self_video", false) or state.get("self_stream", false):
+			if (
+				state.get("self_video", false)
+				or state.get("self_stream", false)
+			):
 				has_video = true
 				break
 	if not has_video:

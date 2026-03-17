@@ -5,12 +5,26 @@ enum GridMode { INLINE, FULL_AREA }
 const VideoTileScene := preload(
 	"res://scenes/video/video_tile.tscn"
 )
+const ActivityLobbyScript := preload(
+	"res://scenes/plugins/activity_lobby.gd"
+)
+const VerticalResizeHandle := preload(
+	"res://scenes/video/vertical_resize_handle.gd"
+)
 
 var _mode: GridMode = GridMode.INLINE
 var _rebuild_pending: bool = false
 
+# Activity state
+var _activity_plugin_id: String = ""
+var _activity_manifest: Dictionary = {}
+var _activity_is_host: bool = false
+var _activity_container: Control = null
+var _v_resize_handle: Control = null
+
 @onready var spotlight_area: PanelContainer = $MainLayout/SpotlightArea
 @onready var grid: GridContainer = $MainLayout/ParticipantGrid
+@onready var _main_layout: VBoxContainer = $MainLayout
 
 func _ready() -> void:
 	visible = false
@@ -30,11 +44,6 @@ func _ready() -> void:
 	AppState.remote_track_received.connect(
 		_on_remote_track_received
 	)
-
-func _apply_theme() -> void:
-	var style: StyleBox = get_theme_stylebox("panel")
-	if style is StyleBoxFlat:
-		style.bg_color = ThemeManager.get_color("nav_bg")
 	AppState.remote_track_removed.connect(
 		_on_remote_track_removed
 	)
@@ -44,7 +53,36 @@ func _apply_theme() -> void:
 	AppState.spotlight_changed.connect(
 		_on_spotlight_changed
 	)
+	AppState.activity_started.connect(
+		_on_activity_started
+	)
+	AppState.activity_ended.connect(
+		_on_activity_ended
+	)
+	AppState.activity_session_state_changed.connect(
+		_on_activity_state_changed
+	)
+	AppState.activity_role_changed.connect(
+		_on_activity_role_changed
+	)
+	AppState.activity_download_progress.connect(
+		_on_activity_download_progress
+	)
+	# Vertical resize handle between spotlight and grid
+	_v_resize_handle = VerticalResizeHandle.new(
+		spotlight_area, 100.0, 200.0, 0.7,
+	)
+	_v_resize_handle.visible = false
+	_main_layout.add_child(_v_resize_handle)
+	_main_layout.move_child(
+		_v_resize_handle, spotlight_area.get_index() + 1
+	)
 	_update_grid_columns()
+
+func _apply_theme() -> void:
+	var style: StyleBox = get_theme_stylebox("panel")
+	if style is StyleBoxFlat:
+		style.bg_color = ThemeManager.get_color("nav_bg")
 
 func set_full_area(full: bool) -> void:
 	if full:
@@ -92,13 +130,73 @@ func _on_layout_mode_changed(
 func _on_spotlight_changed(_user_id: String) -> void:
 	_schedule_rebuild()
 
+# --- Activity signal handlers ---
+
+func _on_activity_started(
+	plugin_id: String, _channel_id: String,
+) -> void:
+	_activity_plugin_id = plugin_id
+	_activity_manifest = Client.plugins.get_plugin(plugin_id)
+	_activity_is_host = true
+	_schedule_rebuild()
+
+func _on_activity_ended(plugin_id: String) -> void:
+	if plugin_id != _activity_plugin_id:
+		return
+	_activity_plugin_id = ""
+	_activity_manifest = {}
+	_activity_is_host = false
+	_schedule_rebuild()
+
+func _on_activity_state_changed(
+	plugin_id: String, _state: String,
+) -> void:
+	if plugin_id != _activity_plugin_id:
+		return
+	_schedule_rebuild()
+
+func _on_activity_role_changed(
+	plugin_id: String, user_id: String, role: String,
+) -> void:
+	if plugin_id != _activity_plugin_id:
+		return
+	if user_id != Client.current_user.get("id", ""):
+		return
+	# Update the role label if the activity container exists
+	if _activity_container == null:
+		return
+	var role_lbl: Label = _activity_container.get_meta(
+		"role_label", null
+	)
+	if role_lbl:
+		role_lbl.text = "Role: " + role.capitalize()
+
+func _on_activity_download_progress(
+	plugin_id: String, progress: float,
+) -> void:
+	if plugin_id != _activity_plugin_id:
+		return
+	if _activity_container == null:
+		return
+	var bar: ProgressBar = _activity_container.get_meta(
+		"progress_bar", null
+	)
+	if bar == null:
+		return
+	if progress < 1.0:
+		bar.visible = true
+		bar.value = progress * 100.0
+	else:
+		bar.visible = false
+
+func _has_activity() -> bool:
+	return not _activity_plugin_id.is_empty()
+
 func _update_grid_columns() -> void:
 	if _mode == GridMode.FULL_AREA:
-		if not AppState.spotlight_user_id.is_empty() or _has_screen_share():
-			# Participant strip is a single horizontal row
+		if _has_activity() or not AppState.spotlight_user_id.is_empty() or _has_screen_share():
 			grid.columns = 99
 		else:
-			# Adaptive columns based on tile count
 			var count := _count_tiles()
 			if count <= 1:
 				grid.columns = 1
@@ -142,10 +240,8 @@ func _count_tiles() -> int:
 		return count
 	if _mode == GridMode.FULL_AREA:
 		var my_id: String = Client.current_user.get("id", "")
-		# Count all participants (including self)
 		var voice_states: Array = Client.get_voice_users(cid)
 		count = voice_states.size()
-		# Add extra tiles for screen shares
 		if Client.get_screen_track() != null:
 			count += 1
 		for state in voice_states:
@@ -171,12 +267,15 @@ func _clear() -> void:
 		child.detach_stream()
 		child.queue_free()
 	for child in spotlight_area.get_children():
-		child.detach_stream()
+		if child.has_method("detach_stream"):
+			child.detach_stream()
 		child.queue_free()
 	spotlight_area.visible = false
+	if _v_resize_handle != null:
+		_v_resize_handle.visible = false
+	_activity_container = null
 
 func _collect_tiles() -> Array:
-	# Returns array of dictionaries: {track, user, is_screen, user_id, voice_state}
 	var tiles: Array = []
 	var cid := AppState.voice_channel_id
 	if cid.is_empty():
@@ -186,13 +285,11 @@ func _collect_tiles() -> Array:
 	var states: Array = Client.get_voice_users(cid)
 
 	if _mode == GridMode.FULL_AREA:
-		# Show all participants as cards (like Discord voice view)
 		for state in states:
 			var uid: String = state.get("user_id", "")
 			var user: Dictionary = state.get("user", {})
 			if user.is_empty():
 				user = Client.get_user_by_id(uid)
-			# Participant card shows camera only (screen shares get separate tiles)
 			var track = null
 			if uid == my_id:
 				track = Client.get_camera_track()
@@ -205,7 +302,6 @@ func _collect_tiles() -> Array:
 				"user_id": uid,
 				"voice_state": state,
 			})
-		# Separate tile for local screen share
 		var screen_track = Client.get_screen_track()
 		if screen_track != null:
 			tiles.append({
@@ -214,7 +310,6 @@ func _collect_tiles() -> Array:
 				"is_screen": true,
 				"user_id": my_id,
 			})
-		# Separate tiles for remote screen shares
 		for state in states:
 			var uid: String = state.get("user_id", "")
 			if uid == my_id:
@@ -231,7 +326,6 @@ func _collect_tiles() -> Array:
 					"voice_state": state,
 				})
 	else:
-		# Inline mode: only show tiles with active video/screen share
 		var cam_track = Client.get_camera_track()
 		if cam_track != null:
 			tiles.append({
@@ -281,25 +375,30 @@ func _do_rebuild() -> void:
 func _rebuild() -> void:
 	_clear()
 	var tiles := _collect_tiles()
+
+	# Activity takes priority in FULL_AREA mode
+	if _mode == GridMode.FULL_AREA and _has_activity():
+		visible = true
+		_rebuild_activity(tiles)
+		_update_grid_columns()
+		return
+
 	if tiles.is_empty():
 		visible = _mode == GridMode.FULL_AREA
 		return
 
 	visible = true
 
-	# Determine if we should use spotlight layout
 	var use_spotlight := false
 	var spotlight_tile_idx := -1
 
 	if _mode == GridMode.FULL_AREA:
-		# Manual spotlight takes priority
 		if not AppState.spotlight_user_id.is_empty():
 			for i in tiles.size():
 				if tiles[i]["user_id"] == AppState.spotlight_user_id:
 					spotlight_tile_idx = i
 					use_spotlight = true
 					break
-		# Auto-spotlight screen shares
 		if not use_spotlight:
 			for i in tiles.size():
 				if tiles[i]["is_screen"]:
@@ -314,18 +413,208 @@ func _rebuild() -> void:
 
 	_update_grid_columns()
 
-func _rebuild_spotlight(tiles: Array, spotlight_idx: int) -> void:
+func _rebuild_activity(tiles: Array) -> void:
 	spotlight_area.visible = true
+	_v_resize_handle.visible = true
+
+	# Build activity content in a VBoxContainer inside spotlight
+	var container := VBoxContainer.new()
+	container.add_theme_constant_override("separation", 0)
+	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spotlight_area.add_child(container)
+	_activity_container = container
+
+	# --- Header overlay ---
+	var header := _build_activity_header()
+	container.add_child(header)
+
+	# --- Content area ---
+	var content := Control.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.clip_contents = true
+	container.add_child(content)
+
+	var session_state: String = AppState.active_activity_session_state
+	match session_state:
+		"lobby":
+			var lobby: VBoxContainer = ActivityLobbyScript.new()
+			lobby.set_anchors_preset(Control.PRESET_FULL_RECT)
+			lobby.start_requested.connect(_on_activity_start)
+			lobby.setup(_activity_manifest, _activity_is_host)
+			content.add_child(lobby)
+		"running":
+			var vp_rect := TextureRect.new()
+			vp_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+			vp_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			vp_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+			vp_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+			vp_rect.gui_input.connect(_on_activity_viewport_input.bind(vp_rect))
+			var tex: ViewportTexture = Client.plugins.get_activity_viewport_texture()
+			if tex != null:
+				vp_rect.texture = tex
+			content.add_child(vp_rect)
+		"ended":
+			var ended := Label.new()
+			ended.text = "Activity ended."
+			ended.set_anchors_preset(Control.PRESET_CENTER)
+			ended.add_theme_font_size_override("font_size", 18)
+			ended.add_theme_color_override(
+				"font_color", ThemeManager.get_color("text_muted")
+			)
+			content.add_child(ended)
+
+	# Download progress bar (hidden by default)
+	var progress_bar := ProgressBar.new()
+	progress_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	progress_bar.custom_minimum_size = Vector2(200, 20)
+	progress_bar.visible = false
+	content.add_child(progress_bar)
+	container.set_meta("progress_bar", progress_bar)
+
+	# --- Footer ---
+	var footer := _build_activity_footer()
+	container.add_child(footer)
+
+	# All participants go in the grid strip below
+	for tile_data in tiles:
+		var tile: PanelContainer = VideoTileScene.instantiate()
+		grid.add_child(tile)
+		_setup_tile(tile, tile_data)
+
+func _build_activity_header() -> PanelContainer:
+	var header_panel := PanelContainer.new()
+	var hstyle := ThemeManager.make_flat_style(
+		"nav_bg", 0, [12, 8, 12, 8]
+	)
+	header_panel.add_theme_stylebox_override("panel", hstyle)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	header_panel.add_child(hbox)
+
+	var name_lbl := Label.new()
+	name_lbl.text = _activity_manifest.get("name", "Activity")
+	name_lbl.add_theme_font_size_override("font_size", 15)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(name_lbl)
+
+	var runtime_lbl := Label.new()
+	runtime_lbl.text = _activity_manifest.get(
+		"runtime", ""
+	).capitalize()
+	runtime_lbl.add_theme_font_size_override("font_size", 11)
+	runtime_lbl.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	hbox.add_child(runtime_lbl)
+
+	var session_state: String = AppState.active_activity_session_state
+	if session_state == "lobby" and _activity_is_host:
+		var start_btn := Button.new()
+		start_btn.text = "Start"
+		start_btn.custom_minimum_size = Vector2(60, 32)
+		var start_style := ThemeManager.make_flat_style(
+			"accent", 4, [8, 4, 8, 4]
+		)
+		start_btn.add_theme_stylebox_override(
+			"normal", start_style
+		)
+		start_btn.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_white")
+		)
+		start_btn.pressed.connect(_on_activity_start)
+		hbox.add_child(start_btn)
+
+	var leave_btn := Button.new()
+	leave_btn.text = "Leave"
+	leave_btn.custom_minimum_size = Vector2(60, 32)
+	var leave_style := ThemeManager.make_flat_style(
+		Color(ThemeManager.get_color("error"), 0.3),
+		4, [8, 4, 8, 4],
+	)
+	leave_btn.add_theme_stylebox_override(
+		"normal", leave_style
+	)
+	leave_btn.pressed.connect(_on_activity_leave)
+	hbox.add_child(leave_btn)
+
+	return header_panel
+
+func _build_activity_footer() -> PanelContainer:
+	var footer_panel := PanelContainer.new()
+	var fstyle := ThemeManager.make_flat_style(
+		"nav_bg", 0, [12, 6, 12, 6]
+	)
+	footer_panel.add_theme_stylebox_override("panel", fstyle)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	footer_panel.add_child(hbox)
+
+	var role_lbl := Label.new()
+	role_lbl.text = (
+		"Role: "
+		+ AppState.active_activity_role.capitalize()
+	)
+	role_lbl.add_theme_font_size_override("font_size", 12)
+	role_lbl.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	hbox.add_child(role_lbl)
+	_activity_container.set_meta("role_label", role_lbl)
+
+	return footer_panel
+
+func _on_activity_start() -> void:
+	Client.plugins.start_session()
+
+func _on_activity_leave() -> void:
+	if _activity_plugin_id.is_empty():
+		return
+	Client.plugins.stop_activity(_activity_plugin_id)
+
+func _on_activity_viewport_input(
+	event: InputEvent, vp_rect: TextureRect,
+) -> void:
+	if not event is InputEventMouse:
+		return
+	var tex: Texture2D = vp_rect.texture
+	if tex == null:
+		return
+	var tex_size := Vector2(tex.get_size())
+	var rect_size: Vector2 = vp_rect.size
+	if tex_size.x <= 0.0 or tex_size.y <= 0.0:
+		return
+	var scale_f: float = minf(
+		rect_size.x / tex_size.x,
+		rect_size.y / tex_size.y,
+	)
+	var displayed: Vector2 = tex_size * scale_f
+	var offset: Vector2 = (rect_size - displayed) * 0.5
+	var canvas_pos: Vector2 = (event.position - offset) / scale_f
+	event = event.duplicate()
+	event.position = canvas_pos
+	if event is InputEventMouseMotion:
+		event.relative = event.relative / scale_f
+	Client.plugins.forward_activity_input(event)
+
+# --- Standard video grid methods ---
+
+func _rebuild_spotlight(
+	tiles: Array, spotlight_idx: int,
+) -> void:
+	spotlight_area.visible = true
+	_v_resize_handle.visible = true
 	var spotlight_data: Dictionary = tiles[spotlight_idx]
 
-	# Place spotlight tile
 	var spotlight_tile: PanelContainer = VideoTileScene.instantiate()
 	spotlight_area.add_child(spotlight_tile)
 	spotlight_tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spotlight_tile.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_setup_tile(spotlight_tile, spotlight_data)
 
-	# Place remaining tiles in participant grid
 	for i in tiles.size():
 		if i == spotlight_idx:
 			continue
@@ -335,16 +624,21 @@ func _rebuild_spotlight(tiles: Array, spotlight_idx: int) -> void:
 
 func _rebuild_grid_only(tiles: Array) -> void:
 	spotlight_area.visible = false
+	_v_resize_handle.visible = false
 	for tile_data in tiles:
 		var tile: PanelContainer = VideoTileScene.instantiate()
 		grid.add_child(tile)
 		_setup_tile(tile, tile_data)
 
-func _setup_tile(tile: PanelContainer, data: Dictionary) -> void:
+func _setup_tile(
+	tile: PanelContainer, data: Dictionary,
+) -> void:
 	var track = data.get("track")
 	var user: Dictionary = data.get("user", {})
 	if track != null:
 		tile.setup_local(track, user)
 	else:
-		var voice_state: Dictionary = data.get("voice_state", {})
+		var voice_state: Dictionary = data.get(
+			"voice_state", {}
+		)
 		tile.setup_placeholder(user, voice_state)
