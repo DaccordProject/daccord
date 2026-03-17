@@ -14,6 +14,7 @@
 #   ./test.sh gateway      Run gateway/e2e tests (requires non-headless Godot)
 #   ./test.sh livekit      Run only LiveKit adapter tests (no server needed)
 #   ./test.sh sync         Run daccord-sync integration tests (requires Docker on port 3001)
+#   ./test.sh client       Run Client API integration tests (starts Daccord with --test-api)
 #
 # Environment variables:
 #   ACCORD_TEST_URL        Run against a remote server instead of starting one
@@ -86,13 +87,18 @@ resolve_dirs() {
             NEEDS_SERVER=false
             GUT_DIRS="res://tests/integration"
             ;;
+        client)
+            NEEDS_SERVER=true
+            CLIENT_API_SUITE=true
+            GUT_DIRS=""
+            ;;
         all)
             NEEDS_SERVER=true
             GUT_DIRS="res://tests/unit,res://tests/accordkit/unit,res://tests/accordkit/integration,res://tests/livekit"
             ;;
         *)
             err "Unknown suite: $1"
-            echo "Usage: $0 [unit|integration|accordkit|gateway|livekit|sync|all]"
+            echo "Usage: $0 [unit|integration|accordkit|gateway|livekit|sync|client|all]"
             exit 1
             ;;
     esac
@@ -170,6 +176,7 @@ stop_server() {
 # Cleanup on exit
 # ---------------------------------------------------------------------------
 cleanup() {
+    stop_daccord 2>/dev/null || true
     stop_server
     # Clean up test database
     rm -f "$SERVER_DIR/accord_test.db" \
@@ -224,6 +231,96 @@ run_tests() {
 }
 
 # ---------------------------------------------------------------------------
+# Client API test runner
+# ---------------------------------------------------------------------------
+DACCORD_PID=""
+CLIENT_API_SUITE="${CLIENT_API_SUITE:-false}"
+CLIENT_API_PORT="${DACCORD_TEST_API_PORT:-39100}"
+CLIENT_API_URL="http://127.0.0.1:$CLIENT_API_PORT/api"
+
+start_daccord() {
+    header "Starting Daccord with --test-api..."
+    local headless_flag="--headless"
+    if [ "${DACCORD_SCREENSHOTS:-}" = "true" ]; then
+        headless_flag=""
+    fi
+
+    godot $headless_flag --test-api --test-api-port "$CLIENT_API_PORT" --test-api-no-auth &
+    DACCORD_PID=$!
+    info "Daccord PID: $DACCORD_PID"
+
+    # Wait for test API to become ready
+    info "Waiting for test API on :$CLIENT_API_PORT..."
+    local retries=0
+    local max_retries=30
+    while ! curl -sf "$CLIENT_API_URL/get_state" > /dev/null 2>&1; do
+        retries=$((retries + 1))
+        if [ $retries -ge $max_retries ]; then
+            err "Test API failed to start within ${max_retries}s"
+            stop_daccord
+            return 1
+        fi
+        if ! kill -0 "$DACCORD_PID" 2>/dev/null; then
+            err "Daccord process exited early"
+            return 1
+        fi
+        sleep 1
+    done
+    ok "Test API is ready"
+}
+
+stop_daccord() {
+    if [ -n "$DACCORD_PID" ] && kill -0 "$DACCORD_PID" 2>/dev/null; then
+        info "Stopping Daccord (PID $DACCORD_PID)..."
+        # Try graceful quit via API first
+        curl -sf "$CLIENT_API_URL/quit" -X POST -d '{}' > /dev/null 2>&1 || true
+        sleep 1
+        if kill -0 "$DACCORD_PID" 2>/dev/null; then
+            kill "$DACCORD_PID" 2>/dev/null || true
+        fi
+        wait "$DACCORD_PID" 2>/dev/null || true
+        ok "Daccord stopped"
+    fi
+}
+
+run_client_api_tests() {
+    header "Running Client API tests..."
+
+    start_daccord || return 1
+
+    local test_dir="$SCRIPT_DIR/tests/client_api"
+    if [ ! -d "$test_dir" ]; then
+        err "Test directory not found: $test_dir"
+        stop_daccord
+        return 1
+    fi
+
+    local failed=0
+    for test_script in "$test_dir"/test_*.sh; do
+        if [ ! -f "$test_script" ]; then
+            continue
+        fi
+        local test_name
+        test_name="$(basename "$test_script")"
+        info "Running: $test_name"
+        if bash "$test_script"; then
+            ok "PASS: $test_name"
+        else
+            err "FAIL: $test_name"
+            failed=$((failed + 1))
+        fi
+    done
+
+    stop_daccord
+
+    if [ $failed -gt 0 ]; then
+        err "$failed test(s) failed"
+        return 1
+    fi
+    ok "All client API tests passed"
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 main() {
@@ -259,7 +356,11 @@ main() {
         info "Skipping server (not needed for this suite)"
     fi
 
-    run_tests
+    if [ "$CLIENT_API_SUITE" = true ]; then
+        run_client_api_tests || EXIT_CODE=$?
+    else
+        run_tests
+    fi
 
     if [ "$NEEDS_SERVER" = true ] && [ -f "$SERVER_LOG" ]; then
         echo ""

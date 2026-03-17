@@ -1,6 +1,6 @@
 # Space & Channel Navigation
 
-Last touched: 2026-02-19
+Last touched: 2026-03-17
 Priority: 4
 Depends on: Server Connection, Data Model, Gateway Events
 
@@ -248,15 +248,15 @@ Clearing unread (on channel selection)
 - **Notes:** Unread tracking is client-side only (starts fresh each session); the server doesn't provide a "last read" marker per channel, so unreads reset on reconnect
 
 ### NAV-2: Space folder color not configurable from UI
-- **Status:** open
+- **Status:** closed
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** config, ui
-- **Notes:** `Config.get/set_space_folder_color()` exists but the folder dialog only sets the name; color defaults to `Color(0.212, 0.224, 0.247)`
+- **Notes:** ~~`Config.get/set_space_folder_color()` exists but the folder dialog only sets the name~~ — Fixed: right-click folder -> "Change Color" opens a ColorPicker dialog; color persisted via `Config.set_folder_color()`
 
 ### NAV-3: Space folder drag-to-reorder
-- **Status:** open
+- **Status:** closed
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** general
-- **Notes:** Spaces can't be dragged between folders or reordered within folders; assignment is only via context menu
+- **Notes:** ~~Spaces can't be dragged between folders or reordered within folders~~ — Fixed: top-level spaces and folders support drag-and-drop reordering with order persistence via `Config.set_space_order()`; standalone spaces can be dropped onto folders to add them. Within-folder space reordering is not yet supported but tracked in guild_folders user flow.

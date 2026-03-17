@@ -351,6 +351,56 @@ jobs:
             2>&1 | tee /tmp/gut_ak_rest.txt
         timeout-minutes: 5
 
+      - name: Run Client API tests
+        run: |
+          # Start Daccord with test API enabled
+          godot --headless --test-api --test-api-port 39100 \
+            --test-api-no-auth --test-api-verbose &
+          DACCORD_PID=$!
+          echo "DACCORD_PID=$DACCORD_PID" >> $GITHUB_ENV
+
+          # Wait for test API readiness
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:39100/api/get_state \
+                 -X POST -d '{}' > /dev/null 2>&1; then
+              echo "Test API is ready"
+              break
+            fi
+            if ! kill -0 "$DACCORD_PID" 2>/dev/null; then
+              echo "::error::Daccord exited before test API was ready"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Run bash test scripts
+          failed=0
+          for test_script in tests/client_api/test_*.sh; do
+            test_name="$(basename "$test_script")"
+            echo "--- Running: $test_name ---"
+            if CLIENT_API_URL="http://127.0.0.1:39100/api" \
+               bash "$test_script"; then
+              echo "PASS: $test_name"
+            else
+              echo "::error::FAIL: $test_name"
+              failed=$((failed + 1))
+            fi
+          done
+
+          # Stop Daccord
+          curl -sf http://127.0.0.1:39100/api/quit \
+            -X POST -d '{}' > /dev/null 2>&1 || true
+          sleep 1
+          kill "$DACCORD_PID" 2>/dev/null || true
+          wait "$DACCORD_PID" 2>/dev/null || true
+
+          if [ $failed -gt 0 ]; then
+            echo "::error::$failed client API test(s) failed"
+            exit 1
+          fi
+          echo "All client API tests passed"
+        timeout-minutes: 5
+
       - name: Test result summary
         if: always()
         run: |

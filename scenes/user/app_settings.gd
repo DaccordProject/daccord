@@ -18,11 +18,15 @@ const AppSettingsUpdatesPage := preload(
 const AppSettingsAboutPage := preload(
 	"res://scenes/user/app_settings_about_page.gd"
 )
+const AppSettingsDeveloperPage := preload(
+	"res://scenes/user/app_settings_developer_page.gd"
+)
 const WebMicAudio := preload("res://scenes/user/web_mic_audio.gd")
 
 var _profiles_pg: RefCounted
 var _updates_pg: RefCounted
 var _about_pg: RefCounted
+var _developer_pg: RefCounted
 var _idle_dropdown: OptionButton
 
 # Mic test state
@@ -60,6 +64,8 @@ func _get_sections() -> Array:
 		tr("Profiles"), tr("Voice & Video"), tr("Sound"),
 		tr("Appearance"), tr("Notifications"), tr("Updates"), tr("About"),
 	]
+	if Config.developer.get_developer_mode():
+		sections.append(tr("Developer"))
 	if Client.current_user.get("is_admin", false):
 		sections.append(tr("Instance Admin"))
 	return sections
@@ -74,6 +80,8 @@ func _build_pages() -> Array:
 		_build_updates_page(),
 		_build_about_page(),
 	]
+	if Config.developer.get_developer_mode():
+		pages.append(_build_developer_page())
 	if Client.current_user.get("is_admin", false):
 		pages.append(_build_admin_page())
 	return pages
@@ -726,6 +734,13 @@ func _build_about_page() -> VBoxContainer:
 		self, _page_vbox, _section_label,
 	)
 	return _about_pg.build()
+
+# --- Developer page ---
+func _build_developer_page() -> VBoxContainer:
+	_developer_pg = AppSettingsDeveloperPage.new(
+		self, _page_vbox, _section_label,
+	)
+	return _developer_pg.build()
 
 # --- Instance Admin page ---
 func _build_admin_page() -> VBoxContainer:

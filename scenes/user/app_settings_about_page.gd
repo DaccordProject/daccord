@@ -88,6 +88,28 @@ func build() -> VBoxContainer:
 		)
 		vbox.add_child(card)
 
+	# Developer Mode toggle
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(_section_label.call(tr("ADVANCED")))
+	var dev_cb := CheckBox.new()
+	dev_cb.text = tr("Developer Mode")
+	dev_cb.button_pressed = Config.developer.get_developer_mode()
+	dev_cb.toggled.connect(func(pressed: bool) -> void:
+		Config.developer.set_developer_mode(pressed)
+	)
+	vbox.add_child(dev_cb)
+	var dev_desc := Label.new()
+	dev_desc.text = tr(
+		"Enables the Developer page in settings "
+		+ "for test API and MCP server access."
+	)
+	dev_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dev_desc.add_theme_font_size_override("font_size", 11)
+	dev_desc.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	vbox.add_child(dev_desc)
+
 	return vbox
 
 

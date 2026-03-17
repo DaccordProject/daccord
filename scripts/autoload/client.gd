@@ -33,6 +33,8 @@ var connection: ClientConnection
 var relationships: ClientRelationships
 var web_links: ClientWebLinks
 var plugins: ClientPlugins
+var test_api: ClientTestApi
+var mcp: ClientMcp
 
 # --- Data access API (properties) ---
 
@@ -237,6 +239,29 @@ func _ready() -> void:
 	_idle_timer.timeout.connect(_check_idle)
 	add_child(_idle_timer)
 	_idle_timer.start()
+	# Test API subsystem (for CI / developer mode)
+	if _is_test_api_enabled():
+		test_api = ClientTestApi.new(self)
+		var token: String = ""
+		var require_auth: bool = false
+		if not _has_cli_flag("--test-api-no-auth"):
+			token = Config.developer.get_test_api_token()
+			if not token.is_empty():
+				require_auth = true
+		var verbose: bool = _has_cli_flag("--test-api-verbose")
+		test_api.start(
+			_get_test_api_port(), token, require_auth, verbose
+		)
+	# MCP subsystem (delegates to test_api internally)
+	if _is_mcp_enabled():
+		# MCP needs a test_api instance as its backend
+		if test_api == null:
+			test_api = ClientTestApi.new(self)
+			# Start without HTTP listener — MCP calls methods
+			# directly, no need for a second HTTP port
+		var mcp_token: String = Config.developer.get_mcp_token()
+		mcp = ClientMcp.new(self, test_api)
+		mcp.start(Config.developer.get_mcp_port(), mcp_token)
 	if Config.has_servers():
 		for i in Config.get_servers().size():
 			connect_server(i)
@@ -249,6 +274,12 @@ func _input(_event: InputEvent) -> void:
 		if saved_status == ClientModels.UserStatus.IDLE:
 			saved_status = ClientModels.UserStatus.ONLINE
 		update_presence(saved_status)
+
+func _process(_delta: float) -> void:
+	if test_api != null:
+		test_api.poll()
+	if mcp != null:
+		mcp.poll()
 
 func _check_idle() -> void:
 	var timeout: int = Config.get_idle_timeout()
@@ -269,10 +300,50 @@ func _check_idle() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		is_shutting_down = true
+		if mcp != null:
+			mcp.stop()
+		if test_api != null:
+			test_api.stop()
 		for conn in _connections:
 			if conn != null and conn["client"] != null:
 				conn["client"].logout()
 		get_tree().quit()
+
+func _is_test_api_enabled() -> bool:
+	# Strip test API from release builds
+	if OS.has_feature("release"):
+		return false
+	if _has_cli_flag("--test-api") \
+			or OS.get_environment("DACCORD_TEST_API") == "true":
+		return true
+	return Config.developer.get_developer_mode() \
+			and Config.developer.get_test_api_enabled()
+
+func _is_mcp_enabled() -> bool:
+	if OS.has_feature("release"):
+		return false
+	return Config.developer.get_developer_mode() \
+			and Config.developer.get_mcp_enabled()
+
+func _get_test_api_port() -> int:
+	var args: PackedStringArray = OS.get_cmdline_args()
+	var idx: int = _find_cli_arg("--test-api-port")
+	if idx >= 0 and idx + 1 < args.size():
+		return args[idx + 1].to_int()
+	var env: String = OS.get_environment("DACCORD_TEST_API_PORT")
+	if not env.is_empty():
+		return env.to_int()
+	return Config.developer.get_test_api_port()
+
+func _has_cli_flag(flag: String) -> bool:
+	return flag in OS.get_cmdline_args()
+
+func _find_cli_arg(arg: String) -> int:
+	var args: PackedStringArray = OS.get_cmdline_args()
+	for i in args.size():
+		if args[i] == arg:
+			return i
+	return -1
 
 func _derive_gateway_url(base_url: String) -> String:
 	var gw := base_url.replace("https://", "wss://").replace("http://", "ws://")

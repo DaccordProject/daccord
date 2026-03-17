@@ -190,6 +190,10 @@ signal discovery_opened()
 @warning_ignore("unused_signal")
 signal discovery_closed()
 
+# Settings
+@warning_ignore("unused_signal")
+signal settings_opened(page: String)
+
 # Plugins / Activities
 @warning_ignore("unused_signal")
 signal plugins_updated()

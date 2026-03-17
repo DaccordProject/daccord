@@ -17,11 +17,15 @@ const ConfigFriendBookScript := preload(
 const ConfigExportScript := preload(
 	"res://scripts/autoload/config_export.gd"
 )
+const ConfigDeveloperScript := preload(
+	"res://scripts/autoload/config_developer.gd"
+)
 
 var profiles # ConfigProfiles
 var voice # ConfigVoice
 var friend_book # ConfigFriendBook
 var exporter # ConfigExport
+var developer # ConfigDeveloper
 
 var _config := ConfigFile.new()
 var _registry := ConfigFile.new()
@@ -47,6 +51,7 @@ func _ready() -> void:
 	voice = ConfigVoiceScript.new(self )
 	friend_book = ConfigFriendBookScript.new(self)
 	exporter = ConfigExportScript.new(self)
+	developer = ConfigDeveloperScript.new(self)
 	# Parse --profile CLI arg
 	for i in OS.get_cmdline_args().size():
 		var arg: String = OS.get_cmdline_args()[i]
