@@ -53,3 +53,41 @@ func update_space_unread(gid: String) -> void:
 		total_mentions += _c._channel_mention_counts.get(ch_id, 0)
 	_c._space_cache[gid]["unread"] = has_unread
 	_c._space_cache[gid]["mentions"] = total_mentions
+
+# --- Channel mute API ---
+
+func is_channel_muted(channel_id: String) -> bool:
+	if _c._muted_channels.has(channel_id):
+		return true
+	# Check if parent category is muted (inherited mute)
+	var ch: Dictionary = _c._channel_cache.get(channel_id, {})
+	var parent_id: String = ch.get("parent_id", "")
+	if not parent_id.is_empty() and _c._muted_channels.has(parent_id):
+		return true
+	return false
+
+func mute_channel(channel_id: String) -> void:
+	var client: AccordClient = _c._client_for_channel(channel_id)
+	if client == null:
+		push_error("[Client] No connection for channel: ", channel_id)
+		return
+	var result: RestResult = await client.channels.mute(channel_id)
+	if result.ok:
+		_c._muted_channels[channel_id] = true
+		AppState.channel_mutes_updated.emit()
+	else:
+		var err: String = result.error.message if result.error else "unknown"
+		push_error("[Client] Failed to mute channel: ", err)
+
+func unmute_channel(channel_id: String) -> void:
+	var client: AccordClient = _c._client_for_channel(channel_id)
+	if client == null:
+		push_error("[Client] No connection for channel: ", channel_id)
+		return
+	var result: RestResult = await client.channels.unmute(channel_id)
+	if result.ok:
+		_c._muted_channels.erase(channel_id)
+		AppState.channel_mutes_updated.emit()
+	else:
+		var err: String = result.error.message if result.error else "unknown"
+		push_error("[Client] Failed to unmute channel: ", err)

@@ -14,15 +14,33 @@ Every view, dialog, panel, and overlay in the daccord client needs to be screens
 
 ## Signal Flow
 ```
-Auditor navigates UI
-  → Each scene loads via preload() / instantiate()
-  → AppState signals trigger view transitions
-    ├── guild_selected → channel_list rebuild
-    ├── channel_selected → message_view load
-    ├── dm_mode_changed → DM list / friends list
-    ├── settings_opened → app_settings panel
-    └── voice_joined → voice_bar + video_grid
-  → Screenshot captured at each stable state
+Manual audit path:
+  Auditor navigates UI
+    → Each scene loads via preload() / instantiate()
+    → AppState signals trigger view transitions
+      ├── guild_selected → channel_list rebuild
+      ├── channel_selected → message_view load
+      ├── dm_mode_changed → DM list / friends list
+      ├── settings_opened → app_settings panel
+      └── voice_joined → voice_bar + video_grid
+    → Screenshot captured at each stable state
+
+Automated MCP audit path:
+  AI agent calls MCP tools/call take_screenshot
+    → ClientMcp._handle_tools_call("take_screenshot", args)
+      → ClientTestApi._route("screenshot", args)
+        → await RenderingServer.frame_post_draw
+        → viewport.get_texture().get_image()
+        → image.save_png_to_buffer() → base64
+        → return {image_base64, width, height, format}
+      → ClientMcp._wrap_mcp_result() → MCP image content type
+    → Agent calls navigate_to_surface {"surface_id": "6.2"}
+      → ClientTestApi._route("navigate_to_surface", args)
+        → ClientTestApiNavigate.navigate_to_surface()
+          → section handler dispatches AppState signals
+          → await get_tree().process_frame (scene settles)
+    → Agent calls set_viewport_size {"preset": "compact"}
+      → DisplayServer.window_set_size() → layout_mode changes
 ```
 
 ## Key Files
@@ -35,6 +53,11 @@ Auditor navigates UI
 | `scenes/messages/message_view.tscn` | Central message feed |
 | `scenes/user/app_settings.tscn` | Global settings panel |
 | `scenes/admin/server_management_panel.tscn` | Instance-level admin panel |
+| `scripts/autoload/client_test_api.gd` | HTTP API with `screenshot`, `navigate_to_surface`, `set_viewport_size`, `list_surfaces` endpoints — the automated audit engine |
+| `scripts/autoload/client_test_api_navigate.gd` | Surface catalog (10 sections, 121 entries) and dialog map (30 dialogs) used by `navigate_to_surface` |
+| `scripts/autoload/client_mcp.gd` | MCP protocol adapter — exposes `take_screenshot`, `list_surfaces`, `get_surface_info` as MCP tools; enables AI agent-driven audits |
+| `scripts/autoload/config_developer.gd` | Developer Mode config — gates test API and MCP server behind two explicit opt-ins |
+| `scenes/user/app_settings_developer_page.gd` | Developer settings page — MCP/test API toggles, token display, tool group checkboxes |
 
 ## Audit Checklist
 
@@ -296,6 +319,63 @@ The audit requires systematic navigation through all states. Key entry points:
 - **AppState signals** (`scripts/autoload/app_state.gd`): Driving all view transitions. Key signals include `guild_selected`, `channel_selected`, `dm_mode_changed`, `settings_opened`, `voice_joined`, `profile_card_requested`.
 - **Dialog launches**: Most dialogs are instantiated via `preload()` and shown with `.popup()` or `.show()` — they must be triggered through their normal UI paths to capture accurate state.
 
+### Automated Capture via MCP
+
+The Client MCP server (`client_mcp.gd`, port 39101) exposes three dedicated screenshot tools, gated behind Developer Mode:
+
+| MCP Tool | Test API Endpoint | Description |
+|----------|------------------|-------------|
+| `take_screenshot` | `screenshot` | Captures viewport as base64 PNG; wraps in MCP `image` content type |
+| `list_surfaces` | `list_surfaces` | Returns the 121-surface catalog organized by section |
+| `get_surface_info` | `get_surface_info` | Returns scene path, prereqs, and states for one surface ID |
+
+The `navigate` group (enabled by default) provides three companion tools:
+
+| MCP Tool | Effect |
+|----------|--------|
+| `navigate_to_surface {"surface_id": "6.2", "state": "with_reply"}` | Drives `ClientTestApiNavigate` to select the right space/channel and emit any needed AppState signals |
+| `set_viewport_size {"preset": "compact"}` | Calls `DisplayServer.window_set_size()` to force `COMPACT`/`MEDIUM`/`FULL` layout mode (presets: 480×800, 768×900, 1280×720) |
+| `open_dialog {"dialog_name": "ban"}` | Instantiates a dialog from a hardcoded 30-entry allowlist in `ClientTestApiNavigate.DIALOG_MAP` |
+
+Screenshot capture uses Godot's rendering pipeline:
+```gdscript
+# _endpoint_screenshot() in client_test_api.gd
+await RenderingServer.frame_post_draw  # wait for stable frame
+var img: Image = viewport.get_texture().get_image()
+var png_buf: PackedByteArray = img.save_png_to_buffer()
+return {
+    "image_base64": Marshalls.raw_to_base64(png_buf),
+    "width": img.get_width(), "height": img.get_height(),
+    "format": "png", "size_bytes": png_buf.size(),
+}
+```
+
+Optional `save_path` (e.g., `"user://audit/6.2_full.png"`) saves to disk. Crop region (`x`, `y`, `width`, `height`) is also supported.
+
+#### Setup for automated audit
+
+1. Open App Settings → About page → enable **Developer Mode** (Advanced section)
+2. Open App Settings → Developer page → enable **MCP Server**
+3. Copy the displayed token (e.g., `dk_a1b2...f9e8`)
+4. Set `DACCORD_MCP_TOKEN=<token>` and optionally `DACCORD_MCP_URL=http://localhost:39101/mcp`
+5. Run `daccord-mcp` CLI (from `../accordserver-mcp`) or use any MCP-compatible AI tool with `mcp.json`
+
+The `read`, `navigate`, and `screenshot` tool groups are enabled by default. Destructive groups (`message`, `moderate`, `voice`) require explicit opt-in.
+
+#### Automated audit loop example
+
+```
+daccord> surfaces                          # list_surfaces — returns 121 entries
+daccord> viewport full                     # set_viewport_size {preset: "full"}
+daccord> navigate 6.2 with_reply           # navigate_to_surface
+daccord> screenshot /tmp/6.2_full.png      # take_screenshot
+daccord> viewport compact                  # set_viewport_size {preset: "compact"}
+daccord> screenshot /tmp/6.2_compact.png   # take_screenshot
+daccord> dialog ban                        # open_dialog — then screenshot
+```
+
+See [Client MCP Server](client_mcp.md#automated-ui-audit-example) for a full JSON-RPC session example.
+
 ### Context Menus (Hidden Surfaces)
 Right-click context menus exist on:
 - Messages (edit, delete, reply, react, pin, copy)
@@ -319,30 +399,56 @@ These are generated dynamically via `PopupMenu` and must be triggered interactiv
 - [x] All admin dialogs accessible via server management panel
 - [x] Profile card popup on member click
 - [x] Context menus on messages, channels, members
-- [ ] Automated screenshot capture tooling (not yet built)
+- [x] Automated screenshot capture via Client Test API (`screenshot` endpoint, `client_test_api.gd`)
+- [x] Automated screenshot capture via Client MCP (`take_screenshot` tool, `client_mcp.gd`) — AI agent-driven
+- [x] Systematic UI navigation via `navigate_to_surface` (10 sections, 121 surfaces, `client_test_api_navigate.gd`)
+- [x] Dialog opening via `open_dialog` (30 dialogs in `ClientTestApiNavigate.DIALOG_MAP`)
+- [x] Responsive breakpoint testing via `set_viewport_size` (compact/medium/full presets)
+- [x] Surface catalog accessible via `list_surfaces` MCP tool
 - [ ] Design system documentation (colors, typography, spacing tokens)
 - [ ] Figma/design file with current state
 - [ ] Accessibility audit annotations (contrast ratios, focus order)
 - [ ] Dark/light theme variant captures
+- [ ] Automated audit pipeline script (drive MCP in a loop across all 121 surfaces × 3 breakpoints)
 
 ## Gaps / TODO
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No automated screenshot tooling | High | Need a script or test harness that navigates to each surface and captures screenshots programmatically; consider GUT test + `get_viewport().get_texture().get_image().save_png()` |
+| ~~No automated screenshot tooling~~ | ~~High~~ | **Resolved.** `take_screenshot` MCP tool + `navigate_to_surface` / `open_dialog` / `set_viewport_size` in `client_test_api.gd` and `client_mcp.gd`. Surface catalog in `client_test_api_navigate.gd` covers all 121 surfaces |
+| No automated audit loop script | Medium | The tooling exists but no script yet drives the full 121 × 3 = 363 screenshot loop. Implement in `../accordserver-mcp/scripts/ui_audit.ts` or as a bash script using `daccord-mcp` CLI |
+| Dialog state variants not injectable | Medium | States like "loading", "error" require specific server responses. MCP has no `set_mock_state` endpoint. Must manually engineer server conditions or add a mock endpoint |
 | No design tokens file | Medium | Colors, fonts, spacing are defined inline in `.tscn` theme overrides — no central design system file to audit against |
-| Context menus not cataloged in scenes | Medium | PopupMenu instances are created in code, not `.tscn` files — must be triggered interactively to capture |
-| No dark/light theme toggle | Medium | App currently has single theme; audit should note if a second theme is planned |
-| Platform-specific surfaces need separate passes | Medium | Web guest mode, Android touch targets, and desktop-only dialogs (screen picker) require platform-specific test runs |
+| Context menus not in dialog map | Medium | `PopupMenu` instances are created in code, not `.tscn` files — not in `DIALOG_MAP`. Must be triggered interactively; `open_dialog` cannot open them |
+| No dark/light theme toggle | Medium | App has theming (ThemeManager, 5 presets) but audit pipeline needs to capture each theme variant — `set_theme` endpoint not yet in test API |
+| Platform-specific surfaces need separate passes | Medium | Web guest mode, Android touch targets, and desktop-only dialogs (screen picker) require platform-specific test runs; MCP/test API are desktop-only (`TCPServer` unavailable on web/Android) |
 | No Figma/design source of truth | High | Without a design file, the audit can only compare against general UX heuristics, not intended designs |
 | Loading/error states underspecified | Low | Many dialogs lack explicit error state designs — auditor should flag where error feedback is missing |
-| Animation timing not auditable from screenshots | Low | Transitions and animations (`modal_base.gd` open/close, drawer slide) need video capture or live review |
+| Animation timing not auditable from screenshots | Low | Transitions and animations (`modal_base.gd` open/close, drawer slide) need video capture or live review; `wait_frames` endpoint exists but no video recording path |
+| Headless screenshot support | Low | `--headless` mode may not render a viewport. Screenshot tests need a windowed run or virtual framebuffer (Xvfb on CI) |
 
 ## Audit Execution Plan
 
+### Phase 0: Automated Capture via MCP (New)
+
+Now that screenshot tooling is implemented, Phase 1 can be fully automated:
+
+1. Enable Developer Mode → MCP Server in App Settings (or launch with `--test-api`)
+2. Connect AI agent with `DACCORD_MCP_TOKEN` (see [Client MCP Server](client_mcp.md))
+3. Call `list_surfaces` to get the full 121-surface catalog
+4. For each surface × breakpoint (compact/medium/full):
+   - Call `set_viewport_size {preset: "compact"|"medium"|"full"}`
+   - Call `navigate_to_surface {surface_id: "6.2", state: "with_reply"}`
+   - Call `take_screenshot {save_path: "user://audit/6.2_cozy_with_reply_compact.png"}`
+5. For dialogs: `open_dialog {dialog_name: "ban"}` then `take_screenshot`
+6. Estimated output: ~363 screenshots (121 surfaces × 3 breakpoints)
+
+File naming convention: `{section}.{num}_{surface_name}_{state}_{breakpoint}.png`
+(e.g., `6.2_cozy_message_with_reply_compact.png`)
+
 ### Phase 1: Static Capture (Screenshots)
-1. Launch app at each breakpoint (resize window or use `--resolution` flag)
-2. Navigate to each surface in the checklist above
-3. Capture default state + all listed variant states
+1. Launch app at each breakpoint (resize window or use `set_viewport_size` MCP tool)
+2. Navigate to each surface in the checklist above (manually or via `navigate_to_surface`)
+3. Capture default state + all listed variant states (via `take_screenshot` or OS screenshot)
 4. Name files: `{section}_{number}_{state}.png` (e.g., `6.2_cozy_message_with_reply.png`)
 
 ### Phase 2: Design Review

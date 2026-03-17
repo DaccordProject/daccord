@@ -205,7 +205,8 @@ crawler or unfurler requests /s/community/help-forum/1234567890
 | `scripts/autoload/client.gd` | Server connections, URL fragment navigation on web. Guest mode: see [Read Only Mode](read_only_mode.md). |
 | `accordserver/src/routes/seo.rs` | SEO HTML snapshot endpoints (`/s/{space}/{channel}[/{post_id}]`). Detects crawler user agents, serves semantic HTML with OG/Twitter meta tags, `<link rel="canonical">`, and `rel="next"` pagination. Redirects human visitors to the fragment-based web client. |
 | `scripts/autoload/client_web_links.gd` | `ClientWebLinks` — web-only URL fragment routing. Parses deep links on startup, updates browser URL via `history.replaceState()` on navigation, handles `popstate` for back/forward. |
-| `scenes/user/app_settings.gd` | Voice & Video settings. Mic test monitor uses Web Audio API loopback on web (bypasses Godot audio bus to avoid sample-rate mismatch). |
+| `scenes/user/app_settings.gd` | Voice & Video settings. Mic test monitor routes through `WebMicAudio` on web (bypasses Godot audio bus to avoid sample-rate mismatch). |
+| `scenes/user/web_mic_audio.gd` | `WebMicAudio` — Web Audio API bridge for mic test. Provides `start_analyser()`, `get_rms()`, `start_monitor()`, `stop_monitor()`, `set_monitor_gate()` via `JavaScriptBridge`. |
 | `.github/workflows/ci.yml` (`web-export` job) | CI web export: builds to `dist/build/web/`, validates artifacts, copies `coop_coep.js`, runs Chrome headless smoke test. |
 | `.github/workflows/release.yml` (`web` matrix entry) | Release build: exports web, downloads `livekit-client` UMD bundle, copies `godot-livekit-web.js` and `coop_coep.js`, packages everything into `daccord-web.zip` for the GitHub release. |
 
@@ -275,7 +276,7 @@ Audio playback is handled automatically by the `livekit-client` SDK (no GDScript
 - **No local video preview:** `publish_camera()` returns a `WebVideoStub` (no actual video texture).
 - **No screen sharing:** `publish_screen()` returns `null`.
 - **No per-device selection:** Device enumeration in settings depends on the LiveKit GDExtension.
-- **Deafen is local only:** `set_deafened()` stores state but does not suppress remote audio playback (requires JS-side gain control).
+- **Deafen mutes audio elements:** `set_deafened()` calls `r.setDeafened()` in `godot-livekit-web.js`, which sets `.muted` on all tracked `<audio>` elements.
 - **Connect timeout:** 15-second timer; emits `FAILED` state if room doesn't connect.
 
 ### Mic test monitor on web
@@ -396,7 +397,7 @@ This is implemented **server-side** in `accordserver/src/routes/seo.rs`, not in 
 - [ ] Local video preview on web
 - [ ] Screen share on web
 - [ ] Per-device audio/video selection on web
-- [ ] Deafen suppresses remote audio playback
+- [x] Deafen suppresses remote audio playback (`godot-livekit-web.js` `setDeafened()` mutes all audio elements)
 
 ### Shareable links
 - [x] URL fragment routing in HTML shell (`#space/channel/post-id`)
@@ -406,12 +407,12 @@ This is implemented **server-side** in `accordserver/src/routes/seo.rs`, not in 
 - [x] Forum post links include post ID in fragment
 
 ### Preset servers & auto-guest
-- [ ] `window.daccordPresetServer` config block in HTML shell
-- [ ] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge
-- [ ] Auto-guest: client requests `POST /auth/guest` from preset server on startup when no auth token exists
-- [ ] `localStorage` auth token check: skip guest flow if authenticated session exists
-- [ ] Same-origin fallback: default `base_url` to `window.location.origin` when omitted
-- [ ] Preset server is non-removable (not shown in server management UI)
+- [x] `window.daccordPresetServer` config block in HTML shell (commented template in `dist/web/index.html`)
+- [x] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge (`client_web_links.gd` lines 82-101)
+- [x] Auto-guest: client requests `POST /auth/guest` from preset server on startup when no auth token exists (`client_web_links.gd` lines 104-131)
+- [x] `localStorage` auth token check: skip guest flow if authenticated session exists (`try_auto_connect()` lines 49-75)
+- [x] Same-origin fallback: default `base_url` to `window.location.origin` when omitted (`client_web_links.gd` line 87)
+- [x] Preset server is non-removable (read from HTML shell on every load, never persisted to Config)
 
 ### Guest mode (read only)
 See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-status) for all guest mode items.
@@ -424,10 +425,16 @@ See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-
 - [x] `rel="next"` pagination for threaded forum replies
 - [x] `<noscript>` fallback link to server-rendered content in HTML shell
 
+### Mic test monitor on web
+- [x] `WebMicAudio` helper class (`scenes/user/web_mic_audio.gd`) — Web Audio API bridge: `start_analyser()`, `get_rms()`, `start_monitor()`, `stop_monitor()`, `set_monitor_gate()`
+- [x] `app_settings.gd` creates `_web_mic: RefCounted = WebMicAudio.new()` and routes mic test through it on web
+- [x] RMS level meter uses `AnalyserNode` (unaffected by sample-rate issues)
+- [x] Monitor playback uses `GainNode` → `AudioContext.destination` (bypasses Godot audio bus)
+
 ### Known rendering issues
 - [x] Icons not rendering (three SVGs used `stroke="currentColor"` which Godot's SVG rasterizer can't resolve; replaced with explicit `#72767d` hex color)
 - [x] Initial layout is squashed into the lower half of the screen (no longer reproduces)
-- [x] Mic test audio plays back at correct pitch (Web Audio API loopback)
+- [x] Mic test audio plays back at correct pitch (Web Audio API loopback via `WebMicAudio`)
 
 ## Tasks
 
@@ -446,11 +453,11 @@ See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-
 - **Notes:** `publish_screen()` returns `null`. Browser `getDisplayMedia()` API is available but needs JS wrapper + GDScript integration.
 
 ### WEB-3: Deafen does not suppress remote audio
-- **Status:** open
+- **Status:** fixed
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** voice
-- **Notes:** `set_deafened()` stores the flag but doesn't mute incoming audio. Needs JS-side gain control or `AudioContext` manipulation.
+- **Notes:** `set_deafened()` now calls `r.setDeafened()` on the JS side (`web_voice_session.gd` line 140). `godot-livekit-web.js` implements `setDeafened()` (line 318) by setting `audioElements[sid].muted = isDeafened` on all tracked audio elements.
 
 ### WEB-4: No per-device selection on web
 - **Status:** open

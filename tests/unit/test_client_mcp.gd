@@ -3,8 +3,11 @@ extends GutTest
 ## Unit tests for ClientMcp — JSON-RPC dispatch, tool group
 ## filtering, MCP content wrapping, and token validation.
 
-var mcp: ClientMcp
-var test_api: ClientTestApi
+const ClientMcp := preload("res://scripts/autoload/client_mcp.gd")
+const ClientTestApi := preload("res://scripts/autoload/client_test_api.gd")
+
+var mcp: RefCounted
+var test_api: RefCounted
 
 
 func before_each() -> void:
@@ -30,8 +33,8 @@ func after_each() -> void:
 
 func test_tool_count_is_34() -> void:
 	assert_eq(
-		mcp._tools.size(), 34,
-		"Should have exactly 34 MCP tools registered"
+		mcp._tools.size(), 35,
+		"Should have exactly 35 MCP tools registered"
 	)
 
 

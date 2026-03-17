@@ -33,8 +33,8 @@ var connection: ClientConnection
 var relationships: ClientRelationships
 var web_links: ClientWebLinks
 var plugins: ClientPlugins
-var test_api: ClientTestApi
-var mcp: ClientMcp
+var test_api: RefCounted # ClientTestApi (loaded dynamically to avoid class_name dep)
+var mcp: RefCounted # ClientMcp (loaded dynamically to avoid class_name dep)
 
 # --- Data access API (properties) ---
 
@@ -240,27 +240,29 @@ func _ready() -> void:
 	add_child(_idle_timer)
 	_idle_timer.start()
 	# Test API subsystem (for CI / developer mode)
-	if _is_test_api_enabled():
-		test_api = ClientTestApi.new(self)
+	var ClientTestApiClass = load("res://scripts/autoload/client_test_api.gd")
+	var ClientMcpClass = load("res://scripts/autoload/client_mcp.gd")
+	if Config.developer.is_test_api_enabled():
+		test_api = ClientTestApiClass.new(self)
 		var token: String = ""
 		var require_auth: bool = false
-		if not _has_cli_flag("--test-api-no-auth"):
+		if not Config.developer.has_cli_flag("--test-api-no-auth"):
 			token = Config.developer.get_test_api_token()
 			if not token.is_empty():
 				require_auth = true
-		var verbose: bool = _has_cli_flag("--test-api-verbose")
+		var verbose: bool = Config.developer.has_cli_flag("--test-api-verbose")
 		test_api.start(
-			_get_test_api_port(), token, require_auth, verbose
+			Config.developer.get_effective_test_api_port(), token, require_auth, verbose
 		)
 	# MCP subsystem (delegates to test_api internally)
-	if _is_mcp_enabled():
+	if Config.developer.is_mcp_enabled():
 		# MCP needs a test_api instance as its backend
 		if test_api == null:
-			test_api = ClientTestApi.new(self)
+			test_api = ClientTestApiClass.new(self)
 			# Start without HTTP listener — MCP calls methods
 			# directly, no need for a second HTTP port
 		var mcp_token: String = Config.developer.get_mcp_token()
-		mcp = ClientMcp.new(self, test_api)
+		mcp = ClientMcpClass.new(self, test_api)
 		mcp.start(Config.developer.get_mcp_port(), mcp_token)
 	if Config.has_servers():
 		for i in Config.get_servers().size():
@@ -309,41 +311,6 @@ func _notification(what: int) -> void:
 				conn["client"].logout()
 		get_tree().quit()
 
-func _is_test_api_enabled() -> bool:
-	# Strip test API from release builds
-	if OS.has_feature("release"):
-		return false
-	if _has_cli_flag("--test-api") \
-			or OS.get_environment("DACCORD_TEST_API") == "true":
-		return true
-	return Config.developer.get_developer_mode() \
-			and Config.developer.get_test_api_enabled()
-
-func _is_mcp_enabled() -> bool:
-	if OS.has_feature("release"):
-		return false
-	return Config.developer.get_developer_mode() \
-			and Config.developer.get_mcp_enabled()
-
-func _get_test_api_port() -> int:
-	var args: PackedStringArray = OS.get_cmdline_args()
-	var idx: int = _find_cli_arg("--test-api-port")
-	if idx >= 0 and idx + 1 < args.size():
-		return args[idx + 1].to_int()
-	var env: String = OS.get_environment("DACCORD_TEST_API_PORT")
-	if not env.is_empty():
-		return env.to_int()
-	return Config.developer.get_test_api_port()
-
-func _has_cli_flag(flag: String) -> bool:
-	return flag in OS.get_cmdline_args()
-
-func _find_cli_arg(arg: String) -> int:
-	var args: PackedStringArray = OS.get_cmdline_args()
-	for i in args.size():
-		if args[i] == arg:
-			return i
-	return -1
 
 func _derive_gateway_url(base_url: String) -> String:
 	var gw := base_url.replace("https://", "wss://").replace("http://", "ws://")
@@ -703,43 +670,16 @@ func rename_group_dm(channel_id: String, new_name: String) -> bool:
 func close_dm(channel_id: String) -> void:
 	await mutations.dm.close_dm(channel_id)
 
-# --- Channel mute API ---
+# --- Channel mute API (delegates to ClientUnread) ---
 
 func is_channel_muted(channel_id: String) -> bool:
-	if _muted_channels.has(channel_id):
-		return true
-	# Check if parent category is muted (inherited mute)
-	var ch: Dictionary = _channel_cache.get(channel_id, {})
-	var parent_id: String = ch.get("parent_id", "")
-	if not parent_id.is_empty() and _muted_channels.has(parent_id):
-		return true
-	return false
+	return unread.is_channel_muted(channel_id)
 
 func mute_channel(channel_id: String) -> void:
-	var client: AccordClient = _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection for channel: ", channel_id)
-		return
-	var result: RestResult = await client.channels.mute(channel_id)
-	if result.ok:
-		_muted_channels[channel_id] = true
-		AppState.channel_mutes_updated.emit()
-	else:
-		var err: String = result.error.message if result.error else "unknown"
-		push_error("[Client] Failed to mute channel: ", err)
+	await unread.mute_channel(channel_id)
 
 func unmute_channel(channel_id: String) -> void:
-	var client: AccordClient = _client_for_channel(channel_id)
-	if client == null:
-		push_error("[Client] No connection for channel: ", channel_id)
-		return
-	var result: RestResult = await client.channels.unmute(channel_id)
-	if result.ok:
-		_muted_channels.erase(channel_id)
-		AppState.channel_mutes_updated.emit()
-	else:
-		var err: String = result.error.message if result.error else "unknown"
-		push_error("[Client] Failed to unmute channel: ", err)
+	await unread.unmute_channel(channel_id)
 
 func has_permission(gid: String, perm: String) -> bool:
 	return permissions.has_permission(gid, perm)
@@ -763,27 +703,7 @@ func get_my_highest_role_position(gid: String) -> int:
 ## Returns the color of the user's highest-positioned role that has a non-zero
 ## color in the given space, or null if no colored role exists.
 func get_role_color_for_user(gid: String, user_id: String) -> Variant:
-	var mi: int = _member_index_for(gid, user_id)
-	if mi == -1:
-		return null
-	var member_roles: Array = _member_cache.get(gid, [])[mi].get("roles", [])
-	var roles: Array = _role_cache.get(gid, [])
-	var best_color: int = 0
-	var best_position: int = -1
-	for role in roles:
-		var rid: String = role.get("id", "")
-		if rid not in member_roles:
-			continue
-		var c: int = role.get("color", 0)
-		if c == 0:
-			continue
-		var pos: int = role.get("position", 0)
-		if pos > best_position:
-			best_position = pos
-			best_color = c
-	if best_color == 0:
-		return null
-	return Color.hex(best_color)
+	return permissions.get_role_color_for_user(gid, user_id)
 
 # --- Unread / mention tracking (delegates to ClientUnread) ---
 

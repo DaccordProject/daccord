@@ -2,7 +2,9 @@ extends GutTest
 
 ## Unit tests for ClientTestApi request parsing and endpoint routing.
 
-var api: ClientTestApi
+const ClientTestApi := preload("res://scripts/autoload/client_test_api.gd")
+
+var api: RefCounted
 
 
 func before_each() -> void:

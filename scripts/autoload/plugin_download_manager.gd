@@ -140,7 +140,8 @@ func _server_id_for_conn(conn: Dictionary) -> String:
 func _sha256_hex(data: PackedByteArray) -> String:
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
-	ctx.update(data)
+	if data.size() > 0:
+		ctx.update(data)
 	var digest: PackedByteArray = ctx.finish()
 	return digest.hex_encode()
 

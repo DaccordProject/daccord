@@ -216,3 +216,28 @@ func _has_channel_perm_imposter(
 				break
 
 	return perm in effective
+
+## Returns the color of the user's highest-positioned role that has a non-zero
+## color in the given space, or null if no colored role exists.
+func get_role_color_for_user(gid: String, user_id: String) -> Variant:
+	var mi: int = _c._member_index_for(gid, user_id)
+	if mi == -1:
+		return null
+	var member_roles: Array = _c._member_cache.get(gid, [])[mi].get("roles", [])
+	var roles: Array = _c._role_cache.get(gid, [])
+	var best_color: int = 0
+	var best_position: int = -1
+	for role in roles:
+		var rid: String = role.get("id", "")
+		if rid not in member_roles:
+			continue
+		var c: int = role.get("color", 0)
+		if c == 0:
+			continue
+		var pos: int = role.get("position", 0)
+		if pos > best_position:
+			best_position = pos
+			best_color = c
+	if best_color == 0:
+		return null
+	return Color.hex(best_color)

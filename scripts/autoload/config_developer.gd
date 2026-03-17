@@ -8,6 +8,39 @@ func _init(parent: Node) -> void:
 	_parent = parent
 
 
+func has_cli_flag(flag: String) -> bool:
+	return flag in OS.get_cmdline_args()
+
+func find_cli_arg(arg: String) -> int:
+	var args: PackedStringArray = OS.get_cmdline_args()
+	for i in args.size():
+		if args[i] == arg:
+			return i
+	return -1
+
+func is_test_api_enabled() -> bool:
+	if OS.has_feature("release"):
+		return false
+	if has_cli_flag("--test-api") \
+			or OS.get_environment("DACCORD_TEST_API") == "true":
+		return true
+	return get_developer_mode() and get_test_api_enabled()
+
+func is_mcp_enabled() -> bool:
+	if OS.has_feature("release"):
+		return false
+	return get_developer_mode() and get_mcp_enabled()
+
+func get_effective_test_api_port() -> int:
+	var idx: int = find_cli_arg("--test-api-port")
+	var args: PackedStringArray = OS.get_cmdline_args()
+	if idx >= 0 and idx + 1 < args.size():
+		return args[idx + 1].to_int()
+	var env: String = OS.get_environment("DACCORD_TEST_API_PORT")
+	if not env.is_empty():
+		return env.to_int()
+	return get_test_api_port()
+
 func get_developer_mode() -> bool:
 	return _parent._config.get_value("developer", "enabled", false)
 
