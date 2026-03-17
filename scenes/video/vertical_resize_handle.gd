@@ -40,13 +40,21 @@ func _apply_theme() -> void:
 
 
 func _draw() -> void:
+	var center_y: float = size.y / 2.0
 	if _hovered or _dragging:
-		var center_y: float = size.y / 2.0
 		draw_line(
 			Vector2(4.0, center_y),
 			Vector2(size.x - 4.0, center_y),
 			ThemeManager.get_color("icon_default"), 2.0,
 		)
+	else:
+		# Subtle resting indicator: three small dots so users can
+		# discover the resize handle without hovering the 6px strip.
+		var color: Color = ThemeManager.get_color("icon_default")
+		color.a = 0.35
+		var cx: float = size.x / 2.0
+		for offset in [-8.0, 0.0, 8.0]:
+			draw_circle(Vector2(cx + offset, center_y), 1.5, color)
 
 
 func _gui_input(event: InputEvent) -> void:

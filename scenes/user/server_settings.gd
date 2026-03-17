@@ -19,7 +19,7 @@ func setup(space_id: String) -> void:
 	_accord_client = Client._client_for_space(space_id)
 	_server_user = Client.get_user_for_space(space_id)
 	var space: Dictionary = Client.get_space_by_id(space_id)
-	_server_name = space.get("name", "Server")
+	_server_name = space.get("name", tr("Server"))
 
 func _get_subtitle() -> String:
 	return _server_name
@@ -29,8 +29,8 @@ func _get_modal_size() -> Vector2:
 
 func _get_sections() -> Array:
 	return [
-		"My Account", "Notifications", "Change Password",
-		"Delete Account", "Two-Factor Auth", "Connections",
+		tr("My Account"), tr("Notifications"), tr("Change Password"),
+		tr("Delete Account"), tr("Two-Factor Auth"), tr("Connections"),
 	]
 
 func _build_pages() -> Array:
@@ -46,11 +46,11 @@ func _build_pages() -> Array:
 # --- My Account page ---
 
 func _build_account_page() -> VBoxContainer:
-	var vbox := _page_vbox("My Account")
+	var vbox := _page_vbox(tr("My Account"))
 
 	var user: Dictionary = _server_user
 	var username_row := _labeled_value(
-		"USERNAME", user.get("username", "")
+		tr("USERNAME"), user.get("username", "")
 	)
 	vbox.add_child(username_row)
 
@@ -58,7 +58,7 @@ func _build_account_page() -> VBoxContainer:
 	if not created.is_empty():
 		var t_idx := created.find("T")
 		var date_str: String = created.substr(0, t_idx) if t_idx != -1 else created
-		vbox.add_child(_labeled_value("ACCOUNT CREATED", date_str))
+		vbox.add_child(_labeled_value(tr("ACCOUNT CREATED"), date_str))
 
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
@@ -75,11 +75,11 @@ func _build_account_page() -> VBoxContainer:
 # --- Notifications page (per-server) ---
 
 func _build_notifications_page() -> VBoxContainer:
-	var vbox := _page_vbox("Notifications")
+	var vbox := _page_vbox(tr("Notifications"))
 
 	# Server mute toggle
 	var mute_cb := CheckBox.new()
-	mute_cb.text = "Mute this server"
+	mute_cb.text = tr("Mute this server")
 	mute_cb.button_pressed = Config.is_server_muted(_space_id)
 	mute_cb.toggled.connect(func(pressed: bool) -> void:
 		Config.set_server_muted(_space_id, pressed)
@@ -87,11 +87,11 @@ func _build_notifications_page() -> VBoxContainer:
 	vbox.add_child(mute_cb)
 
 	# Per-server suppress @everyone override
-	vbox.add_child(_section_label("SUPPRESS @EVERYONE"))
+	vbox.add_child(_section_label(tr("SUPPRESS @EVERYONE")))
 	var suppress_dropdown := OptionButton.new()
-	suppress_dropdown.add_item("Use global default")
-	suppress_dropdown.add_item("Suppress on this server")
-	suppress_dropdown.add_item("Don't suppress on this server")
+	suppress_dropdown.add_item(tr("Use global default"))
+	suppress_dropdown.add_item(tr("Suppress on this server"))
+	suppress_dropdown.add_item(tr("Don't suppress on this server"))
 	var current_override: int = Config.get_server_suppress_everyone(_space_id)
 	match current_override:
 		-1: suppress_dropdown.selected = 0
@@ -108,7 +108,7 @@ func _build_notifications_page() -> VBoxContainer:
 # --- Change Password page ---
 
 func _build_password_page() -> VBoxContainer:
-	var vbox := _page_vbox("Change Password")
+	var vbox := _page_vbox(tr("Change Password"))
 	_danger = UserSettingsDanger.new()
 	_danger.build_password_page(
 		vbox, _section_label, _error_label, _accord_client,
@@ -118,7 +118,7 @@ func _build_password_page() -> VBoxContainer:
 # --- Delete Account page ---
 
 func _build_delete_page() -> VBoxContainer:
-	var vbox := _page_vbox("Delete Account")
+	var vbox := _page_vbox(tr("Delete Account"))
 	if _danger == null:
 		_danger = UserSettingsDanger.new()
 	_danger.build_delete_page(
@@ -130,7 +130,7 @@ func _build_delete_page() -> VBoxContainer:
 # --- 2FA page ---
 
 func _build_twofa_page() -> VBoxContainer:
-	var vbox := _page_vbox("Two-Factor Authentication")
+	var vbox := _page_vbox(tr("Two-Factor Authentication"))
 	_twofa = UserSettingsTwofa.new()
 	_twofa.build(
 		vbox, _section_label, _error_label, _accord_client,
@@ -141,10 +141,10 @@ func _build_twofa_page() -> VBoxContainer:
 # --- Connections page ---
 
 func _build_connections_page() -> VBoxContainer:
-	var vbox := _page_vbox("Connections")
+	var vbox := _page_vbox(tr("Connections"))
 
 	var loading := Label.new()
-	loading.text = "Loading connections..."
+	loading.text = tr("Loading connections...")
 	loading.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
@@ -158,13 +158,13 @@ func _fetch_connections(
 	vbox: VBoxContainer, loading: Label,
 ) -> void:
 	if _accord_client == null:
-		loading.text = "Not connected"
+		loading.text = tr("Not connected")
 		return
 	var result: RestResult = await _accord_client.users.list_connections()
 	loading.visible = false
 	if not result.ok:
 		var err_lbl := Label.new()
-		err_lbl.text = "Failed to load connections"
+		err_lbl.text = tr("Failed to load connections")
 		err_lbl.add_theme_color_override(
 			"font_color", ThemeManager.get_color("error")
 		)
@@ -173,7 +173,7 @@ func _fetch_connections(
 	var connections: Array = result.data if result.data is Array else []
 	if connections.is_empty():
 		var none_lbl := Label.new()
-		none_lbl.text = "No connections linked."
+		none_lbl.text = tr("No connections linked.")
 		none_lbl.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)

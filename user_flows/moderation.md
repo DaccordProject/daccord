@@ -23,11 +23,12 @@ This document also covers illegal content moderation: server-side detection and 
 ### Banning a Member
 1. Right-click a member in the member list.
 2. "Ban" appears if the user has `ban_members` permission (line 89).
-3. Click "Ban" -- a BanDialog opens with a reason input field (`ban_dialog.gd` line 12).
-4. First click on "Ban" shows a summary and changes the button to "Confirm Ban" (two-step confirmation, lines 30-43).
-5. Second click executes `Client.admin.ban_member()` which sends `PUT /spaces/{id}/bans/{uid}` with optional `{"reason": "..."}` (`client_admin.gd` line 228).
-6. On success, member cache refreshes and `AppState.bans_updated` emits (line 233); the dialog closes and `ban_confirmed` signal fires (line 69).
-7. On failure, the error is shown in-dialog and confirmation state resets (lines 56-67).
+3. Click "Ban" -- a BanDialog opens with a reason input field and a message purge dropdown (`ban_dialog.gd` lines 5-13).
+4. The purge dropdown offers: Don't delete any, Last hour, Last 6 hours, Last 12 hours, Last 24 hours, Last 3 days, Last 7 days (line 5, `PURGE_OPTIONS`).
+5. First click on "Ban" locks inputs, shows a summary (including purge selection), and changes the button to "Confirm Ban" (two-step confirmation, lines 46-60).
+6. Second click executes `Client.admin.ban_member()` which sends `PUT /spaces/{id}/bans/{uid}` with optional `{"reason": "...", "delete_message_seconds": N}` (`client_admin.gd` line 228).
+7. On success, member cache refreshes and `AppState.bans_updated` emits (line 233); the dialog closes and `ban_confirmed` signal fires (line 90).
+8. On failure, the error is shown in-dialog and confirmation state resets (lines 82-88).
 
 ### Moderating a Member (Timeout / Mute / Deafen)
 1. Right-click a member in the member list.
@@ -55,8 +56,9 @@ This document also covers illegal content moderation: server-side detection and 
 
 ### Removing All Reactions
 1. Right-click a message in the message view.
-2. "Remove All Reactions" is enabled if the user has `manage_messages` permission AND the message has reactions (lines 105-109).
-3. Click "Remove All Reactions" -- calls `Client.remove_all_reactions()` immediately with no confirmation (lines 148-153).
+2. "Remove All Reactions" is enabled if the user has `manage_messages` permission AND the message has reactions (lines 122-126).
+3. Click "Remove All Reactions" -- a ConfirmationDialog asks "Remove all reactions from this message?" (lines 174-183).
+4. On confirm, `Client.remove_all_reactions()` is called (`_on_remove_reactions_confirmed`, lines 202-211).
 
 ### Viewing and Managing Bans
 1. Open the ban list via:
@@ -184,17 +186,18 @@ Member list right-click
                                        --> fetch_members() --> AppState.members_updated
 
 Gateway events (inbound):
-  ban_create   --> ClientGatewayEvents.on_ban_create()  --> AppState.bans_updated
-  ban_delete   --> ClientGatewayEvents.on_ban_delete()  --> AppState.bans_updated
-  member_leave --> ClientGatewayMembers.on_member_leave() --> AppState.member_left + members_updated
-  member_update --> ClientGatewayMembers.on_member_update() --> AppState.members_updated
+  ban_create     --> ClientGatewayEvents.on_ban_create()     --> AppState.bans_updated
+  ban_delete     --> ClientGatewayEvents.on_ban_delete()     --> AppState.bans_updated
+  report.create  --> ClientGatewayEvents.on_report_create()  --> AppState.reports_updated
+  member_leave   --> ClientGatewayMembers.on_member_leave()  --> AppState.member_left + members_updated
+  member_update  --> ClientGatewayMembers.on_member_update() --> AppState.members_updated
 
 Message right-click
   --> message_view_actions.on_context_menu_requested()
         +--> "Delete" (own or manage_messages) --> ConfirmationDialog
         |      --> AppState.delete_message() --> DELETE /channels/{id}/messages/{mid}
         +--> "Remove All Reactions" (manage_messages + has reactions)
-        |      --> Client.remove_all_reactions()
+        |      --> ConfirmationDialog --> Client.remove_all_reactions()
         +--> "Report" (disabled for own messages)
                --> ReportDialog.setup_message(space_id, channel_id, message_id)
                  --> _on_submit()
@@ -258,7 +261,8 @@ Future (CSAM escalation):
 | `scenes/admin/report_row.gd` | Individual report row with category, target, status, and action buttons |
 | `scenes/sidebar/channels/channel_item.gd` | NSFW visual indicator -- red tint on icon (line 74) |
 | `scripts/autoload/client_admin.gd` | Admin API delegation layer: kick, ban, unban, update member, audit log, reports |
-| `scripts/autoload/client_gateway_events.gd` | Gateway handlers for ban_create, ban_delete |
+| `scripts/autoload/client_gateway_events.gd` | Gateway handlers for ban_create, ban_delete, report_create |
+| `addons/accordkit/gateway/gateway_socket.gd` | Gateway dispatch: report.create signal and event routing |
 | `scripts/autoload/client_gateway_members.gd` | Gateway handlers for member_join, member_leave, member_update |
 | `scripts/autoload/app_state.gd` | Signal bus: bans_updated, members_updated, reports_updated, member_joined, member_left |
 | `addons/accordkit/models/permission.gd` | Permission constants: KICK_MEMBERS, BAN_MEMBERS, MODERATE_MEMBERS, MANAGE_MESSAGES, MANAGE_NICKNAMES |
@@ -289,11 +293,15 @@ The `AccordPermission.has()` helper (line 91 of `permission.gd`) grants all perm
 
 ### Ban Dialog Two-Step Confirmation
 
-The BanDialog uses a two-step confirmation pattern (`ban_dialog.gd` lines 30-43):
-1. First press: locks the reason input, changes button text to "Confirm Ban", and shows a summary.
-2. Second press: executes the ban API call.
+The BanDialog uses a two-step confirmation pattern (`ban_dialog.gd` lines 46-60):
+1. First press: locks the reason input and purge dropdown, changes button text to "Confirm Ban", and shows a summary including purge selection.
+2. Second press: executes the ban API call with optional `delete_message_seconds`.
 
-On failure, the dialog resets to step 1 so the user can retry (lines 62-67).
+On failure, the dialog resets to step 1 so the user can retry (lines 82-88).
+
+### Message Purge on Ban
+
+The BanDialog includes a `PURGE_OPTIONS` dropdown (`ban_dialog.gd` lines 5-13) with durations from "Don't delete any" (0s) through "Last 7 days" (604800s). When a purge duration is selected, the ban request includes `delete_message_seconds` in the payload (lines 70-72). The `bans_api.gd` create endpoint passes this through to the server (line 22).
 
 ### Timeout Calculation
 
@@ -311,18 +319,25 @@ The bulk unban feature (`ban_list_dialog.gd` lines 149-172) iterates through sel
 
 Moderation actions trigger real-time updates via gateway events:
 - **ban_create / ban_delete**: Handled by `ClientGatewayEvents` (lines 14-24), emit `AppState.bans_updated` so the ban list reloads.
+- **report.create**: Handled by `ClientGatewayEvents.on_report_create()` (lines 26-30), emits `AppState.reports_updated` so open report lists auto-refresh when new reports arrive.
 - **member_leave**: Handled by `ClientGatewayMembers.on_member_leave()` (lines 75-96), removes the member from cache and emits `member_left` + `members_updated`.
 - **member_update**: Handled by `ClientGatewayMembers.on_member_update()` (lines 98-113), updates the member cache entry and emits `members_updated`.
 
 ### Audit Log Actions
 
-The audit log recognizes these moderation-related action types (`audit_log_row.gd` lines 3-18):
+The audit log recognizes these moderation-related action types (`audit_log_row.gd` lines 3-25):
 - `member_kick` -- displayed with door icon
 - `member_ban_add` -- displayed with hammer icon
 - `member_ban_remove` -- displayed with unlock icon
 - `member_update` -- displayed with person icon
 - `member_role_update` -- displayed with person icon
 - `message_delete` -- displayed with speech bubble icon
+- `automod_block` -- displayed with shield icon
+- `automod_delete` -- displayed with shield icon
+- `automod_flag` -- displayed with flag icon
+- `automod_csam_report` -- displayed with warning icon
+- `report_create` -- displayed with megaphone icon
+- `report_resolve` -- displayed with megaphone icon
 
 ### Role Hierarchy Enforcement
 
@@ -330,7 +345,7 @@ The member context menu disables role checkboxes for roles at or above the curre
 
 ### Message Moderation
 
-The message context menu (`message_view_actions.gd`) uses `Client.has_channel_permission()` with `AccordPermission.MANAGE_MESSAGES` to determine whether Edit/Delete are enabled for messages not authored by the current user (lines 92-99). This respects per-channel permission overwrites.
+The message context menu (`message_view_actions.gd`) uses `Client.has_channel_permission()` with `AccordPermission.MANAGE_MESSAGES` to determine whether Edit/Delete are enabled for messages not authored by the current user (lines 108-110). "Remove All Reactions" now shows a confirmation dialog before executing (lines 174-183). This respects per-channel permission overwrites.
 
 ### Existing NSFW Infrastructure
 
@@ -408,9 +423,11 @@ The server stores reports in a `reports` table (`015_reports.sql`) with snowflak
 
 **Automod notifications**: Handle `AUTOMOD_ACTION_EXECUTED` gateway event in `client_gateway_events.gd`. Emit a new `AppState.automod_action` signal. Display a notification to online admins.
 
-**New audit log action types**: Add icons and labels for `automod_block`, `automod_delete`, `automod_flag`, `automod_csam_report` in `audit_log_row.gd`.
+**Audit log action types**: Implemented. `audit_log_row.gd` now includes icons for `automod_block`, `automod_delete`, `automod_flag`, `automod_csam_report`, `report_create`, and `report_resolve` (lines 19-24).
 
-**New permission**: Add `MANAGE_AUTOMOD` to `permission.gd` for configuring automod rules.
+**MANAGE_AUTOMOD permission**: Implemented. `permission.gd` includes `MANAGE_AUTOMOD` constant (line 45) with description (line 137).
+
+**Report gateway events**: Implemented. `gateway_socket.gd` dispatches `report.create` events. `ClientGatewayEvents.on_report_create()` emits `AppState.reports_updated` for real-time refresh of open report lists.
 
 ## Implementation Status
 
@@ -438,11 +455,20 @@ The server stores reports in a `reports` table (`015_reports.sql`) with snowflak
 - [x] "Report Message" context menu option and dialog
 - [x] "Report User" context menu option and dialog
 - [x] Report submission REST endpoint (`POST /spaces/{id}/reports`)
-- [x] Report list/review panel with status filter and action/dismiss
+- [x] Report list/review panel with status filter and inline moderation actions
 - [x] Server-side reports table with snowflake IDs, categories, and status lifecycle
 - [x] Gateway broadcast of `report.create` events with moderation intent
+- [x] Client-side `report.create` gateway handler with real-time report list refresh
 - [x] `reports_updated` signal and real-time report list refresh
 - [x] "Reports" entry in admin menus (guild icon + channel banner, requires `moderate_members`)
+- [x] Report target resolution (usernames and message previews instead of raw IDs)
+- [x] Inline report actions: Mark Reviewed, Delete Message, Kick User, Ban User
+
+### Moderation UX (implemented)
+- [x] Message purge on ban (`delete_message_seconds`) with 7 duration presets
+- [x] Remove All Reactions confirmation dialog
+- [x] `MANAGE_AUTOMOD` permission constant
+- [x] Automod audit log action types (block, delete, flag, CSAM report, report create/resolve)
 
 ### Automod (not yet implemented)
 - [ ] Server-side CSAM hash scanning (PhotoDNA/pHash/PDQ + NCMEC hash DB)
@@ -459,10 +485,7 @@ The server stores reports in a `reports` table (`015_reports.sql`) with snowflak
 - [x] NSFW channel age-gate interstitial
 - [ ] Crisis resource auto-response for self-harm content
 - [ ] Law enforcement referral workflow for credible threats
-- [ ] Automod audit log action types
-- [ ] `MANAGE_AUTOMOD` permission
 - [ ] Temporary ban with auto-expiry
-- [ ] Message purge on ban (delete_message_seconds)
 - [ ] Slow mode / rate limiting per channel
 - [ ] Auto-moderation (word filters, spam detection)
 - [ ] Moderation log DM notifications to actioned users
@@ -475,21 +498,14 @@ The server stores reports in a `reports` table (`015_reports.sql`) with snowflak
 | No server-side content scanning | High | accordserver has no scanning pipeline. All moderation is manual (reporting is manual user-initiated). |
 | No NCMEC/CyberTipline integration | High | Legal requirement in the US for electronic service providers who become aware of CSAM (18 U.S.C. 2258A). Must be implemented server-side with evidence preservation. |
 | No automod rule engine | High | No configurable rules for automatic content actions. Server needs a rule engine with per-space configuration. |
-| Report action/dismiss has no inline moderation | Medium | The report list "Action" button marks the report as actioned but does not directly trigger a moderation action (ban, kick, delete message). Moderators must take action separately. |
-| Report rows show raw IDs instead of names | Medium | `report_row.gd` displays target_id and reporter_id as raw snowflake IDs (lines 38-41). Should resolve to usernames/message previews. |
-| No message purge on ban | Medium | The BanDialog sends `{"reason": "..."}` but not `delete_message_seconds`. The `bans_api.gd` create endpoint documents the parameter (line 29) but the dialog doesn't expose it. |
 | No temporary ban with expiry | Medium | Bans are permanent only. No duration selector or auto-expiry mechanism exists on client or server. |
 | No slow mode | Medium | No per-channel rate limiting UI or `rate_limit_per_user` field in channel settings. Server support status unknown. |
 | No `AUTOMOD_ACTION_EXECUTED` gateway event | Medium | `gateway_intents.gd` defines `MODERATION` intent (line 4) but no automod-specific events exist in the gateway protocol. |
-| ~~No NSFW age-gate~~ | ~~Medium~~ | Implemented. `nsfw_gate_dialog` consent interstitial gates NSFW channels and spaces. Per-server ack cached in `Config`. |
 | No fraud/scam URL checking | Medium | Messages with URLs are not checked against phishing/malware databases. |
-| Audit log missing automod action types | Medium | `audit_log_row.gd` action icons (lines 3-19) only cover manual actions. No `automod_block`, `automod_delete`, `automod_flag`, or `automod_csam_report` types. |
-| No `MANAGE_AUTOMOD` permission | Medium | `permission.gd` has no automod-specific permission. Automod config would fall under `MANAGE_SPACE` or `ADMINISTRATOR`, which is too coarse. |
-| No gateway handling for report.create on client | Medium | Server broadcasts `report.create` gateway events but the client does not yet handle them to show real-time notifications to admins. |
+| No automod configuration UI | Medium | Client has `MANAGE_AUTOMOD` permission defined but no settings page for configuring automod rules. |
 | No mod action DM notifications | Low | When a user is kicked/banned/timed out, they receive no DM notification explaining why. Server-side feature gap. |
 | No warning/strike system | Low | No way to issue formal warnings that accumulate toward automatic action. Would need new server model and client UI. |
 | Bulk unban is sequential | Low | `ban_list_dialog.gd` lines 163-166 issue unban requests one at a time. Could be parallelized for large selections, but current approach prevents overwhelming the server. |
-| Remove All Reactions has no confirmation | Low | `message_view_actions.gd` line 158 executes immediately without a confirmation dialog, unlike all other destructive actions. |
 | No crisis resource auto-response | Low | When self-harm content is detected, the system could auto-post crisis hotline information (988, Samaritans). |
 | No transparency report tooling | Low | No mechanism for generating aggregate moderation statistics for platform transparency reports. |
 | No evidence preservation override for GDPR erasure | Low | Account deletion (`DELETE /users/@me`) should not erase evidence related to pending CSAM/legal investigations. No such carve-out exists. |

@@ -32,7 +32,7 @@ func _ready() -> void:
 	_new_input.text_submitted.connect(func(_t): _confirm_input.grab_focus())
 	_confirm_input.text_submitted.connect(func(_t): _on_submit())
 
-	_description.text = "The server requires you to change your password before continuing."
+	_description.text = tr("The server requires you to change your password before continuing.")
 
 	await get_tree().process_frame
 	_old_input.grab_focus()
@@ -58,21 +58,21 @@ func _on_submit() -> void:
 	var confirm := _confirm_input.text.strip_edges()
 
 	if old_pw.is_empty():
-		_show_error("Current password is required.")
+		_show_error(tr("Current password is required."))
 		return
 	if new_pw.is_empty():
-		_show_error("New password is required.")
+		_show_error(tr("New password is required."))
 		return
 	if new_pw.length() < 8:
-		_show_error("New password must be at least 8 characters.")
+		_show_error(tr("New password must be at least 8 characters."))
 		return
 	if new_pw != confirm:
-		_show_error("Passwords do not match.")
+		_show_error(tr("Passwords do not match."))
 		return
 
 	_error_label.visible = false
 	_submit_btn.disabled = true
-	_submit_btn.text = "Changing..."
+	_submit_btn.text = tr("Changing...")
 
 	var api_url := _base_url + AccordConfig.API_BASE_PATH
 	var rest := AccordRest.new(api_url)
@@ -88,10 +88,10 @@ func _on_submit() -> void:
 	rest.queue_free()
 
 	_submit_btn.disabled = false
-	_submit_btn.text = "Change Password"
+	_submit_btn.text = tr("Change Password")
 
 	if not result.ok:
-		var err_msg: String = result.error.message if result.error else "Password change failed"
+		var err_msg: String = result.error.message if result.error else tr("Password change failed")
 		_show_error(err_msg)
 		return
 

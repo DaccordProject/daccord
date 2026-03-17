@@ -15,7 +15,7 @@ var _error_label: Label
 var _members: Array = []
 
 func _ready() -> void:
-	_setup_modal("Transfer Ownership", 440.0, 450.0, true, 20.0)
+	_setup_modal(tr("Transfer Ownership"), 440.0, 450.0, true, 20.0)
 
 	# Override title font size to match original
 	if _modal_title_label:
@@ -23,14 +23,14 @@ func _ready() -> void:
 
 	# Search
 	var search_label := Label.new()
-	search_label.text = "SEARCH MEMBERS"
+	search_label.text = tr("SEARCH MEMBERS")
 	search_label.add_theme_font_size_override("font_size", 11)
 	search_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
 	content_container.add_child(search_label)
 	_search_input = LineEdit.new()
-	_search_input.placeholder_text = "Filter by username..."
+	_search_input.placeholder_text = tr("Filter by username...")
 	_search_input.text_changed.connect(
 		func(_t: String) -> void: _render_members()
 	)
@@ -65,7 +65,7 @@ func _load_members() -> void:
 	_error_label.visible = false
 	_clear_children(_member_list)
 	var loading := Label.new()
-	loading.text = "Loading members..."
+	loading.text = tr("Loading members...")
 	loading.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
@@ -111,7 +111,7 @@ func _render_members() -> void:
 		row.add_child(name_lbl)
 
 		var transfer_btn := SettingsBase.create_action_button(
-			"Transfer"
+			tr("Transfer")
 		)
 		transfer_btn.pressed.connect(
 			_on_transfer.bind(uid, uname)
@@ -122,7 +122,7 @@ func _render_members() -> void:
 
 	if _member_list.get_child_count() == 0:
 		var empty := Label.new()
-		empty.text = "No members found."
+		empty.text = tr("No members found.")
 		empty.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
@@ -132,11 +132,11 @@ func _on_transfer(user_id: String, uname: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Transfer Ownership",
-		"Transfer ownership of '%s' to %s?" % [
+		tr("Transfer Ownership"),
+		tr("Transfer ownership of '%s' to %s?") % [
 			_space_name, uname
 		],
-		"Transfer",
+		tr("Transfer"),
 		true
 	)
 	dialog.confirmed.connect(func() -> void:
@@ -145,7 +145,7 @@ func _on_transfer(user_id: String, uname: String) -> void:
 			_space_id, {"owner_id": user_id}
 		)
 		if result == null or not result.ok:
-			var msg := "Failed to transfer ownership"
+			var msg := tr("Failed to transfer ownership")
 			if result != null and result.error:
 				msg = result.error.message
 			_error_label.text = msg

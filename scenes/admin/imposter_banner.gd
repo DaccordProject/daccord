@@ -8,10 +8,10 @@ func _ready() -> void:
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
 	visible = AppState.is_imposter_mode
 	if AppState.is_imposter_mode:
-		role_label.text = "Previewing as %s" % AppState.imposter_role_name
+		role_label.text = tr("Previewing as %s") % AppState.imposter_role_name
 	ThemeManager.apply_font_colors(self)
 
 func _on_imposter_mode_changed(active: bool) -> void:
 	visible = active
 	if active:
-		role_label.text = "Previewing as %s" % AppState.imposter_role_name
+		role_label.text = tr("Previewing as %s") % AppState.imposter_role_name

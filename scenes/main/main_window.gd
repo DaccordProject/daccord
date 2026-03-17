@@ -112,7 +112,7 @@ func _ready() -> void:
 	_update_indicator = Button.new()
 	_update_indicator.custom_minimum_size = Vector2(44, 44)
 	_update_indicator.flat = true
-	_update_indicator.tooltip_text = "Update available"
+	_update_indicator.tooltip_text = tr("Update available")
 	_update_indicator.icon = preload(
 		"res://assets/theme/icons/update.svg"
 	)
@@ -264,9 +264,9 @@ func _on_channel_selected(channel_id: String) -> void:
 
 	# Update window title
 	if AppState.is_dm_mode:
-		get_window().title = "Daccord - " + channel_name
+		get_window().title = tr("Daccord - %s") % channel_name
 	else:
-		get_window().title = "Daccord - #" + channel_name
+		get_window().title = tr("Daccord - #%s") % channel_name
 
 	# Update topic bar
 	if topic != "":
@@ -358,27 +358,18 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 		return
 
 	match mode:
-		AppState.LayoutMode.FULL:
+		AppState.LayoutMode.FULL, AppState.LayoutMode.MEDIUM:
 			_drawer.move_sidebar_to_layout()
 			sidebar.visible = true
 			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
 			hamburger_button.visible = false
 			sidebar_toggle.visible = true
 			_drawer.close_drawer_immediate()
-			AppState.member_list_visible = _member_list_before_medium
-			message_view.visible = true
-			_update_member_list_visibility()
-			_update_search_visibility()
-			_sync_handle_visibility()
-		AppState.LayoutMode.MEDIUM:
-			_drawer.move_sidebar_to_layout()
-			sidebar.visible = true
-			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
-			hamburger_button.visible = false
-			sidebar_toggle.visible = true
-			_drawer.close_drawer_immediate()
-			_member_list_before_medium = AppState.member_list_visible
-			AppState.member_list_visible = false
+			if mode == AppState.LayoutMode.FULL:
+				AppState.member_list_visible = _member_list_before_medium
+			else:
+				_member_list_before_medium = AppState.member_list_visible
+				AppState.member_list_visible = false
 			message_view.visible = true
 			_update_member_list_visibility()
 			_update_search_visibility()
@@ -501,11 +492,26 @@ func _on_dm_mode_entered() -> void:
 	AppState.close_search()
 	_update_member_list_visibility()
 
-func _on_space_selected(_space_id: String) -> void:
+func _on_space_selected(space_id: String) -> void:
 	AppState.close_voice_text()
 	_update_member_list_visibility()
 	_update_search_visibility()
 	AppState.close_search()
+	_check_rules_interstitial(space_id)
+
+func _check_rules_interstitial(space_id: String) -> void:
+	if Config.has_rules_accepted(space_id):
+		return
+	var space: Dictionary = Client.get_space_by_id(space_id)
+	var rules_ch: String = space.get("rules_channel_id", "")
+	if rules_ch.is_empty():
+		return
+	var RulesDialog := preload(
+		"res://scenes/admin/rules_interstitial_dialog.gd"
+	)
+	var dialog: ModalBase = RulesDialog.new()
+	dialog.setup(space_id, rules_ch)
+	get_tree().root.add_child(dialog)
 
 func _update_member_list_visibility() -> void:
 	if AppState.is_dm_mode:
@@ -522,16 +528,11 @@ func _update_member_list_visibility() -> void:
 			member_toggle.visible = false
 			member_list.visible = false
 		return
-	match AppState.current_layout_mode:
-		AppState.LayoutMode.FULL:
-			member_toggle.visible = true
-			member_list.visible = AppState.member_list_visible
-		AppState.LayoutMode.MEDIUM:
-			member_toggle.visible = true
-			member_list.visible = AppState.member_list_visible
-		AppState.LayoutMode.COMPACT:
-			member_toggle.visible = false
-			member_list.visible = false
+	var is_compact: bool = (
+		AppState.current_layout_mode == AppState.LayoutMode.COMPACT
+	)
+	member_toggle.visible = not is_compact
+	member_list.visible = not is_compact and AppState.member_list_visible
 
 func _update_search_visibility() -> void:
 	if AppState.is_dm_mode:
@@ -614,15 +615,15 @@ func _show_consent_dialog() -> void:
 	# regardless of how it is dismissed. Default is disabled (safe).
 	Config.set_error_reporting_consent_shown()
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "Error Reporting"
-	dialog.dialog_text = (
+	dialog.title = tr("Error Reporting")
+	dialog.dialog_text = tr(
 		"Help improve daccord by sending anonymous crash and "
 		+ "error reports?\n\n"
 		+ "No personal data is included. You can change this "
 		+ "in Settings > Notifications at any time."
 	)
-	dialog.ok_button_text = "Enable"
-	dialog.cancel_button_text = "No thanks"
+	dialog.ok_button_text = tr("Enable")
+	dialog.cancel_button_text = tr("No thanks")
 	dialog.confirmed.connect(func() -> void:
 		Config.set_error_reporting_enabled(true)
 		ErrorReporting.init_sentry()
@@ -637,7 +638,7 @@ func _show_consent_dialog() -> void:
 
 func _show_crash_toast() -> void:
 	_show_toast(
-		"An error report from your last session was sent."
+		tr("An error report from your last session was sent.")
 	)
 
 func _show_toast(text: String, is_error: bool = false) -> void:
@@ -647,14 +648,14 @@ func _show_toast(text: String, is_error: bool = false) -> void:
 
 func _on_voice_view_opened(channel_id: String) -> void:
 	_voice_view.on_voice_view_opened(
-		channel_id, content_header, topic_bar,
+		channel_id, topic_bar,
 		content_body, voice_text_panel, video_grid,
 		voice_view_body, _voice_text_handle,
 	)
 
 func _on_voice_view_closed() -> void:
 	_voice_view.on_voice_view_closed(
-		content_header, content_body, message_view,
+		content_body, message_view,
 		topic_bar, video_grid, voice_view_body,
 		_voice_text_handle, _sync_handle_visibility,
 	)
@@ -663,7 +664,7 @@ func _on_voice_left_pip(channel_id: String) -> void:
 	_voice_view.on_voice_left(channel_id)
 
 func _on_voice_error(error: String) -> void:
-	_show_toast("Voice error: %s" % error, true)
+	_show_toast(tr("Voice error: %s") % error, true)
 
 func _on_image_lightbox_requested(
 	_url: String, texture: ImageTexture,
@@ -676,11 +677,11 @@ func _on_image_lightbox_requested(
 
 func _on_update_indicator_show(_info: Dictionary) -> void:
 	_update_indicator.visible = true
-	_update_indicator.tooltip_text = "Update available"
+	_update_indicator.tooltip_text = tr("Update available")
 
 func _on_update_indicator_ready(_path: String) -> void:
 	_update_indicator.visible = true
-	_update_indicator.tooltip_text = "Update ready — restart to apply"
+	_update_indicator.tooltip_text = tr("Update ready — restart to apply")
 
 func _on_update_indicator_pressed() -> void:
 	var AppSettingsScene: PackedScene = load(

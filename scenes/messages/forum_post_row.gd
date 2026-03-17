@@ -121,12 +121,12 @@ func setup(data: Dictionary) -> void:
 		elif not content.is_empty():
 			title = content.substr(0, mini(80, content.length()))
 		else:
-			title = "Untitled Post"
+			title = tr("Untitled Post")
 	_title_label.text = title
 
 	# Author
 	var author: Dictionary = data.get("author", {})
-	var display_name: String = author.get("display_name", "Unknown")
+	var display_name: String = author.get("display_name", tr("Unknown"))
 	_author_label.text = display_name
 
 	# Avatar
@@ -135,9 +135,9 @@ func setup(data: Dictionary) -> void:
 	# Reply count
 	var reply_count: int = data.get("reply_count", 0)
 	if reply_count == 1:
-		_reply_count_label.text = "1 reply"
+		_reply_count_label.text = tr("1 reply")
 	else:
-		_reply_count_label.text = "%d replies" % reply_count
+		_reply_count_label.text = tr("%d replies") % reply_count
 
 	# Last activity
 	var last_reply: String = data.get("last_reply_at", "")

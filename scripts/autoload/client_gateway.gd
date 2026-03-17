@@ -67,10 +67,14 @@ func connect_signals(
 		on_role_delete.bind(idx))
 	client.ban_create.connect(_events.on_ban_create.bind(idx))
 	client.ban_delete.connect(_events.on_ban_delete.bind(idx))
+	client.report_create.connect(
+		_events.on_report_create.bind(idx))
 	client.invite_create.connect(
 		_events.on_invite_create.bind(idx))
 	client.invite_delete.connect(
 		_events.on_invite_delete.bind(idx))
+	client.anonymous_count_updated.connect(
+		_events.on_anonymous_count_updated.bind(idx))
 	client.emoji_create.connect(
 		_events.on_emoji_create.bind(idx))
 	client.emoji_update.connect(

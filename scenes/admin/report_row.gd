@@ -3,15 +3,16 @@ extends VBoxContainer
 signal actioned(report_id: String, action_type: String)
 signal dismissed(report_id: String)
 
-const CATEGORY_LABELS := {
-	"csam": "CSAM",
-	"terrorism": "Terrorism",
-	"fraud": "Fraud / Scam",
-	"hate": "Hate Speech",
-	"violence": "Violence",
-	"self_harm": "Self-Harm",
-	"other": "Other",
-}
+var category_labels: Dictionary:
+	get: return {
+		"csam": tr("CSAM"),
+		"terrorism": tr("Terrorism"),
+		"fraud": tr("Fraud / Scam"),
+		"hate": tr("Hate Speech"),
+		"violence": tr("Violence"),
+		"self_harm": tr("Self-Harm"),
+		"other": tr("Other"),
+	}
 
 var _report_id: String = ""
 var _report_data: Dictionary = {}
@@ -39,7 +40,7 @@ func setup(data: Dictionary) -> void:
 	_report_data = data
 	_report_id = str(data.get("id", ""))
 	var cat: String = str(data.get("category", "other"))
-	_category_label.text = CATEGORY_LABELS.get(cat, cat)
+	_category_label.text = category_labels.get(cat, cat)
 
 	var target_type: String = str(data.get("target_type", ""))
 	var target_id: String = str(data.get("target_id", ""))
@@ -66,9 +67,9 @@ func setup(data: Dictionary) -> void:
 
 	var desc = data.get("description", null)
 	if desc is String and not desc.is_empty():
-		_desc_label.text = "Reason: %s" % desc
+		_desc_label.text = tr("Reason: %s") % desc
 	else:
-		_desc_label.text = "No reason provided"
+		_desc_label.text = tr("No reason provided")
 	_desc_label.visible = true
 
 	_resolve_reporter(data)
@@ -87,19 +88,19 @@ func _resolve_target(target_type: String, target_id: String) -> void:
 			if not author_name.is_empty():
 				_target_label.text = "%s: %s" % [author_name, preview]
 			else:
-				_target_label.text = "Message: %s" % preview
+				_target_label.text = tr("Message: %s") % preview
 		else:
-			_target_label.text = "Message %s" % target_id
-		_target_label.tooltip_text = "Message ID: %s" % target_id
+			_target_label.text = tr("Message %s") % target_id
+		_target_label.tooltip_text = tr("Message ID: %s") % target_id
 	else:
 		var user: Dictionary = Client.get_user_by_id(target_id)
 		if not user.is_empty():
-			_target_label.text = "User: %s" % user.get(
+			_target_label.text = tr("User: %s") % user.get(
 				"display_name", target_id
 			)
 		else:
-			_target_label.text = "User %s" % target_id
-		_target_label.tooltip_text = "User ID: %s" % target_id
+			_target_label.text = tr("User %s") % target_id
+		_target_label.tooltip_text = tr("User ID: %s") % target_id
 
 func _resolve_reporter(data: Dictionary) -> void:
 	var reporter_id = data.get("reporter_id", null)
@@ -109,23 +110,23 @@ func _resolve_reporter(data: Dictionary) -> void:
 	var rid: String = str(reporter_id)
 	var user: Dictionary = Client.get_user_by_id(rid)
 	if not user.is_empty():
-		_reporter_label.text = "Reported by %s" % user.get(
+		_reporter_label.text = tr("Reported by %s") % user.get(
 			"display_name", rid
 		)
 	else:
-		_reporter_label.text = "Reported by %s" % rid
+		_reporter_label.text = tr("Reported by %s") % rid
 	_reporter_label.visible = true
 
 func _show_action_menu() -> void:
 	_action_menu.clear()
 	var target_type: String = str(_report_data.get("target_type", ""))
-	_action_menu.add_item("Mark Reviewed", 0)
+	_action_menu.add_item(tr("Mark Reviewed"), 0)
 	if target_type == "message":
-		_action_menu.add_item("Delete Message", 1)
+		_action_menu.add_item(tr("Delete Message"), 1)
 	var target_id: String = str(_report_data.get("target_id", ""))
 	if not target_id.is_empty() and target_id != Client.current_user.get("id", ""):
-		_action_menu.add_item("Kick User", 2)
-		_action_menu.add_item("Ban User", 3)
+		_action_menu.add_item(tr("Kick User"), 2)
+		_action_menu.add_item(tr("Ban User"), 3)
 
 	var pos := _action_btn.global_position + Vector2(0, _action_btn.size.y)
 	_action_menu.hide()
@@ -153,9 +154,9 @@ func _relative_time(iso: String) -> String:
 	var then: float = Time.get_unix_time_from_datetime_dict(dt)
 	var diff: float = now - then
 	if diff < 60:
-		return "now"
+		return tr("now")
 	if diff < 3600:
-		return "%dm ago" % int(diff / 60.0)
+		return tr("%dm ago") % int(diff / 60.0)
 	if diff < 86400:
-		return "%dh ago" % int(diff / 3600.0)
-	return "%dd ago" % int(diff / 86400.0)
+		return tr("%dh ago") % int(diff / 3600.0)
+	return tr("%dd ago") % int(diff / 86400.0)

@@ -75,6 +75,15 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
 placeholder_text = "Reason for ban"
 
+[node name="PurgeLabel" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "DELETE MESSAGE HISTORY"
+theme_override_font_sizes/font_size = 11
+
+[node name="PurgeOption" type="OptionButton" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+
 [node name="SummaryLabel" type="Label" parent="CenterContainer/Panel/VBox"]
 visible = false
 layout_mode = 2

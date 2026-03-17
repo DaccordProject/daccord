@@ -222,10 +222,13 @@ user clicks a public channel in guest mode
 | `scenes/messages/message_view.gd` | Show/hide anonymous banner; disable composer in guest mode |
 | `scenes/messages/composer/composer.gd` | Grayed-out state in guest mode; click triggers registration prompt |
 | `scripts/autoload/guest_prompt.gd` | Shared `GuestPrompt` utility: `show_if_guest() -> bool` for all grayed-out inputs |
-| `scenes/messages/forum_view.gd` | Hide "New Post" button in guest mode; thread composer CTA |
-| `scenes/members/member_list.gd` | `anonymous_entry_item` aggregated count row |
-| `scenes/members/anonymous_entry_item.gd` | New scene: renders "N anonymous users" row |
-| `scenes/sidebar/guild_bar/discovery_panel.gd` | "Preview" button for guest-mode entry from directory |
+| `scenes/messages/forum_view.gd` | Grays out "New Post" button in guest mode; `GuestPrompt` on click |
+| `scenes/messages/thread_panel.gd` | Grays out thread composer in guest mode; "Sign in to reply" placeholder |
+| `scenes/members/member_list.gd` | Anonymous entry item at bottom; fetches `GET /spaces/{id}/anonymous-count` |
+| `scenes/members/anonymous_entry_item.gd` | Scene: renders "N anonymous users" row |
+| `scenes/members/anonymous_entry_item.tscn` | Scene resource for anonymous entry row |
+| `scenes/discovery/discovery_panel.gd` | Wires "Preview" button to guest-mode entry from directory |
+| `scenes/discovery/discovery_detail.gd` | "Preview" button + `preview_pressed` signal |
 | `addons/accordkit/rest/endpoints/auth_api.gd` | `guest()` method: `POST /auth/guest` |
 | `addons/accordkit/models/user.gd` | `is_guest: bool` field on `AccordUser` |
 | `dist/web/index.html` | Web HTML shell; handles URL fragment parsing for deep links; contains `window.daccordPresetServer` config for auto-guest |
@@ -400,27 +403,27 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 - [x] Persistent "You're browsing as a guest" banner with Sign In / Register buttons
 - [x] Composer grayed out with "Sign in to send a message" placeholder; click shows registration prompt
 - [x] Reaction buttons grayed out; click shows registration prompt
-- [ ] Forum "New Post" button grayed out; click shows registration prompt
-- [ ] Thread composer grayed out; click shows registration prompt
+- [x] Forum "New Post" button grayed out; click shows registration prompt
+- [x] Thread composer grayed out; click shows registration prompt
 - [x] Voice channel join grayed out; click shows registration prompt
 - [x] Context menu actions grayed out; click shows registration prompt
 - [x] DM button grayed out; click shows registration prompt
-- [ ] `anonymous_entry_item` scene + script
-- [ ] Member list anonymous count fetch + gateway event
+- [x] `anonymous_entry_item` scene + script
+- [x] Member list anonymous count fetch + gateway event
 - [x] Channel list guest filtering
-- [ ] Discovery panel "Preview" button for guest-mode entry
+- [x] Discovery panel "Preview" button for guest-mode entry
 - [x] Guest connections excluded from Config persistence / session restore
 
 ### Web-specific (preset server & auto-guest)
 - [x] URL fragment routing in HTML shell (`#space/channel/post-id`)
-- [ ] `window.daccordPresetServer` config block in HTML shell
-- [ ] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge
-- [ ] Auto-guest-connect on web via preset server (no user interaction required)
-- [ ] `localStorage` auth token check: skip guest flow if authenticated session exists
-- [ ] Same-origin fallback for `base_url` when omitted from preset config
+- [x] `window.daccordPresetServer` config block in HTML shell
+- [x] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge
+- [x] Auto-guest-connect on web via preset server (no user interaction required)
+- [x] `localStorage` auth token check: skip guest flow if authenticated session exists
+- [x] Same-origin fallback for `base_url` when omitted from preset config
 - [x] URL fragment updates as user navigates public channels
-- [ ] Guest token stored in `sessionStorage` on web
-- [ ] Auth token stored in `localStorage` on web after sign-in/register
+- [x] Guest token stored in `sessionStorage` on web
+- [x] Auth token stored in `localStorage` on web after sign-in/register
 - [x] `<noscript>` fallback link to server-rendered content
 
 ### SEO and link previews
@@ -434,20 +437,9 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No `POST /auth/guest` server endpoint | High | Entire feature blocked on accordserver support; client changes are meaningless without it |
-| No `window.daccordPresetServer` in HTML shell | High | Preset server config block not yet added to `dist/web/index.html`; required for auto-guest |
-| No `ClientWebLinks._read_preset_server()` | High | Client-side code to read preset config and trigger auto-guest connection does not exist yet |
-| No `localStorage` auth token persistence on web | High | After sign-in/register, auth token must persist to `localStorage` so return visits skip guest flow |
-| No anonymous member count endpoint | Medium | `GET /spaces/{id}/anonymous-count` and corresponding gateway event don't exist in accordkit REST layer |
-| No `anonymous_entry_item` scene | Medium | Member list has no aggregated anonymous row; entirely new scene needed |
-| Forum view has no guest-mode adaptations | Medium | `forum_view.gd` shows "New Post" button and thread composer regardless of auth state |
-| Discovery panel has no "Preview" (guest entry) button | Low | `scenes/sidebar/guild_bar/discovery_panel.gd` only has "Join" |
-| ~~Channel list guest filtering~~ | ~~Medium~~ | ~~Done: client filters by `allow_anonymous_read` in guest mode~~ |
-| ~~Token expiry handling for guest tokens~~ | ~~Low~~ | ~~Done: silent refresh timer re-requests `POST /auth/guest` before expiry~~ |
-| ~~No web URL routing for deep links~~ | ~~High~~ | ~~Done: URL fragment routing implemented in `ClientWebLinks`~~ |
-| ~~No server-side HTML rendering for SEO~~ | ~~High~~ | ~~Done: implemented in `accordserver/src/routes/seo.rs`~~ |
-| ~~No Open Graph meta tags~~ | ~~Medium~~ | ~~Done: OG/Twitter Card tags on server-rendered HTML snapshots~~ |
-| ~~No `<noscript>` fallback~~ | ~~Low~~ | ~~Done: added to HTML shell~~ |
+| No `POST /auth/guest` server endpoint | High | Entire feature blocked on accordserver support; client-side code is ready but untestable without it |
+| Guest token rate limiting (server-side) | Medium | Server should rate-limit `POST /auth/guest` by IP (e.g. 10 tokens/IP/hour) to prevent abuse |
+| `try_auto_connect()` not wired in Client._ready | Medium | `ClientWebLinks.try_auto_connect()` exists but needs to be called from `Client._ready()` on web builds |
 
 ## Related User Flows
 

@@ -23,33 +23,33 @@ func _ready() -> void:
 	avatar.mouse_exited.connect(_on_avatar_hover_exit)
 	# Setup status popup on the status icon
 	_status_popup = PopupMenu.new()
-	_status_popup.add_item("Online", 0)
-	_status_popup.add_item("Idle", 1)
-	_status_popup.add_item("Do Not Disturb", 2)
-	_status_popup.add_item("Invisible", 3)
+	_status_popup.add_item(tr("Online"), 0)
+	_status_popup.add_item(tr("Idle"), 1)
+	_status_popup.add_item(tr("Do Not Disturb"), 2)
+	_status_popup.add_item(tr("Invisible"), 3)
 	_status_popup.add_separator()
-	_status_popup.add_item("Set Custom Status", 4)
+	_status_popup.add_item(tr("Set Custom Status"), 4)
 	_status_popup.id_pressed.connect(_on_status_id_pressed)
 	add_child(_status_popup)
 	status_icon.gui_input.connect(_on_status_icon_input)
 	# Setup menu
 	var popup := menu_button.get_popup()
-	popup.add_item("App Settings", 6)
-	popup.add_item("Server Settings", 20)
+	popup.add_item(tr("App Settings"), 6)
+	popup.add_item(tr("Server Settings"), 20)
 	popup.add_separator()
-	popup.add_check_item("Suppress @everyone", 15)
+	popup.add_check_item(tr("Suppress @everyone"), 15)
 	var se_idx: int = popup.get_item_index(15)
 	popup.set_item_checked(
 		se_idx, Config.get_suppress_everyone()
 	)
 	popup.add_separator()
-	popup.add_item("Export Profile", 18)
-	popup.add_item("Import Profile", 19)
+	popup.add_item(tr("Export Profile"), 18)
+	popup.add_item(tr("Import Profile"), 19)
 	popup.add_separator()
-	popup.add_item("Report a Problem", 13)
+	popup.add_item(tr("Report a Problem"), 13)
 	popup.add_separator()
-	popup.add_item("About", 10)
-	popup.add_item("Quit", 11)
+	popup.add_item(tr("About"), 10)
+	popup.add_item(tr("Quit"), 11)
 	popup.id_pressed.connect(_on_menu_id_pressed)
 	_update_server_settings_state()
 	AppState.space_selected.connect(_on_server_settings_state_changed)
@@ -75,7 +75,7 @@ func _apply_theme() -> void:
 
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get(
-		"display_name", "User"
+		"display_name", tr("User")
 	)
 	username.text = user.get("username", "user")
 	avatar.setup_from_dict(user)
@@ -204,23 +204,23 @@ func _update_server_settings_state() -> void:
 func _show_about_dialog() -> void:
 	var version: String = Client.app_version
 	var dlg := AcceptDialog.new()
-	dlg.title = "About Daccord"
+	dlg.title = tr("About Daccord")
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
 
 	var title_label := Label.new()
-	title_label.text = "Daccord v%s" % version
+	title_label.text = tr("Daccord v%s") % version
 	title_label.add_theme_font_size_override("font_size", 18)
 	vbox.add_child(title_label)
 
 	var desc_label := Label.new()
-	desc_label.text = "A chat client for accordserver instances."
+	desc_label.text = tr("A chat client for accordserver instances.")
 	desc_label.add_theme_font_size_override("font_size", 13)
 	vbox.add_child(desc_label)
 
 	var license_label := Label.new()
-	license_label.text = "License: MIT"
+	license_label.text = tr("License: MIT")
 	license_label.add_theme_font_size_override("font_size", 12)
 	license_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -241,17 +241,17 @@ func _show_about_dialog() -> void:
 
 func _show_custom_status_dialog() -> void:
 	var dlg := AcceptDialog.new()
-	dlg.title = "Set Custom Status"
-	dlg.ok_button_text = "Save"
+	dlg.title = tr("Set Custom Status")
+	dlg.ok_button_text = tr("Save")
 
 	var vbox := VBoxContainer.new()
 	var line_edit := LineEdit.new()
-	line_edit.placeholder_text = "What's on your mind?"
+	line_edit.placeholder_text = tr("What's on your mind?")
 	line_edit.text = Config.get_custom_status()
 	vbox.add_child(line_edit)
 
 	var clear_btn := Button.new()
-	clear_btn.text = "Clear Status"
+	clear_btn.text = tr("Clear Status")
 	clear_btn.pressed.connect(func() -> void:
 		line_edit.text = ""
 	)
@@ -277,24 +277,24 @@ func _show_custom_status_dialog() -> void:
 
 func _show_feedback_dialog() -> void:
 	var dlg := AcceptDialog.new()
-	dlg.title = "Report a Problem"
-	dlg.ok_button_text = "Send Report"
+	dlg.title = tr("Report a Problem")
+	dlg.ok_button_text = tr("Send Report")
 
 	var vbox := VBoxContainer.new()
 	var label := Label.new()
-	label.text = "Describe what happened (optional):"
+	label.text = tr("Describe what happened (optional):")
 	label.add_theme_font_size_override("font_size", 13)
 	vbox.add_child(label)
 
 	var text_edit := TextEdit.new()
 	text_edit.custom_minimum_size = Vector2(350, 120)
-	text_edit.placeholder_text = (
+	text_edit.placeholder_text = tr(
 		"Steps to reproduce, what you expected..."
 	)
 	vbox.add_child(text_edit)
 
 	var info := Label.new()
-	info.text = (
+	info.text = tr(
 		"No messages, usernames, or personal info is sent."
 	)
 	info.add_theme_font_size_override("font_size", 11)
@@ -307,7 +307,7 @@ func _show_feedback_dialog() -> void:
 	dlg.confirmed.connect(func() -> void:
 		var desc: String = text_edit.text.strip_edges()
 		if desc.is_empty():
-			desc = "User-initiated report (no description)"
+			desc = tr("User-initiated report (no description)")
 		ErrorReporting.report_problem(desc)
 		_show_report_sent_toast()
 		dlg.queue_free()
@@ -317,7 +317,7 @@ func _show_feedback_dialog() -> void:
 	dlg.popup_centered()
 
 func _show_report_sent_toast() -> void:
-	_show_toast("Report sent. Thank you!")
+	_show_toast(tr("Report sent. Thank you!"))
 
 func _show_toast(text: String) -> void:
 	var toast := Label.new()
@@ -371,14 +371,14 @@ func _show_export_dialog() -> void:
 	fd.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
 	fd.use_native_dialog = true
-	fd.title = "Export Profile"
-	fd.add_filter("*.daccord-profile", "daccord Profile")
+	fd.title = tr("Export Profile")
+	fd.add_filter("*.daccord-profile", tr("daccord Profile"))
 	fd.file_selected.connect(func(path: String) -> void:
-		var err := Config.export_config(path)
+		var err: Error = Config.exporter.export_config(path)
 		if err == OK:
-			_show_toast("Profile exported successfully.")
+			_show_toast(tr("Profile exported successfully."))
 		else:
-			_show_toast("Export failed (error %d)." % err)
+			_show_toast(tr("Export failed (error %d).") % err)
 		fd.queue_free()
 	)
 	fd.canceled.connect(fd.queue_free)
@@ -390,9 +390,9 @@ func _show_import_dialog() -> void:
 	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	fd.access = FileDialog.ACCESS_FILESYSTEM
 	fd.use_native_dialog = true
-	fd.title = "Import Profile"
+	fd.title = tr("Import Profile")
 	fd.add_filter(
-		"*.daccord-profile; *.cfg", "Profile Files"
+		"*.daccord-profile; *.cfg", tr("Profile Files")
 	)
 	fd.file_selected.connect(func(path: String) -> void:
 		fd.queue_free()
@@ -407,16 +407,16 @@ func _show_import_name_dialog(
 	import_path: String,
 ) -> void:
 	var dlg := AcceptDialog.new()
-	dlg.title = "Name Imported Profile"
-	dlg.ok_button_text = "Import"
+	dlg.title = tr("Name Imported Profile")
+	dlg.ok_button_text = tr("Import")
 	var line := LineEdit.new()
-	line.placeholder_text = "Profile name"
+	line.placeholder_text = tr("Profile name")
 	line.max_length = 32
 	dlg.add_child(line)
 	dlg.confirmed.connect(func() -> void:
 		var pname := line.text.strip_edges()
 		if pname.is_empty():
-			pname = "Imported"
+			pname = tr("Imported")
 		var slug: String = Config.profiles.create(pname)
 		var new_cfg := ConfigFile.new()
 		var err := new_cfg.load(import_path)
@@ -433,10 +433,10 @@ func _show_import_name_dialog(
 			new_cfg.save_encrypted_pass(
 				cfg_path, Config._derive_key()
 			)
-			_show_toast("Profile imported successfully.")
+			_show_toast(tr("Profile imported successfully."))
 		else:
 			_show_toast(
-				"Import failed (error %d)." % err
+				tr("Import failed (error %d).") % err
 			)
 		dlg.queue_free()
 	)

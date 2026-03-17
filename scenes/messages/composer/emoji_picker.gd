@@ -24,7 +24,7 @@ func _ready() -> void:
 	add_to_group("themed")
 	_build_category_bar()
 	search_input.text_changed.connect(_on_search_changed)
-	search_input.placeholder_text = "Search emoji..."
+	search_input.placeholder_text = tr("Search emoji...")
 	AppState.emojis_updated.connect(_on_emojis_updated)
 
 func _apply_theme() -> void:
@@ -47,7 +47,7 @@ func _build_category_bar() -> void:
 	_recent_btn.custom_minimum_size = Vector2(36, 36)
 	_recent_btn.expand_icon = true
 	_recent_btn.icon = EmojiData.get_texture("watch")
-	_recent_btn.tooltip_text = "Recently Used"
+	_recent_btn.tooltip_text = tr("Recently Used")
 	_recent_btn.pressed.connect(_on_recent_category_pressed)
 	category_bar.add_child(_recent_btn)
 
@@ -58,7 +58,7 @@ func _build_category_bar() -> void:
 		_custom_btn.custom_minimum_size = Vector2(36, 36)
 		_custom_btn.expand_icon = true
 		_custom_btn.icon = EmojiData.get_texture("star")
-		_custom_btn.tooltip_text = "Custom"
+		_custom_btn.tooltip_text = tr("Custom")
 		_custom_btn.pressed.connect(_on_custom_category_pressed)
 		category_bar.add_child(_custom_btn)
 

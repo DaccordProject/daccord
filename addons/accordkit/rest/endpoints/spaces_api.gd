@@ -53,3 +53,11 @@ func reorder_channels(space_id: String, data: Array) -> RestResult:
 func join(space_id: String) -> RestResult:
 	var result := await _rest.make_request("POST", "/spaces/" + space_id + "/join")
 	return result
+
+
+## Fetches the current anonymous (guest) viewer count for a space.
+## Returns RestResult with data = { "count": int }.
+func anonymous_count(space_id: String) -> RestResult:
+	return await _rest.make_request(
+		"GET", "/spaces/" + space_id + "/anonymous-count"
+	)

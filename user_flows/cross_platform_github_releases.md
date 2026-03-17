@@ -1,80 +1,83 @@
 # Cross-Platform GitHub Releases
 
-Last touched: 2026-03-05
+Last touched: 2026-03-17
 Priority: 40
 Depends on: Continuous Integration
 
 ## Overview
 
-This flow documents how daccord builds release artifacts via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.8`) is pushed, a CI pipeline first runs lint + tests (reusable workflow), then validates the tag against `project.godot`, installs all required addons (GUT, Sentry SDK, godot-livekit), downloads GodotLite custom templates for reduced binary size, exports the Godot project for all enabled platforms, optionally injects a production Sentry DSN, packages each artifact (with `.desktop` file for Linux, DMG for macOS), optionally signs/notarizes (when secrets are configured), builds a Windows installer via Inno Setup, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`. Linux x86_64, ARM64, Windows, macOS, and Android are enabled. All platforms work without LiveKit because all GDExtension type references have been replaced with dynamic lookups that are parse-safe when the extension is unavailable. The workflow removes the `.gdextension` file when the platform binary is missing, preventing crashes (including the macOS `NSException` from loading a nil dylib URL). On macOS, LiveKit dylibs are stashed before Godot import to avoid an AVFoundation crash on headless runners, then injected back into the exported `.app` bundle.
+This flow documents how daccord builds release artifacts via GitHub Actions and publishes them as GitHub Releases. When a version tag (e.g., `v0.1.12`) is pushed, a CI pipeline first runs lint + tests (reusable workflow), then validates the tag against `project.godot`, installs all required addons (GUT, Sentry SDK, godot-livekit), downloads GodotLite custom templates for reduced binary size, exports the Godot project for all enabled platforms, optionally injects a production Sentry DSN, packages each artifact (with `.desktop` file for Linux, DMG for macOS), optionally signs/notarizes (when secrets are configured), builds a Windows installer via Inno Setup, and creates a GitHub Release with changelog notes extracted from `CHANGELOG.md`. Linux x86_64, ARM64, Windows, macOS, Android, and Web are enabled. All platforms work without LiveKit because all GDExtension type references have been replaced with dynamic lookups that are parse-safe when the extension is unavailable. The workflow removes the `.gdextension` file when the platform binary is missing, preventing crashes (including the macOS `NSException` from loading a nil dylib URL). On macOS, LiveKit dylibs are stashed before Godot import to avoid an AVFoundation crash on headless runners, then injected back into the exported `.app` bundle.
 
 ## User Steps
 
 ### Tagging a Release
 
 1. Developer updates `CHANGELOG.md` with a new version section (e.g., `## [0.2.0]`) following Keep a Changelog format.
-2. Developer updates `config/version` in `project.godot` (currently `"0.1.8"`, line 18).
+2. Developer updates `config/version` in `project.godot` (currently `"0.1.12"`, line 18).
 3. Developer commits the changes and pushes to `master`.
 4. Developer creates and pushes a git tag: `git tag v0.2.0 && git push origin v0.2.0`.
 5. The `v*` tag push triggers the Release workflow (`.github/workflows/release.yml`, line 6).
 
 ### What Happens in CI
 
-6. The CI job runs first (line 18-21) as a reusable workflow call to `.github/workflows/ci.yml`, inheriting secrets. This runs lint, unit tests, integration tests, and GodotLite export validation. Build jobs wait for CI to pass (`needs: ci`, line 25).
-7. Build jobs run in the `default` GitHub environment (line 27) for each enabled platform: Linux x86_64, ARM64, and Windows on `ubuntu-latest`, macOS on `macos-latest`, and Android on `ubuntu-latest`.
+6. The CI job runs first (lines 18-21) as a reusable workflow call to `.github/workflows/ci.yml`, inheriting secrets. This runs lint, unit tests, integration tests, web export smoke test, and GodotLite export validation. Build jobs wait for CI to pass (`needs: ci`, line 25).
+7. Build jobs run in the `default` GitHub environment (line 27) for each enabled platform: Linux x86_64, ARM64, and Windows on `ubuntu-latest`, macOS on `macos-latest`, Android and Web on `ubuntu-latest`.
 8. Each build job validates that the git tag matches the version in `project.godot`. If they differ, the build fails immediately.
-9. Audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`, `libpipewire-0.3-dev`) are installed on Linux runners (lines 71-75).
-10. Android builds set up Java JDK 17 (lines 77-82), Android SDK/NDK (lines 84-95), and decode/generate a keystore (lines 97-118).
-11. GUT 9.5.0 addon is installed with caching (lines 120-133). Uses `curl` instead of `wget` for macOS compatibility.
-12. Sentry SDK 1.3.2 addon is installed with caching (lines 135-151). Downloaded from `getsentry/sentry-godot` releases using `GH_PAT` secret.
-13. The godot-livekit addon is downloaded from the latest NodotProject/godot-livekit release (`godot-livekit-release.zip`) and installed into `addons/godot-livekit` (lines 153-168).
-14. A safety step checks whether the godot-livekit native binary exists for the current platform (lines 171-192). If missing, the `.gdextension` file is removed to prevent Godot from crashing.
-15. On macOS, an additional step stashes all LiveKit dylibs to a temp directory before Godot import (lines 194-229). This prevents the Godot editor from loading the LiveKit C++ SDK, which triggers AVFoundation camera device enumeration and crashes on macOS 14+ headless runners with "Pure virtual function called!". The stashed dylibs are injected back post-export.
-16. Godot 4.5 is installed via `chickensoft-games/setup-godot@v2` with export templates included (lines 231-236).
-17. Godot import cache is restored/saved per platform (lines 238-244).
-18. The project is imported headlessly (`godot --headless --import .`, line 247).
-19. If the `SENTRY_DSN` secret is configured, the Sentry DSN in `project.godot` is replaced with the production value (lines 250-256).
-20. GodotLite custom templates are downloaded from `NodotProject/GodotLite` releases for Linux x86_64, Windows, and macOS (lines 258-314). ARM64 and Android skip this step and use stock templates. macOS requires special handling: the GodotLite binary is extracted and inserted into the stock template's `.app` structure (preserving Info.plist placeholders), with an `NSCameraUseContinuityCameraDeviceType` plist key added to prevent LiveKit AVFoundation crashes.
-21. Custom template paths in `export_presets.cfg` are checked — if a referenced template file doesn't exist, the path is cleared so Godot falls back to stock templates (lines 316-329).
-22. Android builds configure the Godot editor settings with SDK/NDK paths (lines 331-343) and inject keystore credentials into `export_presets.cfg` (lines 345-356).
-23. The build output directory is created, then the project is exported with `godot --headless --export-release "<Preset>"` (lines 358-363).
-24. On macOS, stashed LiveKit dylibs are injected into the exported `.app` bundle's `Contents/Frameworks/` directory, ad-hoc signed, and the Info.plist is updated with the camera key (lines 365-409).
-25. Platform-specific packaging runs (lines 411-459):
-    - **Linux (x86_64 and ARM64):** `tar.gz` archive including the `.desktop` file and icon.
-    - **Windows:** `zip` archive. If `WINDOWS_CERT_BASE64` secret is set, the `.exe` is signed with `osslsigncode`.
-    - **Android:** `.apk` copied to artifact name.
-    - **macOS:** `.zip` from Godot's export. If `APPLE_CERTIFICATE_BASE64` is set, the app bundle is code-signed. If `APPLE_ID` is set, the app is notarized and stapled.
-26. A macOS DMG is created with an Applications symlink for drag-and-drop installation (lines 520-534).
-27. Packaged artifacts are uploaded via `actions/upload-artifact@v4`.
+9. Audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`, `libpipewire-0.3-dev`) are installed on Linux runners (lines 76-80).
+10. Android builds set up Java JDK 17 (lines 82-87), Android SDK/NDK (lines 89-93), cache SDK components (lines 95-105), install remaining components if cache misses (lines 107-110), and decode/generate a keystore (lines 118-139).
+11. GUT 9.5.0 addon is installed with caching (lines 141-154). Uses `curl` instead of `wget` for macOS compatibility.
+12. Sentry SDK 1.3.2 addon is installed with caching (lines 156-172). Downloaded from `getsentry/sentry-godot` releases using `GH_PAT` secret.
+13. The godot-livekit addon is downloaded from the latest NodotProject/godot-livekit release (`godot-livekit-release.zip`) and installed into `addons/godot-livekit` (lines 174-190).
+14. A safety step checks whether the godot-livekit native binary exists for the current platform (lines 192-214). If missing, the `.gdextension` file is removed to prevent Godot from crashing.
+15. On macOS, an additional step stashes all LiveKit dylibs to a temp directory before Godot import (lines 216-251). This prevents the Godot editor from loading the LiveKit C++ SDK, which triggers AVFoundation camera device enumeration and crashes on macOS 14+ headless runners with "Pure virtual function called!". The stashed dylibs are injected back post-export.
+16. Godot 4.5 is installed via `chickensoft-games/setup-godot@v2` with export templates included (lines 253-258).
+17. Godot import cache is restored/saved per platform (lines 260-266).
+18. The project is imported headlessly (`godot --headless --import .`, line 269).
+19. If the `SENTRY_DSN` secret is configured, the Sentry DSN in `project.godot` is replaced with the production value (lines 272-278).
+20. GodotLite custom templates are downloaded from `NodotProject/GodotLite` releases for Linux x86_64, Windows, and macOS (lines 280-336). ARM64, Android, and Web skip this step and use stock templates. macOS requires special handling: the GodotLite binary is extracted and inserted into the stock template's `.app` structure (preserving Info.plist placeholders), with an `NSCameraUseContinuityCameraDeviceType` plist key added to prevent LiveKit AVFoundation crashes.
+21. Custom template paths in `export_presets.cfg` are checked — if a referenced template file doesn't exist, the path is cleared so Godot falls back to stock templates (lines 338-351).
+22. Android builds configure the Godot editor settings with SDK/NDK paths (lines 353-365) and set `GODOT_ANDROID_KEYSTORE_*` environment variables for Godot 4.3+ keystore resolution (lines 367-378).
+23. The build output directory is created, then the project is exported with `godot --headless --export-release "<Preset>"` (lines 380-385).
+24. On macOS, stashed LiveKit dylibs are injected into the exported `.app` bundle's `Contents/Frameworks/` directory, ad-hoc signed, verified against the `.gdextension` manifest, and the Info.plist is updated with the camera key (lines 387-460).
+25. Web builds bundle JS dependencies: `livekit-client` UMD from CDN, plus `godot-livekit-web.js` and `coop_coep.js` from `dist/web/` (lines 507-518).
+26. Platform-specific packaging runs:
+    - **Linux (x86_64 and ARM64):** `tar.gz` archive including the `.desktop` file and icon (lines 462-469).
+    - **Windows:** `zip` archive. If `WINDOWS_CERT_BASE64` secret is set, the `.exe` is signed with `osslsigncode` (lines 471-500).
+    - **Android:** `.apk` copied to artifact name (lines 502-505).
+    - **Web:** `zip` archive of the build directory (lines 520-524).
+    - **macOS:** `.zip` from Godot's export. If `APPLE_CERTIFICATE_BASE64` is set, the app bundle is code-signed. If `APPLE_ID` is set, the app is notarized and stapled (lines 526-588).
+27. Two macOS DMGs (arm64 and x86_64, both containing the universal build) are created with Applications symlinks for drag-and-drop installation (lines 590-607).
+28. Packaged artifacts are uploaded via `actions/upload-artifact@v4`, including both macOS DMGs (lines 609-616).
 
 ### Windows Installer
 
-28. After the build job completes, a separate `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 544).
-29. The job downloads the `daccord-windows-x86_64` zip artifact from the build job and extracts it into `dist/build/windows/`.
-30. Inno Setup is installed via `choco install innosetup` (lines 569-571).
-31. The version is extracted from `project.godot` and passed to the Inno Setup compiler (`iscc`) which compiles `dist/installer.iss` into `daccord-windows-x86_64-setup.exe` (lines 573-575).
-32. If `WINDOWS_CERT_BASE64` is configured, the installer is code-signed with `signtool` (native Windows signing, lines 578-588).
-33. The installer artifact is uploaded separately.
+29. After the build job completes, a separate `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 621).
+30. The job downloads the `daccord-windows-x86_64` zip artifact from the build job and extracts it into `dist/build/windows/`.
+31. Inno Setup is installed via `choco install innosetup` (lines 645-648).
+32. The version is extracted from `project.godot` and passed to the Inno Setup compiler (`iscc`) which compiles `dist/installer.iss` into `daccord-windows-x86_64-setup.exe` (lines 650-652).
+33. If `WINDOWS_CERT_BASE64` is configured, the installer is code-signed with `signtool` (native Windows signing, lines 655-665).
+34. The installer artifact is uploaded separately.
 
 ### Release Creation
 
-34. After both the build and windows-installer jobs succeed, the release job runs on `blacksmith-4vcpu-ubuntu-2404` (line 599) and downloads all artifacts.
-35. The job extracts changelog notes for the tagged version from `CHANGELOG.md` using `awk`.
-36. If no matching changelog section is found, the release body falls back to `"Release <tag>"`.
-37. A GitHub Release is created via `softprops/action-gh-release@v2` with the tag name as the release title, changelog as the body, and all platform artifacts attached (including the Windows installer and macOS DMG).
-38. If the tag contains a hyphen (e.g., `v0.2.0-beta`), the release is automatically marked as a prerelease.
+35. After both the build and windows-installer jobs succeed, the release job runs on `blacksmith-4vcpu-ubuntu-2404` (line 676) and downloads all artifacts.
+36. The job extracts changelog notes for the tagged version from `CHANGELOG.md` using `awk`.
+37. If no matching changelog section is found, the release body falls back to `"Release <tag>"`.
+38. A GitHub Release is created via `softprops/action-gh-release@v2` with the tag name as the release title, changelog as the body, and all platform artifacts attached (including the Windows installer, macOS DMGs, Web zip, and Android APK).
+39. If the tag contains a hyphen (e.g., `v0.2.0-beta`), the release is automatically marked as a prerelease.
 
 ### Downloading a Release (End User)
 
-39. End user visits the GitHub Releases page.
-40. User downloads the artifact matching their platform:
+40. End user visits the GitHub Releases page.
+41. User downloads the artifact matching their platform:
     - **Linux x86_64:** `daccord-linux-x86_64.tar.gz` — extract and run `daccord.x86_64`. Includes `daccord.desktop` and `daccord.png` for desktop integration.
     - **Linux ARM64:** `daccord-linux-arm64.tar.gz` — extract and run `daccord.arm64`. Includes `daccord.desktop` and `daccord.png` for desktop integration.
     - **Windows (installer):** `daccord-windows-x86_64-setup.exe` — run the installer. Installs to `Program Files`, creates Start Menu shortcuts, registers `daccord://` URL protocol, and optionally creates a desktop shortcut. Supports per-user install without admin rights.
     - **Windows (portable):** `daccord-windows-x86_64.zip` — extract and run `daccord.exe`. No installation required.
-    - **macOS (DMG):** `daccord-macos.dmg` — open the disk image and drag `daccord.app` to Applications.
+    - **macOS (DMG):** `daccord-macos-arm64.dmg` or `daccord-macos-x86_64.dmg` — open the disk image and drag `daccord.app` to Applications. Both contain the universal (x86_64 + ARM64) binary.
     - **macOS (zip):** `daccord-macos.zip` — extract and open `daccord.app`.
     - **Android:** `daccord-android-arm64.apk` — sideload the APK (requires "Install unknown apps" permission).
+    - **Web:** `daccord-web.zip` — deploy to a web server with COOP/COEP headers. See [Web Export](web_export.md).
 
 ## Signal Flow
 
@@ -83,23 +86,23 @@ Developer pushes tag v*
   -> GitHub Actions triggers .github/workflows/release.yml
 
 ci job (reusable workflow call, line 18):
-  -> .github/workflows/ci.yml (lint, unit tests, integration tests, GodotLite validation)
+  -> .github/workflows/ci.yml (lint, unit tests, integration tests, web export smoke test, GodotLite validation)
   -> All CI jobs must pass before build starts
 
-build job (matrix: linux, linux-arm64, windows, macos, android — needs: ci):
+build job (matrix: linux, linux-arm64, windows, macos, android, web — needs: ci):
   -> actions/checkout@v4 (main repo + LFS)
   -> Validate version matches tag
        strips "v" prefix from tag, compares to project.godot config/version
        fails build on mismatch
   -> [Linux only] Install audio libraries (libasound2-dev, libpulse-dev, libopus-dev, libpipewire-0.3-dev)
-  -> [Android only] Set up Java JDK 17, Android SDK/NDK, decode/generate keystore
+  -> [Android only] Set up Java JDK 17, Android SDK/NDK (with caching), decode/generate keystore
   -> Cache + Install GUT 9.5.0 (curl for macOS compat)
   -> Cache + Install Sentry SDK 1.3.2 (gh release download from getsentry/sentry-godot, uses GH_PAT)
   -> Install godot-livekit addon (latest release)
        gh release download from NodotProject/godot-livekit
        extracts addons/godot-livekit into workspace
   -> Remove godot-livekit if platform binary missing
-       checks for libgodot-livekit.linux.x86_64.so/.dll/.dylib/.android.arm64.so per platform
+       checks for libgodot-livekit.linux.x86_64.so/.dll/.dylib/.android.arm64.so/.web.wasm32.wasm per platform
        removes .gdextension file if missing (prevents macOS NSException crash)
   -> [macOS only] Stash LiveKit dylibs to prevent editor crash
        moves all .dylib files to $RUNNER_TEMP/livekit_dylibs
@@ -118,7 +121,7 @@ build job (matrix: linux, linux-arm64, windows, macos, android — needs: ci):
   -> Clear missing custom templates (sed -i.bak for macOS compat)
        scans export_presets.cfg for custom_template/release paths
        clears any paths where the file doesn't exist (stock fallback)
-  -> [Android only] Configure Godot Android SDK path, inject keystore into export preset
+  -> [Android only] Configure Godot Android SDK path, set GODOT_ANDROID_KEYSTORE_* env vars
   -> mkdir -p dist/build/<platform>
   -> godot --headless --export-release "<Preset>"
      reads export_presets.cfg (uses GodotLite templates where available):
@@ -127,14 +130,20 @@ build job (matrix: linux, linux-arm64, windows, macos, android — needs: ci):
        preset.2 "macOS"       -> dist/build/macos/daccord.zip
        preset.3 "Linux ARM64" -> dist/build/linux-arm64/daccord.arm64
        preset.4 "Android"     -> dist/build/android/daccord.apk
+       preset.5 "Web"         -> dist/build/web/Daccord.html
   -> [macOS only] Inject stashed LiveKit dylibs into exported .app bundle
-       copies dylibs to Contents/Frameworks/
+       copies dylibs to Contents/Frameworks/addons/godot-livekit/bin/
        adds NSCameraUseContinuityCameraDeviceType plist key
        ad-hoc signs each dylib
+       verifies all GDExtension macOS dylib paths exist in bundle
+  -> [web only] Bundle JS dependencies
+       downloads livekit-client UMD from CDN
+       copies godot-livekit-web.js and coop_coep.js from dist/web/
   -> Platform packaging:
        linux*:  copy .desktop + icon, tar czf daccord-linux-*.tar.gz
        windows: zip -r daccord-windows-x86_64.zip
        android: cp daccord.apk daccord-android-arm64.apk
+       web:     zip -r daccord-web.zip
        macos:   cp daccord.zip daccord-macos.zip
   -> [conditional] Windows code signing (if WINDOWS_CERT_BASE64 secret)
        osslsigncode signs daccord.exe, re-packages zip
@@ -142,7 +151,7 @@ build job (matrix: linux, linux-arm64, windows, macos, android — needs: ci):
        imports .p12 into temp keychain, codesign --deep --force --options runtime
   -> [conditional] macOS notarization (if APPLE_ID secret)
        xcrun notarytool submit + xcrun stapler staple
-  -> [macOS] Create DMG with Applications symlink (hdiutil create)
+  -> [macOS] Create two DMGs (arm64 + x86_64) with Applications symlink (hdiutil create)
   -> actions/upload-artifact@v4
 
 windows-installer job (needs: build, runs-on: blacksmith-4vcpu-windows-2025):
@@ -173,18 +182,22 @@ release job (needs: [build, windows-installer], runs-on: blacksmith-4vcpu-ubuntu
 
 | File | Role |
 |------|------|
-| `.github/workflows/release.yml` | Release CI pipeline. Calls CI as reusable workflow, installs GUT/Sentry/audio libs/godot-livekit, validates version tag, downloads GodotLite templates, stashes/injects macOS LiveKit dylibs, builds all 5 platforms in parallel, clears missing custom templates, packages with .desktop files and DMG, optionally signs/notarizes, creates GitHub Release. |
-| `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests + GodotLite validation). Runs on PR to `master` and as reusable `workflow_call`. Four jobs on `blacksmith-4vcpu-ubuntu-2404` runners. |
-| `export_presets.cfg` | Godot export presets for Linux x86_64 (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3), Android (preset.4). Defines output paths, architectures, custom templates, and platform-specific options. |
-| `project.godot` | Project config. Declares version (`config/version="0.1.8"`, line 18), Sentry DSN (`sentry/config/dsn`), renderer (GL Compatibility), and autoloads. |
-| `CHANGELOG.md` | Keep a Changelog format. The release job extracts notes for the tagged version from this file. Latest release: `[0.1.8] - 2026-03-02`. |
-| `.gitignore` | Excludes `dist/build/` and `dist/templates/` but tracks `dist/icons/` and `dist/daccord.desktop`. |
+| `.github/workflows/release.yml` | Release CI pipeline. Calls CI as reusable workflow, installs GUT/Sentry/audio libs/godot-livekit, validates version tag, downloads GodotLite templates, stashes/injects macOS LiveKit dylibs, builds all 6 platforms in parallel, bundles web JS dependencies, clears missing custom templates, packages with .desktop files and DMGs, optionally signs/notarizes, creates GitHub Release. |
+| `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests + web export smoke test + GodotLite validation). Runs on push to `master`, PR to `master`, and as reusable `workflow_call`. Five jobs on `blacksmith-4vcpu-ubuntu-2404` runners. |
+| `export_presets.cfg` | Godot export presets for Linux x86_64 (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3), Android (preset.4), Web (preset.5). Defines output paths, architectures, custom templates, and platform-specific options. |
+| `project.godot` | Project config. Declares version (`config/version="0.1.12"`, line 18), Sentry DSN (`sentry/config/dsn`), renderer (GL Compatibility), and autoloads. |
+| `CHANGELOG.md` | Keep a Changelog format. The release job extracts notes for the tagged version from this file. Latest release: `[0.1.12] - 2026-03-14`. |
+| `.gitignore` | Excludes `dist/build/` and `dist/templates/` but tracks `dist/icons/`, `dist/web/`, and `dist/daccord.desktop`. |
 | `dist/installer.iss` | Inno Setup script for the Windows installer. Defines app metadata, install directory, Start Menu/desktop shortcuts, `daccord://` URL protocol registry entries, and file sources. Version is injected at build time via `/DMyAppVersion`. |
-| `dist/icons/daccord.ico` | Windows application icon referenced by the Windows export preset and installer. |
-| `dist/icons/icon_1024x1024.png` | macOS application icon referenced by the macOS export preset (line 137). |
-| `dist/icons/icon_128x128.png` | Linux icon bundled into release artifacts as `daccord.png`. |
+| `assets/icons/daccord.ico` | Windows application icon referenced by the Windows export preset and installer. |
+| `assets/icons/icon_1024x1024.png` | macOS application icon referenced by the macOS export preset (line 143). |
+| `assets/icons/icon_128x128.png` | Linux icon bundled into release artifacts as `daccord.png`. |
+| `dist/icons/` | Duplicate icon directory. Both `assets/icons/` and `dist/icons/` contain the same icon set. Export presets reference `assets/icons/`; the installer references `dist/icons/`. |
 | `dist/templates/` | GodotLite custom export templates for reduced binary size. Gitignored. Downloaded at build time from NodotProject/GodotLite releases. The workflow clears missing template paths so Godot falls back to stock templates. See [Reducing Build Size](reducing_build_size.md). |
 | `dist/daccord.desktop` | Linux desktop entry file. Includes `daccord://` URL protocol handler (`MimeType=x-scheme-handler/daccord;`). Included in both Linux x86_64 and ARM64 release artifacts. |
+| `dist/web/index.html` | Custom HTML shell for the Web export preset (referenced at `export_presets.cfg` line 674). |
+| `dist/web/godot-livekit-web.js` | Web voice/video wrapper. Bundled into web build artifacts during the release workflow. |
+| `dist/web/coop_coep.js` | Service worker for Cross-Origin-Opener-Policy / Cross-Origin-Embedder-Policy headers. Required for SharedArrayBuffer support in browsers. |
 | `scripts/autoload/error_reporting.gd` | Sentry SDK integration. Delegates to `SentrySceneTree` for SDK initialization — the DSN is injected into `project.godot` by the release workflow. |
 
 ## Implementation Details
@@ -193,7 +206,7 @@ release job (needs: [build, windows-installer], runs-on: blacksmith-4vcpu-ubuntu
 
 **Trigger:** Push of a tag matching `v*` (line 6). The workflow requires `contents: write` permission (line 15) to create releases. Build jobs use the `default` GitHub environment (line 27) for access to environment secrets.
 
-**CI gate** (lines 18-21): Before any builds start, the release workflow calls `.github/workflows/ci.yml` as a reusable workflow (`uses: ./.github/workflows/ci.yml`) with `secrets: inherit`. This runs lint, unit tests, integration tests, and GodotLite export validation. The build job depends on CI passing (`needs: ci`, line 25).
+**CI gate** (lines 18-21): Before any builds start, the release workflow calls `.github/workflows/ci.yml` as a reusable workflow (`uses: ./.github/workflows/ci.yml`) with `secrets: inherit`. This runs lint, unit tests, integration tests, web export smoke test, and GodotLite export validation. The build job depends on CI passing (`needs: ci`, line 25).
 
 **Environment variables** (lines 8-12):
 - `GODOT_VERSION: "4.5.0"` — Godot engine version for setup-godot action.
@@ -201,7 +214,7 @@ release job (needs: [build, windows-installer], runs-on: blacksmith-4vcpu-ubuntu
 - `GUT_VERSION: "9.5.0"` — GUT test framework version (required as enabled plugin in project.godot).
 - `SENTRY_VERSION: "1.3.2"` — Sentry SDK version (required for error reporting autoload).
 
-**Build matrix** (lines 28-55): Five active entries for all platforms:
+**Build matrix** (lines 28-60): Six active entries for all platforms:
 
 | Platform | Preset | Artifact | Extension | Runner | Status |
 |----------|--------|----------|-----------|--------|--------|
@@ -210,83 +223,90 @@ release job (needs: [build, windows-installer], runs-on: blacksmith-4vcpu-ubuntu
 | `windows` | `Windows` | `daccord-windows-x86_64` | `exe` | `ubuntu-latest` | Active |
 | `macos` | `macOS` | `daccord-macos` | `zip` | `macos-latest` | Active |
 | `android` | `Android` | `daccord-android-arm64` | `apk` | `ubuntu-latest` | Active |
+| `web` | `Web` | `daccord-web` | `zip` | `ubuntu-latest` | Active |
 
 **How builds work without LiveKit:** All GDExtension type annotations (`AccordMediaTrack`, `AccordVoiceSession`) have been replaced with base types or untyped variants. The `LiveKit` singleton is resolved dynamically via `Engine.get_singleton()` at runtime, so scripts parse successfully even when the GDExtension is absent. Voice/video features are disabled gracefully (null guards). Test files referencing LiveKit types are excluded from export via `exclude_filter="tests/*"` in `export_presets.cfg`. On macOS, Godot throws a fatal `NSInvalidArgumentException` if a GDExtension references a missing `.dylib`, so the workflow removes the `.gdextension` file entirely when the platform binary is absent.
 
-**Audio library installation** (lines 71-75): Linux runners install `libasound2-dev`, `libpulse-dev`, `libopus-dev`, and `libpipewire-0.3-dev` needed by LiveKit. Conditional on `runner.os == 'Linux'` so it's skipped on macOS.
+**Audio library installation** (lines 76-80): Linux runners install `libasound2-dev`, `libpulse-dev`, `libopus-dev`, and `libpipewire-0.3-dev` needed by LiveKit. Conditional on `runner.os == 'Linux'` so it's skipped on macOS.
 
-**Android build setup** (lines 77-118):
-- **Java JDK 17** (lines 77-82): Uses `actions/setup-java@v4` with Temurin distribution.
-- **Android SDK** (lines 84-95): Uses `android-actions/setup-android@v3` with cmdline-tools 11076708. Installs `platform-tools`, `build-tools;34.0.0`, `platforms;android-34`, `ndk;23.2.8568313`. Sets `ANDROID_SDK_ROOT` and `ANDROID_NDK_ROOT` environment variables.
-- **Keystore** (lines 97-118): Decodes `ANDROID_KEYSTORE_BASE64` from GitHub secrets. If unavailable, generates a debug keystore as fallback with default credentials (`androiddebugkey`/`android`).
+**Android build setup** (lines 82-139):
+- **Java JDK 17** (lines 82-87): Uses `actions/setup-java@v4` with Temurin distribution.
+- **Android SDK** (lines 89-93): Uses `android-actions/setup-android@v3` with cmdline-tools 11076708.
+- **SDK component caching** (lines 95-110): Caches `platform-tools`, `build-tools;34.0.0`, `platforms;android-34`, `ndk;23.2.8568313` via `actions/cache@v4`. Components are only installed via `sdkmanager` on cache miss. Sets `ANDROID_SDK_ROOT` and `ANDROID_NDK_ROOT` environment variables (lines 112-116).
+- **Keystore** (lines 118-139): Decodes `ANDROID_KEYSTORE_BASE64` from GitHub secrets. If unavailable, generates a debug keystore as fallback with default credentials (`androiddebugkey`/`android`).
 
 **Addon installation:**
-- **GUT** (lines 120-133): Cached by version. Downloaded via `curl -sL` (not `wget`, for macOS compatibility).
-- **Sentry SDK** (lines 135-151): Cached by version. Downloaded from `getsentry/sentry-godot` releases via `gh release download`. Uses `GH_PAT` secret for authentication (line 151).
+- **GUT** (lines 141-154): Cached by version. Downloaded via `curl -sL` (not `wget`, for macOS compatibility).
+- **Sentry SDK** (lines 156-172): Cached by version. Downloaded from `getsentry/sentry-godot` releases via `gh release download`. Uses `GH_PAT` secret for authentication (line 172).
 
 Both are required because `project.godot` lists them as enabled plugins.
 
-**godot-livekit addon download** (lines 153-168): A `gh release download` step fetches the latest `godot-livekit-release.zip` from the `NodotProject/godot-livekit` repository and replaces `addons/godot-livekit` with the extracted addon so release builds use the released addon contents.
+**godot-livekit addon download** (lines 174-190): A `gh release download` step fetches the latest `godot-livekit-release.zip` from the `NodotProject/godot-livekit` repository and replaces `addons/godot-livekit` with the extracted addon so release builds use the released addon contents.
 
-**godot-livekit safety removal** (lines 171-192): After the download step, a per-platform check determines whether the expected native library exists. The case statement maps each platform:
+**godot-livekit safety removal** (lines 192-214): After the download step, a per-platform check determines whether the expected native library exists. The case statement maps each platform:
 - `linux`: `libgodot-livekit.linux.x86_64.so`
 - `linux-arm64`: `libgodot-livekit.linux.x86_64.so` (cross-compiled, uses x86_64 binary)
 - `windows`: `libgodot-livekit.windows.x86_64.dll`
 - `macos`: `libgodot-livekit.macos.arm64.dylib`
 - `android`: `libgodot-livekit.android.arm64.so`
+- `web`: `libgodot-livekit.web.wasm32.wasm`
 
 If missing, the entire `.gdextension` file (and its `.uid`) is removed.
 
-**macOS LiveKit dylib stash** (lines 194-229): The LiveKit C++ SDK triggers AVFoundation camera device enumeration on load, which crashes with "Pure virtual function called!" on macOS 14+ headless runners. Before Godot import, this step moves all `.dylib` files from `addons/godot-livekit/bin/` (both top-level and arch-specific `macos-*/` subdirectories) to `$RUNNER_TEMP/livekit_dylibs`. The stash path is exported as `LIVEKIT_DYLIB_STASH` for the post-export injection step.
+**macOS LiveKit dylib stash** (lines 216-251): The LiveKit C++ SDK triggers AVFoundation camera device enumeration on load, which crashes with "Pure virtual function called!" on macOS 14+ headless runners. Before Godot import, this step moves all `.dylib` files from `addons/godot-livekit/bin/` (both top-level and arch-specific `macos-*/` subdirectories) to `$RUNNER_TEMP/livekit_dylibs`. The stash path is exported as `LIVEKIT_DYLIB_STASH` for the post-export injection step.
 
-**GodotLite template download** (lines 258-314): Downloads pre-built minimal export templates from `NodotProject/GodotLite` releases, tagged with `GODOTLITE_TAG` (currently `v4.5`). Skipped for `linux-arm64` and `android` (no GodotLite templates available — stock fallback). Platform handling:
+**GodotLite template download** (lines 280-336): Downloads pre-built minimal export templates from `NodotProject/GodotLite` releases, tagged with `GODOTLITE_TAG` (currently `v4.5`). Skipped for `linux-arm64`, `android`, and `web` (no GodotLite templates available — stock fallback). Platform handling:
 - **Linux x86_64:** Direct binary download, `chmod +x`.
 - **Windows:** Direct binary download, `chmod +x`.
 - **macOS:** The GodotLite release asset is a zip containing `macos_template.app/`. The step extracts the universal binary from it, then copies it into the stock Godot template's `.app` structure (preserving the stock `Info.plist` with its `$binary`/`$name` placeholders). An `NSCameraUseContinuityCameraDeviceType` plist key is added to prevent LiveKit AVFoundation crashes. The result is zipped to `dist/templates/godot.macos.template_release.universal`.
 
-**Version validation** (lines 62-69): Strips the `v` prefix from the git tag and compares it against `config/version` in `project.godot`. If they differ, the step emits a `::error::` annotation and exits with code 1.
+**Version validation** (lines 67-74): Strips the `v` prefix from the git tag and compares it against `config/version` in `project.godot`. If they differ, the step emits a `::error::` annotation and exits with code 1.
 
 **AccordKit:** The `accordkit` addon is developed in-tree under `addons/accordkit/` (no separate checkout needed). Previous versions checked out accordkit from a separate repo — this is no longer the case.
 
-**Custom template fallback** (lines 316-329): Before export, a step scans `export_presets.cfg` for `custom_template/release` paths and checks if each referenced file exists. If a template is missing, the path is cleared via `sed -i.bak` so Godot falls back to stock templates.
+**Custom template fallback** (lines 338-351): Before export, a step scans `export_presets.cfg` for `custom_template/release` paths and checks if each referenced file exists. If a template is missing, the path is cleared via `sed -i.bak` so Godot falls back to stock templates.
 
-**Godot import caching** (lines 238-244): The `.godot/imported` directory is cached per platform and content hash. The cache key includes `matrix.platform` to prevent cross-platform cache pollution. Restore keys allow partial matches on the Godot version + platform prefix.
+**Godot import caching** (lines 260-266): The `.godot/imported` directory is cached per platform and content hash. The cache key includes `matrix.platform` to prevent cross-platform cache pollution. Restore keys allow partial matches on the Godot version + platform prefix.
 
-**Godot setup** (lines 231-236): Uses `chickensoft-games/setup-godot@v2` with `include-templates: true`. This downloads the stock Godot export templates for all platforms. The `use-dotnet: false` flag skips the .NET/C# variant.
+**Godot setup** (lines 253-258): Uses `chickensoft-games/setup-godot@v2` with `include-templates: true`. This downloads the stock Godot export templates for all platforms. The `use-dotnet: false` flag skips the .NET/C# variant.
 
-**Import step** (line 247): `godot --headless --import . || true` — the `|| true` prevents the workflow from failing if the import produces warnings. 2-minute timeout.
+**Import step** (line 269): `godot --headless --import . || true` — the `|| true` prevents the workflow from failing if the import produces warnings. 2-minute timeout.
 
-**Sentry DSN injection** (lines 250-256): Conditionally replaces the `config/dsn` value in `project.godot` with the production Sentry DSN from the `SENTRY_DSN` GitHub secret. Uses `sed -i.bak` + `rm -f *.bak` for macOS compatibility. Only runs if the secret is non-empty.
+**Sentry DSN injection** (lines 272-278): Conditionally replaces the `config/dsn` value in `project.godot` with the production Sentry DSN from the `SENTRY_DSN` GitHub secret. Uses `sed -i.bak` + `rm -f *.bak` for macOS compatibility. Only runs if the secret is non-empty.
 
-**Android Godot configuration** (lines 331-356): Two Android-specific steps:
-- **SDK path config** (lines 331-343): Creates `$HOME/.config/godot/editor_settings-4.tres` with `export/android/android_sdk_path` and `export/android/java_sdk_path` so Godot can find the toolchain.
-- **Keystore injection** (lines 345-356): Updates `export_presets.cfg` with keystore path, user, and password via `sed`. Falls back to debug keystore environment variables if release secrets are unavailable.
+**Android Godot configuration** (lines 353-378): Two Android-specific steps:
+- **SDK path config** (lines 353-365): Creates `$HOME/.config/godot/editor_settings-4.tres` with `export/android/android_sdk_path` and `export/android/java_sdk_path` so Godot can find the toolchain.
+- **Keystore env vars** (lines 367-378): Sets `GODOT_ANDROID_KEYSTORE_RELEASE_PATH`, `GODOT_ANDROID_KEYSTORE_RELEASE_USER`, and `GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD` environment variables. Godot 4.3+ reads keystore configuration from these env vars natively, replacing the previous approach of injecting values into `export_presets.cfg` via `sed`.
 
-**Export step** (lines 361-363): `godot --headless --export-release "${{ matrix.preset }}"` runs the export. The output path comes from `export_presets.cfg`. 10-minute timeout.
+**Export step** (lines 383-385): `godot --headless --export-release "${{ matrix.preset }}"` runs the export. The output path comes from `export_presets.cfg`. 10-minute timeout.
 
-**macOS LiveKit dylib injection** (lines 365-409): After export, if dylibs were stashed, this step:
+**macOS LiveKit dylib injection** (lines 387-460): After export, if dylibs were stashed, this step:
 1. Unzips the exported `.app` from `dist/build/macos/daccord.zip`.
-2. Creates `Contents/Frameworks/` and copies all stashed dylibs (including arch-specific subdirectories).
+2. Creates `Contents/Frameworks/addons/godot-livekit/bin/` and copies all stashed dylibs (including arch-specific subdirectories).
 3. Adds `NSCameraUseContinuityCameraDeviceType` to the app's `Info.plist`.
 4. Ad-hoc signs each injected dylib with `codesign --force --sign -`.
-5. Re-zips the `.app` bundle.
+5. Verifies every macOS dylib referenced in the `.gdextension` file exists at the expected path in the bundle. Fails the build if any are missing.
+6. Re-zips the `.app` bundle.
+
+**Web JS bundling** (lines 507-518): Web builds download `livekit-client` UMD bundle from CDN and copy `godot-livekit-web.js` and `coop_coep.js` from `dist/web/` into the build directory. These provide browser-based voice/video and cross-origin isolation.
 
 **Packaging**:
-- **Linux** (lines 411-418, both x86_64 and ARM64): Copies `dist/daccord.desktop` and `dist/icons/icon_128x128.png` (as `daccord.png`) into the build directory, then creates a `tar.gz` archive.
-- **Windows** (lines 420-449): Creates a `zip` archive. If the `WINDOWS_CERT_BASE64` secret is configured, a subsequent step installs `osslsigncode`, extracts the zip, signs `daccord.exe` with the PFX certificate, and re-packages.
-- **Android** (lines 451-454): Copies `dist/build/android/daccord.apk` to `daccord-android-arm64.apk`.
-- **macOS** (lines 456-518): Godot's macOS export produces a `.zip` containing the `.app` bundle. If `APPLE_CERTIFICATE_BASE64` is configured, the app is unzipped, code-signed with `codesign --deep --force --options runtime`, and re-zipped. If `APPLE_ID` is configured, the app is submitted for notarization via `xcrun notarytool`, then stapled with `xcrun stapler`.
-- **macOS DMG** (lines 520-534): Creates a `.dmg` disk image using `hdiutil create` with UDZO compression. The image contains `daccord.app` and an `Applications` symlink for drag-and-drop installation.
+- **Linux** (lines 462-469, both x86_64 and ARM64): Copies `dist/daccord.desktop` and `assets/icons/icon_128x128.png` (as `daccord.png`) into the build directory, then creates a `tar.gz` archive.
+- **Windows** (lines 471-500): Creates a `zip` archive. If the `WINDOWS_CERT_BASE64` secret is configured, a subsequent step installs `osslsigncode`, extracts the zip, signs `daccord.exe` with the PFX certificate, and re-packages.
+- **Android** (lines 502-505): Copies `dist/build/android/daccord.apk` to `daccord-android-arm64.apk`.
+- **Web** (lines 520-524): Zips the contents of `dist/build/web/` into `daccord-web.zip`.
+- **macOS** (lines 526-588): Godot's macOS export produces a `.zip` containing the `.app` bundle. If `APPLE_CERTIFICATE_BASE64` is configured, the app is unzipped, code-signed with `codesign --deep --force --options runtime`, and re-zipped. If `APPLE_ID` is configured, the app is submitted for notarization via `xcrun notarytool`, then stapled with `xcrun stapler`.
+- **macOS DMGs** (lines 590-607): Creates two DMG disk images (`daccord-macos-arm64.dmg` and `daccord-macos-x86_64.dmg`) using `hdiutil create` with UDZO compression. Both contain the same universal build — the two names provide architecture-specific download links. Each image contains `daccord.app` and an `Applications` symlink for drag-and-drop installation.
 
-**Artifact upload** (lines 535-539): Each build uploads its packaged archive. The `path` glob `${{ matrix.artifact }}.*` matches the `.tar.gz`, `.zip`, `.apk`, or `.dmg` file.
+**Artifact upload** (lines 609-616): Each build uploads its packaged archive. The `path` includes `${{ matrix.artifact }}.*` (matching `.tar.gz`, `.zip`, `.apk`) plus explicit `daccord-macos-arm64.dmg` and `daccord-macos-x86_64.dmg` entries for the macOS build.
 
 ### Windows Installer Job
 
-The `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 544) after the build job completes.
+The `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 621) after the build job completes.
 
 **Why a separate job:** Inno Setup is a Windows-only tool. The Windows build itself cross-compiles on `ubuntu-latest` via Godot's export templates. Rather than running Inno Setup through Wine (which is fragile), a dedicated Windows runner provides native, reliable installer compilation.
 
-**Inno Setup installation** (lines 569-571): Inno Setup is installed via `choco install innosetup` since it is not pre-installed on the Blacksmith Windows runner.
+**Inno Setup installation** (lines 645-648): Inno Setup is installed via `choco install innosetup` since it is not pre-installed on the Blacksmith Windows runner.
 
 **Artifact flow:** The job downloads the `daccord-windows-x86_64` artifact (the zip from the build job), extracts it into `dist/build/windows/`, then runs `iscc` against `dist/installer.iss`. The script's `[Files]` section reads from `build\windows\*` relative to the `dist/` directory.
 
@@ -307,9 +327,9 @@ The `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 544) a
 
 ### Release Job
 
-The release job depends on both `build` and `windows-installer` (`needs: [build, windows-installer]`, line 598). Runs on `blacksmith-4vcpu-ubuntu-2404` (line 599).
+The release job depends on both `build` and `windows-installer` (`needs: [build, windows-installer]`, line 675). Runs on `blacksmith-4vcpu-ubuntu-2404` (line 676).
 
-**Artifact download**: Uses `pattern: daccord-*` and `merge-multiple: true` to merge all platform artifacts (including the Windows installer, macOS DMG, and Android APK) into a single `artifacts/` directory.
+**Artifact download**: Uses `pattern: daccord-*` and `merge-multiple: true` to merge all platform artifacts (including the Windows installer, macOS DMGs, Web zip, and Android APK) into a single `artifacts/` directory.
 
 **Changelog extraction**: Uses `awk` to extract the section between `## [<version>]` and the next `## [` heading. Falls back to `"Release <tag>"` if no matching section exists.
 
@@ -335,7 +355,7 @@ All desktop presets reference GodotLite custom templates from `dist/templates/` 
 - Output: `dist/build/windows/daccord.exe`.
 - Custom template: `res://dist/templates/godot.windows.template_release.x86_64.exe`.
 - Architecture: `x86_64`.
-- Application metadata set: icon (`dist/icons/daccord.ico`), company name (`daccord-projects`), product name (`Daccord`), description, copyright.
+- Application metadata set: icon (`assets/icons/daccord.ico`), company name (`daccord-projects`), product name (`Daccord`), description, copyright.
 - Code signing disabled in preset (`codesign/enable=false`) — signing handled by the workflow when secrets are available.
 - D3D12 Agility SDK multiarch enabled.
 
@@ -348,7 +368,7 @@ All desktop presets reference GodotLite custom templates from `dist/templates/` 
 - Notarization disabled in preset (`notarization/notarization=0`) — handled by the workflow when secrets are available.
 - Bundle identifier: `com.daccord-projects.daccord`.
 - Category: `public.app-category.social-networking`.
-- Minimum macOS version: `10.15`.
+- Minimum macOS version: `10.12` (x86_64), `11.00` (ARM64).
 - High-DPI enabled.
 - OpenXR disabled.
 
@@ -362,26 +382,38 @@ All desktop presets reference GodotLite custom templates from `dist/templates/` 
 **Android** (preset.4):
 - Output: `dist/build/android/daccord.apk`.
 - No custom template (uses stock Godot export templates).
-- Architecture: `arm64-v8a` only (line 222).
-- Texture format: ETC2/ASTC only (line 227).
-- Package name: `com.daccord_projects.daccord` (line 228).
-- Permissions: internet, access_network_state, record_audio, camera (lines 246-249).
-- Min/target SDK left empty (using Godot defaults, lines 220-221).
-- Version name: `0.1.8` (line 251).
-- Keystore paths injected by workflow at build time (lines 252-257).
+- Architecture: `arm64-v8a` only (line 454).
+- Texture format: ETC2/ASTC only (lines 642-643).
+- Package name: `com.daccord_projects.daccord` (line 459).
+- Permissions: internet, access_network_state, record_audio, camera.
+- Min/target SDK left empty (using Godot defaults, lines 450-451).
+- Version name: `0.1.8` (line 458, stale — not auto-updated by workflow).
+- Keystore configured via `GODOT_ANDROID_KEYSTORE_*` environment variables at build time.
+
+**Web** (preset.5):
+- Output: `dist/build/web/Daccord.html`.
+- No custom template (uses stock Godot export templates).
+- Custom HTML shell: `res://dist/web/index.html` (line 674).
+- Excludes: `tests/*`, `addons/godot-livekit/*`, `addons/godot_sandbox/*`, `addons/sentry/*`, `scripts/sentry_scene_tree.gd` (line 655).
+- Extensions support: disabled (stock WASM, no GDExtension).
+- Thread support: disabled.
+- Desktop texture compression (S3TC/BPTC) only.
+- Progressive Web App: disabled.
+- Cross-origin isolation headers: enabled via service worker (`coop_coep.js`).
 
 ### CI Workflow (`.github/workflows/ci.yml`)
 
-The CI workflow runs on PR to `master` and as a reusable `workflow_call` (lines 4-6). It has four jobs, all on `blacksmith-4vcpu-ubuntu-2404` runners:
+The CI workflow runs on push to `master`, PR to `master`, and as a reusable `workflow_call` (lines 3-8). It has five jobs, all on `blacksmith-4vcpu-ubuntu-2404` runners:
 
-- **Lint job** (line 15): Installs `gdtoolkit` via pip, runs `gdlint scripts/ scenes/`. Also runs `gdradon` complexity analysis and flags functions with grades C-F.
-- **Unit test job** (line 47, needs lint): Installs godot-livekit, audio libraries, GUT and Sentry SDK (with caching), sets up Godot (without templates), validates project startup, caches Godot imports, runs GUT unit tests from `tests/unit/`. Also runs LiveKit tests with `continue-on-error` (may crash without audio hardware). Outputs test summaries to GitHub Step Summary.
-- **Integration test job** (line 179, needs lint): Checks out accordserver from `DaccordProject/accordserver`, installs Rust via `dtolnay/rust-toolchain@stable`, sets up `sccache` with fallback, caches Rust builds, builds accordserver, starts it with `ACCORD_TEST_MODE=true` and SQLite database, waits for `/health` readiness. Runs AccordKit unit tests and REST integration tests. Uploads server logs as artifact.
-- **GodotLite validation job** (line 380, needs lint): Downloads the GodotLite Linux x86_64 template, installs all addons, exports with the GodotLite template, and validates the exported binary starts without fatal errors (checks for `MainLoop type doesn't exist`, `SCRIPT ERROR`, etc.). Catches module-stripping regressions before they reach release builds.
+- **Lint job** (line 17): Installs `gdtoolkit` via pip, runs `gdlint scripts/ scenes/`. Also runs `gdradon` complexity analysis and flags functions with grades C-F.
+- **Unit test job** (line 49, needs lint): Installs godot-livekit, audio libraries, GUT and Sentry SDK (with caching), sets up Godot (without templates), validates project startup, caches Godot imports, runs GUT unit tests from `tests/unit/`. Also runs LiveKit tests with `continue-on-error` (may crash without audio hardware). Outputs test summaries to GitHub Step Summary.
+- **Integration test job** (line 181, needs lint): Checks out accordserver from `DaccordProject/accordserver`, installs Rust via `dtolnay/rust-toolchain@stable`, sets up `sccache` with fallback, caches Rust builds, builds accordserver, starts it with `ACCORD_TEST_MODE=true` and SQLite database, waits for `/api/v1/gateway` readiness. Runs AccordKit unit tests and REST integration tests. Uploads server logs as artifact.
+- **GodotLite validation job** (line 382, needs lint): Downloads the GodotLite Linux x86_64 template, installs all addons, exports with the GodotLite template, and validates the exported binary starts without fatal errors (checks for `MainLoop type doesn't exist`, `SCRIPT ERROR`, etc.). Catches module-stripping regressions before they reach release builds.
+- **Web export & Chrome smoke test job** (line 523, needs lint): Exports for Web platform, validates required artifacts (`Daccord.html`, `.js`, `.wasm`, `.pck`), copies COOP/COEP service worker, starts a Python HTTP server with isolation headers, runs headless Chrome against the page for 10 seconds to catch SharedArrayBuffer/WASM load errors. Uploads web build artifact.
 
 ### Changelog Format (`CHANGELOG.md`)
 
-Uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format with Semantic Versioning. The latest release is `[0.1.8] - 2026-03-02`. When cutting a new release:
+Uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format with Semantic Versioning. The latest release is `[0.1.12] - 2026-03-14`. When cutting a new release:
 1. Rename `[Unreleased]` to `[0.x.0]` with a date.
 2. Add a new empty `[Unreleased]` section above it.
 3. The `awk` command in the release job expects headers like `## [0.2.0]`.
@@ -389,16 +421,18 @@ Uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format with Semant
 ### Platform Distribution Assets
 
 The `dist/` directory contains platform-specific distribution files:
-- `dist/icons/` — App icons at multiple resolutions (16x16 through 1024x1024 PNG, plus `.ico` for Windows). Tracked in git.
+- `dist/icons/` — App icons at multiple resolutions (16x16 through 1024x1024 PNG, plus `.ico` for Windows). Tracked in git. Also duplicated in `assets/icons/`.
 - `dist/templates/` — GodotLite custom export templates for reduced binary size. Gitignored. Downloaded at build time from NodotProject/GodotLite releases.
 - `dist/daccord.desktop` — Linux FreeDesktop entry file. Tracked in git. Includes `daccord://` URL protocol handler. Included in both Linux x86_64 and ARM64 release artifacts.
+- `dist/web/` — Web platform assets. Contains `index.html` (custom HTML shell), `godot-livekit-web.js` (voice/video wrapper), `coop_coep.js` (COOP/COEP service worker), and `livekit-client.umd.min.js` (LiveKit UMD bundle). Tracked in git.
 
 ### Version Management
 
-The project version is set in `project.godot` at `config/version="0.1.8"` (line 18). This is the only source of truth for the version number. The release workflow validates that the git tag matches this version, failing the build on mismatch.
+The project version is set in `project.godot` at `config/version="0.1.12"` (line 18). This is the only source of truth for the version number. The release workflow validates that the git tag matches this version, failing the build on mismatch.
 
 - There is no `APP_VERSION` constant in client code — `client.gd` and `config.gd` have no version references.
 - `error_reporting.gd` delegates to `SentrySceneTree` for SDK initialization, which reads the version from ProjectSettings at runtime.
+- The Android `version/name` in `export_presets.cfg` (line 458) is stale at `"0.1.8"` and not auto-updated by the workflow.
 
 ### Sentry DSN Injection
 
@@ -431,39 +465,40 @@ Signing and notarization are conditional on GitHub secrets being configured. Wit
 
 ### macOS DMG Creation
 
-After signing/notarization, a DMG disk image is created (lines 520-534):
+After signing/notarization, two DMG disk images are created (lines 590-607):
 1. The signed `.zip` is extracted to a temp directory.
 2. An `Applications` symlink is created alongside `daccord.app`.
-3. `hdiutil create` produces `daccord-macos.dmg` with UDZO compression.
-4. The DMG is uploaded alongside the `.zip` as a release artifact.
-
-This provides a familiar drag-and-drop installation experience for macOS users.
+3. `hdiutil create` produces `daccord-macos-arm64.dmg` with UDZO compression.
+4. The DMG is copied to `daccord-macos-x86_64.dmg` (identical contents — both contain the universal binary).
+5. Both DMGs are uploaded alongside the `.zip` as release artifacts, providing architecture-specific download links.
 
 ## Implementation Status
 
 - [x] Release workflow triggered by `v*` tag push
 - [x] CI gate: lint + tests run before builds via reusable workflow call
-- [x] Linux x86_64, ARM64, Windows, macOS, and Android builds active
+- [x] Linux x86_64, ARM64, Windows, macOS, Android, and Web builds active
 - [x] AccordKit addon developed in-tree (no separate checkout needed)
 - [x] godot-livekit addon installed from latest NodotProject/godot-livekit release
 - [x] GUT addon installation with caching (required as enabled plugin)
 - [x] Sentry SDK installation with caching (required for error reporting autoload)
 - [x] Audio library installation for Linux runners (including libpipewire-0.3-dev)
-- [x] godot-livekit safety removal when platform binary missing
+- [x] godot-livekit safety removal when platform binary missing (including web WASM check)
 - [x] macOS LiveKit dylib stash before import (prevents AVFoundation crash)
-- [x] macOS LiveKit dylib injection post-export into .app bundle
+- [x] macOS LiveKit dylib injection post-export into .app bundle with verification
 - [x] Godot 4.5 setup with export templates
 - [x] Godot import caching (per-platform keys)
 - [x] Headless project import before export
 - [x] GodotLite template download for Linux x86_64, Windows, and macOS
 - [x] GodotLite export validation in CI (catches module-stripping regressions)
+- [x] Web export and Chrome headless smoke test in CI
 - [x] Platform-specific artifact packaging (tar.gz, zip, apk, dmg)
+- [x] Web JS dependency bundling (livekit-client, godot-livekit-web, COOP/COEP service worker)
 - [x] Artifact upload between jobs
 - [x] Changelog extraction from `CHANGELOG.md`
 - [x] Automatic prerelease detection from tag hyphens
 - [x] GitHub Release creation with artifacts and notes
-- [x] CI pipeline (lint + unit tests + integration tests + GodotLite validation) on PR
-- [x] Export presets configured for all five platforms
+- [x] CI pipeline (lint + unit tests + integration tests + web export + GodotLite validation) on PR and push
+- [x] Export presets configured for all six platforms
 - [x] macOS universal binary preset (x86_64 + ARM64) with ETC2/ASTC enabled
 - [x] Windows application metadata (icon, company, description)
 - [x] Version tag validation against `project.godot`
@@ -473,7 +508,7 @@ This provides a familiar drag-and-drop installation experience for macOS users.
 - [x] Windows code signing step (conditional on `WINDOWS_CERT_BASE64` secret)
 - [x] macOS code signing step (conditional on `APPLE_CERTIFICATE_BASE64` secret)
 - [x] macOS notarization step (conditional on `APPLE_ID` secret)
-- [x] macOS DMG creation with Applications symlink
+- [x] macOS DMG creation (arm64 + x86_64 variants from universal build)
 - [x] Linux `.desktop` file and icon included in release artifacts
 - [x] `dist/icons/` and `dist/daccord.desktop` tracked in git
 - [x] ARM64 Linux build in matrix
@@ -482,10 +517,13 @@ This provides a familiar drag-and-drop installation experience for macOS users.
 - [x] Windows installer with `daccord://` URL protocol registration
 - [x] Windows installer code signing step (conditional on `WINDOWS_CERT_BASE64` secret, uses native `signtool`)
 - [x] macOS build with LiveKit dylib stash/inject workflow
-- [x] Android build with Java/SDK/NDK setup and keystore management
+- [x] Android build with Java/SDK/NDK setup, SDK caching, and keystore management
+- [x] Android keystore via `GODOT_ANDROID_KEYSTORE_*` env vars (Godot 4.3+ native support)
 - [x] Blacksmith runners for Windows installer and release jobs
-- [ ] GodotLite templates for Linux ARM64 and Android (no GodotLite builds available — stock fallback used)
-- [ ] Android min/target SDK versions (export_presets.cfg lines 220-221 are empty, using Godot defaults)
+- [x] Web export preset with custom HTML shell and JS dependency bundling
+- [ ] GodotLite templates for Linux ARM64, Android, and Web (no GodotLite builds available — stock fallback used)
+- [ ] Android min/target SDK versions (export_presets.cfg lines 450-451 are empty, using Godot defaults)
+- [ ] Android version/name in export_presets.cfg is stale (`0.1.8` vs project version `0.1.12`)
 
 ## Tasks
 
@@ -510,12 +548,12 @@ This provides a familiar drag-and-drop installation experience for macOS users.
 - **Tags:** config
 - **Notes:** Workflow steps exist but require Apple Developer account secrets (`APPLE_CERTIFICATE_BASE64`, `APPLE_ID`, etc.). Gatekeeper will block the app until secrets are configured.
 
-### RELEASE-4: Missing ARM64 and Android GodotLite templates
+### RELEASE-4: Missing ARM64, Android, and Web GodotLite templates
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 3
 - **Tags:** ci
-- **Notes:** GodotLite only provides Linux x86_64, Windows, and macOS templates. ARM64 Linux and Android use stock Godot templates, resulting in larger binaries. GodotLite ARM64 and Android support would need to be added upstream at NodotProject/GodotLite.
+- **Notes:** GodotLite only provides Linux x86_64, Windows, and macOS templates. ARM64 Linux, Android, and Web use stock Godot templates, resulting in larger binaries. GodotLite support for these platforms would need to be added upstream at NodotProject/GodotLite.
 
 ### RELEASE-5: ARM64 Linux cross-compilation
 - **Status:** open
@@ -529,4 +567,18 @@ This provides a familiar drag-and-drop installation experience for macOS users.
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** ci, mobile
-- **Notes:** `export_presets.cfg` lines 220-221 leave min SDK and target SDK empty, relying on Godot defaults. Should explicitly set min SDK 24 (Android 7.0, Godot 4.5 minimum) and target SDK 34 (current Play Store requirement).
+- **Notes:** `export_presets.cfg` lines 450-451 leave min SDK and target SDK empty, relying on Godot defaults. Should explicitly set min SDK 24 (Android 7.0, Godot 4.5 minimum) and target SDK 34 (current Play Store requirement).
+
+### RELEASE-7: Stale Android version name
+- **Status:** open
+- **Impact:** 1
+- **Effort:** 1
+- **Tags:** ci, mobile
+- **Notes:** `export_presets.cfg` line 458 has `version/name="0.1.8"` while the project version is `0.1.12`. The workflow does not auto-update this field. Should either inject the version at build time or keep it in sync manually.
+
+### RELEASE-8: Duplicate icon directories
+- **Status:** open
+- **Impact:** 1
+- **Effort:** 1
+- **Tags:** cleanup
+- **Notes:** Icons exist in both `assets/icons/` and `dist/icons/`. Export presets reference `assets/icons/`; the installer references `dist/icons/`. The release workflow Linux packaging references `assets/icons/icon_128x128.png` (line 468). Should consolidate to one directory.

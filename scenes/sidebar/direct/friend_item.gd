@@ -39,7 +39,7 @@ func setup(data: Dictionary) -> void:
 	_rel_data = data
 	var user: Dictionary = data.get("user", {})
 	var rel_type: int = data.get("type", 0)
-	var dname: String = user.get("display_name", "Unknown")
+	var dname: String = user.get("display_name", tr("Unknown"))
 	var is_available: bool = data.get("available", true)
 	var srv_url: String = data.get("server_url", "")
 	var sp_name: String = data.get("space_name", "")
@@ -53,7 +53,7 @@ func setup(data: Dictionary) -> void:
 	# Server tag (show for all friends that have server info)
 	server_tag.visible = false
 	if not sp_name.is_empty():
-		server_tag.text = "from %s" % sp_name
+		server_tag.text = tr("from %s") % sp_name
 		server_tag.visible = true
 		server_tag.add_theme_font_size_override("font_size", 11)
 		server_tag.add_theme_color_override(
@@ -65,7 +65,7 @@ func setup(data: Dictionary) -> void:
 	if not is_available:
 		# Unavailable friend from disconnected server
 		var host: String = _extract_host(srv_url)
-		status_label.text = "Unavailable · %s on %s" % [sp_name, host]
+		status_label.text = tr("Unavailable · %s on %s") % [sp_name, host]
 		status_label.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
@@ -76,27 +76,27 @@ func setup(data: Dictionary) -> void:
 				var status_text: String = ClientModels.status_label(status)
 				var since_formatted: String = _format_since(since_str)
 				if not since_formatted.is_empty():
-					status_text += " · Friends since " + since_formatted
+					status_text += " · " + tr("Friends since %s") % since_formatted
 				status_label.text = status_text
 				status_label.add_theme_color_override(
 					"font_color", ClientModels.status_color(status)
 				)
 			BLOCKED:
-				var blocked_text := "Blocked"
+				var blocked_text := tr("Blocked")
 				var since_formatted: String = _format_since(since_str)
 				if not since_formatted.is_empty():
-					blocked_text += " · Since " + since_formatted
+					blocked_text += " · " + tr("Since %s") % since_formatted
 				status_label.text = blocked_text
 				status_label.add_theme_color_override(
 					"font_color", ThemeManager.get_color("text_muted")
 				)
 			PENDING_INCOMING:
-				status_label.text = "Incoming Friend Request"
+				status_label.text = tr("Incoming Friend Request")
 				status_label.add_theme_color_override(
 					"font_color", ThemeManager.get_color("text_muted")
 				)
 			PENDING_OUTGOING:
-				status_label.text = "Outgoing Friend Request"
+				status_label.text = tr("Outgoing Friend Request")
 				status_label.add_theme_color_override(
 					"font_color", ThemeManager.get_color("text_muted")
 				)
@@ -124,25 +124,25 @@ func setup(data: Dictionary) -> void:
 	for child in action_box.get_children():
 		child.queue_free()
 	if not is_available:
-		_add_action_btn("Rejoin Server", func():
+		_add_action_btn(tr("Rejoin Server"), func():
 			rejoin_pressed.emit(srv_url, sp_name)
 		)
-		_add_action_btn("Remove", func():
+		_add_action_btn(tr("Remove"), func():
 			remove_local_pressed.emit(srv_url, user_id)
 		)
 	else:
 		match rel_type:
 			FRIEND:
-				_add_action_btn("Message", func(): message_pressed.emit(user_id))
-				_add_action_btn("Remove", func(): remove_pressed.emit(user_id))
-				_add_action_btn("Block", func(): block_pressed.emit(user_id))
+				_add_action_btn(tr("Message"), func(): message_pressed.emit(user_id))
+				_add_action_btn(tr("Remove"), func(): remove_pressed.emit(user_id))
+				_add_action_btn(tr("Block"), func(): block_pressed.emit(user_id))
 			BLOCKED:
-				_add_action_btn("Unblock", func(): unblock_pressed.emit(user_id))
+				_add_action_btn(tr("Unblock"), func(): unblock_pressed.emit(user_id))
 			PENDING_INCOMING:
-				_add_action_btn("Accept", func(): accept_pressed.emit(user_id))
-				_add_action_btn("Decline", func(): decline_pressed.emit(user_id))
+				_add_action_btn(tr("Accept"), func(): accept_pressed.emit(user_id))
+				_add_action_btn(tr("Decline"), func(): decline_pressed.emit(user_id))
 			PENDING_OUTGOING:
-				_add_action_btn("Cancel", func(): cancel_pressed.emit(user_id))
+				_add_action_btn(tr("Cancel"), func(): cancel_pressed.emit(user_id))
 
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed \
@@ -157,9 +157,11 @@ func _fetch_mutual_count(user_id: String) -> void:
 	if not is_instance_valid(self):
 		return
 	if mutuals.size() > 0:
-		var suffix := " · %d mutual friend" % mutuals.size()
-		if mutuals.size() > 1:
-			suffix += "s"
+		var suffix: String
+		if mutuals.size() == 1:
+			suffix = " · " + tr("%d mutual friend") % mutuals.size()
+		else:
+			suffix = " · " + tr("%d mutual friends") % mutuals.size()
 		status_label.text += suffix
 
 func _disable_all_actions() -> void:

@@ -34,7 +34,7 @@ func _ready() -> void:
 	_debounce_timer.timeout.connect(_on_debounce_timeout)
 	add_child(_debounce_timer)
 
-	search_input.placeholder_text = "Search messages..."
+	search_input.placeholder_text = tr("Search messages...")
 	search_input.text_changed.connect(_on_search_text_changed)
 	close_button.pressed.connect(_on_close_pressed)
 	load_more_btn.pressed.connect(_on_load_more_pressed)
@@ -137,7 +137,7 @@ func _do_search() -> void:
 	if _searching:
 		return
 	_searching = true
-	status_label.text = "Searching..."
+	status_label.text = tr("Searching...")
 	status_label.visible = true
 	load_more_btn.visible = false
 
@@ -151,7 +151,7 @@ func _do_search() -> void:
 	_has_more = result.get("has_more", false)
 
 	if results.is_empty() and _offset == 0:
-		status_label.text = "No results found"
+		status_label.text = tr("No results found")
 		status_label.visible = true
 		load_more_btn.visible = false
 		return
@@ -168,7 +168,7 @@ func _do_search() -> void:
 		item.clicked.connect(_on_result_clicked)
 
 	_offset += results.size()
-	load_more_btn.text = "Load More"
+	load_more_btn.text = tr("Load More")
 	load_more_btn.visible = _has_more
 
 

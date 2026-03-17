@@ -21,12 +21,12 @@ func _ready() -> void:
 
 func setup(data: Dictionary) -> void:
 	_data = data
-	_name_label.text = data.get("name", "Unknown Space")
+	_name_label.text = data.get("name", tr("Unknown Space"))
 	var member_count: int = data.get("member_count", 0)
 	var presence_count: int = data.get("presence_count", 0)
-	_member_label.text = "%d members" % member_count
+	_member_label.text = tr("%d members") % member_count
 	if presence_count > 0:
-		_member_label.text += " · %d online" % presence_count
+		_member_label.text += tr(" · %d online") % presence_count
 	_member_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 	var desc: String = data.get("description", "")

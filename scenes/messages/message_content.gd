@@ -48,7 +48,7 @@ func _apply_theme() -> void:
 			var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
 			bbcode += (
 				" [font_size=11][color=#" + muted_hex
-				+ "](edited)[/color][/font_size]"
+				+ "](" + tr("edited") + ")[/color][/font_size]"
 			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
@@ -72,7 +72,7 @@ func setup(data: Dictionary) -> void:
 			var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
 			bbcode += (
 				" [font_size=11][color=#" + muted_hex
-				+ "](edited)[/color][/font_size]"
+				+ "](" + tr("edited") + ")[/color][/font_size]"
 			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
@@ -173,7 +173,7 @@ func update_content(data: Dictionary) -> void:
 			var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
 			bbcode += (
 				" [font_size=11][color=#" + muted_hex
-				+ "](edited)[/color][/font_size]"
+				+ "](" + tr("edited") + ")[/color][/font_size]"
 			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
@@ -198,7 +198,7 @@ func _detect_theme_string(raw_text: String) -> void:
 		return
 	# Valid theme string — add an "Apply Theme" button
 	var btn := Button.new()
-	btn.text = "Apply Theme"
+	btn.text = tr("Apply Theme")
 	btn.custom_minimum_size = Vector2(0, 28)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var accent: Color = ThemeManager.get_color("accent")
@@ -216,7 +216,7 @@ func _detect_theme_string(raw_text: String) -> void:
 	btn.add_theme_color_override("font_color", Color.WHITE)
 	btn.pressed.connect(func() -> void:
 		ThemeManager.import_theme_string(cleaned)
-		btn.text = "Theme Applied!"
+		btn.text = tr("Theme Applied!")
 		btn.disabled = true
 	)
 	add_child(btn)
@@ -329,10 +329,10 @@ static func _evict_att_cache() -> void:
 
 static func _format_file_size(bytes: int) -> String:
 	if bytes < 1024:
-		return "%d B" % bytes
+		return TranslationServer.translate("%d B") % bytes
 	if bytes < 1024 * 1024:
-		return "%.1f KB" % (bytes / 1024.0)
-	return "%.1f MB" % (bytes / (1024.0 * 1024.0))
+		return TranslationServer.translate("%.1f KB") % (bytes / 1024.0)
+	return TranslationServer.translate("%.1f MB") % (bytes / (1024.0 * 1024.0))
 
 func _add_loading_placeholder(container: Control) -> void:
 	var bg := ColorRect.new()
@@ -342,7 +342,7 @@ func _add_loading_placeholder(container: Control) -> void:
 	bg.name = "LoadingPlaceholder"
 	container.add_child(bg)
 	var lbl := Label.new()
-	lbl.text = "Loading..."
+	lbl.text = tr("Loading...")
 	lbl.add_theme_font_size_override("font_size", 12)
 	lbl.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -360,7 +360,7 @@ func _show_image_error(container: Control) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(bg)
 	var lbl := Label.new()
-	lbl.text = "Failed to load image"
+	lbl.text = tr("Failed to load image")
 	lbl.add_theme_font_size_override("font_size", 12)
 	lbl.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -383,7 +383,7 @@ func _show_gif_fallback(container: Control, url: String) -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	container.add_child(bg)
 	var lbl := Label.new()
-	lbl.text = "GIF - Click to view"
+	lbl.text = tr("GIF - Click to view")
 	lbl.add_theme_font_size_override("font_size", 13)
 	lbl.add_theme_color_override("font_color", ThemeManager.get_color("link"))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -552,7 +552,7 @@ func enter_edit_mode(message_id: String, content: String) -> void:
 
 	# Keyboard hint label below the TextEdit
 	_edit_hint_label = Label.new()
-	_edit_hint_label.text = "Enter to save \u00b7 Escape to cancel \u00b7 Shift+Enter for newline"
+	_edit_hint_label.text = tr("Enter to save \u00b7 Escape to cancel \u00b7 Shift+Enter for newline")
 	_edit_hint_label.add_theme_font_size_override("font_size", 11)
 	_edit_hint_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	add_child(_edit_hint_label)
@@ -598,13 +598,13 @@ func _on_edit_input(event: InputEvent) -> void:
 				var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
 				bbcode += (
 					" [font_size=11][color=#" + muted_hex
-					+ "](saving...)[/color][/font_size]"
+					+ "](" + tr("saving...") + ")[/color][/font_size]"
 				)
 				text_content.text = bbcode
 				AppState.edit_message(_editing_message_id, new_text)
 				_exit_edit_mode()
 			else:
-				show_edit_error("Empty message not saved")
+				show_edit_error(tr("Empty message not saved"))
 				_exit_edit_mode()
 			get_viewport().set_input_as_handled()
 		elif event.keycode in [KEY_ENTER, KEY_KP_ENTER] and event.shift_pressed:

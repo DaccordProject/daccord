@@ -34,7 +34,7 @@ func setup(version_info: Dictionary) -> void:
 	_version_info = version_info
 	_total_size = version_info.get("download_size", 0)
 	var version: String = version_info.get("version", "unknown")
-	_status_label.text = "Downloading Daccord v%s..." % version
+	_status_label.text = tr("Downloading Daccord v%s...") % version
 
 func _set_downloading_state() -> void:
 	_progress_bar.visible = true
@@ -49,7 +49,7 @@ func _set_downloading_state() -> void:
 func _on_started() -> void:
 	_set_downloading_state()
 	var version: String = _version_info.get("version", "unknown")
-	_status_label.text = "Downloading Daccord v%s..." % version
+	_status_label.text = tr("Downloading Daccord v%s...") % version
 
 func _on_progress(percent: float) -> void:
 	_progress_bar.value = percent
@@ -62,7 +62,7 @@ func _on_progress(percent: float) -> void:
 		_size_label.text = "%.0f%%" % percent
 
 func _on_complete(_path: String) -> void:
-	_status_label.text = "Download complete. Restart to apply the update."
+	_status_label.text = tr("Download complete. Restart to apply the update.")
 	_progress_bar.value = 100
 	_progress_bar.visible = false
 	_size_label.visible = false
@@ -80,7 +80,7 @@ func _on_failed(error: String) -> void:
 	_retry_btn.visible = true
 	_restart_btn.visible = false
 	_later_btn.visible = false
-	_status_label.text = "Download failed"
+	_status_label.text = tr("Download failed")
 
 func _on_cancel() -> void:
 	Updater.cancel_download()
@@ -89,7 +89,7 @@ func _on_cancel() -> void:
 func _on_retry() -> void:
 	_set_downloading_state()
 	var version: String = _version_info.get("version", "unknown")
-	_status_label.text = "Downloading Daccord v%s..." % version
+	_status_label.text = tr("Downloading Daccord v%s...") % version
 	Updater.download_update(_version_info)
 
 func _on_restart() -> void:
@@ -105,7 +105,7 @@ func _close() -> void:
 
 static func _format_size(bytes: int) -> String:
 	if bytes < 1024:
-		return str(bytes) + " B"
+		return TranslationServer.translate("%s B") % str(bytes)
 	if bytes < 1024 * 1024:
-		return str(snappedi(bytes / 1024, 1)) + " KB"
-	return "%.1f MB" % (bytes / 1048576.0)
+		return TranslationServer.translate("%s KB") % str(snappedi(bytes / 1024, 1))
+	return TranslationServer.translate("%.1f MB") % (bytes / 1048576.0)

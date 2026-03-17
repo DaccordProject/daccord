@@ -91,7 +91,7 @@ func _on_browse_join(server_url: String, space_id: String, space_slug: String) -
 	for i in servers.size():
 		var server: Dictionary = servers[i]
 		if _urls_match(server["base_url"], server_url) and Client.is_server_connected(i):
-			_show_error("Already connected to this server.")
+			_show_error(tr("Already connected to this server."))
 			return
 
 	# Not connected — probe and authenticate
@@ -145,7 +145,7 @@ func _join_and_connect(
 	rest.queue_free()
 
 	if not result.ok:
-		var msg: String = result.error.message if result.error else "Failed to join space"
+		var msg: String = result.error.message if result.error else tr("Failed to join space")
 		_show_error(msg)
 		return
 
@@ -157,7 +157,7 @@ func _on_add_pressed() -> void:
 	var raw := _url_input.text.strip_edges()
 
 	if raw.is_empty():
-		_show_error("Please enter a server URL.")
+		_show_error(tr("Please enter a server URL."))
 		return
 
 	var parsed := parse_server_url(raw)
@@ -174,14 +174,14 @@ func _on_add_pressed() -> void:
 		var server: Dictionary = servers[i]
 		if _urls_match(server["base_url"], url) and server["space_name"] == space_name:
 			if Client.is_server_connected(i):
-				_show_error("This server is already added.")
+				_show_error(tr("This server is already added."))
 				return
 			# Server is in config but disconnected — update token
 			# if a new one was provided, then reconnect in place.
 			if not token.is_empty():
 				Config.update_server_token(i, token)
 			_add_btn.disabled = true
-			_add_btn.text = "Reconnecting..."
+			_add_btn.text = tr("Reconnecting...")
 			_status_label.text = ""
 			_status_label.visible = true
 			var step_cb := func(step: String): _status_label.text = step
@@ -191,7 +191,7 @@ func _on_add_pressed() -> void:
 			AppState.connection_step.disconnect(step_cb)
 			_status_label.visible = false
 			_add_btn.disabled = false
-			_add_btn.text = "Add"
+			_add_btn.text = tr("Add")
 			if result.has("error"):
 				_show_error(result["error"])
 			else:
@@ -216,15 +216,15 @@ func _on_add_pressed() -> void:
 
 	# Probe the server to verify it's reachable before proceeding
 	_add_btn.disabled = true
-	_add_btn.text = "Checking..."
+	_add_btn.text = tr("Checking...")
 	var reachable := await _probe_server(url)
 	if not reachable:
 		_add_btn.disabled = false
-		_add_btn.text = "Add"
+		_add_btn.text = tr("Add")
 		return
 
 	_add_btn.disabled = false
-	_add_btn.text = "Add"
+	_add_btn.text = tr("Add")
 
 	if not token.is_empty():
 		# Explicit token in URL -- use it directly
@@ -266,7 +266,7 @@ func _probe_server(url: String) -> bool:
 		return true
 
 	# Connection-level failure -- show the error from AccordRest
-	var msg: String = result.error.message if result.error else "Could not reach server"
+	var msg: String = result.error.message if result.error else tr("Could not reach server")
 	_show_error(msg)
 	return false
 
@@ -278,7 +278,7 @@ func _connect_with_token(
 	display_name: String = "",
 ) -> void:
 	_add_btn.disabled = true
-	_add_btn.text = "Connecting..."
+	_add_btn.text = tr("Connecting...")
 	_status_label.text = ""
 	_status_label.visible = true
 	var step_cb := func(step: String): _status_label.text = step
@@ -291,7 +291,7 @@ func _connect_with_token(
 	AppState.connection_step.disconnect(step_cb)
 	_status_label.visible = false
 	_add_btn.disabled = false
-	_add_btn.text = "Add"
+	_add_btn.text = tr("Add")
 
 	if result.has("error"):
 		_show_error(result["error"])
@@ -302,7 +302,7 @@ func _connect_with_token(
 
 func _connect_as_guest(base_url: String, _space_name: String) -> void:
 	_add_btn.disabled = true
-	_add_btn.text = "Connecting..."
+	_add_btn.text = tr("Connecting...")
 	_status_label.text = ""
 	_status_label.visible = true
 	var step_cb := func(step: String): _status_label.text = step
@@ -323,10 +323,10 @@ func _connect_as_guest(base_url: String, _space_name: String) -> void:
 		AppState.connection_step.disconnect(step_cb)
 		_status_label.visible = false
 		_add_btn.disabled = false
-		_add_btn.text = "Add"
+		_add_btn.text = tr("Add")
 		var err_msg: String = (
 			result.error.message
-			if result.error else "Guest access not available"
+			if result.error else tr("Guest access not available")
 		)
 		_show_error(err_msg)
 		return
@@ -339,8 +339,8 @@ func _connect_as_guest(base_url: String, _space_name: String) -> void:
 		AppState.connection_step.disconnect(step_cb)
 		_status_label.visible = false
 		_add_btn.disabled = false
-		_add_btn.text = "Add"
-		_show_error("Invalid guest token response.")
+		_add_btn.text = tr("Add")
+		_show_error(tr("Invalid guest token response."))
 		return
 
 	var conn_result: Dictionary = await Client.connect_guest(
@@ -349,7 +349,7 @@ func _connect_as_guest(base_url: String, _space_name: String) -> void:
 	AppState.connection_step.disconnect(step_cb)
 	_status_label.visible = false
 	_add_btn.disabled = false
-	_add_btn.text = "Add"
+	_add_btn.text = tr("Add")
 
 	if conn_result.has("error"):
 		_show_error(conn_result["error"])

@@ -12,7 +12,7 @@ var _hover_style: StyleBoxFlat
 func _ready() -> void:
 	add_to_group("themed")
 	icon_button.pressed.connect(_on_pressed)
-	icon_button.tooltip_text = "Direct Messages"
+	icon_button.tooltip_text = tr("Direct Messages")
 	# Style the button as a circle
 	_normal_style = StyleBoxFlat.new()
 	_normal_style.corner_radius_top_left = 24

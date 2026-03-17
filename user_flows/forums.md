@@ -5,9 +5,9 @@ Depends on: Message Threads, Channel Categories
 
 ## Overview
 
-Forum channels present a threaded discussion view where each top-level message acts as a "post" with its own title and reply thread, similar to Discord's forum channels. Forums piggyback on the message threads feature (see [Message Threads](message_threads.md)) — a forum channel is a `FORUM`-type channel where the main view shows a post list (top-level messages with thread metadata) instead of a flat message feed, and clicking a post opens the thread panel to display its replies.
+Forum channels present a threaded discussion view where each top-level message acts as a "post" with its own title and reply thread, similar to Discord's forum channels. A forum channel is a `FORUM`-type channel where the main view shows a post list (top-level messages with thread metadata) instead of a flat message feed, and clicking a post opens the thread panel to display its replies.
 
-Currently, the `FORUM` channel type is recognized throughout the codebase (enum, icon, sidebar, admin dialogs) but selecting a forum channel renders it identically to a text channel — a flat message list with no post-style layout, no thread panel, and no "create post" flow.
+The forum system is fully implemented end-to-end: the client detects forum channel types and renders a dedicated post list view (`forum_view.gd`), the server supports `top_level=true` queries with sort options and enriches responses with `reply_count` and `last_reply_at`, and gateway events route thread replies and new posts to the correct caches.
 
 ## User Steps
 
@@ -20,26 +20,25 @@ Currently, the `FORUM` channel type is recognized throughout the codebase (enum,
 
 ### Reading a Post
 1. User clicks a post row in the forum view.
-2. The thread panel opens (reusing the thread panel from Message Threads), showing the original post at the top and all replies below.
-3. User scrolls through replies. Older replies load via a "Show older replies" button.
+2. The thread panel opens, showing the original post at the top and all replies below.
+3. User scrolls through replies. Older replies load via the thread panel.
 4. User can reply in the thread composer at the bottom of the panel.
 
 ### Creating a Post
 1. User clicks the "New Post" button at the top of the forum view.
-2. A post creation form appears with a title field and a rich text body field.
+2. An inline post creation form appears with a title field and a body text area.
 3. User fills in title and body, then clicks "Post".
-4. The new post appears at the top of the post list (or sorted by the current filter).
-5. Optionally, the thread panel opens automatically for the new post.
+4. The new post appears at the top of the post list.
 
-### Editing / Deleting a Post
-1. User right-clicks their own post row (or hovers for the action bar).
-2. Context menu shows "Edit Post" and "Delete Post" (only for own posts or users with `MANAGE_THREADS`).
-3. Editing opens an inline title + body editor. Deleting prompts a confirmation dialog.
+### Deleting a Post
+1. User right-clicks a post row.
+2. Context menu shows "Open Thread" and "Delete Post" (delete only for own posts or users with `MANAGE_THREADS`).
+3. Deleting removes the post and all its thread replies (server-side CASCADE).
 
 ### Replying in a Post
 1. With a post's thread panel open, user types in the thread composer.
 2. User presses Enter to send. The reply appears in the thread.
-3. The post's reply count updates in the forum post list.
+3. The post's reply count and last_reply_at update in the forum post list via gateway events.
 
 ## Signal Flow
 
@@ -52,185 +51,208 @@ User clicks forum channel in sidebar
     │       emits channel_selected
     │
     └─> message_view.gd: _on_channel_selected(channel_id)
-            [CURRENT] renders flat message list (no forum distinction)
-            [PLANNED] detects FORUM type → switches to forum post list view
+            detects ChannelType.FORUM (line 177)
+            calls _enter_forum_mode(channel_id) (line 247)
+            forum_view.load_forum(channel_id, channel_name)
+                └─> Client.fetch.fetch_forum_posts(channel_id, sort)
+                        GET /channels/{id}/messages?top_level=true&sort=latest_activity
+                        └─> AppState.forum_posts_updated.emit(channel_id)
+                                └─> forum_view._on_forum_posts_updated() → _render_posts()
 
-User clicks a post row in forum view (planned)
-    ├─> forum_view.gd: emits post_selected(parent_message_id)
+User clicks a post row in forum view
+    ├─> forum_post_row.gd: post_pressed.emit(message_id)
+    │       └─> forum_view._on_post_pressed(message_id)
     │
-    ├─> AppState.open_thread(parent_message_id)
+    ├─> AppState.open_thread(message_id)
     │       sets current_thread_id, thread_panel_visible = true
     │       emits thread_opened
     │
-    └─> thread_panel.gd: loads parent message + thread replies
+    └─> thread_panel.gd: _on_thread_opened(parent_message_id)
+            fetches parent message from cache
+            calls Client.fetch.fetch_thread_messages(channel_id, parent_id)
+                GET /channels/{id}/messages?thread_id={parent_id}
+                └─> AppState.thread_messages_updated.emit(parent_id)
 
-User clicks "New Post" (planned)
-    ├─> forum_view.gd: shows post creation form
+User clicks "New Post"
+    ├─> forum_view.gd: _show_new_post_form()
+    │       inline form with title LineEdit + body TextEdit
     │
-    ├─> Client.send_message_to_channel(channel_id, content, ...)
-    │       POST /channels/{id}/messages  with { title: "..." }
+    ├─> forum_view._on_create_post()
+    │       Client.send_message_to_channel(channel_id, body, "", [], "", title)
+    │       POST /channels/{id}/messages  { "content": "...", "title": "..." }
     │
-    └─> Gateway: message_create
-            forum_view appends new post to list
+    └─> Gateway: message.create (no thread_id, in forum channel)
+            client_gateway.gd detects forum channel type
+            inserts post into _forum_post_cache
+            AppState.forum_posts_updated.emit(channel_id)
+
+Thread reply arrives via gateway
+    ├─> Gateway: message.create with thread_id
+    │       client_gateway.gd appends to _thread_message_cache[thread_id]
+    │       increments reply_count on parent in _forum_post_cache
+    │       sets last_reply_at on parent in _forum_post_cache
+    │       AppState.forum_posts_updated.emit(channel_id)
+    │
+    └─> Gateway: message.update on parent (server broadcasts)
+            server sends updated parent with new reply_count
+            client_gateway.gd updates _forum_post_cache entry
 ```
 
 ## Key Files
 
-### Existing Files (already reference FORUM)
+### Client — UI Components
+
+| File | Role |
+|------|------|
+| `scenes/messages/forum_view.gd` | Forum post list controller: fetches posts via `Client.fetch.fetch_forum_posts()`, renders post rows, sort/filter, inline post creation form, context menu with delete |
+| `scenes/messages/forum_view.tscn` | Forum view scene layout |
+| `scenes/messages/forum_post_row.gd` | Individual post row: title, author, reply count, last activity, content preview; emits `post_pressed` and `context_menu_requested` signals |
+| `scenes/messages/forum_post_row.tscn` | Post row scene layout |
+| `scenes/messages/thread_panel.gd` | Thread panel: loads parent message + replies, thread composer, typing indicators, hides "Also send to channel" for forum threads (line 91-97), checks `SEND_IN_THREADS` permission |
+| `scenes/messages/thread_panel.tscn` | Thread panel scene layout |
+| `scenes/messages/message_view.gd:170-260` | Forum channel detection: checks `ChannelType.FORUM` (line 177), calls `_enter_forum_mode()` (line 247) to swap message list for forum view |
+
+### Client — Data & API
 
 | File | Role |
 |------|------|
 | `scripts/autoload/client_models.gd:7` | `ChannelType.FORUM` enum value (index 3) |
-| `scripts/autoload/client_models.gd:108-109` | `_channel_type_to_enum()` maps `"forum"` string to `ChannelType.FORUM` |
-| `scripts/autoload/app_state.gd` | Signal bus — needs thread signals for forum post open/close |
-| `scripts/autoload/client.gd` | Data access and API routing — needs forum-aware message fetching |
-| `scripts/autoload/client_gateway.gd` | Gateway event handler — needs thread metadata on `message_create` |
-| `addons/accordkit/models/channel.gd:21-22` | `archived` and `auto_archive_after` fields (thread/forum concepts) |
-| `addons/accordkit/models/message.gd` | Message model — needs `thread_id`, `reply_count`, title fields for posts |
+| `scripts/autoload/client_models.gd:108-109` | `_channel_type_to_enum()` maps `"forum"` → `ChannelType.FORUM` |
+| `scripts/autoload/client_models.gd:467-499` | `message_to_dict()` includes `thread_id`, `reply_count`, `last_reply_at`, `thread_participants`, `title` |
+| `scripts/autoload/app_state.gd:127-137` | Thread/forum signals: `thread_opened`, `thread_closed`, `thread_messages_updated`, `thread_typing_started`, `thread_typing_stopped`, `forum_posts_updated` |
+| `scripts/autoload/app_state.gd:229-231` | Thread state: `current_thread_id`, `thread_panel_visible` |
+| `scripts/autoload/app_state.gd:398-406` | `open_thread()` and `close_thread()` methods |
+| `scripts/autoload/client.gd:469-473` | `get_forum_posts(channel_id)` and `get_messages_for_thread(parent_id)` cache accessors |
+| `scripts/autoload/client.gd:518-527` | `send_message_to_channel()` — 6th param `title` for forum posts |
+| `scripts/autoload/client_fetch.gd:373-412` | `fetch_forum_posts(channel_id, sort)` — calls `list_posts()` with sort param, populates `_forum_post_cache` |
+| `scripts/autoload/client_fetch.gd:334-371` | `fetch_thread_messages(channel_id, parent_message_id)` — calls `list_thread()`, reverses for oldest-first display |
+| `scripts/autoload/client_gateway.gd:259-395` | `on_message_create()` — routes thread replies to `_thread_message_cache`, new forum posts to `_forum_post_cache`, updates parent `reply_count`/`last_reply_at` |
+| `scripts/autoload/client_gateway.gd:396-431` | `on_message_update()` — updates thread cache and forum post cache |
+| `scripts/autoload/client_gateway.gd:433-473` | `on_message_delete()` — removes from thread/forum caches, decrements parent reply_count |
+| `scripts/autoload/client_gateway.gd:493-535` | `on_typing_start()` — thread-scoped typing indicators via `thread_typing_started` signal |
+| `addons/accordkit/models/message.gd:27-31` | `thread_id`, `reply_count`, `last_reply_at`, `thread_participants`, `title` fields |
+| `addons/accordkit/models/message.gd:117-131` | `from_dict()` parses all thread/forum fields |
+| `addons/accordkit/rest/endpoints/messages_api.gd:104-106` | `list_thread()` — adds `thread_id` query param |
+| `addons/accordkit/rest/endpoints/messages_api.gd:125-127` | `list_posts()` — adds `top_level=true` query param |
+| `addons/accordkit/rest/endpoints/messages_api.gd:133-138` | `typing()` — supports optional `thread_id` for thread-scoped typing |
 | `addons/accordkit/models/permission.gd:40-43` | `MANAGE_THREADS`, `CREATE_THREADS`, `SEND_IN_THREADS` constants |
-| `addons/accordkit/rest/endpoints/messages_api.gd:16-24` | `list()` — thread-filtered listing needs `thread_id` query param |
-| `scenes/sidebar/channels/channel_item.gd:8,50-51` | Preloads and displays `FORUM_ICON` for forum channels |
-| `scenes/sidebar/channels/channel_list.gd:120-129` | Forum channels use `ChannelItemScene` (same as text); auto-select includes them (line 162) |
-| `scenes/messages/message_view.gd:131-149` | `_on_channel_selected()` — currently calls `fetch_messages()` with no forum distinction |
-| `scenes/messages/message_view_actions.gd:21-29` | Context menu — needs "Start Thread" / "View Thread" items for forum posts |
-| `scenes/messages/message_action_bar.gd` | Action bar — needs thread button |
-| `scenes/messages/cozy_message.gd:35-67` | Message row — needs thread reply count indicator for forum post display |
-| `scenes/admin/channel_management_dialog.gd:40,193` | "Forum" in create type dropdown, `type_map[3] = "forum"` |
-| `scenes/admin/create_channel_dialog.gd:28,59` | "Forum" type option (id=3), `type_map[3] = "forum"` |
-| `scenes/admin/channel_row.gd:56` | Displays `"F"` label for forum channels in admin list |
-| `scenes/admin/channel_permissions_dialog.gd:273-276` | Forum channels grouped with TEXT/ANNOUNCEMENT for permission filtering (hides voice-only perms) |
-| `scenes/main/main_window.gd:40-42` | `content_body` HBoxContainer — thread panel will be added here |
-| `tests/unit/test_channel_item.gd:67-69` | Test verifies forum icon assignment |
-| `tests/unit/test_client_models.gd:89-90` | Test verifies `"forum"` → `ChannelType.FORUM` mapping |
 
-### New Files (to be created)
+### Client — Admin & Sidebar
 
 | File | Role |
 |------|------|
-| `scenes/messages/forum_view.gd` | Forum post list controller: fetches top-level messages, renders post rows, handles sort/filter, emits `post_selected` |
-| `scenes/messages/forum_view.tscn` | Forum view scene: sort bar, ScrollContainer with post list VBox, "New Post" button |
-| `scenes/messages/forum_post_row.gd` | Individual post row: title, author, reply count, last activity, content preview |
-| `scenes/messages/forum_post_row.tscn` | Post row scene layout |
-| `scenes/messages/thread_panel.gd` | Thread panel controller (shared with Message Threads): loads parent message + thread replies |
-| `scenes/messages/thread_panel.tscn` | Thread panel scene (shared with Message Threads) |
+| `scenes/sidebar/channels/channel_item.gd:8,50-51` | Preloads and displays `FORUM_ICON` for forum channels |
+| `scenes/sidebar/channels/channel_list.gd:120-129` | Forum channels use `ChannelItemScene`; auto-select includes them |
+| `scenes/admin/channel_management_dialog.gd:40,193` | "Forum" in create type dropdown, `type_map[3] = "forum"` |
+| `scenes/admin/create_channel_dialog.gd:28,59` | "Forum" type option (id=3), `type_map[3] = "forum"` |
+| `scenes/admin/channel_row.gd:56` | Displays `"F"` label for forum channels in admin list |
+| `scenes/admin/channel_permissions_dialog.gd:273-276` | Forum grouped with TEXT/ANNOUNCEMENT for permission filtering |
+
+### Server (accordserver)
+
+| File | Role |
+|------|------|
+| `src/routes/messages.rs:17-24` | `ListMessagesQuery` struct: `top_level`, `sort`, `thread_id`, `after`, `limit` params |
+| `src/routes/messages.rs:26-87` | `list_messages()` handler — branches on `top_level=true` for forum mode |
+| `src/routes/messages.rs:121-259` | `create_message()` — validates `title` (non-empty, max 100 chars), stores `thread_id` |
+| `src/routes/messages.rs:127-132` | Permission check: `send_messages` always, `send_in_threads` when `thread_id` present |
+| `src/routes/messages.rs:182-211` | After thread reply creation, broadcasts `message.update` on parent with incremented `reply_count` |
+| `src/routes/messages.rs:436-479` | `delete_message()` — author can delete own, otherwise requires `manage_messages` |
+| `src/routes/messages.rs:697-706` | `list_active_threads()` — GET /channels/{id}/threads |
+| `src/routes/messages.rs:683-695` | `get_thread_info()` — GET /channels/{id}/messages/{id}/threads |
+| `src/routes/messages.rs:782-803` | `messages_to_json()` — includes `reply_count` for all messages |
+| `src/routes/messages.rs:807-833` | `messages_to_forum_json()` — adds `last_reply_at` on top of regular fields |
+| `src/db/messages.rs:104-146` | `list_forum_posts()` — `WHERE thread_id IS NULL`, sort by latest_activity/newest/oldest |
+| `src/db/messages.rs:177-212` | `create_message()` — inserts `thread_id` and `title` columns |
+| `src/db/messages.rs:412-423` | `get_thread_reply_count()` — `COUNT(*) WHERE thread_id = ?` |
+| `src/db/messages.rs:150-175` | `get_last_reply_timestamps()` — `MAX(created_at) WHERE thread_id IN (...)` |
+| `src/db/messages.rs:456-492` | `get_thread_metadata()` — reply_count, last_reply_at, participants |
+| `src/models/message.rs:6-31` | `Message` struct: `thread_id`, `reply_count`, `title` fields |
+| `src/models/permission.rs:47-50` | `create_threads`, `manage_threads`, `send_in_threads` in permission list |
+| `migrations/009_threads.sql` | Adds `thread_id` column + index to messages table |
+| `migrations/018_forum_title.sql` | Adds `title` column to messages table |
+
+### Tests
+
+| File | Role |
+|------|------|
+| `tests/unit/test_channel_item.gd:67-69` | Verifies forum icon assignment |
+| `tests/unit/test_client_models.gd:89-90` | Verifies `"forum"` → `ChannelType.FORUM` mapping |
 
 ## Implementation Details
 
-### Channel Type Recognition (Already Implemented)
+### Channel Type Recognition
 
-The `FORUM` channel type is fully recognized:
+The `FORUM` channel type is fully recognized end-to-end:
 
 - **ClientModels** defines `ChannelType.FORUM` as enum value 3 (line 7) and maps `"forum"` strings to it (lines 108-109).
-- **AccordChannel** stores `type` as a plain string (`"forum"`) from the server (channel.gd line 7). The conversion to the typed enum happens in `ClientModels._channel_type_to_enum()`.
-- **channel_item.gd** preloads `forum_channel.svg` (line 8) and displays it for `ChannelType.FORUM` (lines 50-51). Forum channels are otherwise treated identically to text channels.
-- **channel_list.gd** routes forum channels to `ChannelItemScene` (not `VoiceChannelItemScene`) at line 125. Auto-select logic (lines 160-166) skips only `CATEGORY` and `VOICE`, so forum channels are selectable.
+- **AccordChannel** stores `type` as a plain string (`"forum"`) from the server. The conversion to the typed enum happens in `ClientModels._channel_type_to_enum()`.
+- **channel_item.gd** preloads `forum_channel.svg` (line 8) and displays it for `ChannelType.FORUM` (lines 50-51).
+- **channel_list.gd** routes forum channels to `ChannelItemScene` (not `VoiceChannelItemScene`). Auto-select logic skips only `CATEGORY` and `VOICE`, so forum channels are selectable.
+- **Server** stores channel type as a string (`"forum"`) with no special enum — the type distinction is purely at the query level (`top_level=true`).
 
-### Admin Channel Creation (Already Implemented)
+### Forum View
 
-Forum channels can be created via admin dialogs:
+When a forum channel is selected, `message_view.gd` detects `ChannelType.FORUM` (line 177) and calls `_enter_forum_mode()` (line 247), which hides the scroll container, typing indicator, and composer, then lazily instantiates and shows the forum view.
 
-- **channel_management_dialog.gd** adds "Forum" as type option id=3 (line 40) and maps index 3 to `"forum"` in the API payload (line 193).
-- **create_channel_dialog.gd** adds "Forum" as type option id=3 (line 28) with `type_map[3] = "forum"` (line 59).
-- **channel_row.gd** displays `"F"` for forum type in the admin channel list (line 56).
+**forum_view.gd** manages the post list:
+- `load_forum()` (line 178) triggers `Client.fetch.fetch_forum_posts(channel_id, sort)` which sends `GET /channels/{id}/messages?top_level=true&sort={sort}&limit={cap}`.
+- `_render_posts()` (line 195) instantiates `ForumPostRow` scenes from cached data.
+- `_sort_posts()` (line 221) applies client-side sorting as a secondary pass after the server sort.
+- Sort dropdown maps indices to: `"latest_activity"` (0), `"newest"` (1), `"oldest"` (2).
 
-### Permission Foundation (Already Implemented)
+**forum_post_row.gd** displays each post:
+- `setup(data)` (line 111) extracts `title` (fallback to first line of content), `reply_count`, `last_reply_at` (fallback to `timestamp`), and content preview (truncated ~100 chars).
+- Left-click emits `post_pressed`, right-click emits `context_menu_requested`.
 
-Thread/forum permissions exist but are not enforced client-side:
+### Post Creation
 
-- **AccordPermission** defines `MANAGE_THREADS` (line 40), `CREATE_THREADS` (line 41), and `SEND_IN_THREADS` (line 43). These are included in `all()` (lines 83-86).
-- **channel_permissions_dialog.gd** groups FORUM with TEXT and ANNOUNCEMENT for permission filtering (lines 273-276), hiding voice-only permissions.
-- **accordserver** recognizes `manage_threads`, `create_threads`, and `send_in_threads` in its permission model (permission.rs lines 47-50).
-
-### Message View — Current Behavior (Forum Gap)
-
-When a forum channel is selected, `message_view.gd` handles it identically to a text channel:
-
-1. `_on_channel_selected()` (line 131) calls `Client.fetch.fetch_messages(channel_id)` (line 149) — no channel type check.
-2. `_load_messages()` (line 189) renders all messages as cozy/collapsed rows — no post-list layout.
-3. The composer (line 37) shows a standard text input — no "New Post" button or title field.
-
-The planned change: `message_view.gd` should check the channel type and, for FORUM channels, delegate to a `forum_view` that displays a post list instead of the flat message list.
-
-### Forum View (Planned)
-
-The forum view replaces the flat message list when a FORUM channel is selected:
-
-```
-ForumView (PanelContainer)
-└── VBox
-    ├── Header (HBoxContainer)
-    │   ├── Title (Label) — "# forum-name"
-    │   ├── SortDropdown (OptionButton) — "Latest Activity" / "Newest" / "Oldest"
-    │   └── NewPostButton (Button) — "New Post"
-    ├── ScrollContainer
-    │   └── PostList (VBoxContainer)
-    │       ├── ForumPostRow (post 1)
-    │       ├── ForumPostRow (post 2)
-    │       └── ...
-    └── LoadMoreButton (Button) — pagination
-```
-
-Each `ForumPostRow` displays:
-- Post title (from a new `title` field on the message, or the first line of content as fallback)
-- Author avatar + name
-- Reply count (from `reply_count` thread metadata)
-- Last activity timestamp (from `last_reply_at`)
-- Content preview (first ~100 characters of the post body)
-
-### Thread Integration (Builds on Message Threads)
-
-Forums reuse the thread panel from the Message Threads feature:
-
-1. Clicking a post row calls `AppState.open_thread(post_message_id)`.
-2. The thread panel (shared scene) opens alongside the forum view in `main_window`'s `ContentBody`.
-3. Thread replies are fetched via `GET /channels/{id}/messages?thread_id={parent_id}`.
-4. Sending a reply in the thread composer posts with `{ "thread_id": parent_id }`.
-
-This means the thread panel, thread signals, and thread API work described in [Message Threads](message_threads.md) is a **prerequisite** for forums.
-
-### AccordMessage Model Changes (Shared with Threads)
-
-The message model needs fields for both threads and forums:
-
+The inline form in `forum_view.gd` collects a title (LineEdit) and body (TextEdit). On submit (line 273):
 ```gdscript
-var thread_id = null         # parent message ID if this is a thread reply
-var reply_count: int = 0     # number of thread replies (on parent/post messages)
-var last_reply_at = null     # ISO timestamp of latest reply
-var title = null             # post title (forum channels only)
+Client.send_message_to_channel(_channel_id, body, "", [], "", post_title)
 ```
+This sends `POST /channels/{id}/messages` with `{ "content": "...", "title": "..." }`.
 
-`from_dict()` should parse these from the server response. `ClientModels.message_to_dict()` should expose them in the UI dictionary:
+**Server validation** (messages.rs lines 140-148): title must be non-empty and at most 100 characters.
 
-```gdscript
-"thread_id": str(msg.thread_id) if msg.thread_id else "",
-"reply_count": msg.reply_count,
-"last_reply_at": str(msg.last_reply_at) if msg.last_reply_at else "",
-"title": str(msg.title) if msg.title else "",
-```
+### Thread Panel Integration
 
-### REST API Changes
-
-Forum posts use the existing messages endpoint with forum-aware parameters:
-
-```gdscript
-# List top-level posts in a forum channel (no thread_id = top-level only)
-# GET /channels/{forum_channel_id}/messages?top_level=true&sort=latest_activity
-func list_posts(channel_id: String, query: Dictionary = {}) -> RestResult:
-    query["top_level"] = "true"
-    return await list(channel_id, query)
-
-# Create a forum post (message with a title)
-# POST /channels/{forum_channel_id}/messages  { "title": "...", "content": "..." }
-```
+**thread_panel.gd** opens when a post is clicked:
+- `_on_thread_opened()` (line 55) fetches the parent message, displays reply count, and fetches thread messages via `Client.fetch.fetch_thread_messages()`.
+- For forum threads, hides the "Also send to channel" checkbox (lines 91-97) since forum posts are thread-only.
+- Checks `SEND_IN_THREADS` permission (lines 101-109) before enabling the composer.
+- Thread-scoped typing indicators: `Client.send_typing(channel_id, parent_message_id)` → server broadcasts with `thread_id` → client routes to `thread_typing_started` signal.
 
 ### Gateway Event Handling
 
-Gateway events for forum channels need special handling in `client_gateway.gd`:
+**client_gateway.gd** handles all forum/thread events in `on_message_create()` (lines 259-395):
 
-- **message_create** with a `thread_id` field: update the parent post's `reply_count` in the cache; if the thread panel is open for that post, append the reply.
-- **message_create** without `thread_id` in a forum channel: add a new post row to the forum view.
-- **message_update**: update post title/content if the message is a top-level forum post.
-- **message_delete**: remove post from forum view or reply from thread panel.
+1. **Thread reply** (`thread_id` present): appends to `_thread_message_cache`, increments parent `reply_count` in both `_message_cache` and `_forum_post_cache`, updates `last_reply_at`, emits `forum_posts_updated` and `thread_messages_updated`.
+2. **New forum post** (no `thread_id`, channel type is FORUM): inserts at position 0 in `_forum_post_cache`, emits `forum_posts_updated`.
+3. **Server also broadcasts** a `message.update` event on the parent message with the new `reply_count` (messages.rs lines 182-211), providing a second confirmation path.
+
+**on_message_update()** (lines 396-431) and **on_message_delete()** (lines 433-473) update thread/forum caches symmetrically.
+
+### Client–Server API Contract
+
+| Operation | Client Request | Server Handler | Response Fields |
+|-----------|---------------|----------------|-----------------|
+| List forum posts | `GET /channels/{id}/messages?top_level=true&sort=latest_activity&limit=50` | `list_messages()` → `list_forum_posts()` → `messages_to_forum_json()` | `reply_count`, `last_reply_at`, `title`, `thread_id: null` |
+| List thread replies | `GET /channels/{id}/messages?thread_id={parent_id}` | `list_messages()` with `thread_id` filter | `thread_id`, `reply_count` |
+| Create forum post | `POST /channels/{id}/messages` `{ "content": "...", "title": "..." }` | `create_message()` validates title (1-100 chars) | Created message + gateway broadcast |
+| Create thread reply | `POST /channels/{id}/messages` `{ "content": "...", "thread_id": "..." }` | `create_message()` checks `send_in_threads` perm | Created reply + parent `message.update` broadcast |
+| Delete post/reply | `DELETE /channels/{id}/messages/{msg_id}` | `delete_message()` checks author or `manage_messages` | Gateway `message.delete` broadcast |
+| Thread metadata | `GET /channels/{id}/messages/{msg_id}/threads` | `get_thread_info()` → `get_thread_metadata()` | `reply_count`, `last_reply_at`, `participants` |
+| Active threads | `GET /channels/{id}/threads` | `list_active_threads()` | Array of parent messages with replies |
+| Thread typing | `POST /channels/{id}/typing` `{ "thread_id": "..." }` | Broadcasts typing with `thread_id` | Gateway typing event |
+
+### Permission Model
+
+| Permission | Client Constant | Server Constant | Where Enforced |
+|-----------|----------------|-----------------|----------------|
+| `MANAGE_THREADS` | `AccordPermission.MANAGE_THREADS` (line 40) | `manage_threads` (permission.rs line 47) | Client-side only: forum_view delete context menu (line 284) |
+| `CREATE_THREADS` | `AccordPermission.CREATE_THREADS` (line 41) | `create_threads` (permission.rs line 48) | **Not enforced** on either side |
+| `SEND_IN_THREADS` | `AccordPermission.SEND_IN_THREADS` (line 43) | `send_in_threads` (permission.rs line 50) | Server: checked on `create_message()` when `thread_id` present. Client: thread_panel composer gating (line 101) |
 
 ### Responsive Layout
 
@@ -238,21 +260,7 @@ Gateway events for forum channels need special handling in `client_gateway.gd`:
 |-------------|----------|
 | FULL (>=768px) | Forum post list + thread panel side by side in ContentBody |
 | MEDIUM (<768px) | Thread panel replaces member list when a post is open |
-| COMPACT (<500px) | Thread panel is full-screen overlay with back button; forum post list fills content area |
-
-### Forum-Specific UI Details
-
-**Post list empty state**: When a forum channel has no posts, show "No posts yet. Start the conversation!" with a prominent "New Post" button.
-
-**Post creation form**: A modal dialog or inline form at the top of the forum view with:
-- Title field (required, max ~100 characters)
-- Body text area (same markdown support as the composer)
-- "Post" button and "Cancel" button
-
-**Sort/filter options**:
-- Latest Activity (default) — sorted by `last_reply_at` descending
-- Newest — sorted by post creation `timestamp` descending
-- Oldest — sorted by post creation `timestamp` ascending
+| COMPACT (<500px) | Thread panel is full-screen overlay with back button; forum_view adapts header (compact "+" button, smaller title), forum_post_row hides avatar/activity |
 
 ## Implementation Status
 
@@ -269,18 +277,61 @@ Gateway events for forum channels need special handling in `client_gateway.gd`:
 - [x] Forum post list view (`forum_view.tscn` + `forum_view.gd`)
 - [x] Forum post row component (`forum_post_row.tscn` + `forum_post_row.gd`)
 - [x] Post creation form (title + body) — inline in forum_view
-- [x] Channel type detection in message_view to switch to forum layout
-- [x] Thread panel (prerequisite — see Message Threads)
-- [x] Thread signals and state in AppState (prerequisite — see Message Threads)
-- [x] `thread_id`, `reply_count`, `title` fields on AccordMessage
-- [x] Thread message fetch/send API endpoints (`list_posts()`, `list_thread()`)
-- [x] Gateway handling for thread-aware message events (forum post create/update/delete)
-- [x] Forum post sort/filter controls (Latest Activity, Newest, Oldest)
+- [x] Channel type detection in message_view to switch to forum layout (`message_view.gd:170-260`)
+- [x] Thread panel with forum-specific behavior (`thread_panel.gd`)
+- [x] Thread signals and state in AppState (`thread_opened`, `thread_closed`, `forum_posts_updated`)
+- [x] `thread_id`, `reply_count`, `last_reply_at`, `thread_participants`, `title` fields on AccordMessage (`message.gd:27-31`)
+- [x] Thread message fetch/send API endpoints (`list_posts()`, `list_thread()`, `get_thread_info()`, `list_active_threads()`)
+- [x] Gateway handling for thread-aware message events — create, update, delete, typing (`client_gateway.gd`)
+- [x] Forum post sort/filter controls — Latest Activity, Newest, Oldest (`forum_view.gd:221-242`)
 - [x] Forum empty state ("No posts yet" with New Post button)
 - [x] Forum-specific context menu items (Open Thread, Delete Post)
-- [x] Permission checks for `MANAGE_THREADS` on delete
-- [x] Responsive layout for forum view + thread panel
-- [ ] Server-side forum/thread support in accordserver
+- [x] Permission checks for `MANAGE_THREADS` on delete (client-side)
+- [x] `SEND_IN_THREADS` enforcement (server + client thread_panel)
+- [x] Responsive layout for forum view + thread panel (FULL/MEDIUM/COMPACT)
+- [x] Server-side forum/thread support: `top_level=true` query, `list_forum_posts()` with sort, `messages_to_forum_json()` with `last_reply_at`, reply_count broadcasts, `send_in_threads` enforcement, thread-scoped typing
+- [x] Database schema: `thread_id` column + index (migration 009), `title` column (migration 018), PostgreSQL equivalents
+- [x] Client forum post cache (`_forum_post_cache`) and thread message cache (`_thread_message_cache`)
+- [x] Reply count live updates via gateway (both client-side increment and server `message.update` broadcast)
+- [ ] Post editing UI (title + body inline edit)
+- [ ] Post pinning/archiving UI (`archived`, `auto_archive_after` fields exist but unused)
+- [ ] `CREATE_THREADS` permission enforcement (defined but not checked)
+- [ ] `MANAGE_THREADS` server-side enforcement (client checks but server uses `manage_messages`)
+- [ ] Forum post pagination (cursor-based `after` param supported by server but no "Load More" button in client)
+
+## Interoperability Analysis
+
+### Verified Compatible
+
+| Area | Client | Server | Status |
+|------|--------|--------|--------|
+| Forum post listing | `list_posts()` sends `top_level=true` | `list_forum_posts()` filters `WHERE thread_id IS NULL` | Compatible |
+| Sort parameter | Client sends `sort=latest_activity\|newest\|oldest` | Server accepts all three, defaults to `latest_activity` | Compatible |
+| Post creation with title | Sends `{ "title": "...", "content": "..." }` | Validates title 1-100 chars, stores in `title` column | Compatible |
+| Thread reply creation | Sends `{ "thread_id": "...", "content": "..." }` | Checks `send_in_threads` perm, stores `thread_id` FK | Compatible |
+| Message model fields | Parses `thread_id`, `reply_count`, `last_reply_at`, `title` | Returns all four fields in JSON responses | Compatible |
+| Gateway thread reply routing | Routes by `thread_id` presence to thread cache | Broadcasts `message.create` with `thread_id` intact | Compatible |
+| Gateway forum post routing | Routes by channel type FORUM + no `thread_id` | New top-level forum post has `thread_id: null` | Compatible |
+| Reply count live update | Gateway increments parent `reply_count` in cache | Broadcasts `message.update` on parent with new count | Compatible (dual path) |
+| `last_reply_at` enrichment | Reads from forum post response | Only included in `messages_to_forum_json()` (forum mode) | Compatible |
+| Thread-scoped typing | Sends `POST /typing` with `{ "thread_id": "..." }` | Broadcasts typing event with `thread_id` field | Compatible |
+| Post deletion cascade | Removes from `_forum_post_cache` on `message.delete` | `ON DELETE CASCADE` on `thread_id` FK deletes all replies | Compatible |
+| Thread metadata endpoint | `get_thread_info()` → `GET /messages/{id}/threads` | Returns `{ reply_count, last_reply_at, participants }` | Compatible |
+
+### Permission Mismatch
+
+| Permission | Client Behavior | Server Behavior | Issue |
+|-----------|----------------|-----------------|-------|
+| `MANAGE_THREADS` | Used to gate "Delete Post" in context menu | **Not checked** — server uses `manage_messages` for non-author deletes | Mismatch: client gates on wrong permission; user with `manage_messages` but not `manage_threads` can delete via API but not via UI |
+| `CREATE_THREADS` | Defined but not checked anywhere | Defined but not checked anywhere | Both sides ignore it |
+
+### Pagination Gap
+
+The server supports cursor-based pagination (`after` param, `has_more` in response) for forum posts, but the client's `forum_view.gd` does not implement a "Load More" button. All posts are fetched in a single request limited by `MESSAGE_CAP`. For forums with many posts, this means only the most recent page is visible.
+
+### Sort Double-Processing
+
+The client passes `sort` to the server AND applies client-side sorting in `_sort_posts()` (forum_view.gd line 221). The server already returns posts in the requested order, so the client-side sort is redundant but harmless.
 
 ## Tasks
 
@@ -289,25 +340,39 @@ Gateway events for forum channels need special handling in `client_gateway.gd`:
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** ui
-- **Notes:** : forum_view adapts header (compact "+" button, smaller title), forum_post_row hides avatar/activity in compact, thread_panel shows "\u2190 Back" button and drops min-width.
+- **Notes:** forum_view adapts header (compact "+" button, smaller title), forum_post_row hides avatar/activity in compact, thread_panel shows "← Back" button and drops min-width.
 
 ### FORUM-2: No post pinning or archiving
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** ui
-- **Notes:** `AccordChannel` has `archived` and `auto_archive_after` fields (channel.gd lines 21-22) but no UI uses them.
+- **Notes:** `AccordChannel` has `archived` and `auto_archive_after` fields (channel.gd lines 21-22) but no UI uses them. Server has no archiving endpoints.
 
-### FORUM-3: Server-side forum support missing
-- **Status:** open
+### FORUM-3: Server-side forum support
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** general
-- **Notes:** accordserver needs to support `title` field on messages and the `top_level=true` query param for listing forum posts. Until then, `list_posts()` falls back to listing all messages in the channel.
+- **Notes:** accordserver supports `title` field on messages, `top_level=true` query param with sort options, `list_forum_posts()` with cursor pagination, `messages_to_forum_json()` with `last_reply_at`, thread reply count broadcasts, `send_in_threads` permission enforcement, and thread-scoped typing indicators.
 
 ### FORUM-4: Edit post UI
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** ui
-- **Notes:** No inline edit for forum post title+body. Users can edit content via the thread panel.
+- **Notes:** No inline edit for forum post title+body. Server supports `PATCH /messages/{id}` with `title` field. Users can edit content via the thread panel but cannot change the title.
+
+### FORUM-5: Permission alignment
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** Client gates post deletion on `MANAGE_THREADS` but server checks `manage_messages`. Either the client should check `manage_messages` or the server should add a `manage_threads` check for forum post operations. `CREATE_THREADS` is unused on both sides.
+
+### FORUM-6: Forum post pagination
+- **Status:** open
+- **Impact:** 2
+- **Effort:** 2
+- **Tags:** ui
+- **Notes:** Server supports cursor pagination (`after`/`has_more`) but client fetches only one page. Forums with many posts need a "Load More" button in forum_view.

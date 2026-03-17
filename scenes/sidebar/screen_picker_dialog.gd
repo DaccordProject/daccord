@@ -9,11 +9,11 @@ func _ready() -> void:
 	_bind_modal_nodes($CenterContainer/Panel, 440, 400)
 	_close_btn.pressed.connect(_close)
 	if OS.get_name() == "Web":
-		_add_error_label("Screen sharing is not supported in the web client")
+		_add_error_label(tr("Screen sharing is not supported in the web client"))
 		return
 	var status: Dictionary = LiveKitScreenCapture.check_permissions()
 	if status.get("status", -1) == LiveKitScreenCapture.PERMISSION_ERROR:
-		_add_error_label(status.get("summary", "Screen capture permission denied"))
+		_add_error_label(status.get("summary", tr("Screen capture permission denied")))
 	else:
 		_populate_sources()
 
@@ -22,29 +22,29 @@ func _populate_sources() -> void:
 	# Screens section
 	var monitors: Array = LiveKitScreenCapture.get_monitors()
 	if monitors.size() > 0:
-		_add_section_label("Screens")
+		_add_section_label(tr("Screens"))
 		for monitor in monitors:
 			var source: Dictionary = {}
 			source.merge(monitor)
 			source["_type"] = "monitor"
-			var name: String = monitor.get("name", "Unknown")
+			var name: String = monitor.get("name", tr("Unknown"))
 			var w: int = monitor.get("width", 0)
 			var h: int = monitor.get("height", 0)
 			_add_source_button(name, "%dx%d" % [w, h], source)
 	# Windows section
 	var windows: Array = LiveKitScreenCapture.get_windows()
 	if windows.size() > 0:
-		_add_section_label("Windows")
+		_add_section_label(tr("Windows"))
 		for window in windows:
 			var source: Dictionary = {}
 			source.merge(window)
 			source["_type"] = "window"
-			var name: String = window.get("name", "Unknown")
+			var name: String = window.get("name", tr("Unknown"))
 			var w: int = window.get("width", 0)
 			var h: int = window.get("height", 0)
 			_add_source_button(name, "%dx%d" % [w, h], source)
 	if monitors.size() == 0 and windows.size() == 0:
-		_add_empty_label("No screens or windows found")
+		_add_empty_label(tr("No screens or windows found"))
 
 func _add_source_button(
 	title: String, resolution: String, source: Dictionary,

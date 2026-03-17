@@ -73,6 +73,8 @@ func _ready() -> void:
 		_write_initial_registry("default", "Default")
 		DirAccess.make_dir_recursive_absolute(_profile_dir())
 		_load_ok = true
+	# Apply saved locale preference
+	TranslationServer.set_locale(get_locale())
 	# Apply saved audio device selection to AudioServer
 	voice.apply_devices()
 
@@ -298,32 +300,6 @@ func remove_server(index: int) -> void:
 		_config.erase_section(last)
 	_config.set_value("servers", "count", count - 1)
 	_save()
-
-## --- Friend book (delegated to ConfigFriendBook) ---
-
-func _ensure_friend_book() -> void:
-	if friend_book == null:
-		friend_book = ConfigFriendBookScript.new(self)
-
-func get_friend_book() -> Array:
-	_ensure_friend_book()
-	return friend_book.get_entries()
-
-func save_friend_book(entries: Array) -> void:
-	_ensure_friend_book()
-	friend_book.save_entries(entries)
-
-func remove_friend_from_book(
-	server_url: String, user_id: String,
-) -> void:
-	_ensure_friend_book()
-	friend_book.remove_entry(server_url, user_id)
-
-func get_friend_book_for_server(
-	server_url: String,
-) -> Array:
-	_ensure_friend_book()
-	return friend_book.get_for_server(server_url)
 
 func update_server_token(index: int, new_token: String) -> void:
 	var count: int = _config.get_value("servers", "count", 0)
@@ -584,6 +560,17 @@ func _set_ui_scale(scale: float) -> void:
 	_save()
 	AppState.config_changed.emit("accessibility", "ui_scale")
 
+## Locale
+
+func get_locale() -> String:
+	return _config.get_value("app", "locale", "en")
+
+func set_locale(locale_code: String) -> void:
+	_config.set_value("app", "locale", locale_code)
+	_save()
+	TranslationServer.set_locale(locale_code)
+	AppState.config_changed.emit("app", "locale")
+
 ## Theme
 
 func get_theme_preset() -> String:
@@ -660,6 +647,15 @@ func get_master_server_url() -> String:
 
 func set_master_server_url(url: String) -> void:
 	_config.set_value("master", "url", url)
+	_save()
+
+## Rules channel acceptance (per-space)
+
+func has_rules_accepted(space_id: String) -> bool:
+	return _config.get_value("rules_accepted", space_id, false)
+
+func set_rules_accepted(space_id: String) -> void:
+	_config.set_value("rules_accepted", space_id, true)
 	_save()
 
 ## Screen sharing
@@ -750,20 +746,6 @@ func update_server_username(
 	var section := "server_%d" % index
 	_config.set_value(section, "username", username)
 	_save()
-
-## Config export/import (delegated to ConfigExport)
-
-func _ensure_exporter() -> void:
-	if exporter == null:
-		exporter = ConfigExportScript.new(self)
-
-func export_config(path: String) -> Error:
-	_ensure_exporter()
-	return exporter.export_config(path)
-
-func import_config(path: String) -> Error:
-	_ensure_exporter()
-	return exporter.import_config(path)
 
 ## Returns a Dictionary of space_id → folder_name for all non-empty folder mappings.
 func get_folder_map() -> Dictionary:

@@ -30,16 +30,16 @@ func build(
 ) -> void:
 	_accord_client = accord_client
 	_status_label = Label.new()
-	_status_label.text = "Two-factor authentication is not enabled."
+	_status_label.text = tr("Two-factor authentication is not enabled.")
 	page_vbox.add_child(_status_label)
 
 	# Enable section: password + button
 	_enable_pw_input = LineEdit.new()
 	_enable_pw_input.secret = true
-	_enable_pw_input.placeholder_text = "Password (required to enable)"
+	_enable_pw_input.placeholder_text = tr("Password (required to enable)")
 	page_vbox.add_child(_enable_pw_input)
 
-	_enable_btn = SettingsBase.create_action_button("Enable 2FA")
+	_enable_btn = SettingsBase.create_action_button(tr("Enable 2FA"))
 	_enable_btn.pressed.connect(_on_enable)
 	page_vbox.add_child(_enable_btn)
 
@@ -52,7 +52,7 @@ func build(
 	_secret_label.add_theme_font_size_override("font_size", 13)
 	secret_row.add_child(_secret_label)
 
-	_secret_copy_btn = SettingsBase.create_secondary_button("Copy")
+	_secret_copy_btn = SettingsBase.create_secondary_button(tr("Copy"))
 	_secret_copy_btn.visible = false
 	_secret_copy_btn.pressed.connect(_on_copy_secret)
 	secret_row.add_child(_secret_copy_btn)
@@ -67,7 +67,7 @@ func build(
 	_uri_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	uri_row.add_child(_uri_label)
 
-	_uri_copy_btn = SettingsBase.create_secondary_button("Copy URI")
+	_uri_copy_btn = SettingsBase.create_secondary_button(tr("Copy URI"))
 	_uri_copy_btn.visible = false
 	_uri_copy_btn.pressed.connect(_on_copy_uri)
 	uri_row.add_child(_uri_copy_btn)
@@ -77,12 +77,12 @@ func build(
 	page_vbox.add_child(code_row)
 
 	_code_input = LineEdit.new()
-	_code_input.placeholder_text = "6-digit code"
+	_code_input.placeholder_text = tr("6-digit code")
 	_code_input.max_length = 6
 	_code_input.visible = false
 	code_row.add_child(_code_input)
 
-	_verify_btn = SettingsBase.create_action_button("Verify")
+	_verify_btn = SettingsBase.create_action_button(tr("Verify"))
 	_verify_btn.visible = false
 	_verify_btn.pressed.connect(_on_verify)
 	code_row.add_child(_verify_btn)
@@ -97,7 +97,7 @@ func build(
 	_backup_label.add_theme_font_size_override("font_size", 13)
 	backup_row.add_child(_backup_label)
 
-	_backup_copy_btn = SettingsBase.create_secondary_button("Copy")
+	_backup_copy_btn = SettingsBase.create_secondary_button(tr("Copy"))
 	_backup_copy_btn.visible = false
 	_backup_copy_btn.pressed.connect(_on_copy_backup)
 	backup_row.add_child(_backup_copy_btn)
@@ -105,25 +105,25 @@ func build(
 	# Regenerate backup codes section
 	_backup_pw_input = LineEdit.new()
 	_backup_pw_input.secret = true
-	_backup_pw_input.placeholder_text = "Password (to regenerate codes)"
+	_backup_pw_input.placeholder_text = tr("Password (to regenerate codes)")
 	_backup_pw_input.visible = false
 	page_vbox.add_child(_backup_pw_input)
 
 	_show_backup_btn = SettingsBase.create_secondary_button(
-		"Regenerate Backup Codes"
+		tr("Regenerate Backup Codes")
 	)
 	_show_backup_btn.visible = false
 	_show_backup_btn.pressed.connect(_on_show_backup)
 	page_vbox.add_child(_show_backup_btn)
 
-	page_vbox.add_child(section_label_fn.call("DISABLE 2FA"))
+	page_vbox.add_child(section_label_fn.call(tr("DISABLE 2FA")))
 	_pw_input = LineEdit.new()
 	_pw_input.secret = true
-	_pw_input.placeholder_text = "Password"
+	_pw_input.placeholder_text = tr("Password")
 	_pw_input.visible = false
 	page_vbox.add_child(_pw_input)
 
-	_disable_btn = SettingsBase.create_danger_button("Disable 2FA")
+	_disable_btn = SettingsBase.create_danger_button(tr("Disable 2FA"))
 	_disable_btn.visible = false
 	_disable_btn.pressed.connect(_on_disable)
 	page_vbox.add_child(_disable_btn)
@@ -153,7 +153,7 @@ func _refresh_mfa_status() -> void:
 		_show_disabled_state()
 
 func _show_enabled_state() -> void:
-	_status_label.text = "Two-factor authentication is enabled."
+	_status_label.text = tr("Two-factor authentication is enabled.")
 	_enable_btn.visible = false
 	_enable_pw_input.visible = false
 	_pw_input.visible = true
@@ -162,7 +162,7 @@ func _show_enabled_state() -> void:
 	_show_backup_btn.visible = true
 
 func _show_disabled_state() -> void:
-	_status_label.text = "Two-factor authentication is not enabled."
+	_status_label.text = tr("Two-factor authentication is not enabled.")
 	_enable_btn.visible = true
 	_enable_pw_input.visible = true
 	_enable_pw_input.text = ""
@@ -184,13 +184,13 @@ func _on_enable() -> void:
 	_error.visible = false
 	var pw: String = _enable_pw_input.text
 	if pw.is_empty():
-		_error.text = "Password is required"
+		_error.text = tr("Password is required")
 		_error.visible = true
 		return
 	_enable_btn.disabled = true
 	var client: AccordClient = _get_client()
 	if client == null:
-		_error.text = "Not connected"
+		_error.text = tr("Not connected")
 		_error.visible = true
 		_enable_btn.disabled = false
 		return
@@ -200,12 +200,12 @@ func _on_enable() -> void:
 	_enable_btn.disabled = false
 	if result.ok and result.data is Dictionary:
 		var secret: String = result.data.get("secret", "")
-		_secret_label.text = "Secret: " + secret
+		_secret_label.text = tr("Secret: %s") % secret
 		_secret_label.visible = true
 		_secret_copy_btn.visible = true
 		var uri: String = result.data.get("otpauth_uri", "")
 		if not uri.is_empty():
-			_uri_label.text = "OTP URI: " + uri
+			_uri_label.text = tr("OTP URI: %s") % uri
 			_uri_label.visible = true
 			_uri_copy_btn.visible = true
 		_code_input.visible = true
@@ -214,7 +214,7 @@ func _on_enable() -> void:
 		_enable_pw_input.visible = false
 	else:
 		var err: String = (
-			result.error.message if result.error else "Failed"
+			result.error.message if result.error else tr("Failed")
 		)
 		_error.text = err
 		_error.visible = true
@@ -223,13 +223,13 @@ func _on_verify() -> void:
 	_error.visible = false
 	var code: String = _code_input.text.strip_edges()
 	if code.length() != 6:
-		_error.text = "Enter a 6-digit code"
+		_error.text = tr("Enter a 6-digit code")
 		_error.visible = true
 		return
 	_verify_btn.disabled = true
 	var client: AccordClient = _get_client()
 	if client == null:
-		_error.text = "Not connected"
+		_error.text = tr("Not connected")
 		_error.visible = true
 		_verify_btn.disabled = false
 		return
@@ -254,7 +254,7 @@ func _on_verify() -> void:
 	else:
 		var err: String = (
 			result.error.message
-			if result.error else "Verification failed"
+			if result.error else tr("Verification failed")
 		)
 		_error.text = err
 		_error.visible = true
@@ -263,13 +263,13 @@ func _on_disable() -> void:
 	_error.visible = false
 	var pw: String = _pw_input.text
 	if pw.is_empty():
-		_error.text = "Password is required"
+		_error.text = tr("Password is required")
 		_error.visible = true
 		return
 	_disable_btn.disabled = true
 	var client: AccordClient = _get_client()
 	if client == null:
-		_error.text = "Not connected"
+		_error.text = tr("Not connected")
 		_error.visible = true
 		_disable_btn.disabled = false
 		return
@@ -282,7 +282,7 @@ func _on_disable() -> void:
 	else:
 		var err: String = (
 			result.error.message
-			if result.error else "Failed to disable 2FA"
+			if result.error else tr("Failed to disable 2FA")
 		)
 		_error.text = err
 		_error.visible = true
@@ -291,13 +291,13 @@ func _on_show_backup() -> void:
 	_error.visible = false
 	var pw: String = _backup_pw_input.text
 	if pw.is_empty():
-		_error.text = "Password is required to regenerate codes"
+		_error.text = tr("Password is required to regenerate codes")
 		_error.visible = true
 		return
 	_show_backup_btn.disabled = true
 	var client: AccordClient = _get_client()
 	if client == null:
-		_error.text = "Not connected"
+		_error.text = tr("Not connected")
 		_error.visible = true
 		_show_backup_btn.disabled = false
 		return
@@ -310,20 +310,20 @@ func _on_show_backup() -> void:
 		if codes.size() > 0:
 			_display_backup_codes(codes)
 		else:
-			_error.text = "No backup codes available"
+			_error.text = tr("No backup codes available")
 			_error.visible = true
 		_backup_pw_input.text = ""
 	else:
 		var err: String = (
 			result.error.message
-			if result.error else "Failed to regenerate backup codes"
+			if result.error else tr("Failed to regenerate backup codes")
 		)
 		_error.text = err
 		_error.visible = true
 
 func _display_backup_codes(codes: Array) -> void:
 	_backup_label.text = (
-		"Backup codes (save these):\n"
+		tr("Backup codes (save these):") + "\n"
 		+ "\n".join(codes)
 	)
 	_backup_label.visible = true
@@ -331,18 +331,21 @@ func _display_backup_codes(codes: Array) -> void:
 
 func _on_copy_secret() -> void:
 	var text: String = _secret_label.text
-	if text.begins_with("Secret: "):
-		text = text.substr(8)
+	var prefix: String = tr("Secret: %s") % ""
+	if text.begins_with(prefix):
+		text = text.substr(prefix.length())
 	DisplayServer.clipboard_set(text)
 
 func _on_copy_uri() -> void:
 	var text: String = _uri_label.text
-	if text.begins_with("OTP URI: "):
-		text = text.substr(9)
+	var prefix: String = tr("OTP URI: %s") % ""
+	if text.begins_with(prefix):
+		text = text.substr(prefix.length())
 	DisplayServer.clipboard_set(text)
 
 func _on_copy_backup() -> void:
 	var text: String = _backup_label.text
-	if text.begins_with("Backup codes (save these):\n"):
-		text = text.substr(27)
+	var prefix: String = tr("Backup codes (save these):") + "\n"
+	if text.begins_with(prefix):
+		text = text.substr(prefix.length())
 	DisplayServer.clipboard_set(text)

@@ -58,7 +58,7 @@ func get_friends() -> Array:
 		var key: String = rel.get("server_url", "") + ":" + rel["user"].get("id", "")
 		live_keys[key] = true
 	# Merge unavailable friends from the local book
-	var book: Array = Config.get_friend_book()
+	var book: Array = Config.friend_book.get_entries()
 	for entry in book:
 		if entry.get("type", 1) != 1:
 			continue
@@ -162,7 +162,7 @@ func remove_friend(user_id: String) -> RestResult:
 ## Entries for connected servers are upserted; entries for
 ## disconnected servers are left untouched.
 func _sync_to_friend_book() -> void:
-	var book: Array = Config.get_friend_book()
+	var book: Array = Config.friend_book.get_entries()
 	# Index existing book by composite key
 	var book_index: Dictionary = {}
 	for i in book.size():
@@ -212,7 +212,7 @@ func _sync_to_friend_book() -> void:
 		if server_connected and not live_keys.has(key):
 			continue # unfriended
 		filtered.append(entry)
-	Config.save_friend_book(filtered)
+	Config.friend_book.save_entries(filtered)
 
 static func _extract_avatar_hash(avatar_value) -> String:
 	if avatar_value == null:
@@ -241,11 +241,11 @@ func get_friends_count_for_server(server_url: String) -> int:
 			count += 1
 	# Also count book entries for this server (in case already disconnected)
 	if not _is_server_connected(server_url):
-		for entry in Config.get_friend_book_for_server(server_url):
+		for entry in Config.friend_book.get_for_server(server_url):
 			if entry.get("type", 1) == 1:
 				count += 1
 	return count
 
 func remove_unavailable_friend(server_url: String, user_id: String) -> void:
-	Config.remove_friend_from_book(server_url, user_id)
+	Config.friend_book.remove_entry(server_url, user_id)
 	AppState.relationships_updated.emit()

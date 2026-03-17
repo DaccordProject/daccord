@@ -18,22 +18,22 @@ func setup(plugin_name: String, server_name: String) -> void:
 
 
 func _ready() -> void:
-	_setup_modal("Trust Native Plugin?", 420.0)
+	_setup_modal(tr("Trust Native Plugin?"), 420.0)
 
 	var warning_label := RichTextLabel.new()
 	warning_label.bbcode_enabled = true
 	warning_label.fit_content = true
 	warning_label.scroll_active = false
 	warning_label.text = (
-		"[b]%s[/b] is a native plugin from [b]%s[/b]. "
+		tr("[b]%s[/b] is a native plugin from [b]%s[/b]. ")
 		% [_plugin_name, _server_name]
-		+ "Native plugins run GDScript scenes with full access to "
-		+ "Godot's API. Only run plugins from servers you trust."
+		+ tr("Native plugins run GDScript scenes with full access to "
+		+ "Godot's API. Only run plugins from servers you trust.")
 	)
 	content_container.add_child(warning_label)
 
 	var unsigned_label := Label.new()
-	unsigned_label.text = "This plugin is not signed."
+	unsigned_label.text = tr("This plugin is not signed.")
 	unsigned_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("error")
 	)
@@ -41,7 +41,7 @@ func _ready() -> void:
 	content_container.add_child(unsigned_label)
 
 	_remember_check = CheckBox.new()
-	_remember_check.text = "Always trust plugins from this server"
+	_remember_check.text = tr("Always trust plugins from this server")
 	content_container.add_child(_remember_check)
 
 	var btn_row := HBoxContainer.new()
@@ -50,12 +50,12 @@ func _ready() -> void:
 	content_container.add_child(btn_row)
 
 	var cancel_btn := Button.new()
-	cancel_btn.text = "Cancel"
+	cancel_btn.text = tr("Cancel")
 	cancel_btn.pressed.connect(_on_cancel)
 	btn_row.add_child(cancel_btn)
 
 	var trust_btn := Button.new()
-	trust_btn.text = "Trust & Run"
+	trust_btn.text = tr("Trust & Run")
 	var trust_style := StyleBoxFlat.new()
 	trust_style.bg_color = ThemeManager.get_color("accent")
 	trust_style.set_corner_radius_all(4)

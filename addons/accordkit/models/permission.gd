@@ -42,6 +42,7 @@ const CREATE_THREADS := "create_threads"
 const USE_EXTERNAL_STICKERS := "use_external_stickers"
 const SEND_IN_THREADS := "send_in_threads"
 const MODERATE_MEMBERS := "moderate_members"
+const MANAGE_AUTOMOD := "manage_automod"
 
 
 static func all() -> Array:
@@ -85,6 +86,7 @@ static func all() -> Array:
 		USE_EXTERNAL_STICKERS,
 		SEND_IN_THREADS,
 		MODERATE_MEMBERS,
+		MANAGE_AUTOMOD,
 	]
 
 
@@ -133,4 +135,5 @@ static func description(perm: String) -> String:
 		USE_EXTERNAL_STICKERS: return "Allows using stickers from other spaces"
 		SEND_IN_THREADS: return "Allows sending messages in threads"
 		MODERATE_MEMBERS: return "Allows timing out and moderating members"
+		MANAGE_AUTOMOD: return "Allows configuring auto-moderation rules"
 	return ""

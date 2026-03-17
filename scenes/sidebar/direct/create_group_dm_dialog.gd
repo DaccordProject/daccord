@@ -52,7 +52,7 @@ func _populate_users() -> void:
 	for user in users:
 		var uid: String = user.get("id", "")
 		var display_name: String = user.get(
-			"display_name", "Unknown"
+			"display_name", tr("Unknown")
 		)
 		var username: String = user.get("username", "")
 
@@ -92,7 +92,7 @@ func _on_user_toggled(toggled_on: bool, uid: String) -> void:
 
 func _update_selection_ui() -> void:
 	var count: int = _selected_ids.size()
-	selected_label.text = "%d user%s selected" % [
+	selected_label.text = tr("%d user%s selected") % [
 		count, "" if count == 1 else "s"
 	]
 	create_button.disabled = count < 2
@@ -102,6 +102,6 @@ func _on_create_pressed() -> void:
 	if _selected_ids.size() < 2:
 		return
 	create_button.disabled = true
-	create_button.text = "Creating..."
+	create_button.text = tr("Creating...")
 	await Client.create_group_dm(_selected_ids)
 	_close()

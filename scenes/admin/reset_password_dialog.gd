@@ -23,37 +23,37 @@ func _ready() -> void:
 func setup(user_id: String, display_name: String) -> void:
 	_user_id = user_id
 	if _title_label:
-		_title_label.text = "Reset Password"
+		_title_label.text = tr("Reset Password")
 	if _description:
 		_description.text = (
-			"Set a temporary password for '%s'.\n" % display_name
-			+ "This will revoke all their sessions and disable 2FA. "
-			+ "They will be required to change their password on next login."
+			tr("Set a temporary password for '%s'.") % display_name
+			+ "\n" + tr("This will revoke all their sessions and disable 2FA. ")
+			+ tr("They will be required to change their password on next login.")
 		)
 
 func _on_submit() -> void:
 	var pw := _password_input.text.strip_edges()
 
 	if pw.length() < 8:
-		_show_error("Password must be at least 8 characters.")
+		_show_error(tr("Password must be at least 8 characters."))
 		return
 	if pw.length() > 128:
-		_show_error("Password must be at most 128 characters.")
+		_show_error(tr("Password must be at most 128 characters."))
 		return
 
 	_error_label.visible = false
 	_submit_btn.disabled = true
-	_submit_btn.text = "Resetting..."
+	_submit_btn.text = tr("Resetting...")
 
 	var result: RestResult = await Client.admin.reset_user_password(
 		_user_id, pw
 	)
 
 	_submit_btn.disabled = false
-	_submit_btn.text = "Reset Password"
+	_submit_btn.text = tr("Reset Password")
 
 	if result == null or not result.ok:
-		var msg := "Failed to reset password"
+		var msg := tr("Failed to reset password")
 		if result != null and result.error:
 			msg = result.error.message
 		_show_error(msg)

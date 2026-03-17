@@ -98,10 +98,10 @@ func setup(data: Dictionary) -> void:
 	if _is_disconnected:
 		icon_button.modulate = ThemeManager.get_color("icon_default")
 		if _is_connecting:
-			icon_button.tooltip_text = space_name + " (Connecting...)"
+			icon_button.tooltip_text = tr("%s (Connecting...)") % space_name
 			_start_pulse()
 		else:
-			icon_button.tooltip_text = space_name + " (Disconnected)"
+			icon_button.tooltip_text = tr("%s (Disconnected)") % space_name
 			_stop_pulse()
 	else:
 		_stop_pulse()
@@ -163,9 +163,9 @@ func _show_context_menu(pos: Vector2i) -> void:
 	var idx: int = 0
 
 	if _is_disconnected:
-		_context_menu.add_item("Reconnect", 0)
+		_context_menu.add_item(tr("Reconnect"), 0)
 		_context_menu.add_separator()
-		_context_menu.add_item("Remove Server", 2)
+		_context_menu.add_item(tr("Remove Server"), 2)
 		_context_menu.hide()
 		_context_menu.position = pos
 		_context_menu.popup()
@@ -174,76 +174,76 @@ func _show_context_menu(pos: Vector2i) -> void:
 	# --- Administration submenu (permission-gated items) ---
 	var admin_idx: int = 0
 	if Client.has_permission(space_id, AccordPermission.MANAGE_SPACE):
-		_admin_submenu.add_item("Space Settings", admin_idx)
+		_admin_submenu.add_item(tr("Space Settings"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
-		_admin_submenu.add_item("Channels", admin_idx)
+		_admin_submenu.add_item(tr("Channels"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_ROLES):
-		_admin_submenu.add_item("Roles", admin_idx)
+		_admin_submenu.add_item(tr("Roles"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.BAN_MEMBERS):
-		_admin_submenu.add_item("Bans", admin_idx)
+		_admin_submenu.add_item(tr("Bans"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.CREATE_INVITES):
-		_admin_submenu.add_item("Invites", admin_idx)
+		_admin_submenu.add_item(tr("Invites"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_EMOJIS):
-		_admin_submenu.add_item("Emojis", admin_idx)
+		_admin_submenu.add_item(tr("Emojis"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.VIEW_AUDIT_LOG):
-		_admin_submenu.add_item("Audit Log", admin_idx)
+		_admin_submenu.add_item(tr("Audit Log"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MODERATE_MEMBERS):
-		_admin_submenu.add_item("Reports", admin_idx)
+		_admin_submenu.add_item(tr("Reports"), admin_idx)
 		admin_idx += 1
 	if (Client.has_permission(space_id, AccordPermission.MANAGE_SOUNDBOARD)
 			or Client.has_permission(space_id, AccordPermission.USE_SOUNDBOARD)):
-		_admin_submenu.add_item("Soundboard", admin_idx)
+		_admin_submenu.add_item(tr("Soundboard"), admin_idx)
 		admin_idx += 1
 	if Client.has_permission(space_id, AccordPermission.MANAGE_SPACE):
-		_admin_submenu.add_item("Plugins", admin_idx)
+		_admin_submenu.add_item(tr("Plugins"), admin_idx)
 		admin_idx += 1
 	if not AppState.is_imposter_mode and Client.has_permission(
 		space_id, AccordPermission.MANAGE_ROLES
 	):
-		_admin_submenu.add_item("View As...", admin_idx)
+		_admin_submenu.add_item(tr("View As..."), admin_idx)
 		admin_idx += 1
 
 	if admin_idx > 0:
-		_context_menu.add_submenu_node_item("Administration", _admin_submenu, idx)
+		_context_menu.add_submenu_node_item(tr("Administration"), _admin_submenu, idx)
 		idx += 1
 		_context_menu.add_separator()
 		idx += 1
 
 	# --- General items ---
 	if Client.current_user.get("is_admin", false):
-		_context_menu.add_item("Server Settings", idx)
+		_context_menu.add_item(tr("Server Settings"), idx)
 		idx += 1
-		_context_menu.add_item("Server Reports", idx)
+		_context_menu.add_item(tr("Server Reports"), idx)
 		idx += 1
 
 	var status := Client.get_space_connection_status(space_id)
 	if status == "disconnected" or status == "error":
-		_context_menu.add_item("Reconnect", idx)
+		_context_menu.add_item(tr("Reconnect"), idx)
 		idx += 1
 
 	if Config.is_server_muted(space_id):
-		_context_menu.add_item("Unmute Server", idx)
+		_context_menu.add_item(tr("Unmute Server"), idx)
 	else:
-		_context_menu.add_item("Mute Server", idx)
+		_context_menu.add_item(tr("Mute Server"), idx)
 	idx += 1
 
 	var current_folder: String = Config.get_space_folder(space_id)
 	if current_folder.is_empty():
-		_context_menu.add_item("Move to Folder", idx)
+		_context_menu.add_item(tr("Move to Folder"), idx)
 	else:
-		_context_menu.add_item("Remove from Folder", idx)
+		_context_menu.add_item(tr("Remove from Folder"), idx)
 	idx += 1
 
 	_context_menu.add_separator()
 	idx += 1
-	_context_menu.add_item("Remove Server", idx)
+	_context_menu.add_item(tr("Remove Server"), idx)
 
 	_context_menu.hide()
 	_context_menu.position = pos
@@ -255,18 +255,18 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 		return
 	var label: String = _admin_submenu.get_item_text(idx)
 	var scene_map := {
-		"Space Settings": SpaceSettingsScene,
-		"Channels": ChannelMgmtScene,
-		"Roles": RoleMgmtScene,
-		"Bans": BanListScene,
-		"Invites": InviteMgmtScene,
-		"Emojis": EmojiMgmtScene,
-		"Audit Log": AuditLogScene,
-		"Reports": ReportListScene,
-		"Soundboard": SoundboardMgmtScene,
-		"View As...": ImposterPickerScene,
+		tr("Space Settings"): SpaceSettingsScene,
+		tr("Channels"): ChannelMgmtScene,
+		tr("Roles"): RoleMgmtScene,
+		tr("Bans"): BanListScene,
+		tr("Invites"): InviteMgmtScene,
+		tr("Emojis"): EmojiMgmtScene,
+		tr("Audit Log"): AuditLogScene,
+		tr("Reports"): ReportListScene,
+		tr("Soundboard"): SoundboardMgmtScene,
+		tr("View As..."): ImposterPickerScene,
 	}
-	if label == "Plugins":
+	if label == tr("Plugins"):
 		var dialog: ColorRect = PluginMgmtScript.new()
 		get_tree().root.add_child(dialog)
 		dialog.setup(space_id)
@@ -275,85 +275,99 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 
 func _on_context_menu_id_pressed(id: int) -> void:
 	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
-	match label:
-		"Server Settings":
-			DialogHelper.open(ServerManagementPanel, get_tree())
-		"Server Reports":
-			DialogHelper.open(ReportListScene, get_tree()).setup_server_wide()
-		"Reconnect":
-			var conn_idx: int = _server_index \
-				if _is_disconnected \
-				else Client.get_conn_index_for_space(space_id)
-			if conn_idx >= 0:
-				Client._auto_reconnect_attempted.erase(conn_idx)
-				Client.reconnect_server(conn_idx)
-		"Mute Server":
-			Config.set_server_muted(space_id, true)
-			_update_muted_visual()
-		"Unmute Server":
-			Config.set_server_muted(space_id, false)
-			_update_muted_visual()
-		"Move to Folder":
-			_show_folder_dialog()
-		"Remove from Folder":
-			# Find which folder this space is in and insert standalone entry at same position
-			var cur_folder: String = Config.get_space_folder(space_id)
-			var order: Array = Config.get_space_order()
-			var new_order: Array = []
-			for entry in order:
-				new_order.append(entry)
-				if entry is Dictionary and entry.get("type") == "folder" and entry.get("name") == cur_folder:
-					new_order.append({"type": "space", "id": space_id})
-			Config.set_space_order(new_order)
-			Config.set_space_folder(space_id, "")
-			Client.update_space_folder(space_id, "")
-		"Remove Server":
-			var srv_url: String = ""
+	if label == tr("Server Settings"):
+		DialogHelper.open(ServerManagementPanel, get_tree())
+	elif label == tr("Server Reports"):
+		DialogHelper.open(ReportListScene, get_tree()).setup_server_wide()
+	elif label == tr("Reconnect"):
+		var conn_idx: int = _server_index \
+			if _is_disconnected \
+			else Client.get_conn_index_for_space(space_id)
+		if conn_idx >= 0:
+			Client._auto_reconnect_attempted.erase(conn_idx)
+			Client.reconnect_server(conn_idx)
+	elif label == tr("Mute Server"):
+		Config.set_server_muted(space_id, true)
+		_update_muted_visual()
+	elif label == tr("Unmute Server"):
+		Config.set_server_muted(space_id, false)
+		_update_muted_visual()
+	elif label == tr("Move to Folder"):
+		_show_folder_dialog()
+	elif label == tr("Remove from Folder"):
+		_remove_from_folder()
+	elif label == tr("Remove Server"):
+		_confirm_remove_server()
+
+
+func _remove_from_folder() -> void:
+	var cur_folder: String = Config.get_space_folder(space_id)
+	var order: Array = Config.get_space_order()
+	var new_order: Array = []
+	for entry in order:
+		new_order.append(entry)
+		if entry is Dictionary \
+			and entry.get("type") == "folder" \
+			and entry.get("name") == cur_folder:
+			new_order.append({"type": "space", "id": space_id})
+	Config.set_space_order(new_order)
+	Config.set_space_folder(space_id, "")
+	Client.update_space_folder(space_id, "")
+
+
+func _confirm_remove_server() -> void:
+	var srv_url: String = ""
+	if _is_disconnected and _server_index >= 0:
+		var servers: Array = Config.get_servers()
+		if _server_index < servers.size():
+			srv_url = servers[_server_index].get("base_url", "")
+	else:
+		srv_url = Client.get_base_url_for_space(space_id)
+	var friend_count: int = 0
+	if not srv_url.is_empty():
+		friend_count = Client.relationships \
+			.get_friends_count_for_server(srv_url)
+	var msg: String
+	if friend_count > 0:
+		var plural: String = "s" if friend_count != 1 else ""
+		msg = (
+			tr("Are you sure you want to remove '%s'?")
+			% space_name + "\n\n"
+			+ tr("You have %d friend%s on this server.")
+			% [friend_count, plural] + " "
+			+ tr("They will become unavailable "
+			+ "but remain in your friend book.")
+		)
+	else:
+		msg = tr(
+			"Are you sure you want to remove '%s' "
+			+ "from your server list?"
+		) % space_name
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+		tr("Remove Server"), msg,
+		tr("Remove"), true, func():
 			if _is_disconnected and _server_index >= 0:
-				var servers: Array = Config.get_servers()
-				if _server_index < servers.size():
-					srv_url = servers[_server_index].get("base_url", "")
+				Config.remove_server(_server_index)
+				AppState.spaces_updated.emit()
 			else:
-				srv_url = Client.get_base_url_for_space(space_id)
-			var friend_count: int = 0
-			if not srv_url.is_empty():
-				friend_count = Client.relationships \
-					.get_friends_count_for_server(srv_url)
-			var msg: String
-			if friend_count > 0:
-				var plural: String = "s" if friend_count != 1 else ""
-				msg = (
-					"Are you sure you want to remove '%s'?\n\n"
-					+ "You have %d friend%s on this server. "
-					+ "They will become unavailable but remain in your friend book."
-				) % [space_name, friend_count, plural]
-			else:
-				msg = "Are you sure you want to remove '%s' from your server list?" % space_name
-			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-				"Remove Server", msg,
-				"Remove", true, func():
-					if _is_disconnected and _server_index >= 0:
-						Config.remove_server(_server_index)
-						AppState.spaces_updated.emit()
-					else:
-						Client.disconnect_server(space_id)
-			)
+				Client.disconnect_server(space_id)
+	)
 
 func _show_folder_dialog() -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "Move to Folder"
-	dialog.ok_button_text = "Move"
+	dialog.title = tr("Move to Folder")
+	dialog.ok_button_text = tr("Move")
 
 	var vbox := VBoxContainer.new()
 
 	var existing_folders: Array = Config.get_all_folder_names()
 	var line_edit := LineEdit.new()
-	line_edit.placeholder_text = "Folder name"
+	line_edit.placeholder_text = tr("Folder name")
 	line_edit.custom_minimum_size = Vector2(200, 0)
 
 	if existing_folders.size() > 0:
 		var label := Label.new()
-		label.text = "Existing folders:"
+		label.text = tr("Existing folders:")
 		label.add_theme_font_size_override("font_size", 12)
 		label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		vbox.add_child(label)
@@ -368,7 +382,7 @@ func _show_folder_dialog() -> void:
 		vbox.add_child(sep)
 
 	var new_label := Label.new()
-	new_label.text = "Folder name:"
+	new_label.text = tr("Folder name:")
 	new_label.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(new_label)
 	vbox.add_child(line_edit)
@@ -427,7 +441,7 @@ func _on_config_changed(section: String, key: String) -> void:
 func _update_muted_visual() -> void:
 	if Config.is_server_muted(space_id):
 		icon_button.modulate = ThemeManager.get_color("text_muted")
-		icon_button.tooltip_text = space_name + " (Muted)"
+		icon_button.tooltip_text = tr("%s (Muted)") % space_name
 	else:
 		icon_button.modulate = ThemeManager.get_color("text_white")
 		icon_button.tooltip_text = space_name

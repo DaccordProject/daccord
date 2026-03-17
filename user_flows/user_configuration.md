@@ -1,6 +1,6 @@
 # User Configuration
 
-Last touched: 2026-02-25
+Last touched: 2026-03-17
 Priority: 27
 Depends on: User Management
 
@@ -202,12 +202,20 @@ Client._on_profile_switched()
 
 | File | Role |
 |------|------|
-| `scripts/autoload/config.gd` | Central config store -- all local persistence goes through here. Profile-aware: manages registry, profile paths, `switch_profile()`, `create_profile()`, `delete_profile()` |
+| `scripts/autoload/config.gd` | Central config store -- all local persistence goes through here. Delegates to sub-objects: `profiles`, `voice`, `friend_book`, `exporter`. Manages registry, profile paths, CLI override |
+| `scripts/autoload/config_profiles.gd` | Profile CRUD: `create()`, `delete()`, `switch()`, `rename()`, `set_password()`, `verify_password()`, `move_up()`, `move_down()`, slug generation, PBKDF2 password hashing |
+| `scripts/autoload/config_voice.gd` | Voice/video device config: input/output device, video device/resolution/FPS, input sensitivity/volume, output volume, debug logging, `apply_devices()` |
+| `scripts/autoload/config_export.gd` | Config export/import: sanitized export (strips tokens/passwords), selective import with blocked-key filtering, pre-import backup |
+| `scripts/autoload/config_friend_book.gd` | Friend book persistence (per-server friend entries) |
 | `scripts/autoload/app_state.gd` | Signal bus. Includes `profile_switched` signal for profile change broadcasts |
 | `scripts/autoload/client.gd` | Reads server configs on startup, restores saved status. `disconnect_all()` and `_on_profile_switched()` for profile switches |
 | `scripts/autoload/client_mutations.gd` | Saves user status to Config on presence change |
 | `scenes/sidebar/user_bar.gd` | User menu: status, custom status, sound settings, error reporting, export/import profile |
-| `scenes/user/user_settings.gd` | User Settings panel -- Voice & Video (page 2), Sound (page 3), and Notifications (page 4) preferences |
+| `scenes/user/app_settings.gd` | Main settings modal, integrates profiles page |
+| `scenes/user/user_settings_profiles_page.gd` | Profiles list UI: profile rows with Switch/context menu, Move Up/Down ordering, New/Import buttons |
+| `scenes/user/create_profile_dialog.gd` | Create profile dialog (name, password, copy/fresh) |
+| `scenes/user/profile_password_dialog.gd` | Password entry dialog for switching to protected profiles |
+| `scenes/user/profile_set_password_dialog.gd` | Set/change/remove password on an existing profile |
 | `scenes/sidebar/sidebar.gd` | Reads/writes last space+channel selection |
 | `scenes/sidebar/channels/category_item.gd` | Reads/writes category collapsed state |
 | `scenes/sidebar/guild_bar/guild_icon.gd` | Reads/writes space folder assignment |
@@ -215,9 +223,6 @@ Client._on_profile_switched()
 | `scenes/sidebar/guild_bar/auth_dialog.gd` | Authentication dialog; accepts optional username pre-fill for re-auth flows |
 | `scenes/messages/composer/emoji_picker.gd` | Reads/writes recently used emoji |
 | `scenes/main/main_window.gd` | Error reporting consent dialog on first launch |
-| `scenes/user/user_settings.gd` | Full settings panel with Profiles section |
-| `scenes/user/profile_dialog.gd` | Create / edit profile dialog (name, password, copy vs fresh) |
-| `scenes/user/profile_password_dialog.gd` | Password entry dialog for switching to protected profiles |
 
 ## Implementation Details
 
@@ -228,9 +233,10 @@ A plain (unencrypted) `ConfigFile` at `user://profile_registry.cfg` tracks all p
 | Section | Key(s) | Type | Description |
 |---------|--------|------|-------------|
 | `state` | `active` | String | Slug of the currently active profile (e.g. `"default"`) |
-| `profiles` | `<slug>` | String | Display name for each profile (e.g. `"default"` -> `"Default"`) |
-| `passwords` | `<slug>` | String | SHA-256 hex digest of the profile's password (absent if no password) |
 | `order` | `list` | Array | Ordered array of slugs for display ordering |
+| `profile_<slug>` | `name` | String | Display name for the profile |
+| `profile_<slug>` | `password_hash` | String | PBKDF2 hash string (absent if no password) |
+| `profile_<slug>` | `password_salt` | String | Random 16-byte hex salt for PBKDF2 hashing |
 
 The registry is unencrypted because it contains no sensitive data (password hashes are one-way, profile names aren't secret). The actual credentials live inside each profile's encrypted `config.cfg`.
 
@@ -257,9 +263,14 @@ Sections and keys within each profile's `config.cfg`:
 | `state` | `last_space_id`, `last_channel_id` | String | `""` | `sidebar.gd` on space/channel selection |
 | `state` | `user_status` | int | `0` (ONLINE) | `client_mutations.gd` on presence change |
 | `state` | `custom_status` | String | `""` | `user_bar.gd` custom status dialog |
-| `voice` | `input_device`, `output_device`, `video_device` | String | `""` | `user_settings.gd` (Voice & Video page) |
-| `voice` | `video_resolution` | int | `0` (480p) | `user_settings.gd` (Voice & Video page) |
-| `voice` | `video_fps` | int | `30` | `user_settings.gd` (Voice & Video page) |
+| `voice` | `input_device`, `output_device`, `video_device` | String | `""` | `config_voice.gd` |
+| `voice` | `video_resolution` | int | `0` (480p) | `config_voice.gd` |
+| `voice` | `video_fps` | int | `30` | `config_voice.gd` |
+| `voice` | `input_sensitivity` | int | `50` | `config_voice.gd` |
+| `voice` | `input_volume` | int | `100` | `config_voice.gd` |
+| `voice` | `output_volume` | int | `100` | `config_voice.gd` |
+| `voice` | `debug_logging` | bool | `false` | `config_voice.gd` |
+| `voice` | `max_screen_capture_size` | int | `1280` | `config.gd` |
 | `sounds` | `volume` | float | `1.0` | `user_settings.gd` (Sound page) |
 | `sounds` | `<event_name>` | bool | `true` (except `message_sent` = `false`) | `user_settings.gd` (Sound page) |
 | `notifications` | `suppress_everyone` | bool | `false` | Settings > Notifications |
@@ -274,12 +285,25 @@ Sections and keys within each profile's `config.cfg`:
 | `updates` | `skipped_version` | String | `""` | Update dialog |
 | `updates` | `last_check_timestamp` | int | `0` | Auto-update check |
 | `idle` | `timeout` | int | `300` | Settings > Notifications |
+| `accessibility` | `reduced_motion` | bool | `false` | Settings |
+| `accessibility` | `ui_scale` | float | `0.0` (auto) | Settings |
+| `theme` | `preset` | String | `"dark"` | Settings |
+| `theme` | `custom_palette` | Dictionary | `{}` | Settings |
+| `drafts` | `<channel_id>` | String | `""` | `composer.gd` |
+| `plugin_trust_<server_id>` | `<plugin_id>` | bool | `false` | Plugin trust dialog |
+| `plugin_trust_<server_id>` | `_trust_all` | bool | `false` | Plugin trust dialog |
+| `nsfw_ack` | `<server_url>` | bool | `false` | NSFW gate dialog |
+| `sync` | `base_url`, `email`, `encrypted_token`, `version` | String/int | varies | Daccord Sync |
+| `master` | `url` | String | `"https://master.daccord.gg"` | Settings |
+| `channel_notifications` | `<channel_id>` | String | `"default"` | Channel notification settings |
+| `server_suppress` | `<space_id>` | int | `-1` (use global) | Per-server @everyone suppress |
+| `thread_notifications` | `<thread_id>` | String | `"default"` | Thread notification settings |
 
 ### Encryption and loading
 
 On startup, Config resolves the active profile's path from the registry, then attempts `load_encrypted_pass()` with a derived key. If that fails, it falls back to a plaintext `load()` -- this supports first-run (no file) and migration from unencrypted configs. If the plaintext load succeeds, the file is immediately re-saved encrypted. If both fail, the corrupted file is backed up and `_config` starts fresh.
 
-The encryption key is derived from a static salt concatenated with `OS.get_user_data_dir()`. This means the key is stable across sessions **as long as the Godot version and project name stay the same**.
+The encryption key is now the static salt `"daccord-config-v1"` (`_derive_key()`, line 244). The previous key derivation appended `OS.get_user_data_dir()`, which broke on project renames and Godot upgrades. That old key is listed in `_legacy_keys()` (line 249) so existing configs encrypted with it are automatically migrated on load.
 
 ### Profile path resolution
 
@@ -314,7 +338,7 @@ Separately, `Client.connect_server()` restores the saved user status: if the use
 Switching profiles is a disruptive operation -- the app effectively "restarts" without quitting:
 
 1. **Disconnect**: `Client.disconnect_all()` closes all WebSocket connections, clears `_connections`, `_space_to_conn`, and all cached data (spaces, channels, users, messages, emoji textures).
-2. **Reload config**: `Config.switch_profile(slug)` updates the registry, loads the new profile's `config.cfg`, and emits `AppState.profile_switched`.
+2. **Reload config**: `Config.profiles.switch(slug)` (`config_profiles.gd` line 103) updates the registry (unless CLI override is active), loads the new profile's `config.cfg`, and emits `AppState.profile_switched`.
 3. **Reconnect**: `Client._on_profile_switched()` runs the same logic as `_ready()` -- checks `has_servers()`, calls `connect_server()` for each, etc.
 4. **UI reset**: Components listening to `profile_switched` clear their state. `spaces_updated` then fires as servers reconnect, triggering the normal startup selection flow.
 
@@ -327,7 +351,9 @@ The "Default" profile (slug `"default"`) has special rules:
 
 ### Voice/video settings
 
-The Voice & Video settings page enumerates available devices via Godot's `AudioServer.get_input_device_list()` and `AudioServer.get_output_device_list()`. Each dropdown pre-selects the device stored in Config. Changes save immediately.
+Voice/video configuration is delegated to `Config.voice` (`config_voice.gd`). The Voice & Video settings page enumerates available devices via Godot's `AudioServer.get_input_device_list()` and `AudioServer.get_output_device_list()`. Each dropdown pre-selects the device stored in Config. Changes save immediately. On startup, `Config.voice.apply_devices()` (line 136) applies the saved input/output device to `AudioServer`.
+
+Additional voice settings include input sensitivity (0-100, mapped logarithmically to a speaking threshold via `get_speaking_threshold()`, line 130), input volume (0-200), output volume (0-200), and debug logging toggle.
 
 Video resolution offers three hardcoded presets: 480p (index 0), 720p (index 1), 1080p (index 2). FPS choices are 15, 30, and 60.
 
@@ -360,13 +386,15 @@ The existing `export_config()` and `import_config()` methods are preserved but r
 
 ### Password hashing
 
-Profile passwords are hashed with SHA-256 using a salt derived from the profile slug + a static salt (`"daccord-profile-v1"`). The hash is stored as a hex string in the registry.
+Profile passwords are hashed with **PBKDF2-HMAC-SHA256** (10,000 iterations) using a random 16-byte salt stored per-profile in the registry. The hash is stored as a prefixed string:
 
 ```
-hash = SHA256("daccord-profile-v1" + slug + password).hex_encode()
+"pbkdf2:10000:<salt_hex>:<hash_hex>"
 ```
 
-GDScript provides `HashingContext` with `HASH_SHA256` for this.
+Legacy SHA-256 hashes (format: plain hex string) are still accepted for verification. On successful legacy verification, the hash is automatically upgraded to PBKDF2 in-place (`config_profiles.gd` `_verify_hash()`, line 162). All new passwords use PBKDF2 exclusively.
+
+Verification uses constant-time comparison (`_constant_time_compare()`, line 286) to prevent timing attacks.
 
 ### Slug generation
 
@@ -374,7 +402,7 @@ Profile slugs are derived from the display name: lowercased, spaces replaced wit
 
 ### Command-line profile selection
 
-For power users and automation, daccord accepts a `--profile <slug>` command-line argument that overrides the registry's `active` field for that session. The registry is not updated (so the next normal launch still uses the previously active profile). This is useful for launching multiple instances with different profiles.
+Daccord accepts a `--profile <slug>` command-line argument (`config.gd` lines 50-55) that overrides the registry's `active` field for that session. The override is stored in `_cli_profile_override` and used during `_ready()` (line 60-61) to select the profile slug instead of reading from the registry. When a CLI override is active, `Config.profiles.switch()` skips updating the registry's `active` key (`config_profiles.gd` line 105-106), so the next normal launch still uses the previously active profile. This is useful for launching multiple instances with different profiles.
 
 ## Local Data Summary
 
@@ -446,17 +474,32 @@ Legacy paths (pre-profile migration):
 - [x] Import Profile flow (file picker + name dialog)
 - [x] Export Profile with `.daccord-profile` extension
 - [x] UI rename of "config" to "profile" in export/import labels
-- [ ] `--profile <slug>` command-line argument
-- [ ] Profile list ordering (drag-to-reorder or manual up/down)
+- [x] `--profile <slug>` command-line argument (config.gd lines 50-55, overrides active profile without updating registry)
+- [x] Profile list ordering via Move Up/Down context menu (config_profiles.gd `move_up()`/`move_down()`, user_settings_profiles_page.gd lines 150-155)
+- [x] Delegated config sub-objects (config_profiles.gd, config_voice.gd, config_export.gd, config_friend_book.gd)
+- [x] PBKDF2 password hashing with automatic legacy SHA-256 upgrade
+- [x] Input sensitivity, input/output volume settings
+- [x] Accessibility settings (reduced motion, UI scale)
+- [x] Theme preset and custom palette persistence
+- [x] Draft text persistence per channel
+- [x] Plugin trust persistence per server/plugin
+- [x] NSFW acknowledgement per server
+- [x] Daccord Sync credentials
+- [x] Master server URL preference
+- [x] Per-channel and per-thread notification levels
+- [x] Per-server @everyone suppress override
+- [x] Encryption key simplified to static salt (legacy key migration on load)
+- [x] Constant-time password comparison
+- [x] `wipe_active_profile()` for account deletion cleanup
 
 ## Tasks
 
 ### USRCFG-1: Encryption key tied to `OS.get_user_data_dir()`
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** config, security
-- **Notes:** The key derivation depends on Godot's user data directory path. If the project name changes in `project.godot` or the user data dir convention changes between Godot versions, old config files become unreadable.
+- **Notes:** Resolved. `_derive_key()` now returns the static salt `"daccord-config-v1"`. The old directory-dependent key is in `_legacy_keys()` for migration. Existing configs are automatically re-encrypted with the new key on load.
 
 ### USRCFG-2: No emoji cache eviction
 - **Status:** open
@@ -487,11 +530,11 @@ Legacy paths (pre-profile migration):
 - **Notes:** Each `Config.set_*()` calls `save_encrypted_pass()` immediately. Rapid successive changes (e.g., applying all sound settings) trigger multiple disk writes. A deferred/batched save would be more efficient.
 
 ### USRCFG-6: SHA-256 is fast to brute-force
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** security
-- **Notes:** Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model.
+- **Notes:** Resolved. Now uses PBKDF2-HMAC-SHA256 with 10,000 iterations and random per-profile salts. Legacy SHA-256 hashes are auto-upgraded on successful verification. Profile passwords remain a convenience lock (local filesystem is the trust boundary), but are no longer trivially brute-forceable.
 
 ### USRCFG-7: No profile lock-on-idle
 - **Status:** open

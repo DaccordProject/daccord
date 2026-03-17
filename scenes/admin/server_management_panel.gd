@@ -56,11 +56,15 @@ var _max_spaces_spin: SpinBox
 var _max_members_spin: SpinBox
 var _motd_input: TextEdit
 var _public_listing_cb: CheckBox
+var _tos_enabled_cb: CheckBox
+var _tos_text_input: TextEdit
+var _tos_url_input: LineEdit
+var _tos_version_label: Label
 var _settings_save_btn: Button
 var _settings_error: Label
 
 func _get_sections() -> Array:
-	return ["Spaces", "Users", "Reports", "Settings"]
+	return [tr("Spaces"), tr("Users"), tr("Reports"), tr("Settings")]
 
 func _get_subtitle() -> String:
 	var servers: Array = Config.get_servers()
@@ -82,17 +86,17 @@ func _build_pages() -> Array:
 # ── Spaces tab ──────────────────────────────────────────────
 
 func _build_spaces_page() -> VBoxContainer:
-	var vbox := _page_vbox("Spaces")
+	var vbox := _page_vbox(tr("Spaces"))
 
 	# Create Space button
-	var create_btn := SettingsBase.create_action_button("Create Space")
+	var create_btn := SettingsBase.create_action_button(tr("Create Space"))
 	create_btn.pressed.connect(_on_create_space)
 	vbox.add_child(create_btn)
 
 	# Search
-	vbox.add_child(_section_label("SEARCH"))
+	vbox.add_child(_section_label(tr("SEARCH")))
 	_spaces_search = LineEdit.new()
-	_spaces_search.placeholder_text = "Filter by name..."
+	_spaces_search.placeholder_text = tr("Filter by name...")
 	_spaces_search.text_changed.connect(
 		func(_t: String) -> void: _filter_spaces()
 	)
@@ -115,7 +119,7 @@ func _fetch_spaces() -> void:
 	_spaces_error.visible = false
 	_clear_children(_spaces_list)
 	var loading := Label.new()
-	loading.text = "Loading spaces..."
+	loading.text = tr("Loading spaces...")
 	loading.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
@@ -125,7 +129,7 @@ func _fetch_spaces() -> void:
 	_clear_children(_spaces_list)
 
 	if result == null or not result.ok:
-		var msg := "Failed to load spaces"
+		var msg := tr("Failed to load spaces")
 		if result != null and result.error:
 			msg = result.error.message
 		_spaces_error.text = msg
@@ -171,7 +175,7 @@ func _render_spaces() -> void:
 
 	if _spaces_list.get_child_count() == 0:
 		var empty := Label.new()
-		empty.text = "No spaces found."
+		empty.text = tr("No spaces found.")
 		empty.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
@@ -204,7 +208,7 @@ func _build_space_row(
 	name_lbl.text = sname
 	info.add_child(name_lbl)
 	var detail_lbl := Label.new()
-	detail_lbl.text = "%d members" % member_count
+	detail_lbl.text = tr("%d members") % member_count
 	detail_lbl.add_theme_font_size_override("font_size", 11)
 	detail_lbl.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -213,14 +217,14 @@ func _build_space_row(
 	row.add_child(info)
 
 	# Roles button
-	var roles_btn := SettingsBase.create_secondary_button("Roles")
+	var roles_btn := SettingsBase.create_secondary_button(tr("Roles"))
 	roles_btn.pressed.connect(func() -> void:
 		DialogHelper.open(RoleMgmtScene, get_tree()).setup(space_id)
 	)
 	row.add_child(roles_btn)
 
 	# Plugins button
-	var plugins_btn := SettingsBase.create_secondary_button("Plugins")
+	var plugins_btn := SettingsBase.create_secondary_button(tr("Plugins"))
 	plugins_btn.pressed.connect(func() -> void:
 		var dialog: ColorRect = PluginMgmtScript.new()
 		get_tree().root.add_child(dialog)
@@ -229,7 +233,7 @@ func _build_space_row(
 	row.add_child(plugins_btn)
 
 	# Settings button
-	var settings_btn := SettingsBase.create_secondary_button("Settings")
+	var settings_btn := SettingsBase.create_secondary_button(tr("Settings"))
 	settings_btn.pressed.connect(func() -> void:
 		var dialog := SpaceSettingsDialogScene.instantiate()
 		get_tree().root.add_child(dialog)
@@ -238,14 +242,14 @@ func _build_space_row(
 	row.add_child(settings_btn)
 
 	# Transfer button
-	var transfer_btn := SettingsBase.create_secondary_button("Transfer")
+	var transfer_btn := SettingsBase.create_secondary_button(tr("Transfer"))
 	transfer_btn.pressed.connect(func() -> void:
 		_on_transfer_ownership(space_id, sname)
 	)
 	row.add_child(transfer_btn)
 
 	# Delete button
-	var delete_btn := SettingsBase.create_danger_button("Delete")
+	var delete_btn := SettingsBase.create_danger_button(tr("Delete"))
 	delete_btn.pressed.connect(func() -> void:
 		_on_delete_space(space_id, sname)
 	)
@@ -267,9 +271,9 @@ func _on_delete_space(space_id: String, sname: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Space",
-		"Are you sure you want to delete '%s'? This cannot be undone." % sname,
-		"Delete",
+		tr("Delete Space"),
+		tr("Are you sure you want to delete '%s'? This cannot be undone.") % sname,
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func() -> void:
@@ -291,15 +295,15 @@ func _build_reports_page() -> VBoxContainer:
 # ── Users tab ───────────────────────────────────────────────
 
 func _build_users_page() -> VBoxContainer:
-	var vbox := _page_vbox("Users")
+	var vbox := _page_vbox(tr("Users"))
 
 	# Search
-	vbox.add_child(_section_label("SEARCH"))
+	vbox.add_child(_section_label(tr("SEARCH")))
 	_users_search = LineEdit.new()
-	_users_search.placeholder_text = "Search by username..."
+	_users_search.placeholder_text = tr("Search by username...")
 	vbox.add_child(_users_search)
 
-	var search_btn := SettingsBase.create_secondary_button("Search")
+	var search_btn := SettingsBase.create_secondary_button(tr("Search"))
 	search_btn.pressed.connect(func() -> void:
 		_fetch_users()
 	)
@@ -316,7 +320,7 @@ func _build_users_page() -> VBoxContainer:
 
 	# Load More button
 	_users_load_more_btn = SettingsBase.create_secondary_button(
-		"Load More"
+		tr("Load More")
 	)
 	_users_load_more_btn.visible = false
 	_users_load_more_btn.pressed.connect(_fetch_more_users)
@@ -331,7 +335,7 @@ func _fetch_users(append: bool = false) -> void:
 		_clear_children(_users_list)
 		_users_data = []
 		var loading := Label.new()
-		loading.text = "Loading users..."
+		loading.text = tr("Loading users...")
 		loading.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
@@ -354,7 +358,7 @@ func _fetch_users(append: bool = false) -> void:
 		_clear_children(_users_list)
 
 	if result == null or not result.ok:
-		var msg := "Failed to load users"
+		var msg := tr("Failed to load users")
 		if result != null and result.error:
 			msg = result.error.message
 		_users_error.text = msg
@@ -376,7 +380,7 @@ func _fetch_users(append: bool = false) -> void:
 
 	if _users_data.size() == 0:
 		var empty := Label.new()
-		empty.text = "No users found."
+		empty.text = tr("No users found.")
 		empty.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
@@ -421,12 +425,12 @@ func _build_user_row(user) -> HBoxContainer:
 	name_lbl.text = uname
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if is_disabled:
-		name_lbl.text += "  [Disabled]"
+		name_lbl.text += "  " + tr("[Disabled]")
 		name_lbl.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
 	elif is_admin_flag:
-		name_lbl.text += "  [Admin]"
+		name_lbl.text += "  " + tr("[Admin]")
 		name_lbl.add_theme_color_override(
 			"font_color", ThemeManager.get_color("accent")
 		)
@@ -434,7 +438,7 @@ func _build_user_row(user) -> HBoxContainer:
 
 	# Admin toggle
 	var admin_cb := CheckBox.new()
-	admin_cb.text = "Admin"
+	admin_cb.text = tr("Admin")
 	admin_cb.button_pressed = is_admin_flag
 	admin_cb.toggled.connect(func(pressed: bool) -> void:
 		var result: RestResult = await Client.admin.admin_update_user(
@@ -442,7 +446,7 @@ func _build_user_row(user) -> HBoxContainer:
 		)
 		if result == null or not result.ok:
 			admin_cb.button_pressed = not pressed
-			var msg := "Failed to update user"
+			var msg := tr("Failed to update user")
 			if result != null and result.error:
 				msg = result.error.message
 			_users_error.text = msg
@@ -453,9 +457,9 @@ func _build_user_row(user) -> HBoxContainer:
 	# Disable/Enable button
 	var disable_btn: Button
 	if is_disabled:
-		disable_btn = SettingsBase.create_secondary_button("Enable")
+		disable_btn = SettingsBase.create_secondary_button(tr("Enable"))
 	else:
-		disable_btn = SettingsBase.create_danger_button("Disable")
+		disable_btn = SettingsBase.create_danger_button(tr("Disable"))
 	disable_btn.pressed.connect(func() -> void:
 		_on_toggle_disabled(uid, uname, not is_disabled)
 	)
@@ -469,7 +473,7 @@ func _build_user_row(user) -> HBoxContainer:
 		is_bot = user.get("bot", false)
 	if not is_bot:
 		var reset_btn := SettingsBase.create_secondary_button(
-			"Reset Password"
+			tr("Reset Password")
 		)
 		reset_btn.pressed.connect(func() -> void:
 			_on_reset_password(uid, uname)
@@ -477,7 +481,7 @@ func _build_user_row(user) -> HBoxContainer:
 		row.add_child(reset_btn)
 
 	# Delete button
-	var del_btn := SettingsBase.create_danger_button("Delete")
+	var del_btn := SettingsBase.create_danger_button(tr("Delete"))
 	del_btn.pressed.connect(func() -> void:
 		_on_delete_user(uid, uname)
 	)
@@ -488,16 +492,16 @@ func _build_user_row(user) -> HBoxContainer:
 func _on_toggle_disabled(
 	user_id: String, uname: String, disable: bool,
 ) -> void:
-	var action: String = "Disable" if disable else "Enable"
+	var action: String = tr("Disable") if disable else tr("Enable")
 	var msg: String
 	if disable:
-		msg = "Disable '%s'? They will be unable to log in." % uname
+		msg = tr("Disable '%s'? They will be unable to log in.") % uname
 	else:
-		msg = "Re-enable '%s'? They will be able to log in again." % uname
+		msg = tr("Re-enable '%s'? They will be able to log in again.") % uname
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"%s User" % action, msg, action, disable
+		tr("%s User") % action, msg, action, disable
 	)
 	dialog.confirmed.connect(func() -> void:
 		var result: RestResult = await Client.admin.admin_update_user(
@@ -519,9 +523,9 @@ func _on_delete_user(user_id: String, uname: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete User",
-		"Are you sure you want to delete '%s'? This cannot be undone." % uname,
-		"Delete",
+		tr("Delete User"),
+		tr("Are you sure you want to delete '%s'? This cannot be undone.") % uname,
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func() -> void:
@@ -538,28 +542,28 @@ func _on_delete_user(user_id: String, uname: String) -> void:
 # ── Settings tab ────────────────────────────────────────────
 
 func _build_settings_page() -> VBoxContainer:
-	var vbox := _page_vbox("Server Settings")
+	var vbox := _page_vbox(tr("Server Settings"))
 
 	# Error label
 	_settings_error = _error_label()
 	vbox.add_child(_settings_error)
 
 	# Server name
-	vbox.add_child(_section_label("SERVER NAME"))
+	vbox.add_child(_section_label(tr("SERVER NAME")))
 	_server_name_input = LineEdit.new()
-	_server_name_input.placeholder_text = "Accord Server"
+	_server_name_input.placeholder_text = tr("Accord Server")
 	vbox.add_child(_server_name_input)
 
 	# Registration policy
-	vbox.add_child(_section_label("REGISTRATION POLICY"))
+	vbox.add_child(_section_label(tr("REGISTRATION POLICY")))
 	_reg_policy_dropdown = OptionButton.new()
-	_reg_policy_dropdown.add_item("Open")
-	_reg_policy_dropdown.add_item("Invite Only")
-	_reg_policy_dropdown.add_item("Closed")
+	_reg_policy_dropdown.add_item(tr("Open"))
+	_reg_policy_dropdown.add_item(tr("Invite Only"))
+	_reg_policy_dropdown.add_item(tr("Closed"))
 	vbox.add_child(_reg_policy_dropdown)
 
 	# Max spaces
-	vbox.add_child(_section_label("MAX SPACES (0 = unlimited)"))
+	vbox.add_child(_section_label(tr("MAX SPACES (0 = unlimited)")))
 	_max_spaces_spin = SpinBox.new()
 	_max_spaces_spin.min_value = 0
 	_max_spaces_spin.max_value = 10000
@@ -568,7 +572,7 @@ func _build_settings_page() -> VBoxContainer:
 
 	# Max members per space
 	vbox.add_child(
-		_section_label("MAX MEMBERS PER SPACE (0 = unlimited)")
+		_section_label(tr("MAX MEMBERS PER SPACE (0 = unlimited)"))
 	)
 	_max_members_spin = SpinBox.new()
 	_max_members_spin.min_value = 0
@@ -577,19 +581,47 @@ func _build_settings_page() -> VBoxContainer:
 	vbox.add_child(_max_members_spin)
 
 	# MOTD
-	vbox.add_child(_section_label("MESSAGE OF THE DAY"))
+	vbox.add_child(_section_label(tr("MESSAGE OF THE DAY")))
 	_motd_input = TextEdit.new()
 	_motd_input.custom_minimum_size = Vector2(0, 80)
-	_motd_input.placeholder_text = "Shown to users on login"
+	_motd_input.placeholder_text = tr("Shown to users on login")
 	vbox.add_child(_motd_input)
 
 	# Public listing
 	_public_listing_cb = CheckBox.new()
-	_public_listing_cb.text = "List on public server directory"
+	_public_listing_cb.text = tr("List on public server directory")
 	vbox.add_child(_public_listing_cb)
 
+	# Terms of Service section
+	var tos_sep := HSeparator.new()
+	vbox.add_child(tos_sep)
+	vbox.add_child(_section_label(tr("TERMS OF SERVICE")))
+
+	_tos_enabled_cb = CheckBox.new()
+	_tos_enabled_cb.text = tr("Require ToS acceptance during registration")
+	vbox.add_child(_tos_enabled_cb)
+
+	_tos_version_label = Label.new()
+	_tos_version_label.text = tr("Current version: %d") % 1
+	_tos_version_label.add_theme_font_size_override("font_size", 11)
+	_tos_version_label.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	vbox.add_child(_tos_version_label)
+
+	vbox.add_child(_section_label(tr("TOS TEXT (MARKDOWN)")))
+	_tos_text_input = TextEdit.new()
+	_tos_text_input.custom_minimum_size = Vector2(0, 160)
+	_tos_text_input.placeholder_text = tr("Enter Terms of Service text...")
+	vbox.add_child(_tos_text_input)
+
+	vbox.add_child(_section_label(tr("TOS EXTERNAL URL (OPTIONAL)")))
+	_tos_url_input = LineEdit.new()
+	_tos_url_input.placeholder_text = "https://example.com/tos"
+	vbox.add_child(_tos_url_input)
+
 	# Save button
-	_settings_save_btn = SettingsBase.create_action_button("Save Settings")
+	_settings_save_btn = SettingsBase.create_action_button(tr("Save Settings"))
 	_settings_save_btn.pressed.connect(_on_save_settings)
 	vbox.add_child(_settings_save_btn)
 
@@ -599,15 +631,15 @@ func _build_settings_page() -> VBoxContainer:
 func _fetch_settings() -> void:
 	_settings_error.visible = false
 	_settings_save_btn.disabled = true
-	_settings_save_btn.text = "Loading..."
+	_settings_save_btn.text = tr("Loading...")
 
 	var result: RestResult = await Client.admin.get_server_settings()
 
 	_settings_save_btn.disabled = false
-	_settings_save_btn.text = "Save Settings"
+	_settings_save_btn.text = tr("Save Settings")
 
 	if result == null or not result.ok:
-		var msg := "Failed to load settings"
+		var msg := tr("Failed to load settings")
 		if result != null and result.error:
 			msg = result.error.message
 		_settings_error.text = msg
@@ -631,13 +663,24 @@ func _fetch_settings() -> void:
 		_public_listing_cb.button_pressed = d.get(
 			"public_listing", false
 		)
+		_tos_enabled_cb.button_pressed = d.get(
+			"tos_enabled", false
+		)
+		var tos_text = d.get("tos_text", "")
+		_tos_text_input.text = tos_text if tos_text != null else ""
+		var tos_url = d.get("tos_url", "")
+		_tos_url_input.text = tos_url if tos_url != null else ""
+		var tos_ver: int = d.get("tos_version", 1)
+		_tos_version_label.text = tr("Current version: %d") % tos_ver
 
 func _on_save_settings() -> void:
 	_settings_save_btn.disabled = true
-	_settings_save_btn.text = "Saving..."
+	_settings_save_btn.text = tr("Saving...")
 	_settings_error.visible = false
 
 	var policies := ["open", "invite_only", "closed"]
+	var tos_text: String = _tos_text_input.text.strip_edges()
+	var tos_url: String = _tos_url_input.text.strip_edges()
 	var data := {
 		"server_name": _server_name_input.text.strip_edges(),
 		"registration_policy": policies[
@@ -647,6 +690,9 @@ func _on_save_settings() -> void:
 		"max_members_per_space": int(_max_members_spin.value),
 		"motd": _motd_input.text.strip_edges(),
 		"public_listing": _public_listing_cb.button_pressed,
+		"tos_enabled": _tos_enabled_cb.button_pressed,
+		"tos_text": tos_text if not tos_text.is_empty() else null,
+		"tos_url": tos_url if not tos_url.is_empty() else null,
 	}
 
 	var result: RestResult = await Client.admin.update_server_settings(
@@ -654,10 +700,10 @@ func _on_save_settings() -> void:
 	)
 
 	_settings_save_btn.disabled = false
-	_settings_save_btn.text = "Save Settings"
+	_settings_save_btn.text = tr("Save Settings")
 
 	if result == null or not result.ok:
-		var msg := "Failed to save settings"
+		var msg := tr("Failed to save settings")
 		if result != null and result.error:
 			msg = result.error.message
 		_settings_error.text = msg

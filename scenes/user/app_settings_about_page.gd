@@ -16,16 +16,16 @@ func _init(
 
 
 func build() -> VBoxContainer:
-	var vbox: VBoxContainer = _page_vbox.call("About")
+	var vbox: VBoxContainer = _page_vbox.call(tr("About"))
 
 	# App info
 	var app_label := Label.new()
-	app_label.text = "daccord v%s" % Client.app_version
+	app_label.text = tr("daccord v%s") % Client.app_version
 	app_label.add_theme_font_size_override("font_size", 16)
 	vbox.add_child(app_label)
 
 	var mit_label := Label.new()
-	mit_label.text = "MIT License — Copyright (c) 2025 daccord-projects"
+	mit_label.text = tr("MIT License — Copyright (c) 2025 daccord-projects")
 	mit_label.add_theme_font_size_override("font_size", 12)
 	mit_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -35,47 +35,47 @@ func build() -> VBoxContainer:
 	vbox.add_child(HSeparator.new())
 
 	# Open source credits
-	vbox.add_child(_section_label.call("OPEN SOURCE CREDITS"))
+	vbox.add_child(_section_label.call(tr("OPEN SOURCE CREDITS")))
 
 	var credits := [
 		[
 			"Twemoji",
-			"Emoji graphics used throughout the app.",
+			tr("Emoji graphics used throughout the app."),
 			"Copyright (c) Twitter, Inc. and other contributors",
 			"CC BY 4.0 (graphics), MIT (code)",
 			"https://github.com/twitter/twemoji",
 		],
 		[
 			"godot-livekit",
-			"GDExtension for real-time voice and video.",
+			tr("GDExtension for real-time voice and video."),
 			"Copyright (c) NodotProject",
 			"MIT License",
 			"https://github.com/NodotProject/godot-livekit",
 		],
 		[
 			"LiveKit Client SDK",
-			"Real-time communication platform.",
+			tr("Real-time communication platform."),
 			"Copyright (c) LiveKit, Inc.",
 			"Apache License 2.0",
 			"https://github.com/livekit/client-sdk-cpp",
 		],
 		[
 			"Sentry SDK for Godot",
-			"Error reporting and crash monitoring.",
+			tr("Error reporting and crash monitoring."),
 			"Copyright (c) Sentry",
 			"MIT License",
 			"https://github.com/getsentry/sentry-godot",
 		],
 		[
 			"GUT (Godot Unit Test)",
-			"Testing framework.",
+			tr("Testing framework."),
 			"Copyright (c) Tom \"Butch\" Wesley",
 			"MIT License",
 			"https://github.com/bitwes/Gut",
 		],
 		[
 			"Lua GDExtension",
-			"Lua scripting for Godot.",
+			tr("Lua scripting for Godot."),
 			"Copyright (c) 2024, Wilson E. Alvarez",
 			"MIT License",
 			"https://github.com/WilsonE/lua-gdextension",

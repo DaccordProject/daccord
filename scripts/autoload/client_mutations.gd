@@ -13,6 +13,18 @@ func _init(client_node: Node) -> void:
 	_c = client_node
 	dm = ClientMutationsDm.new(client_node)
 
+
+## Returns true and logs a warning if imposter mode is active
+## for the given space. Callers should abort their mutation.
+func _blocked_by_imposter(space_id: String) -> bool:
+	if AppState.is_imposter_mode \
+			and space_id == AppState.imposter_space_id:
+		push_warning(
+			"[Client] Mutation blocked — imposter mode active"
+		)
+		return true
+	return false
+
 # --- Search API ---
 
 func search_messages(
@@ -67,8 +79,10 @@ func send_message_to_channel(
 	attachments: Array = [], thread_id: String = "",
 	title: String = ""
 ) -> bool:
-	# Queue message if server is disconnected/reconnecting
 	var gid: String = _c._channel_to_space.get(cid, "")
+	if _blocked_by_imposter(gid):
+		return false
+	# Queue message if server is disconnected/reconnecting
 	if not gid.is_empty() and not _c.is_space_connected(gid):
 		var status: String = _c.get_space_connection_status(gid)
 		if status in ["disconnected", "reconnecting"]:
@@ -152,6 +166,9 @@ func update_message_content(
 	mid: String, new_content: String
 ) -> bool:
 	var cid: String = _c._find_channel_for_message(mid)
+	var space_id: String = _c._channel_to_space.get(cid, "")
+	if _blocked_by_imposter(space_id):
+		return false
 	if cid.is_empty():
 		push_error(
 			"[Client] Cannot find channel for message: ",
@@ -187,6 +204,9 @@ func update_message_content(
 
 func remove_message(mid: String) -> bool:
 	var cid: String = _c._find_channel_for_message(mid)
+	var space_id: String = _c._channel_to_space.get(cid, "")
+	if _blocked_by_imposter(space_id):
+		return false
 	if cid.is_empty():
 		push_error(
 			"[Client] Cannot find channel for message: ",
@@ -223,6 +243,9 @@ func remove_message(mid: String) -> bool:
 func add_reaction(
 	cid: String, mid: String, emoji: String
 ) -> void:
+	var gid: String = _c._channel_to_space.get(cid, "")
+	if _blocked_by_imposter(gid):
+		return
 	var client: AccordClient = _c._client_for_channel(cid)
 	if client == null:
 		push_error(
@@ -393,10 +416,10 @@ func update_presence(
 				break
 		AppState.members_updated.emit(gid)
 
-func send_typing(cid: String) -> void:
+func send_typing(cid: String, thread_id: String = "") -> void:
 	var client: AccordClient = _c._client_for_channel(cid)
 	if client != null:
-		client.messages.typing(cid)
+		client.messages.typing(cid, thread_id)
 
 # --- Profile management ---
 

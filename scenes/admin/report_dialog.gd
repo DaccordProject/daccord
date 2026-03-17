@@ -1,14 +1,19 @@
 extends ModalBase
 
-const CATEGORIES := [
-	["csam", "CSAM / Child exploitation"],
-	["terrorism", "Terrorism / Extremism"],
-	["fraud", "Fraud / Scam"],
-	["hate", "Hate crime / Hate speech"],
-	["violence", "Threats of violence"],
-	["self_harm", "Encouraging suicide / Self-harm"],
-	["other", "Other illegal content"],
+const CATEGORY_KEYS := [
+	"csam", "terrorism", "fraud", "hate",
+	"violence", "self_harm", "other",
 ]
+var categories: Array:
+	get: return [
+		["csam", tr("CSAM / Child exploitation")],
+		["terrorism", tr("Terrorism / Extremism")],
+		["fraud", tr("Fraud / Scam")],
+		["hate", tr("Hate crime / Hate speech")],
+		["violence", tr("Threats of violence")],
+		["self_harm", tr("Encouraging suicide / Self-harm")],
+		["other", tr("Other illegal content")],
+	]
 
 var _space_id: String = ""
 var _target_type: String = ""
@@ -27,8 +32,8 @@ func _ready() -> void:
 	_bind_modal_nodes($CenterContainer/Panel, 420, 0)
 	_close_btn.pressed.connect(_close)
 	_submit_btn.pressed.connect(_on_submit)
-	for i in CATEGORIES.size():
-		_category_option.add_item(CATEGORIES[i][1], i)
+	for i in categories.size():
+		_category_option.add_item(categories[i][1], i)
 
 func setup_message(space_id: String, channel_id: String, message_id: String) -> void:
 	_space_id = space_id
@@ -36,30 +41,30 @@ func setup_message(space_id: String, channel_id: String, message_id: String) -> 
 	_target_type = "message"
 	_target_id = message_id
 	if _title_label:
-		_title_label.text = "Report Message"
+		_title_label.text = tr("Report Message")
 
 func setup_user(space_id: String, user_id: String, display_name: String) -> void:
 	_space_id = space_id
 	_target_type = "user"
 	_target_id = user_id
 	if _title_label:
-		_title_label.text = "Report %s" % display_name
+		_title_label.text = tr("Report %s") % display_name
 
 func _on_submit() -> void:
 	_submit_btn.disabled = true
-	_submit_btn.text = "Submitting..."
+	_submit_btn.text = tr("Submitting...")
 	_error_label.visible = false
 	_success_label.visible = false
 
 	var cat_idx: int = _category_option.selected
-	if cat_idx < 0 or cat_idx >= CATEGORIES.size():
-		_show_error("Please select a category.")
+	if cat_idx < 0 or cat_idx >= categories.size():
+		_show_error(tr("Please select a category."))
 		return
 
 	var data: Dictionary = {
 		"target_type": _target_type,
 		"target_id": _target_id,
-		"category": CATEGORIES[cat_idx][0],
+		"category": categories[cat_idx][0],
 	}
 	if not _channel_id.is_empty():
 		data["channel_id"] = _channel_id
@@ -72,13 +77,13 @@ func _on_submit() -> void:
 	)
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to submit report"
+		var err_msg: String = tr("Failed to submit report")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_show_error(err_msg)
 		return
 
-	_success_label.text = "Report submitted. Thank you."
+	_success_label.text = tr("Report submitted. Thank you.")
 	_success_label.visible = true
 	_submit_btn.visible = false
 	_category_option.disabled = true
@@ -90,4 +95,4 @@ func _show_error(msg: String) -> void:
 	_error_label.text = msg
 	_error_label.visible = true
 	_submit_btn.disabled = false
-	_submit_btn.text = "Submit Report"
+	_submit_btn.text = tr("Submit Report")

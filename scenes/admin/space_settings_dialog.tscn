@@ -151,6 +151,46 @@ mouse_filter = 0
 metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14
 
+[node name="NsfwLevelRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="NsfwLevelLabel" type="Label" parent="CenterContainer/Panel/VBox/NsfwLevelRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "NSFW Level"
+
+[node name="NsfwLevelInfo" type="Label" parent="CenterContainer/Panel/VBox/NsfwLevelRow"]
+layout_mode = 2
+text = "\u24d8"
+tooltip_text = "Controls the age restriction level of this space. 'Explicit' marks the entire space as NSFW and requires users to acknowledge an age gate."
+mouse_filter = 0
+metadata/theme_font_color = "text_muted"
+theme_override_font_sizes/font_size = 14
+
+[node name="NsfwLevelOption" type="OptionButton" parent="CenterContainer/Panel/VBox/NsfwLevelRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+
+[node name="ContentFilterRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="ContentFilterLabel" type="Label" parent="CenterContainer/Panel/VBox/ContentFilterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Explicit Content Filter"
+
+[node name="ContentFilterInfo" type="Label" parent="CenterContainer/Panel/VBox/ContentFilterRow"]
+layout_mode = 2
+text = "\u24d8"
+tooltip_text = "Automatically scan and filter media content in messages. 'Members Without Roles' scans only members with no roles. 'Everyone' scans all messages."
+mouse_filter = 0
+metadata/theme_font_color = "text_muted"
+theme_override_font_sizes/font_size = 14
+
+[node name="ContentFilterOption" type="OptionButton" parent="CenterContainer/Panel/VBox/ContentFilterRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+
 [node name="SaveRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
 layout_mode = 2
 alignment = 2

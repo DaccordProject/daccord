@@ -2,6 +2,7 @@ extends PanelContainer
 
 const MEMBER_ITEM_SCENE := preload("res://scenes/members/member_item.tscn")
 const MEMBER_HEADER_SCENE := preload("res://scenes/members/member_header.tscn")
+const AnonymousEntryScene := preload("res://scenes/members/anonymous_entry_item.tscn")
 const InviteMgmtScene := preload("res://scenes/admin/invite_management_dialog.tscn")
 const ROW_HEIGHT := 44
 
@@ -9,12 +10,15 @@ const DEBOUNCE_MS := 100
 const POOL_SHRINK_HYSTERESIS := 8
 
 var _space_id: String = ""
+var _anonymous_count: int = 0
+var _anonymous_entry: Control = null
 var _row_data: Array = []
 var _item_pool: Array = []
 var _header_pool: Array = []
 var _pool_size: int = 0
-var _active_items: Array = []
-var _active_headers: Array = []
+var _row_assignments: Dictionary = {}
+var _assigned_set: Dictionary = {}
+var _assignments_dirty: bool = true
 var _debounce_timer: Timer
 var _search_text: String = ""
 var _group_by_role: bool = false
@@ -34,7 +38,7 @@ func _ready() -> void:
 	set_process(false)
 	header_label.add_theme_font_size_override("font_size", 11)
 	header_label.uppercase = true
-	header_label.text = "Members"
+	header_label.text = tr("Members")
 
 	_panel_style = StyleBoxFlat.new()
 	_panel_style.bg_color = ThemeManager.get_color("modal_bg")
@@ -73,6 +77,10 @@ func _apply_theme() -> void:
 		_on_member_status_changed
 	)
 	AppState.roles_updated.connect(_on_roles_updated)
+	AppState.guest_mode_changed.connect(_on_guest_mode_changed)
+	AppState.anonymous_count_updated.connect(
+		_on_anonymous_count_updated
+	)
 	scroll_container.get_v_scroll_bar().value_changed.connect(
 		_on_scroll_changed
 	)
@@ -91,7 +99,7 @@ func _on_space_selected(space_id: String) -> void:
 	_search_text = ""
 	search_bar.text = ""
 	_update_virtual_height()
-	_hide_all_pool_nodes()
+	_clear_all_assignments()
 	_update_invite_btn_visibility()
 	if not Client.get_members_for_space(space_id).is_empty():
 		_rebuild_row_data()
@@ -149,18 +157,20 @@ func _on_search_changed(text: String) -> void:
 
 func _on_group_toggle_pressed() -> void:
 	_group_by_role = not _group_by_role
-	group_toggle.text = "Roles" if _group_by_role else "Status"
+	group_toggle.text = tr("Roles") if _group_by_role else tr("Status")
 	_rebuild_row_data()
 
 # -- Full rebuild --
 
 func _rebuild_row_data() -> void:
 	_row_data.clear()
+	_assignments_dirty = true
 	if _group_by_role:
 		_build_role_groups()
 	else:
 		_build_status_groups()
 	_update_virtual_height()
+	_update_anonymous_entry_position()
 	_adjust_pool_size()
 	_update_visible_items(
 		scroll_container.get_v_scroll_bar().value
@@ -245,10 +255,10 @@ func _build_status_groups() -> void:
 		)
 
 	var status_labels: Array = [
-		[ClientModels.UserStatus.ONLINE, "ONLINE"],
-		[ClientModels.UserStatus.IDLE, "IDLE"],
-		[ClientModels.UserStatus.DND, "DO NOT DISTURB"],
-		[ClientModels.UserStatus.OFFLINE, "OFFLINE"],
+		[ClientModels.UserStatus.ONLINE, tr("ONLINE")],
+		[ClientModels.UserStatus.IDLE, tr("IDLE")],
+		[ClientModels.UserStatus.DND, tr("DO NOT DISTURB")],
+		[ClientModels.UserStatus.OFFLINE, tr("OFFLINE")],
 	]
 
 	for entry in status_labels:
@@ -331,13 +341,14 @@ func _build_role_groups() -> void:
 		)
 		_row_data.append({
 			"type": "header",
-			"label": "No Role — %d" % no_role_members.size(),
+			"label": tr("No Role — %d") % no_role_members.size(),
 		})
 		for member in no_role_members:
 			_row_data.append({"type": "member", "data": member})
 
 func _build_dm_participants(dm: Dictionary) -> void:
 	_row_data.clear()
+	_assignments_dirty = true
 	_space_id = ""
 	invite_btn.visible = false
 	group_toggle.visible = false
@@ -364,7 +375,7 @@ func _build_dm_participants(dm: Dictionary) -> void:
 
 	_row_data.append({
 		"type": "header",
-		"label": "PARTICIPANTS — %d" % participants.size(),
+		"label": tr("PARTICIPANTS — %d") % participants.size(),
 	})
 
 	for p in participants:
@@ -423,6 +434,7 @@ func _on_member_status_changed(
 	_after_incremental_change()
 
 func _after_incremental_change() -> void:
+	_assignments_dirty = true
 	_update_virtual_height()
 	_adjust_pool_size()
 	_update_visible_items(
@@ -435,14 +447,14 @@ func _after_incremental_change() -> void:
 func _status_label_for(status: int) -> String:
 	match status:
 		ClientModels.UserStatus.ONLINE:
-			return "ONLINE"
+			return tr("ONLINE")
 		ClientModels.UserStatus.IDLE:
-			return "IDLE"
+			return tr("IDLE")
 		ClientModels.UserStatus.DND:
-			return "DO NOT DISTURB"
+			return tr("DO NOT DISTURB")
 		ClientModels.UserStatus.OFFLINE:
-			return "OFFLINE"
-	return "UNKNOWN"
+			return tr("OFFLINE")
+	return tr("UNKNOWN")
 
 func _status_order() -> Array:
 	return [
@@ -585,33 +597,33 @@ func _adjust_pool_size() -> void:
 			_header_pool.append(header)
 		_pool_size = needed
 	elif needed < _pool_size - POOL_SHRINK_HYSTERESIS:
-		_hide_all_pool_nodes()
+		_clear_all_assignments()
 		var excess: int = _pool_size - needed
 		for i in range(excess):
 			_item_pool.pop_back().queue_free()
 			_header_pool.pop_back().queue_free()
 		_pool_size = needed
 
-func _hide_all_pool_nodes() -> void:
-	for node in _active_items:
+func _clear_all_assignments() -> void:
+	for node in _assigned_set:
 		node.visible = false
-	for node in _active_headers:
-		node.visible = false
-	_active_items.clear()
-	_active_headers.clear()
+	_row_assignments.clear()
+	_assigned_set.clear()
+	_assignments_dirty = false
 
 func _on_scroll_changed(value: float) -> void:
 	_update_visible_items(value)
 
 func _on_scroll_resized() -> void:
+	_assignments_dirty = true
 	_adjust_pool_size()
 	_update_visible_items(
 		scroll_container.get_v_scroll_bar().value
 	)
 
 func _update_visible_items(scroll_value: float) -> void:
-	_hide_all_pool_nodes()
 	if _row_data.is_empty():
+		_clear_all_assignments()
 		return
 
 	var first_row: int = maxi(
@@ -625,14 +637,36 @@ func _update_visible_items(scroll_value: float) -> void:
 		_row_data.size() - 1, visible_end
 	)
 
+	if _assignments_dirty:
+		_clear_all_assignments()
+	else:
+		# Reclaim nodes outside the new visible range
+		var to_reclaim: Array = []
+		for row_idx in _row_assignments:
+			if row_idx < first_row or row_idx > last_row:
+				to_reclaim.append(row_idx)
+		for row_idx in to_reclaim:
+			var node: Control = _row_assignments[row_idx]
+			node.visible = false
+			_row_assignments.erase(row_idx)
+			_assigned_set.erase(node)
+
+	# Assign pool nodes to rows that need them
 	var item_idx: int = 0
 	var header_idx: int = 0
 
 	for row_index in range(first_row, last_row + 1):
+		if _row_assignments.has(row_index):
+			continue
 		var row: Dictionary = _row_data[row_index]
 		var y_pos: float = row_index * ROW_HEIGHT
 
 		if row["type"] == "header":
+			while header_idx < _header_pool.size() \
+					and _assigned_set.has(
+						_header_pool[header_idx]
+					):
+				header_idx += 1
 			if header_idx < _header_pool.size():
 				var header: Control = \
 					_header_pool[header_idx]
@@ -642,9 +676,15 @@ func _update_visible_items(scroll_value: float) -> void:
 					virtual_content.size.x, ROW_HEIGHT
 				)
 				header.visible = true
-				_active_headers.append(header)
+				_row_assignments[row_index] = header
+				_assigned_set[header] = true
 				header_idx += 1
 		else:
+			while item_idx < _item_pool.size() \
+					and _assigned_set.has(
+						_item_pool[item_idx]
+					):
+				item_idx += 1
 			if item_idx < _item_pool.size():
 				var item: Control = _item_pool[item_idx]
 				item.setup(row["data"])
@@ -653,10 +693,77 @@ func _update_visible_items(scroll_value: float) -> void:
 					virtual_content.size.x, ROW_HEIGHT
 				)
 				item.visible = true
-				_active_items.append(item)
+				_row_assignments[row_index] = item
+				_assigned_set[item] = true
 				item_idx += 1
 
 func _on_invite_pressed() -> void:
 	var dialog := InviteMgmtScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(_space_id)
+
+func _on_guest_mode_changed(is_guest: bool) -> void:
+	if is_guest:
+		_fetch_anonymous_count()
+	else:
+		_remove_anonymous_entry()
+
+func _on_anonymous_count_updated(
+	space_id: String, count: int,
+) -> void:
+	if space_id != _space_id:
+		return
+	_anonymous_count = count
+	if _anonymous_entry and is_instance_valid(_anonymous_entry):
+		_anonymous_entry.update_count(count)
+	elif count > 0 and AppState.is_guest_mode:
+		_add_anonymous_entry(count)
+
+func _fetch_anonymous_count() -> void:
+	if _space_id.is_empty():
+		return
+	var conn_idx: int = Client._space_to_conn.get(_space_id, -1)
+	if conn_idx < 0 or conn_idx >= Client._connections.size():
+		return
+	var conn = Client._connections[conn_idx]
+	if conn == null or conn["client"] == null:
+		return
+	var client: AccordClient = conn["client"]
+	var result: RestResult = await client.spaces.anonymous_count(
+		_space_id
+	)
+	if not is_instance_valid(self):
+		return
+	if result.ok and result.data is Dictionary:
+		_anonymous_count = result.data.get("count", 0)
+		if _anonymous_count > 0:
+			_add_anonymous_entry(_anonymous_count)
+
+func _add_anonymous_entry(count: int) -> void:
+	if _anonymous_entry and is_instance_valid(_anonymous_entry):
+		_anonymous_entry.update_count(count)
+		return
+	_anonymous_entry = AnonymousEntryScene.instantiate()
+	virtual_content.add_child(_anonymous_entry)
+	_anonymous_entry.setup({"count": count})
+	# Pin to bottom of the virtual content
+	_update_anonymous_entry_position()
+
+func _update_anonymous_entry_position() -> void:
+	if not _anonymous_entry or not is_instance_valid(_anonymous_entry):
+		return
+	var y_pos: float = _row_data.size() * ROW_HEIGHT
+	_anonymous_entry.position = Vector2(0, y_pos)
+	_anonymous_entry.size = Vector2(
+		virtual_content.size.x, ROW_HEIGHT
+	)
+	# Extend virtual height to account for the extra row
+	virtual_content.custom_minimum_size.y = (
+		(_row_data.size() + 1) * ROW_HEIGHT
+	)
+
+func _remove_anonymous_entry() -> void:
+	if _anonymous_entry and is_instance_valid(_anonymous_entry):
+		_anonymous_entry.queue_free()
+		_anonymous_entry = null
+	_anonymous_count = 0

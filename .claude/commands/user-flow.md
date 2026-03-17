@@ -84,3 +84,17 @@ Before finishing, verify:
 - Signal names should match GDScript exactly (e.g., `guild_selected` not `guildSelected`)
 - Dictionary shapes should show actual key names from the code
 - Always note hardcoded values that should come from the server
+
+## Related Projects
+
+Implementing some tasks will require working in separate codebases.
+
+- ../accordserver: Server-side logic
+- ../daccord-editor: Plugin related logic
+- ../accordmasterserver: The master server
+- ../accordserver-mcp: A typescript based mcp-client for accordserver
+- ../accordwebsite: The daccord website
+- ../godotlite: A slimmed down version of godot used for reduced size releases
+- ../godot-livekit: The video/voice communication gdextension client
+- ../frametap: The library that takes care of screenshots and screen recording (built into godot-livekit)
+- ../accordman: A project manager for viewing user flows

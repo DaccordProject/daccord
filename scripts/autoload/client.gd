@@ -564,10 +564,10 @@ func update_presence(
 ) -> void:
 	mutations.update_presence(status, activity)
 
-func send_typing(cid: String) -> void:
+func send_typing(cid: String, thread_id: String = "") -> void:
 	if AppState.is_guest_mode:
 		return
-	mutations.send_typing(cid)
+	mutations.send_typing(cid, thread_id)
 
 func join_voice_channel(ch_id: String) -> bool:
 	return await voice.join_voice_channel(ch_id)

@@ -19,6 +19,12 @@ var _base_url: String = ""
 var _prefill_username: String = ""
 var _prev_username: String = ""
 var _mfa_ticket: String = ""
+var _tos_enabled: bool = false
+var _tos_text: String = ""
+var _tos_url: String = ""
+var _tos_version: int = 0
+var _tos_checkbox: CheckBox
+var _tos_link_btn: Button
 
 @onready var _sign_in_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/SignInBtn
 @onready var _register_btn: Button = $CenterContainer/Panel/VBox/ModeToggle/RegisterBtn
@@ -46,6 +52,31 @@ func _ready() -> void:
 	_password_input.text_submitted.connect(func(_t): _on_submit())
 	_mfa_input.text_submitted.connect(func(_t): _on_submit())
 	_guest_btn.pressed.connect(_on_guest_pressed)
+
+	# ToS checkbox (built programmatically, hidden until settings fetched)
+	var tos_row := HBoxContainer.new()
+	tos_row.name = "TosRow"
+	tos_row.add_theme_constant_override("separation", 4)
+	_tos_checkbox = CheckBox.new()
+	_tos_checkbox.text = tr("I agree to the ")
+	_tos_checkbox.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	tos_row.add_child(_tos_checkbox)
+	_tos_link_btn = Button.new()
+	_tos_link_btn.text = tr("Terms of Service")
+	_tos_link_btn.flat = true
+	_tos_link_btn.add_theme_color_override(
+		"font_color", ThemeManager.get_color("link")
+	)
+	_tos_link_btn.add_theme_color_override(
+		"font_hover_color", ThemeManager.get_color("link")
+	)
+	_tos_link_btn.pressed.connect(_on_tos_link_pressed)
+	tos_row.add_child(_tos_link_btn)
+	var vbox: VBoxContainer = $CenterContainer/Panel/VBox
+	# Insert before SubmitButton
+	vbox.add_child(tos_row)
+	vbox.move_child(tos_row, _submit_btn.get_index())
+	tos_row.visible = false
 
 	_set_mode(Mode.SIGN_IN)
 
@@ -79,7 +110,8 @@ func _set_mode(m: Mode) -> void:
 		_generate_btn.visible = false
 		_password_hint.visible = false
 		_password_input.secret = true
-		_submit_btn.text = "Sign In"
+		_submit_btn.text = tr("Sign In")
+		_tos_checkbox.get_parent().visible = false
 	else:
 		_sign_in_btn.disabled = false
 		_register_btn.disabled = true
@@ -87,14 +119,18 @@ func _set_mode(m: Mode) -> void:
 		_display_name_input.visible = true
 		_generate_btn.visible = true
 		_password_hint.visible = true
-		_submit_btn.text = "Register"
+		_submit_btn.text = tr("Register")
+		_tos_checkbox.get_parent().visible = _tos_enabled
+		_tos_checkbox.button_pressed = false
+		if not _tos_enabled and _tos_version == 0:
+			_fetch_tos_settings()
 
 
 func _enter_mfa_mode() -> void:
 	_mfa_label.visible = true
 	_mfa_input.visible = true
 	_mfa_input.text = ""
-	_submit_btn.text = "Verify"
+	_submit_btn.text = tr("Verify")
 	_mfa_input.grab_focus()
 
 
@@ -120,20 +156,20 @@ func _on_submit() -> void:
 
 	_error_label.visible = false
 	_submit_btn.disabled = true
-	_submit_btn.text = "Connecting..."
+	_submit_btn.text = tr("Connecting...")
 
 	var result := await _try_auth(username, password)
 
 	_submit_btn.disabled = false
-	_submit_btn.text = "Sign In" if _mode == Mode.SIGN_IN else "Register"
+	_submit_btn.text = tr("Sign In") if _mode == Mode.SIGN_IN else tr("Register")
 
 	if not result.ok:
-		var err_msg: String = result.error.message if result.error else "Authentication failed"
+		var err_msg: String = result.error.message if result.error else tr("Authentication failed")
 		_show_error(err_msg)
 		return
 
 	if not result.data is Dictionary:
-		_show_error("Unexpected response from server.")
+		_show_error(tr("Unexpected response from server."))
 		return
 
 	_handle_auth_result(result, username)
@@ -141,11 +177,13 @@ func _on_submit() -> void:
 
 func _validate_credentials(username: String, password: String) -> String:
 	if username.is_empty():
-		return "Username is required."
+		return tr("Username is required.")
 	if password.is_empty():
-		return "Password is required."
+		return tr("Password is required.")
 	if _mode == Mode.REGISTER and password.length() < 8:
-		return "Password must be at least 8 characters."
+		return tr("Password must be at least 8 characters.")
+	if _mode == Mode.REGISTER and _tos_enabled and not _tos_checkbox.button_pressed:
+		return tr("You must accept the Terms of Service.")
 	return ""
 
 
@@ -154,14 +192,14 @@ func _handle_auth_result(result: RestResult, username: String) -> void:
 	if result.data.get("mfa_required", false):
 		_mfa_ticket = result.data.get("ticket", "")
 		if _mfa_ticket.is_empty():
-			_show_error("Server requires 2FA but sent no ticket.")
+			_show_error(tr("Server requires 2FA but sent no ticket."))
 			return
 		_enter_mfa_mode()
 		return
 
 	var token: String = result.data.get("token", "")
 	if token.is_empty():
-		_show_error("No token received from server.")
+		_show_error(tr("No token received from server."))
 		return
 
 	# Check if the server requires a password change before continuing
@@ -182,12 +220,12 @@ func _handle_auth_result(result: RestResult, username: String) -> void:
 func _on_submit_mfa() -> void:
 	var code := _mfa_input.text.strip_edges()
 	if code.is_empty():
-		_show_error("Enter your 2FA code.")
+		_show_error(tr("Enter your 2FA code."))
 		return
 
 	_error_label.visible = false
 	_submit_btn.disabled = true
-	_submit_btn.text = "Verifying..."
+	_submit_btn.text = tr("Verifying...")
 
 	var api_url := _base_url + AccordConfig.API_BASE_PATH
 	var rest := AccordRest.new(api_url)
@@ -202,12 +240,12 @@ func _on_submit_mfa() -> void:
 	rest.queue_free()
 
 	_submit_btn.disabled = false
-	_submit_btn.text = "Verify"
+	_submit_btn.text = tr("Verify")
 
 	if not result.ok:
 		var err_msg: String = (
 			result.error.message
-			if result.error else "MFA verification failed"
+			if result.error else tr("MFA verification failed")
 		)
 		_show_error(err_msg)
 		return
@@ -217,7 +255,7 @@ func _on_submit_mfa() -> void:
 		if result.data is Dictionary else ""
 	)
 	if token.is_empty():
-		_show_error("No token received from server.")
+		_show_error(tr("No token received from server."))
 		return
 
 	# Check if the server requires a password change after MFA
@@ -294,7 +332,7 @@ func _show_change_password_dialog(token: String, username: String) -> void:
 func _on_guest_pressed() -> void:
 	_error_label.visible = false
 	_guest_btn.disabled = true
-	_guest_btn.text = "Connecting..."
+	_guest_btn.text = tr("Connecting...")
 
 	var api_url := _base_url + AccordConfig.API_BASE_PATH
 	var rest := AccordRest.new(api_url)
@@ -307,22 +345,62 @@ func _on_guest_pressed() -> void:
 	rest.queue_free()
 
 	_guest_btn.disabled = false
-	_guest_btn.text = "Browse without account"
+	_guest_btn.text = tr("Browse without account")
 
 	if not result.ok:
 		var err_msg: String = (
 			result.error.message
-			if result.error else "Guest access not available"
+			if result.error else tr("Guest access not available")
 		)
 		_show_error(err_msg)
 		return
 
 	if not result.data is Dictionary:
-		_show_error("Unexpected response from server.")
+		_show_error(tr("Unexpected response from server."))
 		return
 
 	guest_requested.emit(_base_url)
 	queue_free()
+
+
+func _fetch_tos_settings() -> void:
+	if _base_url.is_empty():
+		return
+	var api_url := _base_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	rest.token = ""
+	rest.token_type = "Bearer"
+	add_child(rest)
+	var result: RestResult = await rest.make_request("GET", "/settings")
+	rest.queue_free()
+	if result == null or not result.ok:
+		return
+	var data: Dictionary = result.data if result.data is Dictionary else {}
+	var settings: Dictionary = data.get("data", data)
+	_tos_enabled = settings.get("tos_enabled", false)
+	_tos_text = settings.get("tos_text", "")
+	_tos_version = settings.get("tos_version", 0)
+	_tos_url = settings.get("tos_url", "")
+	if _mode == Mode.REGISTER:
+		_tos_checkbox.get_parent().visible = _tos_enabled
+
+
+func _on_tos_link_pressed() -> void:
+	if not _tos_url.is_empty():
+		OS.shell_open(_tos_url)
+		return
+	if _tos_text.is_empty():
+		return
+	# Show inline ToS dialog
+	var dialog := AcceptDialog.new()
+	dialog.title = tr("Terms of Service")
+	dialog.dialog_text = _tos_text
+	dialog.dialog_autowrap = true
+	dialog.min_size = Vector2i(500, 400)
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
 
 
 func _show_error(msg: String) -> void:

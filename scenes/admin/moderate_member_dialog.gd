@@ -2,10 +2,11 @@ extends ModalBase
 
 # Duration options in seconds
 const DURATIONS := [60, 300, 600, 3600, 86400, 604800]
-const DURATION_LABELS := [
-	"60 seconds", "5 minutes", "10 minutes",
-	"1 hour", "1 day", "1 week"
-]
+var duration_labels: Array:
+	get: return [
+		tr("60 seconds"), tr("5 minutes"), tr("10 minutes"),
+		tr("1 hour"), tr("1 day"), tr("1 week"),
+	]
 
 var _space_id: String = ""
 var _user_id: String = ""
@@ -32,7 +33,7 @@ func _ready() -> void:
 	_close_btn.pressed.connect(_close)
 	_apply_btn.pressed.connect(_on_apply)
 	_remove_timeout_btn.pressed.connect(_on_remove_timeout)
-	for label in DURATION_LABELS:
+	for label in duration_labels:
 		_duration_option.add_item(label)
 
 func setup(
@@ -42,7 +43,7 @@ func setup(
 	_space_id = space_id
 	_user_id = user_id
 	if _title_label:
-		_title_label.text = "Moderate %s" % display_name
+		_title_label.text = tr("Moderate %s") % display_name
 	_mute_check.button_pressed = member_data.get("mute", false)
 	_deaf_check.button_pressed = member_data.get("deaf", false)
 	var timeout: String = member_data.get("timed_out_until", "")
@@ -50,7 +51,7 @@ func setup(
 
 func _on_apply() -> void:
 	_apply_btn.disabled = true
-	_apply_btn.text = "Applying..."
+	_apply_btn.text = tr("Applying...")
 	_error_label.visible = false
 
 	var data: Dictionary = {
@@ -76,10 +77,10 @@ func _on_apply() -> void:
 		_space_id, _user_id, data
 	)
 	_apply_btn.disabled = false
-	_apply_btn.text = "Apply"
+	_apply_btn.text = tr("Apply")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to moderate member"
+		var err_msg: String = tr("Failed to moderate member")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -100,7 +101,7 @@ func _on_remove_timeout() -> void:
 	_remove_timeout_btn.disabled = false
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to remove timeout"
+		var err_msg: String = tr("Failed to remove timeout")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg

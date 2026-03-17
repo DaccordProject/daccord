@@ -58,7 +58,7 @@ func _ready() -> void:
 func setup(channel: Dictionary, space_id: String) -> void:
 	_channel = channel
 	_space_id = space_id
-	_title.text = "Permissions: #%s" % channel.get("name", "")
+	_title.text = tr("Permissions: #%s") % channel.get("name", "")
 	_load_overwrites()
 	# Snapshot for dirty tracking
 	_original_overwrite_data = _overwrite_data.duplicate(true)
@@ -130,7 +130,7 @@ func _rebuild_role_list() -> void:
 		_role_list.add_child(sep)
 
 		var member_label := Label.new()
-		member_label.text = "MEMBERS"
+		member_label.text = tr("MEMBERS")
 		member_label.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_body")
 		)
@@ -146,7 +146,7 @@ func _rebuild_role_list() -> void:
 	add_btn.flat = true
 	add_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	add_btn.custom_minimum_size = Vector2(140, 28)
-	add_btn.text = "+ Add Member"
+	add_btn.text = tr("+ Add Member")
 	add_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("accent")
 	)
@@ -212,7 +212,7 @@ func _on_add_member_overwrite() -> void:
 	vbox.custom_minimum_size = Vector2(200, 200)
 
 	var search := LineEdit.new()
-	search.placeholder_text = "Search members..."
+	search.placeholder_text = tr("Search members...")
 	search.custom_minimum_size = Vector2(0, 32)
 	vbox.add_child(search)
 
@@ -320,7 +320,7 @@ func _on_reset() -> void:
 
 func _on_save() -> void:
 	_save_btn.disabled = true
-	_save_btn.text = "Saving..."
+	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
 
 	# Build overwrites array and deleted IDs list
@@ -358,10 +358,10 @@ func _on_save() -> void:
 	)
 
 	_save_btn.disabled = false
-	_save_btn.text = "Save"
+	_save_btn.text = tr("Save")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to update permissions"
+		var err_msg: String = tr("Failed to update permissions")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -394,10 +394,10 @@ func _try_close() -> void:
 		var dialog := ConfirmDialogScene.instantiate()
 		get_tree().root.add_child(dialog)
 		dialog.setup(
-			"Unsaved Changes",
-			"You have unsaved permission changes. "
-			+ "Discard them?",
-			"Discard",
+			tr("Unsaved Changes"),
+			tr("You have unsaved permission changes. "
+			+ "Discard them?"),
+			tr("Discard"),
 			true,
 		)
 		dialog.confirmed.connect(func(): queue_free())

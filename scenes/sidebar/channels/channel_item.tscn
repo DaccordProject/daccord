@@ -56,6 +56,20 @@ layout_mode = 2
 size_flags_horizontal = 3
 vertical_alignment = 1
 
+[node name="NsfwBadge" type="Label" parent="HBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+text = "NSFW"
+theme_override_font_sizes/font_size = 9
+
+[node name="RulesBadge" type="Label" parent="HBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+text = "RULES"
+theme_override_font_sizes/font_size = 9
+
 [node name="UnreadDot" type="ColorRect" parent="HBox"]
 custom_minimum_size = Vector2(8, 8)
 layout_mode = 2

@@ -50,7 +50,7 @@ func test_first_frame_creates_texture() -> void:
 	var img := _make_rgba8_image()
 	_preview.update_frame(img)
 
-	var tex := _preview.get_texture()
+	var tex: ImageTexture = _preview.get_texture()
 	assert_not_null(tex, "Texture should exist after first frame")
 	assert_eq(tex.get_width(), 320, "Texture width")
 	assert_eq(tex.get_height(), 240, "Texture height")
@@ -60,7 +60,7 @@ func test_texture_stays_rgba8() -> void:
 	var img := _make_rgba8_image()
 	_preview.update_frame(img)
 
-	var tex_image := _preview.get_texture().get_image()
+	var tex_image: Image = _preview.get_texture().get_image()
 	assert_eq(
 		tex_image.get_format(),
 		Image.FORMAT_RGBA8,
@@ -77,7 +77,7 @@ func test_texture_fully_opaque_after_multiple_updates() -> void:
 		var img := _make_rgba8_image(320, 240, Color.BLUE)
 		_preview.update_frame(img)
 
-	var tex_image := _preview.get_texture().get_image()
+	var tex_image: Image = _preview.get_texture().get_image()
 	assert_eq(
 		tex_image.get_format(),
 		Image.FORMAT_RGBA8,
@@ -85,7 +85,7 @@ func test_texture_fully_opaque_after_multiple_updates() -> void:
 	)
 	# Sample a few pixels to verify alpha is 255.
 	for pos in [Vector2i(0, 0), Vector2i(160, 120), Vector2i(319, 239)]:
-		var pixel := tex_image.get_pixelv(pos)
+		var pixel: Color = tex_image.get_pixelv(pos)
 		assert_eq(
 			pixel.a,
 			1.0,
@@ -101,14 +101,14 @@ func test_zero_alpha_input_becomes_opaque() -> void:
 
 	_preview.update_frame(img)
 
-	var tex_image := _preview.get_texture().get_image()
+	var tex_image: Image = _preview.get_texture().get_image()
 	assert_eq(
 		tex_image.get_format(),
 		Image.FORMAT_RGBA8,
 		"Texture should be RGBA8",
 	)
 	for pos in [Vector2i(0, 0), Vector2i(160, 120), Vector2i(319, 239)]:
-		var pixel := tex_image.get_pixelv(pos)
+		var pixel: Color = tex_image.get_pixelv(pos)
 		assert_eq(
 			pixel.a,
 			1.0,
@@ -122,8 +122,8 @@ func test_zero_alpha_sustained_across_frames() -> void:
 	for i in 30:
 		_preview.update_frame(_make_zero_alpha_image())
 
-	var tex_image := _preview.get_texture().get_image()
-	var pixel := tex_image.get_pixelv(Vector2i(160, 120))
+	var tex_image: Image = _preview.get_texture().get_image()
+	var pixel: Color = tex_image.get_pixelv(Vector2i(160, 120))
 	assert_eq(
 		pixel.a,
 		1.0,
@@ -134,11 +134,11 @@ func test_zero_alpha_sustained_across_frames() -> void:
 func test_texture_reused_when_resolution_unchanged() -> void:
 	var img_a := _make_rgba8_image(320, 240, Color.RED)
 	_preview.update_frame(img_a)
-	var tex_first := _preview.get_texture()
+	var tex_first: ImageTexture = _preview.get_texture()
 
 	var img_b := _make_rgba8_image(320, 240, Color.GREEN)
 	_preview.update_frame(img_b)
-	var tex_second := _preview.get_texture()
+	var tex_second: ImageTexture = _preview.get_texture()
 
 	assert_same(
 		tex_first,
@@ -150,11 +150,11 @@ func test_texture_reused_when_resolution_unchanged() -> void:
 func test_texture_recreated_on_resolution_change() -> void:
 	var img_a := _make_rgba8_image(320, 240)
 	_preview.update_frame(img_a)
-	var tex_first := _preview.get_texture()
+	var tex_first: ImageTexture = _preview.get_texture()
 
 	var img_b := _make_rgba8_image(640, 480)
 	_preview.update_frame(img_b)
-	var tex_second := _preview.get_texture()
+	var tex_second: ImageTexture = _preview.get_texture()
 
 	assert_ne(
 		tex_second,

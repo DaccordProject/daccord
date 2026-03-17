@@ -34,7 +34,7 @@ func _ready() -> void:
 	content_container.add_child(header_margin)
 
 	var header_title := Label.new()
-	header_title.text = "Settings"
+	header_title.text = tr("Settings")
 	header_title.add_theme_font_size_override("font_size", 14)
 	header_title.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")

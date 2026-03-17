@@ -109,7 +109,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 		_plus_btn.expand_icon = true
 		_plus_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("icon_default"))
 		_plus_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("icon_active"))
-		_plus_btn.tooltip_text = "Create Channel"
+		_plus_btn.tooltip_text = tr("Create Channel")
 		_plus_btn.pressed.connect(_on_create_channel)
 		$Header/HBox.add_child(_plus_btn)
 
@@ -166,14 +166,14 @@ func _show_context_menu(pos: Vector2i) -> void:
 	var cat_id: String = _category_data.get("id", "")
 	if not cat_id.is_empty():
 		if Client.is_channel_muted(cat_id):
-			_context_menu.add_item("Unmute Category", 10)
+			_context_menu.add_item(tr("Unmute Category"), 10)
 		else:
-			_context_menu.add_item("Mute Category", 10)
+			_context_menu.add_item(tr("Mute Category"), 10)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_context_menu.add_separator()
-		_context_menu.add_item("Create Channel", 0)
-		_context_menu.add_item("Edit Category", 1)
-		_context_menu.add_item("Delete Category", 2)
+		_context_menu.add_item(tr("Create Channel"), 0)
+		_context_menu.add_item(tr("Edit Category"), 1)
+		_context_menu.add_item(tr("Delete Category"), 2)
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
@@ -208,15 +208,15 @@ func _on_delete_category() -> void:
 	var cat_name: String = _category_data.get("name", "")
 	var msg: String
 	if child_count > 0:
-		msg = "Are you sure you want to delete \"%s\"?" % cat_name \
-			+ " It contains %d channel(s)" % child_count \
-			+ " that will become uncategorized." \
-			+ " This cannot be undone."
+		msg = tr("Are you sure you want to delete \"%s\"?") % cat_name \
+			+ " " + tr("It contains %d channel(s)") % child_count \
+			+ " " + tr("that will become uncategorized.") \
+			+ " " + tr("This cannot be undone.")
 	else:
-		msg = "Are you sure you want to delete \"%s\"?" % cat_name \
-			+ " This cannot be undone."
+		msg = tr("Are you sure you want to delete \"%s\"?") % cat_name \
+			+ " " + tr("This cannot be undone.")
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Delete Category", msg, "Delete", true, func():
+		tr("Delete Category"), msg, tr("Delete"), true, func():
 			Client.admin.delete_channel(_category_data.get("id", ""))
 	)
 

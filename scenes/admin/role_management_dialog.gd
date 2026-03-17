@@ -139,7 +139,7 @@ func _on_move_role(role: Dictionary, direction: int) -> void:
 	if my_highest != 999999:
 		if role.get("position", 0) >= my_highest \
 				or _all_roles[swap_idx].get("position", 0) >= my_highest:
-			_error_label.text = "Cannot reorder roles at or above your own"
+			_error_label.text = tr("Cannot reorder roles at or above your own")
 			_error_label.visible = true
 			return
 
@@ -153,7 +153,7 @@ func _on_move_role(role: Dictionary, direction: int) -> void:
 
 	var result: RestResult = await Client.admin.reorder_roles(_space_id, data)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to reorder roles"
+		var err_msg: String = tr("Failed to reorder roles")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -197,7 +197,7 @@ func _select_role(role: Dictionary) -> void:
 	for perm in _perm_checks:
 		_perm_checks[perm].disabled = above_me
 	if above_me:
-		_error_label.text = "You cannot edit roles at or above your own"
+		_error_label.text = tr("You cannot edit roles at or above your own")
 		_error_label.visible = true
 
 	_dirty = false
@@ -205,10 +205,10 @@ func _select_role(role: Dictionary) -> void:
 func _on_new_role() -> void:
 	_new_role_btn.disabled = true
 	_error_label.visible = false
-	var result: RestResult = await Client.admin.create_role(_space_id, {"name": "New Role"})
+	var result: RestResult = await Client.admin.create_role(_space_id, {"name": tr("New Role")})
 	_new_role_btn.disabled = false
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to create role"
+		var err_msg: String = tr("Failed to create role")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -219,7 +219,7 @@ func _on_save() -> void:
 		return
 
 	_save_btn.disabled = true
-	_save_btn.text = "Saving..."
+	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
 
 	var perms: Array = []
@@ -239,10 +239,10 @@ func _on_save() -> void:
 		_space_id, _selected_role.get("id", ""), data
 	)
 	_save_btn.disabled = false
-	_save_btn.text = "Save"
+	_save_btn.text = tr("Save")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to update role"
+		var err_msg: String = tr("Failed to update role")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -257,9 +257,9 @@ func _on_delete() -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Role",
-		"Are you sure you want to delete '%s'?" % role_name,
-		"Delete",
+		tr("Delete Role"),
+		tr("Are you sure you want to delete '%s'?") % role_name,
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func():
@@ -281,9 +281,9 @@ func _try_close() -> void:
 		var dialog := ConfirmDialogScene.instantiate()
 		get_tree().root.add_child(dialog)
 		dialog.setup(
-			"Unsaved Changes",
-			"You have unsaved changes. Discard?",
-			"Discard",
+			tr("Unsaved Changes"),
+			tr("You have unsaved changes. Discard?"),
+			tr("Discard"),
 			true
 		)
 		dialog.confirmed.connect(func():

@@ -16,7 +16,7 @@ var _error_label: Label
 
 
 func _ready() -> void:
-	_setup_modal("Plugins", 520, 0)
+	_setup_modal(tr("Plugins"), 520, 0)
 
 	_error_label = Label.new()
 	_error_label.add_theme_color_override(
@@ -28,7 +28,7 @@ func _ready() -> void:
 	content_container.add_child(_error_label)
 
 	# Upload button
-	_upload_btn = SettingsBase.create_action_button("Upload Plugin")
+	_upload_btn = SettingsBase.create_action_button(tr("Upload Plugin"))
 	_upload_btn.pressed.connect(_on_upload_pressed)
 	content_container.add_child(_upload_btn)
 
@@ -37,7 +37,7 @@ func _ready() -> void:
 
 	# Empty state
 	_empty_label = Label.new()
-	_empty_label.text = "No plugins installed."
+	_empty_label.text = tr("No plugins installed.")
 	_empty_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
@@ -71,7 +71,7 @@ func _load_plugins() -> void:
 	_empty_label.visible = false
 
 	if _conn_index < 0:
-		_error_label.text = "Not connected to this server."
+		_error_label.text = tr("Not connected to this server.")
 		_error_label.visible = true
 		return
 
@@ -117,7 +117,7 @@ func _build_plugin_row(plugin: Dictionary) -> PanelContainer:
 	info.add_child(name_row)
 
 	var name_label := Label.new()
-	name_label.text = plugin.get("name", "Unknown Plugin")
+	name_label.text = plugin.get("name", tr("Unknown Plugin"))
 	name_label.add_theme_font_size_override("font_size", 15)
 	name_row.add_child(name_label)
 
@@ -159,7 +159,7 @@ func _build_plugin_row(plugin: Dictionary) -> PanelContainer:
 
 	# Uninstall button
 	var plugin_id: String = str(plugin.get("id", ""))
-	var delete_btn := SettingsBase.create_danger_button("Uninstall")
+	var delete_btn := SettingsBase.create_danger_button(tr("Uninstall"))
 	delete_btn.pressed.connect(_on_delete_plugin.bind(plugin_id, plugin.get("name", "")))
 	hbox.add_child(delete_btn)
 
@@ -168,7 +168,7 @@ func _build_plugin_row(plugin: Dictionary) -> PanelContainer:
 
 func _on_upload_pressed() -> void:
 	if OS.get_name() == "Web":
-		_error_label.text = "Plugin upload is not supported on web."
+		_error_label.text = tr("Plugin upload is not supported on web.")
 		_error_label.visible = true
 		return
 
@@ -189,7 +189,7 @@ func _on_upload_pressed() -> void:
 func _on_file_selected(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		_error_label.text = "Failed to open file."
+		_error_label.text = tr("Failed to open file.")
 		_error_label.visible = true
 		return
 
@@ -197,28 +197,28 @@ func _on_file_selected(path: String) -> void:
 	file.close()
 
 	if bytes.is_empty():
-		_error_label.text = "File is empty."
+		_error_label.text = tr("File is empty.")
 		_error_label.visible = true
 		return
 
 	# Extract plugin.json manifest from the ZIP bundle
 	var manifest: Dictionary = _extract_manifest(bytes)
 	if manifest.is_empty():
-		_error_label.text = (
+		_error_label.text = tr(
 			"Invalid plugin bundle: missing or invalid plugin.json."
 		)
 		_error_label.visible = true
 		return
 
 	_upload_btn.disabled = true
-	_upload_btn.text = "Uploading..."
+	_upload_btn.text = tr("Uploading...")
 	_error_label.visible = false
 
 	var conn: Dictionary = Client._connections[_conn_index]
 	if conn == null or conn.get("client") == null:
 		_upload_btn.disabled = false
-		_upload_btn.text = "Upload Plugin"
-		_error_label.text = "Not connected."
+		_upload_btn.text = tr("Upload Plugin")
+		_error_label.text = tr("Not connected.")
 		_error_label.visible = true
 		return
 
@@ -228,10 +228,10 @@ func _on_file_selected(path: String) -> void:
 	)
 
 	_upload_btn.disabled = false
-	_upload_btn.text = "Upload Plugin"
+	_upload_btn.text = tr("Upload Plugin")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to install plugin"
+		var err_msg: String = tr("Failed to install plugin")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -278,9 +278,9 @@ func _extract_manifest(zip_bytes: PackedByteArray) -> Dictionary:
 
 func _on_delete_plugin(plugin_id: String, plugin_name: String) -> void:
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Uninstall Plugin",
-		"Are you sure you want to uninstall '%s'? Any active sessions will be ended." % plugin_name,
-		"Uninstall", true,
+		tr("Uninstall Plugin"),
+		tr("Are you sure you want to uninstall '%s'? Any active sessions will be ended.") % plugin_name,
+		tr("Uninstall"), true,
 		func() -> void:
 			var conn: Dictionary = Client._connections[_conn_index]
 			if conn == null or conn.get("client") == null:
@@ -290,7 +290,7 @@ func _on_delete_plugin(plugin_id: String, plugin_name: String) -> void:
 				_space_id, plugin_id
 			)
 			if result == null or not result.ok:
-				var err_msg: String = "Failed to uninstall plugin"
+				var err_msg: String = tr("Failed to uninstall plugin")
 				if result != null and result.error:
 					err_msg = result.error.message
 				_error_label.text = err_msg

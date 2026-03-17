@@ -24,9 +24,12 @@ var _drop_above: bool = false
 var _drop_hovered: bool = false
 var _has_unread: bool = false
 var _is_active: bool = false
+var _is_rules_channel: bool = false
 
 @onready var type_icon: TextureRect = $HBox/TypeIcon
 @onready var channel_name: Label = $HBox/ChannelName
+@onready var nsfw_badge: Label = $HBox/NsfwBadge
+@onready var rules_badge: Label = $HBox/RulesBadge
 @onready var unread_dot: ColorRect = $HBox/UnreadDot
 @onready var active_bg: ColorRect = $ActiveBg
 @onready var active_pill: ColorRect = $ActivePill
@@ -38,9 +41,9 @@ func _ready() -> void:
 	_notification_submenu = PopupMenu.new()
 	_notification_submenu.name = "NotificationSubmenu"
 	_notification_submenu.id_pressed.connect(_on_notification_submenu_id_pressed)
-	_notification_submenu.add_radio_check_item("All Messages", 20)
-	_notification_submenu.add_radio_check_item("Only Mentions", 21)
-	_notification_submenu.add_radio_check_item("Muted", 22)
+	_notification_submenu.add_radio_check_item(tr("All Messages"), 20)
+	_notification_submenu.add_radio_check_item(tr("Only Mentions"), 21)
+	_notification_submenu.add_radio_check_item(tr("Muted"), 22)
 
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
@@ -91,11 +94,30 @@ func setup(data: Dictionary) -> void:
 			type_icon.texture = FORUM_ICON
 		_:
 			type_icon.texture = TEXT_ICON
-	# NSFW indicator - tint icon red
+	# NSFW indicator - tint icon red and show badge
 	if data.get("nsfw", false):
 		type_icon.modulate = ThemeManager.get_color("error")
+		nsfw_badge.visible = true
+		nsfw_badge.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	else:
 		_apply_icon_color()
+		nsfw_badge.visible = false
+
+	# Rules channel indicator
+	var space_data: Dictionary = Client.get_space_by_id(space_id) \
+		if not space_id.is_empty() else {}
+	_is_rules_channel = not space_id.is_empty() \
+		and space_data.get("rules_channel_id", "") == channel_id \
+		and not channel_id.is_empty()
+	if _is_rules_channel and not data.get("nsfw", false):
+		type_icon.modulate = ThemeManager.get_color("status_online")
+	if _is_rules_channel:
+		rules_badge.visible = true
+		rules_badge.add_theme_color_override(
+			"font_color", ThemeManager.get_color("status_online")
+		)
+	else:
+		rules_badge.visible = false
 
 	# Voice channel participant count
 	var voice_users: int = data.get("voice_users", 0)
@@ -123,7 +145,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		_gear_btn.add_theme_font_size_override("font_size", 14)
 		_gear_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-		_gear_btn.tooltip_text = "Edit Channel"
+		_gear_btn.tooltip_text = tr("Edit Channel")
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$HBox.add_child(_gear_btn)
 
@@ -160,6 +182,10 @@ func _on_mutes_updated() -> void:
 func _apply_icon_color() -> void:
 	if _channel_data.get("nsfw", false):
 		return
+	if _is_rules_channel:
+		if not _is_active:
+			type_icon.modulate = ThemeManager.get_color("status_online")
+		return
 	if _is_active:
 		type_icon.modulate = _icon_color_active
 	else:
@@ -168,7 +194,8 @@ func _apply_icon_color() -> void:
 func _on_mouse_entered() -> void:
 	if _gear_btn:
 		_gear_btn.visible = true
-	if not _is_active and not _channel_data.get("nsfw", false):
+	if not _is_active and not _channel_data.get("nsfw", false) \
+			and not _is_rules_channel:
 		type_icon.modulate = _icon_color_hover
 
 func _on_mouse_exited() -> void:
@@ -184,19 +211,19 @@ func _on_gui_input(event: InputEvent) -> void:
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
 	if Client.is_channel_muted(channel_id):
-		_context_menu.add_item("Unmute Channel", 10)
+		_context_menu.add_item(tr("Unmute Channel"), 10)
 	else:
-		_context_menu.add_item("Mute Channel", 10)
+		_context_menu.add_item(tr("Mute Channel"), 10)
 	# Notification settings submenu
 	var level: String = Config.get_channel_notification_level(channel_id)
 	_notification_submenu.set_item_checked(0, level == "all")
 	_notification_submenu.set_item_checked(1, level == "mentions")
 	_notification_submenu.set_item_checked(2, level == "muted")
-	_context_menu.add_submenu_node_item("Notification Settings", _notification_submenu, 11)
+	_context_menu.add_submenu_node_item(tr("Notification Settings"), _notification_submenu, 11)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_context_menu.add_separator()
-		_context_menu.add_item("Edit Channel", 0)
-		_context_menu.add_item("Delete Channel", 1)
+		_context_menu.add_item(tr("Edit Channel"), 0)
+		_context_menu.add_item(tr("Delete Channel"), 1)
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
@@ -228,9 +255,9 @@ func _on_toggle_mute() -> void:
 
 func _on_delete_channel() -> void:
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Delete Channel",
-		"Are you sure you want to delete #%s? This cannot be undone." % _channel_data.get("name", ""),
-		"Delete", true, func():
+		tr("Delete Channel"),
+		tr("Are you sure you want to delete #%s? This cannot be undone.") % _channel_data.get("name", ""),
+		tr("Delete"), true, func():
 			Client.admin.delete_channel(channel_id)
 	)
 

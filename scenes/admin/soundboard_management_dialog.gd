@@ -47,7 +47,7 @@ func _load_sounds() -> void:
 
 	var result: RestResult = await Client.admin.get_sounds(_space_id)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to load sounds"
+		var err_msg: String = tr("Failed to load sounds")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -106,7 +106,7 @@ func _on_upload_pressed() -> void:
 func _on_file_selected(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		_error_label.text = "Failed to open file"
+		_error_label.text = tr("Failed to open file")
 		_error_label.visible = true
 		return
 
@@ -117,7 +117,7 @@ func _on_file_selected(path: String) -> void:
 
 	# Godot only supports OGG Vorbis -- reject OGG Opus files.
 	if ext == "ogg" and _is_ogg_opus(bytes):
-		_error_label.text = "OGG Opus is not supported. Please use OGG Vorbis, MP3, or WAV."
+		_error_label.text = tr("OGG Opus is not supported. Please use OGG Vorbis, MP3, or WAV.")
 		_error_label.visible = true
 		return
 	var mime := "audio/ogg"
@@ -133,25 +133,25 @@ func _on_file_selected(path: String) -> void:
 	sound_name = sound_name.replace(" ", "_").replace("-", "_").to_lower()
 
 	if sound_name.is_empty():
-		_error_label.text = "Sound name cannot be empty."
+		_error_label.text = tr("Sound name cannot be empty.")
 		_error_label.visible = true
 		return
 
 	var valid_regex := RegEx.new()
 	valid_regex.compile("^[a-z0-9_]+$")
 	if not valid_regex.search(sound_name):
-		_error_label.text = "Sound name must contain only letters, numbers, and underscores."
+		_error_label.text = tr("Sound name must contain only letters, numbers, and underscores.")
 		_error_label.visible = true
 		return
 
 	for existing in _all_sounds:
 		if existing.get("name", "").to_lower() == sound_name:
-			_error_label.text = "A sound named '%s' already exists." % sound_name
+			_error_label.text = tr("A sound named '%s' already exists.") % sound_name
 			_error_label.visible = true
 			return
 
 	_upload_btn.disabled = true
-	_upload_btn.text = "Uploading..."
+	_upload_btn.text = tr("Uploading...")
 	_error_label.visible = false
 
 	var data := {
@@ -161,10 +161,10 @@ func _on_file_selected(path: String) -> void:
 
 	var result: RestResult = await Client.admin.create_sound(_space_id, data)
 	_upload_btn.disabled = false
-	_upload_btn.text = "Upload Sound"
+	_upload_btn.text = tr("Upload Sound")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to upload sound"
+		var err_msg: String = tr("Failed to upload sound")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -174,9 +174,9 @@ func _on_delete_sound(sound: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Sound",
-		"Are you sure you want to delete '%s'?" % sound.get("name", ""),
-		"Delete",
+		tr("Delete Sound"),
+		tr("Are you sure you want to delete '%s'?") % sound.get("name", ""),
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func():
@@ -201,7 +201,7 @@ func _on_rename_sound(sound: Dictionary, new_name: String) -> void:
 		_space_id, sound.get("id", ""), {"name": new_name}
 	)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to rename sound"
+		var err_msg: String = tr("Failed to rename sound")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -223,7 +223,7 @@ func _on_volume_changed(sound: Dictionary, new_volume: float) -> void:
 		_space_id, sound_id, {"volume": new_volume}
 	)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to update volume"
+		var err_msg: String = tr("Failed to update volume")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg

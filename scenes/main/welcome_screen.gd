@@ -31,7 +31,7 @@ func _ready() -> void:
 
 	# Update indicator next to settings button
 	_update_btn = Button.new()
-	_update_btn.text = "Update Available"
+	_update_btn.text = tr("Update Available")
 	_update_btn.flat = true
 	_update_btn.icon = preload(
 		"res://assets/theme/icons/update.svg"
@@ -67,7 +67,7 @@ func _ready() -> void:
 
 	# Show if an update is already known
 	if Updater.is_update_ready():
-		_update_btn.text = "Update Ready"
+		_update_btn.text = tr("Update Ready")
 		_update_btn.visible = true
 	elif not Updater.get_latest_version_info().is_empty():
 		if Updater.is_newer(
@@ -224,13 +224,13 @@ func _on_settings_pressed() -> void:
 
 
 func _on_update_available(_info: Dictionary) -> void:
-	_update_btn.text = "Update Available"
+	_update_btn.text = tr("Update Available")
 	_update_btn.visible = true
 	_update_btn.modulate.a = 1.0
 
 
 func _on_update_ready(_path: String) -> void:
-	_update_btn.text = "Update Ready"
+	_update_btn.text = tr("Update Ready")
 	_update_btn.visible = true
 	_update_btn.modulate.a = 1.0
 

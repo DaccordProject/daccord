@@ -34,7 +34,9 @@ func _ready() -> void:
 	AppState.forum_posts_updated.connect(_on_forum_posts_updated)
 	AppState.channels_updated.connect(_on_channels_updated)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
+	AppState.guest_mode_changed.connect(_on_guest_mode_changed)
 	_apply_layout(AppState.current_layout_mode)
+	_apply_guest_mode(AppState.is_guest_mode)
 
 func _build_ui() -> void:
 	# Header
@@ -53,15 +55,15 @@ func _build_ui() -> void:
 	header.add_child(spacer)
 
 	_sort_dropdown = OptionButton.new()
-	_sort_dropdown.add_item("Latest Activity", 0)
-	_sort_dropdown.add_item("Newest", 1)
-	_sort_dropdown.add_item("Oldest", 2)
+	_sort_dropdown.add_item(tr("Latest Activity"), 0)
+	_sort_dropdown.add_item(tr("Newest"), 1)
+	_sort_dropdown.add_item(tr("Oldest"), 2)
 	_sort_dropdown.selected = 0
 	_sort_dropdown.item_selected.connect(_on_sort_changed)
 	header.add_child(_sort_dropdown)
 
 	_new_post_button = Button.new()
-	_new_post_button.text = "New Post"
+	_new_post_button.text = tr("New Post")
 	_new_post_button.pressed.connect(_show_new_post_form)
 	header.add_child(_new_post_button)
 
@@ -89,14 +91,14 @@ func _build_ui() -> void:
 	_post_list.add_child(_empty_state)
 
 	_empty_title_label = Label.new()
-	_empty_title_label.text = "No posts yet"
+	_empty_title_label.text = tr("No posts yet")
 	_empty_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_empty_title_label.add_theme_font_size_override("font_size", 20)
 	_empty_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 	_empty_state.add_child(_empty_title_label)
 
 	_empty_desc_label = Label.new()
-	_empty_desc_label.text = "Start the conversation by creating a new post!"
+	_empty_desc_label.text = tr("Start the conversation by creating a new post!")
 	_empty_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_empty_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_empty_desc_label.add_theme_font_size_override("font_size", 14)
@@ -104,7 +106,7 @@ func _build_ui() -> void:
 	_empty_state.add_child(_empty_desc_label)
 
 	var empty_btn := Button.new()
-	empty_btn.text = "New Post"
+	empty_btn.text = tr("New Post")
 	empty_btn.pressed.connect(_show_new_post_form)
 	empty_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_empty_state.add_child(empty_btn)
@@ -132,12 +134,12 @@ func _build_ui() -> void:
 	_new_post_form.add_child(form_vbox)
 
 	_title_input = LineEdit.new()
-	_title_input.placeholder_text = "Post title"
+	_title_input.placeholder_text = tr("Post title")
 	_title_input.add_theme_font_size_override("font_size", 14)
 	form_vbox.add_child(_title_input)
 
 	_body_input = TextEdit.new()
-	_body_input.placeholder_text = "Write your post..."
+	_body_input.placeholder_text = tr("Write your post...")
 	_body_input.custom_minimum_size.y = 120
 	_body_input.add_theme_font_size_override("font_size", 14)
 	form_vbox.add_child(_body_input)
@@ -148,20 +150,20 @@ func _build_ui() -> void:
 	form_vbox.add_child(form_buttons)
 
 	_cancel_button = Button.new()
-	_cancel_button.text = "Cancel"
+	_cancel_button.text = tr("Cancel")
 	_cancel_button.pressed.connect(_hide_new_post_form)
 	form_buttons.add_child(_cancel_button)
 
 	_post_button = Button.new()
-	_post_button.text = "Post"
+	_post_button.text = tr("Post")
 	_post_button.pressed.connect(_on_create_post)
 	form_buttons.add_child(_post_button)
 
 	# Context menu
 	_context_menu = PopupMenu.new()
-	_context_menu.add_item("Open Thread", 0)
+	_context_menu.add_item(tr("Open Thread"), 0)
 	_context_menu.add_separator()
-	_context_menu.add_item("Delete Post", 1)
+	_context_menu.add_item(tr("Delete Post"), 1)
 	_context_menu.id_pressed.connect(_on_context_menu_pressed)
 	add_child(_context_menu)
 
@@ -256,6 +258,8 @@ func _on_sort_changed(index: int) -> void:
 	Client.fetch.fetch_forum_posts(_channel_id, sort_str)
 
 func _show_new_post_form() -> void:
+	if GuestPrompt.show_if_guest():
+		return
 	_new_post_form.visible = true
 	_title_input.text = ""
 	_body_input.text = ""
@@ -321,8 +325,15 @@ func _apply_layout(mode: AppState.LayoutMode) -> void:
 		AppState.LayoutMode.COMPACT:
 			_forum_title.add_theme_font_size_override("font_size", 14)
 			_new_post_button.text = "+"
-			_new_post_button.tooltip_text = "New Post"
+			_new_post_button.tooltip_text = tr("New Post")
 		_:
 			_forum_title.add_theme_font_size_override("font_size", 16)
-			_new_post_button.text = "New Post"
+			_new_post_button.text = tr("New Post")
 			_new_post_button.tooltip_text = ""
+
+func _on_guest_mode_changed(is_guest: bool) -> void:
+	_apply_guest_mode(is_guest)
+
+func _apply_guest_mode(is_guest: bool) -> void:
+	if _new_post_button:
+		_new_post_button.modulate.a = 0.5 if is_guest else 1.0

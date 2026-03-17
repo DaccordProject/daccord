@@ -45,6 +45,7 @@ func after_each() -> void:
 	AppState.is_imposter_mode = false
 	AppState.imposter_space_id = ""
 	AppState.imposter_permissions = []
+	AppState.imposter_role_id = ""
 
 
 # ------------------------------------------------------------------
@@ -372,4 +373,78 @@ func test_hcp_no_member_entry_uses_everyone_only() -> void:
 	# me_1 is not in member_cache — should still get everyone perms
 	assert_true(
 		perm.has_channel_permission("g_1", "c_1", AccordPermission.VIEW_CHANNEL)
+	)
+
+
+# ==================================================================
+# has_channel_permission — imposter mode with channel overwrites
+# ==================================================================
+
+func test_hcp_imposter_everyone_overwrite_denies() -> void:
+	AppState.is_imposter_mode = true
+	AppState.imposter_space_id = "g_1"
+	AppState.imposter_permissions = [
+		AccordPermission.VIEW_CHANNEL,
+		AccordPermission.SEND_MESSAGES,
+	]
+	AppState.imposter_role_id = "role_mod"
+	_setup_space("g_1")
+	_setup_everyone_role("g_1", [])
+	# Channel denies SEND_MESSAGES for @everyone
+	_setup_channel("c_1", "g_1", [{
+		"id": "everyone_g_1",
+		"type": "role",
+		"deny": [AccordPermission.SEND_MESSAGES],
+		"allow": [],
+	}])
+	assert_false(
+		perm.has_channel_permission(
+			"g_1", "c_1", AccordPermission.SEND_MESSAGES
+		)
+	)
+	assert_true(
+		perm.has_channel_permission(
+			"g_1", "c_1", AccordPermission.VIEW_CHANNEL
+		)
+	)
+
+
+func test_hcp_imposter_role_overwrite_allows() -> void:
+	AppState.is_imposter_mode = true
+	AppState.imposter_space_id = "g_1"
+	AppState.imposter_permissions = [AccordPermission.VIEW_CHANNEL]
+	AppState.imposter_role_id = "role_mod"
+	_setup_space("g_1")
+	_setup_everyone_role("g_1", [])
+	# Channel allows SEND_MESSAGES for the imposter role
+	_setup_channel("c_1", "g_1", [{
+		"id": "role_mod",
+		"type": "role",
+		"allow": [AccordPermission.SEND_MESSAGES],
+		"deny": [],
+	}])
+	assert_true(
+		perm.has_channel_permission(
+			"g_1", "c_1", AccordPermission.SEND_MESSAGES
+		)
+	)
+
+
+func test_hcp_imposter_admin_perm_bypasses_overwrites() -> void:
+	AppState.is_imposter_mode = true
+	AppState.imposter_space_id = "g_1"
+	AppState.imposter_permissions = [AccordPermission.ADMINISTRATOR]
+	AppState.imposter_role_id = ""
+	_setup_space("g_1")
+	_setup_everyone_role("g_1", [])
+	_setup_channel("c_1", "g_1", [{
+		"id": "everyone_g_1",
+		"type": "role",
+		"deny": [AccordPermission.SEND_MESSAGES],
+		"allow": [],
+	}])
+	assert_true(
+		perm.has_channel_permission(
+			"g_1", "c_1", AccordPermission.SEND_MESSAGES
+		)
 	)

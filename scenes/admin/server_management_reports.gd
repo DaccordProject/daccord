@@ -29,13 +29,13 @@ func build_page(
 	error_label: Callable,
 	clear_children: Callable,
 ) -> VBoxContainer:
-	var vbox: VBoxContainer = page_vbox.call("Reports (All Spaces)")
+	var vbox: VBoxContainer = page_vbox.call(tr("Reports (All Spaces)"))
 
 	# Filter row
 	var filter_row := HBoxContainer.new()
 	filter_row.add_theme_constant_override("separation", 8)
 	var filter_lbl := Label.new()
-	filter_lbl.text = "Status:"
+	filter_lbl.text = tr("Status:")
 	filter_lbl.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
@@ -43,10 +43,10 @@ func build_page(
 
 	_reports_filter = OptionButton.new()
 	_reports_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_reports_filter.add_item("All", 0)
-	_reports_filter.add_item("Pending", 1)
-	_reports_filter.add_item("Actioned", 2)
-	_reports_filter.add_item("Dismissed", 3)
+	_reports_filter.add_item(tr("All"), 0)
+	_reports_filter.add_item(tr("Pending"), 1)
+	_reports_filter.add_item(tr("Actioned"), 2)
+	_reports_filter.add_item(tr("Dismissed"), 3)
 	_reports_filter.item_selected.connect(
 		func(_idx: int) -> void: fetch_reports(clear_children)
 	)
@@ -59,7 +59,7 @@ func build_page(
 
 	# Empty label
 	_reports_empty = Label.new()
-	_reports_empty.text = "No reports."
+	_reports_empty.text = tr("No reports.")
 	_reports_empty.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
@@ -100,7 +100,7 @@ func fetch_reports(
 		_reports_load_more_btn.visible = false
 		_reports_empty.visible = false
 		var loading := Label.new()
-		loading.text = "Loading reports..."
+		loading.text = tr("Loading reports...")
 		loading.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
@@ -178,15 +178,15 @@ func fetch_reports(
 		var sid: String = report_dict.get("_space_id", "")
 		var space: Dictionary = Client.get_space_by_id(sid)
 		var sname: String = space.get("name", sid)
-		row.tooltip_text = "Space: %s" % sname
+		row.tooltip_text = tr("Space: %s") % sname
 
 
 func _fetch_more_reports(clear_children: Callable) -> void:
 	_reports_load_more_btn.disabled = true
-	_reports_load_more_btn.text = "Loading..."
+	_reports_load_more_btn.text = tr("Loading...")
 	await fetch_reports(clear_children, true)
 	_reports_load_more_btn.disabled = false
-	_reports_load_more_btn.text = "Load More"
+	_reports_load_more_btn.text = tr("Load More")
 
 
 func _on_report_actioned(
@@ -230,9 +230,9 @@ func _on_report_actioned(
 					"display_name", target_id
 				)
 				dialog.setup(
-					"Kick User",
-					"Kick %s from this space?" % dname,
-					"Kick", true
+					tr("Kick User"),
+					tr("Kick %s from this space?") % dname,
+					tr("Kick"), true
 				)
 				dialog.confirmed.connect(func():
 					await Client.admin.kick_member(
@@ -260,9 +260,9 @@ func _on_report_actioned(
 					"display_name", target_id
 				)
 				dialog.setup(
-					"Ban User",
-					"Ban %s from this space?" % dname,
-					"Ban", true
+					tr("Ban User"),
+					tr("Ban %s from this space?") % dname,
+					tr("Ban"), true
 				)
 				dialog.confirmed.connect(func():
 					await Client.admin.ban_member(

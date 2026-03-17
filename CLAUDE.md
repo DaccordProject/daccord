@@ -94,7 +94,22 @@ Platform-specific: `LiveKitAdapter` (desktop/mobile GDExtension) vs `WebVoiceSes
 
 - `addons/gut/` — GUT test framework
 - `addons/godot-livekit/` — LiveKit C++ GDExtension (download from NodotProject/godot-livekit releases)
+- `addons/lua-gdextension/` — Lua scripting runtime, LuaJIT variant (download from gilzoide/lua-gdextension releases)
 - `addons/sentry/` — Error reporting (CI-installed)
+
+## Related Projects
+
+Implementing some tasks will require working in separate codebases.
+
+- ../accordserver: Server-side logic
+- ../daccord-editor: Plugin related logic
+- ../accordmasterserver: The master server
+- ../accordserver-mcp: A typescript based mcp-client for accordserver
+- ../accordwebsite: The daccord website
+- ../godotlite: A slimmed down version of godot used for reduced size releases
+- ../godot-livekit: The video/voice communication gdextension client
+- ../frametap: The library that takes care of screenshots and screen recording (built into godot-livekit)
+- ../accordman: A project manager for viewing user flows
 
 ## Agent-Specific Notes
 

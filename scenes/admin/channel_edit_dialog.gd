@@ -35,7 +35,7 @@ func setup(channel: Dictionary) -> void:
 
 func _on_save() -> void:
 	_save_btn.disabled = true
-	_save_btn.text = "Saving..."
+	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
 
 	var data := {
@@ -46,10 +46,10 @@ func _on_save() -> void:
 
 	var result: RestResult = await Client.admin.update_channel(_channel_id, data)
 	_save_btn.disabled = false
-	_save_btn.text = "Save"
+	_save_btn.text = tr("Save")
 
 	if result == null or not result.ok:
-		var msg: String = "Failed to update channel"
+		var msg: String = tr("Failed to update channel")
 		if result != null and result.error:
 			msg = result.error.message
 		_error_label.text = msg
@@ -64,9 +64,9 @@ func _try_close() -> void:
 		var dialog := ConfirmDialogScene.instantiate()
 		get_tree().root.add_child(dialog)
 		dialog.setup(
-			"Unsaved Changes",
-			"You have unsaved changes. Discard?",
-			"Discard",
+			tr("Unsaved Changes"),
+			tr("You have unsaved changes. Discard?"),
+			tr("Discard"),
 			true
 		)
 		dialog.confirmed.connect(func():

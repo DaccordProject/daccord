@@ -1,5 +1,6 @@
 # Godot-LiveKit
 
+Last touched: 2026-03-17 (updated tasks: LIVEKIT-2/5/8/9 resolved, corrected line numbers, added new features)
 Priority: 25
 Depends on: None
 
@@ -83,12 +84,12 @@ LiveKitRoom                                      |                              
 |------|------|
 | `addons/godot-livekit/godot-livekit.gdextension` | GDExtension manifest: entry symbol, platform library paths, native dependencies |
 | `addons/godot-livekit/bin/` | Prebuilt platform binaries (Linux `.so`, Windows `.dll`, macOS `.dylib`) + LiveKit FFI shared libraries |
-| `scripts/autoload/livekit_adapter.gd` | GDScript adapter wrapping `LiveKitRoom`: room lifecycle, local audio/video/screen publishing, remote audio playback, mic capture, audio level detection |
-| `scripts/autoload/client_voice.gd` | `ClientVoice` helper: wires LiveKitAdapter signals to AppState, manages voice join/leave/mute/deafen |
-| `scripts/autoload/client.gd` | Creates `LiveKitAdapter` in `_ready()` (line 156), connects session signals (lines 158-172), speaking debounce timer (lines 176-180) |
+| `scripts/autoload/livekit_adapter.gd` | GDScript adapter wrapping `LiveKitRoom`: room lifecycle, local audio/video/screen publishing, remote audio playback, mic capture, audio level detection, plugin data channels, camera hot-swap |
+| `scripts/autoload/client_voice.gd` | `ClientVoice` helper: wires LiveKitAdapter signals to AppState, manages voice join/leave/mute/deafen, auto-reconnect, camera republish on config change |
+| `scripts/autoload/client.gd` | Creates `LiveKitAdapter` in `_ready()` (line 199), connects session signals (lines 201-218), speaking debounce timer (lines 224-228) |
 | `scenes/video/video_tile.gd` | Renders `LiveKitVideoStream` textures in video tiles, speaking border indicator |
 | `scenes/video/video_grid.gd` | Grid layout for local/remote video tiles, rebuilds on track add/remove |
-| `scripts/autoload/config_voice.gd` | Persists voice/video device preferences (input/output device, resolution, FPS) |
+| `scripts/autoload/config_voice.gd` | Persists voice/video device preferences (input/output device, resolution, FPS), applies device routing via `AudioServer.input_device`/`output_device` |
 | `tests/livekit/unit/test_livekit_adapter.gd` | Unit tests for LiveKitAdapter (state machine, mute/deafen, signals, disconnect). No server needed. |
 | `tests/accordkit/e2e/test_voice_auth_handshake.gd` | E2E tests for voice auth handshake: REST join/leave, LiveKit credential validation, mute/deaf flags. Requires server with `ACCORD_TEST_MODE=true`. |
 | `tests/accordkit/helpers/test_base.gd` | `AccordTestBase`: test harness with seed data and `ACCORD_TEST_URL` env var override (line 26) |
@@ -137,9 +138,11 @@ The central class. Wraps `livekit::Room` and uses a `GodotRoomDelegate` (inner c
 
 **Threading model**: `connect_to_room()` runs connection in a background `std::thread` (line 82-83, `connect_thread_`, `connecting_async_`), then finalizes on the main thread via `_finalize_connection()`. The adapter calls `poll_events()` every frame in `_process()` (line 172) to drain the thread-safe event queue, executing C++ callbacks (connection results, participant joins/leaves, track subscriptions) on the main thread.
 
-**Connection options**: The adapter passes `{"auto_reconnect": false}` to `connect_to_room()` (line 72 of `livekit_adapter.gd`), disabling the SDK's built-in reconnection. Reconnection is handled at the application layer by `ClientVoice` / gateway events.
+**Connection options**: The adapter passes `{"auto_reconnect": false}` to `connect_to_room()` (line 89 of `livekit_adapter.gd`), disabling the SDK's built-in reconnection. Reconnection is handled at the application layer by `ClientVoice._try_auto_reconnect()` which fetches a fresh token and reconnects on unexpected disconnect.
 
-**Disconnect optimization**: `disconnect_voice()` (line 74) skips the blocking `unpublish_track()` SDK calls and instead drops all local track references before calling `disconnect_from_room()`, relying on the room teardown to handle track cleanup internally.
+**Screen capture persistence**: `connect_to_room()` (line 57) stashes active `_screen_capture` and `_screen_preview` before tearing down the old room, then `_on_connected()` calls `_republish_screen()` (line 252) to re-create room-dependent objects (source, track, publication) for the surviving capture.
+
+**Disconnect optimization**: `disconnect_voice()` (line 91) skips the blocking `unpublish_track()` SDK calls and instead drops all local track references before calling `disconnect_from_room()`, relying on the room teardown to handle track cleanup internally.
 
 **Signals emitted** (from `GodotRoomDelegate` overrides):
 - `connected`, `disconnected`, `reconnecting`, `reconnected`
@@ -198,7 +201,7 @@ Base `LiveKitParticipant`:
 1. `LiveKitAudioSource.create(48000, 1, 200)` -- creates a source with 48kHz, mono, 200ms queue
 2. `LiveKitLocalAudioTrack.create("microphone", source)` -- creates a track backed by the source
 3. `LocalParticipant.publish_track(track, {"source": SOURCE_MICROPHONE})` -- publishes to the room
-4. `LiveKitAdapter._setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection (line 301)
+4. `LiveKitAdapter._setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection (line 491)
 5. The LiveKit C++ SDK reads from the audio source internally and sends via WebRTC
 
 **Receiving (remote audio -> Godot playback)**:
@@ -206,24 +209,33 @@ Base `LiveKitParticipant`:
 2. `LiveKitAudioStream.from_track(track)` -- creates a stream with a background reader thread (`_reader_loop`, `livekit_audio_stream.h` line 34) that buffers incoming audio
 3. `AudioStreamGenerator` + `AudioStreamPlayer` created per remote participant
 4. Per-frame `LiveKitAudioStream.poll(playback)` pushes buffered audio into `AudioStreamGeneratorPlayback`
-5. Deafen sets player `volume_db` to `-80.0` (line 108 of `livekit_adapter.gd`)
+5. Deafen sets player `volume_db` to `-80.0` (line 131 of `livekit_adapter.gd`)
 
-**Audio level detection** (`livekit_adapter.gd`, `_process`, lines 167-207):
-- Remote: `_estimate_audio_level(player)` reads `AudioServer.get_bus_peak_volume_left_db()`, converts dB to linear (line 408)
-- Local: reads `AudioEffectCapture.get_buffer()`, computes RMS, emits if > 0.001 (lines 194-207)
+**Audio level detection** (`livekit_adapter.gd`, `_process`, lines 312-372):
+- Remote: `_estimate_audio_level(player)` reads `AudioServer.get_bus_peak_volume_left_db()`, converts dB to linear (line 650)
+- Local: reads `AudioEffectCapture.get_buffer()`, computes RMS with input volume gain, applies noise gate via `Config.voice.get_speaking_threshold()` (lines 349-372)
 
 ### Video Pipeline
 
-**Publishing camera** (`LiveKitAdapter.publish_camera()`, line 119):
+**Publishing camera** (`LiveKitAdapter.publish_camera()`, line 142):
 1. `LiveKitVideoSource.create(width, height)` -- creates a video source
-2. `LiveKitLocalVideoTrack.create("camera", source)` -- creates a track
-3. `LocalParticipant.publish_track(track, {"source": SOURCE_CAMERA})` -- publishes
-4. Returns `LiveKitVideoStream.from_track()` for local preview
+2. If `device_id` is provided, calls `_local_video_source.set_device(device_id)` (line 150)
+3. `LiveKitLocalVideoTrack.create("camera", source)` -- creates a track
+4. `_bitrate_for_resolution()` computes a max bitrate cap (480p→800kbps, 720p→2.5Mbps, 1080p→4Mbps) passed as `max_bitrate` in publish options (line 162)
+5. `LocalParticipant.publish_track(track, opts)` -- publishes
+6. Returns `LiveKitVideoStream.from_track()` for local preview
 
-**Publishing screen** (`LiveKitAdapter.publish_screen()`, line 142):
-1. `LiveKitVideoSource.create(1920, 1080)` -- hardcoded 1080p (line 147)
-2. `LiveKitLocalVideoTrack.create("screen", source)` -- creates a track
-3. `LocalParticipant.publish_track(track, {"source": SOURCE_SCREENSHARE})` -- publishes
+**Camera hot-swap** (`LiveKitAdapter.swap_camera()`, line 185):
+1. If the track supports `set_source()`, replaces the video source in-place without tearing down the publication
+2. Falls back to full `publish_camera()` if `set_source()` is unavailable
+
+**Publishing screen** (`LiveKitAdapter.publish_screen()`, line 215):
+1. Takes a `source: Dictionary` from the screen picker (monitor or window)
+2. Creates `LiveKitScreenCapture` from the source (monitor or window variant)
+3. `_capped_size()` downscales to `Config.get_max_screen_capture_size()` preserving aspect ratio (line 635)
+4. `LiveKitVideoSource.create(capped_w, capped_h)` -- creates a video source at the capped resolution
+5. `LocalParticipant.publish_track(track, {"source": SOURCE_SCREENSHARE, "max_bitrate": ...})` -- publishes with 2x bitrate for text clarity
+6. Returns a `LocalVideoPreview` (inner class, line 692) for the local preview tile
 
 ### Screen Capture (LiveKitScreenCapture)
 
@@ -300,17 +312,20 @@ This class replaces the need for Godot's `DisplayServer.get_screen_count()` / `s
          +------ disconnect_voice() <----- CONNECTED
 ```
 
-State enum (lines 16-22): `DISCONNECTED = 0`, `CONNECTING = 1`, `CONNECTED = 2`, `RECONNECTING = 3`, `FAILED = 4`
+State enum uses `ClientModels.VoiceSessionState` (line 17): `DISCONNECTED = 0`, `CONNECTING = 1`, `CONNECTED = 2`, `RECONNECTING = 3`, `FAILED = 4`
 
-**Track management** -- LiveKitAdapter holds 9 track-related variables (lines 31-39):
+**Connection timeout**: `CONNECT_TIMEOUT_SEC = 15.0` (line 20). A `Timer` fires `_on_connect_timeout()` (line 676) which transitions to `FAILED` if still `CONNECTING`.
+
+**Track management** -- LiveKitAdapter holds 9 track-related variables (lines 29-37) plus screen capture state (lines 38-40):
 - Local audio: `_local_audio_source`, `_local_audio_track`, `_local_audio_pub`
 - Local video (camera): `_local_video_source`, `_local_video_track`, `_local_video_pub`
 - Local screen: `_local_screen_source`, `_local_screen_track`, `_local_screen_pub`
+- Screen capture: `_screen_capture` (LiveKitScreenCapture), `_screen_preview` (LocalVideoPreview), `_screen_capture_size` (Vector2i)
 
 **Remote tracking**:
-- `_remote_audio: Dictionary` (line 42): identity -> `{stream, player, playback, generator}`
-- `_remote_video: Dictionary` (line 44): identity -> `LiveKitVideoStream`
-- `_identity_to_user: Dictionary` (line 47): participant identity -> user_id mapping
+- `_remote_audio: Dictionary` (line 43): identity -> `{stream, player, playback, generator}`
+- `_remote_video: Dictionary` (line 45): identity -> `LiveKitVideoStream`
+- `_identity_to_user: Dictionary` (line 48): participant identity -> user_id mapping
 
 ### End-to-End Encryption (E2EE)
 
@@ -351,11 +366,13 @@ patchelf --set-rpath '$ORIGIN' addons/godot-livekit/bin/libgodot-livekit.linux.x
 
 ### Data Channels and RPC
 
-The extension supports data messaging and RPC between participants, though daccord does not currently use these features:
+The extension supports data messaging and RPC between participants. Data channels are used by the server plugins system for real-time communication:
 
-- `LiveKitLocalParticipant.publish_data(data, reliable, destinations, topic)` -- send arbitrary `PackedByteArray` data
-- `LiveKitRoom.data_received` signal -- receive data from other participants
-- `perform_rpc()`, `register_rpc_method()`, `respond_to_rpc()` -- request/response pattern between participants
+- `LiveKitAdapter.publish_plugin_data(data, reliable, topic, destination_ids)` (line 292) -- wraps `LiveKitLocalParticipant.publish_data()` for plugin use, with topic-based routing (e.g. `"plugin:<id>:game:state"`)
+- `_on_data_received()` (line 459) -- routes incoming data with `plugin:` topic prefix to the `plugin_data_received` signal
+- `plugin_data_received(sender_id, topic, payload)` signal (line 14) -- consumed by the plugin runtime for game state sync, input forwarding, and file sharing
+
+**Unused RPC**: `perform_rpc()`, `register_rpc_method()`, `respond_to_rpc()` are available but not used by daccord. Could enable peer-to-peer features without gateway round-trips.
 
 ### Connection Statistics
 
@@ -443,8 +460,20 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - [x] Video tile rendering with speaking border indicator
 - [x] Video grid with responsive column layout
 - [x] Config persistence for video resolution and FPS
+- [x] Camera device routing via `set_device()` on LiveKitVideoSource
+- [x] Camera hot-swap via `swap_camera()` without tearing down publication
+- [x] Bandwidth adaptation via `_bitrate_for_resolution()` max bitrate hints (480p/720p/1080p tiers)
+- [x] Screen share dynamic resolution via `_capped_size()` with configurable max capture size
+- [x] Input/output audio device routing via `AudioServer.input_device`/`output_device` in `config_voice.gd`
+- [x] Plugin data channels (`publish_plugin_data()`, `plugin_data_received` signal) for real-time plugin communication
+- [x] Connection timeout (15s) with `FAILED` state transition
+- [x] Auto-reconnect on unexpected disconnect via `ClientVoice._try_auto_reconnect()`
+- [x] Local video preview via `LocalVideoPreview` inner class (screen share uses synchronous `screenshot()` per frame)
+- [x] Screen capture persistence across room reconnections (`_republish_screen()`)
+- [x] Noise gate on local mic audio (silence below `Config.voice.get_speaking_threshold()`)
+- [x] Input volume gain applied to mic capture frames
+- [x] Config change live-reload for video settings (`on_voice_config_changed` triggers `_republish_camera()`)
 - [ ] E2EE integration in daccord (classes exist but not wired)
-- [ ] Data channel usage in daccord (classes exist but not used)
 - [ ] RPC usage in daccord (classes exist but not used)
 - [ ] WebRTC stats surfaced in UI
 - [ ] ARM64 / Linux ARM builds
@@ -459,12 +488,12 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - **Tags:** security, ui, voice
 - **Notes:** `LiveKitE2eeManager`, `LiveKitKeyProvider`, `LiveKitFrameCryptor` are compiled and registered but daccord never enables encryption. Would need server-side key exchange and UI for shared key entry.
 
-### LIVEKIT-2: Data channels unused
-- **Status:** open
+### LIVEKIT-2: Data channels used for plugins only
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
-- **Tags:** gateway
-- **Notes:** `publish_data()` and `data_received` signal are available but daccord uses the WebSocket gateway for all messaging. Could be useful for low-latency in-call features (e.g., cursor sharing, annotations).
+- **Tags:** gateway, plugins
+- **Notes:** `publish_plugin_data()` (line 292) and `plugin_data_received` signal route `plugin:*` topics for real-time plugin communication (game state sync, input forwarding, file sharing). General messaging still uses the WebSocket gateway.
 
 ### LIVEKIT-3: RPC unused
 - **Status:** open
@@ -481,11 +510,11 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - **Notes:** `LiveKitTrack.get_stats()` returns detailed WebRTC metrics but they are not exposed in any settings or debug panel.
 
 ### LIVEKIT-5: Screen share resolution hardcoded
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** video, voice
-- **Notes:** `publish_screen()` uses 1920x1080 (line 147 of `livekit_adapter.gd`). Should use `LiveKitScreenCapture.get_monitors()` to get the actual resolution and `LiveKitScreenCapture` for frame capture.
+- **Notes:** `publish_screen()` now takes a `source: Dictionary` with actual width/height from the screen picker. `_capped_size()` (line 635) downscales to `Config.get_max_screen_capture_size()` preserving aspect ratio. Uses `LiveKitScreenCapture` for native frame capture.
 
 ### LIVEKIT-6: No ARM64 builds
 - **Status:** open
@@ -502,18 +531,18 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - **Notes:** GDExtension native libraries cannot load in Godot Web exports. See `web_export.md` for the planned Web API approach.
 
 ### LIVEKIT-8: Input/output device selection not applied
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 4
 - **Tags:** audio, config, voice
-- **Notes:** `Config.voice` persists device preferences but `LiveKitAdapter` always uses the default `AudioStreamMicrophone` and default audio bus. Need to route selected devices through to LiveKit audio source and playback.
+- **Notes:** `config_voice.gd` now applies device selection via `AudioServer.input_device` (line 144) and `AudioServer.output_device` (line 150). `set_input_device()` and `set_output_device()` call `_apply_input_device()`/`_apply_output_device()` immediately on change. `apply_devices()` is called at startup.
 
 ### LIVEKIT-9: No camera device selection
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
-- **Tags:** ci, config, video, voice
-- **Notes:** `Config.voice.get_video_device()` is persisted but `publish_camera()` does not select a specific camera device -- it relies on LiveKit's default.
+- **Tags:** config, video, voice
+- **Notes:** `publish_camera()` now accepts `device_id: String` (line 143) and calls `_local_video_source.set_device(device_id)` (line 150) when available. `ClientVoice.toggle_video()` reads `Config.voice.get_video_device()` (line 239 of `client_voice.gd`) and passes it. `swap_camera()` also supports device selection for hot-swap.
 
 ### LIVEKIT-10: Gateway tests all timeout
 - **Status:** open

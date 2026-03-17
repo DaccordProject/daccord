@@ -16,6 +16,12 @@ const _ACTION_ICONS := {
 	"invite_create": "📨",
 	"invite_delete": "📨",
 	"message_delete": "💬",
+	"automod_block": "🛡",
+	"automod_delete": "🛡",
+	"automod_flag": "🚩",
+	"automod_csam_report": "⚠",
+	"report_create": "📢",
+	"report_resolve": "📢",
 }
 
 @onready var _icon_label: Label = $IconLabel
@@ -48,7 +54,7 @@ func _format_action(action: String) -> String:
 
 func _resolve_user(user_id: String) -> String:
 	if user_id.is_empty():
-		return "System"
+		return tr("System")
 	var members: Array = Client.get_members_for_space(
 		AppState.current_space_id
 	)
@@ -86,10 +92,10 @@ func _relative_time(timestamp: String) -> String:
 	var now: int = int(Time.get_unix_time_from_system())
 	var diff: int = now - unix
 	var thresholds := [
-		[60, "just now", 1],
-		[3600, "%dm ago", 60],
-		[86400, "%dh ago", 3600],
-		[604800, "%dd ago", 86400],
+		[60, tr("just now"), 1],
+		[3600, tr("%dm ago"), 60],
+		[86400, tr("%dh ago"), 3600],
+		[604800, tr("%dd ago"), 86400],
 	]
 	for t in thresholds:
 		if diff < t[0]:

@@ -37,7 +37,7 @@ func _load_emojis() -> void:
 
 	var result: RestResult = await Client.admin.get_emojis(_space_id)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to load emojis"
+		var err_msg: String = tr("Failed to load emojis")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -93,7 +93,7 @@ func _on_upload_pressed() -> void:
 func _on_file_selected(path: String) -> void:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		_error_label.text = "Failed to open file"
+		_error_label.text = tr("Failed to open file")
 		_error_label.visible = true
 		return
 
@@ -111,26 +111,26 @@ func _on_file_selected(path: String) -> void:
 
 	# Validate emoji name
 	if emoji_name.is_empty():
-		_error_label.text = "Emoji name cannot be empty."
+		_error_label.text = tr("Emoji name cannot be empty.")
 		_error_label.visible = true
 		return
 
 	var valid_regex := RegEx.new()
 	valid_regex.compile("^[a-z0-9_]+$")
 	if not valid_regex.search(emoji_name):
-		_error_label.text = "Emoji name must contain only letters, numbers, and underscores."
+		_error_label.text = tr("Emoji name must contain only letters, numbers, and underscores.")
 		_error_label.visible = true
 		return
 
 	# Check for duplicate names
 	for existing in _all_emojis:
 		if existing.get("name", "").to_lower() == emoji_name:
-			_error_label.text = "An emoji named ':%s:' already exists." % emoji_name
+			_error_label.text = tr("An emoji named ':%s:' already exists.") % emoji_name
 			_error_label.visible = true
 			return
 
 	_upload_btn.disabled = true
-	_upload_btn.text = "Uploading..."
+	_upload_btn.text = tr("Uploading...")
 	_error_label.visible = false
 
 	var data := {
@@ -140,10 +140,10 @@ func _on_file_selected(path: String) -> void:
 
 	var result: RestResult = await Client.admin.create_emoji(_space_id, data)
 	_upload_btn.disabled = false
-	_upload_btn.text = "Upload Emoji"
+	_upload_btn.text = tr("Upload Emoji")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to upload emoji"
+		var err_msg: String = tr("Failed to upload emoji")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -153,9 +153,9 @@ func _on_delete_emoji(emoji: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Emoji",
-		"Are you sure you want to delete :%s:?" % emoji.get("name", ""),
-		"Delete",
+		tr("Delete Emoji"),
+		tr("Are you sure you want to delete :%s:?") % emoji.get("name", ""),
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func():

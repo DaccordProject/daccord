@@ -128,7 +128,11 @@ func list_posts(channel_id: String, query: Dictionary = {}) -> RestResult:
 
 
 ## Triggers the typing indicator in a channel. The indicator lasts for
-## roughly 10 seconds or until the bot sends a message.
-func typing(channel_id: String) -> RestResult:
-	var result := await _rest.make_request("POST", "/channels/" + channel_id + "/typing")
+## roughly 10 seconds or until the bot sends a message. An optional
+## thread_id scopes the indicator to a specific thread.
+func typing(channel_id: String, thread_id: String = "") -> RestResult:
+	var data = null
+	if not thread_id.is_empty():
+		data = {"thread_id": thread_id}
+	var result := await _rest.make_request("POST", "/channels/" + channel_id + "/typing", data)
 	return result

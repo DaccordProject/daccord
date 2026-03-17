@@ -35,7 +35,7 @@ func _load_sounds() -> void:
 		_space_id
 	)
 	if result == null or not result.ok:
-		_empty_label.text = "Failed to load sounds."
+		_empty_label.text = tr("Failed to load sounds.")
 		_empty_label.visible = true
 		return
 
@@ -43,7 +43,7 @@ func _load_sounds() -> void:
 		result.data if result.data is Array else []
 	)
 	if sounds.is_empty():
-		_empty_label.text = "No sounds available."
+		_empty_label.text = tr("No sounds available.")
 		_empty_label.visible = true
 		return
 
@@ -64,10 +64,10 @@ func _rebuild_list(sounds: Array) -> void:
 		child.queue_free()
 
 	if sounds.is_empty():
-		_empty_label.text = "No sounds match your search."
+		_empty_label.text = tr("No sounds match your search.")
 		_empty_label.visible = _all_sounds.size() > 0
 		if _all_sounds.is_empty():
-			_empty_label.text = "No sounds available."
+			_empty_label.text = tr("No sounds available.")
 			_empty_label.visible = true
 		return
 	_empty_label.visible = false

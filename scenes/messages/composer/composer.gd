@@ -2,6 +2,8 @@ extends PanelContainer
 
 const EmojiPickerScene := preload("res://scenes/messages/composer/emoji_picker.tscn")
 const MAX_FILE_SIZE := 25 * 1024 * 1024 # 25 MB
+const MAX_ATTACHMENT_COUNT := 10
+const LARGE_TEXT_THRESHOLD := 4096 # 4 KB — offer to convert to .txt
 
 const _SEND_COOLDOWN_MS := 500
 var _last_send_time: int = 0
@@ -31,6 +33,7 @@ func _ready() -> void:
 	AppState.reply_initiated.connect(_on_reply_initiated)
 	AppState.reply_cancelled.connect(_on_reply_cancelled)
 	AppState.message_send_failed.connect(_on_message_send_failed)
+	AppState.messages_updated.connect(func(_ch): _hide_upload_indicator())
 	AppState.server_disconnected.connect(func(_gid, _c, _r): update_enabled_state())
 	AppState.server_reconnected.connect(func(_gid): update_enabled_state())
 	AppState.server_synced.connect(func(_gid): update_enabled_state())
@@ -44,6 +47,7 @@ func _ready() -> void:
 	# Style reply bar
 	reply_label.add_theme_font_size_override("font_size", 12)
 	_apply_theme()
+	_ready_drop()
 
 func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")
@@ -53,7 +57,7 @@ func _apply_theme() -> void:
 	ThemeManager.apply_font_colors(self)
 
 func set_channel_name(channel_name: String) -> void:
-	text_input.placeholder_text = "Message #" + channel_name
+	text_input.placeholder_text = tr("Message #%s") % channel_name
 
 func _on_send() -> void:
 	var now := Time.get_ticks_msec()
@@ -64,9 +68,13 @@ func _on_send() -> void:
 	if text.is_empty() and _pending_files.is_empty():
 		return
 	# Transfer pending files to AppState before emitting signal
+	var had_files := not _pending_files.is_empty()
 	AppState.pending_attachments = _pending_files.duplicate()
 	_pending_files.clear()
 	_update_attachment_bar()
+	# Show upload indicator when files are being sent
+	if had_files:
+		_show_upload_indicator()
 	# Check if we're queueing (disconnected but can queue)
 	var space_id: String = Client._channel_to_space.get(
 		AppState.current_channel_id, ""
@@ -84,7 +92,7 @@ func _on_send() -> void:
 		error_label.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
-		error_label.text = "Message queued \u2014 will send when reconnected"
+		error_label.text = tr("Message queued \u2014 will send when reconnected")
 		error_label.visible = true
 
 func _on_text_input(event: InputEvent) -> void:
@@ -102,13 +110,19 @@ func _on_text_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_UP and text_input.text.strip_edges().is_empty():
 			_edit_last_own_message()
 			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_V and event.ctrl_pressed:
+			if _try_paste_image():
+				get_viewport().set_input_as_handled()
+				return
+			# Let normal text paste proceed — check for large text after
+			_check_large_paste_deferred()
 
 func _on_reply_initiated(message_id: String) -> void:
 	var msg := Client.get_message_by_id(message_id)
 	if msg.is_empty():
 		return
 	var author: Dictionary = msg.get("author", {})
-	reply_label.text = "Replying to " + author.get("display_name", "Unknown")
+	reply_label.text = tr("Replying to %s") % author.get("display_name", tr("Unknown"))
 	reply_bar.visible = true
 	text_input.grab_focus()
 
@@ -127,7 +141,7 @@ func _on_text_changed() -> void:
 func _check_everyone_permission() -> void:
 	var text := text_input.text
 	if text.find("@everyone") == -1 and text.find("@here") == -1:
-		if error_label.text.begins_with("You don't have"):
+		if error_label.text.begins_with(tr("You don't have")):
 			error_label.visible = false
 		return
 	var space_id: String = Client._channel_to_space.get(
@@ -136,10 +150,10 @@ func _check_everyone_permission() -> void:
 	if space_id.is_empty():
 		return
 	if not Client.has_permission(space_id, AccordPermission.MENTION_EVERYONE):
-		error_label.text = "You don't have permission to mention @everyone"
+		error_label.text = tr("You don't have permission to mention @everyone")
 		error_label.visible = true
 	else:
-		if error_label.text.begins_with("You don't have"):
+		if error_label.text.begins_with(tr("You don't have")):
 			error_label.visible = false
 
 func _edit_last_own_message() -> void:
@@ -158,6 +172,95 @@ func _edit_last_own_message() -> void:
 func _on_cancel_reply() -> void:
 	AppState.cancel_reply()
 
+# --- Clipboard paste ---
+
+func _try_paste_image() -> bool:
+	var image: Image = DisplayServer.clipboard_get_image()
+	if image == null or image.is_empty():
+		return false
+	var png_data := image.save_png_to_buffer()
+	if png_data.is_empty():
+		return false
+	if not _can_add_attachment():
+		return true # consumed the event, but blocked
+	var timestamp := str(Time.get_unix_time_from_system()).replace(".", "")
+	_pending_files.append({
+		"filename": "clipboard_%s.png" % timestamp,
+		"content": png_data,
+		"content_type": "image/png",
+		"size": png_data.size(),
+	})
+	_update_attachment_bar()
+	return true
+
+func _check_large_paste_deferred() -> void:
+	# Wait one frame for the paste to land in the TextEdit
+	await get_tree().process_frame
+	var text := text_input.text
+	if text.length() < LARGE_TEXT_THRESHOLD:
+		return
+	if not _can_add_attachment():
+		return
+	# Offer to convert to .txt attachment
+	error_label.text = (
+		tr("Large paste detected (%s). Click here to attach as .txt instead.")
+		% _format_file_size(text.length())
+	)
+	error_label.add_theme_color_override(
+		"font_color", ThemeManager.get_color("link")
+	)
+	error_label.visible = true
+	error_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Connect click handler (disconnect any previous)
+	if error_label.gui_input.is_connected(_on_large_paste_clicked):
+		error_label.gui_input.disconnect(_on_large_paste_clicked)
+	error_label.gui_input.connect(_on_large_paste_clicked)
+
+func _on_large_paste_clicked(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed):
+		return
+	var text := text_input.text
+	var content := text.to_utf8_buffer()
+	_pending_files.append({
+		"filename": "pasted_text.txt",
+		"content": content,
+		"content_type": "text/plain",
+		"size": content.size(),
+	})
+	text_input.text = ""
+	error_label.visible = false
+	error_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if error_label.gui_input.is_connected(_on_large_paste_clicked):
+		error_label.gui_input.disconnect(_on_large_paste_clicked)
+	_update_attachment_bar()
+
+# --- Drag-and-drop ---
+
+func _ready_drop() -> void:
+	get_window().files_dropped.connect(_on_window_files_dropped)
+
+func _on_window_files_dropped(files: PackedStringArray) -> void:
+	if not is_visible_in_tree():
+		return
+	if AppState.is_guest_mode or AppState.is_imposter_mode:
+		return
+	for path in files:
+		if not _can_add_attachment():
+			break
+		_add_file_from_path(path)
+
+# --- Attachment limits ---
+
+func _can_add_attachment() -> bool:
+	if _pending_files.size() >= MAX_ATTACHMENT_COUNT:
+		error_label.text = tr("Maximum %d attachments per message") % MAX_ATTACHMENT_COUNT
+		error_label.add_theme_color_override(
+			"font_color", ThemeManager.get_color("error")
+		)
+		error_label.visible = true
+		return false
+	return true
+
 # --- Upload ---
 
 func _on_upload_button() -> void:
@@ -166,7 +269,7 @@ func _on_upload_button() -> void:
 		_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
 		_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
 		_file_dialog.use_native_dialog = true
-		_file_dialog.title = "Select files to attach"
+		_file_dialog.title = tr("Select files to attach")
 		_file_dialog.files_selected.connect(_on_files_selected)
 		add_child(_file_dialog)
 	_file_dialog.popup_centered(Vector2i(600, 400))
@@ -176,6 +279,8 @@ func _on_files_selected(paths: PackedStringArray) -> void:
 		_add_file_from_path(path)
 
 func _add_file_from_path(path: String) -> void:
+	if not _can_add_attachment():
+		return
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		push_error("[Composer] Failed to open file: ", path)
@@ -184,7 +289,7 @@ func _add_file_from_path(path: String) -> void:
 	file.close()
 
 	if content.size() > MAX_FILE_SIZE:
-		error_label.text = "File too large (max 25 MB): " + path.get_file()
+		error_label.text = tr("File too large (max 25 MB): %s") % path.get_file()
 		error_label.visible = true
 		return
 
@@ -206,7 +311,7 @@ func _update_attachment_bar() -> void:
 	for i in _pending_files.size():
 		var file_info: Dictionary = _pending_files[i]
 		var label := Label.new()
-		label.text = file_info["filename"] + " (" + _format_file_size(file_info["size"]) + ")"
+		label.text = tr("%s (%s)") % [file_info["filename"], _format_file_size(file_info["size"])]
 		label.add_theme_font_size_override("font_size", 12)
 		label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		var remove_btn := Button.new()
@@ -251,6 +356,26 @@ static func _format_file_size(bytes: int) -> String:
 	if bytes < 1024 * 1024:
 		return str(snappedi(bytes / 1024, 1)) + " KB"
 	return "%.1f MB" % (bytes / 1048576.0)
+
+# --- Upload progress ---
+
+func _show_upload_indicator() -> void:
+	attachment_bar.visible = true
+	for child in attachment_bar.get_children():
+		child.queue_free()
+	var label := Label.new()
+	label.text = tr("Uploading...")
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	label.name = "UploadingLabel"
+	attachment_bar.add_child(label)
+
+func _hide_upload_indicator() -> void:
+	var uploading: Node = attachment_bar.get_node_or_null("UploadingLabel")
+	if uploading:
+		uploading.queue_free()
+	if _pending_files.is_empty():
+		attachment_bar.visible = false
 
 # --- Emoji ---
 
@@ -310,7 +435,7 @@ func _on_message_send_failed(channel_id: String, content: String, error: String)
 	# Restore the failed message text so the user can retry
 	if text_input.text.strip_edges().is_empty():
 		text_input.text = content
-	error_label.text = "Failed to send: %s" % error
+	error_label.text = tr("Failed to send: %s") % error
 	error_label.visible = true
 
 # --- State ---
@@ -327,7 +452,7 @@ func update_enabled_state() -> void:
 		emoji_button.disabled = true
 		if _saved_placeholder.is_empty():
 			_saved_placeholder = text_input.placeholder_text
-		text_input.placeholder_text = "Sign in to send a message"
+		text_input.placeholder_text = tr("Sign in to send a message")
 		return
 
 	# Imposter mode: always disable sending (view-only preview)
@@ -344,11 +469,11 @@ func update_enabled_state() -> void:
 		)
 		if not has_send:
 			text_input.placeholder_text = (
-				"Cannot send \u2014 previewing as %s"
+				tr("Cannot send \u2014 previewing as %s")
 				% AppState.imposter_role_name
 			)
 		else:
-			text_input.placeholder_text = "Preview mode \u2014 sending disabled"
+			text_input.placeholder_text = tr("Preview mode \u2014 sending disabled")
 		return
 
 	# Channel permission checks
@@ -364,13 +489,14 @@ func update_enabled_state() -> void:
 			emoji_button.disabled = true
 			if _saved_placeholder.is_empty():
 				_saved_placeholder = text_input.placeholder_text
-			text_input.placeholder_text = "You do not have permission to send messages in this channel"
+			text_input.placeholder_text = tr("You do not have permission to send messages in this channel")
 			return
 		var can_attach: bool = Client.has_channel_permission(
 			space_id, channel_id, AccordPermission.ATTACH_FILES
 		)
 		upload_button.disabled = not can_attach
-		upload_button.tooltip_text = "" if can_attach else "You do not have permission to attach files"
+		var no_attach_msg := tr("You do not have permission to attach files")
+		upload_button.tooltip_text = "" if can_attach else no_attach_msg
 
 	# Syncing: connected but data not yet refreshed
 	var is_syncing := false
@@ -396,7 +522,7 @@ func update_enabled_state() -> void:
 	if is_syncing:
 		if _saved_placeholder.is_empty():
 			_saved_placeholder = text_input.placeholder_text
-		text_input.placeholder_text = "Syncing..."
+		text_input.placeholder_text = tr("Syncing...")
 	elif connected:
 		if not _saved_placeholder.is_empty():
 			text_input.placeholder_text = _saved_placeholder
@@ -405,11 +531,11 @@ func update_enabled_state() -> void:
 	elif can_queue:
 		if _saved_placeholder.is_empty():
 			_saved_placeholder = text_input.placeholder_text
-		text_input.placeholder_text = "Messages will be queued and sent when reconnected"
+		text_input.placeholder_text = tr("Messages will be queued and sent when reconnected")
 	else:
 		if _saved_placeholder.is_empty():
 			_saved_placeholder = text_input.placeholder_text
-		text_input.placeholder_text = "Cannot send messages \u2014 disconnected"
+		text_input.placeholder_text = tr("Cannot send messages \u2014 disconnected")
 
 func _on_channel_selected_restore_draft(channel_id: String) -> void:
 	var draft: String = Config.get_draft_text(channel_id)

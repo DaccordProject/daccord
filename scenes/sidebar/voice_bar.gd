@@ -78,14 +78,14 @@ func _on_voice_joined(channel_id: String) -> void:
 	visible = true
 	# Look up channel name and save it for state transitions
 	var channels: Array = Client.get_channels_for_space(AppState.voice_space_id)
-	var ch_name := "Voice Connected"
+	var ch_name := tr("Voice Connected")
 	for ch in channels:
 		if ch.get("id", "") == channel_id:
-			ch_name = ch.get("name", "Voice Connected")
+			ch_name = ch.get("name", tr("Voice Connected"))
 			break
 	_saved_channel_label = ch_name
 	# Show connecting state until LiveKit session confirms CONNECTED
-	channel_label.text = "Connecting..."
+	channel_label.text = tr("Connecting...")
 	channel_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("warning")
 	)
@@ -130,7 +130,7 @@ func _on_session_state_changed(state: int) -> void:
 	match state:
 		ClientModels.VoiceSessionState.CONNECTING:
 			_stop_pulse()
-			channel_label.text = "Connecting..."
+			channel_label.text = tr("Connecting...")
 			channel_label.add_theme_color_override(
 				"font_color", ThemeManager.get_color("warning")
 			)
@@ -147,7 +147,7 @@ func _on_session_state_changed(state: int) -> void:
 		ClientModels.VoiceSessionState.RECONNECTING:
 			_stop_pulse()
 			_saved_channel_label = channel_label.text
-			channel_label.text = "Reconnecting..."
+			channel_label.text = tr("Reconnecting...")
 			channel_label.add_theme_color_override(
 				"font_color", ThemeManager.get_color("warning")
 			)
@@ -240,49 +240,49 @@ func _update_button_visuals() -> void:
 	# Mute button
 	if AppState.is_voice_muted:
 		mute_btn.icon = ICON_MIC_OFF
-		mute_btn.tooltip_text = "Unmute"
+		mute_btn.tooltip_text = tr("Unmute")
 		mute_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("error"), 0.3), 4))
 	else:
 		mute_btn.icon = ICON_MIC
-		mute_btn.tooltip_text = "Mute"
+		mute_btn.tooltip_text = tr("Mute")
 		mute_btn.remove_theme_stylebox_override("normal")
 
 	# Deafen button
 	if AppState.is_voice_deafened:
 		deafen_btn.icon = ICON_HEADPHONES_OFF
-		deafen_btn.tooltip_text = "Undeafen"
+		deafen_btn.tooltip_text = tr("Undeafen")
 		deafen_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("error"), 0.3), 4))
 	else:
 		deafen_btn.icon = ICON_HEADPHONES
-		deafen_btn.tooltip_text = "Deafen"
+		deafen_btn.tooltip_text = tr("Deafen")
 		deafen_btn.remove_theme_stylebox_override("normal")
 
 	# Video button (green when active, disabled when no camera)
 	var cam_available := _has_camera()
 	video_btn.disabled = not cam_available
 	if not cam_available:
-		video_btn.tooltip_text = "No camera detected"
+		video_btn.tooltip_text = tr("No camera detected")
 	elif AppState.is_video_enabled:
 		video_btn.icon = ICON_CAMERA_OFF
-		video_btn.tooltip_text = "Stop Camera"
+		video_btn.tooltip_text = tr("Stop Camera")
 		video_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("success"), 0.3), 4))
 	else:
 		video_btn.icon = ICON_CAMERA
-		video_btn.tooltip_text = "Camera"
+		video_btn.tooltip_text = tr("Camera")
 		video_btn.remove_theme_stylebox_override("normal")
 
 	# Share button (green when active)
 	if AppState.is_screen_sharing:
 		share_btn.icon = ICON_SCREEN_SHARE_OFF
-		share_btn.tooltip_text = "Stop Sharing"
+		share_btn.tooltip_text = tr("Stop Sharing")
 		share_btn.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style(Color(ThemeManager.get_color("success"), 0.3), 4))
 	else:
 		share_btn.icon = ICON_SCREEN_SHARE
-		share_btn.tooltip_text = "Screen Share"
+		share_btn.tooltip_text = tr("Screen Share")
 		share_btn.remove_theme_stylebox_override("normal")
 
 func _has_camera() -> bool:

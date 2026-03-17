@@ -72,7 +72,7 @@ func _build_role_list() -> void:
 	role_list.add_child(sep)
 
 	var custom_btn := Button.new()
-	custom_btn.text = "Custom..."
+	custom_btn.text = tr("Custom...")
 	custom_btn.flat = true
 	custom_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	custom_btn.custom_minimum_size = Vector2(0, 36)
@@ -129,6 +129,7 @@ func _on_preview() -> void:
 			"name": _selected_role.get("name", "Unknown"),
 			"permissions": _selected_role.get("permissions", []),
 			"space_id": _space_id,
+			"id": _selected_role.get("id", ""),
 		}
 	else:
 		return

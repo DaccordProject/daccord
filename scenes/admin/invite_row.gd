@@ -41,6 +41,6 @@ func setup(invite: Dictionary, selected: bool, space_id: String = "") -> void:
 	var uses: int = invite.get("uses", 0)
 	var max_uses: int = invite.get("max_uses", 0)
 	if max_uses > 0:
-		_uses_label.text = "%d/%d uses" % [uses, max_uses]
+		_uses_label.text = tr("%d/%d uses") % [uses, max_uses]
 	else:
-		_uses_label.text = "%d uses" % uses
+		_uses_label.text = tr("%d uses") % uses

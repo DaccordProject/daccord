@@ -45,22 +45,22 @@ func build(
 	avatar_btns.add_theme_constant_override("separation", 8)
 	page_vbox.add_child(avatar_btns)
 
-	var upload_btn := SettingsBase.create_secondary_button("Upload Avatar")
+	var upload_btn := SettingsBase.create_secondary_button(tr("Upload Avatar"))
 	upload_btn.pressed.connect(_on_avatar_upload)
 	avatar_btns.add_child(upload_btn)
 
-	var remove_btn := SettingsBase.create_secondary_button("Remove")
+	var remove_btn := SettingsBase.create_secondary_button(tr("Remove"))
 	remove_btn.pressed.connect(_on_avatar_remove)
 	avatar_btns.add_child(remove_btn)
 
 	# Display name
-	page_vbox.add_child(section_label_fn.call("DISPLAY NAME"))
+	page_vbox.add_child(section_label_fn.call(tr("DISPLAY NAME")))
 	_profile_dn_input = LineEdit.new()
 	_profile_dn_input.text = user.get("display_name", "")
 	page_vbox.add_child(_profile_dn_input)
 
 	# Bio
-	page_vbox.add_child(section_label_fn.call("ABOUT ME"))
+	page_vbox.add_child(section_label_fn.call(tr("ABOUT ME")))
 	_profile_bio_input = TextEdit.new()
 	_profile_bio_input.custom_minimum_size = Vector2(0, 80)
 	_profile_bio_input.text = user.get("bio", "")
@@ -72,7 +72,7 @@ func build(
 	page_vbox.add_child(accent_row)
 
 	var accent_lbl := Label.new()
-	accent_lbl.text = "Accent Color"
+	accent_lbl.text = tr("Accent Color")
 	accent_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	accent_row.add_child(accent_lbl)
 
@@ -82,7 +82,7 @@ func build(
 	_profile_accent_picker.color = Color.hex(accent_int) if accent_int > 0 else Color.BLACK
 	accent_row.add_child(_profile_accent_picker)
 
-	var reset_btn := SettingsBase.create_secondary_button("Reset")
+	var reset_btn := SettingsBase.create_secondary_button(tr("Reset"))
 	reset_btn.pressed.connect(func() -> void:
 		_profile_accent_picker.color = Color.BLACK
 	)
@@ -92,7 +92,7 @@ func build(
 	_profile_error = error_label_fn.call()
 	page_vbox.add_child(_profile_error)
 
-	_profile_save_btn = SettingsBase.create_action_button("Save Changes")
+	_profile_save_btn = SettingsBase.create_action_button(tr("Save Changes"))
 	_profile_save_btn.pressed.connect(_on_save)
 	page_vbox.add_child(_profile_save_btn)
 
@@ -102,9 +102,9 @@ func _on_avatar_upload() -> void:
 	fd.access = FileDialog.ACCESS_FILESYSTEM
 	fd.use_native_dialog = true
 	fd.filters = PackedStringArray([
-		"*.png ; PNG Images",
-		"*.jpg, *.jpeg ; JPEG Images",
-		"*.webp ; WebP Images",
+		"*.png ; " + tr("PNG Images"),
+		"*.jpg, *.jpeg ; " + tr("JPEG Images"),
+		"*.webp ; " + tr("WebP Images"),
 	])
 	fd.file_selected.connect(func(path: String) -> void:
 		var file := FileAccess.open(path, FileAccess.READ)
@@ -164,5 +164,5 @@ func _on_save() -> void:
 		ok = await Client.update_profile(data)
 	_profile_save_btn.disabled = false
 	if not ok:
-		_profile_error.text = "Failed to save profile"
+		_profile_error.text = tr("Failed to save profile")
 		_profile_error.visible = true

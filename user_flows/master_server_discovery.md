@@ -120,17 +120,20 @@ Indexer polls each registered accordserver:
 
 | File | Role |
 |------|------|
-| `accordmasterserver/src/main.rs` | Service entry point, HTTP server setup |
-| `accordmasterserver/src/routes/` | API route handlers (servers, directory) |
-| `accordmasterserver/src/indexer.rs` | Background poller that fetches public spaces from registered servers |
-| `accordmasterserver/src/db/` | Database layer (server registry, space directory) |
-| `accordmasterserver/migrations/` | SQLite schema migrations |
+| `accordmasterserver/src/main.rs` | Service entry point, HTTP server setup with `ConnectInfo` for IP tracking |
+| `accordmasterserver/src/routes/mod.rs` | Router with server, directory, report, and featured routes |
+| `accordmasterserver/src/routes/directory.rs` | Directory list (with tag filter), space detail, report, and featured endpoints |
+| `accordmasterserver/src/routes/servers.rs` | Server registration, heartbeat, deregister, list, get |
+| `accordmasterserver/src/fetcher.rs` | Background poller that fetches public spaces (including tags) from registered servers |
+| `accordmasterserver/src/db/public_spaces.rs` | Space CRUD, directory queries with tag/search, reports, featured flag |
+| `accordmasterserver/src/db/servers.rs` | Server registry CRUD, stale reaper |
+| `accordmasterserver/migrations/001_initial_schema.sql` | Servers + public_spaces tables |
+| `accordmasterserver/migrations/002_tags_featured_reports.sql` | Adds tags, featured columns and reports table |
 | `scenes/sidebar/guild_bar/discover_button.gd` | Compass icon button in space bar, emits `discover_pressed` |
 | `scenes/sidebar/guild_bar/guild_bar.gd` | Connects discover button to `AppState.open_discovery()` |
-| `scenes/discovery/discovery_panel.gd` | Full discovery panel: search, tag filter, responsive card grid, inline detail view, server ping measurement |
+| `scenes/discovery/discovery_panel.gd` | Full discovery panel: search, tag filter, responsive card grid, inline detail view, server ping measurement, URL-normalized join flow |
 | `scenes/discovery/discovery_card.gd` | Individual space card in the discovery grid (icon, name, ping indicator, members, description, tags) |
 | `scenes/discovery/discovery_detail.gd` | Detail view with banner, icon, stats, description, tags, ping row, join button |
-| `scenes/discovery/discovery_panel.gd` | Also used in embedded mode inside the Add Server dialog's "Browse Servers" tab (single-column grid, no header) |
 | `addons/accordkit/rest/endpoints/directory_api.gd` | `DirectoryApi` class: `browse(query, tag, page)` and `get_space(space_id)` |
 | `scripts/autoload/config.gd` | `get_master_server_url()` / `set_master_server_url()` (default: `https://master.daccord.gg`) |
 | `scripts/autoload/app_state.gd` | `discovery_opened` / `discovery_closed` signals, `is_discovery_open` state |
@@ -146,38 +149,37 @@ Indexer polls each registered accordserver:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check |
-| `GET` | `/directory` | Browse/search public spaces (supports `q`, `tag`, `page` query params) |
+| `GET` | `/directory` | Browse/search public spaces (supports `q`, `tag`, `page`, `per_page` query params) |
 | `GET` | `/directory/{space_id}` | Get detail for a specific space listing |
+| `POST` | `/directory/{space_id}/report` | Report a space listing for abuse (records reporter IP) |
 
-**Admin endpoints (API key auth):**
+**Admin endpoints:**
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/servers` | Register a new accordserver |
 | `GET` | `/servers` | List registered servers |
 | `GET` | `/servers/{id}` | Get server details |
-| `PATCH` | `/servers/{id}` | Update server registration |
 | `DELETE` | `/servers/{id}` | Remove server from registry |
+| `POST` | `/servers/{id}/heartbeat` | Update server heartbeat |
+| `POST` | `/servers/{server_id}/spaces/{space_id}/featured` | Set/unset featured flag |
 
 ### Directory Response Shape
 
 ```json
 {
-  "spaces": [
+  "data": [
     {
-      "id": "space_id",
+      "space_id": "space_id",
       "name": "My Community",
       "slug": "my-community",
       "description": "A place for chatting",
-      "icon_url": "https://server.example.com/cdn/icons/space_id/hash.png",
-      "banner_url": "https://server.example.com/cdn/banners/space_id/hash.png",
+      "icon_url": "/icons/space_id/hash.png",
       "member_count": 142,
-      "presence_count": 37,
       "tags": ["gaming", "social"],
+      "featured": false,
       "server_url": "https://server.example.com:39099",
-      "server_name": "Example Server",
-      "last_seen_healthy": "2026-02-21T10:00:00Z",
-      "indexed_at": "2026-02-21T10:05:00Z"
+      "server_name": "Example Server"
     }
   ],
   "total": 1,
@@ -190,48 +192,73 @@ Indexer polls each registered accordserver:
 
 ```json
 {
-  "url": "https://server.example.com:39099",
+  "id": "server-instance-id",
   "name": "Example Server",
-  "description": "An open community server",
-  "tags": ["gaming", "social"],
-  "contact_email": "admin@example.com"
+  "url": "https://server.example.com:39099",
+  "version": "0.1.0"
+}
+```
+
+### Report Shape
+
+```json
+{
+  "reason": "This server is hosting illegal content"
+}
+```
+
+### Featured Shape
+
+```json
+{
+  "featured": true
 }
 ```
 
 ### Database Schema (accordmasterserver)
 
-**servers table:**
+**servers table:** (`migrations/001_initial_schema.sql`)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Primary key (accordserver instance ID) |
+| `name` | TEXT | Display name |
+| `url` | TEXT (unique) | Accordserver base URL |
+| `version` | TEXT | Server version string |
+| `status` | TEXT | `'online'` or `'offline'` |
+| `last_heartbeat` | TEXT | When last heartbeat received |
+| `created_at` | TEXT | Registration time |
+| `updated_at` | TEXT | Last update time |
+
+**public_spaces table:** (`migrations/001_initial_schema.sql`, extended in `002_tags_featured_reports.sql`)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Composite key (`server_id:space_id`) |
+| `server_id` | TEXT (FK) | References servers.id (CASCADE delete) |
+| `space_id` | TEXT | Accordserver space ID |
+| `name` | TEXT | Space name |
+| `slug` | TEXT | Space slug |
+| `description` | TEXT | Space description |
+| `icon_url` | TEXT | Icon URL (relative path from accordserver) |
+| `member_count` | INTEGER | Member count |
+| `tags` | TEXT (JSON array) | Category tags from accordserver (e.g. `'["gaming","social"]'`) |
+| `featured` | INTEGER | Admin-curated featured flag (0 or 1) |
+| `last_fetched` | TEXT | When this data was last synced |
+
+Composite unique constraint on `(server_id, space_id)` to prevent duplicates.
+
+**reports table:** (`migrations/002_tags_featured_reports.sql`)
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | TEXT (UUID) | Primary key |
-| `url` | TEXT (unique) | Accordserver base URL |
-| `name` | TEXT | Display name |
-| `description` | TEXT | Operator-provided description |
-| `tags` | TEXT (JSON array) | Category tags |
-| `contact_email` | TEXT | Operator contact |
-| `api_key_hash` | TEXT | SHA256 hash of the operator's API key |
-| `healthy` | BOOLEAN | Whether last health check passed |
-| `last_health_check` | TIMESTAMP | When last polled |
-| `created_at` | TIMESTAMP | Registration time |
-
-**spaces table:**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT | Accordserver space ID |
-| `server_id` | TEXT (FK) | References servers.id |
-| `name` | TEXT | Space name |
-| `slug` | TEXT | Space slug |
-| `description` | TEXT | Space description |
-| `icon` | TEXT | Icon hash (for CDN URL construction) |
-| `banner` | TEXT | Banner hash |
-| `member_count` | INTEGER | Member count |
-| `presence_count` | INTEGER | Online count |
-| `tags` | TEXT (JSON array) | Category tags (inherited from server + space-level) |
-| `indexed_at` | TIMESTAMP | When this data was last fetched |
-
-Composite unique constraint on `(server_id, id)` to prevent duplicates.
+| `space_id` | TEXT | Reported space ID |
+| `server_id` | TEXT | Server hosting the space |
+| `reason` | TEXT | User-provided reason |
+| `reporter_ip` | TEXT | IP address of the reporter |
+| `created_at` | TEXT | When the report was filed |
+| `resolved` | INTEGER | Whether the report has been addressed (0 or 1) |
 
 ### Indexer (Background Poller)
 
@@ -368,20 +395,46 @@ Channel selection auto-closes discovery: `main_window._on_channel_selected()` ch
 
 ```
 discovery_panel: user clicks "Join Server" in detail view
-  → _on_detail_join(server_url, space_id)
-    → Config.get_servers() -- look for matching base_url with active connection
+  → _on_detail_join_with_slug(server_url, space_id, space_slug)  (line 292)
+    → _normalize_url(server_url) — strips scheme, lowercases, removes trailing slash + default ports (line 372)
+    → Config.get_servers() — look for matching base_url via _normalize_url() comparison (line 298-303)
     → If found: use stored token, call _join_and_connect()
     → If not found: open auth_dialog for server_url, on auth complete call _join_and_connect()
-  → _join_and_connect():
+  → _join_and_connect():  (line 322)
     → POST /api/v1/spaces/{space_id}/join on target accordserver (direct, with bearer token)
       → On 200: space joined
-    → Config.add_server(base_url, token, space_id)
+    → Config.add_server(base_url, token, space_slug)
     → await Client.connect_server(server_index)
       → Fetches space, connects gateway
     → AppState.close_discovery()
     → AppState.select_space(joined_space_id)
     → Space appears in space bar
 ```
+
+### URL Normalization
+
+The `_normalize_url()` static function (line 372 in `discovery_panel.gd`) canonicalizes server URLs for comparison during the join flow's account-matching step. It:
+
+1. Strips leading/trailing whitespace and lowercases the entire URL
+2. Removes trailing slashes
+3. Strips default ports (`:443` for HTTPS, `:80` for HTTP)
+4. Removes the scheme prefix (`http://` or `https://`), treating both as equivalent
+
+This prevents duplicate auth dialogs when the directory returns `https://example.com/` but Config stores `https://example.com` (or vice versa).
+
+### Tag Filtering (Server-Side)
+
+The directory API accepts a `tag` query parameter (line 12 in `directory_api.gd`). On the master server, `list_directory()` (line 136 in `public_spaces.rs`) builds a dynamic WHERE clause that uses SQLite LIKE matching against the JSON tags column: `ps.tags LIKE '%"gaming"%'`. This is efficient for the expected data volume and avoids a separate tags join table.
+
+Tags flow from accordserver → fetcher → `public_spaces.tags` column (JSON array) → directory response → client tag bar. The client's `_populate_tags()` (line 140 in `discovery_panel.gd`) collects unique tags from all spaces and creates clickable filter buttons.
+
+### Featured Listings
+
+Featured spaces are flagged via `POST /api/v1/servers/{server_id}/spaces/{space_id}/featured` with `{"featured": true}`. The directory query sorts by `ps.featured DESC` first (line 183 in `public_spaces.rs`), then by member count, so featured spaces always appear at the top.
+
+### Abuse Reporting
+
+`POST /api/v1/directory/{space_id}/report` accepts `{"reason": "..."}` and records the reporter's IP address (via Axum `ConnectInfo<SocketAddr>`). Reports are stored in the `reports` table with `resolved` defaulting to 0. An admin can query/resolve reports directly in the database (no admin UI endpoint yet).
 
 ### Theming
 
@@ -416,29 +469,32 @@ All discovery components use `ThemeManager` for colors:
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
 | Language | Rust | Matches accordserver; shared tooling and deployment |
-| HTTP framework | Axum | Same as accordserver; familiar patterns |
-| Database | SQLite | Simple deployment, sufficient for a directory index |
+| HTTP framework | Axum 0.8 | Same as accordserver; familiar patterns |
+| Database | SQLite (sqlx 0.8, WAL mode) | Simple deployment, sufficient for a directory index |
 | Background tasks | Tokio tasks | Built into the async runtime already used by Axum |
-| Auth | API key (admin) | Simple; no user accounts needed on the master server itself |
+| HTTP client | reqwest 0.12 | For fetcher polling of registered servers |
+| Middleware | tower-http (CORS, tracing) | Rate limiting not yet added |
 
 
 ## Implementation Status
 
 - [x] Master server: project scaffolding (Cargo.toml, main.rs, Axum setup)
-- [x] Master server: database schema and migrations
-- [x] Master server: server registry CRUD endpoints (`POST/GET/PATCH/DELETE /servers`)
-- [x] Master server: API key authentication for admin endpoints
-- [x] Master server: background indexer (poll `GET /spaces/public` on registered servers)
-- [x] Master server: health check monitoring
-- [x] Master server: directory API (`GET /directory` with search and pagination)
-- [x] Master server: pagination for directory results
-- [ ] Master server: space detail endpoint (`GET /directory/{space_id}`) -- `DirectoryApi.get_space()` exists but detail view uses cached card data instead
-- [ ] Master server: rate limiting
+- [x] Master server: database schema and migrations (001 + 002)
+- [x] Master server: server registry CRUD endpoints (`POST/GET/DELETE /servers`, heartbeat)
+- [x] Master server: background indexer (poll `GET /spaces/public` on registered servers, including tags)
+- [x] Master server: stale server reaper (marks offline after configurable timeout)
+- [x] Master server: directory API (`GET /directory` with search, tag filter, and pagination)
+- [x] Master server: space detail endpoint (`GET /directory/{space_id}`)
+- [x] Master server: tag/category filtering (server-side LIKE match on JSON tags column)
+- [x] Master server: featured listings (admin-set flag, featured spaces sort first)
+- [x] Master server: abuse reporting (`POST /directory/{space_id}/report` with IP tracking)
+- [ ] Master server: rate limiting — no middleware yet; all public endpoints are unthrottled
+- [ ] Master server: admin authentication — registration endpoints are currently unauthenticated
 - [x] daccord: Discover button in space bar (compass icon)
 - [x] daccord: Discovery panel with responsive card grid, search (debounced), and tag filter
 - [x] daccord: Discovery detail view with banner, icon, stats, and join button
 - [x] daccord: Browse Servers tab in Add Server dialog (embedded discovery panel, single-column grid)
-- [x] daccord: Join flow (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
+- [x] daccord: Join flow with URL normalization (account check, auth dialog, `POST /spaces/{id}/join`, add to config)
 - [x] daccord: AppState discovery signals (`discovery_opened`, `discovery_closed`, `is_discovery_open`)
 - [x] daccord: Master server URL in Config (section `"master"`, key `"url"`)
 - [x] daccord: Ping strength indicator on discovery cards and detail view (health endpoint round-trip measurement)
@@ -463,51 +519,72 @@ All discovery components use `ThemeManager` for colors:
 - **Tags:** ui
 - **Notes:** Two entry points: dedicated discovery panel (search, tag filter, card grid, detail view) and Browse Servers tab in Add Server dialog. Both use DirectoryApi.
 
-### DISCOVER-3: No tag/category system on accordserver spaces
-- **Status:** open
+### DISCOVER-3: Tag/category system
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** general
-- **Notes:** Spaces have no `tags` field; master server could add its own tagging layer, or accordserver could add a `tags` column
+- **Notes:** Tags column added to `public_spaces` table (JSON array). Fetcher syncs tags from accordserver. Directory API accepts `tag` query param for server-side filtering. Client tag bar already renders and filters by tag.
 
 ### DISCOVER-4: No space preview (channels, recent messages)
 - **Status:** open
 - **Impact:** 2
-- **Effort:** 1
+- **Effort:** 3
 - **Tags:** general
-- **Notes:** Could add a read-only preview before joining, but adds complexity
+- **Notes:** Would require accordserver to expose a public channels endpoint. The detail view currently shows only basic space info (name, members, description, tags). A read-only preview showing channels and recent messages would need both server and client work.
 
-### DISCOVER-5: No vanity/featured listings
-- **Status:** open
+### DISCOVER-5: Featured listings
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** general
-- **Notes:** Could add a "featured" flag to the master server for curated highlights
+- **Notes:** `featured` column added to `public_spaces`. Admin endpoint `POST /servers/{id}/spaces/{space_id}/featured` sets the flag. Directory results sort featured spaces first (`ORDER BY ps.featured DESC, ps.member_count DESC`). Client renders them the same as other cards (no special badge yet).
 
-### DISCOVER-6: No abuse reporting for listed servers
-- **Status:** open
+### DISCOVER-6: Abuse reporting for listed servers
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** general
-- **Notes:** Operators can list anything; no report/flag mechanism yet
+- **Notes:** `POST /directory/{space_id}/report` records `{reason}` with reporter IP. Reports stored in `reports` table. No admin UI for resolving reports yet — must be done via direct DB access.
 
 ### DISCOVER-7: No server-side icon/banner proxying
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** ui
-- **Notes:** Directory returns direct CDN URLs to each accordserver; if a server goes down, icons break
+- **Notes:** Directory returns relative icon URLs from each accordserver; client resolves them against `server_url`. If a server goes down, icons break. A proxy/cache layer on the master server would fix this but adds storage and bandwidth costs.
 
 ### DISCOVER-8: No WebSocket push for directory updates
 - **Status:** open
-- **Impact:** 2
+- **Impact:** 1
 - **Effort:** 2
 - **Tags:** gateway, ui
-- **Notes:** Clients poll on panel open; could add real-time updates via SSE or WebSocket later
+- **Notes:** Clients poll on panel open; directory data changes infrequently (5-minute fetcher cycle). Real-time push via SSE or WebSocket is low priority.
 
-### DISCOVER-9: No URL normalization for join flow account matching
+### DISCOVER-9: URL normalization for join flow account matching
+- **Status:** done
+- **Impact:** 2
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** `_normalize_url()` (line 372 in `discovery_panel.gd`) strips scheme, lowercases, removes trailing slashes and default ports. Join flow uses normalized comparison (line 298-303) instead of direct string equality.
+
+### DISCOVER-10: No admin authentication on master server
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** general
+- **Notes:** Server registration (`POST /servers`) and featured endpoints are unauthenticated. Should add bearer token middleware (e.g. `MASTER_BEARER_TOKEN` env var) before production deployment.
+
+### DISCOVER-11: No admin UI for report resolution
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** general
-- **Notes:** `_on_detail_join()` uses direct string equality to match `base_url` in Config; URLs with trailing slashes or different schemes would fail to match an existing account
+- **Notes:** Reports are stored but can only be resolved via direct database access. Need admin endpoints to list/resolve reports and optionally delist offending spaces.
+
+### DISCOVER-12: No featured badge in client UI
+- **Status:** open
+- **Impact:** 1
+- **Effort:** 1
+- **Tags:** ui
+- **Notes:** Featured spaces sort first in the grid but have no visual distinction. Could add a star badge or "Featured" chip to `discovery_card.gd`.

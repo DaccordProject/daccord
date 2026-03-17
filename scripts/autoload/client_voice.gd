@@ -236,8 +236,9 @@ func toggle_video() -> void:
 				width = 1920
 				height = 1080
 		var fps: int = Config.voice.get_video_fps()
+		var device: String = Config.voice.get_video_device()
 		var stream = _c._voice_session.publish_camera(
-			Vector2i(width, height), fps
+			Vector2i(width, height), fps, device
 		)
 		if stream == null:
 			AppState.voice_error.emit("Failed to publish camera")
@@ -464,7 +465,7 @@ func on_voice_config_changed(
 	if section != "voice":
 		return
 	match key:
-		"video_resolution", "video_fps":
+		"video_resolution", "video_fps", "video_device":
 			_republish_camera()
 		"debug_logging":
 			_c.debug_voice_logs = Config.voice.get_debug_logging()
@@ -472,10 +473,10 @@ func on_voice_config_changed(
 func _republish_camera() -> void:
 	if _c._camera_track == null:
 		return
+	# Close the old stream's reader thread before swapping.
 	if _c._camera_track.has_method("close"):
 		_c._camera_track.close()
 	_c._camera_track = null
-	_c._voice_session.unpublish_camera()
 	var res_preset: int = Config.voice.get_video_resolution()
 	var width := 640
 	var height := 480
@@ -487,8 +488,10 @@ func _republish_camera() -> void:
 			width = 1920
 			height = 1080
 	var fps: int = Config.voice.get_video_fps()
-	var stream = _c._voice_session.publish_camera(
-		Vector2i(width, height), fps
+	var device: String = Config.voice.get_video_device()
+	# Use swap_camera for seamless hot-swap when possible.
+	var stream = _c._voice_session.swap_camera(
+		Vector2i(width, height), fps, device
 	)
 	if stream == null:
 		AppState.voice_error.emit("Failed to republish camera")

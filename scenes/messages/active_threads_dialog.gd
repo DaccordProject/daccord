@@ -7,16 +7,16 @@ var _loading_label: Label
 var _empty_label: Label
 
 func _ready() -> void:
-	_setup_modal("Active Threads", 480.0, 400.0)
+	_setup_modal(tr("Active Threads"), 480.0, 400.0)
 
 	_loading_label = Label.new()
-	_loading_label.text = "Loading threads..."
+	_loading_label.text = tr("Loading threads...")
 	_loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_loading_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content_container.add_child(_loading_label)
 
 	_empty_label = Label.new()
-	_empty_label.text = "No active threads"
+	_empty_label.text = tr("No active threads")
 	_empty_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_empty_label.visible = false
@@ -71,7 +71,7 @@ func _create_thread_item(msg: Dictionary) -> PanelContainer:
 
 	var author: Dictionary = msg.get("author", {})
 	var author_label := Label.new()
-	author_label.text = author.get("display_name", "Unknown")
+	author_label.text = author.get("display_name", tr("Unknown"))
 	author_label.add_theme_font_size_override("font_size", 13)
 	author_label.add_theme_color_override("font_color", author.get("color", Color.WHITE))
 	header.add_child(author_label)
@@ -97,8 +97,8 @@ func _create_thread_item(msg: Dictionary) -> PanelContainer:
 	var reply_count: int = msg.get("reply_count", 0)
 	if reply_count > 0:
 		var count_label := Label.new()
-		var suffix: String = "reply" if reply_count == 1 else "replies"
-		count_label.text = "%d %s" % [reply_count, suffix]
+		var suffix: String = tr("reply") if reply_count == 1 else tr("replies")
+		count_label.text = tr("%d %s") % [reply_count, suffix]
 		count_label.add_theme_font_size_override("font_size", 12)
 		count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
 		vbox.add_child(count_label)

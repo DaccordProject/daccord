@@ -21,12 +21,23 @@ func _ready() -> void:
 	gui_input.connect(_on_gui_input)
 
 func setup(data: Dictionary) -> void:
+	var uid: String = data.get("id", "")
+	if not uid.is_empty() \
+			and uid == _member_data.get("id", "") \
+			and data.get("status", -1) \
+				== _member_data.get("status", -1) \
+			and data.get("avatar", "") \
+				== _member_data.get("avatar", "") \
+			and data.get("display_name", "") \
+				== _member_data.get("display_name", ""):
+		_member_data = data
+		return
 	_member_data = data
-	var dn_text: String = data.get("display_name", "Unknown")
+	var dn_text: String = data.get("display_name", tr("Unknown"))
 	if data.get("_is_owner", false):
-		dn_text += " (Owner)"
+		dn_text += " " + tr("(Owner)")
 	display_name.text = dn_text
-	tooltip_text = data.get("display_name", "Unknown")
+	tooltip_text = data.get("display_name", tr("Unknown"))
 	avatar.setup_from_dict(data)
 	# Apply role color to display name
 	var role_color = _resolve_role_color(data)
@@ -72,50 +83,50 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_role_start_index = -1
 	var idx: int = 0
 
-	_context_menu.add_item("Message", idx)
+	_context_menu.add_item(tr("Message"), idx)
 	idx += 1
 
 	# Friend / relationship actions
 	var rel = Client.relationships.get_relationship(user_id)
 	if rel == null:
-		_context_menu.add_item("Add Friend", idx)
+		_context_menu.add_item(tr("Add Friend"), idx)
 		idx += 1
 	elif rel["type"] == 1:  # FRIEND
-		_context_menu.add_item("Remove Friend", idx)
+		_context_menu.add_item(tr("Remove Friend"), idx)
 		idx += 1
 	elif rel["type"] == 3:  # PENDING_INCOMING
-		_context_menu.add_item("Accept Friend Request", idx)
+		_context_menu.add_item(tr("Accept Friend Request"), idx)
 		idx += 1
-		_context_menu.add_item("Decline Friend Request", idx)
+		_context_menu.add_item(tr("Decline Friend Request"), idx)
 		idx += 1
 	elif rel["type"] == 4:  # PENDING_OUTGOING
-		_context_menu.add_item("Cancel Friend Request", idx)
+		_context_menu.add_item(tr("Cancel Friend Request"), idx)
 		idx += 1
 
 	var is_blocked: bool = rel != null and rel["type"] == 2
 	if is_blocked:
-		_context_menu.add_item("Unblock", idx)
+		_context_menu.add_item(tr("Unblock"), idx)
 	else:
-		_context_menu.add_item("Block", idx)
+		_context_menu.add_item(tr("Block"), idx)
 	idx += 1
 
-	_context_menu.add_item("Report", idx)
+	_context_menu.add_item(tr("Report"), idx)
 	idx += 1
 
 	if Client.has_permission(space_id, AccordPermission.KICK_MEMBERS):
-		_context_menu.add_item("Kick", idx)
+		_context_menu.add_item(tr("Kick"), idx)
 		idx += 1
 
 	if Client.has_permission(space_id, AccordPermission.BAN_MEMBERS):
-		_context_menu.add_item("Ban", idx)
+		_context_menu.add_item(tr("Ban"), idx)
 		idx += 1
 
 	if Client.has_permission(space_id, AccordPermission.MODERATE_MEMBERS):
-		_context_menu.add_item("Moderate", idx)
+		_context_menu.add_item(tr("Moderate"), idx)
 		idx += 1
 
 	if Client.has_permission(space_id, AccordPermission.MANAGE_NICKNAMES):
-		_context_menu.add_item("Edit Nickname", idx)
+		_context_menu.add_item(tr("Edit Nickname"), idx)
 		idx += 1
 
 	if Client.has_permission(space_id, AccordPermission.MANAGE_ROLES):
@@ -123,7 +134,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 		var member_roles: Array = _member_data.get("roles", [])
 		var my_highest: int = Client.get_my_highest_role_position(space_id)
 		if roles.size() > 0:
-			_context_menu.add_separator("Roles")
+			_context_menu.add_separator(tr("Roles"))
 			idx += 1
 			_role_start_index = idx
 			for role in roles:
@@ -139,7 +150,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 					_context_menu.set_item_disabled(item_idx, true)
 					_context_menu.set_item_tooltip(
 						item_idx,
-						"Role is above your highest role"
+						tr("Role is above your highest role")
 					)
 				idx += 1
 
@@ -153,65 +164,74 @@ func _show_context_menu(pos: Vector2i) -> void:
 func _on_context_menu_id_pressed(id: int) -> void:
 	var space_id: String = AppState.current_space_id
 	var user_id: String = _member_data.get("id", "")
-	var dname: String = _member_data.get("display_name", "Unknown")
+	var dname: String = _member_data.get("display_name", tr("Unknown"))
 
 	# Check if this is a role toggle
 	if _role_start_index != -1 and id >= _role_start_index:
 		_toggle_role(space_id, user_id, id)
 		return
 
-	var label: String = _context_menu.get_item_text(_context_menu.get_item_index(id))
-	match label:
-		"Message":
-			Client.create_dm(user_id)
-		"Add Friend":
-			Client.relationships.send_friend_request(user_id)
-		"Remove Friend":
-			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-				"Remove Friend",
-				"Remove %s from your friends?" % dname,
-				"Remove", true, func():
-					Client.relationships.remove_friend(user_id)
+	var label: String = _context_menu.get_item_text(
+		_context_menu.get_item_index(id)
+	)
+	if label == tr("Message"):
+		Client.create_dm(user_id)
+	elif label == tr("Add Friend"):
+		Client.relationships.send_friend_request(user_id)
+	elif label == tr("Remove Friend"):
+		DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+			tr("Remove Friend"),
+			tr("Remove %s from your friends?") % dname,
+			tr("Remove"), true, func():
+				Client.relationships.remove_friend(user_id)
+		)
+	elif label == tr("Accept Friend Request"):
+		Client.relationships.accept_friend_request(user_id)
+	elif label == tr("Decline Friend Request"):
+		Client.relationships.decline_friend_request(user_id)
+	elif label == tr("Cancel Friend Request"):
+		Client.relationships.decline_friend_request(user_id)
+	elif label == tr("Block"):
+		Client.relationships.block_user(user_id)
+	elif label == tr("Unblock"):
+		Client.relationships.unblock_user(user_id)
+	elif label == tr("Report"):
+		DialogHelper.open(
+			ReportDialogScene, get_tree()
+		).setup_user(space_id, user_id, dname)
+	elif label == tr("Kick"):
+		_confirm_kick(space_id, user_id, dname)
+	elif label == tr("Ban"):
+		DialogHelper.open(
+			BanDialogScene, get_tree()
+		).setup(space_id, user_id, dname)
+	elif label == tr("Moderate"):
+		DialogHelper.open(
+			ModerateMemberDialogScene, get_tree()
+		).setup(space_id, user_id, dname, _member_data)
+	elif label == tr("Edit Nickname"):
+		DialogHelper.open(NicknameDialogScene, get_tree()).setup(
+			space_id, user_id, dname,
+			_member_data.get("nickname", "")
+		)
+
+
+func _confirm_kick(
+	space_id: String, user_id: String, dname: String,
+) -> void:
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+		tr("Kick %s") % dname,
+		tr("Are you sure you want to kick %s?") % dname,
+		tr("Kick"), true, func():
+			var result: RestResult = await Client.admin.kick_member(
+				space_id, user_id
 			)
-		"Accept Friend Request":
-			Client.relationships.accept_friend_request(user_id)
-		"Decline Friend Request":
-			Client.relationships.decline_friend_request(user_id)
-		"Cancel Friend Request":
-			Client.relationships.decline_friend_request(user_id)
-		"Block":
-			Client.relationships.block_user(user_id)
-		"Unblock":
-			Client.relationships.unblock_user(user_id)
-		"Report":
-			DialogHelper.open(ReportDialogScene, get_tree()).setup_user(space_id, user_id, dname)
-		"Kick":
-			DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-				"Kick %s" % dname,
-				"Are you sure you want to kick %s from this server?" % dname,
-				"Kick", true, func():
-					var result: RestResult = await Client.admin.kick_member(
-						space_id, user_id
-					)
-					if result == null or not result.ok:
-						var err: String = "unknown error"
-						if result != null and result.error:
-							err = result.error.message
-						push_warning(
-							"[Kick] Failed to kick member: ", err
-						)
-			)
-		"Ban":
-			DialogHelper.open(BanDialogScene, get_tree()).setup(space_id, user_id, dname)
-		"Moderate":
-			DialogHelper.open(
-				ModerateMemberDialogScene, get_tree()
-			).setup(space_id, user_id, dname, _member_data)
-		"Edit Nickname":
-			DialogHelper.open(NicknameDialogScene, get_tree()).setup(
-				space_id, user_id, dname,
-				_member_data.get("nickname", "")
-			)
+			if result == null or not result.ok:
+				var err: String = "unknown error"
+				if result != null and result.error:
+					err = result.error.message
+				push_warning("[Kick] Failed: ", err)
+	)
 
 func _toggle_role(space_id: String, user_id: String, id: int) -> void:
 	var roles: Array = Client.get_roles_for_space(space_id)

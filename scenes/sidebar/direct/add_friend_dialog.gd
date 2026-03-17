@@ -24,25 +24,25 @@ func _on_send() -> void:
 	_error_label.visible = false
 	var username: String = _username_input.text.strip_edges()
 	if username.is_empty():
-		_error_label.text = "Please enter a username."
+		_error_label.text = tr("Please enter a username.")
 		_error_label.visible = true
 		return
 
 	_send_btn.disabled = true
-	_send_btn.text = "Searching..."
+	_send_btn.text = tr("Searching...")
 	var user_id: String = await Client.relationships.search_user_by_username(username)
 	if user_id.is_empty():
 		_send_btn.disabled = false
-		_send_btn.text = "Send Request"
-		_error_label.text = "User not found."
+		_send_btn.text = tr("Send Request")
+		_error_label.text = tr("User not found.")
 		_error_label.visible = true
 		return
 
 	# FRND-15: Prevent self-friending
 	if user_id == Client.current_user.get("id", ""):
 		_send_btn.disabled = false
-		_send_btn.text = "Send Request"
-		_error_label.text = "You can't add yourself as a friend."
+		_send_btn.text = tr("Send Request")
+		_error_label.text = tr("You can't add yourself as a friend.")
 		_error_label.visible = true
 		return
 
@@ -53,28 +53,28 @@ func _on_send() -> void:
 		var msg: String = ""
 		match rel_type:
 			1:  # FRIEND
-				msg = "You're already friends with this user."
+				msg = tr("You're already friends with this user.")
 			2:  # BLOCKED
-				msg = "You have this user blocked."
+				msg = tr("You have this user blocked.")
 			3:  # PENDING_INCOMING
-				msg = "This user already sent you a friend request. Check the Pending tab."
+				msg = tr("This user already sent you a friend request. Check the Pending tab.")
 			4:  # PENDING_OUTGOING
-				msg = "You already sent a friend request to this user."
+				msg = tr("You already sent a friend request to this user.")
 		if not msg.is_empty():
 			_send_btn.disabled = false
-			_send_btn.text = "Send Request"
+			_send_btn.text = tr("Send Request")
 			_error_label.text = msg
 			_error_label.visible = true
 			return
 
-	_send_btn.text = "Sending..."
+	_send_btn.text = tr("Sending...")
 	var result: RestResult = await Client.relationships.send_friend_request(user_id)
 
 	# FRND-7: Handle send failure
 	if result == null or not result.ok:
 		_send_btn.disabled = false
-		_send_btn.text = "Send Request"
-		_error_label.text = "Failed to send friend request. Please try again."
+		_send_btn.text = tr("Send Request")
+		_error_label.text = tr("Failed to send friend request. Please try again.")
 		_error_label.visible = true
 		return
 

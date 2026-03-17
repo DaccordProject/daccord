@@ -31,14 +31,14 @@ func setup(
 	_space_id = space_id
 	_user_id = user_id
 	if _title_label:
-		_title_label.text = "Nickname: %s" % display_name
+		_title_label.text = tr("Nickname: %s") % display_name
 	if _nick_input:
 		_nick_input.text = current_nick
 		_nick_input.placeholder_text = display_name
 
 func _on_save() -> void:
 	_save_btn.disabled = true
-	_save_btn.text = "Saving..."
+	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
 
 	var nick: String = _nick_input.text.strip_edges()
@@ -48,10 +48,10 @@ func _on_save() -> void:
 		_space_id, _user_id, data
 	)
 	_save_btn.disabled = false
-	_save_btn.text = "Save"
+	_save_btn.text = tr("Save")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to update nickname"
+		var err_msg: String = tr("Failed to update nickname")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg

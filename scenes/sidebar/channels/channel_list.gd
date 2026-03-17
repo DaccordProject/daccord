@@ -125,16 +125,16 @@ func load_space(space_id: String) -> void:
 		var empty_desc: Label = empty_state.get_node("EmptyDesc")
 		var empty_create_btn: Button = empty_state.get_node("EmptyCreateBtn")
 		if can_manage:
-			empty_title.text = "No channels yet"
-			empty_desc.text = "Create your first channel to get started."
+			empty_title.text = tr("No channels yet")
+			empty_desc.text = tr("Create your first channel to get started.")
 			empty_create_btn.visible = true
 			# Disconnect old signals to avoid duplicates
 			for conn in empty_create_btn.pressed.get_connections():
 				empty_create_btn.pressed.disconnect(conn["callable"])
 			empty_create_btn.pressed.connect(_on_create_channel_pressed.bind(space_id, channels))
 		else:
-			empty_title.text = "No channels yet"
-			empty_desc.text = "This space doesn't have any channels yet. Check back soon!"
+			empty_title.text = tr("No channels yet")
+			empty_desc.text = tr("This space doesn't have any channels yet. Check back soon!")
 			empty_create_btn.visible = false
 	else:
 		empty_state.visible = false
@@ -216,7 +216,7 @@ func load_space(space_id: String) -> void:
 	# "Create Channel" button at bottom (only if user has permission and channels exist)
 	if can_manage and selectable_channels > 0:
 		var create_btn := Button.new()
-		create_btn.text = "+ Create Channel"
+		create_btn.text = tr("+ Create Channel")
 		create_btn.flat = true
 		create_btn.custom_minimum_size = Vector2(0, 36)
 		create_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT

@@ -27,6 +27,7 @@ var _banner_hide_timer: Timer
 var _loading_timeout_timer: Timer
 var _banner: MessageViewBanner
 
+@onready var nsfw_banner: PanelContainer = $VBox/NsfwBanner
 @onready var guest_banner: PanelContainer = $VBox/GuestBanner
 @onready var guest_sign_in_btn: Button = $VBox/GuestBanner/HBox/SignInButton
 @onready var guest_register_btn: Button = $VBox/GuestBanner/HBox/RegisterButton
@@ -165,13 +166,15 @@ func _on_channel_selected(channel_id: String) -> void:
 	_banner.sync_to_connection()
 	_current_channel_name = "channel"
 
-	# Detect forum channel type
+	# Detect forum channel type and NSFW status
 	var is_forum := false
+	var is_nsfw := false
 	for ch in Client.channels:
 		if ch["id"] == channel_id:
 			_current_channel_name = ch.get("name", "channel")
 			if ch.get("type", 0) == ClientModels.ChannelType.FORUM:
 				is_forum = true
+			is_nsfw = ch.get("nsfw", false)
 			break
 	if not is_forum:
 		for dm in Client.dm_channels:
@@ -186,6 +189,17 @@ func _on_channel_selected(channel_id: String) -> void:
 	else:
 		channel_name_label.text = "#%s" % _current_channel_name
 	threads_button.visible = not AppState.is_dm_mode and not is_forum
+
+	# NSFW warning banner
+	nsfw_banner.visible = is_nsfw and not AppState.is_dm_mode
+	if nsfw_banner.visible:
+		var style := StyleBoxFlat.new()
+		style.bg_color = ThemeManager.get_color("error").darkened(0.3)
+		style.content_margin_left = 8.0
+		style.content_margin_right = 8.0
+		style.content_margin_top = 4.0
+		style.content_margin_bottom = 4.0
+		nsfw_banner.add_theme_stylebox_override("panel", style)
 
 	if not is_forum and AppState.thread_panel_visible:
 		AppState.close_thread()
@@ -217,7 +231,7 @@ func _on_channel_selected(channel_id: String) -> void:
 		_update_empty_state([])
 		# Reset loading label style (used for error/timeout states)
 		loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-		loading_label.text = "Loading messages..."
+		loading_label.text = tr("Loading messages...")
 		loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		# Show skeleton during loading
 		loading_skeleton.visible = true
@@ -266,12 +280,12 @@ func _update_empty_state(messages: Array) -> void:
 		var title_label: Label = empty_state.get_node("Title")
 		var desc_label: Label = empty_state.get_node("Description")
 		if AppState.is_dm_mode:
-			title_label.text = "No messages yet"
-			desc_label.text = "Send a message to start the conversation."
+			title_label.text = tr("No messages yet")
+			desc_label.text = tr("Send a message to start the conversation.")
 		else:
-			title_label.text = "Welcome to #%s" % _current_channel_name
-			desc_label.text = "This is the beginning of this channel." \
-				+ " Send a message to get the conversation started!"
+			title_label.text = tr("Welcome to #%s") % _current_channel_name
+			desc_label.text = tr("This is the beginning of this channel.") \
+				+ " " + tr("Send a message to get the conversation started!")
 	else:
 		empty_state.visible = false
 		loading_skeleton.visible = false
@@ -403,7 +417,7 @@ func _on_message_edit_failed(message_id: String, error: String) -> void:
 		var mc = node.get("message_content")
 		if mc:
 			mc.enter_edit_mode(message_id, failed_content)
-			mc.show_edit_error("Edit failed: %s" % error)
+			mc.show_edit_error(tr("Edit failed: %s") % error)
 
 func _on_message_deleted(message_id: String) -> void:
 	Client.remove_message(message_id)
@@ -656,7 +670,7 @@ func _on_message_delete_failed(message_id: String, error: String) -> void:
 	if node:
 		var mc = node.get("message_content")
 		if mc and mc.has_method("show_edit_error"):
-			mc.show_edit_error("Delete failed: %s" % error)
+			mc.show_edit_error(tr("Delete failed: %s") % error)
 
 func _on_message_fetch_failed(channel_id: String, error: String) -> void:
 	if channel_id != current_channel_id:
@@ -664,7 +678,7 @@ func _on_message_fetch_failed(channel_id: String, error: String) -> void:
 	_is_loading = false
 	_loading_timeout_timer.stop()
 	loading_skeleton.visible = false
-	loading_label.text = "Failed to load messages: %s\nClick to retry" % error
+	loading_label.text = tr("Failed to load messages: %s\nClick to retry") % error
 	loading_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -674,7 +688,7 @@ func _on_loading_timeout() -> void:
 		return
 	_is_loading = false
 	loading_skeleton.visible = false
-	loading_label.text = "Loading timed out. Click to retry"
+	loading_label.text = tr("Loading timed out. Click to retry")
 	loading_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -686,7 +700,7 @@ func _on_loading_label_input(event: InputEvent) -> void:
 			loading_label.visible = false
 			loading_skeleton.visible = true
 			loading_skeleton.reset_shimmer()
-			loading_label.text = "Loading messages..."
+			loading_label.text = tr("Loading messages...")
 			loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 			loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_loading_timeout_timer.start()

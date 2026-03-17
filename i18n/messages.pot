@@ -1,0 +1,2435 @@
+# Daccord Translation Template
+# Copyright (C) 2025 daccord-projects
+# This file is distributed under the MIT license.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Daccord 0.1.12\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-17 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "#unknown"
+msgstr ""
+
+msgid "%.1f KB"
+msgstr ""
+
+msgid "%.1f MB"
+msgstr ""
+
+msgid "%d B"
+msgstr ""
+
+msgid "%d/%d uses"
+msgstr ""
+
+msgid "%d members"
+msgstr ""
+
+msgid "%d mutual friend"
+msgstr ""
+
+msgid "%d mutual friends"
+msgstr ""
+
+msgid "%d player(s) joined"
+msgstr ""
+
+msgid "%d players max"
+msgstr ""
+
+msgid "%d replies"
+msgstr ""
+
+msgid "%d %s"
+msgstr ""
+
+msgid "%d user%s selected"
+msgstr ""
+
+msgid "%d uses"
+msgstr ""
+
+msgid "%dd ago"
+msgstr ""
+
+msgid "%dh ago"
+msgstr ""
+
+msgid "%dm ago"
+msgstr ""
+
+msgid "%s (Connecting...)"
+msgstr ""
+
+msgid "%s (Disconnected)"
+msgstr ""
+
+msgid "%s (Muted)"
+msgstr ""
+
+msgid "%s / %s"
+msgstr ""
+
+msgid "%s (%s)"
+msgstr ""
+
+msgid "%s B"
+msgstr ""
+
+msgid "%s KB"
+msgstr ""
+
+msgid "%s User"
+msgstr ""
+
+msgid " · %d online"
+msgstr ""
+
+msgid "(Active)"
+msgstr ""
+
+msgid "(Owner)"
+msgstr ""
+
+msgid "+ Add Member"
+msgstr ""
+
+msgid "+ Create Channel"
+msgstr ""
+
+msgid "1 day"
+msgstr ""
+
+msgid "1 hour"
+msgstr ""
+
+msgid "1 minute"
+msgstr ""
+
+msgid "1 week"
+msgstr ""
+
+msgid "10 minutes"
+msgstr ""
+
+msgid "1080p"
+msgstr ""
+
+msgid "12 hours"
+msgstr ""
+
+msgid "15 FPS"
+msgstr ""
+
+msgid "30 FPS"
+msgstr ""
+
+msgid "30 minutes"
+msgstr ""
+
+msgid "480p"
+msgstr ""
+
+msgid "5 minutes"
+msgstr ""
+
+msgid "6 hours"
+msgstr ""
+
+msgid "6-digit code"
+msgstr ""
+
+msgid "60 FPS"
+msgstr ""
+
+msgid "60 seconds"
+msgstr ""
+
+msgid "7 days"
+msgstr ""
+
+msgid "720p"
+msgstr ""
+
+msgid "About"
+msgstr ""
+
+msgid "About Daccord"
+msgstr ""
+
+msgid "ABOUT ME"
+msgstr ""
+
+msgid "Accent"
+msgstr ""
+
+msgid "Accent Color"
+msgstr ""
+
+msgid "Accept"
+msgstr ""
+
+msgid "Accept Friend Request"
+msgstr ""
+
+msgid "ACCESSIBILITY"
+msgstr ""
+
+msgid "Accord Server"
+msgstr ""
+
+msgid "ACCOUNT CREATED"
+msgstr ""
+
+msgid "A chat client for accordserver instances."
+msgstr ""
+
+msgid "Actioned"
+msgstr ""
+
+msgid "Active Threads"
+msgstr ""
+
+msgid "Activities"
+msgstr ""
+
+msgid "Activity"
+msgstr ""
+
+msgid "Activity ended."
+msgstr ""
+
+msgid "Add"
+msgstr ""
+
+msgid "Add a Server"
+msgstr ""
+
+msgid "Add Friend"
+msgstr ""
+
+msgid "Add Member"
+msgstr ""
+
+msgid "Adding..."
+msgstr ""
+
+msgid "[Admin]"
+msgstr ""
+
+msgid "Admin"
+msgstr ""
+
+msgid "Administration"
+msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "All Actions"
+msgstr ""
+
+msgid "ALL FRIENDS"
+msgstr ""
+
+msgid "All Messages"
+msgstr ""
+
+msgid "All Reports (Server-wide)"
+msgstr ""
+
+msgid "Already connected to this server."
+msgstr ""
+
+msgid "Always trust plugins from this server"
+msgstr ""
+
+msgid "An emoji named ':%s:' already exists."
+msgstr ""
+
+msgid "An error report from your last session was sent."
+msgstr ""
+
+msgid "Announcement"
+msgstr ""
+
+msgid "Appearance"
+msgstr ""
+
+msgid "Apply"
+msgstr ""
+
+msgid "Apply Theme"
+msgstr ""
+
+msgid "Applying..."
+msgstr ""
+
+msgid "App Settings"
+msgstr ""
+
+msgid "Are you sure you want to delete \\"
+msgstr ""
+
+msgid "Are you sure you want to delete %d channel(s)? This cannot be undone."
+msgstr ""
+
+msgid "Are you sure you want to delete '%s'?"
+msgstr ""
+
+msgid "Are you sure you want to delete '%s'? This cannot be undone."
+msgstr ""
+
+msgid "Are you sure you want to delete :%s:?"
+msgstr ""
+
+msgid "Are you sure you want to delete #%s? This cannot be undone."
+msgstr ""
+
+msgid "Are you sure you want to kick %s from this server?"
+msgstr ""
+
+msgid "Are you sure you want to remove '%s'?"
+msgstr ""
+
+msgid "Are you sure you want to remove '%s' from your server list?"
+msgstr ""
+
+msgid "Are you sure you want to revoke %d invite(s)?"
+msgstr ""
+
+msgid "Are you sure you want to revoke invite '%s'?"
+msgstr ""
+
+msgid "Are you sure you want to unban %d user(s)?"
+msgstr ""
+
+msgid "Are you sure you want to unban %s?"
+msgstr ""
+
+msgid "Are you sure you want to uninstall '%s'? Any active sessions will be ended."
+msgstr ""
+
+msgid "A sound named '%s' already exists."
+msgstr ""
+
+msgid "Audit Log"
+msgstr ""
+
+msgid "Authentication failed"
+msgstr ""
+
+msgid "Automatically check for updates"
+msgstr ""
+
+msgid "Backup codes (save these):"
+msgstr ""
+
+msgid "Ban"
+msgstr ""
+
+msgid "Ban %s"
+msgstr ""
+
+msgid "Ban %s from this server"
+msgstr ""
+
+msgid "Ban %s from this space?"
+msgstr ""
+
+msgid "Ban User"
+msgstr ""
+
+msgid "Banning..."
+msgstr ""
+
+msgid "Bans"
+msgstr ""
+
+msgid "Block"
+msgstr ""
+
+msgid "Block %s"
+msgstr ""
+
+msgid "Blocked"
+msgstr ""
+
+msgid "BLOCKED"
+msgstr ""
+
+msgid "Browse without account"
+msgstr ""
+
+msgid "[b]%s[/b] is a native plugin from [b]%s[/b]. "
+msgstr ""
+
+msgid "Bulk Delete"
+msgstr ""
+
+msgid "Bulk Revoke"
+msgstr ""
+
+msgid "Bulk Unban"
+msgstr ""
+
+msgid "Camera"
+msgstr ""
+
+msgid "CAMERA"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Cancel Friend Request"
+msgstr ""
+
+msgid "Cannot reorder roles at or above your own"
+msgstr ""
+
+msgid "Cannot send messages — disconnected"
+msgstr ""
+
+msgid "Cannot send — previewing as %s"
+msgstr ""
+
+msgid "Category"
+msgstr ""
+
+msgid "Change Color"
+msgstr ""
+
+msgid "Change Password"
+msgstr ""
+
+msgid "Changing..."
+msgstr ""
+
+msgid "Channel Create"
+msgstr ""
+
+msgid "Channel Delete"
+msgstr ""
+
+msgid "Channel name cannot be empty."
+msgstr ""
+
+msgid "Channel Update"
+msgstr ""
+
+msgid "Channels"
+msgstr ""
+
+msgid "Check failed: %s"
+msgstr ""
+
+msgid "Check for Updates"
+msgstr ""
+
+msgid "CHECK FOR UPDATES"
+msgstr ""
+
+msgid "Checking..."
+msgstr ""
+
+msgid "Clear Status"
+msgstr ""
+
+msgid "Closed"
+msgstr ""
+
+msgid "Competing in "
+msgstr ""
+
+msgid "Confirm Ban"
+msgstr ""
+
+msgid "CONFIRM NEW PASSWORD"
+msgstr ""
+
+msgid "Connecting..."
+msgstr ""
+
+msgid "Connection failed"
+msgstr ""
+
+msgid "Connection failed: %s"
+msgstr ""
+
+msgid "Connection lost"
+msgstr ""
+
+msgid "Connections"
+msgstr ""
+
+msgid "Copy"
+msgstr ""
+
+msgid "Copy Theme"
+msgstr ""
+
+msgid "Copy URI"
+msgstr ""
+
+msgid "Could not reach server"
+msgstr ""
+
+msgid "Create"
+msgstr ""
+
+msgid "Create Channel"
+msgstr ""
+
+msgid "Create Invite"
+msgstr ""
+
+msgid "Create Space"
+msgstr ""
+
+msgid "Create your first channel to get started."
+msgstr ""
+
+msgid "Creating..."
+msgstr ""
+
+msgid "CSAM"
+msgstr ""
+
+msgid "CSAM / Child exploitation"
+msgstr ""
+
+msgid "CURRENT PASSWORD"
+msgstr ""
+
+msgid "CURRENT VERSION"
+msgstr ""
+
+msgid "Current password is incorrect."
+msgstr ""
+
+msgid "Current password is required"
+msgstr ""
+
+msgid "Current password is required."
+msgstr ""
+
+msgid "Current password is required to remove it."
+msgstr ""
+
+msgid "Current version: %d"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
+msgid "Custom..."
+msgstr ""
+
+msgid "Daccord - #%s"
+msgstr ""
+
+msgid "Daccord - %s"
+msgstr ""
+
+msgid "Daccord v%s"
+msgstr ""
+
+msgid "Daccord v%s is available"
+msgstr ""
+
+msgid "Dark"
+msgstr ""
+
+msgid "Deafen"
+msgstr ""
+
+msgid "Decline"
+msgstr ""
+
+msgid "Decline Friend Request"
+msgstr ""
+
+msgid "Default"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "DELETE"
+msgstr ""
+
+msgid "Delete Account"
+msgstr ""
+
+msgid "Delete All"
+msgstr ""
+
+msgid "Delete Category"
+msgstr ""
+
+msgid "Delete Channel"
+msgstr ""
+
+msgid "Delete Emoji"
+msgstr ""
+
+msgid "Delete Folder"
+msgstr ""
+
+msgid "Delete Message"
+msgstr ""
+
+msgid "Delete Post"
+msgstr ""
+
+msgid "Delete Profile"
+msgstr ""
+
+msgid "Delete Role"
+msgstr ""
+
+msgid "Delete Selected (%d)"
+msgstr ""
+
+msgid "Delete Sound"
+msgstr ""
+
+msgid "Delete Space"
+msgstr ""
+
+msgid "Delete User"
+msgstr ""
+
+msgid "Delete failed: %s"
+msgstr ""
+
+msgid "Describe what happened (optional):"
+msgstr ""
+
+msgid "DESCRIPTION (optional)"
+msgstr ""
+
+msgid "Device selection is managed by your browser."
+msgstr ""
+
+msgid "Direct Messages"
+msgstr ""
+
+msgid "Disable"
+msgstr ""
+
+msgid "Disable 2FA"
+msgstr ""
+
+msgid "DISABLE 2FA"
+msgstr ""
+
+msgid "Disable '%s'? They will be unable to log in."
+msgstr ""
+
+msgid "Disallowed gateway intent"
+msgstr ""
+
+msgid "Discard"
+msgstr ""
+
+msgid "Discover Servers"
+msgstr ""
+
+msgid "Dismissed"
+msgstr ""
+
+msgid "DISPLAY NAME"
+msgstr ""
+
+msgid "Do Not Disturb"
+msgstr ""
+
+msgid "DO NOT DISTURB"
+msgstr ""
+
+msgid "Don't suppress on this server"
+msgstr ""
+
+msgid "Download & Install"
+msgstr ""
+
+msgid "Download complete. Restart to apply the update."
+msgstr ""
+
+msgid "Download failed"
+msgstr ""
+
+msgid "Download failed: %s"
+msgstr ""
+
+msgid "Downloading Daccord v%s..."
+msgstr ""
+
+msgid "Downloading..."
+msgstr ""
+
+msgid "Edit Category"
+msgstr ""
+
+msgid "Edit Channel"
+msgstr ""
+
+msgid "Edit Nickname"
+msgstr ""
+
+msgid "Edit failed: %s"
+msgstr ""
+
+msgid "Emoji graphics used throughout the app."
+msgstr ""
+
+msgid "Emoji name cannot be empty."
+msgstr ""
+
+msgid "Emoji name must contain only letters, numbers, and underscores."
+msgstr ""
+
+msgid "Emojis"
+msgstr ""
+
+msgid "EMOJI SKIN TONE"
+msgstr ""
+
+msgid "Empty Slot"
+msgstr ""
+
+msgid "Empty message not saved"
+msgstr ""
+
+msgid "Enable"
+msgstr ""
+
+msgid "Enable 2FA"
+msgstr ""
+
+msgid "Encouraging suicide / Self-harm"
+msgstr ""
+
+msgid "Enter Terms of Service text..."
+msgstr ""
+
+msgid "Enter a 6-digit code"
+msgstr ""
+
+msgid "Enter to save · Escape to cancel · Shift+Enter for newline"
+msgstr ""
+
+msgid "Enter your 2FA code."
+msgstr ""
+
+msgid "Error"
+msgstr ""
+
+msgid "Error / Danger"
+msgstr ""
+
+msgid "Error Reporting"
+msgstr ""
+
+msgid "ERROR REPORTING"
+msgstr ""
+
+msgid "Error reporting and crash monitoring."
+msgstr ""
+
+msgid "Everyone"
+msgstr ""
+
+msgid "Existing folders:"
+msgstr ""
+
+msgid "Explicit"
+msgstr ""
+
+msgid "Export"
+msgstr ""
+
+msgid "Export Profile"
+msgstr ""
+
+msgid "Export failed (error %d)."
+msgstr ""
+
+msgid "Failed"
+msgstr ""
+
+msgid "Failed to ban user"
+msgstr ""
+
+msgid "Failed to change password"
+msgstr ""
+
+msgid "Failed to create channel"
+msgstr ""
+
+msgid "Failed to create invite"
+msgstr ""
+
+msgid "Failed to create role"
+msgstr ""
+
+msgid "Failed to create space"
+msgstr ""
+
+msgid "Failed to delete account"
+msgstr ""
+
+msgid "Failed to disable 2FA"
+msgstr ""
+
+msgid "Failed to install plugin"
+msgstr ""
+
+msgid "Failed to join space"
+msgstr ""
+
+msgid "Failed to load audit log"
+msgstr ""
+
+msgid "Failed to load bans"
+msgstr ""
+
+msgid "Failed to load connections"
+msgstr ""
+
+msgid "Failed to load directory"
+msgstr ""
+
+msgid "Failed to load emojis"
+msgstr ""
+
+msgid "Failed to load image"
+msgstr ""
+
+msgid "Failed to load invites"
+msgstr ""
+
+msgid "Failed to load messages: %s\nClick to retry"
+msgstr ""
+
+msgid "Failed to load reports"
+msgstr ""
+
+msgid "Failed to load settings"
+msgstr ""
+
+msgid "Failed to load sounds"
+msgstr ""
+
+msgid "Failed to load sounds."
+msgstr ""
+
+msgid "Failed to load spaces"
+msgstr ""
+
+msgid "Failed to load users"
+msgstr ""
+
+msgid "Failed to moderate member"
+msgstr ""
+
+msgid "Failed to open file"
+msgstr ""
+
+msgid "Failed to open file."
+msgstr ""
+
+msgid "Failed to regenerate backup codes"
+msgstr ""
+
+msgid "Failed to remove timeout"
+msgstr ""
+
+msgid "Failed to rename sound"
+msgstr ""
+
+msgid "Failed to reorder channels"
+msgstr ""
+
+msgid "Failed to reorder roles"
+msgstr ""
+
+msgid "Failed to reset password"
+msgstr ""
+
+msgid "Failed to revoke %d invite(s)"
+msgstr ""
+
+msgid "Failed to save profile"
+msgstr ""
+
+msgid "Failed to save settings"
+msgstr ""
+
+msgid "Failed to send friend request. Please try again."
+msgstr ""
+
+msgid "Failed to send: %s"
+msgstr ""
+
+msgid "Failed to submit report"
+msgstr ""
+
+msgid "Failed to transfer ownership"
+msgstr ""
+
+msgid "Failed to unban %d user(s)"
+msgstr ""
+
+msgid "Failed to uninstall plugin"
+msgstr ""
+
+msgid "Failed to update category"
+msgstr ""
+
+msgid "Failed to update channel"
+msgstr ""
+
+msgid "Failed to update nickname"
+msgstr ""
+
+msgid "Failed to update permissions"
+msgstr ""
+
+msgid "Failed to update role"
+msgstr ""
+
+msgid "Failed to update settings"
+msgstr ""
+
+msgid "Failed to update space"
+msgstr ""
+
+msgid "Failed to update user"
+msgstr ""
+
+msgid "Failed to update volume"
+msgstr ""
+
+msgid "Failed to upload emoji"
+msgstr ""
+
+msgid "Failed to upload sound"
+msgstr ""
+
+msgid "File is empty."
+msgstr ""
+
+msgid "File too large (max 25 MB): %s"
+msgstr ""
+
+msgid "Filter by name..."
+msgstr ""
+
+msgid "Filter by username..."
+msgstr ""
+
+msgid "Folder Color"
+msgstr ""
+
+msgid "Folder name"
+msgstr ""
+
+msgid "Folder name:"
+msgstr ""
+
+msgid "Forum"
+msgstr ""
+
+msgid "Fraud / Scam"
+msgstr ""
+
+msgid "Friends since %s"
+msgstr ""
+
+msgid "GDExtension for real-time voice and video."
+msgstr ""
+
+msgid "GIF - Click to view"
+msgstr ""
+
+msgid "Guest access not available"
+msgstr ""
+
+msgid "Hate Speech"
+msgstr ""
+
+msgid "Hate crime / Hate speech"
+msgstr ""
+
+msgid "Heartbeat timeout"
+msgstr ""
+
+msgid "High"
+msgstr ""
+
+msgid "I agree to the "
+msgstr ""
+
+msgid "IDLE"
+msgstr ""
+
+msgid "IDLE TIMEOUT"
+msgstr ""
+
+msgid "Idle"
+msgstr ""
+
+msgid "Import"
+msgstr ""
+
+msgid "Import Profile"
+msgstr ""
+
+msgid "Import failed (error %d)."
+msgstr ""
+
+msgid "Imported"
+msgstr ""
+
+msgid "INCOMING"
+msgstr ""
+
+msgid "Incoming Friend Request"
+msgstr ""
+
+msgid "Incorrect password."
+msgstr ""
+
+msgid "Input"
+msgstr ""
+
+msgid "Input Background"
+msgstr ""
+
+msgid "INPUT DEVICE"
+msgstr ""
+
+msgid "INPUT SENSITIVITY"
+msgstr ""
+
+msgid "INPUT VOLUME"
+msgstr ""
+
+msgid "Instance Admin"
+msgstr ""
+
+msgid "Invalid gateway intent"
+msgstr ""
+
+msgid "Invalid guest token response."
+msgstr ""
+
+msgid "Invisible"
+msgstr ""
+
+msgid "Invite Create"
+msgstr ""
+
+msgid "Invite Delete"
+msgstr ""
+
+msgid "Invite Only"
+msgstr ""
+
+msgid "Invites"
+msgstr ""
+
+msgid "It contains %d channel(s)"
+msgstr ""
+
+msgid "JPEG Images"
+msgstr ""
+
+msgid "Join Server"
+msgstr ""
+
+msgid "Joining..."
+msgstr ""
+
+msgid "Kick"
+msgstr ""
+
+msgid "Kick %s"
+msgstr ""
+
+msgid "Kick %s from this space?"
+msgstr ""
+
+msgid "Kick User"
+msgstr ""
+
+msgid "LANGUAGE"
+msgstr ""
+
+msgid "Large paste detected (%s). Click here to attach as .txt instead."
+msgstr ""
+
+msgid "Latest Activity"
+msgstr ""
+
+msgid "Launch"
+msgstr ""
+
+msgid "Leave"
+msgstr ""
+
+msgid "Leave Group"
+msgstr ""
+
+msgid "Let's Check"
+msgstr ""
+
+msgid "License: MIT"
+msgstr ""
+
+msgid "Light"
+msgstr ""
+
+msgid "List on public server directory"
+msgstr ""
+
+msgid "Listening to "
+msgstr ""
+
+msgid "Load More"
+msgstr ""
+
+msgid "Loading connections..."
+msgstr ""
+
+msgid "Loading members..."
+msgstr ""
+
+msgid "Loading messages..."
+msgstr ""
+
+msgid "Loading replies..."
+msgstr ""
+
+msgid "Loading reply..."
+msgstr ""
+
+msgid "Loading reports..."
+msgstr ""
+
+msgid "Loading servers..."
+msgstr ""
+
+msgid "Loading spaces..."
+msgstr ""
+
+msgid "Loading threads..."
+msgstr ""
+
+msgid "Loading timed out. Click to retry"
+msgstr ""
+
+msgid "Loading users..."
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Lobby"
+msgstr ""
+
+msgid "Low"
+msgstr ""
+
+msgid "Lua scripting for Godot."
+msgstr ""
+
+msgid "MIT License — Copyright (c) 2025 daccord-projects"
+msgstr ""
+
+msgid "MASTER SERVER URL"
+msgstr ""
+
+msgid "MAX MEMBERS PER SPACE (0 = unlimited)"
+msgstr ""
+
+msgid "MAX SPACES (0 = unlimited)"
+msgstr ""
+
+msgid "Mark Reviewed"
+msgstr ""
+
+msgid "Maximum %d attachments per message"
+msgstr ""
+
+msgid "Measuring..."
+msgstr ""
+
+msgid "Medium"
+msgstr ""
+
+msgid "Medium-Dark"
+msgstr ""
+
+msgid "Medium-Light"
+msgstr ""
+
+msgid "Member Ban Add"
+msgstr ""
+
+msgid "Member Ban Remove"
+msgstr ""
+
+msgid "Member Kick"
+msgstr ""
+
+msgid "Member Update"
+msgstr ""
+
+msgid "Member since %s"
+msgstr ""
+
+msgid "Members"
+msgstr ""
+
+msgid "MEMBERS"
+msgstr ""
+
+msgid "Members Without Roles"
+msgstr ""
+
+msgid "Mentions Only"
+msgstr ""
+
+msgid "Message"
+msgstr ""
+
+msgid "Message #%s"
+msgstr ""
+
+msgid "Message %s"
+msgstr ""
+
+msgid "Message Delete"
+msgstr ""
+
+msgid "Message ID: %s"
+msgstr ""
+
+msgid "MESSAGE OF THE DAY"
+msgstr ""
+
+msgid "Message queued — will send when reconnected"
+msgstr ""
+
+msgid "Message: %s"
+msgstr ""
+
+msgid "Messages will be queued and sent when reconnected"
+msgstr ""
+
+msgid "MFA verification failed"
+msgstr ""
+
+msgid "MIC TEST"
+msgstr ""
+
+msgid "Missing server information"
+msgstr ""
+
+msgid "Moderate"
+msgstr ""
+
+msgid "Moderate %s"
+msgstr ""
+
+msgid "Monitor output"
+msgstr ""
+
+msgid "Monokai"
+msgstr ""
+
+msgid "Move"
+msgstr ""
+
+msgid "Move Down"
+msgstr ""
+
+msgid "Move Up"
+msgstr ""
+
+msgid "Move to Folder"
+msgstr ""
+
+msgid "Mute"
+msgstr ""
+
+msgid "Mute Category"
+msgstr ""
+
+msgid "Mute Channel"
+msgstr ""
+
+msgid "Mute Server"
+msgstr ""
+
+msgid "Mute this server"
+msgstr ""
+
+msgid "Muted"
+msgstr ""
+
+msgid "Muted Text"
+msgstr ""
+
+msgid "My Account"
+msgstr ""
+
+msgid "My Space"
+msgstr ""
+
+msgid "NEW PASSWORD"
+msgstr ""
+
+msgid "Name Imported Profile"
+msgstr ""
+
+msgid "Name must be 32 characters or less."
+msgstr ""
+
+msgid "Native plugins run GDScript scenes with full access to "
+msgstr ""
+
+msgid "Nav"
+msgstr ""
+
+msgid "Navigation Background"
+msgstr ""
+
+msgid "Never"
+msgstr ""
+
+msgid "New Post"
+msgstr ""
+
+msgid "New Profile"
+msgstr ""
+
+msgid "New Role"
+msgstr ""
+
+msgid "New folder name:"
+msgstr ""
+
+msgid "New group name"
+msgstr ""
+
+msgid "New members will be shown the rules channel "
+msgstr ""
+
+msgid "New password is required."
+msgstr ""
+
+msgid "New password must be at least 8 characters"
+msgstr ""
+
+msgid "New password must be at least 8 characters."
+msgstr ""
+
+msgid "Newest"
+msgstr ""
+
+msgid "Nickname: %s"
+msgstr ""
+
+msgid "No active threads"
+msgstr ""
+
+msgid "No activities installed on this server."
+msgstr ""
+
+msgid "No backup codes available"
+msgstr ""
+
+msgid "No blocked users."
+msgstr ""
+
+msgid "No camera detected"
+msgstr ""
+
+msgid "No channels yet"
+msgstr ""
+
+msgid "No connections linked."
+msgstr ""
+
+msgid "No description available."
+msgstr ""
+
+msgid "No friends online."
+msgstr ""
+
+msgid "No friends yet. Add someone!"
+msgstr ""
+
+msgid "No members found."
+msgstr ""
+
+msgid "No messages yet"
+msgstr ""
+
+msgid "No pending requests."
+msgstr ""
+
+msgid "No plugins installed."
+msgstr ""
+
+msgid "No posts yet"
+msgstr ""
+
+msgid "No reason provided"
+msgstr ""
+
+msgid "No reports."
+msgstr ""
+
+msgid "No results found"
+msgstr ""
+
+msgid "No Role — %d"
+msgstr ""
+
+msgid "No screens or windows found"
+msgstr ""
+
+msgid "No servers found"
+msgstr ""
+
+msgid "No sounds available."
+msgstr ""
+
+msgid "No sounds match your search."
+msgstr ""
+
+msgid "No spaces found."
+msgstr ""
+
+msgid "No thanks"
+msgstr ""
+
+msgid "No token received from server."
+msgstr ""
+
+msgid "No users found."
+msgstr ""
+
+msgid "None"
+msgstr ""
+
+msgid "Nord"
+msgstr ""
+
+msgid "Not connected"
+msgstr ""
+
+msgid "Not connected to this server."
+msgstr ""
+
+msgid "Not connected."
+msgstr ""
+
+msgid "Nothing"
+msgstr ""
+
+msgid "Notification Settings"
+msgstr ""
+
+msgid "Notifications"
+msgstr ""
+
+msgid "OGG Opus is not supported. Please use OGG Vorbis, MP3, or WAV."
+msgstr ""
+
+msgid "OFFLINE"
+msgstr ""
+
+msgid "ONLINE"
+msgstr ""
+
+msgid "OPEN SOURCE CREDITS"
+msgstr ""
+
+msgid "OTP URI: %s"
+msgstr ""
+
+msgid "OUTGOING"
+msgstr ""
+
+msgid "Oldest"
+msgstr ""
+
+msgid "Online"
+msgstr ""
+
+msgid "Only Mentions"
+msgstr ""
+
+msgid "Open"
+msgstr ""
+
+msgid "Open Server Management"
+msgstr ""
+
+msgid "Open Text Chat"
+msgstr ""
+
+msgid "Open Thread"
+msgstr ""
+
+msgid "Other"
+msgstr ""
+
+msgid "Other illegal content"
+msgstr ""
+
+msgid "Outgoing Friend Request"
+msgstr ""
+
+msgid "OUTPUT DEVICE"
+msgstr ""
+
+msgid "OUTPUT VOLUME"
+msgstr ""
+
+msgid "PNG Images"
+msgstr ""
+
+msgid "PARTICIPANTS — %d"
+msgstr ""
+
+msgid "PENDING"
+msgstr ""
+
+msgid "PASSWORD"
+msgstr ""
+
+msgid "Paste Theme"
+msgstr ""
+
+msgid "Password"
+msgstr ""
+
+msgid "Password (required to enable)"
+msgstr ""
+
+msgid "Password (to regenerate codes)"
+msgstr ""
+
+msgid "Password changed successfully"
+msgstr ""
+
+msgid "Password change failed"
+msgstr ""
+
+msgid "Password is required"
+msgstr ""
+
+msgid "Password is required."
+msgstr ""
+
+msgid "Password is required to regenerate codes"
+msgstr ""
+
+msgid "Password must be at least 8 characters."
+msgstr ""
+
+msgid "Password must be at most 128 characters."
+msgstr ""
+
+msgid "Passwords do not match"
+msgstr ""
+
+msgid "Passwords do not match."
+msgstr ""
+
+msgid "Pending"
+msgstr ""
+
+msgid "Permissions: #%s"
+msgstr ""
+
+msgid "Player %d"
+msgstr ""
+
+msgid "Players"
+msgstr ""
+
+msgid "Playing "
+msgstr ""
+
+msgid "Please enter a server URL."
+msgstr ""
+
+msgid "Please enter a username."
+msgstr ""
+
+msgid "Please select a category."
+msgstr ""
+
+msgid "Please type DELETE to confirm"
+msgstr ""
+
+msgid "Plugin upload is not supported on web."
+msgstr ""
+
+msgid "Plugins"
+msgstr ""
+
+msgid "Post"
+msgstr ""
+
+msgid "Post title"
+msgstr ""
+
+msgid "Preview"
+msgstr ""
+
+msgid "Preview mode — sending disabled"
+msgstr ""
+
+msgid "Previewing as %s"
+msgstr ""
+
+msgid "Profile Files"
+msgstr ""
+
+msgid "Profile exported successfully."
+msgstr ""
+
+msgid "Profile imported successfully."
+msgstr ""
+
+msgid "Profile name"
+msgstr ""
+
+msgid "Profile name is required."
+msgstr ""
+
+msgid "Profiles"
+msgstr ""
+
+msgid "Purge: %s"
+msgstr ""
+
+msgid "Quit"
+msgstr ""
+
+msgid "REGISTRATION POLICY"
+msgstr ""
+
+msgid "ROLES"
+msgstr ""
+
+msgid "Real-time communication platform."
+msgstr ""
+
+msgid "Reason: %s"
+msgstr ""
+
+msgid "Recently Used"
+msgstr ""
+
+msgid "Reconnect"
+msgstr ""
+
+msgid "Reconnected — syncing data..."
+msgstr ""
+
+msgid "Reconnected!"
+msgstr ""
+
+msgid "Reconnecting..."
+msgstr ""
+
+msgid "Reconnecting... (attempt %d/%d)"
+msgstr ""
+
+msgid "Reduce motion"
+msgstr ""
+
+msgid "Re-enable '%s'? They will be able to log in again."
+msgstr ""
+
+msgid "Regenerate Backup Codes"
+msgstr ""
+
+msgid "Register"
+msgstr ""
+
+msgid "Rejoin Server"
+msgstr ""
+
+msgid "Remove"
+msgstr ""
+
+msgid "Remove Friend"
+msgstr ""
+
+msgid "Remove Server"
+msgstr ""
+
+msgid "Remove %s from your friends?"
+msgstr ""
+
+msgid "Remove all spaces from '%s'?"
+msgstr ""
+
+msgid "Remove from Folder"
+msgstr ""
+
+msgid "Remove this friend from your local friend book? This cannot be undone."
+msgstr ""
+
+msgid "Rename"
+msgstr ""
+
+msgid "Rename Folder"
+msgstr ""
+
+msgid "Rename Group"
+msgstr ""
+
+msgid "Rename Group DM"
+msgstr ""
+
+msgid "Rename Profile"
+msgstr ""
+
+msgid "Reply in thread..."
+msgstr ""
+
+msgid "Replying to %s"
+msgstr ""
+
+msgid "Report"
+msgstr ""
+
+msgid "Report %s"
+msgstr ""
+
+msgid "Report Message"
+msgstr ""
+
+msgid "Report a Problem"
+msgstr ""
+
+msgid "Report sent. Thank you!"
+msgstr ""
+
+msgid "Report submitted. Thank you."
+msgstr ""
+
+msgid "Reported by %s"
+msgstr ""
+
+msgid "Reports"
+msgstr ""
+
+msgid "Reports (All Spaces)"
+msgstr ""
+
+msgid "Require ToS acceptance during registration"
+msgstr ""
+
+msgid "Reset"
+msgstr ""
+
+msgid "Reset Password"
+msgstr ""
+
+msgid "Reset to Preset"
+msgstr ""
+
+msgid "Resetting..."
+msgstr ""
+
+msgid "Restart to Update"
+msgstr ""
+
+msgid "Revoke"
+msgstr ""
+
+msgid "Revoke All"
+msgstr ""
+
+msgid "Revoke Invite"
+msgstr ""
+
+msgid "Revoke Selected (%d)"
+msgstr ""
+
+msgid "Role Create"
+msgstr ""
+
+msgid "Role Delete"
+msgstr ""
+
+msgid "Role Update"
+msgstr ""
+
+msgid "Role is above your highest role"
+msgstr ""
+
+msgid "Role: %s"
+msgstr ""
+
+msgid "Roles"
+msgstr ""
+
+msgid "Rules Channel"
+msgstr ""
+
+msgid "SEARCH"
+msgstr ""
+
+msgid "SEARCH MEMBERS"
+msgstr ""
+
+msgid "SOUND EVENTS"
+msgstr ""
+
+msgid "SPACE ICON"
+msgstr ""
+
+msgid "SPACE NAME"
+msgstr ""
+
+msgid "SUPPRESS @EVERYONE"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Save Changes"
+msgstr ""
+
+msgid "Save Settings"
+msgstr ""
+
+msgid "Save URL"
+msgstr ""
+
+msgid "Saving..."
+msgstr ""
+
+msgid "Screen Share"
+msgstr ""
+
+msgid "Screen capture permission denied"
+msgstr ""
+
+msgid "Screen sharing is not supported in the web client"
+msgstr ""
+
+msgid "Screens"
+msgstr ""
+
+msgid "Search"
+msgstr ""
+
+msgid "Search by username..."
+msgstr ""
+
+msgid "Search emoji..."
+msgstr ""
+
+msgid "Search members..."
+msgstr ""
+
+msgid "Search messages..."
+msgstr ""
+
+msgid "Searching..."
+msgstr ""
+
+msgid "Secret: %s"
+msgstr ""
+
+msgid "Select files to attach"
+msgstr ""
+
+msgid "Self-Harm"
+msgstr ""
+
+msgid "Send Report"
+msgstr ""
+
+msgid "Send Request"
+msgstr ""
+
+msgid "Send a message to get the conversation started!"
+msgstr ""
+
+msgid "Send a message to start the conversation."
+msgstr ""
+
+msgid "Send anonymous crash and error reports"
+msgstr ""
+
+msgid "Sending..."
+msgstr ""
+
+msgid "Server"
+msgstr ""
+
+msgid "SERVER NAME"
+msgstr ""
+
+msgid "Server Reports"
+msgstr ""
+
+msgid "Server Settings"
+msgstr ""
+
+msgid "Server closed connection"
+msgstr ""
+
+msgid "Server going away"
+msgstr ""
+
+msgid "Server requires 2FA but sent no ticket."
+msgstr ""
+
+msgid "Session expired"
+msgstr ""
+
+msgid "Set Custom Status"
+msgstr ""
+
+msgid "Set Password"
+msgstr ""
+
+msgid "Set a temporary password for '%s'."
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Show older messages"
+msgstr ""
+
+msgid "Shown to users on login"
+msgstr ""
+
+msgid "Sign In"
+msgstr ""
+
+msgid "Sign in to reply"
+msgstr ""
+
+msgid "Sign in to send a message"
+msgstr ""
+
+msgid "Since %s"
+msgstr ""
+
+msgid "Skip This Version"
+msgstr ""
+
+msgid "Solarized"
+msgstr ""
+
+msgid "Sound"
+msgstr ""
+
+msgid "Sound name cannot be empty."
+msgstr ""
+
+msgid "Sound name must contain only letters, numbers, and underscores."
+msgstr ""
+
+msgid "Soundboard"
+msgstr ""
+
+msgid "Space Update"
+msgstr ""
+
+msgid "Space name is required."
+msgstr ""
+
+msgid "Space Settings"
+msgstr ""
+
+msgid "Space: %s"
+msgstr ""
+
+msgid "Spaces"
+msgstr ""
+
+msgid "Spectator"
+msgstr ""
+
+msgid "Spectators"
+msgstr ""
+
+msgid "Start"
+msgstr ""
+
+msgid "Start Activity"
+msgstr ""
+
+msgid "Start the conversation by creating a new post!"
+msgstr ""
+
+msgid "Starting..."
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Status:"
+msgstr ""
+
+msgid "Stop Camera"
+msgstr ""
+
+msgid "Stop Sharing"
+msgstr ""
+
+msgid "Stop Test"
+msgstr ""
+
+msgid "Streaming "
+msgstr ""
+
+msgid "Submit Report"
+msgstr ""
+
+msgid "Submitting..."
+msgstr ""
+
+msgid "Success"
+msgstr ""
+
+msgid "Suppress @everyone"
+msgstr ""
+
+msgid "Suppress @everyone and @here"
+msgstr ""
+
+msgid "Suppress on this server"
+msgstr ""
+
+msgid "Switch"
+msgstr ""
+
+msgid "Syncing..."
+msgstr ""
+
+msgid "System"
+msgstr ""
+
+msgid "System Default Camera"
+msgstr ""
+
+msgid "TERMS OF SERVICE"
+msgstr ""
+
+msgid "THEME"
+msgstr ""
+
+msgid "TOS EXTERNAL URL (OPTIONAL)"
+msgstr ""
+
+msgid "TOS TEXT (MARKDOWN)"
+msgstr ""
+
+msgid "TYPE 'DELETE' TO CONFIRM"
+msgstr ""
+
+msgid "Terms of Service"
+msgstr ""
+
+msgid "Terrorism"
+msgstr ""
+
+msgid "Terrorism / Extremism"
+msgstr ""
+
+msgid "Testing framework."
+msgstr ""
+
+msgid "Text"
+msgstr ""
+
+msgid "The server requires you to change your password before continuing."
+msgstr ""
+
+msgid "The servers will remain in your server list."
+msgstr ""
+
+msgid "They will be required to change their password on next login."
+msgstr ""
+
+msgid "They will become unavailable but remain in your friend book."
+msgstr ""
+
+msgid "They won't be able to message you or send friend requests."
+msgstr ""
+
+msgid "This cannot be undone."
+msgstr ""
+
+msgid "This is the beginning of this channel."
+msgstr ""
+
+msgid "This plugin is not signed."
+msgstr ""
+
+msgid "This server is already added."
+msgstr ""
+
+msgid "This space doesn't have any channels yet. Check back soon!"
+msgstr ""
+
+msgid "This user already sent you a friend request. Check the Pending tab."
+msgstr ""
+
+msgid "This will revoke all their sessions and disable 2FA. "
+msgstr ""
+
+msgid "Threats of violence"
+msgstr ""
+
+msgid "Transfer"
+msgstr ""
+
+msgid "Transfer Ownership"
+msgstr ""
+
+msgid "Transfer ownership of '%s' to %s?"
+msgstr ""
+
+msgid "Trust & Run"
+msgstr ""
+
+msgid "Trust Native Plugin?"
+msgstr ""
+
+msgid "Two-Factor Auth"
+msgstr ""
+
+msgid "Two-Factor Authentication"
+msgstr ""
+
+msgid "Two-factor authentication is enabled."
+msgstr ""
+
+msgid "Two-factor authentication is not enabled."
+msgstr ""
+
+msgid "Unauthorized"
+msgstr ""
+
+msgid "Unavailable · %s on %s"
+msgstr ""
+
+msgid "Unban"
+msgstr ""
+
+msgid "Unban All"
+msgstr ""
+
+msgid "Unban Selected (%d)"
+msgstr ""
+
+msgid "Unban User"
+msgstr ""
+
+msgid "Unblock"
+msgstr ""
+
+msgid "Undeafen"
+msgstr ""
+
+msgid "Unexpected response from server."
+msgstr ""
+
+msgid "Uninstall"
+msgstr ""
+
+msgid "Uninstall Plugin"
+msgstr ""
+
+msgid "Unlock \\"
+msgstr ""
+
+msgid "Unmute"
+msgstr ""
+
+msgid "Unmute Category"
+msgstr ""
+
+msgid "Unmute Channel"
+msgstr ""
+
+msgid "Unmute Server"
+msgstr ""
+
+msgid "Unsaved Changes"
+msgstr ""
+
+msgid "Untitled Post"
+msgstr ""
+
+msgid "Update Available"
+msgstr ""
+
+msgid "Update Ready"
+msgstr ""
+
+msgid "Update available"
+msgstr ""
+
+msgid "Update ready — restart to apply"
+msgstr ""
+
+msgid "Updates"
+msgstr ""
+
+msgid "Upload Avatar"
+msgstr ""
+
+msgid "Upload Emoji"
+msgstr ""
+
+msgid "Upload Icon"
+msgstr ""
+
+msgid "Upload Plugin"
+msgstr ""
+
+msgid "Upload Sound"
+msgstr ""
+
+msgid "Uploading..."
+msgstr ""
+
+msgid "Use global default"
+msgstr ""
+
+msgid "User"
+msgstr ""
+
+msgid "User %s"
+msgstr ""
+
+msgid "User ID: %s"
+msgstr ""
+
+msgid "User not found."
+msgstr ""
+
+msgid "User-initiated report (no description)"
+msgstr ""
+
+msgid "User: %s"
+msgstr ""
+
+msgid "USERNAME"
+msgstr ""
+
+msgid "Username is required."
+msgstr ""
+
+msgid "Users"
+msgstr ""
+
+msgid "VOLUME"
+msgstr ""
+
+msgid "Verification failed"
+msgstr ""
+
+msgid "Verify"
+msgstr ""
+
+msgid "Verifying..."
+msgstr ""
+
+msgid "Version v%s skipped."
+msgstr ""
+
+msgid "VIDEO FPS"
+msgstr ""
+
+msgid "VIDEO RESOLUTION"
+msgstr ""
+
+msgid "View As..."
+msgstr ""
+
+msgid "View Changes"
+msgstr ""
+
+msgid "Violence"
+msgstr ""
+
+msgid "Voice"
+msgstr ""
+
+msgid "Voice & Video"
+msgstr ""
+
+msgid "Voice Connected"
+msgstr ""
+
+msgid "Voice error: %s"
+msgstr ""
+
+msgid "Waiting for players..."
+msgstr ""
+
+msgid "Watching "
+msgstr ""
+
+msgid "WebP Images"
+msgstr ""
+
+msgid "Welcome to #%s"
+msgstr ""
+
+msgid "What is this space about?"
+msgstr ""
+
+msgid "What's on your mind?"
+msgstr ""
+
+msgid "Windows"
+msgstr ""
+
+msgid "Write your post..."
+msgstr ""
+
+msgid "You already sent a friend request to this user."
+msgstr ""
+
+msgid "You are an instance administrator."
+msgstr ""
+
+msgid "You can't add yourself as a friend."
+msgstr ""
+
+msgid "You cannot edit roles at or above your own"
+msgstr ""
+
+msgid "You do not have permission to attach files"
+msgstr ""
+
+msgid "You do not have permission to send messages in this channel"
+msgstr ""
+
+msgid "You don't have"
+msgstr ""
+
+msgid "You don't have permission to mention @everyone"
+msgstr ""
+
+msgid "You don't have permission to reply in threads"
+msgstr ""
+
+msgid "You have %d friend%s on this server."
+msgstr ""
+
+msgid "You have this user blocked."
+msgstr ""
+
+msgid "You have unsaved changes. Discard?"
+msgstr ""
+
+msgid "You have unsaved permission changes. "
+msgstr ""
+
+msgid "You must accept the Terms of Service."
+msgstr ""
+
+msgid "You're already friends with this user."
+msgstr ""
+
+msgid "You're on the latest version."
+msgstr ""
+
+msgid "[Disabled]"
+msgstr ""
+
+msgid "[locked]"
+msgstr ""
+
+msgid "[original message unavailable]"
+msgstr ""
+
+msgid "\\← Back"
+msgstr ""
+
+msgid "daccord Profile"
+msgstr ""
+
+msgid "daccord v%s"
+msgstr ""
+
+msgid "edited"
+msgstr ""
+
+msgid "from %s"
+msgstr ""
+
+msgid "just now"
+msgstr ""
+
+msgid "now"
+msgstr ""
+
+msgid "replies"
+msgstr ""
+
+msgid "reply"
+msgstr ""
+
+msgid "saving..."
+msgstr ""
+
+msgid "that will become uncategorized."
+msgstr ""
+
+msgid "this user"
+msgstr ""
+
+msgid "unknown"
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "UNKNOWN"
+msgstr ""
+
+msgid "Unknown Plugin"
+msgstr ""
+
+msgid "Unknown Space"
+msgstr ""
+
+msgid "v%s is available"
+msgstr ""

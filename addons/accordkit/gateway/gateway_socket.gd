@@ -60,6 +60,9 @@ signal voice_signal(data: Dictionary)
 signal ban_create(data: Dictionary)
 signal ban_delete(data: Dictionary)
 
+# Reports
+signal report_create(data: Dictionary)
+
 # Invites
 signal invite_create(invite: AccordInvite)
 signal invite_delete(data: Dictionary)
@@ -73,6 +76,9 @@ signal plugin_uninstalled(data: Dictionary)
 signal plugin_event(data: Dictionary)
 signal plugin_session_state(data: Dictionary)
 signal plugin_role_changed(data: Dictionary)
+
+# Anonymous (guest) count
+signal anonymous_count_updated(data: Dictionary)
 
 # Emojis
 signal emoji_create(data: Dictionary)
@@ -375,6 +381,8 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			ban_create.emit(data)
 		"ban.delete":
 			ban_delete.emit(data)
+		"report.create":
+			report_create.emit(data)
 		"invite.create":
 			invite_create.emit(AccordInvite.from_dict(data))
 		"invite.delete":
@@ -391,6 +399,8 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			plugin_session_state.emit(data)
 		"plugin.role_changed":
 			plugin_role_changed.emit(data)
+		"anonymous_count.update":
+			anonymous_count_updated.emit(data)
 		"emoji.create":
 			emoji_create.emit(data)
 		"emoji.update":

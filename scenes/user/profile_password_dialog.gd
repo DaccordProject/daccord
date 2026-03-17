@@ -15,7 +15,7 @@ var _slug: String = ""
 func setup(slug: String, profile_name: String) -> void:
 	_slug = slug
 	if is_inside_tree():
-		_profile_label.text = "Unlock \"%s\"" % profile_name
+		_profile_label.text = tr("Unlock \"%s\"") % profile_name
 
 
 func _ready() -> void:
@@ -36,13 +36,13 @@ func _ready() -> void:
 func _on_unlock() -> void:
 	var pw := _password_input.text.strip_edges()
 	if pw.is_empty():
-		_show_error("Password is required.")
+		_show_error(tr("Password is required."))
 		return
 	if Config.profiles.verify_password(_slug, pw):
 		password_verified.emit(_slug)
 		queue_free()
 	else:
-		_show_error("Incorrect password.")
+		_show_error(tr("Incorrect password."))
 		_password_input.text = ""
 
 

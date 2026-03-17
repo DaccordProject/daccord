@@ -15,6 +15,8 @@ var _context_menu_data: Dictionary = {}
 var _delete_dialog: ConfirmationDialog
 var _pending_delete_id: String = ""
 var _reaction_picker: Control = null
+var _remove_reactions_dialog: ConfirmationDialog
+var _pending_remove_reactions: Dictionary = {}
 
 
 func _init(view: Control) -> void:
@@ -163,11 +165,22 @@ func on_context_menu_id_pressed(id: int) -> void:
 		3: # Add Reaction
 			open_reaction_picker(_context_menu_data)
 		4: # Remove All Reactions
-			var cid: String = _context_menu_data.get(
-				"channel_id", ""
-			)
-			var mid: String = _context_menu_data.get("id", "")
-			Client.remove_all_reactions(cid, mid)
+			_pending_remove_reactions = {
+				"channel_id": _context_menu_data.get(
+					"channel_id", ""
+				),
+				"message_id": _context_menu_data.get("id", ""),
+			}
+			if not _remove_reactions_dialog:
+				_remove_reactions_dialog = ConfirmationDialog.new()
+				_remove_reactions_dialog.dialog_text = (
+					"Remove all reactions from this message?"
+				)
+				_remove_reactions_dialog.confirmed.connect(
+					_on_remove_reactions_confirmed
+				)
+				_view.add_child(_remove_reactions_dialog)
+			_remove_reactions_dialog.popup_centered()
 		5: # Start Thread
 			AppState.open_thread(
 				_context_menu_data.get("id", "")
@@ -184,6 +197,18 @@ func on_context_menu_id_pressed(id: int) -> void:
 				var dialog := ReportDialogScene.instantiate()
 				_view.get_tree().root.add_child(dialog)
 				dialog.setup_message(sid, cid, mid)
+
+
+func _on_remove_reactions_confirmed() -> void:
+	var cid: String = _pending_remove_reactions.get(
+		"channel_id", ""
+	)
+	var mid: String = _pending_remove_reactions.get(
+		"message_id", ""
+	)
+	if not cid.is_empty() and not mid.is_empty():
+		Client.remove_all_reactions(cid, mid)
+	_pending_remove_reactions = {}
 
 
 func open_reaction_picker(msg_data: Dictionary) -> void:

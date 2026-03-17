@@ -18,13 +18,13 @@ func _ready() -> void:
 	add_theme_constant_override("separation", 12)
 
 	var title := Label.new()
-	title.text = "Lobby"
+	title.text = tr("Lobby")
 	title.add_theme_font_size_override("font_size", 16)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(title)
 
 	_status_label = Label.new()
-	_status_label.text = "Waiting for players..."
+	_status_label.text = tr("Waiting for players...")
 	_status_label.add_theme_font_size_override("font_size", 12)
 	_status_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -34,7 +34,7 @@ func _ready() -> void:
 
 	# Player slot grid
 	var slots_label := Label.new()
-	slots_label.text = "Players"
+	slots_label.text = tr("Players")
 	slots_label.add_theme_font_size_override("font_size", 13)
 	add_child(slots_label)
 
@@ -46,7 +46,7 @@ func _ready() -> void:
 
 	# Spectator section
 	var spec_label := Label.new()
-	spec_label.text = "Spectators"
+	spec_label.text = tr("Spectators")
 	spec_label.add_theme_font_size_override("font_size", 13)
 	add_child(spec_label)
 
@@ -56,7 +56,7 @@ func _ready() -> void:
 
 	# Start button (host only)
 	_start_btn = Button.new()
-	_start_btn.text = "Start Activity"
+	_start_btn.text = tr("Start Activity")
 	_start_btn.custom_minimum_size = Vector2(0, 40)
 	var btn_style := ThemeManager.make_flat_style("accent", 4, [16, 8, 16, 8])
 	_start_btn.add_theme_stylebox_override("normal", btn_style)
@@ -84,7 +84,7 @@ func update_participants(participants: Array) -> void:
 		if p.get("role", "spectator") == "player":
 			player_count += 1
 	_start_btn.disabled = player_count == 0
-	_status_label.text = "%d player(s) joined" % player_count
+	_status_label.text = tr("%d player(s) joined") % player_count
 
 
 func _rebuild_slots(participants: Array) -> void:
@@ -114,9 +114,9 @@ func _rebuild_slots(participants: Array) -> void:
 		label.add_theme_font_size_override("font_size", 13)
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		if i < players.size():
-			label.text = players[i].get("display_name", "Player %d" % (i + 1))
+			label.text = players[i].get("display_name", tr("Player %d") % (i + 1))
 		else:
-			label.text = "Empty Slot"
+			label.text = tr("Empty Slot")
 			label.add_theme_color_override(
 				"font_color", ThemeManager.get_color("text_muted")
 			)
@@ -126,7 +126,7 @@ func _rebuild_slots(participants: Array) -> void:
 	# Spectators
 	for spec in spectators:
 		var label := Label.new()
-		label.text = spec.get("display_name", "Spectator")
+		label.text = spec.get("display_name", tr("Spectator"))
 		label.add_theme_font_size_override("font_size", 12)
 		label.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")

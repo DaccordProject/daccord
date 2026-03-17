@@ -87,7 +87,7 @@ func _apply_theme() -> void:
 	_search_input.add_theme_stylebox_override("focus", input_style)
 
 func _fetch_directory(query: String = "", tag: String = "") -> void:
-	_show_status("Loading servers...")
+	_show_status(tr("Loading servers..."))
 	_clear_grid()
 
 	var master_url: String = Config.get_master_server_url()
@@ -102,7 +102,7 @@ func _fetch_directory(query: String = "", tag: String = "") -> void:
 		return
 
 	if not result.ok:
-		var msg: String = result.error.message if result.error else "Failed to load directory"
+		var msg: String = result.error.message if result.error else tr("Failed to load directory")
 		_show_status(msg)
 		return
 
@@ -117,7 +117,7 @@ func _fetch_directory(query: String = "", tag: String = "") -> void:
 	_all_spaces = spaces
 
 	if spaces.is_empty():
-		_show_status("No servers found")
+		_show_status(tr("No servers found"))
 		return
 
 	_status_label.visible = false
@@ -159,7 +159,7 @@ func _populate_tags(spaces: Array) -> void:
 
 	# Add "All" button
 	var all_btn := Button.new()
-	all_btn.text = "All"
+	all_btn.text = tr("All")
 	all_btn.flat = true
 	_style_tag_button(all_btn, _active_tag.is_empty())
 	all_btn.pressed.connect(func():
@@ -272,6 +272,7 @@ func _on_card_clicked(space_data: Dictionary) -> void:
 	_detail_view.setup(space_data)
 	_detail_view.back_pressed.connect(_on_detail_back)
 	_detail_view.join_pressed.connect(_on_detail_join_with_slug)
+	_detail_view.preview_pressed.connect(_on_detail_preview)
 
 	# Apply cached ping to detail view
 	var server_url: String = space_data.get("server_url", "")
@@ -294,11 +295,13 @@ func _on_detail_join_with_slug(server_url: String, space_id: String, space_slug:
 		join_requested.emit(server_url, space_id, space_slug)
 		return
 
-	# Check if already connected to this server
+	# Check if already connected to this server (with URL normalization)
+	var normalized_url := _normalize_url(server_url)
 	var servers := Config.get_servers()
 	for i in servers.size():
 		var server: Dictionary = servers[i]
-		if server["base_url"] == server_url and Client.is_server_connected(i):
+		if _normalize_url(server["base_url"]) == normalized_url \
+				and Client.is_server_connected(i):
 			# Already have credentials — join directly
 			_join_and_connect(
 				server_url, space_id, space_slug,
@@ -336,7 +339,7 @@ func _join_and_connect(
 		return
 
 	if not result.ok:
-		var msg: String = result.error.message if result.error else "Failed to join space"
+		var msg: String = result.error.message if result.error else tr("Failed to join space")
 		if _detail_view and is_instance_valid(_detail_view):
 			_detail_view.show_error(msg)
 		return
@@ -360,6 +363,63 @@ func _join_and_connect(
 	if not joined_space_id.is_empty():
 		AppState.select_space(joined_space_id)
 
+func _on_detail_preview(server_url: String, space_id: String) -> void:
+	# Connect as guest to preview the space without creating an account
+	var api_url := server_url + AccordConfig.API_BASE_PATH
+	var rest := AccordRest.new(api_url)
+	add_child(rest)
+	var auth := AuthApi.new(rest)
+	var result: RestResult = await auth.guest()
+	rest.queue_free()
+
+	if not is_instance_valid(self):
+		return
+
+	if not result.ok:
+		var msg: String = (
+			result.error.message if result.error else "Preview not available"
+		)
+		if _detail_view and is_instance_valid(_detail_view):
+			_detail_view.show_error(msg)
+		return
+
+	var token: String = result.data.get("token", "")
+	var expires_at: String = result.data.get("expires_at", "")
+	if token.is_empty():
+		if _detail_view and is_instance_valid(_detail_view):
+			_detail_view.show_error("Failed to get guest token")
+		return
+
+	# Close discovery and connect as guest
+	AppState.close_discovery()
+	var connect_result: Dictionary = await Client.connect_guest(
+		server_url, token, space_id, expires_at
+	)
+
+	if not is_instance_valid(self):
+		return
+
+	if connect_result.has("error"):
+		push_warning("[Discovery] Guest preview failed: ", connect_result["error"])
+		return
+
+	if not connect_result.get("space_id", "").is_empty():
+		AppState.select_space(connect_result["space_id"])
+
 func _on_close() -> void:
 	if not _embedded:
 		AppState.close_discovery()
+
+
+## Normalizes a server URL for comparison: lowercases scheme and host,
+## strips trailing slashes, and removes default port for the scheme.
+static func _normalize_url(url: String) -> String:
+	var s := url.strip_edges().to_lower().rstrip("/")
+	# Remove default ports
+	s = s.replace(":443", "").replace(":80", "")
+	# Normalize scheme — treat http/https as equivalent for matching
+	if s.begins_with("http://"):
+		s = s.substr(7)
+	elif s.begins_with("https://"):
+		s = s.substr(8)
+	return s

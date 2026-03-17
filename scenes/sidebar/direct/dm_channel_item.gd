@@ -43,7 +43,7 @@ func setup(data: Dictionary) -> void:
 		tooltip_text = custom_name
 	else:
 		username_label.text = user.get(
-			"display_name", "Unknown"
+			"display_name", tr("Unknown")
 		)
 		tooltip_text = user.get("display_name", "Unknown")
 
@@ -107,9 +107,9 @@ func _show_group_context_menu(pos: Vector2) -> void:
 	var is_owner: bool = _dm_data.get("owner_id", "") == my_id
 
 	if is_owner:
-		_context_menu.add_item("Add Member", 2)
-		_context_menu.add_item("Rename Group", 0)
-	_context_menu.add_item("Leave Group", 1)
+		_context_menu.add_item(tr("Add Member"), 2)
+		_context_menu.add_item(tr("Rename Group"), 0)
+	_context_menu.add_item(tr("Leave Group"), 1)
 
 	_context_menu.id_pressed.connect(_on_context_id_pressed)
 	_context_menu.popup(Rect2i(
@@ -125,9 +125,9 @@ func _on_context_id_pressed(id: int) -> void:
 func _rename_group() -> void:
 	# Show a simple rename dialog using AcceptDialog
 	var dialog := AcceptDialog.new()
-	dialog.title = "Rename Group DM"
+	dialog.title = tr("Rename Group DM")
 	var line := LineEdit.new()
-	line.placeholder_text = "New group name"
+	line.placeholder_text = tr("New group name")
 	line.text = _dm_data.get("name", "")
 	dialog.add_child(line)
 	dialog.confirmed.connect(func():

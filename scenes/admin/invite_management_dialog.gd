@@ -34,13 +34,13 @@ func _ready() -> void:
 	_select_all_check.toggled.connect(_on_select_all)
 	_bulk_revoke_btn.pressed.connect(_on_bulk_revoke)
 
-	_max_age_option.add_item("30 minutes", 0)
-	_max_age_option.add_item("1 hour", 1)
-	_max_age_option.add_item("6 hours", 2)
-	_max_age_option.add_item("12 hours", 3)
-	_max_age_option.add_item("1 day", 4)
-	_max_age_option.add_item("7 days", 5)
-	_max_age_option.add_item("Never", 6)
+	_max_age_option.add_item(tr("30 minutes"), 0)
+	_max_age_option.add_item(tr("1 hour"), 1)
+	_max_age_option.add_item(tr("6 hours"), 2)
+	_max_age_option.add_item(tr("12 hours"), 3)
+	_max_age_option.add_item(tr("1 day"), 4)
+	_max_age_option.add_item(tr("7 days"), 5)
+	_max_age_option.add_item(tr("Never"), 6)
 	_max_age_option.select(4) # Default: 1 day
 
 	_max_uses_spin.min_value = 0
@@ -64,7 +64,7 @@ func _load_invites() -> void:
 
 	var result: RestResult = await Client.admin.get_invites(_space_id)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to load invites"
+		var err_msg: String = tr("Failed to load invites")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -137,7 +137,7 @@ func _on_select_all(pressed: bool) -> void:
 func _update_bulk_ui() -> void:
 	_bulk_revoke_btn.visible = _selected_codes.size() > 0
 	if _selected_codes.size() > 0:
-		_bulk_revoke_btn.text = "Revoke Selected (%d)" % _selected_codes.size()
+		_bulk_revoke_btn.text = tr("Revoke Selected (%d)") % _selected_codes.size()
 
 func _on_bulk_revoke() -> void:
 	var count := _selected_codes.size()
@@ -146,9 +146,9 @@ func _on_bulk_revoke() -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Bulk Revoke",
-		"Are you sure you want to revoke %d invite(s)?" % count,
-		"Revoke All",
+		tr("Bulk Revoke"),
+		tr("Are you sure you want to revoke %d invite(s)?") % count,
+		tr("Revoke All"),
 		true
 	)
 	dialog.confirmed.connect(func():
@@ -160,17 +160,17 @@ func _on_bulk_revoke() -> void:
 		_selected_codes.clear()
 		_update_bulk_ui()
 		if failed > 0:
-			_error_label.text = "Failed to revoke %d invite(s)" % failed
+			_error_label.text = tr("Failed to revoke %d invite(s)") % failed
 			_error_label.visible = true
 	)
 
 func _toggle_create() -> void:
 	_create_form.visible = not _create_form.visible
-	_create_toggle.text = "Cancel" if _create_form.visible else "Create Invite"
+	_create_toggle.text = tr("Cancel") if _create_form.visible else tr("Create Invite")
 
 func _on_create() -> void:
 	_create_btn.disabled = true
-	_create_btn.text = "Creating..."
+	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
 
 	var age_map := [1800, 3600, 21600, 43200, 86400, 604800, 0]
@@ -182,26 +182,26 @@ func _on_create() -> void:
 
 	var result: RestResult = await Client.admin.create_invite(_space_id, data)
 	_create_btn.disabled = false
-	_create_btn.text = "Create"
+	_create_btn.text = tr("Create")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to create invite"
+		var err_msg: String = tr("Failed to create invite")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
 		_error_label.visible = true
 	else:
 		_create_form.visible = false
-		_create_toggle.text = "Create Invite"
+		_create_toggle.text = tr("Create Invite")
 		_load_invites()
 
 func _on_revoke(code: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Revoke Invite",
-		"Are you sure you want to revoke invite '%s'?" % code,
-		"Revoke",
+		tr("Revoke Invite"),
+		tr("Are you sure you want to revoke invite '%s'?") % code,
+		tr("Revoke"),
 		true
 	)
 	dialog.confirmed.connect(func():

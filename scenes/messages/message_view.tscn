@@ -79,6 +79,22 @@ custom_minimum_size = Vector2(80, 0)
 text = "Register"
 theme_override_font_sizes/font_size = 12
 
+[node name="NsfwBanner" type="PanelContainer" parent="VBox"]
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+
+[node name="HBox" type="HBoxContainer" parent="VBox/NsfwBanner"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="NsfwLabel" type="Label" parent="VBox/NsfwBanner/HBox"]
+layout_mode = 2
+text = "This channel is marked as age-restricted (NSFW)"
+theme_override_font_sizes/font_size = 12
+metadata/theme_font_color = "text_white"
+
 [node name="TopicBar" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 28)

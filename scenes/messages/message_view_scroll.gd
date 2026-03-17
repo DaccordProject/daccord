@@ -60,7 +60,7 @@ func on_older_messages_pressed() -> void:
 		return
 	is_loading_older = true
 	auto_scroll = false
-	_view.older_btn.text = "Loading..."
+	_view.older_btn.text = tr("Loading...")
 	_view.older_btn.disabled = true
 	var count_before: int = Client.get_messages_for_channel(
 		_view.current_channel_id
@@ -84,6 +84,6 @@ func on_older_messages_pressed() -> void:
 	var loaded := count_after - count_before
 	if loaded < Client.MESSAGE_CAP:
 		_view.older_btn.visible = false
-	_view.older_btn.text = "Show older messages"
+	_view.older_btn.text = tr("Show older messages")
 	_view.older_btn.disabled = false
 	is_loading_older = false

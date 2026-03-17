@@ -13,7 +13,7 @@ var _create_btn: Button
 var _error_label: Label
 
 func _ready() -> void:
-	_setup_modal("Create Space", 440.0, 400.0, true, 20.0)
+	_setup_modal(tr("Create Space"), 440.0, 400.0, true, 20.0)
 
 	# Override title font size to match original
 	if _modal_title_label:
@@ -21,7 +21,7 @@ func _ready() -> void:
 
 	# Icon upload
 	var icon_section := Label.new()
-	icon_section.text = "SPACE ICON"
+	icon_section.text = tr("SPACE ICON")
 	icon_section.add_theme_font_size_override("font_size", 11)
 	icon_section.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -37,7 +37,7 @@ func _ready() -> void:
 	_icon_preview.custom_minimum_size = Vector2(48, 48)
 	icon_row.add_child(_icon_preview)
 	var upload_btn := SettingsBase.create_secondary_button(
-		"Upload Icon"
+		tr("Upload Icon")
 	)
 	upload_btn.pressed.connect(_on_icon_upload)
 	icon_row.add_child(upload_btn)
@@ -45,19 +45,19 @@ func _ready() -> void:
 
 	# Name
 	var name_label := Label.new()
-	name_label.text = "SPACE NAME"
+	name_label.text = tr("SPACE NAME")
 	name_label.add_theme_font_size_override("font_size", 11)
 	name_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
 	content_container.add_child(name_label)
 	_name_input = LineEdit.new()
-	_name_input.placeholder_text = "My Space"
+	_name_input.placeholder_text = tr("My Space")
 	content_container.add_child(_name_input)
 
 	# Description
 	var desc_label := Label.new()
-	desc_label.text = "DESCRIPTION (optional)"
+	desc_label.text = tr("DESCRIPTION (optional)")
 	desc_label.add_theme_font_size_override("font_size", 11)
 	desc_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -65,7 +65,7 @@ func _ready() -> void:
 	content_container.add_child(desc_label)
 	_desc_input = TextEdit.new()
 	_desc_input.custom_minimum_size = Vector2(0, 60)
-	_desc_input.placeholder_text = "What is this space about?"
+	_desc_input.placeholder_text = tr("What is this space about?")
 	content_container.add_child(_desc_input)
 
 	# Error
@@ -78,7 +78,7 @@ func _ready() -> void:
 	content_container.add_child(_error_label)
 
 	# Create button
-	_create_btn = SettingsBase.create_action_button("Create")
+	_create_btn = SettingsBase.create_action_button(tr("Create"))
 	_create_btn.pressed.connect(_on_create)
 	content_container.add_child(_create_btn)
 
@@ -114,12 +114,12 @@ func _on_icon_upload() -> void:
 func _on_create() -> void:
 	var sname: String = _name_input.text.strip_edges()
 	if sname.is_empty():
-		_error_label.text = "Space name is required."
+		_error_label.text = tr("Space name is required.")
 		_error_label.visible = true
 		return
 
 	_create_btn.disabled = true
-	_create_btn.text = "Creating..."
+	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
 
 	var data: Dictionary = {"name": sname}
@@ -132,10 +132,10 @@ func _on_create() -> void:
 	var result: RestResult = await Client.admin.create_space(data)
 
 	_create_btn.disabled = false
-	_create_btn.text = "Create"
+	_create_btn.text = tr("Create")
 
 	if result == null or not result.ok:
-		var msg := "Failed to create space"
+		var msg := tr("Failed to create space")
 		if result != null and result.error:
 			msg = result.error.message
 		_error_label.text = msg

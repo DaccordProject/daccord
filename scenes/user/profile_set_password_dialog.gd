@@ -41,35 +41,35 @@ func _on_save() -> void:
 	if _has_existing_pw:
 		old_pw = _current_input.text.strip_edges()
 		if old_pw.is_empty():
-			_show_error("Current password is required.")
+			_show_error(tr("Current password is required."))
 			return
 
 	var new_pw := _new_input.text.strip_edges()
 	if new_pw.is_empty():
-		_show_error("New password is required.")
+		_show_error(tr("New password is required."))
 		return
 
 	var confirm := _confirm_input.text.strip_edges()
 	if new_pw != confirm:
-		_show_error("Passwords do not match.")
+		_show_error(tr("Passwords do not match."))
 		return
 
 	if Config.profiles.set_password(_slug, old_pw, new_pw):
 		queue_free()
 	else:
-		_show_error("Current password is incorrect.")
+		_show_error(tr("Current password is incorrect."))
 		_current_input.text = ""
 
 
 func _on_remove() -> void:
 	var old_pw := _current_input.text.strip_edges()
 	if old_pw.is_empty():
-		_show_error("Current password is required to remove it.")
+		_show_error(tr("Current password is required to remove it."))
 		return
 	if Config.profiles.set_password(_slug, old_pw, ""):
 		queue_free()
 	else:
-		_show_error("Current password is incorrect.")
+		_show_error(tr("Current password is incorrect."))
 		_current_input.text = ""
 
 

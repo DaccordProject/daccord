@@ -23,6 +23,12 @@ func on_ban_delete(_data: Dictionary, conn_index: int) -> void:
 	var space_id: String = _c._connections[conn_index]["space_id"]
 	AppState.bans_updated.emit(space_id)
 
+func on_report_create(_data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.reports_updated.emit(space_id)
+
 func on_invite_create(_invite: AccordInvite, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
@@ -123,6 +129,15 @@ func on_plugin_role_changed(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	_c.plugins.on_plugin_role_changed(data, conn_index)
+
+# --- Anonymous count events ---
+
+func on_anonymous_count_updated(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	var count: int = data.get("count", 0)
+	AppState.anonymous_count_updated.emit(space_id, count)
 
 # --- Voice events ---
 

@@ -26,10 +26,10 @@ func _ready() -> void:
 	_filter_option.item_selected.connect(_on_filter_changed)
 	_load_more_btn.pressed.connect(_on_load_more)
 
-	_filter_option.add_item("All", 0)
-	_filter_option.add_item("Pending", 1)
-	_filter_option.add_item("Actioned", 2)
-	_filter_option.add_item("Dismissed", 3)
+	_filter_option.add_item(tr("All"), 0)
+	_filter_option.add_item(tr("Pending"), 1)
+	_filter_option.add_item(tr("Actioned"), 2)
+	_filter_option.add_item(tr("Dismissed"), 3)
 
 func setup(space_id: String) -> void:
 	_space_id = space_id
@@ -40,7 +40,7 @@ func setup(space_id: String) -> void:
 
 func setup_server_wide() -> void:
 	_is_server_wide = true
-	_title_label.text = "All Reports (Server-wide)"
+	_title_label.text = tr("All Reports (Server-wide)")
 	_all_space_ids.clear()
 	for space in Client.spaces:
 		var sid: String = space.get("id", "")
@@ -79,7 +79,7 @@ func _fetch_page() -> void:
 		_space_id, query
 	)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to load reports"
+		var err_msg: String = tr("Failed to load reports")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -152,7 +152,7 @@ func _rebuild_list() -> void:
 			var sid: String = report_dict.get("_space_id", "")
 			var space: Dictionary = Client.get_space_by_id(sid)
 			var sname: String = space.get("name", sid)
-			row.tooltip_text = "Space: %s" % sname
+			row.tooltip_text = tr("Space: %s") % sname
 
 func _get_selected_status() -> String:
 	var idx: int = _filter_option.selected
@@ -166,10 +166,10 @@ func _on_filter_changed(_idx: int) -> void:
 
 func _on_load_more() -> void:
 	_load_more_btn.disabled = true
-	_load_more_btn.text = "Loading..."
+	_load_more_btn.text = tr("Loading...")
 	await _fetch_page()
 	_load_more_btn.disabled = false
-	_load_more_btn.text = "Load More"
+	_load_more_btn.text = tr("Load More")
 
 func _on_action_report(report_id: String, action_type: String) -> void:
 	var report: Dictionary = _find_report(report_id)
@@ -191,9 +191,9 @@ func _on_action_report(report_id: String, action_type: String) -> void:
 				var user: Dictionary = Client.get_user_by_id(target_id)
 				var dname: String = user.get("display_name", target_id)
 				dialog.setup(
-					"Kick User",
-					"Kick %s from this space?" % dname,
-					"Kick", true
+					tr("Kick User"),
+					tr("Kick %s from this space?") % dname,
+					tr("Kick"), true
 				)
 				dialog.confirmed.connect(func():
 					await Client.admin.kick_member(sid, target_id)
@@ -207,9 +207,9 @@ func _on_action_report(report_id: String, action_type: String) -> void:
 				var user: Dictionary = Client.get_user_by_id(target_id)
 				var dname: String = user.get("display_name", target_id)
 				dialog.setup(
-					"Ban User",
-					"Ban %s from this space?" % dname,
-					"Ban", true
+					tr("Ban User"),
+					tr("Ban %s from this space?") % dname,
+					tr("Ban"), true
 				)
 				dialog.confirmed.connect(func():
 					await Client.admin.ban_member(sid, target_id)

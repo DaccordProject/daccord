@@ -46,22 +46,22 @@ func on_server_disconnected(
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
 	var display := _code_to_message(code)
 	if display.is_empty():
-		display = reason if not reason.is_empty() else "Connection lost"
-	status_label.text = "%s. Reconnecting..." % display
+		display = reason if not reason.is_empty() else tr("Connection lost")
+	status_label.text = tr("%s. Reconnecting...") % display
 	retry_button.visible = false
 	connection_banner.visible = true
 
 
 static func _code_to_message(code: int) -> String:
 	match code:
-		4003: return "Authentication failed"
-		4004: return "Session expired"
-		4012: return "Invalid gateway intent"
-		4013: return "Disallowed gateway intent"
-		4014: return "Unauthorized"
-		4000: return "Heartbeat timeout"
-		1000: return "Server closed connection"
-		1001: return "Server going away"
+		4003: return TranslationServer.translate("Authentication failed")
+		4004: return TranslationServer.translate("Session expired")
+		4012: return TranslationServer.translate("Invalid gateway intent")
+		4013: return TranslationServer.translate("Disallowed gateway intent")
+		4014: return TranslationServer.translate("Unauthorized")
+		4000: return TranslationServer.translate("Heartbeat timeout")
+		1000: return TranslationServer.translate("Server closed connection")
+		1001: return TranslationServer.translate("Server going away")
 		_: return ""
 
 
@@ -72,7 +72,7 @@ func on_server_reconnecting(
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
-	status_label.text = "Reconnecting... (attempt %d/%d)" % [
+	status_label.text = tr("Reconnecting... (attempt %d/%d)") % [
 		attempt, max_attempts
 	]
 	retry_button.visible = false
@@ -83,7 +83,7 @@ func on_server_reconnected(space_id: String) -> void:
 	if space_id != _get_space_for_channel.call():
 		return
 	connection_banner.add_theme_stylebox_override("panel", _style_warning)
-	status_label.text = "Reconnected \u2014 syncing data..."
+	status_label.text = tr("Reconnected \u2014 syncing data...")
 	retry_button.visible = false
 	connection_banner.visible = true
 
@@ -92,7 +92,7 @@ func on_server_synced(space_id: String) -> void:
 	if space_id != _get_space_for_channel.call():
 		return
 	connection_banner.add_theme_stylebox_override("panel", _style_success)
-	status_label.text = "Reconnected!"
+	status_label.text = tr("Reconnected!")
 	retry_button.visible = false
 	connection_banner.visible = true
 	_hide_timer.start()
@@ -105,7 +105,7 @@ func on_server_connection_failed(
 		return
 	_hide_timer.stop()
 	connection_banner.add_theme_stylebox_override("panel", _style_error)
-	status_label.text = "Connection failed: %s" % reason
+	status_label.text = tr("Connection failed: %s") % reason
 	retry_button.visible = true
 	connection_banner.visible = true
 
@@ -124,21 +124,21 @@ func sync_to_connection() -> void:
 			connection_banner.add_theme_stylebox_override(
 				"panel", _style_warning
 			)
-			status_label.text = "Connecting..."
+			status_label.text = tr("Connecting...")
 			retry_button.visible = false
 			connection_banner.visible = true
 		"disconnected", "reconnecting":
 			connection_banner.add_theme_stylebox_override(
 				"panel", _style_warning
 			)
-			status_label.text = "Reconnecting..."
+			status_label.text = tr("Reconnecting...")
 			retry_button.visible = false
 			connection_banner.visible = true
 		"error":
 			connection_banner.add_theme_stylebox_override(
 				"panel", _style_error
 			)
-			status_label.text = "Connection failed"
+			status_label.text = tr("Connection failed")
 			retry_button.visible = true
 			connection_banner.visible = true
 
@@ -150,7 +150,7 @@ func on_retry_pressed() -> void:
 		connection_banner.add_theme_stylebox_override(
 			"panel", _style_warning
 		)
-		status_label.text = "Reconnecting..."
+		status_label.text = tr("Reconnecting...")
 		retry_button.visible = false
 		Client._auto_reconnect_attempted.erase(idx)
 		Client.reconnect_server(idx)

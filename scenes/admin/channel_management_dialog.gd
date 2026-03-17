@@ -35,11 +35,11 @@ func _ready() -> void:
 	_select_all_check.toggled.connect(_on_select_all)
 	_bulk_delete_btn.pressed.connect(_on_bulk_delete)
 
-	_create_type.add_item("Text", 0)
-	_create_type.add_item("Voice", 1)
-	_create_type.add_item("Announcement", 2)
-	_create_type.add_item("Forum", 3)
-	_create_type.add_item("Category", 4)
+	_create_type.add_item(tr("Text"), 0)
+	_create_type.add_item(tr("Voice"), 1)
+	_create_type.add_item(tr("Announcement"), 2)
+	_create_type.add_item(tr("Forum"), 3)
+	_create_type.add_item(tr("Category"), 4)
 
 	AppState.channels_updated.connect(_on_channels_updated)
 
@@ -111,7 +111,7 @@ func _on_select_all(pressed: bool) -> void:
 func _update_bulk_ui() -> void:
 	_bulk_delete_btn.visible = _selected_ids.size() > 0
 	if _selected_ids.size() > 0:
-		_bulk_delete_btn.text = "Delete Selected (%d)" % _selected_ids.size()
+		_bulk_delete_btn.text = tr("Delete Selected (%d)") % _selected_ids.size()
 
 func _on_bulk_delete() -> void:
 	var count := _selected_ids.size()
@@ -120,9 +120,9 @@ func _on_bulk_delete() -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Bulk Delete",
-		"Are you sure you want to delete %d channel(s)? This cannot be undone." % count,
-		"Delete All",
+		tr("Bulk Delete"),
+		tr("Are you sure you want to delete %d channel(s)? This cannot be undone.") % count,
+		tr("Delete All"),
 		true
 	)
 	dialog.confirmed.connect(func():
@@ -159,7 +159,7 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 
 	var result: RestResult = await Client.admin.reorder_channels(_space_id, data)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to reorder channels"
+		var err_msg: String = tr("Failed to reorder channels")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_show_error(err_msg)
@@ -168,7 +168,7 @@ func _on_move_channel(ch: Dictionary, direction: int) -> void:
 
 func _rebuild_parent_options() -> void:
 	_create_parent.clear()
-	_create_parent.add_item("None", 0)
+	_create_parent.add_item(tr("None"), 0)
 	var channels: Array = Client.get_channels_for_space(_space_id)
 	var idx: int = 1
 	for ch in channels:
@@ -179,16 +179,16 @@ func _rebuild_parent_options() -> void:
 
 func _toggle_create_form() -> void:
 	_create_form.visible = not _create_form.visible
-	_create_toggle.text = "Cancel" if _create_form.visible else "Create Channel"
+	_create_toggle.text = tr("Cancel") if _create_form.visible else tr("Create Channel")
 
 func _on_create() -> void:
 	var ch_name: String = _create_name.text.strip_edges()
 	if ch_name.is_empty():
-		_show_error("Channel name cannot be empty.")
+		_show_error(tr("Channel name cannot be empty."))
 		return
 
 	_create_btn.disabled = true
-	_create_btn.text = "Creating..."
+	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
 
 	var type_map := ["text", "voice", "announcement", "forum", "category"]
@@ -205,17 +205,17 @@ func _on_create() -> void:
 
 	var result: RestResult = await Client.admin.create_channel(_space_id, data)
 	_create_btn.disabled = false
-	_create_btn.text = "Create"
+	_create_btn.text = tr("Create")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to create channel"
+		var err_msg: String = tr("Failed to create channel")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_show_error(err_msg)
 	else:
 		_create_name.text = ""
 		_create_form.visible = false
-		_create_toggle.text = "Create Channel"
+		_create_toggle.text = tr("Create Channel")
 
 func _on_edit_channel(ch: Dictionary) -> void:
 	var dialog := ChannelEditScene.instantiate()
@@ -231,9 +231,9 @@ func _on_delete_channel(ch: Dictionary) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Channel",
-		"Are you sure you want to delete #%s? This cannot be undone." % ch.get("name", ""),
-		"Delete",
+		tr("Delete Channel"),
+		tr("Are you sure you want to delete #%s? This cannot be undone.") % ch.get("name", ""),
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func():

@@ -57,7 +57,7 @@ func _fetch_page() -> void:
 		_space_id, query
 	)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to load bans"
+		var err_msg: String = tr("Failed to load bans")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -144,7 +144,7 @@ func _on_select_all(pressed: bool) -> void:
 func _update_bulk_ui() -> void:
 	_bulk_unban_btn.visible = _selected_user_ids.size() > 0
 	if _selected_user_ids.size() > 0:
-		_bulk_unban_btn.text = "Unban Selected (%d)" % _selected_user_ids.size()
+		_bulk_unban_btn.text = tr("Unban Selected (%d)") % _selected_user_ids.size()
 
 func _on_bulk_unban() -> void:
 	var count := _selected_user_ids.size()
@@ -153,9 +153,9 @@ func _on_bulk_unban() -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Bulk Unban",
-		"Are you sure you want to unban %d user(s)?" % count,
-		"Unban All",
+		tr("Bulk Unban"),
+		tr("Are you sure you want to unban %d user(s)?") % count,
+		tr("Unban All"),
 		false
 	)
 	dialog.confirmed.connect(func():
@@ -167,7 +167,7 @@ func _on_bulk_unban() -> void:
 		_selected_user_ids.clear()
 		_update_bulk_ui()
 		if failed > 0:
-			_error_label.text = "Failed to unban %d user(s)" % failed
+			_error_label.text = tr("Failed to unban %d user(s)") % failed
 			_error_label.visible = true
 	)
 
@@ -175,9 +175,9 @@ func _on_unban(user_id: String, username: String) -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Unban User",
-		"Are you sure you want to unban %s?" % username,
-		"Unban",
+		tr("Unban User"),
+		tr("Are you sure you want to unban %s?") % username,
+		tr("Unban"),
 		false
 	)
 	dialog.confirmed.connect(func():
@@ -186,10 +186,10 @@ func _on_unban(user_id: String, username: String) -> void:
 
 func _on_load_more() -> void:
 	_load_more_btn.disabled = true
-	_load_more_btn.text = "Loading..."
+	_load_more_btn.text = tr("Loading...")
 	await _fetch_page()
 	_load_more_btn.disabled = false
-	_load_more_btn.text = "Load More"
+	_load_more_btn.text = tr("Load More")
 
 func _on_bans_updated(space_id: String) -> void:
 	if space_id == _space_id:

@@ -41,17 +41,17 @@ func _on_password_changed(new_text: String) -> void:
 func _on_create() -> void:
 	var pname := _name_input.text.strip_edges()
 	if pname.is_empty():
-		_show_error("Profile name is required.")
+		_show_error(tr("Profile name is required."))
 		return
 	if pname.length() > 32:
-		_show_error("Name must be 32 characters or less.")
+		_show_error(tr("Name must be 32 characters or less."))
 		return
 
 	var pw := _password_input.text.strip_edges()
 	if not pw.is_empty():
 		var confirm := _confirm_input.text.strip_edges()
 		if pw != confirm:
-			_show_error("Passwords do not match.")
+			_show_error(tr("Passwords do not match."))
 			return
 
 	var copy: bool = _copy_radio.button_pressed

@@ -139,25 +139,75 @@ func is_deafened() -> bool:
 func get_session_state() -> int:
 	return _state
 
-func publish_camera(res: Vector2i, _fps: int) -> RefCounted:
+func publish_camera(
+	res: Vector2i, _fps: int, device_id: String = "",
+) -> RefCounted:
 	if _room == null:
 		return null
 	_cleanup_local_video()
 	_local_video_source = LiveKitVideoSource.create(res.x, res.y)
+	if not device_id.is_empty() \
+			and _local_video_source.has_method("set_device"):
+		_local_video_source.set_device(device_id)
 	_local_video_track = LiveKitLocalVideoTrack.create(
 		"camera", _local_video_source
 	)
 	var local_part: LiveKitLocalParticipant = _room.get_local_participant()
 	if local_part == null:
 		return null
+	var pub_opts: Dictionary = {
+		"source": LiveKitTrack.SOURCE_CAMERA,
+	}
+	# Pass max bitrate hint so the encoder doesn't overshoot.
+	var bitrate: int = _bitrate_for_resolution(res)
+	if bitrate > 0:
+		pub_opts["max_bitrate"] = bitrate
 	_local_video_pub = local_part.publish_track(
-		_local_video_track, {"source": LiveKitTrack.SOURCE_CAMERA}
+		_local_video_track, pub_opts
 	)
 	# Return a LiveKitVideoStream for local preview
 	var stream: LiveKitVideoStream = LiveKitVideoStream.from_track(
 		_local_video_track
 	)
 	return stream
+
+
+static func _bitrate_for_resolution(res: Vector2i) -> int:
+	## Returns a sensible max bitrate (bps) for the given resolution.
+	## LiveKit's SFU handles dynamic adaptation below this cap.
+	var pixels: int = res.x * res.y
+	if pixels <= 640 * 480:
+		return 800_000    # 800 kbps for 480p
+	if pixels <= 1280 * 720:
+		return 2_500_000  # 2.5 Mbps for 720p
+	return 4_000_000      # 4 Mbps for 1080p
+
+func swap_camera(
+	res: Vector2i, _fps: int, device_id: String = "",
+) -> RefCounted:
+	## Hot-swap the camera source without tearing down the publication.
+	## Falls back to full republish if the track can't be replaced.
+	if _room == null or _local_video_pub == null:
+		# No existing publication — do a full publish.
+		return publish_camera(res, _fps, device_id)
+	# Try to replace the source on the existing track.
+	var new_source: RefCounted = LiveKitVideoSource.create(res.x, res.y)
+	if not device_id.is_empty() \
+			and new_source.has_method("set_device"):
+		new_source.set_device(device_id)
+	if _local_video_track != null \
+			and _local_video_track.has_method("set_source"):
+		# Mute old source to flush the encoder.
+		if _local_video_track.has_method("mute"):
+			_local_video_track.mute()
+		_local_video_source = null
+		_local_video_source = new_source
+		_local_video_track.set_source(new_source)
+		if _local_video_track.has_method("unmute"):
+			_local_video_track.unmute()
+		return LiveKitVideoStream.from_track(_local_video_track)
+	# GDExtension doesn't support set_source — fall back to full cycle.
+	return publish_camera(res, _fps, device_id)
 
 func unpublish_camera() -> void:
 	_cleanup_local_video()
@@ -184,8 +234,17 @@ func publish_screen(source: Dictionary) -> RefCounted:
 	var local_part: LiveKitLocalParticipant = _room.get_local_participant()
 	if local_part == null:
 		return null
+	var screen_pub_opts: Dictionary = {
+		"source": LiveKitTrack.SOURCE_SCREENSHARE,
+	}
+	var screen_bitrate: int = _bitrate_for_resolution(
+		_screen_capture_size
+	)
+	if screen_bitrate > 0:
+		# Screen shares get higher bitrate (text clarity matters).
+		screen_pub_opts["max_bitrate"] = screen_bitrate * 2
 	_local_screen_pub = local_part.publish_track(
-		_local_screen_track, {"source": LiveKitTrack.SOURCE_SCREENSHARE}
+		_local_screen_track, screen_pub_opts
 	)
 	_screen_preview = LocalVideoPreview.new()
 	return _screen_preview
@@ -208,8 +267,14 @@ func _republish_screen() -> void:
 	var local_part: LiveKitLocalParticipant = _room.get_local_participant()
 	if local_part == null:
 		return
+	var republish_opts: Dictionary = {
+		"source": LiveKitTrack.SOURCE_SCREENSHARE,
+	}
+	var rebr: int = _bitrate_for_resolution(_screen_capture_size)
+	if rebr > 0:
+		republish_opts["max_bitrate"] = rebr * 2
 	_local_screen_pub = local_part.publish_track(
-		_local_screen_track, {"source": LiveKitTrack.SOURCE_SCREENSHARE}
+		_local_screen_track, republish_opts
 	)
 	if _screen_preview == null:
 		_screen_preview = LocalVideoPreview.new()

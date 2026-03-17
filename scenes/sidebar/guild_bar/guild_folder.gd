@@ -169,10 +169,10 @@ func _on_folder_gui_input(event: InputEvent) -> void:
 
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
-	_context_menu.add_item("Rename Folder", 0)
-	_context_menu.add_item("Change Color", 1)
+	_context_menu.add_item(tr("Rename Folder"), 0)
+	_context_menu.add_item(tr("Change Color"), 1)
 	_context_menu.add_separator()
-	_context_menu.add_item("Delete Folder", 3)
+	_context_menu.add_item(tr("Delete Folder"), 3)
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
@@ -185,12 +185,12 @@ func _on_context_menu_id_pressed(id: int) -> void:
 
 func _show_rename_dialog() -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "Rename Folder"
-	dialog.ok_button_text = "Rename"
+	dialog.title = tr("Rename Folder")
+	dialog.ok_button_text = tr("Rename")
 
 	var vbox := VBoxContainer.new()
 	var label := Label.new()
-	label.text = "New folder name:"
+	label.text = tr("New folder name:")
 	label.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(label)
 
@@ -230,8 +230,8 @@ func _rename_folder(new_name: String) -> void:
 
 func _show_color_picker() -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "Folder Color"
-	dialog.ok_button_text = "Apply"
+	dialog.title = tr("Folder Color")
+	dialog.ok_button_text = tr("Apply")
 
 	var picker := ColorPicker.new()
 	picker.custom_minimum_size = Vector2(300, 200)
@@ -250,12 +250,12 @@ func _show_color_picker() -> void:
 
 func _show_delete_confirm() -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "Delete Folder"
-	dialog.ok_button_text = "Delete"
+	dialog.title = tr("Delete Folder")
+	dialog.ok_button_text = tr("Delete")
 	dialog.dialog_text = (
-		"Remove all spaces from '%s'?"
-		+ " The servers will remain in your server list."
-	) % folder_name
+		tr("Remove all spaces from '%s'?") % folder_name
+		+ " " + tr("The servers will remain in your server list.")
+	)
 
 	dialog.confirmed.connect(func():
 		_delete_folder()

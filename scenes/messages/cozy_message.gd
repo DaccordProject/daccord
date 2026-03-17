@@ -42,7 +42,7 @@ func _apply_theme() -> void:
 func setup(data: Dictionary) -> void:
 	_message_data = data
 	var user: Dictionary = data.get("author", {})
-	author_label.text = user.get("display_name", "Unknown")
+	author_label.text = user.get("display_name", tr("Unknown"))
 	var name_color: Color = user.get("color", Color.WHITE)
 	var role_color = _resolve_role_color(user)
 	if role_color != null:
@@ -60,7 +60,7 @@ func setup(data: Dictionary) -> void:
 			_apply_reply_reference(original)
 		else:
 			reply_author.text = ""
-			reply_preview.text = "Loading reply..."
+			reply_preview.text = tr("Loading reply...")
 			reply_preview.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 			var channel_id: String = data.get("channel_id", "")
 			_fetch_reply_reference(reply_to, channel_id)
@@ -73,8 +73,8 @@ func setup(data: Dictionary) -> void:
 	var thread_reply_count: int = data.get("reply_count", 0)
 	if thread_reply_count > 0:
 		thread_indicator.visible = true
-		var suffix: String = "reply" if thread_reply_count == 1 else "replies"
-		thread_count_label.text = "%d %s" % [thread_reply_count, suffix]
+		var suffix: String = tr("reply") if thread_reply_count == 1 else tr("replies")
+		thread_count_label.text = tr("%d %s") % [thread_reply_count, suffix]
 		thread_count_label.add_theme_font_size_override("font_size", 12)
 		thread_count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
 		# Detect unread thread
@@ -113,7 +113,7 @@ func _apply_reply_reference(original: Dictionary) -> void:
 func _fetch_reply_reference(reply_to: String, channel_id: String) -> void:
 	var client: AccordClient = Client._client_for_channel(channel_id)
 	if client == null:
-		reply_preview.text = "[original message unavailable]"
+		reply_preview.text = tr("[original message unavailable]")
 		return
 	var cdn_url: String = Client._cdn_for_channel(channel_id)
 	var result: RestResult = await client.messages.fetch(channel_id, reply_to)
@@ -133,11 +133,11 @@ func _fetch_reply_reference(reply_to: String, channel_id: String) -> void:
 		var msg_dict := ClientModels.message_to_dict(accord_msg, Client._user_cache, cdn_url)
 		_apply_reply_reference(msg_dict)
 	else:
-		reply_preview.text = "[original message unavailable]"
+		reply_preview.text = tr("[original message unavailable]")
 
 func update_author(user: Dictionary) -> void:
 	_message_data["author"] = user
-	author_label.text = user.get("display_name", "Unknown")
+	author_label.text = user.get("display_name", tr("Unknown"))
 	var name_color: Color = user.get("color", Color.WHITE)
 	var role_color = _resolve_role_color(user)
 	if role_color != null:

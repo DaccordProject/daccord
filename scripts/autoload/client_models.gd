@@ -316,6 +316,8 @@ static func space_to_dict(
 		"preferred_locale": space.preferred_locale,
 		"public": is_public,
 		"nsfw_level": space.nsfw_level,
+		"explicit_content_filter": space.explicit_content_filter,
+		"rules_channel_id": str(space.rules_channel_id) if space.rules_channel_id != null else "",
 	}
 
 static func channel_to_dict(channel: AccordChannel) -> Dictionary:

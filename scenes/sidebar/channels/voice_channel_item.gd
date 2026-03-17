@@ -105,7 +105,7 @@ func setup(data: Dictionary) -> void:
 	_chat_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 	_chat_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("text_muted"))
 	_chat_btn.add_theme_color_override("icon_hover_color", ThemeManager.get_color("text_white"))
-	_chat_btn.tooltip_text = "Open Text Chat"
+	_chat_btn.tooltip_text = tr("Open Text Chat")
 	_chat_btn.pressed.connect(_on_chat_pressed)
 	$ChannelButton/HBox.add_child(_chat_btn)
 
@@ -120,7 +120,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		_gear_btn.add_theme_font_size_override("font_size", 14)
 		_gear_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-		_gear_btn.tooltip_text = "Edit Channel"
+		_gear_btn.tooltip_text = tr("Edit Channel")
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$ChannelButton/HBox.add_child(_gear_btn)
 
@@ -202,7 +202,7 @@ func _refresh_participants() -> void:
 
 		# Username label
 		var name_label := Label.new()
-		name_label.text = user.get("display_name", "Unknown")
+		name_label.text = user.get("display_name", tr("Unknown"))
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_label.add_theme_font_size_override("font_size", 12)
 		var uid: String = user.get("id", vs.get("user_id", ""))
@@ -318,13 +318,13 @@ func _on_gui_input(event: InputEvent) -> void:
 func _show_context_menu(pos: Vector2i) -> void:
 	_context_menu.clear()
 	if Client.is_channel_muted(channel_id):
-		_context_menu.add_item("Unmute Channel", 10)
+		_context_menu.add_item(tr("Unmute Channel"), 10)
 	else:
-		_context_menu.add_item("Mute Channel", 10)
+		_context_menu.add_item(tr("Mute Channel"), 10)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_context_menu.add_separator()
-		_context_menu.add_item("Edit Channel", 0)
-		_context_menu.add_item("Delete Channel", 1)
+		_context_menu.add_item(tr("Edit Channel"), 0)
+		_context_menu.add_item(tr("Delete Channel"), 1)
 	_context_menu.hide()
 	_context_menu.position = pos
 	_context_menu.popup()
@@ -347,9 +347,9 @@ func _on_edit_channel() -> void:
 
 func _on_delete_channel() -> void:
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Delete Channel",
-		"Are you sure you want to delete #%s? This cannot be undone." % _channel_data.get("name", ""),
-		"Delete", true, func():
+		tr("Delete Channel"),
+		tr("Are you sure you want to delete #%s? This cannot be undone.") % _channel_data.get("name", ""),
+		tr("Delete"), true, func():
 			Client.admin.delete_channel(channel_id)
 	)
 

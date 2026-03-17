@@ -104,6 +104,8 @@ signal profile_switched()
 @warning_ignore("unused_signal")
 signal guest_mode_changed(is_guest: bool)
 @warning_ignore("unused_signal")
+signal anonymous_count_updated(space_id: String, count: int)
+@warning_ignore("unused_signal")
 signal imposter_mode_changed(active: bool)
 @warning_ignore("unused_signal")
 signal connection_step(step: String)
@@ -241,6 +243,7 @@ var is_imposter_mode: bool = false
 var imposter_permissions: Array = []
 var imposter_role_name: String = ""
 var imposter_space_id: String = ""
+var imposter_role_id: String = ""
 
 func select_space(space_id: String) -> void:
 	if is_imposter_mode and space_id != imposter_space_id:
@@ -438,6 +441,7 @@ func enter_imposter_mode(role_data: Dictionary) -> void:
 	imposter_permissions = role_data.get("permissions", [])
 	imposter_role_name = role_data.get("name", "Unknown")
 	imposter_space_id = role_data.get("space_id", current_space_id)
+	imposter_role_id = role_data.get("id", "")
 	imposter_mode_changed.emit(true)
 
 func exit_imposter_mode() -> void:
@@ -447,4 +451,5 @@ func exit_imposter_mode() -> void:
 	imposter_permissions = []
 	imposter_role_name = ""
 	imposter_space_id = ""
+	imposter_role_id = ""
 	imposter_mode_changed.emit(false)

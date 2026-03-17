@@ -2,15 +2,7 @@ extends PanelContainer
 
 ## Floating user profile card shown on avatar/username click.
 
-const _ACTIVITY_PREFIXES := {
-	"playing": "Playing ",
-	"streaming": "Streaming ",
-	"listening": "Listening to ",
-	"watching": "Watching ",
-	"competing": "Competing in ",
-	"custom": "",
-}
-
+var _activity_prefixes: Dictionary = {}
 var _user_data: Dictionary = {}
 var _space_id: String = ""
 
@@ -30,7 +22,20 @@ var _activities_label: Label
 var _device_status_hbox: HBoxContainer
 var _message_btn: Button
 
+
+func _init_activity_prefixes() -> void:
+	_activity_prefixes = {
+		"playing": tr("Playing "),
+		"streaming": tr("Streaming "),
+		"listening": tr("Listening to "),
+		"watching": tr("Watching "),
+		"competing": tr("Competing in "),
+		"custom": "",
+	}
+
+
 func _ready() -> void:
+	_init_activity_prefixes()
 	custom_minimum_size = Vector2(300, 0)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -128,7 +133,7 @@ func _ready() -> void:
 	content.add_child(_bio_section)
 
 	var bio_header := Label.new()
-	bio_header.text = "ABOUT ME"
+	bio_header.text = tr("ABOUT ME")
 	bio_header.add_theme_font_size_override("font_size", 11)
 	bio_header.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -150,7 +155,7 @@ func _ready() -> void:
 	content.add_child(_roles_section)
 
 	var roles_header := Label.new()
-	roles_header.text = "ROLES"
+	roles_header.text = tr("ROLES")
 	roles_header.add_theme_font_size_override("font_size", 11)
 	roles_header.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -179,7 +184,7 @@ func _ready() -> void:
 
 	# Message button
 	_message_btn = Button.new()
-	_message_btn.text = "Message"
+	_message_btn.text = tr("Message")
 	_message_btn.pressed.connect(_on_message_pressed)
 	_message_btn.visible = false
 	content.add_child(_message_btn)
@@ -188,7 +193,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 	_user_data = user_data
 	_space_id = space_id
 
-	var dn: String = user_data.get("display_name", "Unknown")
+	var dn: String = user_data.get("display_name", tr("Unknown"))
 	_display_name_label.text = dn
 	_username_label.text = user_data.get("username", "")
 
@@ -301,7 +306,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 	# Member since
 	var created_at: String = user_data.get("created_at", "")
 	if not created_at.is_empty():
-		_member_since_label.text = "Member since " + _format_date(created_at)
+		_member_since_label.text = tr("Member since %s") % _format_date(created_at)
 		_member_since_label.visible = true
 
 	# Message button (hidden for self or unknown user)
@@ -313,7 +318,7 @@ func setup(user_data: Dictionary, space_id: String = "") -> void:
 		_message_btn.visible = false
 
 func _activity_prefix(type: String) -> String:
-	return _ACTIVITY_PREFIXES.get(type, "")
+	return _activity_prefixes.get(type, "")
 
 func _format_date(iso: String) -> String:
 	var t_idx := iso.find("T")

@@ -57,11 +57,11 @@ var _color_pickers: Dictionary = {} # key -> ColorPickerButton
 
 func _get_sections() -> Array:
 	var sections := [
-		"Profiles", "Voice & Video", "Sound",
-		"Appearance", "Notifications", "Updates", "About",
+		tr("Profiles"), tr("Voice & Video"), tr("Sound"),
+		tr("Appearance"), tr("Notifications"), tr("Updates"), tr("About"),
 	]
 	if Client.current_user.get("is_admin", false):
-		sections.append("Instance Admin")
+		sections.append(tr("Instance Admin"))
 	return sections
 
 func _build_pages() -> Array:
@@ -87,19 +87,19 @@ func _build_profiles_page() -> VBoxContainer:
 
 # --- Voice & Video page ---
 func _build_voice_page() -> VBoxContainer:
-	var vbox := _page_vbox("Voice & Video")
+	var vbox := _page_vbox(tr("Voice & Video"))
 
 	# Microphone
 	if OS.get_name() == "Web":
 		var web_note := Label.new()
-		web_note.text = "Device selection is managed by your browser."
+		web_note.text = tr("Device selection is managed by your browser.")
 		web_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		web_note.add_theme_color_override(
 			"font_color", ThemeManager.get_color("text_muted")
 		)
 		vbox.add_child(web_note)
 	else:
-		vbox.add_child(_section_label("INPUT DEVICE"))
+		vbox.add_child(_section_label(tr("INPUT DEVICE")))
 		var mic_dropdown := OptionButton.new()
 		var saved_input: String = Config.voice.get_input_device()
 		var input_devices: PackedStringArray = (
@@ -119,7 +119,7 @@ func _build_voice_page() -> VBoxContainer:
 		vbox.add_child(mic_dropdown)
 
 	# Input volume
-	vbox.add_child(_section_label("INPUT VOLUME"))
+	vbox.add_child(_section_label(tr("INPUT VOLUME")))
 	var input_vol_row := HBoxContainer.new()
 	input_vol_row.add_theme_constant_override("separation", 8)
 	_input_vol_slider = HSlider.new()
@@ -145,7 +145,7 @@ func _build_voice_page() -> VBoxContainer:
 
 	# Speaker
 	if OS.get_name() != "Web":
-		vbox.add_child(_section_label("OUTPUT DEVICE"))
+		vbox.add_child(_section_label(tr("OUTPUT DEVICE")))
 		var speaker_dropdown := OptionButton.new()
 		var saved_output: String = Config.voice.get_output_device()
 		var output_devices: PackedStringArray = (
@@ -165,7 +165,7 @@ func _build_voice_page() -> VBoxContainer:
 		vbox.add_child(speaker_dropdown)
 
 	# Output volume
-	vbox.add_child(_section_label("OUTPUT VOLUME"))
+	vbox.add_child(_section_label(tr("OUTPUT VOLUME")))
 	var output_vol_row := HBoxContainer.new()
 	output_vol_row.add_theme_constant_override("separation", 8)
 	_output_vol_slider = HSlider.new()
@@ -189,12 +189,12 @@ func _build_voice_page() -> VBoxContainer:
 	vbox.add_child(output_vol_row)
 
 	# Mic test
-	vbox.add_child(_section_label("MIC TEST"))
-	_mic_test_btn = SettingsBase.create_action_button("Let's Check")
+	vbox.add_child(_section_label(tr("MIC TEST")))
+	_mic_test_btn = SettingsBase.create_action_button(tr("Let's Check"))
 	_mic_test_btn.pressed.connect(_on_mic_test_toggled)
 	vbox.add_child(_mic_test_btn)
 	_mic_monitor_cb = CheckBox.new()
-	_mic_monitor_cb.text = "Monitor output"
+	_mic_monitor_cb.text = tr("Monitor output")
 	_mic_monitor_cb.button_pressed = true
 	_mic_monitor_cb.toggled.connect(_on_mic_monitor_toggled)
 	vbox.add_child(_mic_monitor_cb)
@@ -219,7 +219,7 @@ func _build_voice_page() -> VBoxContainer:
 	_update_threshold_position()
 
 	# Input sensitivity
-	vbox.add_child(_section_label("INPUT SENSITIVITY"))
+	vbox.add_child(_section_label(tr("INPUT SENSITIVITY")))
 	var sens_row := HBoxContainer.new()
 	sens_row.add_theme_constant_override("separation", 8)
 	_sensitivity_slider = HSlider.new()
@@ -242,18 +242,18 @@ func _build_voice_page() -> VBoxContainer:
 
 	# Camera
 	if OS.get_name() != "Web":
-		vbox.add_child(_section_label("CAMERA"))
+		vbox.add_child(_section_label(tr("CAMERA")))
 		var cam_dropdown := OptionButton.new()
-		cam_dropdown.add_item("System Default Camera")
+		cam_dropdown.add_item(tr("System Default Camera"))
 		cam_dropdown.disabled = false
 		vbox.add_child(cam_dropdown)
 
 	# Video resolution
-	vbox.add_child(_section_label("VIDEO RESOLUTION"))
+	vbox.add_child(_section_label(tr("VIDEO RESOLUTION")))
 	var res_dropdown := OptionButton.new()
-	res_dropdown.add_item("480p")
-	res_dropdown.add_item("720p")
-	res_dropdown.add_item("1080p")
+	res_dropdown.add_item(tr("480p"))
+	res_dropdown.add_item(tr("720p"))
+	res_dropdown.add_item(tr("1080p"))
 	res_dropdown.selected = Config.voice.get_video_resolution()
 	res_dropdown.item_selected.connect(func(idx: int) -> void:
 		Config.voice.set_video_resolution(idx)
@@ -261,11 +261,11 @@ func _build_voice_page() -> VBoxContainer:
 	vbox.add_child(res_dropdown)
 
 	# Video FPS
-	vbox.add_child(_section_label("VIDEO FPS"))
+	vbox.add_child(_section_label(tr("VIDEO FPS")))
 	var fps_dropdown := OptionButton.new()
-	fps_dropdown.add_item("15 FPS")
-	fps_dropdown.add_item("30 FPS")
-	fps_dropdown.add_item("60 FPS")
+	fps_dropdown.add_item(tr("15 FPS"))
+	fps_dropdown.add_item(tr("30 FPS"))
+	fps_dropdown.add_item(tr("60 FPS"))
 	var fps_val: int = Config.voice.get_video_fps()
 	match fps_val:
 		15: fps_dropdown.selected = 0
@@ -300,7 +300,7 @@ func _on_mic_monitor_toggled(pressed: bool) -> void:
 
 func _start_mic_test() -> void:
 	_mic_testing = true
-	_mic_test_btn.text = "Stop Test"
+	_mic_test_btn.text = tr("Stop Test")
 	Config.voice.apply_devices()
 	var is_web: bool = OS.get_name() == "Web"
 	if is_web:
@@ -333,7 +333,7 @@ func _start_mic_test() -> void:
 
 func _stop_mic_test() -> void:
 	_mic_testing = false
-	_mic_test_btn.text = "Let's Check"
+	_mic_test_btn.text = tr("Let's Check")
 	_cleanup_mic_test()
 	if _mic_test_bar != null:
 		_mic_test_bar.value = 0.0
@@ -407,9 +407,9 @@ func _exit_tree() -> void:
 
 # --- Sound page ---
 func _build_sound_page() -> VBoxContainer:
-	var vbox := _page_vbox("Sound")
+	var vbox := _page_vbox(tr("Sound"))
 
-	vbox.add_child(_section_label("VOLUME"))
+	vbox.add_child(_section_label(tr("VOLUME")))
 	var vol_row := HBoxContainer.new()
 	vol_row.add_theme_constant_override("separation", 8)
 	var vol_slider := HSlider.new()
@@ -429,7 +429,7 @@ func _build_sound_page() -> VBoxContainer:
 	)
 	vbox.add_child(vol_row)
 
-	vbox.add_child(_section_label("SOUND EVENTS"))
+	vbox.add_child(_section_label(tr("SOUND EVENTS")))
 	var sound_events := [
 		["message_received", "Message received (unfocused channel)"],
 		["mention_received", "Mention received"],
@@ -447,7 +447,7 @@ func _build_sound_page() -> VBoxContainer:
 		var sname: String = event[0]
 		var slabel: String = event[1]
 		var cb := CheckBox.new()
-		cb.text = slabel
+		cb.text = tr(slabel)
 		cb.button_pressed = Config.is_sound_enabled(sname)
 		cb.toggled.connect(func(pressed: bool) -> void:
 			Config.set_sound_enabled(sname, pressed)
@@ -459,19 +459,19 @@ func _build_sound_page() -> VBoxContainer:
 # --- Appearance page ---
 
 func _build_appearance_page() -> VBoxContainer:
-	var vbox := _page_vbox("Appearance")
+	var vbox := _page_vbox(tr("Appearance"))
 
 	# Theme preset
-	vbox.add_child(_section_label("THEME"))
+	vbox.add_child(_section_label(tr("THEME")))
 	_theme_dropdown = OptionButton.new()
 	var preset_names: Array = ThemeManager.get_preset_names()
 	var preset_labels := {
-		"dark": "Dark", "light": "Light", "nord": "Nord",
-		"monokai": "Monokai", "solarized": "Solarized",
+		"dark": tr("Dark"), "light": tr("Light"), "nord": tr("Nord"),
+		"monokai": tr("Monokai"), "solarized": tr("Solarized"),
 	}
 	for pname in preset_names:
 		_theme_dropdown.add_item(preset_labels.get(pname, pname))
-	_theme_dropdown.add_item("Custom")
+	_theme_dropdown.add_item(tr("Custom"))
 	# Select current preset
 	var current_preset: String = Config.get_theme_preset()
 	var preset_idx: int = preset_names.find(current_preset)
@@ -495,14 +495,14 @@ func _build_appearance_page() -> VBoxContainer:
 	vbox.add_child(_custom_colors_container)
 
 	var editable_keys := [
-		["accent", "Accent"],
-		["text_body", "Text"],
-		["text_muted", "Muted Text"],
-		["error", "Error / Danger"],
-		["success", "Success"],
-		["panel_bg", "Panel Background"],
-		["nav_bg", "Navigation Background"],
-		["input_bg", "Input Background"],
+		["accent", tr("Accent")],
+		["text_body", tr("Text")],
+		["text_muted", tr("Muted Text")],
+		["error", tr("Error / Danger")],
+		["success", tr("Success")],
+		["panel_bg", tr("Panel Background")],
+		["nav_bg", tr("Navigation Background")],
+		["input_bg", tr("Input Background")],
 	]
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -530,13 +530,13 @@ func _build_appearance_page() -> VBoxContainer:
 	share_row.add_theme_constant_override("separation", 8)
 	_custom_colors_container.add_child(share_row)
 
-	var copy_btn := SettingsBase.create_secondary_button("Copy Theme")
+	var copy_btn := SettingsBase.create_secondary_button(tr("Copy Theme"))
 	copy_btn.pressed.connect(func() -> void:
 		DisplayServer.clipboard_set(ThemeManager.export_theme_string())
 	)
 	share_row.add_child(copy_btn)
 
-	var paste_btn := SettingsBase.create_secondary_button("Paste Theme")
+	var paste_btn := SettingsBase.create_secondary_button(tr("Paste Theme"))
 	paste_btn.pressed.connect(func() -> void:
 		var clip: String = DisplayServer.clipboard_get()
 		if ThemeManager.import_theme_string(clip):
@@ -546,7 +546,7 @@ func _build_appearance_page() -> VBoxContainer:
 	)
 	share_row.add_child(paste_btn)
 
-	var reset_btn := SettingsBase.create_secondary_button("Reset to Preset")
+	var reset_btn := SettingsBase.create_secondary_button(tr("Reset to Preset"))
 	reset_btn.pressed.connect(func() -> void:
 		ThemeManager.apply_preset("dark")
 		_theme_dropdown.selected = 0
@@ -559,9 +559,9 @@ func _build_appearance_page() -> VBoxContainer:
 	vbox.add_child(HSeparator.new())
 
 	# Reduce motion
-	vbox.add_child(_section_label("ACCESSIBILITY"))
+	vbox.add_child(_section_label(tr("ACCESSIBILITY")))
 	var motion_cb := CheckBox.new()
-	motion_cb.text = "Reduce motion"
+	motion_cb.text = tr("Reduce motion")
 	motion_cb.button_pressed = Config.get_reduced_motion()
 	motion_cb.toggled.connect(func(pressed: bool) -> void:
 		Config.set_reduced_motion(pressed)
@@ -569,19 +569,38 @@ func _build_appearance_page() -> VBoxContainer:
 	vbox.add_child(motion_cb)
 
 	# Emoji skin tone
-	vbox.add_child(_section_label("EMOJI SKIN TONE"))
+	vbox.add_child(_section_label(tr("EMOJI SKIN TONE")))
 	var tone_dropdown := OptionButton.new()
-	tone_dropdown.add_item("Default")
-	tone_dropdown.add_item("Light")
-	tone_dropdown.add_item("Medium-Light")
-	tone_dropdown.add_item("Medium")
-	tone_dropdown.add_item("Medium-Dark")
-	tone_dropdown.add_item("Dark")
+	tone_dropdown.add_item(tr("Default"))
+	tone_dropdown.add_item(tr("Light"))
+	tone_dropdown.add_item(tr("Medium-Light"))
+	tone_dropdown.add_item(tr("Medium"))
+	tone_dropdown.add_item(tr("Medium-Dark"))
+	tone_dropdown.add_item(tr("Dark"))
 	tone_dropdown.selected = Config.get_emoji_skin_tone()
 	tone_dropdown.item_selected.connect(func(idx: int) -> void:
 		Config.set_emoji_skin_tone(idx)
 	)
 	vbox.add_child(tone_dropdown)
+
+	# Language
+	vbox.add_child(_section_label(tr("LANGUAGE")))
+	var locale_dropdown := OptionButton.new()
+	var locale_codes := ["en", "fr", "de", "es", "pt", "ja", "zh", "ko", "ar", "ru"]
+	var locale_names := [
+		"English", "Français", "Deutsch", "Español",
+		"Português", "日本語", "中文", "한국어", "العربية", "Русский",
+	]
+	for i in locale_names.size():
+		locale_dropdown.add_item(locale_names[i])
+	var current_locale: String = Config.get_locale()
+	var loc_idx: int = locale_codes.find(current_locale)
+	if loc_idx >= 0:
+		locale_dropdown.selected = loc_idx
+	locale_dropdown.item_selected.connect(func(idx: int) -> void:
+		Config.set_locale(locale_codes[idx])
+	)
+	vbox.add_child(locale_dropdown)
 
 	return vbox
 
@@ -620,14 +639,14 @@ func _update_theme_preview() -> void:
 	for child in _theme_preview_row.get_children():
 		child.queue_free()
 	var preview_keys := [
-		["Accent", "accent"],
-		["Text", "text_body"],
-		["Muted", "text_muted"],
-		["Panel", "panel_bg"],
-		["Nav", "nav_bg"],
-		["Input", "input_bg"],
-		["Error", "error"],
-		["Success", "success"],
+		[tr("Accent"), "accent"],
+		[tr("Text"), "text_body"],
+		[tr("Muted"), "text_muted"],
+		[tr("Panel"), "panel_bg"],
+		[tr("Nav"), "nav_bg"],
+		[tr("Input"), "input_bg"],
+		[tr("Error"), "error"],
+		[tr("Success"), "success"],
 	]
 	for entry in preview_keys:
 		var swatch_col := VBoxContainer.new()
@@ -648,10 +667,10 @@ func _update_theme_preview() -> void:
 
 # --- Notifications page (trimmed — global only) ---
 func _build_notifications_page() -> VBoxContainer:
-	var vbox := _page_vbox("Notifications")
+	var vbox := _page_vbox(tr("Notifications"))
 
 	var suppress_cb := CheckBox.new()
-	suppress_cb.text = "Suppress @everyone and @here"
+	suppress_cb.text = tr("Suppress @everyone and @here")
 	suppress_cb.button_pressed = Config.get_suppress_everyone()
 	suppress_cb.toggled.connect(func(pressed: bool) -> void:
 		Config.set_suppress_everyone(pressed)
@@ -659,13 +678,13 @@ func _build_notifications_page() -> VBoxContainer:
 	vbox.add_child(suppress_cb)
 
 	# Idle timeout
-	vbox.add_child(_section_label("IDLE TIMEOUT"))
+	vbox.add_child(_section_label(tr("IDLE TIMEOUT")))
 	_idle_dropdown = OptionButton.new()
-	_idle_dropdown.add_item("Disabled")
-	_idle_dropdown.add_item("1 minute")
-	_idle_dropdown.add_item("5 minutes")
-	_idle_dropdown.add_item("10 minutes")
-	_idle_dropdown.add_item("30 minutes")
+	_idle_dropdown.add_item(tr("Disabled"))
+	_idle_dropdown.add_item(tr("1 minute"))
+	_idle_dropdown.add_item(tr("5 minutes"))
+	_idle_dropdown.add_item(tr("10 minutes"))
+	_idle_dropdown.add_item(tr("30 minutes"))
 	var idle_vals := [0, 60, 300, 600, 1800]
 	var current_idle: int = Config.get_idle_timeout()
 	for i in idle_vals.size():
@@ -678,9 +697,9 @@ func _build_notifications_page() -> VBoxContainer:
 	vbox.add_child(_idle_dropdown)
 
 	# Error reporting
-	vbox.add_child(_section_label("ERROR REPORTING"))
+	vbox.add_child(_section_label(tr("ERROR REPORTING")))
 	var error_cb := CheckBox.new()
-	error_cb.text = "Send anonymous crash and error reports"
+	error_cb.text = tr("Send anonymous crash and error reports")
 	error_cb.button_pressed = Config.get_error_reporting_enabled()
 	error_cb.toggled.connect(func(pressed: bool) -> void:
 		Config.set_error_reporting_enabled(pressed)
@@ -709,17 +728,17 @@ func _build_about_page() -> VBoxContainer:
 
 # --- Instance Admin page ---
 func _build_admin_page() -> VBoxContainer:
-	var vbox := _page_vbox("Instance Admin")
+	var vbox := _page_vbox(tr("Instance Admin"))
 
 	var desc := Label.new()
-	desc.text = "You are an instance administrator."
+	desc.text = tr("You are an instance administrator.")
 	desc.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
 	)
 	vbox.add_child(desc)
 
 	var open_btn := SettingsBase.create_action_button(
-		"Open Server Management"
+		tr("Open Server Management")
 	)
 	open_btn.pressed.connect(func() -> void:
 		var panel := ServerManagementPanel.instantiate()

@@ -23,17 +23,17 @@ func setup(space_id: String, parent_id: String = "", channels: Array = []) -> vo
 	_parent_id = parent_id
 
 	# Always add base channel types
-	_type_option.add_item("Text", 0)
-	_type_option.add_item("Voice", 1)
-	_type_option.add_item("Announcement", 2)
-	_type_option.add_item("Forum", 3)
+	_type_option.add_item(tr("Text"), 0)
+	_type_option.add_item(tr("Voice"), 1)
+	_type_option.add_item(tr("Announcement"), 2)
+	_type_option.add_item(tr("Forum"), 3)
 
 	if parent_id.is_empty():
 		# Called from channel_list: also add Category type and show parent dropdown
-		_type_option.add_item("Category", 4)
+		_type_option.add_item(tr("Category"), 4)
 		_parent_label.visible = true
 		_parent_option.visible = true
-		_parent_option.add_item("None", 0)
+		_parent_option.add_item(tr("None"), 0)
 		var idx: int = 1
 		for ch in channels:
 			if ch.get("type", 0) == ClientModels.ChannelType.CATEGORY:
@@ -42,19 +42,19 @@ func setup(space_id: String, parent_id: String = "", channels: Array = []) -> vo
 				idx += 1
 	else:
 		# Called from category_item: hide parent dropdown, use parent_id directly
-		_type_option.add_item("Category", 4)
+		_type_option.add_item(tr("Category"), 4)
 		_parent_label.visible = false
 		_parent_option.visible = false
 
 func _on_create() -> void:
 	var ch_name: String = _name_input.text.strip_edges()
 	if ch_name.is_empty():
-		_error_label.text = "Channel name cannot be empty."
+		_error_label.text = tr("Channel name cannot be empty.")
 		_error_label.visible = true
 		return
 
 	_create_btn.disabled = true
-	_create_btn.text = "Creating..."
+	_create_btn.text = tr("Creating...")
 	_error_label.visible = false
 
 	var type_map := ["text", "voice", "announcement", "forum", "category"]
@@ -77,10 +77,10 @@ func _on_create() -> void:
 
 	var result: RestResult = await Client.admin.create_channel(_space_id, data)
 	_create_btn.disabled = false
-	_create_btn.text = "Create"
+	_create_btn.text = tr("Create")
 
 	if result == null or not result.ok:
-		var msg: String = "Failed to create channel"
+		var msg: String = tr("Failed to create channel")
 		if result != null and result.error:
 			msg = result.error.message
 		_error_label.text = msg

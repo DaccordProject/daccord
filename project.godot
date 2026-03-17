@@ -59,6 +59,13 @@ enabled=PackedStringArray("res://addons/accordkit/plugin.cfg")
 
 theme/custom="res://assets/theme/discord_dark.tres"
 
+[locale]
+
+translations=PackedStringArray("res://i18n/fr.po", "res://i18n/de.po", "res://i18n/es.po", "res://i18n/pt.po", "res://i18n/ja.po", "res://i18n/zh.po", "res://i18n/ko.po", "res://i18n/ar.po", "res://i18n/ru.po")
+translation_remaps={}
+locale_filter_mode=1
+locale_filter=PackedStringArray("en", "fr", "de", "es", "pt", "ja", "zh", "ko", "ar", "ru")
+
 [physics]
 
 common/physics_ticks_per_second=1

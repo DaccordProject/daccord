@@ -47,6 +47,7 @@ func set_video_device(device_id: String) -> void:
 		"voice", "video_device", device_id
 	)
 	_parent._save()
+	AppState.config_changed.emit("voice", "video_device")
 
 
 func get_video_resolution() -> int:

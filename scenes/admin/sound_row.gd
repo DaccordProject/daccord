@@ -46,7 +46,7 @@ func _on_rename_pressed() -> void:
 		_name_edit.visible = true
 		_name_edit.text = _sound_data.get("name", "")
 		_name_edit.grab_focus()
-		_rename_btn.text = "Save"
+		_rename_btn.text = tr("Save")
 
 func _on_name_submitted(_new_text: String) -> void:
 	_finish_rename()
@@ -56,7 +56,7 @@ func _finish_rename() -> void:
 	var new_name := _name_edit.text.strip_edges()
 	_name_label.visible = true
 	_name_edit.visible = false
-	_rename_btn.text = "Rename"
+	_rename_btn.text = tr("Rename")
 	if not new_name.is_empty() and new_name != _sound_data.get("name", ""):
 		rename_requested.emit(_sound_data, new_name)
 

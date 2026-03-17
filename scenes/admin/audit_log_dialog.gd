@@ -24,21 +24,21 @@ func _ready() -> void:
 	_filter_option.item_selected.connect(_on_filter_changed)
 	_load_more_btn.pressed.connect(_on_load_more)
 
-	_filter_option.add_item("All Actions", 0)
-	_filter_option.add_item("Member Kick", 1)
-	_filter_option.add_item("Member Ban Add", 2)
-	_filter_option.add_item("Member Ban Remove", 3)
-	_filter_option.add_item("Member Update", 4)
-	_filter_option.add_item("Role Create", 5)
-	_filter_option.add_item("Role Update", 6)
-	_filter_option.add_item("Role Delete", 7)
-	_filter_option.add_item("Channel Create", 8)
-	_filter_option.add_item("Channel Update", 9)
-	_filter_option.add_item("Channel Delete", 10)
-	_filter_option.add_item("Invite Create", 11)
-	_filter_option.add_item("Invite Delete", 12)
-	_filter_option.add_item("Message Delete", 13)
-	_filter_option.add_item("Space Update", 14)
+	_filter_option.add_item(tr("All Actions"), 0)
+	_filter_option.add_item(tr("Member Kick"), 1)
+	_filter_option.add_item(tr("Member Ban Add"), 2)
+	_filter_option.add_item(tr("Member Ban Remove"), 3)
+	_filter_option.add_item(tr("Member Update"), 4)
+	_filter_option.add_item(tr("Role Create"), 5)
+	_filter_option.add_item(tr("Role Update"), 6)
+	_filter_option.add_item(tr("Role Delete"), 7)
+	_filter_option.add_item(tr("Channel Create"), 8)
+	_filter_option.add_item(tr("Channel Update"), 9)
+	_filter_option.add_item(tr("Channel Delete"), 10)
+	_filter_option.add_item(tr("Invite Create"), 11)
+	_filter_option.add_item(tr("Invite Delete"), 12)
+	_filter_option.add_item(tr("Message Delete"), 13)
+	_filter_option.add_item(tr("Space Update"), 14)
 
 func setup(space_id: String) -> void:
 	_space_id = space_id
@@ -68,7 +68,7 @@ func _fetch_page() -> void:
 		_space_id, query
 	)
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to load audit log"
+		var err_msg: String = tr("Failed to load audit log")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -136,8 +136,8 @@ func _on_filter_changed(_idx: int) -> void:
 
 func _on_load_more() -> void:
 	_load_more_btn.disabled = true
-	_load_more_btn.text = "Loading..."
+	_load_more_btn.text = tr("Loading...")
 	await _fetch_page()
 	_load_more_btn.disabled = false
-	_load_more_btn.text = "Load More"
+	_load_more_btn.text = tr("Load More")
 

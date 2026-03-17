@@ -34,12 +34,10 @@ func has_permission(gid: String, perm: String) -> bool:
 func has_channel_permission(
 	gid: String, channel_id: String, perm: String,
 ) -> bool:
-	# Imposter mode override
+	# Imposter mode override — resolve channel overwrites
 	if AppState.is_imposter_mode \
 			and gid == AppState.imposter_space_id:
-		return AccordPermission.has(
-			AppState.imposter_permissions, perm
-		)
+		return _has_channel_perm_imposter(channel_id, perm)
 	var my_id: String = _c.current_user.get("id", "")
 	# Instance admin / space owner bypass
 	if _c.current_user.get("is_admin", false):
@@ -159,3 +157,56 @@ func get_my_highest_role_position(gid: String) -> int:
 			if pos > highest:
 				highest = pos
 	return highest
+
+
+func _has_channel_perm_imposter(
+	channel_id: String, perm: String,
+) -> bool:
+	var base: Array = AppState.imposter_permissions.duplicate()
+	if AccordPermission.ADMINISTRATOR in base:
+		return true
+
+	var ch: Dictionary = _c._channel_cache.get(
+		channel_id, {}
+	)
+	var overwrites: Array = ch.get(
+		"permission_overwrites", []
+	)
+	if overwrites.is_empty():
+		return perm in base
+
+	var effective: Array = base.duplicate()
+
+	# Find @everyone role ID (position 0) for this space
+	var gid: String = AppState.imposter_space_id
+	var everyone_id: String = ""
+	for role in _c._role_cache.get(gid, []):
+		if role.get("position", 0) == 0:
+			everyone_id = role.get("id", "")
+			break
+
+	# Apply @everyone channel overwrite
+	for ow in overwrites:
+		if ow.get("id", "") == everyone_id:
+			for d in ow.get("deny", []):
+				effective.erase(d)
+			for a in ow.get("allow", []):
+				if a not in effective:
+					effective.append(a)
+			break
+
+	# Apply imposter role overwrite (if a specific role was
+	# selected, not custom permissions)
+	var imp_role_id: String = AppState.imposter_role_id
+	if not imp_role_id.is_empty() \
+			and imp_role_id != everyone_id:
+		for ow in overwrites:
+			if ow.get("id", "") == imp_role_id:
+				for d in ow.get("deny", []):
+					effective.erase(d)
+				for a in ow.get("allow", []):
+					if a not in effective:
+						effective.append(a)
+				break
+
+	return perm in effective

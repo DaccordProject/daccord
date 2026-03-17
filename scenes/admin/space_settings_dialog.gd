@@ -8,6 +8,7 @@ var _dirty: bool = false
 var _pending_icon_data_uri: String = ""
 var _icon_removed: bool = false
 var _icon_preview: ColorRect
+var _rules_channel_btn: OptionButton
 
 @onready var _vbox: VBoxContainer = $CenterContainer/Panel/VBox
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
@@ -18,6 +19,10 @@ var _icon_preview: ColorRect
 @onready var _notifications_btn: OptionButton = \
 	$CenterContainer/Panel/VBox/NotificationsRow/NotificationsOption
 @onready var _public_check: CheckBox = $CenterContainer/Panel/VBox/PublicRow/PublicCheck
+@onready var _nsfw_level_btn: OptionButton = \
+	$CenterContainer/Panel/VBox/NsfwLevelRow/NsfwLevelOption
+@onready var _content_filter_btn: OptionButton = \
+	$CenterContainer/Panel/VBox/ContentFilterRow/ContentFilterOption
 @onready var _save_btn: Button = $CenterContainer/Panel/VBox/SaveRow/SaveButton
 @onready var _delete_btn: Button = $CenterContainer/Panel/VBox/DangerZone/DeleteButton
 @onready var _danger_zone: VBoxContainer = $CenterContainer/Panel/VBox/DangerZone
@@ -28,16 +33,48 @@ func _ready() -> void:
 	_close_btn.pressed.connect(_close)
 	_save_btn.pressed.connect(_on_save)
 	_delete_btn.pressed.connect(_on_delete)
-	_verification_btn.add_item("None", 0)
-	_verification_btn.add_item("Low", 1)
-	_verification_btn.add_item("Medium", 2)
-	_verification_btn.add_item("High", 3)
-	_notifications_btn.add_item("All Messages", 0)
-	_notifications_btn.add_item("Mentions Only", 1)
+	_verification_btn.add_item(tr("None"), 0)
+	_verification_btn.add_item(tr("Low"), 1)
+	_verification_btn.add_item(tr("Medium"), 2)
+	_verification_btn.add_item(tr("High"), 3)
+	_notifications_btn.add_item(tr("All Messages"), 0)
+	_notifications_btn.add_item(tr("Mentions Only"), 1)
+	_nsfw_level_btn.add_item(tr("Default"), 0)
+	_nsfw_level_btn.add_item(tr("Moderate"), 1)
+	_nsfw_level_btn.add_item(tr("Explicit"), 2)
+	_content_filter_btn.add_item(tr("Disabled"), 0)
+	_content_filter_btn.add_item(tr("Members Without Roles"), 1)
+	_content_filter_btn.add_item(tr("Everyone"), 2)
+
+	# Rules channel selector
+	var rules_row := HBoxContainer.new()
+	rules_row.name = "RulesChannelRow"
+
+	var rules_label := Label.new()
+	rules_label.text = tr("Rules Channel")
+	rules_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rules_row.add_child(rules_label)
+
+	var rules_info := Label.new()
+	rules_info.text = "\u24d8"
+	rules_info.tooltip_text = \
+		tr("New members will be shown the rules channel " \
+		+ "content before they can interact. " \
+		+ "Select 'None' to disable.")
+	rules_info.mouse_filter = Control.MOUSE_FILTER_STOP
+	rules_info.add_theme_font_size_override("font_size", 14)
+	rules_row.add_child(rules_info)
+
+	_rules_channel_btn = OptionButton.new()
+	_rules_channel_btn.custom_minimum_size = Vector2(140, 0)
+	rules_row.add_child(_rules_channel_btn)
+
+	_vbox.add_child(rules_row)
+	_vbox.move_child(rules_row, _save_btn.get_parent().get_index())
 
 	# Build icon upload section (inserted after Header)
 	var icon_label := Label.new()
-	icon_label.text = "SPACE ICON"
+	icon_label.text = tr("SPACE ICON")
 	icon_label.add_theme_font_size_override("font_size", 11)
 	icon_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_body")
@@ -61,11 +98,11 @@ func _ready() -> void:
 	icon_btns.add_theme_constant_override("separation", 4)
 	icon_row.add_child(icon_btns)
 
-	var upload_btn := SettingsBase.create_secondary_button("Upload Icon")
+	var upload_btn := SettingsBase.create_secondary_button(tr("Upload Icon"))
 	upload_btn.pressed.connect(_on_icon_upload)
 	icon_btns.add_child(upload_btn)
 
-	var remove_btn := SettingsBase.create_secondary_button("Remove")
+	var remove_btn := SettingsBase.create_secondary_button(tr("Remove"))
 	remove_btn.pressed.connect(_on_icon_remove)
 	icon_btns.add_child(remove_btn)
 
@@ -75,6 +112,9 @@ func _ready() -> void:
 	_verification_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_notifications_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_public_check.toggled.connect(func(_b: bool): _dirty = true)
+	_nsfw_level_btn.item_selected.connect(func(_i: int): _dirty = true)
+	_content_filter_btn.item_selected.connect(func(_i: int): _dirty = true)
+	_rules_channel_btn.item_selected.connect(func(_i: int): _dirty = true)
 
 func setup(space_id: String) -> void:
 	_space_id = space_id
@@ -103,26 +143,65 @@ func setup(space_id: String) -> void:
 
 	_public_check.button_pressed = space.get("public", false)
 
+	var nsfw: String = space.get("nsfw_level", "default")
+	match nsfw:
+		"moderate": _nsfw_level_btn.select(1)
+		"explicit": _nsfw_level_btn.select(2)
+		_: _nsfw_level_btn.select(0)
+
+	var ecf: String = space.get("explicit_content_filter", "disabled")
+	match ecf:
+		"no_role": _content_filter_btn.select(1)
+		"everyone": _content_filter_btn.select(2)
+		_: _content_filter_btn.select(0)
+
+	# Rules channel dropdown
+	_rules_channel_btn.clear()
+	_rules_channel_btn.add_item(tr("None"), 0)
+	var channels: Array = Client.get_channels_for_space(space_id)
+	var rules_id: String = space.get("rules_channel_id", "")
+	var rules_idx: int = 0
+	var ch_idx: int = 1
+	for ch in channels:
+		if ch.get("type", 0) == ClientModels.ChannelType.TEXT:
+			_rules_channel_btn.add_item("#" + ch.get("name", ""), ch_idx)
+			_rules_channel_btn.set_item_metadata(ch_idx, ch.get("id", ""))
+			if ch.get("id", "") == rules_id:
+				rules_idx = ch_idx
+			ch_idx += 1
+	_rules_channel_btn.select(rules_idx)
+
 	# Only the owner can see the danger zone
 	_danger_zone.visible = Client.is_space_owner(space_id)
 	_dirty = false
 
 func _on_save() -> void:
 	_save_btn.disabled = true
-	_save_btn.text = "Saving..."
+	_save_btn.text = tr("Saving...")
 	_error_label.visible = false
 
 	var ver_levels := ["none", "low", "medium", "high"]
 	var notif_levels := ["all", "mentions"]
+	var nsfw_levels := ["default", "moderate", "explicit"]
+	var filter_levels := ["disabled", "no_role", "everyone"]
 
 	var data := {
 		"name": _name_input.text.strip_edges(),
 		"description": _desc_input.text.strip_edges(),
 		"verification_level": ver_levels[_verification_btn.selected],
 		"default_notifications": notif_levels[_notifications_btn.selected],
+		"nsfw_level": nsfw_levels[_nsfw_level_btn.selected],
+		"explicit_content_filter": filter_levels[_content_filter_btn.selected],
 	}
 
 	data["public"] = _public_check.button_pressed
+
+	# Rules channel
+	var rules_sel: int = _rules_channel_btn.selected
+	if rules_sel > 0:
+		data["rules_channel_id"] = _rules_channel_btn.get_item_metadata(rules_sel)
+	else:
+		data["rules_channel_id"] = null
 
 	# Icon upload / removal
 	if not _pending_icon_data_uri.is_empty():
@@ -132,10 +211,10 @@ func _on_save() -> void:
 
 	var result: RestResult = await Client.admin.update_space(_space_id, data)
 	_save_btn.disabled = false
-	_save_btn.text = "Save"
+	_save_btn.text = tr("Save")
 
 	if result == null or not result.ok:
-		var err_msg: String = "Failed to update space"
+		var err_msg: String = tr("Failed to update space")
 		if result != null and result.error:
 			err_msg = result.error.message
 		_error_label.text = err_msg
@@ -187,9 +266,9 @@ func _on_delete() -> void:
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(
-		"Delete Space",
-		"Are you sure you want to delete '%s'? This cannot be undone." % space.get("name", ""),
-		"Delete",
+		tr("Delete Space"),
+		tr("Are you sure you want to delete '%s'? This cannot be undone.") % space.get("name", ""),
+		tr("Delete"),
 		true
 	)
 	dialog.confirmed.connect(func():
@@ -204,9 +283,9 @@ func _try_close() -> void:
 		var dialog := ConfirmDialogScene.instantiate()
 		get_tree().root.add_child(dialog)
 		dialog.setup(
-			"Unsaved Changes",
-			"You have unsaved changes. Discard?",
-			"Discard",
+			tr("Unsaved Changes"),
+			tr("You have unsaved changes. Discard?"),
+			tr("Discard"),
 			true
 		)
 		dialog.confirmed.connect(func():

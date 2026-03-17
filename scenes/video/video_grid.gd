@@ -169,7 +169,7 @@ func _on_activity_role_changed(
 		"role_label", null
 	)
 	if role_lbl:
-		role_lbl.text = "Role: " + role.capitalize()
+		role_lbl.text = tr("Role: %s") % role.capitalize()
 
 func _on_activity_download_progress(
 	plugin_id: String, progress: float,
@@ -457,7 +457,7 @@ func _rebuild_activity(tiles: Array) -> void:
 			content.add_child(vp_rect)
 		"ended":
 			var ended := Label.new()
-			ended.text = "Activity ended."
+			ended.text = tr("Activity ended.")
 			ended.set_anchors_preset(Control.PRESET_CENTER)
 			ended.add_theme_font_size_override("font_size", 18)
 			ended.add_theme_color_override(
@@ -495,7 +495,7 @@ func _build_activity_header() -> PanelContainer:
 	header_panel.add_child(hbox)
 
 	var name_lbl := Label.new()
-	name_lbl.text = _activity_manifest.get("name", "Activity")
+	name_lbl.text = _activity_manifest.get("name", tr("Activity"))
 	name_lbl.add_theme_font_size_override("font_size", 15)
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(name_lbl)
@@ -513,7 +513,7 @@ func _build_activity_header() -> PanelContainer:
 	var session_state: String = AppState.active_activity_session_state
 	if session_state == "lobby" and _activity_is_host:
 		var start_btn := Button.new()
-		start_btn.text = "Start"
+		start_btn.text = tr("Start")
 		start_btn.custom_minimum_size = Vector2(60, 32)
 		var start_style := ThemeManager.make_flat_style(
 			"accent", 4, [8, 4, 8, 4]
@@ -528,7 +528,7 @@ func _build_activity_header() -> PanelContainer:
 		hbox.add_child(start_btn)
 
 	var leave_btn := Button.new()
-	leave_btn.text = "Leave"
+	leave_btn.text = tr("Leave")
 	leave_btn.custom_minimum_size = Vector2(60, 32)
 	var leave_style := ThemeManager.make_flat_style(
 		Color(ThemeManager.get_color("error"), 0.3),
@@ -554,10 +554,7 @@ func _build_activity_footer() -> PanelContainer:
 	footer_panel.add_child(hbox)
 
 	var role_lbl := Label.new()
-	role_lbl.text = (
-		"Role: "
-		+ AppState.active_activity_role.capitalize()
-	)
+	role_lbl.text = tr("Role: %s") % AppState.active_activity_role.capitalize()
 	role_lbl.add_theme_font_size_override("font_size", 12)
 	role_lbl.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")

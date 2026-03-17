@@ -63,7 +63,7 @@ func _populate_users() -> void:
 	for user in users:
 		var uid: String = user.get("id", "")
 		var display_name: String = user.get(
-			"display_name", "Unknown"
+			"display_name", tr("Unknown")
 		)
 		var username: String = user.get("username", "")
 
@@ -106,6 +106,6 @@ func _on_add_pressed() -> void:
 	if _selected_id.is_empty():
 		return
 	add_button.disabled = true
-	add_button.text = "Adding..."
+	add_button.text = tr("Adding...")
 	await Client.add_dm_member(_channel_id, _selected_id)
 	_close()

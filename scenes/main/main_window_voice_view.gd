@@ -18,7 +18,6 @@ func _init(view: Control) -> void:
 
 func on_voice_view_opened(
 	_channel_id: String,
-	content_header: Control,
 	topic_bar: Control,
 	content_body: Control,
 	voice_text_panel: Control,
@@ -27,7 +26,11 @@ func on_voice_view_opened(
 	voice_text_handle: Control,
 ) -> void:
 	remove_pip()
-	content_header.visible = false
+	# Keep content_header visible so the tab bar remains usable
+	_view.search_toggle.visible = false
+	_view.member_toggle.visible = false
+	if _view._update_indicator:
+		_view._update_indicator.visible = false
 	topic_bar.visible = false
 	content_body.visible = false
 
@@ -64,7 +67,6 @@ func on_voice_view_opened(
 	)
 
 func on_voice_view_closed(
-	content_header: Control,
 	content_body: Control,
 	message_view: Control,
 	topic_bar: Control,
@@ -94,9 +96,24 @@ func on_voice_view_closed(
 	_voice_text_parent.move_child(vtp, _voice_text_index)
 
 	# Restore normal layout
-	content_header.visible = true
 	content_body.visible = true
 	message_view.visible = true
+	# Restore header button visibility via main window helpers
+	_view._update_member_list_visibility()
+	_view._update_search_visibility()
+	if _view._update_indicator:
+		_view._update_indicator.visible = (
+			Updater.is_update_ready()
+			or (
+				not Updater.get_latest_version_info().is_empty()
+				and Updater.is_newer(
+					Updater.get_latest_version_info().get(
+						"version", ""
+					),
+					Client.app_version,
+				)
+			)
+		)
 	sync_handle_fn.call()
 
 	# Restore topic bar based on current channel

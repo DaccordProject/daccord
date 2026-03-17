@@ -27,17 +27,17 @@ func build_password_page(
 	accord_client: AccordClient = null,
 ) -> void:
 	_pw_accord_client = accord_client
-	page_vbox.add_child(section_label_fn.call("CURRENT PASSWORD"))
+	page_vbox.add_child(section_label_fn.call(tr("CURRENT PASSWORD")))
 	_pw_current = LineEdit.new()
 	_pw_current.secret = true
 	page_vbox.add_child(_pw_current)
 
-	page_vbox.add_child(section_label_fn.call("NEW PASSWORD"))
+	page_vbox.add_child(section_label_fn.call(tr("NEW PASSWORD")))
 	_pw_new = LineEdit.new()
 	_pw_new.secret = true
 	page_vbox.add_child(_pw_new)
 
-	page_vbox.add_child(section_label_fn.call("CONFIRM NEW PASSWORD"))
+	page_vbox.add_child(section_label_fn.call(tr("CONFIRM NEW PASSWORD")))
 	_pw_confirm = LineEdit.new()
 	_pw_confirm.secret = true
 	page_vbox.add_child(_pw_confirm)
@@ -45,7 +45,7 @@ func build_password_page(
 	_pw_error = error_label_fn.call()
 	page_vbox.add_child(_pw_error)
 
-	_pw_save_btn = SettingsBase.create_action_button("Change Password")
+	_pw_save_btn = SettingsBase.create_action_button(tr("Change Password"))
 	_pw_save_btn.pressed.connect(_on_password_save)
 	page_vbox.add_child(_pw_save_btn)
 
@@ -56,15 +56,15 @@ func _on_password_save() -> void:
 	var new_pw: String = _pw_new.text
 	var confirm: String = _pw_confirm.text
 	if current.is_empty():
-		_pw_error.text = "Current password is required"
+		_pw_error.text = tr("Current password is required")
 		_pw_error.visible = true
 		return
 	if new_pw.length() < 8:
-		_pw_error.text = "New password must be at least 8 characters"
+		_pw_error.text = tr("New password must be at least 8 characters")
 		_pw_error.visible = true
 		return
 	if new_pw != confirm:
-		_pw_error.text = "Passwords do not match"
+		_pw_error.text = tr("Passwords do not match")
 		_pw_error.visible = true
 		return
 	_pw_save_btn.disabled = true
@@ -79,7 +79,7 @@ func _on_password_save() -> void:
 		else:
 			var err: String = (
 				rest_result.error.message
-				if rest_result.error else "unknown"
+				if rest_result.error else tr("unknown")
 			)
 			result = {"ok": false, "error": err}
 	else:
@@ -89,7 +89,7 @@ func _on_password_save() -> void:
 		_pw_current.text = ""
 		_pw_new.text = ""
 		_pw_confirm.text = ""
-		_pw_error.text = "Password changed successfully"
+		_pw_error.text = tr("Password changed successfully")
 		_pw_error.add_theme_color_override(
 			"font_color", ThemeManager.get_color("success")
 		)
@@ -99,7 +99,7 @@ func _on_password_save() -> void:
 			"font_color", ThemeManager.get_color("error")
 		)
 		_pw_error.text = result.get(
-			"error", "Failed to change password"
+			"error", tr("Failed to change password")
 		)
 		_pw_error.visible = true
 
@@ -115,7 +115,7 @@ func build_delete_page(
 	_del_accord_client = accord_client
 
 	var warning := Label.new()
-	warning.text = (
+	warning.text = tr(
 		"WARNING: This action is irreversible. "
 		+ "All your data will be permanently deleted."
 	)
@@ -125,20 +125,20 @@ func build_delete_page(
 	warning.autowrap_mode = TextServer.AUTOWRAP_WORD
 	page_vbox.add_child(warning)
 
-	page_vbox.add_child(section_label_fn.call("PASSWORD"))
+	page_vbox.add_child(section_label_fn.call(tr("PASSWORD")))
 	_del_password = LineEdit.new()
 	_del_password.secret = true
 	page_vbox.add_child(_del_password)
 
-	page_vbox.add_child(section_label_fn.call("TYPE 'DELETE' TO CONFIRM"))
+	page_vbox.add_child(section_label_fn.call(tr("TYPE 'DELETE' TO CONFIRM")))
 	_del_confirm = LineEdit.new()
-	_del_confirm.placeholder_text = "DELETE"
+	_del_confirm.placeholder_text = tr("DELETE")
 	page_vbox.add_child(_del_confirm)
 
 	_del_error = error_label_fn.call()
 	page_vbox.add_child(_del_error)
 
-	_del_btn = SettingsBase.create_danger_button("Delete My Account")
+	_del_btn = SettingsBase.create_danger_button(tr("Delete My Account"))
 	_del_btn.pressed.connect(_on_delete_account)
 	page_vbox.add_child(_del_btn)
 
@@ -148,11 +148,11 @@ func _on_delete_account() -> void:
 	var pw: String = _del_password.text
 	var confirm_text: String = _del_confirm.text.strip_edges()
 	if pw.is_empty():
-		_del_error.text = "Password is required"
+		_del_error.text = tr("Password is required")
 		_del_error.visible = true
 		return
 	if confirm_text != "DELETE":
-		_del_error.text = "Please type DELETE to confirm"
+		_del_error.text = tr("Please type DELETE to confirm")
 		_del_error.visible = true
 		return
 	_del_btn.disabled = true
@@ -166,7 +166,7 @@ func _on_delete_account() -> void:
 		else:
 			var err: String = (
 				rest_result.error.message
-				if rest_result.error else "unknown"
+				if rest_result.error else tr("unknown")
 			)
 			result = {"ok": false, "error": err}
 	else:
@@ -177,6 +177,6 @@ func _on_delete_account() -> void:
 		_tree.quit()
 	else:
 		_del_error.text = result.get(
-			"error", "Failed to delete account"
+			"error", tr("Failed to delete account")
 		)
 		_del_error.visible = true

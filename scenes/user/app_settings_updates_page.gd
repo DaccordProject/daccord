@@ -34,19 +34,19 @@ func _init(
 
 
 func build() -> VBoxContainer:
-	var vbox: VBoxContainer = _page_vbox.call("Updates")
+	var vbox: VBoxContainer = _page_vbox.call(tr("Updates"))
 
 	# Current version
-	vbox.add_child(_section_label.call("CURRENT VERSION"))
+	vbox.add_child(_section_label.call(tr("CURRENT VERSION")))
 	var version_label := Label.new()
 	version_label.text = "v%s" % Client.app_version
 	vbox.add_child(version_label)
 
 	# Check for updates
-	vbox.add_child(_section_label.call("CHECK FOR UPDATES"))
+	vbox.add_child(_section_label.call(tr("CHECK FOR UPDATES")))
 	var check_row := HBoxContainer.new()
 	check_row.add_theme_constant_override("separation", 12)
-	_check_btn = SettingsBase.create_action_button("Check for Updates")
+	_check_btn = SettingsBase.create_action_button(tr("Check for Updates"))
 	_check_btn.pressed.connect(_on_check_updates_pressed)
 	check_row.add_child(_check_btn)
 	_status_label = Label.new()
@@ -68,7 +68,7 @@ func build() -> VBoxContainer:
 	)
 	_update_row.add_child(_update_version_label)
 	_view_changes_btn = Button.new()
-	_view_changes_btn.text = "View Changes"
+	_view_changes_btn.text = tr("View Changes")
 	_view_changes_btn.flat = true
 	_view_changes_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("accent")
@@ -77,12 +77,12 @@ func build() -> VBoxContainer:
 	_view_changes_btn.pressed.connect(_on_view_changes)
 	_update_row.add_child(_view_changes_btn)
 	_download_btn = SettingsBase.create_action_button(
-		"Download & Install"
+		tr("Download & Install")
 	)
 	_download_btn.pressed.connect(_on_download_pressed)
 	_update_row.add_child(_download_btn)
 	_skip_btn = Button.new()
-	_skip_btn.text = "Skip This Version"
+	_skip_btn.text = tr("Skip This Version")
 	_skip_btn.flat = true
 	_skip_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -107,7 +107,7 @@ func build() -> VBoxContainer:
 	)
 	_progress_row.add_child(_progress_label)
 	_cancel_btn = Button.new()
-	_cancel_btn.text = "Cancel"
+	_cancel_btn.text = tr("Cancel")
 	_cancel_btn.flat = true
 	_cancel_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -118,7 +118,7 @@ func build() -> VBoxContainer:
 
 	# Restart button (hidden until update ready)
 	_restart_btn = SettingsBase.create_action_button(
-		"Restart to Update"
+		tr("Restart to Update")
 	)
 	_restart_btn.visible = false
 	_restart_btn.pressed.connect(func() -> void:
@@ -138,7 +138,7 @@ func build() -> VBoxContainer:
 	# Auto-check toggle
 	vbox.add_child(HSeparator.new())
 	var auto_cb := CheckBox.new()
-	auto_cb.text = "Automatically check for updates"
+	auto_cb.text = tr("Automatically check for updates")
 	auto_cb.button_pressed = Config.get_auto_update_check()
 	auto_cb.toggled.connect(func(pressed: bool) -> void:
 		Config._set_auto_update_check(pressed)
@@ -146,13 +146,13 @@ func build() -> VBoxContainer:
 	vbox.add_child(auto_cb)
 
 	# Master server URL
-	vbox.add_child(_section_label.call("MASTER SERVER URL"))
+	vbox.add_child(_section_label.call(tr("MASTER SERVER URL")))
 	var url_input := LineEdit.new()
 	url_input.text = Config.get_master_server_url()
 	url_input.placeholder_text = "https://master.daccord.gg"
 	vbox.add_child(url_input)
 
-	var url_save := SettingsBase.create_secondary_button("Save URL")
+	var url_save := SettingsBase.create_secondary_button(tr("Save URL"))
 	url_save.pressed.connect(func() -> void:
 		var new_url: String = url_input.text.strip_edges()
 		if not new_url.is_empty():
@@ -196,7 +196,7 @@ func build() -> VBoxContainer:
 
 func _on_check_updates_pressed() -> void:
 	_check_btn.disabled = true
-	_status_label.text = "Checking..."
+	_status_label.text = tr("Checking...")
 	_error_label_update.visible = false
 	Updater.check_for_updates(true)
 
@@ -206,7 +206,7 @@ func _on_update_available(info: Dictionary) -> void:
 	_check_btn.disabled = false
 	_status_label.text = ""
 	var version: String = info.get("version", "unknown")
-	_update_version_label.text = "v%s is available" % version
+	_update_version_label.text = tr("v%s is available") % version
 	_update_row.visible = true
 	_download_btn.visible = true
 	_skip_btn.visible = true
@@ -217,13 +217,13 @@ func _on_update_available(info: Dictionary) -> void:
 
 func _on_update_check_complete(_info: Variant) -> void:
 	_check_btn.disabled = false
-	_status_label.text = "You're on the latest version."
+	_status_label.text = tr("You're on the latest version.")
 
 
 func _on_update_check_failed(error: String) -> void:
 	_check_btn.disabled = false
 	_status_label.text = ""
-	_error_label_update.text = "Check failed: %s" % error
+	_error_label_update.text = tr("Check failed: %s") % error
 	_error_label_update.visible = true
 
 
@@ -252,7 +252,7 @@ func _on_download_pressed() -> void:
 	_skip_btn.visible = false
 	_progress_row.visible = true
 	_progress_bar.value = 0
-	_progress_label.text = "Starting..."
+	_progress_label.text = tr("Starting...")
 	_cancel_btn.visible = true
 	_error_label_update.visible = false
 	Updater.download_update(_cached_version_info)
@@ -263,7 +263,7 @@ func _on_skip_pressed() -> void:
 	if not version.is_empty():
 		Updater.skip_version(version)
 	_update_row.visible = false
-	_status_label.text = "Version v%s skipped." % version
+	_status_label.text = tr("Version v%s skipped.") % version
 
 
 func _on_cancel_download() -> void:
@@ -276,7 +276,7 @@ func _on_cancel_download() -> void:
 func _on_update_download_started() -> void:
 	_progress_row.visible = true
 	_progress_bar.value = 0
-	_progress_label.text = "Downloading..."
+	_progress_label.text = tr("Downloading...")
 	_cancel_btn.visible = true
 
 
@@ -287,7 +287,7 @@ func _on_update_download_progress(percent: float) -> void:
 	)
 	if total_size > 0:
 		var downloaded: int = int(percent / 100.0 * total_size)
-		_progress_label.text = "%s / %s" % [
+		_progress_label.text = tr("%s / %s") % [
 			_format_size(downloaded), _format_size(total_size)
 		]
 	else:
@@ -302,7 +302,7 @@ func _on_update_download_failed(error: String) -> void:
 	_progress_row.visible = false
 	_download_btn.visible = true
 	_skip_btn.visible = true
-	_error_label_update.text = "Download failed: %s" % error
+	_error_label_update.text = tr("Download failed: %s") % error
 	_error_label_update.visible = true
 
 

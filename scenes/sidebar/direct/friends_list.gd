@@ -76,21 +76,21 @@ func _refresh() -> void:
 	# FRND-14: Contextual empty state
 	match _current_tab:
 		TAB_ALL:
-			empty_label.text = "No friends yet. Add someone!"
+			empty_label.text = tr("No friends yet. Add someone!")
 		TAB_ONLINE:
-			empty_label.text = "No friends online."
+			empty_label.text = tr("No friends online.")
 		TAB_PENDING:
-			empty_label.text = "No pending requests."
+			empty_label.text = tr("No pending requests.")
 		TAB_BLOCKED:
-			empty_label.text = "No blocked users."
+			empty_label.text = tr("No blocked users.")
 
 	# FRND-12: Count header
 	var tab_name: String
 	match _current_tab:
-		TAB_ALL: tab_name = "ALL FRIENDS"
-		TAB_ONLINE: tab_name = "ONLINE"
-		TAB_PENDING: tab_name = "PENDING"
-		TAB_BLOCKED: tab_name = "BLOCKED"
+		TAB_ALL: tab_name = tr("ALL FRIENDS")
+		TAB_ONLINE: tab_name = tr("ONLINE")
+		TAB_PENDING: tab_name = tr("PENDING")
+		TAB_BLOCKED: tab_name = tr("BLOCKED")
 	count_label.text = "%s — %d" % [tab_name, rels.size()]
 	count_label.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_muted")
@@ -103,11 +103,11 @@ func _refresh() -> void:
 		_sort_by_name(incoming)
 		_sort_by_name(outgoing)
 		if not incoming.is_empty():
-			_add_section_label("INCOMING")
+			_add_section_label(tr("INCOMING"))
 			for rel in incoming:
 				_add_friend_item(rel)
 		if not outgoing.is_empty():
-			_add_section_label("OUTGOING")
+			_add_section_label(tr("OUTGOING"))
 			for rel in outgoing:
 				_add_friend_item(rel)
 	else:
@@ -181,17 +181,17 @@ func _on_message_pressed(user_id: String) -> void:
 func _on_remove_pressed(user_id: String) -> void:
 	var dname: String = _display_name_for(user_id)
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Remove Friend",
-		"Remove %s from your friends?" % dname,
-		"Remove", true, func(): Client.relationships.remove_friend(user_id)
+		tr("Remove Friend"),
+		tr("Remove %s from your friends?") % dname,
+		tr("Remove"), true, func(): Client.relationships.remove_friend(user_id)
 	)
 
 func _on_block_pressed(user_id: String) -> void:
 	var dname: String = _display_name_for(user_id)
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Block %s" % dname,
-		"They won't be able to message you or send friend requests.",
-		"Block", true, func(): Client.relationships.block_user(user_id)
+		tr("Block %s") % dname,
+		tr("They won't be able to message you or send friend requests."),
+		tr("Block"), true, func(): Client.relationships.block_user(user_id)
 	)
 
 func _on_accept_pressed(user_id: String) -> void:
@@ -218,14 +218,14 @@ func _on_rejoin_pressed(server_url: String, space_name: String) -> void:
 
 func _on_remove_local_pressed(server_url: String, user_id: String) -> void:
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
-		"Remove Friend",
-		"Remove this friend from your local friend book? This cannot be undone.",
-		"Remove", true, func():
+		tr("Remove Friend"),
+		tr("Remove this friend from your local friend book? This cannot be undone."),
+		tr("Remove"), true, func():
 			Client.relationships.remove_unavailable_friend(server_url, user_id)
 	)
 
 func _display_name_for(user_id: String) -> String:
 	var rel = Client.relationships.get_relationship(user_id)
 	if rel != null:
-		return rel["user"].get("display_name", "this user")
-	return "this user"
+		return rel["user"].get("display_name", tr("this user"))
+	return tr("this user")

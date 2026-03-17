@@ -7,6 +7,7 @@ var _parent_message_id: String = ""
 var _parent_channel_id: String = ""
 var _also_send_to_channel: bool = false
 var _notify_popup: PopupMenu
+var _last_typing_time: int = 0
 
 @onready var thread_title: Label = $VBox/Header/ThreadTitle
 @onready var notify_button: Button = $VBox/Header/NotifyButton
@@ -27,17 +28,19 @@ func _ready() -> void:
 	notify_button.pressed.connect(_on_notify_pressed)
 	send_button.pressed.connect(_on_send)
 	thread_input.gui_input.connect(_on_input_key)
+	thread_input.text_changed.connect(_on_thread_input_changed)
 	also_send_check.toggled.connect(func(v: bool): _also_send_to_channel = v)
+	AppState.guest_mode_changed.connect(_on_guest_mode_changed)
 
 func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")
 	if style is StyleBoxFlat:
 		style.bg_color = ThemeManager.get_color("panel_bg")
 	_notify_popup = PopupMenu.new()
-	_notify_popup.add_item("Default", 0)
-	_notify_popup.add_item("All Messages", 1)
-	_notify_popup.add_item("Mentions Only", 2)
-	_notify_popup.add_item("Nothing", 3)
+	_notify_popup.add_item(tr("Default"), 0)
+	_notify_popup.add_item(tr("All Messages"), 1)
+	_notify_popup.add_item(tr("Mentions Only"), 2)
+	_notify_popup.add_item(tr("Nothing"), 3)
 	_notify_popup.id_pressed.connect(_on_notify_option_selected)
 	add_child(_notify_popup)
 	AppState.thread_opened.connect(_on_thread_opened)
@@ -69,7 +72,7 @@ func _on_thread_opened(parent_message_id: String) -> void:
 	# Update reply count
 	var count: int = parent_msg.get("reply_count", 0)
 	if count > 0:
-		reply_count_label.text = "%d %s" % [count, "reply" if count == 1 else "replies"]
+		reply_count_label.text = tr("%d %s") % [count, tr("reply") if count == 1 else tr("replies")]
 		reply_count_label.visible = true
 	else:
 		reply_count_label.text = ""
@@ -94,6 +97,16 @@ func _on_thread_opened(parent_message_id: String) -> void:
 		_also_send_to_channel = false
 		also_send_check.button_pressed = false
 
+	# Guest mode: gray out composer
+	if AppState.is_guest_mode:
+		thread_input.editable = false
+		send_button.disabled = true
+		thread_input.placeholder_text = tr("Sign in to reply")
+		thread_input.modulate.a = 0.5
+		send_button.modulate.a = 0.5
+		also_send_check.visible = false
+		return
+
 	# Check SEND_IN_THREADS permission
 	var space_id: String = Client._channel_to_space.get(_parent_channel_id, "")
 	var can_send: bool = Client.has_channel_permission(
@@ -101,10 +114,12 @@ func _on_thread_opened(parent_message_id: String) -> void:
 	)
 	thread_input.editable = can_send
 	send_button.disabled = not can_send
+	thread_input.modulate.a = 1.0
+	send_button.modulate.a = 1.0
 	if not can_send:
-		thread_input.placeholder_text = "You don't have permission to reply in threads"
+		thread_input.placeholder_text = tr("You don't have permission to reply in threads")
 	else:
-		thread_input.placeholder_text = "Reply in thread..."
+		thread_input.placeholder_text = tr("Reply in thread...")
 
 	# Focus input
 	if can_send:
@@ -140,7 +155,7 @@ func _render_thread_messages() -> void:
 	var messages := Client.get_messages_for_thread(_parent_message_id)
 	var count := messages.size()
 	if count > 0:
-		reply_count_label.text = "%d %s" % [count, "reply" if count == 1 else "replies"]
+		reply_count_label.text = tr("%d %s") % [count, tr("reply") if count == 1 else tr("replies")]
 		reply_count_label.visible = true
 	else:
 		reply_count_label.visible = false
@@ -192,6 +207,8 @@ func _on_close() -> void:
 	AppState.close_thread()
 
 func _on_send() -> void:
+	if GuestPrompt.show_if_guest():
+		return
 	var text := thread_input.text.strip_edges()
 	if text.is_empty():
 		return
@@ -217,13 +234,23 @@ func _on_input_key(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			AppState.close_thread()
 
+func _on_thread_input_changed() -> void:
+	if _parent_channel_id.is_empty():
+		return
+	if thread_input.text.strip_edges().is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_typing_time > 8000:
+		_last_typing_time = now
+		Client.send_typing(_parent_channel_id, _parent_message_id)
+
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	_apply_layout(mode)
 
 func _apply_layout(mode: AppState.LayoutMode) -> void:
 	match mode:
 		AppState.LayoutMode.COMPACT:
-			close_button.text = "\u2190 Back"
+			close_button.text = tr("\u2190 Back")
 			custom_minimum_size.x = 0
 		_:
 			close_button.text = "X"
@@ -236,3 +263,19 @@ func _on_thread_typing_started(thread_id: String, username: String) -> void:
 func _on_thread_typing_stopped(thread_id: String) -> void:
 	if thread_id == _parent_message_id:
 		thread_typing_indicator.hide_typing()
+
+func _on_guest_mode_changed(is_guest: bool) -> void:
+	if not visible or _parent_message_id.is_empty():
+		return
+	if is_guest:
+		thread_input.editable = false
+		send_button.disabled = true
+		thread_input.placeholder_text = tr("Sign in to reply")
+		thread_input.modulate.a = 0.5
+		send_button.modulate.a = 0.5
+	else:
+		thread_input.editable = true
+		send_button.disabled = false
+		thread_input.placeholder_text = tr("Reply in thread...")
+		thread_input.modulate.a = 1.0
+		send_button.modulate.a = 1.0

@@ -56,11 +56,11 @@ func setup(data: Dictionary) -> void:
 	_message_id = data.get("id", "")
 
 	var ch_name: String = data.get("channel_name", "")
-	channel_label.text = "#" + ch_name if not ch_name.is_empty() else "#unknown"
+	channel_label.text = "#" + ch_name if not ch_name.is_empty() else tr("#unknown")
 	timestamp_label.text = data.get("timestamp", "")
 
 	var author: Dictionary = data.get("author", {})
-	author_label.text = author.get("display_name", "Unknown")
+	author_label.text = author.get("display_name", tr("Unknown"))
 	var color: Color = author.get("color", Color.WHITE)
 	author_label.add_theme_color_override("font_color", color)
 

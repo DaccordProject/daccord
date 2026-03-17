@@ -2,8 +2,10 @@ extends VBoxContainer
 
 signal back_pressed()
 signal join_pressed(server_url: String, space_id: String, space_slug: String)
+signal preview_pressed(server_url: String, space_id: String)
 
 var _data: Dictionary = {}
+var _preview_button: Button
 
 @onready var _back_button: Button = $Header/BackButton
 @onready var _banner: TextureRect = $BannerContainer/Banner
@@ -22,6 +24,7 @@ func _ready() -> void:
 	add_to_group("themed")
 	_back_button.pressed.connect(func(): back_pressed.emit())
 	_join_button.pressed.connect(_on_join_pressed)
+	_create_preview_button()
 	_apply_style()
 
 func _apply_theme() -> void:
@@ -29,25 +32,25 @@ func _apply_theme() -> void:
 
 func setup(data: Dictionary) -> void:
 	_data = data
-	_name_label.text = data.get("name", "Unknown Space")
+	_name_label.text = data.get("name", tr("Unknown Space"))
 
 	var member_count: int = data.get("member_count", 0)
 	var presence_count: int = data.get("presence_count", 0)
-	_member_label.text = "%d members" % member_count
+	_member_label.text = tr("%d members") % member_count
 	if presence_count > 0:
-		_member_label.text += " · %d online" % presence_count
+		_member_label.text += tr(" · %d online") % presence_count
 	_member_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 	var desc: String = data.get("description", "")
 	if desc.is_empty():
-		_desc_label.text = "No description available."
+		_desc_label.text = tr("No description available.")
 		_desc_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	else:
 		_desc_label.text = desc
 
 	var tags: Array = data.get("tags", [])
 	if tags.is_empty():
-		_tag_label.text = "None"
+		_tag_label.text = tr("None")
 		_tag_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	else:
 		var tag_strings := PackedStringArray()
@@ -58,7 +61,7 @@ func setup(data: Dictionary) -> void:
 	var server_url: String = data.get("server_url", "")
 	_server_label.text = server_url.replace("https://", "").replace("http://", "")
 
-	_ping_label.text = "Measuring..."
+	_ping_label.text = tr("Measuring...")
 	_ping_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 	# Load banner
@@ -79,7 +82,7 @@ func setup(data: Dictionary) -> void:
 
 func set_ping(ms: int) -> void:
 	if ms < 0:
-		_ping_label.text = "Measuring..."
+		_ping_label.text = tr("Measuring...")
 		_ping_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 		return
 	var bars: String
@@ -126,16 +129,38 @@ func _apply_style() -> void:
 	_back_button.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_back_button.add_theme_color_override("font_hover_color", ThemeManager.get_color("text_body"))
 
+func _create_preview_button() -> void:
+	_preview_button = Button.new()
+	_preview_button.text = tr("Preview")
+	_preview_button.pressed.connect(_on_preview_pressed)
+	# Insert just before the join button
+	_join_button.get_parent().add_child(_preview_button)
+	_join_button.get_parent().move_child(
+		_preview_button,
+		_join_button.get_index()
+	)
+
+func _on_preview_pressed() -> void:
+	var server_url: String = _data.get("server_url", "")
+	var space_id: String = _data.get("space_id", _data.get("id", ""))
+	if server_url.is_empty() or space_id.is_empty():
+		_status_label.text = tr("Missing server information")
+		_status_label.visible = true
+		return
+	_preview_button.disabled = true
+	_preview_button.text = tr("Loading...")
+	preview_pressed.emit(server_url, space_id)
+
 func _on_join_pressed() -> void:
 	var server_url: String = _data.get("server_url", "")
 	var space_id: String = _data.get("space_id", _data.get("id", ""))
 	var space_slug: String = _data.get("slug", "")
 	if server_url.is_empty() or space_id.is_empty() or space_slug.is_empty():
-		_status_label.text = "Missing server information"
+		_status_label.text = tr("Missing server information")
 		_status_label.visible = true
 		return
 	_join_button.disabled = true
-	_join_button.text = "Joining..."
+	_join_button.text = tr("Joining...")
 	join_pressed.emit(server_url, space_id, space_slug)
 
 func show_error(msg: String) -> void:
@@ -143,7 +168,7 @@ func show_error(msg: String) -> void:
 	_status_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
 	_status_label.visible = true
 	_join_button.disabled = false
-	_join_button.text = "Join Server"
+	_join_button.text = tr("Join Server")
 
 func _load_image(url: String, target: TextureRect) -> void:
 	var http := HTTPRequest.new()

@@ -220,3 +220,197 @@ func test_plugins_isolated_per_connection() -> void:
 	assert_eq(plugins.get_plugins(1).size(), 1)
 	assert_eq(plugins.get_plugin("p1").get("name"), "A")
 	assert_eq(plugins.get_plugin("p2").get("name"), "B")
+
+
+# ------------------------------------------------------------------
+# _on_livekit_data_received — topic prefix stripping
+# ------------------------------------------------------------------
+
+func test_livekit_data_strips_prefix_and_routes() -> void:
+	# Set up a mock runtime that records on_data_received calls
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+	AppState.active_activity_plugin_id = "p1"
+
+	plugins._on_livekit_data_received(
+		"sender_1", "plugin:p1:game:move", "payload".to_utf8_buffer()
+	)
+
+	assert_eq(mock_runtime.received.size(), 1)
+	assert_eq(mock_runtime.received[0]["sender_id"], "sender_1")
+	assert_eq(mock_runtime.received[0]["topic"], "game:move")
+
+	# Cleanup
+	plugins._active_runtime = null
+	AppState.active_activity_plugin_id = ""
+	mock_runtime.free()
+
+
+func test_livekit_data_ignores_wrong_plugin_prefix() -> void:
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+	AppState.active_activity_plugin_id = "p1"
+
+	# Different plugin prefix — should be ignored
+	plugins._on_livekit_data_received(
+		"sender_1", "plugin:other:topic", "data".to_utf8_buffer()
+	)
+
+	assert_eq(mock_runtime.received.size(), 0)
+
+	plugins._active_runtime = null
+	AppState.active_activity_plugin_id = ""
+	mock_runtime.free()
+
+
+func test_livekit_data_ignores_when_no_runtime() -> void:
+	plugins._active_runtime = null
+	# Should not crash
+	plugins._on_livekit_data_received(
+		"sender_1", "plugin:p1:topic", "data".to_utf8_buffer()
+	)
+
+
+func test_livekit_data_ignores_non_plugin_topic() -> void:
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+	AppState.active_activity_plugin_id = "p1"
+
+	plugins._on_livekit_data_received(
+		"sender_1", "something:else", "data".to_utf8_buffer()
+	)
+
+	assert_eq(mock_runtime.received.size(), 0)
+
+	plugins._active_runtime = null
+	AppState.active_activity_plugin_id = ""
+	mock_runtime.free()
+
+
+# ------------------------------------------------------------------
+# on_plugin_event — forwarding to active runtime
+# ------------------------------------------------------------------
+
+func test_on_plugin_event_forwards_to_runtime() -> void:
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+
+	plugins.on_plugin_event({
+		"event_type": "game_update",
+		"data": {"score": 42},
+	}, 0)
+
+	assert_eq(mock_runtime.events.size(), 1)
+	assert_eq(mock_runtime.events[0]["type"], "game_update")
+	assert_eq(mock_runtime.events[0]["data"].get("score"), 42)
+
+	plugins._active_runtime = null
+	mock_runtime.free()
+
+
+func test_on_plugin_event_noop_when_no_runtime() -> void:
+	plugins._active_runtime = null
+	# Should not crash
+	plugins.on_plugin_event({"event_type": "test", "data": {}}, 0)
+
+
+# ------------------------------------------------------------------
+# _update_scripted_participants
+# ------------------------------------------------------------------
+
+func test_update_scripted_participants_updates_existing() -> void:
+	var mock_runtime := _MockRuntime.new()
+	mock_runtime.participants = [
+		{"user_id": "u1", "role": "player"},
+		{"user_id": "u2", "role": "player"},
+	]
+	plugins._active_runtime = mock_runtime
+
+	plugins._update_scripted_participants("u2", "spectator")
+
+	assert_eq(mock_runtime.participants[1]["role"], "spectator")
+	assert_eq(mock_runtime.participants.size(), 2)
+
+	plugins._active_runtime = null
+	mock_runtime.free()
+
+
+func test_update_scripted_participants_adds_new() -> void:
+	var mock_runtime := _MockRuntime.new()
+	mock_runtime.participants = [
+		{"user_id": "u1", "role": "player"},
+	]
+	plugins._active_runtime = mock_runtime
+
+	plugins._update_scripted_participants("u3", "spectator")
+
+	assert_eq(mock_runtime.participants.size(), 2)
+	assert_eq(mock_runtime.participants[1]["user_id"], "u3")
+	assert_eq(mock_runtime.participants[1]["role"], "spectator")
+
+	plugins._active_runtime = null
+	mock_runtime.free()
+
+
+# ------------------------------------------------------------------
+# _update_context_participants
+# ------------------------------------------------------------------
+
+func test_update_context_participants_updates_existing() -> void:
+	var ctx := PluginContext.new()
+	ctx.participants = [
+		{"user_id": "u1", "role": "player"},
+	]
+
+	plugins._update_context_participants(ctx, "u1", "spectator")
+	assert_eq(ctx.participants[0]["role"], "spectator")
+	assert_eq(ctx.participants.size(), 1)
+
+
+func test_update_context_participants_adds_new() -> void:
+	var ctx := PluginContext.new()
+	ctx.participants = []
+
+	plugins._update_context_participants(ctx, "u1", "player")
+	assert_eq(ctx.participants.size(), 1)
+	assert_eq(ctx.participants[0]["user_id"], "u1")
+
+
+# ------------------------------------------------------------------
+# on_plugin_uninstalled clears active activity
+# ------------------------------------------------------------------
+
+func test_uninstall_active_plugin_clears_activity() -> void:
+	plugins.on_plugin_installed(
+		{"manifest": {"id": "p1", "name": "A"}}, 0
+	)
+	AppState.active_activity_plugin_id = "p1"
+	plugins._active_session_id = "sess_1"
+
+	watch_signals(AppState)
+	plugins.on_plugin_uninstalled({"plugin_id": "p1"}, 0)
+
+	assert_eq(AppState.active_activity_plugin_id, "")
+	assert_eq(plugins._active_session_id, "")
+	assert_signal_emitted(AppState, "activity_ended")
+
+
+# ------------------------------------------------------------------
+# Mock runtime helper
+# ------------------------------------------------------------------
+
+class _MockRuntime:
+	extends Node
+	var received: Array = []
+	var events: Array = []
+	var participants: Array = []
+
+	func on_data_received(
+		sender_id: String, topic: String, payload: PackedByteArray,
+	) -> void:
+		received.append({
+			"sender_id": sender_id, "topic": topic, "payload": payload,
+		})
+
+	func on_plugin_event(event_type: String, data: Dictionary) -> void:
+		events.append({"type": event_type, "data": data})

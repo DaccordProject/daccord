@@ -37,7 +37,7 @@ func _apply_theme() -> void:
 
 	# "Load older messages" button at top of message list
 	_older_btn = Button.new()
-	_older_btn.text = "Show older messages"
+	_older_btn.text = tr("Show older messages")
 	_older_btn.flat = true
 	_older_btn.visible = false
 	_older_btn.add_theme_font_size_override("font_size", 12)
@@ -53,7 +53,7 @@ func _on_voice_text_opened(channel_id: String) -> void:
 	var ch_data: Dictionary = Client._channel_cache.get(channel_id, {})
 	_channel_name = ch_data.get("name", channel_id)
 	header_label.text = _channel_name
-	text_input.placeholder_text = "Message #" + _channel_name
+	text_input.placeholder_text = tr("Message #%s") % _channel_name
 
 	# Clear old messages (keep persistent older button)
 	for child in message_list.get_children():
@@ -126,7 +126,7 @@ func _on_older_messages_pressed() -> void:
 	if _is_loading_older or _channel_id.is_empty():
 		return
 	_is_loading_older = true
-	_older_btn.text = "Loading..."
+	_older_btn.text = tr("Loading...")
 	_older_btn.disabled = true
 	var sc := scroll_container
 	var prev_scroll_max := sc.get_v_scroll_bar().max_value
@@ -141,7 +141,7 @@ func _on_older_messages_pressed() -> void:
 	# Hide button if fewer than MESSAGE_CAP were loaded (no more history)
 	var messages: Array = Client.get_messages_for_channel(_channel_id)
 	_older_btn.visible = messages.size() >= Client.MESSAGE_CAP
-	_older_btn.text = "Show older messages"
+	_older_btn.text = tr("Show older messages")
 	_older_btn.disabled = false
 	_is_loading_older = false
 
