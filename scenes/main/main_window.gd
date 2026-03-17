@@ -45,6 +45,7 @@ var _update_indicator: Button = null
 @onready var hamburger_button: Button = %HamburgerButton
 @onready var sidebar_toggle: Button = %SidebarToggle
 @onready var tab_bar: TabBar = %TabBar
+@onready var header_spacer: Control = $LayoutHBox/ContentArea/ContentHeader/ContentHeaderHBox/HeaderSpacer
 @onready var search_toggle: Button = %SearchToggle
 @onready var member_toggle: Button = %MemberListToggle
 @onready var topic_bar: Label = $LayoutHBox/ContentArea/TopicBar
@@ -61,7 +62,7 @@ var _update_indicator: Button = null
 
 func _ready() -> void:
 	add_to_group("themed")
-	_tabs = MainWindowTabs.new(tab_bar, self)
+	_tabs = MainWindowTabs.new(tab_bar, self, header_spacer)
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)

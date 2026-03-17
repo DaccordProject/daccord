@@ -194,15 +194,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: addons/lua-gdextension
-          key: lua-gdextension-${{ env.LUA_GDEXT_VERSION }}
+          key: lua-gdextension-lua-${{ env.LUA_GDEXT_VERSION }}
 
       - name: Install Lua GDExtension
         run: |
           if [ ! -d addons/lua-gdextension ]; then
             TMPDIR=$(mktemp -d)
             gh release download "$LUA_GDEXT_VERSION" --repo gilzoide/lua-gdextension \
-              --pattern "lua-gdextension+luajit.zip" --dir "$TMPDIR"
-            unzip -o "$TMPDIR/lua-gdextension+luajit.zip" -d "$TMPDIR/extracted"
+              --pattern "lua-gdextension.zip" --dir "$TMPDIR"
+            unzip -o "$TMPDIR/lua-gdextension.zip" -d "$TMPDIR/extracted"
             cp -R "$TMPDIR/extracted/addons/lua-gdextension" addons/lua-gdextension
             rm -rf "$TMPDIR"
           fi

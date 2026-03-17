@@ -215,22 +215,49 @@ func _ping_servers(spaces: Array) -> void:
 			_ping_server(url)
 
 func _ping_server(server_url: String) -> void:
-	var http := HTTPRequest.new()
-	add_child(http)
-	var health_url: String = server_url.rstrip("/") + "/health"
+	# Parse host and port from URL for TCP-only latency measurement
+	var stripped: String = server_url.rstrip("/")
+	var host: String = stripped
+	if host.begins_with("https://"):
+		host = host.substr(8)
+	elif host.begins_with("http://"):
+		host = host.substr(7)
+
+	var port: int = 443 if stripped.begins_with("https://") else 80
+	var colon_idx: int = host.rfind(":")
+	if colon_idx != -1:
+		var port_str: String = host.substr(colon_idx + 1)
+		if port_str.is_valid_int():
+			port = port_str.to_int()
+		host = host.substr(0, colon_idx)
+
+	# Strip any path component
+	var slash_idx: int = host.find("/")
+	if slash_idx != -1:
+		host = host.substr(0, slash_idx)
+
+	var tcp := StreamPeerTCP.new()
 	var start := Time.get_ticks_msec()
-	var err := http.request(health_url)
+	var err := tcp.connect_to_host(host, port)
 	if err != OK:
-		http.queue_free()
 		return
-	var result: Array = await http.request_completed
-	http.queue_free()
+
+	# Poll until connected or failed (timeout after 5 seconds)
+	while tcp.get_status() == StreamPeerTCP.STATUS_CONNECTING:
+		if Time.get_ticks_msec() - start > 5000:
+			tcp.disconnect_from_host()
+			return
+		tcp.poll()
+		await get_tree().process_frame
+
 	if not is_instance_valid(self):
 		return
-	var ms: int = Time.get_ticks_msec() - start
-	var response_code: int = result[1]
-	if response_code < 200 or response_code >= 300:
+
+	if tcp.get_status() != StreamPeerTCP.STATUS_CONNECTED:
 		return
+
+	var ms: int = Time.get_ticks_msec() - start
+	tcp.disconnect_from_host()
 	_ping_cache[server_url] = ms
 	_apply_ping_to_cards(server_url, ms)
 

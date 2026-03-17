@@ -7,12 +7,17 @@ var tabs: Array[Dictionary] = []
 
 var _tab_bar: TabBar
 var _parent: Node
+var _header_spacer: Control
 var _space_icon_cache: Dictionary = {}
 
 
-func _init(p_tab_bar: TabBar, parent: Node) -> void:
+func _init(
+	p_tab_bar: TabBar, parent: Node,
+	p_header_spacer: Control = null,
+) -> void:
 	_tab_bar = p_tab_bar
 	_parent = parent
+	_header_spacer = p_header_spacer
 
 
 func add_tab(
@@ -84,7 +89,10 @@ func remove_tabs_for_space(space_id: String) -> void:
 
 
 func update_visibility() -> void:
-	_tab_bar.visible = tabs.size() > 1
+	var show_tabs: bool = tabs.size() > 1
+	_tab_bar.visible = show_tabs
+	if _header_spacer:
+		_header_spacer.visible = not show_tabs
 
 
 func update_icons() -> void:
