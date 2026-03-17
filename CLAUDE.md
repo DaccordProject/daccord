@@ -114,3 +114,9 @@ Server logs are written to `test_server.log` -- tail them with `tail -f test_ser
 
 **Known issues:**
 - None at present. Previous issues (type inference in test_add_server_dialog.gd and seed cascade failures) have been fixed.
+
+## Agent-Specific Notes
+
+This repository includes a compiled documentation database/knowledgebase at `AGENTS.db`.
+For context for any task, you MUST use MCP `agents_search` to look up context including architectural, API, and historical changes.
+Treat `AGENTS.db` layers as immutable; avoid in-place mutation utilities unless required by the design.

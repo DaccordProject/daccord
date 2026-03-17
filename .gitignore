@@ -23,3 +23,8 @@ test_server.log
 .DS_Store
 .claude/settings.local.json
 dist/web/livekit-client.umd.min.js
+!AGENTS.db
+!AGENTS.delta.db
+!AGENTS.user.db
+AGENTS.local.db
+.mcp.json
