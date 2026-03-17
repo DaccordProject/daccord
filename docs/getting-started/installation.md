@@ -11,7 +11,7 @@ daccord is available for Linux, Windows, macOS, and Android.
 
 ## Download
 
-Download the latest release from the [GitHub Releases page](https://github.com/daccord-projects/daccord/releases).
+Download the latest release from the [GitHub Releases page](https://github.com/DaccordProject/daccord/releases).
 
 Choose the right file for your platform:
 

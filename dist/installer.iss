@@ -9,7 +9,7 @@
   #endif
 #endif
 #define MyAppPublisher "daccord-projects"
-#define MyAppURL "https://github.com/daccord-projects/daccord"
+#define MyAppURL "https://github.com/DaccordProject/daccord"
 #define MyAppExeName "daccord.exe"
 
 [Setup]

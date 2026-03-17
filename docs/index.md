@@ -38,6 +38,14 @@ New to daccord? Start here.
 - [Moderation](administration/moderation.md) -- Keep your community safe
 - [Invites](administration/invites.md) -- Invite people to your server
 
+## Self-Hosting
+
+- [Deploying Your Own Server](self-hosting/deploying-a-server.md) -- Set up and run your own accordserver instance
+
+## Plugins
+
+- [daccord Editor](https://github.com/DaccordProject/daccord-editor) -- Create and test Lua-based activity plugins for your server
+
 ## Help
 
 - [Troubleshooting](troubleshooting/common-issues.md) -- Solutions to common problems

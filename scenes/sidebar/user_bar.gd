@@ -228,8 +228,8 @@ func _show_about_dialog() -> void:
 	vbox.add_child(license_label)
 
 	var link := LinkButton.new()
-	link.text = "github.com/daccord-projects/daccord"
-	link.uri = "https://github.com/daccord-projects/daccord"
+	link.text = "github.com/DaccordProject/daccord"
+	link.uri = "https://github.com/DaccordProject/daccord"
 	link.add_theme_font_size_override("font_size", 12)
 	vbox.add_child(link)
 

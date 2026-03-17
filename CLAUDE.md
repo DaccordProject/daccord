@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Daccord is a multi-platform (Linux, Windows, Android, Web) real-time chat client built with **Godot 4.5** and **GDScript**. It connects to [accordserver](https://github.com/daccord-projects/accordserver) (Rust backend) via REST + WebSocket APIs. The in-tree **AccordKit** addon (`addons/accordkit/`) provides the typed API client library.
+Daccord is a multi-platform (Linux, Windows, Android, Web) real-time chat client built with **Godot 4.5** and **GDScript**. It connects to [accordserver](https://github.com/DaccordProject/accordserver) (Rust backend) via REST + WebSocket APIs. The in-tree **AccordKit** addon (`addons/accordkit/`) provides the typed API client library.
 
 ## Commands
 

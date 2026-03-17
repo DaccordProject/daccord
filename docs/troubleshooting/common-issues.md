@@ -42,6 +42,6 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 
 ## Reporting Issues
 
-If you encounter a bug, report it at the [daccord GitHub Issues page](https://github.com/daccord-projects/daccord/issues).
+If you encounter a bug, report it at the [daccord GitHub Issues page](https://github.com/DaccordProject/daccord/issues).
 
 daccord includes optional error reporting that sends crash data (with no personal information) to help developers fix issues. You can enable or disable this in App Settings.

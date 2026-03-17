@@ -190,11 +190,11 @@ Standard deploy buttons link to platform-specific URLs that reference the GitHub
 
 ```markdown
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/accordserver)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/daccord-projects/accordserver)
-[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/daccord-projects/accordserver)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/DaccordProject/accordserver)
+[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/DaccordProject/accordserver)
 ```
 
-For Fly.io, a CLI command is standard: `fly launch --from https://github.com/daccord-projects/accordserver`
+For Fly.io, a CLI command is standard: `fly launch --from https://github.com/DaccordProject/accordserver`
 
 ## Implementation Status
 

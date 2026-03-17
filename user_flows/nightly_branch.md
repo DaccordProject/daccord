@@ -287,7 +287,7 @@ The About dialog in `user_bar.gd` (line 182) should display the update channel:
 daccord v0.2.0-nightly.20260219
 Update channel: nightly
 License: MIT
-github.com/daccord-projects/daccord
+github.com/DaccordProject/daccord
 ```
 
 ### CI Workflow Extension

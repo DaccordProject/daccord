@@ -60,6 +60,10 @@ Daccord is built with [Godot 4.5](https://godotengine.org/). To run it from sour
 2. Clone this repository
 3. Open the project in Godot and hit Play
 
+## Plugins
+
+Daccord supports Lua-based multiplayer activity plugins. To create and test plugins locally, use the [daccord Editor](https://github.com/DaccordProject/daccord-editor) -- a Godot-based development harness with live reload, virtual user simulation, and action loopback for testing multiplayer logic without a server.
+
 ## Contributing
 
 Contributions are welcome! Feel free to open an issue or submit a pull request.
