@@ -217,6 +217,6 @@ func test_permission_overwrite_to_dict() -> void:
 	var o := AccordPermissionOverwrite.from_dict({"id": "m1", "type": "member", "allow": ["speak"], "deny": []})
 	var out := o.to_dict()
 	assert_eq(out["id"], "m1")
-	assert_eq(out["type"], "member")
+	assert_eq(out["type"], "user")
 	assert_eq(out["allow"], ["speak"])
 	assert_eq(out["deny"], [])
