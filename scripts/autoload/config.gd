@@ -111,8 +111,8 @@ func _migrate_legacy_config() -> void:
 	if DirAccess.dir_exists_absolute("user://emoji_cache"):
 		var emoji_dst := dest_dir + "/emoji_cache"
 		DirAccess.make_dir_recursive_absolute(emoji_dst)
-		_copy_directory("user://emoji_cache", emoji_dst)
-		_remove_directory_recursive("user://emoji_cache")
+		ConfigDirUtils.copy_directory("user://emoji_cache", emoji_dst)
+		ConfigDirUtils.remove_directory_recursive("user://emoji_cache")
 	# Write registry
 	_profile_slug = "default"
 	_write_initial_registry("default", "Default")
@@ -676,6 +676,28 @@ func set_nsfw_ack(server_url: String) -> void:
 	_config.set_value("nsfw_ack", server_url, true)
 	_save()
 
+## Plugin trust (per-server, per-plugin)
+
+func get_plugin_trust(server_id: String, plugin_id: String) -> bool:
+	return _config.get_value("plugin_trust_" + server_id, plugin_id, false)
+
+func set_plugin_trust(server_id: String, plugin_id: String, trusted: bool) -> void:
+	if trusted:
+		_config.set_value("plugin_trust_" + server_id, plugin_id, true)
+	else:
+		_config.set_value("plugin_trust_" + server_id, plugin_id, null)
+	_save()
+
+func is_plugin_trust_all(server_id: String) -> bool:
+	return _config.get_value("plugin_trust_" + server_id, "_trust_all", false)
+
+func set_plugin_trust_all(server_id: String, trust_all: bool) -> void:
+	if trust_all:
+		_config.set_value("plugin_trust_" + server_id, "_trust_all", true)
+	else:
+		_config.set_value("plugin_trust_" + server_id, "_trust_all", null)
+	_save()
+
 ## Draft text persistence
 
 func set_draft_text(channel_id: String, text: String) -> void:
@@ -693,7 +715,7 @@ func wipe_active_profile() -> void:
 	var dir_path := _profile_dir()
 	# Delete the profile directory (config + emoji cache)
 	if DirAccess.dir_exists_absolute(dir_path):
-		_remove_directory_recursive(dir_path)
+		ConfigDirUtils.remove_directory_recursive(dir_path)
 	# Remove from registry
 	var order: Array = _registry.get_value("order", "list", [])
 	var idx := order.find(slug)
@@ -743,23 +765,6 @@ func import_config(path: String) -> Error:
 	_ensure_exporter()
 	return exporter.import_config(path)
 
-## --- Directory helpers ---
-
-func _copy_directory(src: String, dst: String) -> void:
-	var dir := DirAccess.open(src)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while not fname.is_empty():
-		if not dir.current_is_dir():
-			DirAccess.copy_absolute(
-				ProjectSettings.globalize_path(src + "/" + fname),
-				ProjectSettings.globalize_path(dst + "/" + fname)
-			)
-		fname = dir.get_next()
-	dir.list_dir_end()
-
 ## Returns a Dictionary of space_id → folder_name for all non-empty folder mappings.
 func get_folder_map() -> Dictionary:
 	var folders: Dictionary = {}
@@ -778,22 +783,3 @@ func get_profile_order() -> Array:
 func get_profile_name(slug: String) -> String:
 	return _registry.get_value("profile_" + slug, "name", slug)
 
-func _remove_directory_recursive(path: String) -> void:
-	var dir := DirAccess.open(path)
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var fname := dir.get_next()
-	while not fname.is_empty():
-		var full := path + "/" + fname
-		if dir.current_is_dir():
-			_remove_directory_recursive(full)
-		else:
-			DirAccess.remove_absolute(
-				ProjectSettings.globalize_path(full)
-			)
-		fname = dir.get_next()
-	dir.list_dir_end()
-	DirAccess.remove_absolute(
-		ProjectSettings.globalize_path(path)
-	)

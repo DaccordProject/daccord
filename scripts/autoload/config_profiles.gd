@@ -56,7 +56,7 @@ func create(
 		if DirAccess.dir_exists_absolute(cur_emoji):
 			var emoji_dst := new_dir + "/emoji_cache"
 			DirAccess.make_dir_recursive_absolute(emoji_dst)
-			_parent._copy_directory(cur_emoji, emoji_dst)
+			ConfigDirUtils.copy_directory(cur_emoji, emoji_dst)
 
 	var reg: ConfigFile = _parent._registry
 	var order: Array = reg.get_value("order", "list", [])
@@ -85,8 +85,8 @@ func delete(slug: String) -> bool:
 	if DirAccess.dir_exists_absolute(dir_path):
 		var emoji_dir := dir_path + "/emoji_cache"
 		if DirAccess.dir_exists_absolute(emoji_dir):
-			_parent._remove_directory_recursive(emoji_dir)
-		_parent._remove_directory_recursive(dir_path)
+			ConfigDirUtils.remove_directory_recursive(emoji_dir)
+		ConfigDirUtils.remove_directory_recursive(dir_path)
 	var reg: ConfigFile = _parent._registry
 	var order: Array = reg.get_value("order", "list", [])
 	var idx := order.find(slug)

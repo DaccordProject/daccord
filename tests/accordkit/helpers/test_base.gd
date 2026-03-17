@@ -17,6 +17,7 @@ var bot_application_id: String = ""
 var space_id: String = ""
 var general_channel_id: String = ""
 var testing_channel_id: String = ""
+var plugin_id: String = ""
 
 var bot_client: AccordClient
 var user_client: AccordClient
@@ -53,6 +54,9 @@ func before_all() -> void:
 
 	var space_info: Dictionary = seed_data.get("space", {})
 	space_id = str(space_info.get("id", ""))
+
+	var plugin_info: Dictionary = seed_data.get("plugin", {})
+	plugin_id = str(plugin_info.get("id", ""))
 
 	var channels_info: Array = seed_data.get("channels", [])
 	for ch in channels_info:

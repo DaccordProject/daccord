@@ -50,6 +50,7 @@ var _update_indicator: Button = null
 @onready var topic_bar: Label = $LayoutHBox/ContentArea/TopicBar
 @onready var content_body: HBoxContainer = $LayoutHBox/ContentArea/ContentBody
 @onready var voice_text_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/VoiceTextPanel
+@onready var voice_view_body: HBoxContainer = $LayoutHBox/ContentArea/VoiceViewBody
 @onready var discovery_panel: PanelContainer = $LayoutHBox/DiscoveryPanel
 @onready var message_view: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MessageView
 @onready var thread_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ThreadPanel
@@ -337,12 +338,22 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 			sidebar.set_channel_panel_visible_immediate(true)
 			hamburger_button.visible = true
 			sidebar_toggle.visible = false
+			# Hide voice text in compact mode
+			voice_text_panel.visible = false
+			_voice_text_handle.visible = false
 		else:
 			_drawer.move_sidebar_to_layout()
 			sidebar.visible = true
 			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
 			hamburger_button.visible = false
 			sidebar_toggle.visible = true
+			# Restore voice text if it was open
+			voice_text_panel.visible = (
+				not AppState.voice_text_channel_id.is_empty()
+			)
+			_voice_text_handle.visible = (
+				not AppState.voice_text_channel_id.is_empty()
+			)
 		_drawer.close_drawer_immediate()
 		return
 
@@ -397,7 +408,11 @@ func _sync_handle_visibility() -> void:
 	_thread_handle.visible = thread_panel.visible and not is_compact
 	_member_handle.visible = member_list.visible and not is_compact
 	_search_handle.visible = search_panel.visible and not is_compact
-	_voice_text_handle.visible = voice_text_panel.visible and not is_compact
+	# Voice text handle lives in VoiceViewBody during voice view
+	if not AppState.is_voice_view_open:
+		_voice_text_handle.visible = (
+			voice_text_panel.visible and not is_compact
+		)
 	_clamp_panel_widths()
 
 func _clamp_panel_widths() -> void:
@@ -414,9 +429,11 @@ func _clamp_panel_widths() -> void:
 		reserved += PANEL_HANDLE_WIDTH
 	if _search_handle.visible:
 		reserved += PANEL_HANDLE_WIDTH
-	if _voice_text_handle.visible:
+	var vt_in_body: bool = (
+		not AppState.is_voice_view_open
+	)
+	if _voice_text_handle.visible and vt_in_body:
 		reserved += PANEL_HANDLE_WIDTH
-
 	var budget: float = available - reserved
 	if budget <= 0.0:
 		_clamping_panels = false
@@ -430,7 +447,7 @@ func _clamp_panel_widths() -> void:
 		panels.append([member_list, PANEL_MIN_MEMBER])
 	if search_panel.visible:
 		panels.append([search_panel, PANEL_MIN_SEARCH])
-	if voice_text_panel.visible:
+	if voice_text_panel.visible and vt_in_body:
 		panels.append([voice_text_panel, PANEL_MIN_VOICE_TEXT])
 
 	var total: float = 0.0
@@ -632,12 +649,14 @@ func _on_voice_view_opened(channel_id: String) -> void:
 	_voice_view.on_voice_view_opened(
 		channel_id, content_header, topic_bar,
 		content_body, voice_text_panel, video_grid,
+		voice_view_body, _voice_text_handle,
 	)
 
 func _on_voice_view_closed() -> void:
 	_voice_view.on_voice_view_closed(
 		content_header, content_body, message_view,
-		topic_bar, video_grid, _sync_handle_visibility,
+		topic_bar, video_grid, voice_view_body,
+		_voice_text_handle, _sync_handle_visibility,
 	)
 
 func _on_voice_left_pip(channel_id: String) -> void:

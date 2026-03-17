@@ -11,6 +11,7 @@ const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn
 const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
 const ReportListScene := preload("res://scenes/admin/report_list_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
+const PluginMgmtScript := preload("res://scenes/admin/plugin_management_dialog.gd")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 const ServerManagementPanel := preload(
@@ -154,8 +155,9 @@ func _on_icon_gui_input(event: InputEvent) -> void:
 		_show_context_menu(Vector2i(int(pos.x), int(pos.y)))
 
 func _show_context_menu(pos: Vector2i) -> void:
-	if _admin_submenu.get_parent() == _context_menu:
-		_context_menu.remove_child(_admin_submenu)
+	var submenu_parent := _admin_submenu.get_parent()
+	if submenu_parent != null:
+		submenu_parent.remove_child(_admin_submenu)
 	_context_menu.clear()
 	_admin_submenu.clear()
 	var idx: int = 0
@@ -198,6 +200,9 @@ func _show_context_menu(pos: Vector2i) -> void:
 	if (Client.has_permission(space_id, AccordPermission.MANAGE_SOUNDBOARD)
 			or Client.has_permission(space_id, AccordPermission.USE_SOUNDBOARD)):
 		_admin_submenu.add_item("Soundboard", admin_idx)
+		admin_idx += 1
+	if Client.has_permission(space_id, AccordPermission.MANAGE_SPACE):
+		_admin_submenu.add_item("Plugins", admin_idx)
 		admin_idx += 1
 	if not AppState.is_imposter_mode and Client.has_permission(
 		space_id, AccordPermission.MANAGE_ROLES
@@ -261,7 +266,11 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 		"Soundboard": SoundboardMgmtScene,
 		"View As...": ImposterPickerScene,
 	}
-	if scene_map.has(label):
+	if label == "Plugins":
+		var dialog: ColorRect = PluginMgmtScript.new()
+		get_tree().root.add_child(dialog)
+		dialog.setup(space_id)
+	elif scene_map.has(label):
 		DialogHelper.open(scene_map[label], get_tree()).setup(space_id)
 
 func _on_context_menu_id_pressed(id: int) -> void:

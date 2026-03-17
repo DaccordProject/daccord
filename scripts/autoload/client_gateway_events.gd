@@ -97,6 +97,33 @@ func on_interaction_create(
 ) -> void:
 	pass # No interaction UI; wired to prevent silent drop
 
+# --- Plugin events ---
+
+func on_plugin_installed(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	_c.plugins.on_plugin_installed(data, conn_index)
+
+func on_plugin_uninstalled(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	_c.plugins.on_plugin_uninstalled(data, conn_index)
+
+func on_plugin_event(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	_c.plugins.on_plugin_event(data, conn_index)
+
+func on_plugin_session_state(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	_c.plugins.on_plugin_session_state(data, conn_index)
+
+func on_plugin_role_changed(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	_c.plugins.on_plugin_role_changed(data, conn_index)
+
 # --- Voice events ---
 
 func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:

@@ -73,6 +73,13 @@ func build() -> VBoxContainer:
 			"MIT License",
 			"https://github.com/bitwes/Gut",
 		],
+		[
+			"Lua GDExtension",
+			"Lua scripting for Godot.",
+			"Copyright (c) 2024, Wilson E. Alvarez",
+			"MIT License",
+			"https://github.com/WilsonE/lua-gdextension",
+		],
 	]
 
 	for entry in credits:

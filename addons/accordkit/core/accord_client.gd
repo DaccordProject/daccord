@@ -67,6 +67,13 @@ signal invite_delete(data: Dictionary)
 # Interactions
 signal interaction_create(interaction: AccordInteraction)
 
+# Plugins
+signal plugin_installed(data: Dictionary)
+signal plugin_uninstalled(data: Dictionary)
+signal plugin_event(data: Dictionary)
+signal plugin_session_state(data: Dictionary)
+signal plugin_role_changed(data: Dictionary)
+
 # Emojis
 signal emoji_create(data: Dictionary)
 signal emoji_update(data: Dictionary)
@@ -111,6 +118,7 @@ var emojis: EmojisApi
 var soundboard: SoundboardApi
 var reactions: ReactionsApi
 var interactions: InteractionsApi
+var plugins: PluginsApi
 var applications: ApplicationsApi
 var auth: AuthApi
 var voice: VoiceApi
@@ -145,6 +153,7 @@ func _ready() -> void:
 	soundboard = SoundboardApi.new(rest)
 	reactions = ReactionsApi.new(rest)
 	interactions = InteractionsApi.new(rest)
+	plugins = PluginsApi.new(rest)
 	applications = ApplicationsApi.new(rest)
 	auth = AuthApi.new(rest)
 	voice = VoiceApi.new(rest)
@@ -250,6 +259,11 @@ func _connect_gateway_signals() -> void:
 	gateway.invite_delete.connect(func(d): invite_delete.emit(d))
 
 	gateway.interaction_create.connect(func(i): interaction_create.emit(i))
+	gateway.plugin_installed.connect(func(d): plugin_installed.emit(d))
+	gateway.plugin_uninstalled.connect(func(d): plugin_uninstalled.emit(d))
+	gateway.plugin_event.connect(func(d): plugin_event.emit(d))
+	gateway.plugin_session_state.connect(func(d): plugin_session_state.emit(d))
+	gateway.plugin_role_changed.connect(func(d): plugin_role_changed.emit(d))
 	gateway.emoji_create.connect(func(d): emoji_create.emit(d))
 	gateway.emoji_update.connect(func(d): emoji_update.emit(d))
 	gateway.emoji_delete.connect(func(d): emoji_delete.emit(d))

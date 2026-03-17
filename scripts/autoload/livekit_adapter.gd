@@ -11,6 +11,7 @@ signal peer_left(user_id: String)
 signal track_received(user_id: String, stream: RefCounted)
 signal track_removed(user_id: String)
 signal audio_level_changed(user_id: String, level: float)
+signal plugin_data_received(sender_id: String, topic: String, payload: PackedByteArray)
 
 # --- State enum (aliases ClientModels.VoiceSessionState for local use) ---
 const VOICE_STATE := ClientModels.VoiceSessionState
@@ -83,6 +84,8 @@ func connect_to_room(url: String, token: String) -> void:
 	_room.track_unsubscribed.connect(_on_track_unsubscribed)
 	_room.track_muted.connect(_on_track_muted)
 	_room.track_unmuted.connect(_on_track_unmuted)
+	if _room.has_signal("data_received"):
+		_room.data_received.connect(_on_data_received)
 	_room.connect_to_room(url, token, {"auto_reconnect": false})
 
 func disconnect_voice() -> void:
@@ -213,6 +216,31 @@ func _republish_screen() -> void:
 
 func unpublish_screen() -> void:
 	_cleanup_local_screen()
+
+
+## Publishes arbitrary data to the LiveKit room via data channels.
+## Used by native plugins for real-time communication.
+## topic: prefixed topic string (e.g. "plugin:<id>:game:state")
+## data: raw bytes to send
+## reliable: true for ordered/guaranteed delivery, false for lossy/low-latency
+## destination_ids: participant identities to send to (empty = broadcast)
+func publish_plugin_data(
+	data: PackedByteArray, reliable: bool, topic: String,
+	destination_ids: Array = [],
+) -> void:
+	if _room == null:
+		return
+	var local_part: LiveKitLocalParticipant = _room.get_local_participant()
+	if local_part == null:
+		return
+	if not local_part.has_method("publish_data"):
+		push_warning("[LiveKitAdapter] publish_data not available in this LiveKit build")
+		return
+	var kind: int = 0 if reliable else 1  # 0=RELIABLE, 1=LOSSY
+	var dest := PackedStringArray()
+	for id in destination_ids:
+		dest.append(str(id))
+	local_part.publish_data(data, kind, dest, topic)
 
 # --- Process loop: poll remote streams, compute audio levels ---
 
@@ -362,6 +390,18 @@ func _on_track_unmuted(
 	_publication: LiveKitTrackPublication,
 ) -> void:
 	pass
+
+func _on_data_received(
+	data: PackedByteArray,
+	participant: LiveKitRemoteParticipant,
+	_kind: int,
+	topic: String,
+) -> void:
+	var identity: String = participant.get_identity() if participant != null else ""
+	var sender_id: String = _identity_to_user.get(identity, identity)
+	# Route plugin:* topics to the plugin_data_received signal
+	if topic.begins_with("plugin:"):
+		plugin_data_received.emit(sender_id, topic, data)
 
 # --- Local audio publishing ---
 

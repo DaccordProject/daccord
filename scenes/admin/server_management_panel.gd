@@ -22,6 +22,12 @@ const ResetPasswordDialogScene := preload(
 const ReportListDialogScene := preload(
 	"res://scenes/admin/report_list_dialog.tscn"
 )
+const RoleMgmtScene := preload(
+	"res://scenes/admin/role_management_dialog.tscn"
+)
+const PluginMgmtScript := preload(
+	"res://scenes/admin/plugin_management_dialog.gd"
+)
 const ServerManagementReportsScript := preload(
 	"res://scenes/admin/server_management_reports.gd"
 )
@@ -205,6 +211,22 @@ func _build_space_row(
 	)
 	info.add_child(detail_lbl)
 	row.add_child(info)
+
+	# Roles button
+	var roles_btn := SettingsBase.create_secondary_button("Roles")
+	roles_btn.pressed.connect(func() -> void:
+		DialogHelper.open(RoleMgmtScene, get_tree()).setup(space_id)
+	)
+	row.add_child(roles_btn)
+
+	# Plugins button
+	var plugins_btn := SettingsBase.create_secondary_button("Plugins")
+	plugins_btn.pressed.connect(func() -> void:
+		var dialog: ColorRect = PluginMgmtScript.new()
+		get_tree().root.add_child(dialog)
+		dialog.setup(space_id)
+	)
+	row.add_child(plugins_btn)
 
 	# Settings button
 	var settings_btn := SettingsBase.create_secondary_button("Settings")

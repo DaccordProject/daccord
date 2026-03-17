@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://dfdj5l4hj5t18"]
+[gd_scene load_steps=13 format=3 uid="uid://dfdj5l4hj5t18"]
 
 [ext_resource type="Script" uid="uid://cpxq3kjxgwtsg" path="res://scenes/main/main_window.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/sidebar/sidebar.tscn" id="2"]
@@ -97,6 +97,12 @@ layout_mode = 2
 vertical_alignment = 1
 
 [node name="VideoGrid" parent="LayoutHBox/ContentArea" instance=ExtResource("10")]
+
+[node name="VoiceViewBody" type="HBoxContainer" parent="LayoutHBox/ContentArea"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 0
 
 [node name="ContentBody" type="HBoxContainer" parent="LayoutHBox/ContentArea"]
 layout_mode = 2

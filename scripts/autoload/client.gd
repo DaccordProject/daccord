@@ -32,6 +32,7 @@ var permissions: RefCounted
 var connection: ClientConnection
 var relationships: ClientRelationships
 var web_links: ClientWebLinks
+var plugins: ClientPlugins
 
 # --- Data access API (properties) ---
 
@@ -180,6 +181,7 @@ func _ready() -> void:
 	connection = ClientConnection.new(self)
 	relationships = ClientRelationships.new(self)
 	web_links = ClientWebLinks.new(self)
+	plugins = ClientPlugins.new(self)
 	web_links.setup()
 	# On Android, request dangerous permissions (microphone, camera) early so
 	# they are granted before the user tries to join a voice channel.
@@ -506,16 +508,12 @@ func _check_speaking_timeouts() -> void:
 			voice._voice_log("speaking_stop uid=%s" % uid)
 		AppState.speaking_changed.emit(uid, false)
 
-# --- Search (delegates to ClientMutations) ---
-
 func search_messages(
 	gid: String, q: String, filters: Dictionary = {},
 ) -> Dictionary:
 	return await mutations.search_messages(
 		gid, q, filters
 	)
-
-# --- Mutation API (delegates to ClientMutations) ---
 
 func send_message_to_channel(
 	cid: String, content: String, reply_to: String = "",
@@ -570,8 +568,6 @@ func send_typing(cid: String) -> void:
 	if AppState.is_guest_mode:
 		return
 	mutations.send_typing(cid)
-
-# --- Voice API (delegates to ClientVoice) ---
 
 func join_voice_channel(ch_id: String) -> bool:
 	return await voice.join_voice_channel(ch_id)

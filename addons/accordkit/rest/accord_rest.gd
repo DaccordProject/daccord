@@ -103,6 +103,63 @@ func make_request(method: String, path: String, body = null, query: Dictionary =
 	return RestResult.failure(0, _internal_error("Request exhausted all retries"))
 
 
+## Performs an HTTP GET and returns raw bytes instead of parsing JSON.
+## On success, RestResult.data is a PackedByteArray.
+func make_raw_request(path: String, query: Dictionary = {}) -> RestResult:
+	var url := base_url + path
+	var query_string := _encode_query(query)
+	if query_string != "":
+		url += "?" + query_string
+
+	var headers := PackedStringArray()
+	headers.append("User-Agent: " + AccordConfig.USER_AGENT)
+	if token != "":
+		headers.append("Authorization: " + token_type + " " + token)
+
+	var attempt := 0
+	while attempt < _MAX_RETRIES:
+		var http := HTTPRequest.new()
+		add_child(http)
+
+		var err: int = http.request(url, headers, HTTPClient.METHOD_GET)
+		if err != OK:
+			http.queue_free()
+			return RestResult.failure(
+				0, _internal_error("Failed to start request: " + error_string(err))
+			)
+
+		var response: Array = await http.request_completed
+		http.queue_free()
+
+		var result_code: int = response[0]
+		var status_code: int = response[1]
+		var response_headers: PackedStringArray = response[2]
+		var response_body: PackedByteArray = response[3]
+
+		if result_code != HTTPRequest.RESULT_SUCCESS:
+			var msg: String = _RESULT_MESSAGES.get(result_code, "Unknown error (" + str(result_code) + ")")
+			return RestResult.failure(0, _internal_error(msg))
+
+		if status_code == 429:
+			var retry_after := _get_retry_after(response_headers, response_body)
+			attempt += 1
+			if attempt < _MAX_RETRIES:
+				await get_tree().create_timer(retry_after).timeout
+				continue
+			else:
+				return RestResult.failure(
+					429, _internal_error("Rate limited after " + str(_MAX_RETRIES) + " retries")
+				)
+
+		if status_code >= 200 and status_code < 300:
+			return RestResult.success(status_code, response_body)
+		return RestResult.failure(
+			status_code, _internal_error("HTTP " + str(status_code))
+		)
+
+	return RestResult.failure(0, _internal_error("Request exhausted all retries"))
+
+
 ## Performs a multipart/form-data HTTP request. Used for file uploads.
 ## The form argument should be a MultipartForm instance with parts already added.
 ## The path is appended to base_url. The query dictionary is URL-encoded.

@@ -1,8 +1,19 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scenes/sidebar/voice_bar.gd" id="1"]
 [ext_resource type="Shader" path="res://assets/theme/status_circle.gdshader" id="2"]
 [ext_resource type="Texture2D" uid="uid://rsduw67blobt" path="res://assets/theme/icons/settings.svg" id="3_settings"]
+[ext_resource type="Texture2D" path="res://assets/theme/icons/rocket.svg" id="4_rocket"]
+[ext_resource type="Texture2D" uid="uid://dj3f8t8ag6kxr" path="res://assets/theme/icons/microphone.svg" id="5_mic"]
+[ext_resource type="Texture2D" uid="uid://b82rukaf5cm5u" path="res://assets/theme/icons/microphone_off.svg" id="6_mic_off"]
+[ext_resource type="Texture2D" uid="uid://dn45kecflkcbv" path="res://assets/theme/icons/headphones.svg" id="7_headphones"]
+[ext_resource type="Texture2D" uid="uid://rf0oal5th8ja" path="res://assets/theme/icons/headphones_off.svg" id="8_headphones_off"]
+[ext_resource type="Texture2D" uid="uid://c27q58jw5igi2" path="res://assets/theme/icons/camera.svg" id="9_camera"]
+[ext_resource type="Texture2D" uid="uid://qeev6a8wt2mb" path="res://assets/theme/icons/camera_off.svg" id="10_camera_off"]
+[ext_resource type="Texture2D" uid="uid://d0rqjvmfalje2" path="res://assets/theme/icons/screen_share.svg" id="11_screen_share"]
+[ext_resource type="Texture2D" uid="uid://b2klljinpx6iv" path="res://assets/theme/icons/screen_share_off.svg" id="12_screen_share_off"]
+[ext_resource type="Texture2D" uid="uid://dut2c18kycyo4" path="res://assets/theme/icons/soundboard.svg" id="13_soundboard"]
+[ext_resource type="Texture2D" uid="uid://cwwhtwu4toeog" path="res://assets/theme/icons/disconnect.svg" id="14_disconnect"]
 
 [sub_resource type="ShaderMaterial" id="status_circle_mat"]
 shader = ExtResource("2")
@@ -51,39 +62,46 @@ theme_override_constants/separation = 4
 
 [node name="MuteBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 32)
-text = "Mic"
-theme_override_font_sizes/font_size = 11
+custom_minimum_size = Vector2(36, 32)
+icon = ExtResource("5_mic")
+tooltip_text = "Mute"
+expand_icon = true
 
 [node name="DeafenBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 32)
-text = "Deaf"
-theme_override_font_sizes/font_size = 11
+custom_minimum_size = Vector2(36, 32)
+icon = ExtResource("7_headphones")
+tooltip_text = "Deafen"
+expand_icon = true
 
 [node name="VideoBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 32)
-text = "Cam"
-theme_override_font_sizes/font_size = 11
+custom_minimum_size = Vector2(36, 32)
+icon = ExtResource("9_camera")
+tooltip_text = "Camera"
+expand_icon = true
 
 [node name="ShareBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 32)
-text = "Share"
-theme_override_font_sizes/font_size = 11
+custom_minimum_size = Vector2(36, 32)
+icon = ExtResource("11_screen_share")
+tooltip_text = "Screen Share"
+expand_icon = true
+
+[node name="ActivityBtn" type="Button" parent="VBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(36, 32)
+icon = ExtResource("4_rocket")
+tooltip_text = "Activities"
+expand_icon = true
 
 [node name="SfxBtn" type="Button" parent="VBox/ButtonRow"]
 visible = false
 layout_mode = 2
 custom_minimum_size = Vector2(36, 32)
-text = "SFX"
+icon = ExtResource("13_soundboard")
 tooltip_text = "Soundboard"
-theme_override_font_sizes/font_size = 11
+expand_icon = true
 
 [node name="SettingsBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
@@ -94,7 +112,8 @@ expand_icon = true
 
 [node name="DisconnectBtn" type="Button" parent="VBox/ButtonRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(48, 32)
-text = "X"
-theme_override_font_sizes/font_size = 14
+custom_minimum_size = Vector2(36, 32)
+icon = ExtResource("14_disconnect")
+tooltip_text = "Disconnect"
+expand_icon = true
 metadata/theme_font_color = "error"
