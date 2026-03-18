@@ -205,8 +205,8 @@ func _apply_ui_scale() -> void:
 		scale = _auto_ui_scale()
 	var win := get_window()
 	win.content_scale_factor = scale
-	# On web the browser owns the viewport — skip window resize/reposition.
-	if OS.has_feature("web"):
+	# On web/mobile the host owns the viewport — skip window resize/reposition.
+	if OS.has_feature("web") or OS.has_feature("mobile"):
 		return
 	# Grow/shrink the window to compensate so the effective viewport stays the same.
 	var base_size := Vector2i(
@@ -231,10 +231,17 @@ func _auto_ui_scale() -> float:
 	var screen: int = DisplayServer.window_get_current_screen(
 		DisplayServer.MAIN_WINDOW_ID
 	)
+	# On mobile, derive scale from DPI since screen_get_scale() is unreliable.
+	# 160 DPI is the Android baseline density (mdpi = 1x).
+	if OS.has_feature("mobile"):
+		var dpi: int = DisplayServer.screen_get_dpi(screen)
+		if dpi <= 160:
+			return 1.0
+		return clampf(float(dpi) / 160.0, 1.0, 3.0)
 	var screen_scale: float = DisplayServer.screen_get_scale(screen)
 	if screen_scale <= 1.0:
 		return 1.0
-	return clampf(screen_scale, 1.0, 2.0)
+	return clampf(screen_scale, 1.0, 3.0)
 
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:

@@ -221,20 +221,7 @@ User flows (`user_flows/`) are developer-facing documents verified against the c
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| `installation.md` lists Windows file as `daccord-windows-installer.exe` | Medium | Actual release artifact is `daccord-windows-x86_64-setup.exe` (release.yml line 635) |
-| `installation.md` missing Web platform | Low | Release CI builds `daccord-web.zip` but installation docs don't mention the web export |
-| `adding-a-server.md` missing query parameter docs | Medium | Code supports `?token=value` and `?invite=code` in URLs (add_server_dialog.gd line 37) but docs don't mention these |
-| `sending-messages.md` missing drafts | Low | Composer auto-saves per-channel draft text (composer.gd lines 414-419) but docs don't mention it |
-| `sending-messages.md` missing message queue | Low | Messages queue while disconnected and send on reconnect (composer.gd lines 70-87) -- not documented |
-| `direct-messages.md` missing friends tab | Medium | DM panel has Friends vs Messages tabs (dm_list.gd lines 36-45) but docs only describe the DM list |
-| `direct-messages.md` missing close DM | Low | Users can close DMs from the list (dm_list.gd lines 67-69) -- not documented |
-| `file-sharing.md` missing 25 MB limit | Low | Upload has a 25 MB size limit with error message but docs don't mention the cap |
-| `file-sharing.md` missing audio/video attachments | Low | Audio attachments get inline player with progress slider; video gets clickable thumbnail (message_content.gd lines 399-537) -- not documented |
-| `user-settings.md` missing Connections page | Low | App settings has a Connections page (app_settings.gd) but docs don't mention it |
-| `user-settings.md` missing idle timeout | Low | Auto-idle status after configurable timeout (app_settings.gd lines 759-775) -- not documented |
-| `invites.md` missing expiration/max-uses options | Medium | Invite creation supports expiration (30min to never) and max uses (invite_management_dialog.gd lines 37-48) but docs don't mention these options |
-| `invites.md` missing temporary member flag | Low | Invites can mark joiners as temporary members who are removed when they leave (invite_management_dialog.gd line 19) -- not documented |
-| `keyboard-shortcuts.md` sparse | Medium | Only covers 5 shortcuts; missing thread navigation, tab switching, DM search, and other shortcuts |
+| `keyboard-shortcuts.md` missing thread/tab shortcuts | Low | Thread navigation, tab switching shortcuts not yet found in source; may not be keyboard-bound yet |
 | No build pipeline for docs | Low | No static site generator, CI build, or deployment configured. The Markdown is ready for external tooling but nothing consumes it yet |
 | No screenshots or images | Medium | README.md specifies an `images/` convention per section but no screenshots exist. Visual guides would significantly help non-technical users |
 
@@ -291,8 +278,8 @@ User flows (`user_flows/`) are developer-facing documents verified against the c
 - **Notes:** README.md specifies an `images/` convention per section but no screenshots exist. Visual guides would significantly help non-technical users understand the UI.
 
 ### DOCS-9: Fix inaccuracies in existing pages
-- **Status:** todo
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** docs
-- **Notes:** Fix Windows installer filename in `installation.md`, add query parameter docs to `adding-a-server.md`, add friends tab to `direct-messages.md`, add invite options to `invites.md`.
+- **Notes:** Fixed Windows installer filename in `installation.md` (now `daccord-windows-x86_64-setup.exe`), added portable ZIP and Web platform to `installation.md`, added `?token=` and `?invite=` query parameter docs to `adding-a-server.md`, added Friends tab and close-DM to `direct-messages.md`, added 25 MB limit and audio/video attachment info to `file-sharing.md`, added Connections page and idle timeout to `user-settings.md`, added expiration/max-uses/temporary-member options to `invites.md`, added drafts and message queue to `sending-messages.md`, expanded `keyboard-shortcuts.md` with mobile/touch section.

@@ -1,6 +1,6 @@
 # Soundboard
 
-Last touched: 2026-02-19
+Last touched: 2026-03-18
 Priority: 37
 Depends on: Voice Channels
 
@@ -137,36 +137,20 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 
 **Permissions**: `manage_soundboard` (create/update/delete), `use_soundboard` (play trigger)
 
-### Required AccordKit Work
-
-1. **New model**: `AccordSound` (id, name, audio_url, volume, creator_id, created_at, updated_at) with `from_dict()` and `to_dict()`
-2. **New API class**: `SoundboardApi` with `list()`, `fetch()`, `create()`, `update()`, `delete()`, `play()` methods matching the REST endpoints
-3. **Gateway events**: Handle `soundboard.create`, `soundboard.update`, `soundboard.delete`, `soundboard.play` in `gateway_socket.gd`
-4. **AccordClient**: Expose `soundboard: SoundboardApi` property, add `soundboard_create`, `soundboard_update`, `soundboard_delete`, `soundboard_play` signals
-5. **CDN helper**: Add `AccordCDN.sound()` URL builder for audio file URLs
-
-### Required LiveKit Work
-
-1. **Audio file decoding** -- Load and decode audio files (OGG, MP3, WAV)
-2. **Audio mixing** -- Mix decoded audio with microphone input into the outgoing WebRTC stream, OR play audio locally and send via a separate audio track
-3. **Alternative**: If server-side mixing is used, LiveKit only needs to play received audio (which it may already handle via `track_received` on `AccordPeerConnection`)
-
-### Required Client Work
-
-1. **Soundboard panel scene** (`scenes/soundboard/soundboard_panel.tscn`) -- Grid of sound buttons, search/filter, volume slider
-2. **Sound management dialog** (`scenes/admin/soundboard_management_dialog.tscn`) -- Upload, rename, delete sounds (admin UI)
-3. **AppState signals** -- `sound_play_requested`, `sound_played`, `soundboard_updated`
-4. **ClientModels** -- `sound_to_dict()` converter for `AccordSound` -> UI dictionary shape
-5. **ClientAdmin** -- Soundboard CRUD wrappers with AppState signal emissions
-6. **Client integration** -- Route soundboard API calls via `Client.gd`, connect gateway signals
-7. **Voice controls integration** -- Soundboard button only visible/enabled when connected to a voice channel
-
 ### Architecture Decision: Server-Side vs Client-Side Mixing
+
+Client-side mixing is the chosen approach. Audio files are downloaded and played locally via `AudioStreamPlayer` on the SFX bus. Each client plays the sound independently when it receives the `soundboard.play` gateway event. Server-side SFU mixing was considered but rejected due to complexity and server CPU cost.
 
 | Approach | Pros | Cons |
 |----------|------|------|
 | **Server-side mixing** | Consistent playback for all participants, no client download needed, lower client complexity | Requires SFU changes, higher server CPU usage, latency |
-| **Client-side mixing** | Simpler server implementation, each client controls its own volume | Requires audio download, playback timing may differ across clients, LiveKit needs audio file playback |
+| **Client-side mixing** ✓ | Simpler server implementation, each client controls its own volume | Requires audio download, playback timing may differ across clients |
+
+### Known Limitations
+
+- **OGG Opus files rejected** -- `soundboard_management_dialog.gd` (line ~112) detects and rejects OGG Opus because Godot's OGG decoder only supports Vorbis. Users must upload OGG Vorbis, MP3, or WAV.
+- **No personal soundboard** -- Only server-wide (per-space) soundboards are supported. User-level personal soundboards are out of scope.
+- **Playback timing** -- Because each client downloads and plays the file independently, playback start times may differ slightly across participants depending on cache state and network conditions.
 
 ## Implementation Status
 
@@ -188,18 +172,6 @@ The server provides a complete soundboard API. AccordKit and the daccord client 
 - [x] ClientModels `sound_to_dict()` converter
 - [x] Voice join/leave UI (implemented -- see `voice_channels.md`)
 
-## Tasks
+## Gaps / TODO
 
-### SOUND-1: No server-side audio mixing
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 3
-- **Tags:** audio, gateway, voice
-- **Notes:** Audio is played client-side when receiving the `soundboard.play` gateway event; server-side SFU mixing is not implemented and may not be needed
-
-### SOUND-2: No personal soundboard
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 1
-- **Tags:** audio
-- **Notes:** Design only covers server-wide sounds; personal/user-level soundboards are not planned
+No open gaps. All core soundboard functionality is implemented.

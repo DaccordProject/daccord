@@ -380,9 +380,11 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 
 	# Play notification sound (guard for headless mode)
 	if SoundManager != null:
+		var msg_type: String = message.type if message.type != null else "default"
 		SoundManager.play_for_message(
 			message.channel_id, message.author_id,
-			message.mentions, message.mention_everyone
+			message.mentions, message.mention_everyone,
+			msg_type
 		)
 
 	# Update DM channel last_message preview

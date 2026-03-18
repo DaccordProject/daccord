@@ -305,12 +305,14 @@ Note: member_to_dict() duplicates the user dict from cache, then overlays the me
 | `> text` | `[indent][color]text[/color][/indent]` (blockquote) |
 | `:emoji_name:` | `[img=20x20]res://assets/theme/emoji/{codepoint}.svg[/img]` (if found in EmojiData) |
 
-### Timestamp Formatting (client_models.gd:123-187)
+### Timestamp Formatting (client_models.gd:123-200)
 
 - Parses ISO 8601 strings (e.g., "2025-05-10T14:30:00Z")
-- Extracts date and time portions, strips timezone suffix (Z/+/-) and milliseconds
-- Converts to 12-hour format
-- Compares parsed date against UTC system time:
+- Extracts date and time portions (UTC), strips timezone suffix (Z/+/-) and milliseconds
+- Computes system UTC offset: `get_unix_time_from_datetime_dict(local_dict) - get_unix_time_from_datetime_dict(utc_dict)`
+- Shifts message UTC unix time by the offset, reads back via `get_datetime_dict_from_unix_time` to obtain local hour/minute/day
+- Converts to 12-hour format using local hour value
+- Compares local date against local system time:
   - Same day: "Today at H:MM AM/PM"
   - Previous day: "Yesterday at H:MM AM/PM"
   - Older: "MM/DD/YYYY H:MM AM/PM"
@@ -605,6 +607,7 @@ Constants (client.gd:6-15):
 - [x] ClientGateway extraction for gateway event handling
 - [x] Server disconnect/reconnect/re-auth lifecycle
 - [x] Encrypted config persistence with credential storage
+- [x] Timestamp local timezone conversion (UTC offset computed at runtime; all timestamps display in system local time)
 - [x] Markdown to BBCode conversion (code, bold, italic, underline, strike, spoiler, links, blockquotes, emoji shortcodes)
 - [x] Error signals for failed mutations (send, edit, delete, fetch)
 - [x] Unread channel tracking (set on message_create, cleared on channel_selected, aggregated to space)
@@ -662,11 +665,11 @@ Constants (client.gd:6-15):
 - **Notes:** Fixed. `message_content.gd` (lines 91-102) detects `content_type.begins_with("image/")` and renders inline with TextureRect (max 400×300px). LRU cache with 100-entry cap prevents unbounded growth. Video and audio attachments also handled.
 
 ### DATA-5: Timestamps in UTC
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** general
-- **Notes:** `_format_timestamp()` (client_models.gd line 170) uses `Time.get_datetime_dict_from_system(true)` which forces UTC comparison. Users in non-UTC timezones see UTC times. Fix: change `true` to `false` for local system time.
+- **Notes:** Fixed. `_format_timestamp()` (client_models.gd) now computes the system UTC offset by comparing `get_unix_time_from_datetime_dict` on both the local and UTC system dicts. The message's UTC unix time is shifted by the offset, then read back via `get_datetime_dict_from_unix_time` (which treats its input as UTC) to yield the correct local hour/minute/day. The Today/Yesterday comparison now uses `Time.get_datetime_dict_from_system(false)` (local) instead of `true` (UTC), and "yesterday" is computed by shifting `sys_local_unix - 86400`.
 
 ### DATA-6: Member cache limit
 - **Status:** done

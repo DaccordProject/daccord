@@ -49,6 +49,14 @@ To delete your own message:
 
 Admins may also be able to delete other users' messages depending on their permissions.
 
+## Drafts
+
+If you switch to a different channel before sending, your unfinished message is automatically saved as a draft. When you return to that channel, the draft is restored so you can continue where you left off.
+
+## Sending While Disconnected
+
+If you lose your connection, you can still type and send messages. They are queued locally and sent automatically once the connection is restored. A "Message queued" notice appears below the composer to let you know.
+
 ## Typing Indicator
 
 When you're typing, other users in the channel see a typing indicator below the message list showing your name.

@@ -328,14 +328,16 @@ The Client MCP server (`client_mcp.gd`, port 39101) exposes three dedicated scre
 | `take_screenshot` | `screenshot` | Captures viewport as base64 PNG; wraps in MCP `image` content type |
 | `list_surfaces` | `list_surfaces` | Returns the 121-surface catalog organized by section |
 | `get_surface_info` | `get_surface_info` | Returns scene path, prereqs, and states for one surface ID |
+| `get_design_tokens` | `get_design_tokens` | Returns the full ThemeManager palette as hex strings + preset names |
 
-The `navigate` group (enabled by default) provides three companion tools:
+The `navigate` group (enabled by default) provides companion tools:
 
 | MCP Tool | Effect |
 |----------|--------|
 | `navigate_to_surface {"surface_id": "6.2", "state": "with_reply"}` | Drives `ClientTestApiNavigate` to select the right space/channel and emit any needed AppState signals |
 | `set_viewport_size {"preset": "compact"}` | Calls `DisplayServer.window_set_size()` to force `COMPACT`/`MEDIUM`/`FULL` layout mode (presets: 480×800, 768×900, 1280×720) |
 | `open_dialog {"dialog_name": "ban"}` | Instantiates a dialog from a hardcoded 30-entry allowlist in `ClientTestApiNavigate.DIALOG_MAP` |
+| `set_theme {"preset": "dark"}` | Calls `ThemeManager.apply_preset()` to switch the live theme; accepts `dark`, `light`, `nord`, `monokai`, `solarized`, or `{"theme_string": "<base64>"}` for custom palettes |
 
 Screenshot capture uses Godot's rendering pipeline:
 ```gdscript
@@ -367,12 +369,40 @@ The `read`, `navigate`, and `screenshot` tool groups are enabled by default. Des
 ```
 daccord> surfaces                          # list_surfaces — returns 121 entries
 daccord> viewport full                     # set_viewport_size {preset: "full"}
+daccord> theme dark                        # set_theme {preset: "dark"}
 daccord> navigate 6.2 with_reply           # navigate_to_surface
-daccord> screenshot /tmp/6.2_full.png      # take_screenshot
+daccord> screenshot /tmp/6.2_full_dark.png # take_screenshot
 daccord> viewport compact                  # set_viewport_size {preset: "compact"}
-daccord> screenshot /tmp/6.2_compact.png   # take_screenshot
+daccord> screenshot /tmp/6.2_compact_dark.png
+daccord> theme light                       # set_theme {preset: "light"}
+daccord> screenshot /tmp/6.2_compact_light.png
 daccord> dialog ban                        # open_dialog — then screenshot
+daccord> tokens                            # get_design_tokens — returns full palette
 ```
+
+#### Fully-automated pipeline (new)
+
+The `daccord-ui-audit` CLI drives the full loop:
+
+```bash
+DACCORD_MCP_TOKEN=<token> daccord-ui-audit \
+  --output ./audit-screenshots \
+  --themes dark light nord monokai solarized \
+  --breakpoints compact medium full
+```
+
+This captures every surface × breakpoint × theme combination and all 29 dialogs, saving PNGs to the output directory with a `manifest.json` index. Estimated output: ~1800 files (121 surfaces + 29 dialogs) × 3 breakpoints × 5 themes.
+
+Options:
+- `--output <dir>` — output directory (default: `./audit-output`)
+- `--themes <...>` — space-separated presets (default: `dark light`)
+- `--breakpoints <...>` — `compact medium full` (default: all three)
+- `--sections <...>` — section numbers to include (default: all 1-22)
+- `--no-dialogs` — skip dialog captures
+- `--dry-run` — print the capture plan without running
+- `--delay <ms>` — wait after navigation before screenshot (default: 300ms)
+
+Source: `accordserver-mcp/src/ui-audit.ts`. Build: `npm run build` in `accordserver-mcp/`.
 
 See [Client MCP Server](client_mcp.md#automated-ui-audit-example) for a full JSON-RPC session example.
 
@@ -405,21 +435,22 @@ These are generated dynamically via `PopupMenu` and must be triggered interactiv
 - [x] Dialog opening via `open_dialog` (30 dialogs in `ClientTestApiNavigate.DIALOG_MAP`)
 - [x] Responsive breakpoint testing via `set_viewport_size` (compact/medium/full presets)
 - [x] Surface catalog accessible via `list_surfaces` MCP tool
-- [ ] Design system documentation (colors, typography, spacing tokens)
+- [x] Theme switching via `set_theme` endpoint + MCP tool — applies any of 5 presets (dark/light/nord/monokai/solarized) or a custom base64 palette; wired through `ThemeManager.apply_preset()` (line 35 of `theme_manager.gd`)
+- [x] Design token export via `get_design_tokens` endpoint + MCP tool — returns full 33-key palette as hex strings + current preset name
+- [x] Dark/light theme variant captures — enabled by `set_theme` + audit loop
+- [x] Automated audit pipeline script — `accordserver-mcp/src/ui-audit.ts` (`daccord-ui-audit` CLI); loops 121 surfaces + 29 dialogs × 3 breakpoints × N themes; writes `manifest.json`
 - [ ] Figma/design file with current state
 - [ ] Accessibility audit annotations (contrast ratios, focus order)
-- [ ] Dark/light theme variant captures
-- [ ] Automated audit pipeline script (drive MCP in a loop across all 121 surfaces × 3 breakpoints)
 
 ## Gaps / TODO
 | Gap | Severity | Notes |
 |-----|----------|-------|
 | ~~No automated screenshot tooling~~ | ~~High~~ | **Resolved.** `take_screenshot` MCP tool + `navigate_to_surface` / `open_dialog` / `set_viewport_size` in `client_test_api.gd` and `client_mcp.gd`. Surface catalog in `client_test_api_navigate.gd` covers all 121 surfaces |
-| No automated audit loop script | Medium | The tooling exists but no script yet drives the full 121 × 3 = 363 screenshot loop. Implement in `../accordserver-mcp/scripts/ui_audit.ts` or as a bash script using `daccord-mcp` CLI |
+| ~~No automated audit loop script~~ | ~~Medium~~ | **Resolved.** `accordserver-mcp/src/ui-audit.ts` — `daccord-ui-audit` CLI drives 121 surfaces + 29 dialogs × 3 breakpoints × N themes; emits manifest.json |
+| ~~No dark/light theme toggle~~ | ~~Medium~~ | **Resolved.** `set_theme` endpoint (`client_test_api.gd`) + MCP tool (`client_mcp.gd`) calls `ThemeManager.apply_preset()`. Supports all 5 presets + custom base64 palettes |
+| ~~No design tokens file~~ | ~~Medium~~ | **Resolved.** `get_design_tokens` endpoint + MCP tool returns the full 33-key ThemeManager palette as hex strings with preset name and available presets list |
 | Dialog state variants not injectable | Medium | States like "loading", "error" require specific server responses. MCP has no `set_mock_state` endpoint. Must manually engineer server conditions or add a mock endpoint |
-| No design tokens file | Medium | Colors, fonts, spacing are defined inline in `.tscn` theme overrides — no central design system file to audit against |
 | Context menus not in dialog map | Medium | `PopupMenu` instances are created in code, not `.tscn` files — not in `DIALOG_MAP`. Must be triggered interactively; `open_dialog` cannot open them |
-| No dark/light theme toggle | Medium | App has theming (ThemeManager, 5 presets) but audit pipeline needs to capture each theme variant — `set_theme` endpoint not yet in test API |
 | Platform-specific surfaces need separate passes | Medium | Web guest mode, Android touch targets, and desktop-only dialogs (screen picker) require platform-specific test runs; MCP/test API are desktop-only (`TCPServer` unavailable on web/Android) |
 | No Figma/design source of truth | High | Without a design file, the audit can only compare against general UX heuristics, not intended designs |
 | Loading/error states underspecified | Low | Many dialogs lack explicit error state designs — auditor should flag where error feedback is missing |
@@ -428,22 +459,38 @@ These are generated dynamically via `PopupMenu` and must be triggered interactiv
 
 ## Audit Execution Plan
 
-### Phase 0: Automated Capture via MCP (New)
+### Phase 0: Automated Capture via MCP
 
-Now that screenshot tooling is implemented, Phase 1 can be fully automated:
+The full audit pipeline is now automated via `daccord-ui-audit`:
 
+```bash
+# Build once
+cd ../accordserver-mcp && npm run build
+
+# Run full audit (all 5 themes × 3 breakpoints × 121 surfaces + 29 dialogs)
+DACCORD_MCP_TOKEN=<token> daccord-ui-audit \
+  --output ./audit-screenshots \
+  --themes dark light nord monokai solarized \
+  --breakpoints compact medium full
+
+# Quick pass (dark only, no dialogs)
+DACCORD_MCP_TOKEN=<token> daccord-ui-audit \
+  --themes dark --no-dialogs --output ./quick-audit
+
+# Preview the plan without running
+DACCORD_MCP_TOKEN=<token> daccord-ui-audit --dry-run
+```
+
+Or drive manually via the `daccord-mcp` CLI:
 1. Enable Developer Mode → MCP Server in App Settings (or launch with `--test-api`)
 2. Connect AI agent with `DACCORD_MCP_TOKEN` (see [Client MCP Server](client_mcp.md))
-3. Call `list_surfaces` to get the full 121-surface catalog
-4. For each surface × breakpoint (compact/medium/full):
-   - Call `set_viewport_size {preset: "compact"|"medium"|"full"}`
-   - Call `navigate_to_surface {surface_id: "6.2", state: "with_reply"}`
-   - Call `take_screenshot {save_path: "user://audit/6.2_cozy_with_reply_compact.png"}`
-5. For dialogs: `open_dialog {dialog_name: "ban"}` then `take_screenshot`
-6. Estimated output: ~363 screenshots (121 surfaces × 3 breakpoints)
+3. `surfaces` → list 121 surfaces; `viewport compact`; `theme dark`
+4. `navigate 6.2` → `screenshot /tmp/6.2_compact_dark.png`
+5. `theme light` → `screenshot /tmp/6.2_compact_light.png`
+6. For dialogs: `dialog ban` → `screenshot`
 
-File naming convention: `{section}.{num}_{surface_name}_{state}_{breakpoint}.png`
-(e.g., `6.2_cozy_message_with_reply_compact.png`)
+File naming convention: `{section}.{num}_{surface_slug}_{theme}_{breakpoint}.png`
+(e.g., `6.2_cozy_message_dark_compact.png`)
 
 ### Phase 1: Static Capture (Screenshots)
 1. Launch app at each breakpoint (resize window or use `set_viewport_size` MCP tool)

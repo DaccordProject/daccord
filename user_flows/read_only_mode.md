@@ -233,12 +233,65 @@ user clicks a public channel in guest mode
 | `addons/accordkit/models/user.gd` | `is_guest: bool` field on `AccordUser` |
 | `dist/web/index.html` | Web HTML shell; handles URL fragment parsing for deep links; contains `window.daccordPresetServer` config for auto-guest |
 | `scripts/autoload/client_web_links.gd` | `ClientWebLinks` — reads preset server config, triggers auto-guest connection, manages URL fragment routing |
+| `../accordserver/src/routes/auth.rs` | `guest()` handler: issues short-lived guest token, rate-limited by IP |
+| `../accordserver/src/middleware/auth.rs` | `resolve_guest_token()`: resolves Bearer tokens against `guest_tokens` table; `AuthUser.is_guest` + `guest_space_id` |
+| `../accordserver/src/middleware/permissions.rs` | `require_guest_space_permission()`: enforces read-only (`view_channel`, `read_history`) for guest tokens |
+| `../accordserver/src/gateway/mod.rs` | Guest gateway sessions: no presence, scoped space_ids, `anonymous_count_updated` broadcast on connect/disconnect |
+| `../accordserver/src/routes/spaces.rs` | `get_anonymous_count()`: returns in-memory guest viewer count; `list_channels()` filters to `allow_anonymous_read` for guests |
+| `../accordserver/src/routes/users.rs` | `get_current_user()` / `get_current_user_spaces()`: synthetic guest user and scoped space for guest tokens |
+| `../accordserver/src/models/channel.rs` | `ChannelRow.allow_anonymous_read`, `CreateChannel.allow_anonymous_read`, `UpdateChannel.allow_anonymous_read` |
+| `../accordserver/src/state.rs` | `GuestAttemptTracker` (rate limiting), `guest_counts: DashMap<String, u32>` (anonymous viewer count) |
+| `../accordserver/migrations/021_guest_auth.sql` | Adds `allow_anonymous_read` column to channels, creates `guest_tokens` table |
 
 ## Implementation Details
 
-### Guest Token Endpoint
+### Guest Token Endpoint (Server)
 
-The server must expose `POST /auth/guest` (or `GET /auth/guest`) returning a short-lived token scoped only to public-readable channels. The accordserver must enforce that guest tokens can only access channels where `allow_anonymous_read = true`. The client side calls this via a new `AuthApi.guest(base_url)` method in `addons/accordkit/rest/endpoints/auth_api.gd`.
+`POST /api/v1/auth/guest` in `../accordserver/src/routes/auth.rs` (line 1310):
+
+1. **Rate limit check**: 10 requests per IP per hour via `GuestAttemptTracker` (uses same `hash_ip()` + sliding window pattern as registration)
+2. **Space selection**: `find_guest_space()` selects the first public space (`WHERE public = true`), falling back to the first space on the server
+3. **Token generation**: Uses the same `generate_token()` (256-bit cryptographic random hex) and `create_token_hash()` (SHA-256) as regular auth
+4. **Token storage**: Inserts into `guest_tokens` table with 1-hour expiry
+5. **Cleanup**: Opportunistically deletes expired guest tokens on each request
+6. **Guest count**: Increments `AppState.guest_counts` for the space (in-memory counter)
+7. **Response**: `{ "token": String, "expires_at": String, "space_id": String }`
+
+### Guest Token Resolution (Server)
+
+`resolve_guest_token()` in `../accordserver/src/middleware/auth.rs` (line 98):
+
+- Hashes the Bearer token and looks up `guest_tokens` table
+- Checks expiry using the same multi-format datetime parser as regular tokens
+- Constructs a synthetic `user_id` of `"guest:{token_hash_prefix}"` (no real DB user)
+- Returns `AuthUser { is_guest: true, guest_space_id: Some(space_id) }`
+- Bearer token resolution tries regular `user_tokens` first, falls back to `guest_tokens`
+
+### Guest Permission Enforcement (Server)
+
+`require_guest_space_permission()` and updated `require_channel_permission()` in `../accordserver/src/middleware/permissions.rs`:
+
+- Guests only have `["view_channel", "read_history"]` permissions (constant `GUEST_PERMISSIONS`)
+- All other permissions (send, react, manage, etc.) return `Forbidden`
+- Channel access requires `allow_anonymous_read = true` on the channel row
+- Guest tokens are scoped: requests for a different space than `guest_space_id` return `Forbidden`
+- DM/group_dm channels are always forbidden for guests
+
+### Guest Gateway Sessions (Server)
+
+Updated `handle_socket()` in `../accordserver/src/gateway/mod.rs`:
+
+- `resolve_token()` extended to try `guest_tokens` table when bearer token lookup fails
+- Guest sessions: `space_ids` set to only the scoped space, no muted channels loaded
+- No presence set/broadcast on connect or disconnect (guests are invisible)
+- No relationships/friends loaded in READY payload
+- READY event includes `"is_guest": true`
+- On connect: broadcasts `anonymous_count_updated` event to the space (intent: `members`)
+- On disconnect: decrements `guest_counts`, broadcasts updated `anonymous_count_updated`
+
+### Guest Token Endpoint (Client)
+
+The client side calls this via `AuthApi.guest(base_url)` in `addons/accordkit/rest/endpoints/auth_api.gd` (line 45).
 
 ### Client Guest Mode
 
@@ -270,7 +323,11 @@ A new scene `anonymous_entry_item.gd` renders a non-interactive row in the membe
 
 ### Channel Visibility Filtering
 
-The server marks individual channels with `allow_anonymous_read: true`. The `AccordChannel` model in `addons/accordkit/models/channel.gd` needs an `allow_anonymous_read: bool = false` field. In guest mode, `channel_list.gd` hides channels where this is `false`.
+The server marks individual channels with `allow_anonymous_read: true` (column added in migration `021_guest_auth.sql`). The server enforces this in two places:
+1. `GET /spaces/{id}/channels` filters to only `allow_anonymous_read` channels for guest tokens (`routes/spaces.rs:list_channels`)
+2. `require_channel_permission()` rejects guest access to channels without the flag (`middleware/permissions.rs`)
+
+The `AccordChannel` model in `addons/accordkit/models/channel.gd` has a matching `allow_anonymous_read: bool = false` field. In guest mode, `channel_list.gd` also filters client-side as an extra guard.
 
 ### Message Context Menu
 
@@ -385,16 +442,29 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 ## Implementation Status
 
 ### Core guest mode
-- [ ] `POST /auth/guest` server endpoint
+- [x] `POST /auth/guest` server endpoint (`routes/auth.rs`)
 - [x] `AuthApi.guest()` client method
 - [x] `AccordUser.is_guest` field
-- [x] `AccordChannel.allow_anonymous_read` field
+- [x] `AccordChannel.allow_anonymous_read` field (server + client model)
 - [x] `Client.connect_guest()` / `Client.upgrade_guest_connection()`
 - [x] `AppState.guest_mode_changed` signal and `is_guest_mode` state
 - [x] `GatewayIntents.guest()` static method (reduced intent set)
 - [x] Guest token refresh on expiry
-- [ ] Guest token rate limiting (server-side)
+- [x] Guest token rate limiting (server-side, 10 tokens/IP/hour)
 - [x] Client mutation methods guarded in guest mode (send, edit, delete, react, typing, DM)
+- [x] `try_auto_connect()` wired in `Client._ready()` for web builds
+- [x] Server-side guest token storage (`guest_tokens` table)
+- [x] Server-side `allow_anonymous_read` column on channels (migration 021)
+- [x] Auth middleware resolves guest tokens with `is_guest` flag and `guest_space_id` scope
+- [x] Permission middleware enforces read-only access for guest tokens
+- [x] Gateway handles guest sessions (no presence broadcast, scoped space_ids)
+- [x] `GET /spaces/{id}/anonymous-count` endpoint
+- [x] Anonymous count tracking via `AppState.guest_counts` (in-memory)
+- [x] `anonymous_count_updated` gateway event on guest connect/disconnect
+- [x] Guest `GET /users/@me` returns synthetic guest user object
+- [x] Guest `GET /users/@me/spaces` returns only scoped space
+- [x] Guest `GET /spaces/{id}/channels` filters to `allow_anonymous_read` channels only
+- [x] Guest `GET /spaces/{id}/members` allowed for scoped space
 
 ### Client UI (desktop + web)
 - [x] "Browse without account" button in `auth_dialog.gd`
@@ -437,9 +507,10 @@ Guest tokens are intentionally short-lived (server-configurable, suggested defau
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No `POST /auth/guest` server endpoint | High | Entire feature blocked on accordserver support; client-side code is ready but untestable without it |
-| Guest token rate limiting (server-side) | Medium | Server should rate-limit `POST /auth/guest` by IP (e.g. 10 tokens/IP/hour) to prevent abuse |
-| `try_auto_connect()` not wired in Client._ready | Medium | `ClientWebLinks.try_auto_connect()` exists but needs to be called from `Client._ready()` on web builds |
+| No admin UI for `allow_anonymous_read` toggle | Medium | Channels have the `allow_anonymous_read` DB column and API field, but no admin settings UI to toggle it per-channel. Admins must use the API or MCP directly. |
+| Guest count not persisted across server restarts | Low | `guest_counts` is in-memory (`DashMap`); restarting the server resets counts to zero. Could be derived from active gateway sessions on startup. |
+| No guest token cleanup cron | Low | Expired guest tokens are cleaned up opportunistically on new `POST /auth/guest` calls. A background task could periodically purge expired tokens. |
+| Guest token scoped to single space | Low | `POST /auth/guest` auto-selects the first public space. No way to request a guest token for a specific space yet (could add `?space_id=` query param). |
 
 ## Related User Flows
 

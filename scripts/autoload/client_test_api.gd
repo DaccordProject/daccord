@@ -319,6 +319,9 @@ func _init_endpoints() -> void:
 		"screenshot": _endpoint_screenshot,
 		"list_surfaces": _endpoint_list_surfaces,
 		"get_surface_info": _endpoint_get_surface_info,
+		"get_design_tokens": _endpoint_get_design_tokens,
+		# Theme
+		"set_theme": _endpoint_set_theme,
 		# Actions
 		"send_message": _endpoint_send_message,
 		"edit_message": _endpoint_edit_message,
@@ -581,6 +584,41 @@ func _endpoint_list_surfaces(args: Dictionary) -> Dictionary:
 func _endpoint_get_surface_info(args: Dictionary) -> Dictionary:
 	var surface_id: String = args.get("surface_id", "")
 	return _navigate.get_surface_info(surface_id)
+
+func _endpoint_get_design_tokens(_args: Dictionary) -> Dictionary:
+	var palette: Dictionary = ThemeManager.get_palette()
+	var tokens: Dictionary = {}
+	for key in palette:
+		tokens[key] = (palette[key] as Color).to_html(true)
+	return {
+		"ok": true,
+		"tokens": tokens,
+		"presets": ThemeManager.get_preset_names(),
+		"current_preset": Config.get_theme_preset(),
+	}
+
+# --- Theme endpoint ---
+
+func _endpoint_set_theme(args: Dictionary) -> Dictionary:
+	var preset: String = args.get("preset", "")
+	var theme_string: String = args.get("theme_string", "")
+	if not preset.is_empty():
+		var valid: Array = ThemeManager.get_preset_names()
+		if not preset in valid:
+			return {
+				"error": "Unknown preset: %s. Valid: %s"
+				% [preset, ", ".join(valid)],
+			}
+		ThemeManager.apply_preset(preset)
+		await _c.get_tree().process_frame
+		return {"ok": true, "preset": preset}
+	if not theme_string.is_empty():
+		var ok: bool = ThemeManager.import_theme_string(theme_string)
+		if not ok:
+			return {"error": "Invalid theme string"}
+		await _c.get_tree().process_frame
+		return {"ok": true, "preset": "custom"}
+	return {"error": "preset or theme_string is required"}
 
 # --- Screenshot endpoint ---
 

@@ -593,6 +593,11 @@ func _init_tools() -> void:
 			"height": "integer",
 		}, []),
 	)
+	_register(
+		"set_theme", "set_theme", "navigate",
+		"Apply a theme preset (dark/light/nord/monokai/solarized) or a base64 theme string",
+		_schema({"preset": "string", "theme_string": "string"}, []),
+	)
 
 	# Screenshot group
 	_register("take_screenshot", "screenshot", "screenshot",
@@ -605,6 +610,11 @@ func _init_tools() -> void:
 		"get_surface_info", "get_surface_info", "screenshot",
 		"Get info about a UI surface",
 		_schema({"surface_id": "string"}, ["surface_id"]),
+	)
+	_register(
+		"get_design_tokens", "get_design_tokens", "screenshot",
+		"Get current theme palette as hex color tokens",
+		{},
 	)
 
 	# Message group

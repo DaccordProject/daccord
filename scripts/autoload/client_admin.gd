@@ -303,14 +303,36 @@ func get_bans(
 	if client == null:
 		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.bans.list(space_id, query)
+	var result: RestResult = await client.bans.list(space_id, query)
+	if result.ok and result.data is Array:
+		# Replace cache when fetching first page (no "after" cursor)
+		if not query.has("after"):
+			_c._ban_cache[space_id] = []
+		if not _c._ban_cache.has(space_id):
+			_c._ban_cache[space_id] = []
+		for ban in result.data:
+			if ban is Dictionary:
+				_c._ban_cache[space_id].append(ban)
+	return result
 
 func get_invites(space_id: String) -> RestResult:
 	var client: AccordClient = _c._client_for_space(space_id)
 	if client == null:
 		push_error("[Client] No connection for space:", space_id)
 		return null
-	return await client.invites.list_space(space_id)
+	var result: RestResult = await client.invites.list_space(space_id)
+	if result.ok and result.data is Array:
+		_c._invite_cache[space_id] = []
+		for invite in result.data:
+			var invite_dict: Dictionary
+			if invite is AccordInvite:
+				invite_dict = ClientModels.invite_to_dict(invite)
+			elif invite is Dictionary:
+				invite_dict = invite
+			else:
+				continue
+			_c._invite_cache[space_id].append(invite_dict)
+	return result
 
 func create_invite(
 	space_id: String, data: Dictionary = {}

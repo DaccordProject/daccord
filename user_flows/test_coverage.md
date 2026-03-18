@@ -351,21 +351,21 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 2
-- **Tags:** emoji, testing
+- **Tags:** messaging, testing
 - **Notes:** `scripts/autoload/client_mutations.gd` handles message send/edit/delete, reactions, typing. No unit tests.
 
 ### TEST-4: No tests for `ClientConnection`
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 2
-- **Tags:** testing
+- **Tags:** connection, testing
 - **Notes:** `scripts/autoload/client_connection.gd` handles server connect/disconnect/reconnect lifecycle. No unit tests.
 
 ### TEST-5: No tests for message_view
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 3
-- **Tags:** testing
+- **Tags:** messaging, testing, ui
 - **Notes:** `scenes/messages/message_view.gd` (the scroll container / message list manager) is untested due to heavy `Client` dependency. `MessageViewScroll` (the scroll helper) now has basic tests, and individual message components (cozy, collapsed, content) are tested.
 
 ### TEST-6: No tests for sidebar containers
@@ -386,7 +386,7 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 3
-- **Tags:** audio, config, emoji, permissions, testing, ui
+- **Tags:** admin, testing, ui
 - **Notes:** 13 admin dialog scenes (`space_settings_dialog`, `channel_management_dialog`, `role_management_dialog`, `ban_list_dialog`, `invite_management_dialog`, `emoji_management_dialog`, `channel_edit_dialog`, `category_edit_dialog`, `create_channel_dialog`, `channel_permissions_dialog`, `soundboard_management_dialog`, etc.) have zero test coverage. Settings panels now have smoke tests (`test_user_settings.gd`).
 
 ### TEST-9: No tests for emoji_picker
@@ -400,14 +400,14 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 1
-- **Tags:** testing, ui
+- **Tags:** search, testing, ui
 - **Notes:** `scenes/search/search_panel.gd` -- search UI untested.
 
 ### TEST-11: No tests for `SoundManager` autoload
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 2
-- **Tags:** audio, gateway, testing
+- **Tags:** audio, testing
 - **Notes:** `scripts/autoload/sound_manager.gd` -- sound event playback and volume control have no tests.
 
 ### TEST-12: Gateway/e2e CI is non-blocking
@@ -428,7 +428,7 @@ Three jobs on PR to `master` (also callable via `workflow_call`):
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 3
-- **Tags:** ci, testing
+- **Tags:** testing
 - **Notes:** All tests use real instantiated objects. GUT's mock/double/stub capabilities are unused. This makes unit testing of components with dependencies (Client, AppState) impractical without a live server or full scene tree.
 
 ### TEST-15: GDExtension binary staleness undetected

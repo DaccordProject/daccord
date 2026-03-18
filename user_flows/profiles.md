@@ -363,20 +363,6 @@ For power users and automation, daccord accepts a `--profile <slug>` command-lin
 
 ## Tasks
 
-### PROFILE-1: SHA-256 is fast to brute-force
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 4
-- **Tags:** security
-- **Notes:** Profile passwords are a convenience lock, not a security boundary. All data is on the local filesystem and accessible to anyone with disk access. SHA-256 with a salt is adequate for this threat model. If stronger protection is wanted later, switch to a KDF like scrypt or Argon2 (no GDScript built-in, would need GDExtension).
-
-### PROFILE-2: No profile lock-on-idle
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 3
-- **Tags:** security
-- **Notes:** Once a password-protected profile is unlocked, it stays unlocked for the session. There's no idle timeout that re-locks the profile. Could be added later with a timer that emits a lock signal.
-
 ### PROFILE-3: Export includes credentials in plaintext
 - **Status:** open
 - **Impact:** 3

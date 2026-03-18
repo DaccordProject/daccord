@@ -50,6 +50,7 @@ window/size/viewport_height=720
 window/handheld/orientation=6
 window/size/min_width=320
 window/size/min_height=480
+window/dpi/allow_hidpi=true
 window/content_scale/mode="canvas_items"
 
 [editor_plugins]

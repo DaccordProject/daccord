@@ -11,16 +11,34 @@ func _init(client_node: Node) -> void:
 
 # --- Admin / entity events ---
 
-func on_ban_create(_data: Dictionary, conn_index: int) -> void:
+func on_ban_create(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var space_id: String = _c._connections[conn_index]["space_id"]
+	if not _c._ban_cache.has(space_id):
+		_c._ban_cache[space_id] = []
+	var user_id: String = _get_ban_user_id(data)
+	if not user_id.is_empty():
+		# Avoid duplicates
+		for existing in _c._ban_cache[space_id]:
+			if _get_ban_user_id(existing) == user_id:
+				AppState.bans_updated.emit(space_id)
+				return
+	_c._ban_cache[space_id].append(data)
 	AppState.bans_updated.emit(space_id)
 
-func on_ban_delete(_data: Dictionary, conn_index: int) -> void:
+func on_ban_delete(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var space_id: String = _c._connections[conn_index]["space_id"]
+	if _c._ban_cache.has(space_id):
+		var user_id: String = _get_ban_user_id(data)
+		if not user_id.is_empty():
+			var bans: Array = _c._ban_cache[space_id]
+			for i in bans.size():
+				if _get_ban_user_id(bans[i]) == user_id:
+					bans.remove_at(i)
+					break
 	AppState.bans_updated.emit(space_id)
 
 func on_report_create(_data: Dictionary, conn_index: int) -> void:
@@ -29,16 +47,35 @@ func on_report_create(_data: Dictionary, conn_index: int) -> void:
 	var space_id: String = _c._connections[conn_index]["space_id"]
 	AppState.reports_updated.emit(space_id)
 
-func on_invite_create(_invite: AccordInvite, conn_index: int) -> void:
+func on_invite_create(invite: AccordInvite, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var space_id: String = _c._connections[conn_index]["space_id"]
+	if not _c._invite_cache.has(space_id):
+		_c._invite_cache[space_id] = []
+	var invite_dict: Dictionary = ClientModels.invite_to_dict(invite)
+	# Avoid duplicates
+	var code: String = invite_dict.get("code", "")
+	if not code.is_empty():
+		for existing in _c._invite_cache[space_id]:
+			if existing.get("code", "") == code:
+				AppState.invites_updated.emit(space_id)
+				return
+	_c._invite_cache[space_id].append(invite_dict)
 	AppState.invites_updated.emit(space_id)
 
-func on_invite_delete(_data: Dictionary, conn_index: int) -> void:
+func on_invite_delete(data: Dictionary, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return
 	var space_id: String = _c._connections[conn_index]["space_id"]
+	if _c._invite_cache.has(space_id):
+		var code: String = str(data.get("code", ""))
+		if not code.is_empty():
+			var invites: Array = _c._invite_cache[space_id]
+			for i in invites.size():
+				if invites[i].get("code", "") == code:
+					invites.remove_at(i)
+					break
 	AppState.invites_updated.emit(space_id)
 
 func on_soundboard_create(_sound: AccordSound, conn_index: int) -> void:
@@ -280,3 +317,13 @@ func on_relationship_remove(data: Dictionary, conn_index: int) -> void:
 	var key: String = str(conn_index) + ":" + user_id
 	_c._relationship_cache.erase(key)
 	AppState.relationships_updated.emit()
+
+# --- Helpers ---
+
+static func _get_ban_user_id(ban: Dictionary) -> String:
+	var user_data = ban.get("user", {})
+	if user_data is Dictionary:
+		var uid: String = str(user_data.get("id", ""))
+		if not uid.is_empty():
+			return uid
+	return str(ban.get("user_id", ""))

@@ -14,11 +14,11 @@ Beyond a functional chat client, the web export serves as a **public-facing fron
 ### Export & deploy (developer)
 
 1. Developer runs `./web-export.sh` which:
-   - Runs `godot --headless --export-release "Web"` producing output in `dist/web/`.
-   - Downloads the `livekit-client` UMD bundle into `dist/web/`.
-   - Copies `godot-livekit-web.js` from the addon into `dist/web/`.
-2. Developer edits `dist/web/index.html` to set the preset server configuration (see [Preset servers](#preset-servers) below). This tells the web client which accordserver to auto-connect to.
-3. Developer hosts `dist/web/` on a static web server (must serve with COOP/COEP headers or use the bundled `coop_coep.js` service worker for cross-origin isolation).
+   - Runs `godot --headless --export-release "Web"` producing output in `dist/build/web/`.
+   - Downloads the `livekit-client` UMD bundle into `dist/build/web/`.
+   - Copies `godot-livekit-web.js` and `coop_coep.js` into `dist/build/web/`.
+2. Developer edits `dist/web/index.html` (the template) to set the preset server configuration (see [Preset servers](#preset-servers) below). This tells the web client which accordserver to auto-connect to.
+3. Developer hosts `dist/build/web/` on a static web server. The web export preset has `variant/thread_support=false` (single-threaded WASM), so COOP/COEP headers are **not strictly required**. The bundled `coop_coep.js` service worker is retained for forward compatibility but the HTML shell currently **unregisters** leftover service workers from older builds rather than registering new ones.
 
 ### Arriving on the web client (visitor)
 
@@ -196,10 +196,10 @@ crawler or unfurler requests /s/community/help-forum/1234567890
 | File | Role |
 |------|------|
 | `web-export.sh` | One-step export script: runs Godot web export, downloads `livekit-client` UMD, copies `godot-livekit-web.js` into `dist/web/`. |
-| `dist/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. Registers the `coop_coep.js` service worker for cross-origin isolation. Parses URL fragment on load for deep link routing. Contains the `window.daccordPresetServer` configuration block for auto-guest. |
-| `dist/web/coop_coep.js` | Service worker that adds `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers (required for `SharedArrayBuffer` / WASM threads in Chrome). |
+| `dist/web/index.html` | Custom HTML shell template. Uses `$GODOT_CONFIG` (Godot 4.5 consolidated placeholder). Loads `livekit-client.umd.min.js` and `godot-livekit-web.js` before the engine. **Unregisters** leftover COOP/COEP service workers from older builds. Parses URL fragment on load for deep link routing. Contains the `window.daccordPresetServer` configuration block for auto-guest. |
+| `dist/web/coop_coep.js` | Service worker that adds `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers. Retained in the build for forward compatibility, but the HTML shell currently unregisters it. Only needed if thread support is re-enabled (`variant/thread_support=true`). |
 | `dist/web/godot-livekit-web.js` | JavaScript wrapper around `livekit-client.js` that mirrors the godot-livekit GDExtension API surface. Exposes `GodotLiveKit.createRoom()` globally. |
-| `export_presets.cfg` (preset `Web`) | Web export preset. `export_path="dist/web/Daccord.html"`, `custom_html_shell="res://dist/web/index.html"`. Excludes `addons/godot-livekit/*` (GDExtension not used on web). |
+| `export_presets.cfg` (preset.5 `Web`) | Web export preset. `export_path="dist/build/web/Daccord.html"`, `custom_html_shell="res://dist/web/index.html"`, `variant/thread_support=false`. Excludes `addons/godot-livekit/*`, `addons/godot_sandbox/*`, `addons/sentry/*`, `scripts/sentry_scene_tree.gd`. Sentry injection disabled. |
 | `scripts/autoload/web_voice_session.gd` | `WebVoiceSession` — web-only voice session using `JavaScriptBridge` to call into `godot-livekit-web.js`. Mirrors `LiveKitAdapter` signal/API surface. No-ops on non-web builds. |
 | `scripts/autoload/client_voice.gd` | Voice join pipeline: calls REST join, then routes to `LiveKitAdapter` (desktop) or `WebVoiceSession` (web). |
 | `scripts/autoload/client.gd` | Server connections, URL fragment navigation on web. Guest mode: see [Read Only Mode](read_only_mode.md). |
@@ -259,7 +259,11 @@ Each web deployment is configured with a **preset server** -- the accordserver i
 
 ### Cross-origin isolation
 
-Chrome requires `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers for `SharedArrayBuffer` (used by WASM threads). The `coop_coep.js` service worker intercepts fetch events and adds these headers. On first visit the worker installs and the page reloads; subsequent loads are isolated.
+Chrome requires `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers for `SharedArrayBuffer` (used by WASM threads). The `coop_coep.js` service worker can intercept fetch events and add these headers.
+
+**Current state:** The web export preset has `variant/thread_support=false`, so the WASM runs single-threaded and `SharedArrayBuffer` is not needed. The HTML shell (line 160-167) **unregisters** any leftover service workers from older builds rather than registering new ones. The `coop_coep.js` file is retained in the build output for forward compatibility, and the CI smoke test still injects headers server-side. If thread support is re-enabled in the future, the HTML shell must be updated to register the service worker again.
+
+The CI web export job (`ci.yml` lines 687-718) runs a Python HTTP server that injects COOP/COEP headers server-side for the Chrome headless smoke test, regardless of the service worker state.
 
 ### LiveKit JS SDK integration
 
@@ -376,18 +380,37 @@ This is implemented **server-side** in `accordserver/src/routes/seo.rs`, not in 
 
 ### Export output paths
 
-- **Local:** `dist/web/Daccord.html` (from `export_presets.cfg`).
-- **CI:** `dist/build/web/index.html` (CI overrides the output name for consistency).
+- **Local / CI:** `dist/build/web/Daccord.html` (from `export_presets.cfg`).
+- The `web-export.sh` script also copies JS dependencies (livekit-client, godot-livekit-web.js, coop_coep.js) into `dist/build/web/`.
+
+### Platform guards in the codebase
+
+The following files contain `OS.get_name() == "Web"` or `OS.has_feature("web")` guards to branch behavior on web:
+
+| File | Guard | Purpose |
+|------|-------|---------|
+| `client.gd` (line 192) | `OS.get_name() == "Web"` | Loads `WebVoiceSession` instead of `LiveKitAdapter` |
+| `client_web_links.gd` (line 31) | `OS.get_name() == "Web"` | All web link methods are no-ops on non-web |
+| `web_voice_session.gd` (line 57) | `OS.get_name() == "Web"` | All voice methods are no-ops on non-web |
+| `web_mic_audio.gd` (lines 11, 32, 47, 63, 81, 95) | `OS.get_name() != "Web"` | Early-returns on non-web |
+| `app_settings.gd` (lines 101, 155, 252, 301, 313, 377, 403) | `OS.get_name() == "Web"` | Hides device selection, routes mic test to WebMicAudio |
+| `voice_bar.gd` (line 57) | `OS.get_name() == "Web"` | Hides screen share button on web |
+| `screen_picker_dialog.gd` (line 11) | `OS.get_name() == "Web"` | Blocks screen picker with error on web |
+| `plugin_management_dialog.gd` (line 170) | `OS.get_name() == "Web"` | Disables plugin upload on web |
+| `main_window.gd` (line 209) | `OS.has_feature("web")` | Skips window manipulation on web |
+
+**Missing guard:** `client.gd` lines 242-266 initialize `ClientTestApi` and `ClientMcp` (both use `TCPServer`) without a web platform check. `TCPServer` is unavailable on HTML5 exports. If developer mode is enabled, this will error on web. See WEB-10.
 
 ## Implementation Status
 
 ### Web export pipeline
-- [x] Web export preset exists in `export_presets.cfg`
+- [x] Web export preset exists in `export_presets.cfg` (preset.5, single-threaded WASM)
 - [x] Custom HTML shell uses Godot 4.5 `$GODOT_CONFIG` placeholder
-- [x] `web-export.sh` script handles full export + JS bundle setup
-- [x] `coop_coep.js` service worker for cross-origin isolation
+- [x] `web-export.sh` script handles full export + JS bundle setup + `serve` subcommand
+- [x] `coop_coep.js` service worker exists (retained for forward compat; HTML shell currently unregisters it)
 - [x] CI web export job with Chrome headless smoke test
 - [x] Release CI bundles web JS dependencies (livekit-client, godot-livekit-web.js, coop_coep.js) into the web release artifact
+- [ ] TCPServer-based subsystems (Test API, MCP) lack web platform guard — will error if developer mode is enabled on web (see WEB-10)
 
 ### Voice & video on web
 - [x] `godot-livekit-web.js` wrapper mirrors GDExtension API
@@ -408,10 +431,11 @@ This is implemented **server-side** in `accordserver/src/routes/seo.rs`, not in 
 
 ### Preset servers & auto-guest
 - [x] `window.daccordPresetServer` config block in HTML shell (commented template in `dist/web/index.html`)
-- [x] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge (`client_web_links.gd` lines 82-101)
+- [x] `ClientWebLinks._read_preset_server()` reads preset config via JavaScriptBridge (`client_web_links.gd` lines 82-100)
 - [x] Auto-guest: client requests `POST /auth/guest` from preset server on startup when no auth token exists (`client_web_links.gd` lines 104-131)
 - [x] `localStorage` auth token check: skip guest flow if authenticated session exists (`try_auto_connect()` lines 49-75)
 - [x] Same-origin fallback: default `base_url` to `window.location.origin` when omitted (`client_web_links.gd` line 87)
+- [x] Guest-to-auth upgrade persists token to `localStorage` via `_on_guest_mode_changed` (line 343)
 - [x] Preset server is non-removable (read from HTML shell on every load, never persisted to Config)
 
 ### Guest mode (read only)
@@ -436,6 +460,13 @@ See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-
 - [x] Initial layout is squashed into the lower half of the screen (no longer reproduces)
 - [x] Mic test audio plays back at correct pitch (Web Audio API loopback via `WebMicAudio`)
 
+### Known breakage (web build currently broken)
+- [ ] **Web export fails or crashes at runtime** — exact failure mode needs diagnosis. Potential causes:
+  - TCPServer initialization on web when developer mode is enabled (see WEB-10)
+  - Service worker unregistration means older cached service workers are removed but no new one is registered — this is intentional since thread support is disabled, but may interact unexpectedly with browser caching
+  - `variant/thread_support=false` means single-threaded WASM — some Godot features may behave differently or be unavailable
+  - Voice debug logging uses `FileAccess` / `DirAccess` (`client_voice.gd` lines 502-530) which is restricted on web — silently fails but may cause unexpected behavior if debug logging is enabled
+
 ## Tasks
 
 ### WEB-1: Local video preview unavailable on web
@@ -457,7 +488,7 @@ See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** voice
-- **Notes:** `set_deafened()` now calls `r.setDeafened()` on the JS side (`web_voice_session.gd` line 140). `godot-livekit-web.js` implements `setDeafened()` (line 318) by setting `audioElements[sid].muted = isDeafened` on all tracked audio elements.
+- **Notes:** `set_deafened()` now calls `r.setDeafened()` on the JS side (`web_voice_session.gd` line 139). `godot-livekit-web.js` implements `setDeafened()` (line 318) by setting `audioElements[sid].muted = isDeafened` on all tracked audio elements.
 
 ### WEB-4: No per-device selection on web
 - **Status:** open
@@ -500,6 +531,39 @@ See [Read Only Mode — Implementation Status](read_only_mode.md#implementation-
 - **Effort:** 3
 - **Tags:** seo, web
 - **Notes:** Implemented in `accordserver/src/routes/seo.rs`. Three endpoints under `/s/`: space index, channel snapshot, and post snapshot with paginated thread replies. Detects crawler user agents and serves semantic HTML with Open Graph/Twitter Card meta tags, `<link rel="canonical">`, and `rel="next"` pagination. Human visitors are redirected to the fragment-based web client URL. Only public spaces are served. A `<noscript>` fallback was added to the HTML shell (`dist/web/index.html`).
+
+### WEB-10: TCPServer (Test API / MCP) crashes on web
+- **Status:** open
+- **Impact:** 3
+- **Effort:** 1
+- **Tags:** crash, web
+- **Notes:** `client.gd` lines 242-266 initialize `ClientTestApi` and `ClientMcp` using `TCPServer.new()` (`client_test_api.gd` line 50, `client_mcp.gd` line 67) without checking `OS.get_name() == "Web"`. `TCPServer` is unavailable on HTML5 exports. If developer mode is enabled in Config, the web build will error on startup. **Fix:** Add `and OS.get_name() != "Web"` guard to lines 245 and 258 in `client.gd`.
+
+### WEB-11: Voice debug logging uses FileAccess on web
+- **Status:** open
+- **Impact:** 1
+- **Effort:** 1
+- **Tags:** voice, web
+- **Notes:** `client_voice.gd` lines 502-530 use `FileAccess` and `DirAccess` for voice debug logging to `user://voice_debug.log`. File I/O to `user://` is restricted on web. If `debug_voice_logs` is enabled (via Config), `FileAccess.open()` will silently fail and logging will be lost. Low impact since debug logging is opt-in, but an explicit web guard would be cleaner.
+
+### WEB-12: Web build is currently broken
+- **Status:** open
+- **Impact:** 5
+- **Effort:** 3
+- **Tags:** crash, web, blocking
+- **Notes:** The web version is currently non-functional. Root cause needs diagnosis — could be export template incompatibility, runtime error, or configuration issue. Recommended approach: (1) run `./web-export.sh` locally and check for export errors, (2) run `./web-export.sh serve` and open in Chrome DevTools to capture console errors, (3) check the CI `web-export` job logs for the most recent run.
+
+## Gaps / TODO
+
+| Gap | Severity | Notes |
+|-----|----------|-------|
+| Web build is broken (WEB-12) | High | Root cause unknown — needs diagnosis via local export + browser DevTools |
+| TCPServer on web crashes (WEB-10) | High | `client.gd` lines 245/258 lack web guard; `TCPServer` unavailable on HTML5 |
+| Service worker unregistered but retained in build | Medium | HTML shell (line 160) unregisters workers; `coop_coep.js` shipped but unused. If thread support is re-enabled, registration must be restored |
+| No local video preview (WEB-1) | Medium | `publish_camera()` returns stub; no `<video>` overlay integration |
+| No screen sharing (WEB-2) | Medium | `publish_screen()` returns null; `getDisplayMedia()` available but unwired |
+| No per-device selection (WEB-4) | Low | Settings UI hidden on web; `enumerateDevices()` available but unused |
+| Voice debug FileAccess on web (WEB-11) | Low | `FileAccess.open()` silently fails on web; debug logs lost if enabled |
 
 ## Related User Flows
 

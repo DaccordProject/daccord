@@ -16,6 +16,7 @@ var _original_edit_content: String = ""
 var _spoilers_revealed: bool = false
 var _raw_bbcode: String = ""
 var _is_system: bool = false
+var _message_type: String = "default"
 var _last_data: Dictionary = {}
 
 @onready var text_content: RichTextLabel = $TextContent
@@ -36,12 +37,24 @@ func _apply_theme() -> void:
 	# Re-render text content with current theme colors
 	var raw_text: String = _last_data.get("content", "")
 	if _is_system:
-		var safe_text := raw_text.replace("[", "[lb]")
 		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
-		text_content.text = (
-			"[i][color=#" + muted_hex + "]"
-			+ safe_text + "[/color][/i]"
-		)
+		if _message_type == "member_join":
+			var author: Dictionary = _last_data.get("author", {})
+			var display_name: String = author.get("display_name", "Someone")
+			var safe_name := display_name.replace("[", "[lb]")
+			var accent_hex: String = ThemeManager.get_color("accent").to_html(false)
+			text_content.text = (
+				"[i][color=#" + accent_hex + "][b]"
+				+ safe_name + "[/b][/color]"
+				+ "[color=#" + muted_hex + "] " + tr("joined the server. Welcome!")
+				+ "[/color][/i]"
+			)
+		else:
+			var safe_text := raw_text.replace("[", "[lb]")
+			text_content.text = (
+				"[i][color=#" + muted_hex + "]"
+				+ safe_text + "[/color][/i]"
+			)
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if _last_data.get("edited", false):
@@ -57,15 +70,30 @@ func setup(data: Dictionary) -> void:
 	_last_data = data
 	var raw_text: String = data.get("content", "")
 	_is_system = data.get("system", false)
+	_message_type = data.get("message_type", "default")
 
 	if _is_system:
-		# Escape BBCode in system messages -- they render as plain italic text
-		var safe_text := raw_text.replace("[", "[lb]")
 		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
-		text_content.text = (
-			"[i][color=#" + muted_hex + "]"
-			+ safe_text + "[/color][/i]"
-		)
+		if _message_type == "member_join":
+			# Rich formatting: bold author name + muted welcome text
+			var author: Dictionary = data.get("author", {})
+			var display_name: String = author.get("display_name", "Someone")
+			var safe_name := display_name.replace("[", "[lb]")
+			var accent_hex: String = ThemeManager.get_color("accent").to_html(false)
+			text_content.text = (
+				"[i][color=#" + accent_hex + "][b]"
+				+ safe_name + "[/b][/color]"
+				+ "[color=#" + muted_hex + "] " + tr("joined the server. Welcome!")
+				+ "[/color][/i]"
+			)
+			_add_wave_button(data)
+		else:
+			# Generic system message -- plain italic text
+			var safe_text := raw_text.replace("[", "[lb]")
+			text_content.text = (
+				"[i][color=#" + muted_hex + "]"
+				+ safe_text + "[/color][/i]"
+			)
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
@@ -160,13 +188,26 @@ func update_content(data: Dictionary) -> void:
 		return
 	var raw_text: String = data.get("content", "")
 	_is_system = data.get("system", false)
+	_message_type = data.get("message_type", "default")
 	if _is_system:
-		var safe_text := raw_text.replace("[", "[lb]")
 		var muted_hex: String = ThemeManager.get_color("text_muted").to_html(false)
-		text_content.text = (
-			"[i][color=#" + muted_hex + "]"
-			+ safe_text + "[/color][/i]"
-		)
+		if _message_type == "member_join":
+			var author: Dictionary = data.get("author", {})
+			var display_name: String = author.get("display_name", "Someone")
+			var safe_name := display_name.replace("[", "[lb]")
+			var accent_hex: String = ThemeManager.get_color("accent").to_html(false)
+			text_content.text = (
+				"[i][color=#" + accent_hex + "][b]"
+				+ safe_name + "[/b][/color]"
+				+ "[color=#" + muted_hex + "] " + tr("joined the server. Welcome!")
+				+ "[/color][/i]"
+			)
+		else:
+			var safe_text := raw_text.replace("[", "[lb]")
+			text_content.text = (
+				"[i][color=#" + muted_hex + "]"
+				+ safe_text + "[/color][/i]"
+			)
 	else:
 		var bbcode := ClientModels.markdown_to_bbcode(raw_text)
 		if data.get("edited", false):
@@ -177,6 +218,39 @@ func update_content(data: Dictionary) -> void:
 			)
 		_raw_bbcode = bbcode
 		text_content.text = bbcode
+
+func _add_wave_button(data: Dictionary) -> void:
+	var ch_id: String = data.get("channel_id", "")
+	var msg_id: String = data.get("id", "")
+	if ch_id.is_empty() or msg_id.is_empty():
+		return
+	var btn := Button.new()
+	btn.text = "\U0001f44b " + tr("Wave to welcome!")
+	btn.custom_minimum_size = Vector2(0, 28)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var accent: Color = ThemeManager.get_color("accent")
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = accent.darkened(0.3)
+	sb.corner_radius_top_left = 4
+	sb.corner_radius_top_right = 4
+	sb.corner_radius_bottom_left = 4
+	sb.corner_radius_bottom_right = 4
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	btn.add_theme_stylebox_override("normal", sb)
+	var hover_sb := sb.duplicate()
+	hover_sb.bg_color = accent.darkened(0.15)
+	btn.add_theme_stylebox_override("hover", hover_sb)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.pressed.connect(func() -> void:
+		Client.add_reaction(ch_id, msg_id, "\U0001f44b")
+		btn.text = "\U0001f44b " + tr("Waved!")
+		btn.disabled = true
+	)
+	add_child(btn)
+	move_child(btn, get_child_count() - 2)
 
 func _detect_theme_string(raw_text: String) -> void:
 	var trimmed := raw_text.strip_edges()

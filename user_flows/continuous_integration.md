@@ -1,6 +1,6 @@
 # Continuous Integration
 
-Last touched: 2026-02-27
+Last touched: 2026-03-18
 Priority: 39
 Depends on: Test Coverage
 
@@ -220,13 +220,7 @@ gh run view <RUN_ID> --json jobs \
   --jq '.jobs[].steps[] | select(.name | test("Checkout")) | "\(.name): \(.conclusion)"'
 ```
 
-**6. GUT framework errors** -- GUT 9.5.0 has a known compatibility issue with Godot 4.5 where `gut_loader.gd:35` throws a `Nil` to `bool` assignment error. This is non-fatal and tests still run. Filter it out when reviewing logs:
-
-```bash
-gh run view <RUN_ID> --log-failed 2>&1 | grep "SCRIPT ERROR" | grep -v gut_loader
-```
-
-**7. sccache runtime crash** -- The sccache *setup* step can succeed (binary installs fine) while sccache *runtime* crashes because the GHA cache backend is temporarily down. The error looks like `error: process didn't exit successfully: 'sccache ... rustc -vV'` with an HTML error body. The build step has retry logic: if cargo fails with sccache, it retries without it. If you see `::warning::Build failed with sccache, retrying without it`, the retry is working. If the retry also fails, the issue is with cargo/Rust itself, not sccache.
+**6. sccache runtime crash** -- The sccache *setup* step can succeed (binary installs fine) while sccache *runtime* crashes because the GHA cache backend is temporarily down. The error looks like `error: process didn't exit successfully: 'sccache ... rustc -vV'` with an HTML error body. The build step has retry logic: if cargo fails with sccache, it retries without it. If you see `::warning::Build failed with sccache, retrying without it`, the retry is working. If the retry also fails, the issue is with cargo/Rust itself, not sccache.
 
 **8. LiveKit cascading failures** -- If the godot-livekit GDExtension binary fails to load (e.g., LFS pointer instead of real binary, or extension not compiled for the runner arch), extension classes aren't registered. `client.gd` guards voice session creation with `ClassDB.class_exists()` and null checks, so the Client autoload initializes fully even without LiveKit. Voice-dependent tests skip gracefully when the extension is unavailable. CI installs audio libraries (`libasound2-dev`, `libpulse-dev`, `libopus-dev`) to help the extension load. Look for the root error:
 
@@ -273,14 +267,6 @@ gh run view <RUN_ID> --log 2>&1 | grep "set_output_device\|get_speakers\|GDScrip
 - [x] Releases tagged (v0.1.0 through v0.1.3)
 - [x] Windows installer job in release workflow (Inno Setup)
 
-## Tasks
-
-### CI-1: GUT 9.5.0 + Godot 4.5 compatibility
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 1
-- **Tags:** testing
-- **Notes:** `gut_loader.gd:35` throws "Trying to assign value of type 'Nil' to a variable of type 'bool'" during static init. Non-fatal (tests still run). Monitor for upstream fix.
 ## Key Files
 
 | File | Purpose |

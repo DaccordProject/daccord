@@ -1,6 +1,6 @@
 # Video Chat
 
-Last touched: 2026-03-17 (added activity system integration, vertical resize handle, voice view reparenting, resize bar visibility gap)
+Last touched: 2026-03-18 (closed all open tasks: resize handle idle dots, bandwidth adaptation, camera device routing, camera hot-swap all confirmed implemented)
 Priority: 23
 Depends on: Voice Channels, Server Plugins
 
@@ -468,11 +468,13 @@ Draggable `Control` placed between the spotlight/activity area and the participa
 **Parameters:** `_init(target, min_h, default_h, max_ratio)` — target is the `spotlight_area` PanelContainer, min height 100px, default 200px, max 70% of parent.
 
 **Interaction:**
-- Drag: tracks mouse delta, clamps target `custom_minimum_size.y` between `_min_height` and `_max_ratio * parent.size.y` (lines 74-90)
-- Double-click: resets to `_default_height` (line 60-63, 105-109)
+- Drag: tracks mouse delta, clamps target `custom_minimum_size.y` between `_min_height` and `_max_ratio * parent.size.y` (lines 87-98)
+- Double-click: resets to `_default_height` (lines 68-71, 113-117)
 - Hover: sets `CURSOR_VSIZE` cursor shape (line 32)
 
-**Rendering:** Draws a horizontal line in `icon_default` theme color, but **only when hovered or dragging** (line 43). When idle the 6px control is completely invisible — no resting indicator exists (see Gaps).
+**Rendering** (lines 42-57): Three visual states:
+- **Idle**: three small semi-transparent dots (α=0.35, radius 1.5px) at center ± 8px, providing a subtle resting indicator (lines 50-57)
+- **Hovered or dragging**: full-width horizontal line at center in `icon_default` theme color (lines 44-49)
 
 **Visibility:** Shown only when spotlight or activity is active (`_rebuild_spotlight` line 609, `_rebuild_activity` line 418), hidden otherwise (`_clear` line 274, `_rebuild_grid_only` line 627).
 
@@ -581,36 +583,37 @@ Extracted as `RefCounted` helper owned by `main_window.gd` (line 68). Manages th
 - [x] **Activity lobby UI** (player slot grid, spectator list, host start button)
 - [x] **Activity download progress** (progress bar during plugin download)
 - [x] **Voice view reparenting** (VideoGrid + voice text reparented into VoiceViewBody on open, restored on close)
-- [ ] Resize handle not visible until hovered (no resting visual indicator)
-- [ ] Bandwidth adaptation for video streams
-- [ ] Camera device selection applied at publish time (Config value persisted but not routed to LiveKit source)
+- [x] **Resize handle resting indicator** (three semi-transparent dots at α=0.35 when idle, full line when hovered/dragging)
+- [x] **Bandwidth adaptation** (`_bitrate_for_resolution()` caps at 800 kbps/2.5 Mbps/4 Mbps per resolution tier; passed as `max_bitrate` publish option to LiveKit SFU)
+- [x] **Camera device routing** (`Config.voice.get_video_device()` passed through `toggle_video()` → `publish_camera()` → `LiveKitVideoSource.set_device()`)
+- [x] **Camera hot-swap** (`swap_camera()` replaces source on existing publication via `set_source()`; falls back to full republish if GDExtension lacks the method)
 
 ## Tasks
 
 ### VIDEO-1: Camera device not routed to publish
-- **Status:** open
+- **Status:** closed
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** config, video, voice
-- **Notes:** `Config.voice.get_video_device()` is persisted but `toggle_video()` doesn't pass the device ID to `LiveKitAdapter.publish_camera()`. The adapter creates a `LiveKitVideoSource` with no device selection
+- **Notes:** Implemented — `toggle_video()` reads `Config.voice.get_video_device()` (client_voice.gd line 239) and passes it to `publish_camera()` (line 241). Adapter applies it via `LiveKitVideoSource.set_device()` if the method exists (livekit_adapter.gd lines 149-151).
 
 ### VIDEO-2: No bandwidth adaptation
-- **Status:** open
+- **Status:** closed
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** video
-- **Notes:** Video parameters with no dynamic quality adjustment based on network conditions
+- **Notes:** Implemented — `_bitrate_for_resolution()` (livekit_adapter.gd lines 175-183) returns 800 kbps/2.5 Mbps/4 Mbps based on pixel count. The value is passed as `max_bitrate` in publish options (lines 162-164). LiveKit SFU adapts dynamically below this cap.
 
 ### VIDEO-3: No video track hot-swap
-- **Status:** open
+- **Status:** closed
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** video
-- **Notes:** Switching cameras requires stopping the old track and creating a new one. No seamless hot-swap mechanism
+- **Notes:** Implemented — `swap_camera()` (livekit_adapter.gd lines 185-210) mutes the existing track, replaces the source via `set_source()`, then unmutes. Falls back to full republish if the GDExtension lacks `set_source`. Triggered by `on_voice_config_changed()` in ClientVoice when video device/resolution changes.
 
 ### VIDEO-4: Resize handle invisible until hovered
-- **Status:** open
+- **Status:** closed
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** ux, video, activity
-- **Notes:** `vertical_resize_handle.gd` `_draw()` (line 43) only renders the handle line when `_hovered or _dragging`. The 6px control is completely invisible at rest — users have no visual affordance that they can resize the spotlight/activity area. A subtle resting indicator (dimmed line, dots, or grip marks) should always be drawn so users can discover the resize functionality without accidentally hovering over the exact 6px strip
+- **Notes:** Implemented — `_draw()` in vertical_resize_handle.gd (lines 50-57) draws three small semi-transparent dots (α=0.35) when idle, giving users a discoverable resting indicator.

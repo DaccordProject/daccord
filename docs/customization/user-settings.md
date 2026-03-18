@@ -29,7 +29,7 @@ Control notification and UI sound effects. Toggle sounds for messages, mentions,
 
 ### Notifications
 
-Configure how and when you receive notifications for messages and mentions.
+Configure how and when you receive notifications for messages and mentions. You can also set an **idle timeout** here — after a period of inactivity (1, 5, 10, or 30 minutes), your status switches to idle automatically. Set it to Disabled to keep your status unchanged.
 
 ### Appearance
 
@@ -42,6 +42,10 @@ Update your account password.
 ### Two-Factor Authentication
 
 Enable or disable two-factor authentication for added account security. When enabled, you'll need a code from your authenticator app when signing in. Backup codes are provided for recovery.
+
+### Connections
+
+Link external accounts or services to your profile. Connected accounts may be visible to other users on your profile.
 
 ### Delete Account
 

@@ -113,6 +113,10 @@ var _forum_post_cache: Dictionary = {} # channel_id -> Array of post dicts
 # Relationship cache: "{conn_index}:{user_id}" -> relationship dict
 var _relationship_cache: Dictionary = {}
 
+# Ban / invite caches (keyed by space_id -> Array of dicts)
+var _ban_cache: Dictionary = {}
+var _invite_cache: Dictionary = {}
+
 # Channel mute tracking (server-side, per-user)
 var _muted_channels: Dictionary = {}        # channel_id -> true
 
@@ -267,6 +271,8 @@ func _ready() -> void:
 	if Config.has_servers():
 		for i in Config.get_servers().size():
 			connect_server(i)
+	elif OS.get_name() == "Web":
+		web_links.try_auto_connect()
 
 func _input(_event: InputEvent) -> void:
 	_last_input_time = Time.get_ticks_msec() / 1000.0

@@ -9,6 +9,7 @@ var _pending_icon_data_uri: String = ""
 var _icon_removed: bool = false
 var _icon_preview: ColorRect
 var _rules_channel_btn: OptionButton
+var _system_channel_btn: OptionButton
 
 @onready var _vbox: VBoxContainer = $CenterContainer/Panel/VBox
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
@@ -72,6 +73,31 @@ func _ready() -> void:
 	_vbox.add_child(rules_row)
 	_vbox.move_child(rules_row, _save_btn.get_parent().get_index())
 
+	# System messages channel selector
+	var system_row := HBoxContainer.new()
+	system_row.name = "SystemChannelRow"
+
+	var system_label := Label.new()
+	system_label.text = tr("System Messages Channel")
+	system_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	system_row.add_child(system_label)
+
+	var system_info := Label.new()
+	system_info.text = "\u24d8"
+	system_info.tooltip_text = \
+		tr("Join announcements will be posted in this channel. " \
+		+ "Select 'None' to disable.")
+	system_info.mouse_filter = Control.MOUSE_FILTER_STOP
+	system_info.add_theme_font_size_override("font_size", 14)
+	system_row.add_child(system_info)
+
+	_system_channel_btn = OptionButton.new()
+	_system_channel_btn.custom_minimum_size = Vector2(140, 0)
+	system_row.add_child(_system_channel_btn)
+
+	_vbox.add_child(system_row)
+	_vbox.move_child(system_row, _save_btn.get_parent().get_index())
+
 	# Build icon upload section (inserted after Header)
 	var icon_label := Label.new()
 	icon_label.text = tr("SPACE ICON")
@@ -115,6 +141,7 @@ func _ready() -> void:
 	_nsfw_level_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_content_filter_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_rules_channel_btn.item_selected.connect(func(_i: int): _dirty = true)
+	_system_channel_btn.item_selected.connect(func(_i: int): _dirty = true)
 
 func setup(space_id: String) -> void:
 	_space_id = space_id
@@ -171,6 +198,21 @@ func setup(space_id: String) -> void:
 			ch_idx += 1
 	_rules_channel_btn.select(rules_idx)
 
+	# System messages channel dropdown
+	_system_channel_btn.clear()
+	_system_channel_btn.add_item(tr("None"), 0)
+	var sys_id: String = space.get("system_channel_id", "")
+	var sys_idx: int = 0
+	var sys_ch_idx: int = 1
+	for ch in channels:
+		if ch.get("type", 0) == ClientModels.ChannelType.TEXT:
+			_system_channel_btn.add_item("#" + ch.get("name", ""), sys_ch_idx)
+			_system_channel_btn.set_item_metadata(sys_ch_idx, ch.get("id", ""))
+			if ch.get("id", "") == sys_id:
+				sys_idx = sys_ch_idx
+			sys_ch_idx += 1
+	_system_channel_btn.select(sys_idx)
+
 	# Only the owner can see the danger zone
 	_danger_zone.visible = Client.is_space_owner(space_id)
 	_dirty = false
@@ -199,6 +241,13 @@ func _on_save() -> void:
 		data["rules_channel_id"] = _rules_channel_btn.get_item_metadata(rules_sel)
 	else:
 		data["rules_channel_id"] = null
+
+	# System messages channel
+	var sys_sel: int = _system_channel_btn.selected
+	if sys_sel > 0:
+		data["system_channel_id"] = _system_channel_btn.get_item_metadata(sys_sel)
+	else:
+		data["system_channel_id"] = null
 
 	# Icon upload / removal
 	if not _pending_icon_data_uri.is_empty():

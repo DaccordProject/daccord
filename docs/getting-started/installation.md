@@ -7,7 +7,7 @@ section: getting-started
 
 # Installing daccord
 
-daccord is available for Linux, Windows, macOS, and Android.
+daccord is available for Linux, Windows, macOS, Android, and the web.
 
 ## Download
 
@@ -19,9 +19,11 @@ Choose the right file for your platform:
 |----------|------|
 | Linux (x86_64) | `daccord-linux-x86_64.zip` |
 | Linux (ARM64) | `daccord-linux-arm64.zip` |
-| Windows | `daccord-windows-installer.exe` |
+| Windows (installer) | `daccord-windows-x86_64-setup.exe` |
+| Windows (portable) | `daccord-windows-x86_64.zip` |
 | macOS | `daccord-macos.dmg` |
 | Android | `daccord-android.apk` |
+| Web | `daccord-web.zip` |
 
 ## Linux
 
@@ -31,11 +33,9 @@ Choose the right file for your platform:
 
 ## Windows
 
-1. Run the installer (`daccord-windows-installer.exe`).
-2. Follow the installation wizard.
-3. Launch daccord from the Start Menu or desktop shortcut.
+**Installer:** Download and run `daccord-windows-x86_64-setup.exe`. It installs daccord to Program Files, adds a Start Menu shortcut, and registers the `daccord://` URL scheme so invite links open automatically. A per-user install (no admin rights required) is also supported.
 
-The installer registers the `daccord://` URL scheme so you can open invite links directly.
+**Portable:** Download and extract `daccord-windows-x86_64.zip`, then double-click `daccord.exe` to launch without installing.
 
 ## macOS
 
@@ -48,6 +48,10 @@ The installer registers the `daccord://` URL scheme so you can open invite links
 1. Download the `.apk` file to your device.
 2. Open it and follow the installation prompts. You may need to allow installation from unknown sources in your device settings.
 3. Launch daccord from your app drawer.
+
+## Web
+
+The web build runs entirely in your browser with no installation required. Extract `daccord-web.zip` and open it from a web server, or visit a hosted instance if your server operator provides one. Voice and video are supported via the web audio stack. Note that some features (such as automatic updates and file system access) are not available in the web build.
 
 ## Updates
 

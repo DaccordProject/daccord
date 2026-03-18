@@ -2,9 +2,10 @@ extends Node
 
 const _SFX_VOICE_JOIN := preload("res://assets/sfx/voice_join.wav")
 const _SFX_VOICE_LEAVE := preload("res://assets/sfx/voice_leave.wav")
+const _SFX_MSG_RECEIVED := preload("res://assets/sfx/message_received.wav")
 
 const SOUNDS := {
-	"message_received": preload("res://assets/sfx/message_received.wav"),
+	"message_received": _SFX_MSG_RECEIVED,
 	"mention_received": preload("res://assets/sfx/mention_received.wav"),
 	"message_sent": preload("res://assets/sfx/message_sent.wav"),
 	"voice_join": _SFX_VOICE_JOIN,
@@ -15,6 +16,7 @@ const SOUNDS := {
 	"undeafen": preload("res://assets/sfx/undeafen.wav"),
 	"peer_join": _SFX_VOICE_JOIN,
 	"peer_leave": _SFX_VOICE_LEAVE,
+	"member_join": _SFX_MSG_RECEIVED,
 }
 
 const POOL_SIZE := 4
@@ -76,10 +78,17 @@ func play(sound_name: String) -> void:
 func play_for_message(
 	channel_id: String, author_id: String,
 	mentions: Array, mention_everyone: bool,
+	message_type: String = "default",
 ) -> void:
 	var my_id: String = Client.current_user.get("id", "")
 	if author_id == my_id:
 		return
+
+	# Member join system messages get their own sound
+	if message_type == "member_join":
+		play("member_join")
+		return
+
 	if channel_id == AppState.current_channel_id:
 		return
 

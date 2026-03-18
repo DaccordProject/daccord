@@ -304,14 +304,19 @@ func edit_message(message_id: String, new_content: String) -> void:
 func delete_message(message_id: String) -> void:
 	message_deleted.emit(message_id)
 
-func update_layout_mode(viewport_width: float, _viewport_height: float = 0.0) -> void:
+func update_layout_mode(viewport_width: float, viewport_height: float = 0.0) -> void:
 	var new_mode: LayoutMode
 	if viewport_width < COMPACT_BREAKPOINT:
 		new_mode = LayoutMode.COMPACT
 	elif viewport_width < MEDIUM_BREAKPOINT:
 		new_mode = LayoutMode.MEDIUM
 	else:
-		new_mode = LayoutMode.FULL
+		# Demote to MEDIUM on landscape viewports with insufficient height
+		# (e.g. landscape tablets or very short windows).
+		if viewport_height > 0.0 and viewport_height < COMPACT_BREAKPOINT:
+			new_mode = LayoutMode.MEDIUM
+		else:
+			new_mode = LayoutMode.FULL
 	if new_mode != current_layout_mode:
 		current_layout_mode = new_mode
 		layout_mode_changed.emit(new_mode)

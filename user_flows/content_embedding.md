@@ -1,12 +1,14 @@
 # Content Embedding
 
-Last touched: 2026-02-19
+Last touched: 2026-03-18
 Priority: 31
 Depends on: Messaging
 
 ## Overview
 
-Content embedding covers how daccord renders rich previews for images, videos, audio, and links within messages. Image attachments uploaded through the server are displayed inline with aspect-ratio scaling, a loading placeholder, error state, and a clickable lightbox for full-size viewing. Server-generated embeds render below message text as cards with colored borders supporting title, description, footer, author, fields, images, and thumbnails. URL unfurling is handled server-side via OpenGraph metadata fetching. Video attachments show a play-button placeholder that opens in the browser. Audio attachments render an inline player with play/pause and progress. GIF attachments that Godot can't decode show a "Click to view" fallback.
+Content embedding covers how daccord renders rich previews for images, videos, audio, and links within messages. Image attachments uploaded through the server are displayed inline with aspect-ratio scaling, a loading placeholder, error state, and a clickable lightbox for full-size viewing. Server-generated embeds render below message text as cards with colored borders supporting title, description, footer, author, fields, images, and thumbnails. URL unfurling is handled server-side via OpenGraph metadata fetching. Video content (both video embeds and video attachments) shows a thumbnail with a play-button overlay that opens the URL in the browser — **no in-app video player is embedded**. Audio attachments render an inline player with play/pause and progress. GIF attachments that Godot can't decode show a "Click to view" fallback.
+
+**Design decision (2026-03-18):** Full inline video player embedding (YouTube iframe, oEmbed players, etc.) will not be implemented. All video content uses the thumbnail + link pattern: show the thumbnail/poster image with a play overlay, click to open in the system browser.
 
 ## User Steps
 
@@ -23,6 +25,7 @@ Content embedding covers how daccord renders rich previews for images, videos, a
 1. A message arrives containing a video attachment (video/* content_type)
 2. A dark 16:9 placeholder appears with a centered play triangle and filename
 3. Clicking the placeholder opens the video URL in the system browser
+> **By design:** No in-app video player. Thumbnail + link is the intended UX for all video content.
 
 ### Listening to an audio attachment
 1. A message arrives containing an audio attachment (audio/* content_type)
@@ -196,7 +199,7 @@ The `setup()` method receives an embed dictionary and renders:
 6. **Thumbnail**: 80x80 image to the right of the main content column
 7. **Footer**: Small gray Label
 8. **Border color**: Duplicates the panel StyleBoxFlat and sets border_color
-9. **Video type**: Shows thumbnail with play button overlay; click opens embed URL
+9. **Video type**: Shows thumbnail with play button overlay; click opens embed URL in browser (no in-app player — thumbnail + link is the intentional design)
 
 The embed scene layout is `PanelContainer > HBox(VBox + Thumbnail)`:
 - VBox contains: AuthorRow, Title, Description, FieldsContainer, Image, Footer
@@ -251,8 +254,8 @@ Server-side URL unfurling:
 - [x] Embed fields display (name/value pairs, inline layout)
 - [x] Embed URL (clickable title linking to embed.url)
 - [x] URL unfurling / link previews (server-side OpenGraph fetching)
-- [ ] YouTube video embeds (requires oEmbed provider integration)
-- [ ] Other video host embeds (Vimeo, Twitch -- requires oEmbed)
+- [x] Video embed: thumbnail + link (by design — no in-app player)
+- [~] YouTube/Vimeo/Twitch rich embeds (won't do — thumbnail + link is the intended pattern)
 - [x] Video attachment placeholder (play button, opens in browser)
 - [x] GIF fallback display (click to view in browser)
 - [x] Image lightbox / full-size viewer on click
@@ -262,19 +265,12 @@ Server-side URL unfurling:
 
 ## Tasks
 
-### EMBED-1: No YouTube embed support
-- **Status:** open
+### EMBED-1: YouTube / video host in-app player
+- **Status:** wont-do
 - **Impact:** 3
 - **Effort:** 3
-- **Tags:** ci, video
-- **Notes:** YouTube links get basic OpenGraph unfurling but not the rich video player experience. Would need oEmbed provider list and specialized rendering.
-
-### EMBED-2: No video host embeds
-- **Status:** open
-- **Impact:** 3
-- **Effort:** 2
 - **Tags:** video
-- **Notes:** Vimeo, Twitch, Streamable need oEmbed integration for rich previews beyond basic OpenGraph.
+- **Notes:** Intentional design decision (2026-03-18): no full player embedding. YouTube, Vimeo, Twitch, and all other video URLs use the thumbnail + link pattern — the OpenGraph thumbnail loads as the embed image with a play overlay, clicking opens the URL in the system browser. oEmbed integration is explicitly out of scope.
 
 ### EMBED-3: Max image size hardcoded
 - **Status:** open

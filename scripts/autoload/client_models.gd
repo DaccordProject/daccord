@@ -139,7 +139,7 @@ static func _format_timestamp(iso: String) -> String:
 		msg_month = date_parts[1].to_int()
 		msg_day = date_parts[2].to_int()
 
-	# Extract time portion
+	# Extract time portion (UTC from server)
 	var time_part := iso.substr(t_idx + 1)
 	# Strip timezone suffix
 	for suffix in ["Z", "+", "-"]:
@@ -154,35 +154,56 @@ static func _format_timestamp(iso: String) -> String:
 	var parts := time_part.split(":")
 	if parts.size() < 2:
 		return iso
-	var hour := parts[0].to_int()
-	var minute := parts[1]
-	var am_pm := "AM"
-	if hour >= 12:
-		am_pm = "PM"
-	if hour > 12:
-		hour -= 12
-	if hour == 0:
-		hour = 12
-	var time_str := "%d:%s %s" % [hour, minute, am_pm]
+	var utc_hour := parts[0].to_int()
+	var utc_minute := parts[1].to_int()
 
-	# Compare to today/yesterday using UTC
+	# Compute UTC offset: get_unix_time_from_datetime_dict treats dicts as UTC, so the
+	# difference between local and UTC dicts gives the offset in seconds.
+	var sys_local: Dictionary = Time.get_datetime_dict_from_system(false)
+	var sys_utc: Dictionary = Time.get_datetime_dict_from_system(true)
+	var sys_local_unix: int = Time.get_unix_time_from_datetime_dict(sys_local)
+	var sys_utc_unix: int = Time.get_unix_time_from_datetime_dict(sys_utc)
+	var utc_offset: int = sys_local_unix - sys_utc_unix
+
+	# Convert message UTC time to local by shifting its unix time.
+	# Reading the shifted value back via get_datetime_dict_from_unix_time (which treats
+	# its input as UTC) yields the correct local hour/minute/day values.
+	var msg_dt: Dictionary = {
+		"year": msg_year, "month": msg_month, "day": msg_day,
+		"hour": utc_hour, "minute": utc_minute, "second": 0
+	}
+	var msg_utc_unix: int = Time.get_unix_time_from_datetime_dict(msg_dt)
+	var msg_local: Dictionary = Time.get_datetime_dict_from_unix_time(msg_utc_unix + utc_offset)
+
+	var local_hour: int = msg_local["hour"]
+	var local_minute: String = "%02d" % msg_local["minute"]
+	var am_pm := "AM"
+	if local_hour >= 12:
+		am_pm = "PM"
+	if local_hour > 12:
+		local_hour -= 12
+	if local_hour == 0:
+		local_hour = 12
+	var time_str := "%d:%s %s" % [local_hour, local_minute, am_pm]
+
+	# Compare to today/yesterday using local date
 	if msg_year > 0:
-		var now: Dictionary = Time.get_datetime_dict_from_system(true)
-		var today_y: int = now["year"]
-		var today_m: int = now["month"]
-		var today_d: int = now["day"]
-		if msg_year == today_y and msg_month == today_m and msg_day == today_d:
+		var local_y: int = msg_local["year"]
+		var local_m: int = msg_local["month"]
+		var local_d: int = msg_local["day"]
+		var today_y: int = sys_local["year"]
+		var today_m: int = sys_local["month"]
+		var today_d: int = sys_local["day"]
+		if local_y == today_y and local_m == today_m and local_d == today_d:
 			return "Today at " + time_str
-		# Check yesterday
-		var yesterday: Dictionary = Time.get_datetime_dict_from_unix_time(
-			Time.get_unix_time_from_system() - 86400
-		)
+		# Yesterday in local time: shift sys_local_unix back 24 h and read as "UTC"
+		var yesterday: Dictionary = Time.get_datetime_dict_from_unix_time(sys_local_unix - 86400)
 		var y_y: int = yesterday["year"]
 		var y_m: int = yesterday["month"]
 		var y_d: int = yesterday["day"]
-		if msg_year == y_y and msg_month == y_m and msg_day == y_d:
+		if local_y == y_y and local_m == y_m and local_d == y_d:
 			return "Yesterday at " + time_str
-		return "%02d/%02d/%d %s" % [msg_month, msg_day, msg_year, time_str]
+		return "%02d/%02d/%d %s" % [local_m, local_d, local_y, time_str]
 
 	return "Today at " + time_str
 
@@ -308,6 +329,7 @@ static func space_to_dict(
 		"nsfw_level": space.nsfw_level,
 		"explicit_content_filter": space.explicit_content_filter,
 		"rules_channel_id": str(space.rules_channel_id) if space.rules_channel_id != null else "",
+		"system_channel_id": str(space.system_channel_id) if space.system_channel_id != null else "",
 	}
 
 static func channel_to_dict(channel: AccordChannel) -> Dictionary:
@@ -446,6 +468,7 @@ static func message_to_dict(
 		reply_to_str = str(msg.reply_to)
 
 	var is_system: bool = msg.type != "default" and msg.type != "reply"
+	var message_type: String = msg.type if msg.type != null else "default"
 
 	var mentions_arr: Array = []
 	if msg.mentions is Array:
@@ -479,6 +502,7 @@ static func message_to_dict(
 		"embeds": embeds_arr,
 		"attachments": attachments_arr,
 		"system": is_system,
+		"message_type": message_type,
 		"mentions": mentions_arr,
 		"mention_everyone": msg.mention_everyone,
 		"mention_roles": mention_roles_arr,

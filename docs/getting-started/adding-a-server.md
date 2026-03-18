@@ -23,13 +23,16 @@ The simplest URL is just a hostname like `chat.example.com`. You can also includ
 - A port number: `chat.example.com:8443`
 - A specific space: `chat.example.com#my-space` (defaults to "general" if omitted)
 - A protocol: `https://chat.example.com` (HTTPS is used by default)
+- A pre-filled token: `chat.example.com?token=yourtoken` (logs you in automatically)
+- An invite code: `chat.example.com?invite=yourcode` (joins the space using the invite)
 
 If you received an invite link starting with `daccord://`, clicking it will open daccord and fill in the server details automatically.
 
 ## What Happens Next
 
-- If the URL includes a token, you'll be connected immediately.
-- If not, an authentication dialog appears where you can [sign in or create an account](creating-an-account.md).
+- If the URL includes a `?token=` parameter, you'll be connected and signed in immediately.
+- If it includes a `?invite=` parameter, the invite is accepted during connection.
+- If neither is present, an authentication dialog appears where you can [sign in or create an account](creating-an-account.md).
 - Once connected, the server's space icon appears in the space bar and you can start browsing channels.
 
 ## Multiple Servers
