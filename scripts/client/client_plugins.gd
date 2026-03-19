@@ -13,6 +13,8 @@ var _plugin_cache: Dictionary = {}
 var _active_runtime: Node = null
 var _active_session_id: String = ""
 var _active_conn_index: int = -1
+var _is_host: bool = false
+var _host_user_id: String = ""
 
 var _scripted_runtime_class = null  # loaded on demand
 var _native_runtime_class = null   # loaded on demand
@@ -23,6 +25,7 @@ func _init(client_node: Node) -> void:
 	_c = client_node
 	_download_manager = PluginDownloadManager.new(client_node)
 	AppState.voice_left.connect(_on_voice_left)
+	AppState.voice_joined.connect(_on_voice_joined)
 
 
 ## Fetches installed plugins for a space and caches them.
@@ -88,8 +91,11 @@ func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	var session_id: String = str(session.get("id", ""))
 	var state: String = session.get("state", "lobby")
 
+	_clear_pending_activity()
 	_active_session_id = session_id
 	_active_conn_index = conn_idx
+	_is_host = true
+	_host_user_id = _c.current_user.get("id", "")
 	AppState.active_activity_plugin_id = plugin_id
 	AppState.active_activity_channel_id = channel_id
 	AppState.active_activity_session_id = session_id
@@ -255,7 +261,7 @@ func _download_and_prepare_native_runtime(
 	context.session_id = _active_session_id
 	context.conn_index = conn_idx
 	context.local_user_id = _c.current_user.get("id", "")
-	context.host_user_id = _c.current_user.get("id", "")
+	context.host_user_id = _host_user_id
 	context.session_state = AppState.active_activity_session_state
 	context.participants = session_participants
 	context._client_plugins = self
@@ -345,7 +351,65 @@ func _on_livekit_data_received(
 	_active_runtime.on_data_received(sender_id, local_topic, payload)
 
 
-## Stops the active activity: deletes the session on the server.
+## Joins a pending activity session: assigns self as player, sets up state,
+## and downloads the runtime.
+func join_activity() -> void:
+	var plugin_id: String = AppState.pending_activity_plugin_id
+	var session_id: String = AppState.pending_activity_session_id
+	var channel_id: String = AppState.pending_activity_channel_id
+	var host_user_id: String = AppState.pending_activity_host_user_id
+	var state: String = AppState.pending_activity_state
+	if plugin_id.is_empty() or session_id.is_empty():
+		return
+
+	var conn_idx: int = get_conn_index_for_plugin(plugin_id)
+	if conn_idx == -1:
+		push_error("[ClientPlugins] Plugin not found for join: ", plugin_id)
+		return
+	var conn: Dictionary = _c._connections[conn_idx]
+	if conn == null or conn.get("client") == null:
+		return
+	var client: AccordClient = conn["client"]
+
+	# Join by assigning self as player
+	var my_id: String = _c.current_user.get("id", "")
+	var result: RestResult = await client.plugins.assign_role(
+		plugin_id, session_id, my_id, "player"
+	)
+	if not result.ok:
+		var err: String = result.error.message if result.error else "unknown"
+		push_error("[ClientPlugins] Failed to join activity: ", err)
+		return
+
+	# Clear pending and set active
+	_clear_pending_activity()
+	_active_session_id = session_id
+	_active_conn_index = conn_idx
+	_is_host = false
+	_host_user_id = host_user_id
+	AppState.active_activity_plugin_id = plugin_id
+	AppState.active_activity_channel_id = channel_id
+	AppState.active_activity_session_id = session_id
+	AppState.active_activity_session_state = state
+	AppState.active_activity_role = "player"
+	AppState.activity_started.emit(plugin_id, channel_id)
+
+	# Download and prepare runtime
+	var manifest: Dictionary = get_plugin(plugin_id)
+	var session_data: Dictionary = result.data if result.data is Dictionary else {}
+	var participants: Array = session_data.get("participants", [])
+	var runtime_type: String = manifest.get("runtime", "")
+	if runtime_type == "scripted":
+		await _download_and_prepare_scripted_runtime(
+			plugin_id, manifest, conn_idx, participants,
+		)
+	elif runtime_type == "native":
+		await _download_and_prepare_native_runtime(
+			plugin_id, manifest, conn_idx, participants,
+		)
+
+
+## Stops the active activity. Host deletes the session; non-host just leaves.
 func stop_activity(plugin_id: String) -> void:
 	if _active_session_id.is_empty():
 		return
@@ -356,7 +420,8 @@ func stop_activity(plugin_id: String) -> void:
 	if conn == null or conn.get("client") == null:
 		return
 	var client: AccordClient = conn["client"]
-	await client.plugins.delete_session(plugin_id, _active_session_id)
+	if _is_host:
+		await client.plugins.delete_session(plugin_id, _active_session_id)
 	_clear_active_activity()
 	AppState.activity_ended.emit(plugin_id)
 
@@ -427,6 +492,80 @@ func forward_activity_input(event: InputEvent) -> void:
 		_active_runtime.forward_input(event)
 
 
+## Returns whether the local user is the host of the active activity.
+func is_activity_host() -> bool:
+	return _is_host
+
+
+## Checks if there's an active session in the given voice channel.
+## Called on voice join and reconnect to discover ongoing activities.
+func check_active_session(
+	channel_id: String, conn_index: int,
+) -> void:
+	if channel_id.is_empty() or conn_index < 0:
+		return
+	if conn_index >= _c._connections.size():
+		return
+	var conn: Dictionary = _c._connections[conn_index]
+	if conn == null or conn.get("client") == null:
+		return
+	var client: AccordClient = conn["client"]
+	var result: RestResult = await client.plugins.get_channel_sessions(
+		channel_id
+	)
+	if not result.ok or not (result.data is Array):
+		return
+	var sessions: Array = result.data
+	if sessions.is_empty():
+		return
+	var session: Dictionary = sessions[0]
+	var plugin_id: String = str(session.get("plugin_id", ""))
+	var session_id: String = str(session.get("id", ""))
+	var state: String = str(session.get("state", ""))
+	var host_user_id: String = str(session.get("host_user_id", ""))
+	if plugin_id.is_empty() or session_id.is_empty() \
+		or not AppState.active_activity_session_id.is_empty():
+		return
+	# Check if we're already a participant
+	var my_id: String = _c.current_user.get("id", "")
+	var participants: Array = session.get("participants", [])
+	var is_participant := false
+	for p in participants:
+		if str(p.get("user_id", "")) == my_id:
+			is_participant = true
+			break
+	if is_participant:
+		# Rejoin — we were already in this session (reconnect scenario)
+		_active_session_id = session_id
+		_active_conn_index = conn_index
+		_is_host = host_user_id == my_id
+		_host_user_id = host_user_id
+		AppState.active_activity_plugin_id = plugin_id
+		AppState.active_activity_channel_id = channel_id
+		AppState.active_activity_session_id = session_id
+		AppState.active_activity_session_state = state
+		AppState.active_activity_role = "player"
+		AppState.activity_started.emit(plugin_id, channel_id)
+		var manifest: Dictionary = get_plugin(plugin_id)
+		var runtime_type: String = manifest.get("runtime", "")
+		if runtime_type == "scripted":
+			await _download_and_prepare_scripted_runtime(
+				plugin_id, manifest, conn_index, participants,
+			)
+		elif runtime_type == "native":
+			await _download_and_prepare_native_runtime(
+				plugin_id, manifest, conn_index, participants,
+			)
+	else:
+		# Show as pending (joinable)
+		AppState.pending_activity_plugin_id = plugin_id
+		AppState.pending_activity_channel_id = channel_id
+		AppState.pending_activity_session_id = session_id
+		AppState.pending_activity_host_user_id = host_user_id
+		AppState.pending_activity_state = state
+		AppState.activity_available.emit(plugin_id, channel_id, session_id)
+
+
 # --- Gateway event handlers ---
 
 func on_plugin_installed(data: Dictionary, conn_index: int) -> void:
@@ -464,6 +603,9 @@ func on_plugin_session_state(data: Dictionary, _conn_index: int) -> void:
 	var plugin_id: String = str(data.get("plugin_id", ""))
 	var session_id: String = str(data.get("session_id", ""))
 	var state: String = str(data.get("state", ""))
+	var channel_id: String = str(data.get("channel_id", ""))
+
+	# Update to an already-active session (host or joined participant)
 	if session_id == _active_session_id:
 		AppState.active_activity_session_state = state
 		# Notify native runtime context of state change
@@ -476,12 +618,38 @@ func on_plugin_session_state(data: Dictionary, _conn_index: int) -> void:
 		if state == "ended":
 			_clear_active_activity()
 			AppState.activity_ended.emit(plugin_id)
+		return
+
+	# New session announcement from another user — show as pending
+	if state == "ended":
+		# Clear pending if it matches
+		if session_id == AppState.pending_activity_session_id:
+			_clear_pending_activity()
+		return
+
+	# Only show pending activity if we're in the same voice channel
+	if channel_id.is_empty() or channel_id != AppState.voice_channel_id:
+		return
+
+	# Don't overwrite an already-active activity
+	if not AppState.active_activity_session_id.is_empty():
+		return
+
+	var host_user_id: String = str(data.get("host_user_id", ""))
+	AppState.pending_activity_plugin_id = plugin_id
+	AppState.pending_activity_channel_id = channel_id
+	AppState.pending_activity_session_id = session_id
+	AppState.pending_activity_host_user_id = host_user_id
+	AppState.pending_activity_state = state
+	AppState.activity_available.emit(plugin_id, channel_id, session_id)
 
 
 func on_plugin_role_changed(data: Dictionary, _conn_index: int) -> void:
 	var plugin_id: String = str(data.get("plugin_id", ""))
+	var session_id: String = str(data.get("session_id", ""))
 	var user_id: String = str(data.get("user_id", ""))
 	var role: String = str(data.get("role", ""))
+	var participants: Array = data.get("participants", [])
 	if user_id == _c.current_user.get("id", ""):
 		AppState.active_activity_role = role
 		if _active_runtime != null and _active_runtime is ScriptedRuntime:
@@ -496,6 +664,10 @@ func on_plugin_role_changed(data: Dictionary, _conn_index: int) -> void:
 				_update_context_participants(ctx, user_id, role)
 				ctx.role_changed.emit(user_id, role)
 	AppState.activity_role_changed.emit(plugin_id, user_id, role)
+	if not participants.is_empty():
+		AppState.activity_participants_updated.emit(
+			session_id, participants
+		)
 
 
 func _update_scripted_participants(user_id: String, role: String) -> void:
@@ -519,9 +691,20 @@ func _update_context_participants(
 	parts.append({"user_id": user_id, "role": role})
 
 
-# --- Voice disconnect cleanup ---
+# --- Voice join/leave ---
+
+func _on_voice_joined(channel_id: String) -> void:
+	# Discover any active session in the channel we just joined
+	var space_id: String = _c._channel_to_space.get(channel_id, "")
+	if space_id.is_empty():
+		return
+	var conn_idx: int = _c._space_to_conn.get(space_id, -1)
+	if conn_idx >= 0:
+		check_active_session(channel_id, conn_idx)
+
 
 func _on_voice_left(_channel_id: String) -> void:
+	_clear_pending_activity()
 	if _active_session_id.is_empty():
 		return
 	var plugin_id: String = AppState.active_activity_plugin_id
@@ -532,9 +715,19 @@ func _on_voice_left(_channel_id: String) -> void:
 
 # --- Internal ---
 
+func _clear_pending_activity() -> void:
+	AppState.pending_activity_plugin_id = ""
+	AppState.pending_activity_channel_id = ""
+	AppState.pending_activity_session_id = ""
+	AppState.pending_activity_host_user_id = ""
+	AppState.pending_activity_state = ""
+
+
 func _clear_active_activity() -> void:
 	_active_session_id = ""
 	_active_conn_index = -1
+	_is_host = false
+	_host_user_id = ""
 	# Disconnect LiveKit data channel routing
 	if _c.has_node("LiveKitAdapter"):
 		var adapter: Node = _c.get_node("LiveKitAdapter")

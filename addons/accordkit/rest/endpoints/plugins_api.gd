@@ -47,6 +47,14 @@ func get_bundle(plugin_id: String) -> RestResult:
 	return result
 
 
+## Returns active (non-ended) sessions for a channel.
+func get_channel_sessions(channel_id: String) -> RestResult:
+	var result := await _rest.make_request(
+		"GET", "/channels/" + channel_id + "/sessions/active"
+	)
+	return result
+
+
 ## Creates an activity session in a voice channel.
 ## Returns: { session_id, state, participants }
 func create_session(plugin_id: String, channel_id: String) -> RestResult:

@@ -207,6 +207,10 @@ signal activity_download_progress(plugin_id: String, progress: float)
 signal activity_session_state_changed(plugin_id: String, state: String)
 @warning_ignore("unused_signal")
 signal activity_role_changed(plugin_id: String, user_id: String, role: String)
+@warning_ignore("unused_signal")
+signal activity_available(plugin_id: String, channel_id: String, session_id: String)
+@warning_ignore("unused_signal")
+signal activity_participants_updated(session_id: String, participants: Array)
 
 enum LayoutMode { COMPACT, MEDIUM, FULL }
 
@@ -241,6 +245,12 @@ var active_activity_channel_id: String = ""
 var active_activity_session_id: String = ""
 var active_activity_session_state: String = ""  # "lobby", "running", "ended"
 var active_activity_role: String = ""            # "player", "spectator"
+# Pending activity: announced by another user but not yet joined
+var pending_activity_plugin_id: String = ""
+var pending_activity_channel_id: String = ""
+var pending_activity_session_id: String = ""
+var pending_activity_host_user_id: String = ""
+var pending_activity_state: String = ""
 var is_guest_mode: bool = false
 var guest_base_url: String = ""
 var is_imposter_mode: bool = false

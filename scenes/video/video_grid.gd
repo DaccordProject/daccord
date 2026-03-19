@@ -21,6 +21,9 @@ var _activity_manifest: Dictionary = {}
 var _activity_is_host: bool = false
 var _activity_container: Control = null
 var _v_resize_handle: Control = null
+# Pending activity (not yet joined)
+var _pending_plugin_id: String = ""
+var _pending_session_id: String = ""
 
 @onready var spotlight_area: PanelContainer = $MainLayout/SpotlightArea
 @onready var grid: GridContainer = $MainLayout/ParticipantGrid
@@ -67,6 +70,12 @@ func _ready() -> void:
 	)
 	AppState.activity_download_progress.connect(
 		_on_activity_download_progress
+	)
+	AppState.activity_available.connect(
+		_on_activity_available
+	)
+	AppState.activity_participants_updated.connect(
+		_on_activity_participants_updated
 	)
 	# Vertical resize handle between spotlight and grid
 	_v_resize_handle = VerticalResizeHandle.new(
@@ -137,7 +146,9 @@ func _on_activity_started(
 ) -> void:
 	_activity_plugin_id = plugin_id
 	_activity_manifest = Client.plugins.get_plugin(plugin_id)
-	_activity_is_host = true
+	_activity_is_host = Client.plugins.is_activity_host()
+	_pending_plugin_id = ""
+	_pending_session_id = ""
 	_schedule_rebuild()
 
 func _on_activity_ended(plugin_id: String) -> void:
@@ -146,7 +157,30 @@ func _on_activity_ended(plugin_id: String) -> void:
 	_activity_plugin_id = ""
 	_activity_manifest = {}
 	_activity_is_host = false
+	_pending_plugin_id = ""
+	_pending_session_id = ""
 	_schedule_rebuild()
+
+func _on_activity_available(
+	plugin_id: String, _channel_id: String,
+	session_id: String,
+) -> void:
+	_pending_plugin_id = plugin_id
+	_pending_session_id = session_id
+	_schedule_rebuild()
+
+func _on_activity_participants_updated(
+	session_id: String, participants: Array,
+) -> void:
+	if _activity_container == null:
+		return
+	if session_id != AppState.active_activity_session_id:
+		return
+	var lobby: VBoxContainer = _activity_container.get_meta(
+		"lobby", null
+	)
+	if lobby != null and lobby.has_method("update_participants"):
+		lobby.update_participants(participants)
 
 func _on_activity_state_changed(
 	plugin_id: String, _state: String,
@@ -192,9 +226,13 @@ func _on_activity_download_progress(
 func _has_activity() -> bool:
 	return not _activity_plugin_id.is_empty()
 
+func _has_pending_activity() -> bool:
+	return not _pending_plugin_id.is_empty()
+
 func _update_grid_columns() -> void:
 	if _mode == GridMode.FULL_AREA:
-		if _has_activity() or not AppState.spotlight_user_id.is_empty() or _has_screen_share():
+		var has_focus := _has_activity() or _has_pending_activity()
+		if has_focus or not AppState.spotlight_user_id.is_empty() or _has_screen_share():
 			grid.columns = 99
 		else:
 			var count := _count_tiles()
@@ -383,6 +421,13 @@ func _rebuild() -> void:
 		_update_grid_columns()
 		return
 
+	# Show pending activity banner if available
+	if _mode == GridMode.FULL_AREA and _has_pending_activity():
+		visible = true
+		_rebuild_pending_activity(tiles)
+		_update_grid_columns()
+		return
+
 	if tiles.is_empty():
 		visible = _mode == GridMode.FULL_AREA
 		return
@@ -444,6 +489,7 @@ func _rebuild_activity(tiles: Array) -> void:
 			lobby.start_requested.connect(_on_activity_start)
 			lobby.setup(_activity_manifest, _activity_is_host)
 			content.add_child(lobby)
+			container.set_meta("lobby", lobby)
 		"running":
 			var vp_rect := TextureRect.new()
 			vp_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -479,6 +525,58 @@ func _rebuild_activity(tiles: Array) -> void:
 		var tile: PanelContainer = VideoTileScene.instantiate()
 		grid.add_child(tile)
 		_setup_tile(tile, tile_data)
+
+func _rebuild_pending_activity(tiles: Array) -> void:
+	spotlight_area.visible = true
+	_v_resize_handle.visible = false
+
+	var container := VBoxContainer.new()
+	container.add_theme_constant_override("separation", 12)
+	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	container.alignment = BoxContainer.ALIGNMENT_CENTER
+	spotlight_area.add_child(container)
+
+	var manifest: Dictionary = Client.plugins.get_plugin(
+		_pending_plugin_id
+	)
+	var activity_name: String = manifest.get("name", tr("Activity"))
+	var host_id: String = AppState.pending_activity_host_user_id
+	var host_user: Dictionary = Client.get_user_by_id(host_id)
+	var host_name: String = host_user.get(
+		"display_name", host_user.get("username", tr("Someone"))
+	)
+
+	var label := Label.new()
+	label.text = tr("%s started %s") % [host_name, activity_name]
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 16)
+	container.add_child(label)
+
+	var join_btn := Button.new()
+	join_btn.text = tr("Join Activity")
+	join_btn.custom_minimum_size = Vector2(140, 40)
+	var btn_style := ThemeManager.make_flat_style(
+		"accent", 6, [16, 10, 16, 10]
+	)
+	join_btn.add_theme_stylebox_override("normal", btn_style)
+	join_btn.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_white")
+	)
+	join_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	join_btn.pressed.connect(_on_join_activity)
+	container.add_child(join_btn)
+
+	# Voice participant tiles below
+	for tile_data in tiles:
+		var tile: PanelContainer = VideoTileScene.instantiate()
+		grid.add_child(tile)
+		_setup_tile(tile, tile_data)
+
+
+func _on_join_activity() -> void:
+	Client.plugins.join_activity()
+
 
 func _build_activity_header() -> PanelContainer:
 	var header_panel := PanelContainer.new()
