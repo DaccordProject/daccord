@@ -146,9 +146,13 @@ start_server() {
     ok "Build complete"
 
     # Remove stale test database so each run starts fresh
+    # cargo run uses CWD for relative DATABASE_URL, so clean both locations
     rm -f "$SERVER_DIR/accord_test.db" \
           "$SERVER_DIR/accord_test.db-shm" \
           "$SERVER_DIR/accord_test.db-wal"
+    rm -f "accord_test.db" \
+          "accord_test.db-shm" \
+          "accord_test.db-wal"
 
     # Start server in background, logging to file
     info "Server log: $SERVER_LOG"
