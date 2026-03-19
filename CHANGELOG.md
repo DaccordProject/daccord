@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-03-19
+
+### Fixed
+- Allow other users to see and join voice channel activities
+- Restore last active space and channel on app restart
+- Various responsive layout fixes
+
 ## [0.1.14] - 2026-03-19
 
 ### Added
