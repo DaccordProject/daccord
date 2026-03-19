@@ -199,6 +199,27 @@ func style_button(
 	btn.add_theme_stylebox_override("pressed", pressed)
 
 
+## Shorthand: set font_size + font_color overrides on a Label.
+func style_label(
+	label: Control, size: int, color_key: String,
+) -> void:
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override(
+		"font_color", get_color(color_key)
+	)
+
+
+## Shorthand: set all four margin overrides on a MarginContainer.
+func set_margins(
+	c: MarginContainer, left: int, right: int,
+	top: int, bottom: int,
+) -> void:
+	c.add_theme_constant_override("margin_left", left)
+	c.add_theme_constant_override("margin_right", right)
+	c.add_theme_constant_override("margin_top", top)
+	c.add_theme_constant_override("margin_bottom", bottom)
+
+
 ## Recursively apply themed font colors to nodes with metadata/theme_font_color.
 ## Nodes in .tscn files can set metadata/theme_font_color = "key" (e.g. "text_muted",
 ## "accent", "error") and this method will apply the matching ThemeManager color as a

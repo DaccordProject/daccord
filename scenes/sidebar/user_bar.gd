@@ -221,10 +221,7 @@ func _show_about_dialog() -> void:
 
 	var license_label := Label.new()
 	license_label.text = tr("License: MIT")
-	license_label.add_theme_font_size_override("font_size", 12)
-	license_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(license_label, 12, "text_muted")
 	vbox.add_child(license_label)
 
 	var link := LinkButton.new()
@@ -297,10 +294,7 @@ func _show_feedback_dialog() -> void:
 	info.text = tr(
 		"No messages, usernames, or personal info is sent."
 	)
-	info.add_theme_font_size_override("font_size", 11)
-	info.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(info, 11, "text_muted")
 	vbox.add_child(info)
 
 	dlg.add_child(vbox)
@@ -323,10 +317,7 @@ func _show_toast(text: String) -> void:
 	var toast := Label.new()
 	toast.text = text
 	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toast.add_theme_font_size_override("font_size", 13)
-	toast.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_body")
-	)
+	ThemeManager.style_label(toast, 13, "text_body")
 	var panel := PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(ThemeManager.get_color("panel_bg"), 0.95)

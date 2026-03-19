@@ -50,12 +50,12 @@ func before_each() -> void:
 	client.fetch = ClientFetch.new(client)
 	client.admin = ClientAdmin.new(client)
 	client.mutations = ClientMutations.new(client)
-	var UnreadClass = load("res://scripts/autoload/client_unread.gd")
+	var UnreadClass = load("res://scripts/client/client_unread.gd")
 	client.unread = UnreadClass.new(client)
 	client.emoji = ClientEmoji.new(client)
-	var PermClass = load("res://scripts/autoload/client_permissions.gd")
+	var PermClass = load("res://scripts/client/client_permissions.gd")
 	client.permissions = PermClass.new(client)
-	var RelClass = load("res://scripts/autoload/client_relationships.gd")
+	var RelClass = load("res://scripts/client/client_relationships.gd")
 	client.relationships = RelClass.new(client)
 	client.current_user = {
 		"id": "me_1", "display_name": "Me", "is_admin": false,

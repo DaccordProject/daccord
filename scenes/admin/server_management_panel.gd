@@ -14,7 +14,7 @@ const CreateSpaceDialogScene := preload(
 	"res://scenes/admin/create_space_dialog.tscn"
 )
 const TransferOwnershipDialogScene := preload(
-	"res://scenes/admin/transfer_ownership_dialog.gd"
+	"res://scenes/admin/transfer_ownership_dialog.tscn"
 )
 const ResetPasswordDialogScene := preload(
 	"res://scenes/admin/reset_password_dialog.tscn"
@@ -25,8 +25,8 @@ const ReportListDialogScene := preload(
 const RoleMgmtScene := preload(
 	"res://scenes/admin/role_management_dialog.tscn"
 )
-const PluginMgmtScript := preload(
-	"res://scenes/admin/plugin_management_dialog.gd"
+const PluginMgmtScene := preload(
+	"res://scenes/admin/plugin_management_dialog.tscn"
 )
 const ServerManagementReportsScript := preload(
 	"res://scenes/admin/server_management_reports.gd"
@@ -209,10 +209,7 @@ func _build_space_row(
 	info.add_child(name_lbl)
 	var detail_lbl := Label.new()
 	detail_lbl.text = tr("%d members") % member_count
-	detail_lbl.add_theme_font_size_override("font_size", 11)
-	detail_lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(detail_lbl, 11, "text_muted")
 	info.add_child(detail_lbl)
 	row.add_child(info)
 
@@ -226,7 +223,7 @@ func _build_space_row(
 	# Plugins button
 	var plugins_btn := SettingsBase.create_secondary_button(tr("Plugins"))
 	plugins_btn.pressed.connect(func() -> void:
-		var dialog: ColorRect = PluginMgmtScript.new()
+		var dialog: ColorRect = PluginMgmtScene.instantiate()
 		get_tree().root.add_child(dialog)
 		dialog.setup(space_id)
 	)
@@ -263,7 +260,7 @@ func _on_create_space() -> void:
 	dialog.tree_exited.connect(_fetch_spaces)
 
 func _on_transfer_ownership(space_id: String, sname: String) -> void:
-	var dialog: ColorRect = TransferOwnershipDialogScene.new()
+	var dialog: ColorRect = TransferOwnershipDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(space_id, sname)
 
@@ -376,7 +373,7 @@ func _fetch_users(append: bool = false) -> void:
 
 	_users_load_more_btn.visible = _users_has_more
 
-	if _users_data.size() == 0:
+	if not _users_data:
 		var empty := Label.new()
 		empty.text = tr("No users found.")
 		empty.add_theme_color_override(
@@ -601,10 +598,7 @@ func _build_settings_page() -> VBoxContainer:
 
 	_tos_version_label = Label.new()
 	_tos_version_label.text = tr("Current version: %d") % 1
-	_tos_version_label.add_theme_font_size_override("font_size", 11)
-	_tos_version_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_tos_version_label, 11, "text_muted")
 	vbox.add_child(_tos_version_label)
 
 	vbox.add_child(_section_label(tr("TOS TEXT (MARKDOWN)")))

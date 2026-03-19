@@ -177,12 +177,12 @@ func _ready() -> void:
 				str(ClassDB.class_exists(&"LiveKitRoom"))
 			]
 		)
-	unread = load("res://scripts/autoload/client_unread.gd").new(self)
+	unread = load("res://scripts/client/client_unread.gd").new(self)
 	var PermClass = load(
-		"res://scripts/autoload/client_permissions.gd"
+		"res://scripts/client/client_permissions.gd"
 	)
 	permissions = PermClass.new(self)
-	var ClientEmojiClass = load("res://scripts/autoload/client_emoji.gd")
+	var ClientEmojiClass = load("res://scripts/client/client_emoji.gd")
 	emoji = ClientEmojiClass.new(self)
 	connection = ClientConnection.new(self)
 	relationships = ClientRelationships.new(self)
@@ -195,12 +195,12 @@ func _ready() -> void:
 		OS.request_permissions()
 	if OS.get_name() == "Web":
 		var WebVoiceSessionClass = load(
-			"res://scripts/autoload/web_voice_session.gd"
+			"res://scripts/voice/web_voice_session.gd"
 		)
 		_voice_session = WebVoiceSessionClass.new()
 	else:
 		var LiveKitAdapterClass = load(
-			"res://scripts/autoload/livekit_adapter.gd"
+			"res://scripts/voice/livekit_adapter.gd"
 		)
 		_voice_session = LiveKitAdapterClass.new()
 	add_child(_voice_session)
@@ -244,8 +244,8 @@ func _ready() -> void:
 	add_child(_idle_timer)
 	_idle_timer.start()
 	# Test API subsystem (for CI / developer mode)
-	var ClientTestApiClass = load("res://scripts/autoload/client_test_api.gd")
-	var ClientMcpClass = load("res://scripts/autoload/client_mcp.gd")
+	var ClientTestApiClass = load("res://scripts/client/client_test_api.gd")
+	var ClientMcpClass = load("res://scripts/client/client_mcp.gd")
 	if Config.developer.is_test_api_enabled():
 		test_api = ClientTestApiClass.new(self)
 		var token: String = ""

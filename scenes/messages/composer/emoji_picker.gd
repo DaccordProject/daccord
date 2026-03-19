@@ -266,8 +266,7 @@ func _on_emoji_selected(emoji_name: String) -> void:
 	emoji_picked.emit(emoji_name)
 
 func _clear_grid() -> void:
-	for child in emoji_grid.get_children():
-		child.queue_free()
+	NodeUtils.free_children(emoji_grid)
 
 func _input(event: InputEvent) -> void:
 	if not visible:

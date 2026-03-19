@@ -3,8 +3,8 @@ extends GutTest
 ## Unit tests for ClientMcp — JSON-RPC dispatch, tool group
 ## filtering, MCP content wrapping, and token validation.
 
-const ClientMcp := preload("res://scripts/autoload/client_mcp.gd")
-const ClientTestApi := preload("res://scripts/autoload/client_test_api.gd")
+const ClientMcp := preload("res://scripts/client/client_mcp.gd")
+const ClientTestApi := preload("res://scripts/client/client_test_api.gd")
 
 var mcp: RefCounted
 var test_api: RefCounted
@@ -31,10 +31,10 @@ func after_each() -> void:
 # Tool registration
 # =============================================================================
 
-func test_tool_count_is_34() -> void:
+func test_tool_count_is_37() -> void:
 	assert_eq(
-		mcp._tools.size(), 35,
-		"Should have exactly 35 MCP tools registered"
+		mcp._tools.size(), 37,
+		"Should have exactly 37 MCP tools registered"
 	)
 
 
@@ -127,7 +127,7 @@ func test_navigate_group_tool_count() -> void:
 	var result: Dictionary = mcp._handle_tools_list(1)
 	var tools: Array = result["result"]["tools"]
 	assert_eq(
-		tools.size(), 12, "Navigate group should have 12 tools"
+		tools.size(), 13, "Navigate group should have 13 tools"
 	)
 
 
@@ -161,7 +161,7 @@ func test_screenshot_group_tool_count() -> void:
 	var result: Dictionary = mcp._handle_tools_list(1)
 	var tools: Array = result["result"]["tools"]
 	assert_eq(
-		tools.size(), 3, "Screenshot group should have 3 tools"
+		tools.size(), 4, "Screenshot group should have 4 tools"
 	)
 
 

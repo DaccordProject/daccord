@@ -26,29 +26,20 @@ func _ready() -> void:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 0)
 	var header_margin := MarginContainer.new()
-	header_margin.add_theme_constant_override("margin_left", 16)
-	header_margin.add_theme_constant_override("margin_right", 8)
-	header_margin.add_theme_constant_override("margin_top", 8)
-	header_margin.add_theme_constant_override("margin_bottom", 0)
+	ThemeManager.set_margins(header_margin, 16, 8, 8, 0)
 	header_margin.add_child(header)
 	content_container.add_child(header_margin)
 
 	var header_title := Label.new()
 	header_title.text = tr("Settings")
-	header_title.add_theme_font_size_override("font_size", 14)
-	header_title.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(header_title, 14, "text_muted")
 	header_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(header_title)
 
 	var close_btn := Button.new()
 	close_btn.text = "  X  "
 	close_btn.flat = true
-	close_btn.add_theme_font_size_override("font_size", 16)
-	close_btn.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(close_btn, 16, "text_muted")
 	close_btn.add_theme_color_override(
 		"font_hover_color", ThemeManager.get_color("text_white")
 	)
@@ -78,10 +69,7 @@ func _ready() -> void:
 	nav_vbox.add_theme_constant_override("separation", 2)
 	nav_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var nav_margin := MarginContainer.new()
-	nav_margin.add_theme_constant_override("margin_left", 8)
-	nav_margin.add_theme_constant_override("margin_right", 8)
-	nav_margin.add_theme_constant_override("margin_top", 12)
-	nav_margin.add_theme_constant_override("margin_bottom", 12)
+	ThemeManager.set_margins(nav_margin, 8, 8, 12, 12)
 	nav_margin.add_child(nav_vbox)
 	nav_scroll.add_child(nav_margin)
 
@@ -90,10 +78,7 @@ func _ready() -> void:
 	if not subtitle.is_empty():
 		var sub_lbl := Label.new()
 		sub_lbl.text = subtitle
-		sub_lbl.add_theme_font_size_override("font_size", 11)
-		sub_lbl.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(sub_lbl, 11, "text_muted")
 		nav_vbox.add_child(sub_lbl)
 		var sub_sep := HSeparator.new()
 		nav_vbox.add_child(sub_sep)
@@ -115,10 +100,7 @@ func _ready() -> void:
 	_body_hbox.add_child(content_scroll)
 
 	var content_margin := MarginContainer.new()
-	content_margin.add_theme_constant_override("margin_left", 24)
-	content_margin.add_theme_constant_override("margin_right", 24)
-	content_margin.add_theme_constant_override("margin_top", 20)
-	content_margin.add_theme_constant_override("margin_bottom", 20)
+	ThemeManager.set_margins(content_margin, 24, 24, 20, 20)
 	content_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content_scroll.add_child(content_margin)
 
@@ -181,10 +163,7 @@ func _page_vbox(title_text: String) -> VBoxContainer:
 func _section_label(text: String) -> Label:
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
-	lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(lbl, 11, "text_muted")
 	return lbl
 
 func _labeled_value(label_text: String, value_text: String) -> VBoxContainer:
@@ -198,10 +177,7 @@ func _labeled_value(label_text: String, value_text: String) -> VBoxContainer:
 
 func _error_label() -> Label:
 	var lbl := Label.new()
-	lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("error")
-	)
-	lbl.add_theme_font_size_override("font_size", 13)
+	ThemeManager.style_label(lbl, 13, "error")
 	lbl.visible = false
 	return lbl
 

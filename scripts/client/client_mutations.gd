@@ -39,10 +39,7 @@ func search_messages(
 		space_id, query_str, filters
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to search messages: ", err
 		)
@@ -118,10 +115,7 @@ func send_message_to_channel(
 			cid, data, attachments
 		)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to send message: ", err
 		)
@@ -191,10 +185,7 @@ func update_message_content(
 		cid, mid, {"content": new_content}
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to edit message: ", err
 		)
@@ -227,10 +218,7 @@ func remove_message(mid: String) -> bool:
 		return false
 	var result := await client.messages.delete(cid, mid)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to delete message: ", err
 		)
@@ -266,10 +254,7 @@ func add_reaction(
 		cid, mid, emoji
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to add reaction: ", err
 		)
@@ -329,10 +314,7 @@ func remove_reaction(
 		cid, mid, emoji
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to remove reaction: ", err
 		)
@@ -356,10 +338,7 @@ func remove_all_reactions(
 		cid, mid
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to remove all reactions: ",
 			err
@@ -431,10 +410,7 @@ func update_profile(data: Dictionary) -> bool:
 	var cdn_url: String = _c._cdn_for_active_view()
 	var result: RestResult = await client.users.update_me(data)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error("[Client] Failed to update profile: ", err)
 		return false
 	var user: AccordUser = result.data
@@ -486,11 +462,7 @@ func change_password(
 		"new_password": new_pw,
 	})
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
-		return {"ok": false, "error": err}
+		return {"ok": false, "error": NodeUtils.rest_error(result)}
 	return {"ok": true}
 
 func delete_account(password: String) -> Dictionary:
@@ -501,11 +473,7 @@ func delete_account(password: String) -> Dictionary:
 		{"password": password}
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
-		return {"ok": false, "error": err}
+		return {"ok": false, "error": NodeUtils.rest_error(result)}
 	return {"ok": true}
 
 func try_reauth(

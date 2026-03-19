@@ -6,19 +6,19 @@ const _PROFILE_SALT := "daccord-profile-v1"
 const _RECENT_EMOJI_MAX := 16
 const _BACKUP_THROTTLE_SEC := 60
 const ConfigProfilesScript := preload(
-	"res://scripts/autoload/config_profiles.gd"
+	"res://scripts/config/config_profiles.gd"
 )
 const ConfigVoiceScript := preload(
-	"res://scripts/autoload/config_voice.gd"
+	"res://scripts/config/config_voice.gd"
 )
 const ConfigFriendBookScript := preload(
-	"res://scripts/autoload/config_friend_book.gd"
+	"res://scripts/config/config_friend_book.gd"
 )
 const ConfigExportScript := preload(
-	"res://scripts/autoload/config_export.gd"
+	"res://scripts/config/config_export.gd"
 )
 const ConfigDeveloperScript := preload(
-	"res://scripts/autoload/config_developer.gd"
+	"res://scripts/config/config_developer.gd"
 )
 
 var profiles # ConfigProfiles

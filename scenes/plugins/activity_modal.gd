@@ -54,8 +54,7 @@ func setup(space_id: String, channel_id: String) -> void:
 
 
 func _refresh_list() -> void:
-	for child in _list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_list)
 
 	var conn_idx: int = Client.get_conn_index_for_space(_space_id)
 	if conn_idx == -1:

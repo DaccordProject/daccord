@@ -9,8 +9,10 @@ signal rules_accepted()
 
 var _space_id: String = ""
 var _rules_channel_id: String = ""
-var _accept_btn: Button
-var _content_label: RichTextLabel
+
+@onready var _content_label: RichTextLabel = %ContentLabel
+@onready var _accept_btn: Button = %AcceptButton
+@onready var _close_btn: Button = %CloseButton
 
 
 func setup(space_id: String, rules_channel_id: String) -> void:
@@ -19,27 +21,10 @@ func setup(space_id: String, rules_channel_id: String) -> void:
 
 
 func _ready() -> void:
-	_setup_modal("Server Rules", 520.0)
+	_bind_modal_nodes($CenterContainer/Panel, 520.0)
+	_close_btn.pressed.connect(_close)
 
-	_content_label = RichTextLabel.new()
-	_content_label.bbcode_enabled = true
-	_content_label.custom_minimum_size = Vector2(0, 300)
-	_content_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content_label.text = "Loading rules..."
-	content_container.add_child(_content_label)
-
-	var hint := Label.new()
-	hint.text = "You must accept the rules before you can interact in this space."
-	hint.add_theme_font_size_override("font_size", 12)
-	hint.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	content_container.add_child(hint)
-
-	_accept_btn = Button.new()
-	_accept_btn.text = "I have read and agree to the rules"
-	_accept_btn.custom_minimum_size = Vector2(0, 36)
+	# Style accept button with accent color
 	var btn_style := StyleBoxFlat.new()
 	btn_style.bg_color = ThemeManager.get_color("accent")
 	btn_style.set_corner_radius_all(4)
@@ -49,7 +34,6 @@ func _ready() -> void:
 	btn_style.content_margin_bottom = 4.0
 	_accept_btn.add_theme_stylebox_override("normal", btn_style)
 	_accept_btn.pressed.connect(_on_accept)
-	content_container.add_child(_accept_btn)
 
 	_fetch_rules.call_deferred()
 

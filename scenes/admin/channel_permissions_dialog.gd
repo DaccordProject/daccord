@@ -145,8 +145,7 @@ func _load_overwrites() -> void:
 		_overwrite_data[ow_id] = data
 
 func _rebuild_role_list() -> void:
-	for child in _role_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_role_list)
 	_role_buttons.clear()
 
 	# Role overwrites
@@ -187,10 +186,7 @@ func _rebuild_role_list() -> void:
 
 		var member_label := Label.new()
 		member_label.text = tr("MEMBERS")
-		member_label.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_body")
-		)
-		member_label.add_theme_font_size_override("font_size", 11)
+		ThemeManager.style_label(member_label, 11, "text_body")
 		_role_list.add_child(member_label)
 
 	# Existing user-type overwrites
@@ -272,8 +268,7 @@ func _on_add_member_overwrite() -> void:
 	var member_list: VBoxContainer = content.member_list
 
 	var build_list := func(query: String) -> void:
-		for child in member_list.get_children():
-			child.queue_free()
+		NodeUtils.free_children(member_list)
 		var q := query.strip_edges().to_lower()
 		for m in members:
 			var uid: String = m.get("id", "")
@@ -324,8 +319,7 @@ func _perms_for_channel_type() -> Array:
 			return all_perms
 
 func _rebuild_perm_list() -> void:
-	for child in _perm_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_perm_list)
 	_perm_rows.clear()
 
 	if _selected_role_id.is_empty():
@@ -344,10 +338,7 @@ func _rebuild_perm_list() -> void:
 		# Section header
 		var header := Label.new()
 		header.text = tr(group["label"])
-		header.add_theme_font_size_override("font_size", 11)
-		header.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(header, 11, "text_muted")
 		header.custom_minimum_size.y = 24
 		header.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 		_perm_list.add_child(header)

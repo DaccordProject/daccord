@@ -33,8 +33,7 @@ func _apply_theme() -> void:
 func setup(space_data: Dictionary) -> void:
 	_space_id = space_data.get("id", "")
 	space_name_label.text = space_data.get("name", "")
-	space_name_label.add_theme_font_size_override("font_size", 16)
-	space_name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(space_name_label, 16, "text_white")
 	banner_rect.color = space_data.get("icon_color", ThemeManager.get_color("modal_bg")).darkened(0.3)
 
 	_has_admin = _has_any_admin_perm()

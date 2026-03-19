@@ -40,8 +40,7 @@ func _apply_theme() -> void:
 	_older_btn.text = tr("Show older messages")
 	_older_btn.flat = true
 	_older_btn.visible = false
-	_older_btn.add_theme_font_size_override("font_size", 12)
-	_older_btn.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
+	ThemeManager.style_label(_older_btn, 12, "accent")
 	_older_btn.pressed.connect(_on_older_messages_pressed)
 	message_list.add_child(_older_btn)
 

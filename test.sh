@@ -16,6 +16,10 @@
 #   ./test.sh sync         Run daccord-sync integration tests (requires Docker on port 3001)
 #   ./test.sh client       Run Client API integration tests (starts Daccord with --test-api)
 #
+# Extra arguments after the suite name are passed to GUT as -gselect filters:
+#   ./test.sh unit test_emoji_picker       Run only test_emoji_picker.gd
+#   ./test.sh unit test_emoji,test_config  Run tests matching either prefix
+#
 # Environment variables:
 #   ACCORD_TEST_URL        Run against a remote server instead of starting one
 #                          locally. The server must have ACCORD_TEST_MODE=true.
@@ -54,14 +58,32 @@ err()     { echo -e "${RED}[err]${NC}   $*"; }
 header()  { echo -e "\n${BOLD}$*${NC}"; }
 
 setup_godot_user_dir() {
-    export XDG_DATA_HOME="$SCRIPT_DIR/.xdg_data"
-    mkdir -p "$XDG_DATA_HOME/godot/app_userdata/daccord/logs"
+    local test_data="$SCRIPT_DIR/.test_userdata"
+    case "$(uname)" in
+        Darwin)
+            # macOS: Godot uses ~/Library/Application Support/Godot/app_userdata/
+            # Override HOME so it writes to an isolated directory instead
+            export HOME="$test_data"
+            mkdir -p "$HOME/Library/Application Support/Godot/app_userdata/daccord/logs"
+            ;;
+        *)
+            # Linux: Godot respects XDG_DATA_HOME
+            export XDG_DATA_HOME="$test_data"
+            mkdir -p "$XDG_DATA_HOME/godot/app_userdata/daccord/logs"
+            ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
 # Determine which test dirs to run
 # ---------------------------------------------------------------------------
+GUT_SELECT=""
+
 resolve_dirs() {
+    # Extra positional args after suite name become -gselect filter
+    if [ -n "${2:-}" ]; then
+        GUT_SELECT="$2"
+    fi
     case "${1:-all}" in
         unit)
             NEEDS_SERVER=false
@@ -190,13 +212,18 @@ trap cleanup EXIT INT TERM
 # ---------------------------------------------------------------------------
 run_suite() {
     local dir="$1"
+    local select_flag=""
+    if [ -n "$GUT_SELECT" ]; then
+        select_flag="-gselect=$GUT_SELECT"
+    fi
     local godot_cmd="godot --headless -s addons/gut/gut_cmdln.gd \
         -gexit \
         -ginclude_subdirs=true \
         -gprefix=test_ \
         -gsuffix=.gd \
         -glog=1 \
-        -gdir=$dir"
+        -gdir=$dir \
+        $select_flag"
 
     info "Command: ${DIM}$godot_cmd${NC}"
     echo ""
@@ -332,7 +359,7 @@ main() {
         exit 1
     fi
 
-    resolve_dirs "${1:-all}"
+    resolve_dirs "${1:-all}" "${2:-}"
     setup_godot_user_dir
 
     if [ "$NEEDS_SERVER" = true ]; then

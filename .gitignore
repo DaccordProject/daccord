@@ -26,6 +26,7 @@ AGENTS.local.db
 # Logs and local config
 test_server.log
 .xdg_data
+.test_userdata
 .DS_Store
 .claude/settings.local.json
 .mcp.json

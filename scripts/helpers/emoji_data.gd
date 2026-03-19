@@ -6,7 +6,7 @@ class_name EmojiData
 
 enum Category { SMILEYS, PEOPLE, NATURE, FOOD, ACTIVITIES, TRAVEL, OBJECTS, SYMBOLS, FLAGS }
 
-static var _catalog_res: EmojiCatalog = preload("res://scripts/emoji_catalog.tres")
+static var _catalog_res: EmojiCatalog = preload("res://scripts/helpers/emoji_catalog.tres")
 
 static var category_names: Dictionary:
 	get:

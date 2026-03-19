@@ -53,10 +53,8 @@ func update_participants(participants: Array) -> void:
 
 
 func _rebuild_slots(participants: Array) -> void:
-	for child in _slots_grid.get_children():
-		child.queue_free()
-	for child in _spectator_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_slots_grid)
+	NodeUtils.free_children(_spectator_list)
 
 	# Create player slots
 	var slot_count: int = _max_participants if _max_participants > 0 else 8
@@ -92,8 +90,5 @@ func _rebuild_slots(participants: Array) -> void:
 	for spec in spectators:
 		var label := Label.new()
 		label.text = spec.get("display_name", tr("Spectator"))
-		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(label, 12, "text_muted")
 		_spectator_list.add_child(label)

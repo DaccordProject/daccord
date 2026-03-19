@@ -459,10 +459,7 @@ func _rebuild_activity(tiles: Array) -> void:
 			var ended := Label.new()
 			ended.text = tr("Activity ended.")
 			ended.set_anchors_preset(Control.PRESET_CENTER)
-			ended.add_theme_font_size_override("font_size", 18)
-			ended.add_theme_color_override(
-				"font_color", ThemeManager.get_color("text_muted")
-			)
+			ThemeManager.style_label(ended, 18, "text_muted")
 			content.add_child(ended)
 
 	# Download progress bar (hidden by default)
@@ -504,10 +501,7 @@ func _build_activity_header() -> PanelContainer:
 	runtime_lbl.text = _activity_manifest.get(
 		"runtime", ""
 	).capitalize()
-	runtime_lbl.add_theme_font_size_override("font_size", 11)
-	runtime_lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(runtime_lbl, 11, "text_muted")
 	hbox.add_child(runtime_lbl)
 
 	var session_state: String = AppState.active_activity_session_state
@@ -555,10 +549,7 @@ func _build_activity_footer() -> PanelContainer:
 
 	var role_lbl := Label.new()
 	role_lbl.text = tr("Role: %s") % AppState.active_activity_role.capitalize()
-	role_lbl.add_theme_font_size_override("font_size", 12)
-	role_lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(role_lbl, 12, "text_muted")
 	hbox.add_child(role_lbl)
 	_activity_container.set_meta("role_label", role_lbl)
 

@@ -49,8 +49,7 @@ func _ready() -> void:
 	hbox.add_child(info)
 
 	_title_label = Label.new()
-	_title_label.add_theme_font_size_override("font_size", 15)
-	_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(_title_label, 15, "text_white")
 	info.add_child(_title_label)
 
 	var meta := HBoxContainer.new()
@@ -58,35 +57,29 @@ func _ready() -> void:
 	info.add_child(meta)
 
 	_author_label = Label.new()
-	_author_label.add_theme_font_size_override("font_size", 12)
-	_author_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_author_label, 12, "text_muted")
 	meta.add_child(_author_label)
 
 	_dot1 = Label.new()
 	_dot1.text = " \u00b7 "
-	_dot1.add_theme_font_size_override("font_size", 12)
-	_dot1.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_dot1, 12, "text_muted")
 	meta.add_child(_dot1)
 
 	_reply_count_label = Label.new()
-	_reply_count_label.add_theme_font_size_override("font_size", 12)
-	_reply_count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_reply_count_label, 12, "text_muted")
 	meta.add_child(_reply_count_label)
 
 	_dot2 = Label.new()
 	_dot2.text = " \u00b7 "
-	_dot2.add_theme_font_size_override("font_size", 12)
-	_dot2.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_dot2, 12, "text_muted")
 	meta.add_child(_dot2)
 
 	_last_activity_label = Label.new()
-	_last_activity_label.add_theme_font_size_override("font_size", 12)
-	_last_activity_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_last_activity_label, 12, "text_muted")
 	meta.add_child(_last_activity_label)
 
 	_preview_label = Label.new()
-	_preview_label.add_theme_font_size_override("font_size", 13)
-	_preview_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_preview_label, 13, "text_muted")
 	_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_preview_label.max_lines_visible = 2
 	info.add_child(_preview_label)

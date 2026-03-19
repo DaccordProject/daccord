@@ -40,8 +40,7 @@ func setup(data: Dictionary) -> void:
 	for tag in tags:
 		var chip := Label.new()
 		chip.text = str(tag)
-		chip.add_theme_font_size_override("font_size", 11)
-		chip.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		ThemeManager.style_label(chip, 11, "text_muted")
 		chip.add_theme_stylebox_override("normal",
 			ThemeManager.make_flat_style("secondary_button", 4, [6, 2, 6, 2])
 		)

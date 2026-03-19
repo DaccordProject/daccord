@@ -58,10 +58,7 @@ func set_embedded(value: bool) -> void:
 func _apply_embedded() -> void:
 	_header.visible = not _embedded
 	if _embedded:
-		_margin.add_theme_constant_override("margin_left", 8)
-		_margin.add_theme_constant_override("margin_top", 8)
-		_margin.add_theme_constant_override("margin_right", 8)
-		_margin.add_theme_constant_override("margin_bottom", 8)
+		ThemeManager.set_margins(_margin, 8, 8, 8, 8)
 		_grid.columns = 1
 
 func _update_grid_columns() -> void:
@@ -134,13 +131,11 @@ func _populate_grid(spaces: Array) -> void:
 		card.card_clicked.connect(_on_card_clicked)
 
 func _clear_grid() -> void:
-	for child in _grid.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_grid)
 
 func _populate_tags(spaces: Array) -> void:
 	# Clear existing tags
-	for child in _tag_bar.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_tag_bar)
 
 	# Collect unique tags
 	var tags: Dictionary = {}
@@ -291,8 +286,7 @@ func _on_card_clicked(space_data: Dictionary) -> void:
 	_detail_container.visible = true
 
 	# Clear previous detail
-	for child in _detail_container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_detail_container)
 
 	_detail_view = DiscoveryDetailScene.instantiate()
 	_detail_container.add_child(_detail_view)

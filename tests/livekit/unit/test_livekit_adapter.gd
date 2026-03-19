@@ -4,7 +4,7 @@ extends GutTest
 ## These test the adapter's state machine, mute/deafen logic,
 ## and signal surface without requiring a real LiveKit server.
 
-const LiveKitAdapterScript := preload("res://scripts/autoload/livekit_adapter.gd")
+const LiveKitAdapterScript := preload("res://scripts/voice/livekit_adapter.gd")
 
 var _adapter: Node
 

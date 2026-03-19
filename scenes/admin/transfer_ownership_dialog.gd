@@ -1,7 +1,7 @@
 extends ModalBase
 
 ## Dialog for transferring space ownership to another member.
-## Instantiate via script, then call setup(space_id, space_name).
+## Instantiate from transfer_ownership_dialog.tscn, then call setup(space_id, space_name).
 
 const ConfirmDialogScene := preload(
 	"res://scenes/admin/confirm_dialog.tscn"
@@ -9,52 +9,19 @@ const ConfirmDialogScene := preload(
 
 var _space_id: String = ""
 var _space_name: String = ""
-var _search_input: LineEdit
-var _member_list: VBoxContainer
-var _error_label: Label
 var _members: Array = []
 
+@onready var _search_input: LineEdit = %SearchInput
+@onready var _member_list: VBoxContainer = %MemberList
+@onready var _error_label: Label = %ErrorLabel
+@onready var _close_btn: Button = %CloseButton
+
 func _ready() -> void:
-	_setup_modal(tr("Transfer Ownership"), 440.0, 450.0, true, 20.0)
-
-	# Override title font size to match original
-	if _modal_title_label:
-		_modal_title_label.add_theme_font_size_override("font_size", 18)
-
-	# Search
-	var search_label := Label.new()
-	search_label.text = tr("SEARCH MEMBERS")
-	search_label.add_theme_font_size_override("font_size", 11)
-	search_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	content_container.add_child(search_label)
-	_search_input = LineEdit.new()
-	_search_input.placeholder_text = tr("Filter by username...")
+	_bind_modal_nodes($CenterContainer/Panel, 440.0, 450.0)
+	_close_btn.pressed.connect(_close)
 	_search_input.text_changed.connect(
 		func(_t: String) -> void: _render_members()
 	)
-	content_container.add_child(_search_input)
-
-	# Error
-	_error_label = Label.new()
-	_error_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("error")
-	)
-	_error_label.add_theme_font_size_override("font_size", 13)
-	_error_label.visible = false
-	content_container.add_child(_error_label)
-
-	# Member list (scrollable)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	content_container.add_child(scroll)
-
-	_member_list = VBoxContainer.new()
-	_member_list.add_theme_constant_override("separation", 4)
-	_member_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_member_list)
 
 func setup(space_id: String, space_name: String) -> void:
 	_space_id = space_id
@@ -153,8 +120,3 @@ func _on_transfer(user_id: String, uname: String) -> void:
 		else:
 			queue_free()
 	)
-
-static func _clear_children(container: Node) -> void:
-	for child in container.get_children():
-		container.remove_child(child)
-		child.queue_free()

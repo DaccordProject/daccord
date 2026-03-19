@@ -36,7 +36,7 @@ func before_each() -> void:
 	config._profile_slug = "default"
 	# Manually init the profiles sub-object
 	var ProfilesScript = load(
-		"res://scripts/autoload/config_profiles.gd"
+		"res://scripts/config/config_profiles.gd"
 	)
 	profiles = ProfilesScript.new(config, "daccord-profile-v1")
 	config.profiles = profiles

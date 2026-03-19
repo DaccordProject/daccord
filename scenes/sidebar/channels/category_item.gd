@@ -79,8 +79,7 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 	# Channel count label (shown when collapsed)
 	_count_label = Label.new()
 	_count_label.text = str(child_channels.size())
-	_count_label.add_theme_font_size_override("font_size", 10)
-	_count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_count_label, 10, "text_muted")
 	_count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_count_label.visible = false
@@ -230,8 +229,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 		return null
 	var preview := Label.new()
 	preview.text = _category_data.get("name", "").to_upper()
-	preview.add_theme_font_size_override("font_size", 11)
-	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(preview, 11, "text_white")
 	set_drag_preview(preview)
 	return {"type": "category", "category_data": _category_data, "source_node": self}
 

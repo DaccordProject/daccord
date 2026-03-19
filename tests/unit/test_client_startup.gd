@@ -80,7 +80,7 @@ func test_client_ready_creates_voice_session() -> void:
 		"Voice session is null",
 	)
 	var lk_script: GDScript = load(
-		"res://scripts/autoload/livekit_adapter.gd"
+		"res://scripts/voice/livekit_adapter.gd"
 	)
 	assert_true(
 		is_instance_of(client._voice_session, lk_script),

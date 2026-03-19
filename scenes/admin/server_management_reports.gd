@@ -56,8 +56,7 @@ func build_page(
 
 
 static func _clear_list(container: Node) -> void:
-	for child in container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(container)
 
 
 func fetch_reports(append: bool = false) -> void:

@@ -61,8 +61,7 @@ func setup(p_name: String, spaces: Array, folder_color := Color(-1, 0, 0)) -> vo
 		folder_button.add_theme_stylebox_override("normal", style)
 
 	# Create mini grid preview (up to 4 tiny space avatars)
-	for child in mini_grid.get_children():
-		child.queue_free()
+	NodeUtils.free_children(mini_grid)
 	for i in min(spaces.size(), 4):
 		var avatar: ColorRect = AvatarScene.instantiate()
 		avatar.avatar_size = 14
@@ -73,8 +72,7 @@ func setup(p_name: String, spaces: Array, folder_color := Color(-1, 0, 0)) -> vo
 		avatar.setup_from_dict(spaces[i], "icon_color", "name", "icon")
 
 	# Create full space icons for expanded view
-	for child in space_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(space_list)
 	space_icons.clear()
 	for g in spaces:
 		var icon: HBoxContainer = GuildIconScene.instantiate()
@@ -287,8 +285,7 @@ func _delete_folder() -> void:
 func _folder_get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := Label.new()
 	preview.text = folder_name
-	preview.add_theme_font_size_override("font_size", 11)
-	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(preview, 11, "text_white")
 	set_drag_preview(preview)
 	return {
 		"type": "space_bar_item",

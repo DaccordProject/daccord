@@ -57,10 +57,7 @@ func _ready() -> void:
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 8)
 	var content_margin := MarginContainer.new()
-	content_margin.add_theme_constant_override("margin_left", 12)
-	content_margin.add_theme_constant_override("margin_right", 12)
-	content_margin.add_theme_constant_override("margin_top", 0)
-	content_margin.add_theme_constant_override("margin_bottom", 0)
+	ThemeManager.set_margins(content_margin, 12, 12, 0, 0)
 	content_margin.add_child(content)
 	vbox.add_child(content_margin)
 
@@ -91,18 +88,12 @@ func _ready() -> void:
 
 	# Username
 	_username_label = Label.new()
-	_username_label.add_theme_font_size_override("font_size", 13)
-	_username_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_username_label, 13, "text_muted")
 	content.add_child(_username_label)
 
 	# Custom status
 	_custom_status_label = Label.new()
-	_custom_status_label.add_theme_font_size_override("font_size", 13)
-	_custom_status_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_body")
-	)
+	ThemeManager.style_label(_custom_status_label, 13, "text_body")
 	_custom_status_label.visible = false
 	content.add_child(_custom_status_label)
 
@@ -112,10 +103,7 @@ func _ready() -> void:
 
 	# Activities
 	_activities_label = Label.new()
-	_activities_label.add_theme_font_size_override("font_size", 12)
-	_activities_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_body")
-	)
+	ThemeManager.style_label(_activities_label, 12, "text_body")
 	_activities_label.visible = false
 	_activities_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	content.add_child(_activities_label)
@@ -134,10 +122,7 @@ func _ready() -> void:
 
 	var bio_header := Label.new()
 	bio_header.text = tr("ABOUT ME")
-	bio_header.add_theme_font_size_override("font_size", 11)
-	bio_header.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(bio_header, 11, "text_muted")
 	_bio_section.add_child(bio_header)
 
 	_bio_label = RichTextLabel.new()
@@ -156,10 +141,7 @@ func _ready() -> void:
 
 	var roles_header := Label.new()
 	roles_header.text = tr("ROLES")
-	roles_header.add_theme_font_size_override("font_size", 11)
-	roles_header.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(roles_header, 11, "text_muted")
 	_roles_section.add_child(roles_header)
 
 	_roles_flow = HFlowContainer.new()
@@ -175,10 +157,7 @@ func _ready() -> void:
 
 	# Member since
 	_member_since_label = Label.new()
-	_member_since_label.add_theme_font_size_override("font_size", 11)
-	_member_since_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_member_since_label, 11, "text_muted")
 	_member_since_label.visible = false
 	content.add_child(_member_since_label)
 

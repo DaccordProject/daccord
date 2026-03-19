@@ -417,8 +417,7 @@ func _add_loading_placeholder(container: Control) -> void:
 	container.add_child(bg)
 	var lbl := Label.new()
 	lbl.text = tr("Loading...")
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(lbl, 12, "text_muted")
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -435,8 +434,7 @@ func _show_image_error(container: Control) -> void:
 	container.add_child(bg)
 	var lbl := Label.new()
 	lbl.text = tr("Failed to load image")
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.add_theme_color_override("font_color", ThemeManager.get_color("error"))
+	ThemeManager.style_label(lbl, 12, "error")
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -458,8 +456,7 @@ func _show_gif_fallback(container: Control, url: String) -> void:
 	container.add_child(bg)
 	var lbl := Label.new()
 	lbl.text = tr("GIF - Click to view")
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", ThemeManager.get_color("link"))
+	ThemeManager.style_label(lbl, 13, "link")
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.set_anchors_preset(Control.PRESET_CENTER)
@@ -493,8 +490,7 @@ func _create_video_placeholder(url: String, filename: String) -> Control:
 	# Filename at bottom
 	var name_label := Label.new()
 	name_label.text = filename
-	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(name_label, 11, "text_muted")
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	name_label.offset_top = -24
@@ -545,14 +541,12 @@ func _create_audio_player(
 	# Time label
 	var time_label := Label.new()
 	time_label.text = "0:00"
-	time_label.add_theme_font_size_override("font_size", 11)
-	time_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(time_label, 11, "text_muted")
 	inner_row.add_child(time_label)
 	# Filename
 	var name_label := Label.new()
 	name_label.text = filename
-	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(name_label, 11, "text_muted")
 	inner_row.add_child(name_label)
 	row.add_child(panel)
 	# Audio playback logic
@@ -627,8 +621,7 @@ func enter_edit_mode(message_id: String, content: String) -> void:
 	# Keyboard hint label below the TextEdit
 	_edit_hint_label = Label.new()
 	_edit_hint_label.text = tr("Enter to save \u00b7 Escape to cancel \u00b7 Shift+Enter for newline")
-	_edit_hint_label.add_theme_font_size_override("font_size", 11)
-	_edit_hint_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_edit_hint_label, 11, "text_muted")
 	add_child(_edit_hint_label)
 	move_child(_edit_hint_label, 1)
 
@@ -697,8 +690,7 @@ func show_edit_error(error: String) -> void:
 
 	_edit_error_label = Label.new()
 	_edit_error_label.text = error
-	_edit_error_label.add_theme_font_size_override("font_size", 11)
-	_edit_error_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
+	ThemeManager.style_label(_edit_error_label, 11, "error")
 	add_child(_edit_error_label)
 	# Place after TextEdit and hint if editing, otherwise at the top
 	if _edit_input:

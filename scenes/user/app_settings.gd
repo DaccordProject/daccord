@@ -645,8 +645,7 @@ func _refresh_color_pickers() -> void:
 func _update_theme_preview() -> void:
 	if _theme_preview_row == null:
 		return
-	for child in _theme_preview_row.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_theme_preview_row)
 	var preview_keys := [
 		[tr("Accent"), "accent"],
 		[tr("Text"), "text_body"],
@@ -666,10 +665,7 @@ func _update_theme_preview() -> void:
 		swatch_col.add_child(rect)
 		var lbl := Label.new()
 		lbl.text = entry[0]
-		lbl.add_theme_font_size_override("font_size", 10)
-		lbl.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(lbl, 10, "text_muted")
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		swatch_col.add_child(lbl)
 		_theme_preview_row.add_child(swatch_col)

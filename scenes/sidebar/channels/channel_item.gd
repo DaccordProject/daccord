@@ -124,8 +124,7 @@ func setup(data: Dictionary) -> void:
 	if type == ClientModels.ChannelType.VOICE and voice_users > 0:
 		var count_label := Label.new()
 		count_label.text = str(voice_users)
-		count_label.add_theme_font_size_override("font_size", 11)
-		count_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		ThemeManager.style_label(count_label, 11, "text_muted")
 		count_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		$HBox.add_child(count_label)
 		$HBox.move_child(count_label, $HBox.get_child_count() - 1)
@@ -143,8 +142,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.custom_minimum_size = Vector2(20, 20)
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
-		_gear_btn.add_theme_font_size_override("font_size", 14)
-		_gear_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		ThemeManager.style_label(_gear_btn, 14, "text_muted")
 		_gear_btn.tooltip_text = tr("Edit Channel")
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$HBox.add_child(_gear_btn)

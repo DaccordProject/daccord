@@ -9,52 +9,28 @@ const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 var _space_id: String = ""
 var _conn_index: int = -1
 var _all_plugins: Array = []
-var _plugin_list: VBoxContainer
-var _empty_label: Label
-var _upload_btn: Button
-var _error_label: Label
+
+@onready var _plugin_list: VBoxContainer = %PluginList
+@onready var _empty_label: Label = %EmptyLabel
+@onready var _upload_btn: Button = %UploadButton
+@onready var _error_label: Label = %ErrorLabel
+@onready var _close_btn: Button = %CloseButton
 
 
 func _ready() -> void:
-	_setup_modal(tr("Plugins"), 520, 0)
-
-	_error_label = Label.new()
-	_error_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("error")
-	)
-	_error_label.add_theme_font_size_override("font_size", 13)
-	_error_label.visible = false
-	_error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	content_container.add_child(_error_label)
-
-	# Upload button
-	_upload_btn = SettingsBase.create_action_button(tr("Upload Plugin"))
+	_bind_modal_nodes($CenterContainer/Panel, 520.0)
+	_close_btn.pressed.connect(_close)
 	_upload_btn.pressed.connect(_on_upload_pressed)
-	content_container.add_child(_upload_btn)
 
-	var sep := HSeparator.new()
-	content_container.add_child(sep)
-
-	# Empty state
-	_empty_label = Label.new()
-	_empty_label.text = tr("No plugins installed.")
-	_empty_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
-	_empty_label.visible = false
-	content_container.add_child(_empty_label)
-
-	# Plugin list container
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 200)
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	content_container.add_child(scroll)
-
-	_plugin_list = VBoxContainer.new()
-	_plugin_list.add_theme_constant_override("separation", 4)
-	_plugin_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_plugin_list)
+	# Style upload button like an action button
+	var btn_style := StyleBoxFlat.new()
+	btn_style.bg_color = ThemeManager.get_color("accent")
+	btn_style.set_corner_radius_all(4)
+	btn_style.content_margin_left = 12.0
+	btn_style.content_margin_right = 12.0
+	btn_style.content_margin_top = 4.0
+	btn_style.content_margin_bottom = 4.0
+	_upload_btn.add_theme_stylebox_override("normal", btn_style)
 
 	AppState.plugins_updated.connect(_on_plugins_updated)
 
@@ -150,17 +126,16 @@ func _build_plugin_row(plugin: Dictionary) -> PanelContainer:
 	if not detail_parts.is_empty():
 		var detail := Label.new()
 		detail.text = " · ".join(detail_parts)
-		detail.add_theme_font_size_override("font_size", 12)
-		detail.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(detail, 12, "text_muted")
 		detail.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		info.add_child(detail)
 
 	# Uninstall button
 	var plugin_id: String = str(plugin.get("id", ""))
 	var delete_btn := SettingsBase.create_danger_button(tr("Uninstall"))
-	delete_btn.pressed.connect(_on_delete_plugin.bind(plugin_id, plugin.get("name", "")))
+	delete_btn.pressed.connect(
+		_on_delete_plugin.bind(plugin_id, plugin.get("name", ""))
+	)
 	hbox.add_child(delete_btn)
 
 	return panel
@@ -264,19 +239,25 @@ func _extract_manifest(zip_bytes: PackedByteArray) -> Dictionary:
 		reader.close()
 		DirAccess.remove_absolute(tmp_path)
 		return {}
-	var manifest_bytes: PackedByteArray = reader.read_file(manifest_path)
+	var manifest_bytes: PackedByteArray = reader.read_file(
+		manifest_path
+	)
 	reader.close()
 	DirAccess.remove_absolute(tmp_path)
 	if manifest_bytes.is_empty():
 		return {}
 	var json := JSON.new()
-	var parse_err: Error = json.parse(manifest_bytes.get_string_from_utf8())
+	var parse_err: Error = json.parse(
+		manifest_bytes.get_string_from_utf8()
+	)
 	if parse_err != OK or not (json.data is Dictionary):
 		return {}
 	return json.data
 
 
-func _on_delete_plugin(plugin_id: String, plugin_name: String) -> void:
+func _on_delete_plugin(
+	plugin_id: String, plugin_name: String,
+) -> void:
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
 		tr("Uninstall Plugin"),
 		tr("Are you sure you want to uninstall '%s'? Any active sessions will be ended.") % plugin_name,
@@ -297,7 +278,8 @@ func _on_delete_plugin(plugin_id: String, plugin_name: String) -> void:
 				_error_label.visible = true
 				return
 			_all_plugins = _all_plugins.filter(
-				func(p: Dictionary) -> bool: return str(p.get("id", "")) != plugin_id
+				func(p: Dictionary) -> bool:
+					return str(p.get("id", "")) != plugin_id
 			)
 			_rebuild_list()
 	)
@@ -307,9 +289,3 @@ func _on_plugins_updated() -> void:
 	if _conn_index >= 0:
 		_all_plugins = Client.plugins.get_plugins(_conn_index)
 		_rebuild_list()
-
-
-static func _clear_children(container: Node) -> void:
-	for child in container.get_children():
-		container.remove_child(child)
-		child.queue_free()

@@ -62,8 +62,7 @@ func _on_thread_opened(parent_message_id: String) -> void:
 	_parent_channel_id = parent_msg.get("channel_id", AppState.current_channel_id)
 
 	# Show parent message
-	for child in parent_container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(parent_container)
 	if not parent_msg.is_empty():
 		var parent_node := CozyMessageScene.instantiate()
 		parent_container.add_child(parent_node)
@@ -79,8 +78,7 @@ func _on_thread_opened(parent_message_id: String) -> void:
 		reply_count_label.visible = false
 
 	# Clear existing thread messages
-	for child in thread_message_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(thread_message_list)
 
 	# Clear thread unread and mentions
 	Client._thread_unread.erase(parent_message_id)
@@ -130,10 +128,8 @@ func _on_thread_closed() -> void:
 	_parent_channel_id = ""
 	visible = false
 	thread_typing_indicator.hide_typing()
-	for child in thread_message_list.get_children():
-		child.queue_free()
-	for child in parent_container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(thread_message_list)
+	NodeUtils.free_children(parent_container)
 
 func _on_thread_messages_updated(parent_id: String) -> void:
 	if parent_id != _parent_message_id:
@@ -149,8 +145,7 @@ func _on_reactions_updated(channel_id: String, _message_id: String) -> void:
 	_render_thread_messages()
 
 func _render_thread_messages() -> void:
-	for child in thread_message_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(thread_message_list)
 
 	var messages := Client.get_messages_for_thread(_parent_message_id)
 	var count := messages.size()

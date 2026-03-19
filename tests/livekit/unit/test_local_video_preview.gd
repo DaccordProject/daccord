@@ -9,7 +9,7 @@ extends GutTest
 ## 2. X11 on 32-bit depth displays returns alpha=0 for most windows,
 ##    so the preview must force alpha to 1.0 regardless of input.
 
-const LiveKitAdapterScript := preload("res://scripts/autoload/livekit_adapter.gd")
+const LiveKitAdapterScript := preload("res://scripts/voice/livekit_adapter.gd")
 
 var _preview: RefCounted
 

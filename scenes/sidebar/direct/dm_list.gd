@@ -51,8 +51,7 @@ func _apply_theme() -> void:
 	header_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
 func _populate_dms() -> void:
-	for child in dm_vbox.get_children():
-		child.queue_free()
+	NodeUtils.free_children(dm_vbox)
 	dm_item_nodes.clear()
 
 	for dm in Client.dm_channels:

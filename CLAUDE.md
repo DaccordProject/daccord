@@ -38,9 +38,9 @@ ACCORD_TEST_URL=http://<host>:39099 ./test.sh accordkit
 - **AppState** (`scripts/autoload/app_state.gd`) — Central signal bus. All cross-component communication goes through AppState signals (80+). Tracks current selection state (space, channel, DM mode, layout mode).
 - **Client** (`scripts/autoload/client.gd`) — Core client managing an array of server connections. Routes data requests to the correct server via `_space_to_conn` and `_channel_to_space` lookup dictionaries. Caches users, spaces, channels, messages, members, roles, and voice states.
 - **Config** (`scripts/autoload/config.gd`) — Multi-profile encrypted config system. Per-profile data at `user://profiles/<slug>/config.cfg`.
-- **ClientModels** (`scripts/autoload/client_models.gd`) — Converts AccordKit typed models to dictionary shapes consumed by UI scenes.
+- **ClientModels** (`scripts/client/client_models.gd`) — Converts AccordKit typed models to dictionary shapes consumed by UI scenes.
 
-Client has namespaced sub-objects: `Client.fetch`, `Client.admin`, `Client.voice`, `Client.mutations`, `Client.plugins`, `Client.unread`, `Client.permissions`, `Client.relationships`, `Client.connection`, `Client.emoji`.
+Client has namespaced sub-objects in `scripts/client/`: `Client.fetch`, `Client.admin`, `Client.voice`, `Client.mutations`, `Client.plugins`, `Client.unread`, `Client.permissions`, `Client.relationships`, `Client.connection`, `Client.emoji`. Config sub-objects live in `scripts/config/`, voice platform adapters in `scripts/voice/`, and shared helpers in `scripts/helpers/`.
 
 ### Signal Flow Pattern
 

@@ -29,10 +29,7 @@ var _rel_data: Dictionary = {}
 func _ready() -> void:
 	add_to_group("themed")
 	status_label.add_theme_font_size_override("font_size", 12)
-	activity_label.add_theme_font_size_override("font_size", 11)
-	activity_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(activity_label, 11, "text_muted")
 	gui_input.connect(_on_gui_input)
 
 func setup(data: Dictionary) -> void:
@@ -55,10 +52,7 @@ func setup(data: Dictionary) -> void:
 	if not sp_name.is_empty():
 		server_tag.text = tr("from %s") % sp_name
 		server_tag.visible = true
-		server_tag.add_theme_font_size_override("font_size", 11)
-		server_tag.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(server_tag, 11, "text_muted")
 
 	# Status line
 	var since_str: String = data.get("since", "")
@@ -121,8 +115,7 @@ func setup(data: Dictionary) -> void:
 		modulate.a = 0.5
 
 	# Rebuild action buttons
-	for child in action_box.get_children():
-		child.queue_free()
+	NodeUtils.free_children(action_box)
 	if not is_available:
 		_add_action_btn(tr("Rejoin Server"), func():
 			rejoin_pressed.emit(srv_url, sp_name)

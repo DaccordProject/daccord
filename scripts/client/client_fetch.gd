@@ -57,14 +57,10 @@ func fetch_channels(space_id: String) -> void:
 			_c._channel_to_space[d["id"]] = space_id
 		AppState.channels_updated.emit(space_id)
 	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to fetch channels: ",
-			err_msg
+			err
 		)
 
 func fetch_dm_channels() -> void:
@@ -115,14 +111,10 @@ func fetch_dm_channels() -> void:
 				_c._dm_channel_cache[d["id"]] = d
 				_c._dm_to_conn[d["id"]] = conn_idx
 		else:
-			var err_msg: String = (
-				result.error.message
-				if result.error
-				else "unknown"
-			)
+			var err: String = NodeUtils.rest_error(result)
 			push_error(
 				"[Client] Failed to fetch DM channels: ",
-				err_msg
+				err
 			)
 
 	# Restore unread state
@@ -258,17 +250,13 @@ func fetch_messages(channel_id: String) -> void:
 		_c.emoji.trim_user_cache()
 		AppState.messages_updated.emit(channel_id)
 	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to fetch messages: ",
-			err_msg
+			err
 		)
 		AppState.message_fetch_failed.emit(
-			channel_id, err_msg
+			channel_id, err
 		)
 
 func fetch_older_messages(channel_id: String) -> void:
@@ -292,14 +280,10 @@ func fetch_older_messages(channel_id: String) -> void:
 		{"before": oldest_id, "limit": cap},
 	)
 	if not result.ok:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to fetch older messages: ",
-			err_msg
+			err
 		)
 		return
 	# Fetch all unknown authors in parallel
@@ -360,14 +344,10 @@ func fetch_thread_messages(channel_id: String, parent_message_id: String) -> voi
 			parent_message_id
 		)
 	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to fetch thread messages: ",
-			err_msg
+			err
 		)
 
 func fetch_forum_posts(channel_id: String, sort: String = "latest_activity") -> void:
@@ -402,17 +382,13 @@ func fetch_forum_posts(channel_id: String, sort: String = "latest_activity") -> 
 		_c._forum_post_cache[channel_id] = posts
 		AppState.forum_posts_updated.emit(channel_id)
 	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to fetch forum posts: ",
-			err_msg
+			err
 		)
 		AppState.message_fetch_failed.emit(
-			channel_id, err_msg
+			channel_id, err
 		)
 
 func fetch_active_threads(channel_id: String) -> Array:
@@ -457,14 +433,10 @@ func fetch_members(space_id: String) -> void:
 			space_id, params
 		)
 		if not result.ok:
-			var err_msg: String = (
-				result.error.message
-				if result.error
-				else "unknown"
-			)
+			var err: String = NodeUtils.rest_error(result)
 			push_error(
 				"[Client] Failed to fetch members: ",
-				err_msg
+				err
 			)
 			return
 
@@ -526,13 +498,9 @@ func fetch_roles(space_id: String) -> void:
 		_c._role_cache[space_id] = roles
 		AppState.roles_updated.emit(space_id)
 	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
-			"[Client] Failed to fetch roles: ", err_msg
+			"[Client] Failed to fetch roles: ", err
 		)
 
 func fetch_voice_states(channel_id: String) -> void:
@@ -559,14 +527,10 @@ func fetch_voice_states(channel_id: String) -> void:
 				states.size()
 		AppState.voice_state_updated.emit(channel_id)
 	else:
-		var err_msg: String = (
-			result.error.message
-			if result.error
-			else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to fetch voice states: ",
-			err_msg
+			err
 		)
 
 func refresh_current_user(conn_index: int) -> void:

@@ -31,7 +31,7 @@ func _ready() -> void:
 func _on_spaces_updated() -> void:
 	if _startup_selection_done:
 		return
-	if Client.spaces.size() == 0:
+	if not Client.spaces:
 		return
 
 	var saved := Config.get_last_selection()

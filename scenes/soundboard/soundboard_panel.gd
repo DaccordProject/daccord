@@ -26,8 +26,7 @@ func setup(space_id: String) -> void:
 	_load_sounds()
 
 func _load_sounds() -> void:
-	for child in _sound_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_sound_list)
 	_empty_label.visible = false
 	_all_sounds.clear()
 
@@ -60,8 +59,7 @@ func _load_sounds() -> void:
 	_rebuild_list(_all_sounds)
 
 func _rebuild_list(sounds: Array) -> void:
-	for child in _sound_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_sound_list)
 
 	if sounds.is_empty():
 		_empty_label.text = tr("No sounds match your search.")

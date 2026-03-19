@@ -305,15 +305,13 @@ func _add_file_from_path(path: String) -> void:
 
 func _update_attachment_bar() -> void:
 	# Clear existing children
-	for child in attachment_bar.get_children():
-		child.queue_free()
+	NodeUtils.free_children(attachment_bar)
 	attachment_bar.visible = not _pending_files.is_empty()
 	for i in _pending_files.size():
 		var file_info: Dictionary = _pending_files[i]
 		var label := Label.new()
 		label.text = tr("%s (%s)") % [file_info["filename"], _format_file_size(file_info["size"])]
-		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		ThemeManager.style_label(label, 12, "text_muted")
 		var remove_btn := Button.new()
 		remove_btn.text = "x"
 		remove_btn.flat = true
@@ -361,12 +359,10 @@ static func _format_file_size(bytes: int) -> String:
 
 func _show_upload_indicator() -> void:
 	attachment_bar.visible = true
-	for child in attachment_bar.get_children():
-		child.queue_free()
+	NodeUtils.free_children(attachment_bar)
 	var label := Label.new()
 	label.text = tr("Uploading...")
-	label.add_theme_font_size_override("font_size", 12)
-	label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(label, 12, "text_muted")
 	label.name = "UploadingLabel"
 	attachment_bar.add_child(label)
 

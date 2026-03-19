@@ -30,8 +30,7 @@ func setup(space_id: String) -> void:
 	custom_scroll.visible = false
 
 func _build_role_list() -> void:
-	for child in role_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(role_list)
 
 	var roles: Array = Client.get_roles_for_space(_space_id)
 	# Sort by position descending (highest first)
@@ -81,8 +80,7 @@ func _build_role_list() -> void:
 	role_list.add_child(custom_btn)
 
 func _build_perm_checkboxes() -> void:
-	for child in perm_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(perm_list)
 	_custom_perm_checks.clear()
 
 	for perm in AccordPermission.all():

@@ -75,8 +75,7 @@ func setup(data: Dictionary) -> void:
 		thread_indicator.visible = true
 		var suffix: String = tr("reply") if thread_reply_count == 1 else tr("replies")
 		thread_count_label.text = tr("%d %s") % [thread_reply_count, suffix]
-		thread_count_label.add_theme_font_size_override("font_size", 12)
-		thread_count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
+		ThemeManager.style_label(thread_count_label, 12, "accent")
 		# Detect unread thread
 		if Client._thread_unread.has(data.get("id", "")):
 			thread_count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent_hover"))

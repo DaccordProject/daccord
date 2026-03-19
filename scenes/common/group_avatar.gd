@@ -31,8 +31,7 @@ func _apply_theme() -> void:
 	grid.add_theme_constant_override("v_separation", 1)
 
 func setup_recipients(recipients: Array) -> void:
-	for child in grid.get_children():
-		child.queue_free()
+	NodeUtils.free_children(grid)
 
 	var mini_size: int = (avatar_size - 1) / 2
 	var count: int = mini(recipients.size(), 4)

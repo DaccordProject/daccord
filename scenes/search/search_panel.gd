@@ -125,8 +125,7 @@ func _on_dm_mode_entered() -> void:
 
 
 func _clear_results() -> void:
-	for child in results_vbox.get_children():
-		child.queue_free()
+	NodeUtils.free_children(results_vbox)
 	status_label.visible = false
 	load_more_btn.visible = false
 	_has_more = false

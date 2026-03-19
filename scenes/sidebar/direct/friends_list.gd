@@ -61,8 +61,7 @@ func _update_tab_highlights() -> void:
 		)
 
 func _refresh() -> void:
-	for child in list_vbox.get_children():
-		child.queue_free()
+	NodeUtils.free_children(list_vbox)
 
 	# Update pending badge
 	var pending_count: int = Client.relationships.get_pending_incoming().size()
@@ -130,10 +129,7 @@ func _sort_by_name(arr: Array) -> void:
 func _add_section_label(text: String) -> void:
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 11)
-	lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(lbl, 11, "text_muted")
 	lbl.add_theme_constant_override("margin_left", 8)
 	list_vbox.add_child(lbl)
 

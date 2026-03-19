@@ -2,7 +2,7 @@ extends GutTest
 
 ## Unit tests for ClientTestApi request parsing and endpoint routing.
 
-const ClientTestApi := preload("res://scripts/autoload/client_test_api.gd")
+const ClientTestApi := preload("res://scripts/client/client_test_api.gd")
 
 var api: RefCounted
 
@@ -215,10 +215,10 @@ func test_route_known_endpoint_exists() -> void:
 		)
 
 
-func test_endpoint_count_is_37() -> void:
+func test_endpoint_count_is_39() -> void:
 	assert_eq(
-		api._endpoints.size(), 37,
-		"Should have exactly 37 registered endpoints"
+		api._endpoints.size(), 39,
+		"Should have exactly 39 registered endpoints"
 	)
 
 

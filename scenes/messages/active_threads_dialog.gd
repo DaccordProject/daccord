@@ -78,8 +78,7 @@ func _create_thread_item(msg: Dictionary) -> PanelContainer:
 
 	var time_label := Label.new()
 	time_label.text = msg.get("timestamp", "")
-	time_label.add_theme_font_size_override("font_size", 11)
-	time_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(time_label, 11, "text_muted")
 	header.add_child(time_label)
 
 	# Content preview
@@ -88,8 +87,7 @@ func _create_thread_item(msg: Dictionary) -> PanelContainer:
 		content = content.substr(0, 100) + "..."
 	var content_label := Label.new()
 	content_label.text = content
-	content_label.add_theme_font_size_override("font_size", 13)
-	content_label.add_theme_color_override("font_color", ThemeManager.get_color("text_body"))
+	ThemeManager.style_label(content_label, 13, "text_body")
 	content_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(content_label)
 
@@ -99,8 +97,7 @@ func _create_thread_item(msg: Dictionary) -> PanelContainer:
 		var count_label := Label.new()
 		var suffix: String = tr("reply") if reply_count == 1 else tr("replies")
 		count_label.text = tr("%d %s") % [reply_count, suffix]
-		count_label.add_theme_font_size_override("font_size", 12)
-		count_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
+		ThemeManager.style_label(count_label, 12, "accent")
 		vbox.add_child(count_label)
 
 	var msg_id: String = msg.get("id", "")

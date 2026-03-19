@@ -10,12 +10,34 @@ var _c: Node # Client autoload
 func _init(client_node: Node) -> void:
 	_c = client_node
 
+
+func _require_server() -> AccordClient:
+	var c: AccordClient = _c._first_connected_client()
+	if c == null:
+		push_error("[Client] No connected server")
+	return c
+
+
+func _require_space(space_id: String) -> AccordClient:
+	var c: AccordClient = _c._client_for_space(space_id)
+	if c == null:
+		push_error("[Client] No connection for space:", space_id)
+	return c
+
+
+func _require_channel(channel_id: String) -> AccordClient:
+	var c: AccordClient = _c._client_for_channel(channel_id)
+	if c == null:
+		push_error(
+			"[Client] No connection for channel: ", channel_id
+		)
+	return c
+
 # --- Instance-admin methods (use first connected client) ---
 
 func create_space(data: Dictionary) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	var result: RestResult = await client.spaces.create(data)
 	if result.ok:
@@ -23,18 +45,16 @@ func create_space(data: Dictionary) -> RestResult:
 	return result
 
 func list_all_spaces(query: Dictionary = {}) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.list_spaces(query)
 
 func admin_update_space(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	var result: RestResult = await client.admin_api.update_space(
 		space_id, data
@@ -44,50 +64,44 @@ func admin_update_space(
 	return result
 
 func list_all_users(query: Dictionary = {}) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.list_users(query)
 
 func admin_update_user(
 	user_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.update_user(user_id, data)
 
 func reset_user_password(
 	user_id: String, new_password: String
 ) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.reset_user_password(
 		user_id, {"new_password": new_password}
 	)
 
 func admin_delete_user(user_id: String) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.delete_user(user_id)
 
 func get_server_settings() -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.get_settings()
 
 func update_server_settings(data: Dictionary) -> RestResult:
-	var client: AccordClient = _c._first_connected_client()
+	var client := _require_server()
 	if client == null:
-		push_error("[Client] No connected server")
 		return null
 	return await client.admin_api.update_settings(data)
 
@@ -96,9 +110,8 @@ func update_server_settings(data: Dictionary) -> RestResult:
 func update_space(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.spaces.update(space_id, data)
 	if result.ok and result.data is AccordSpace:
@@ -115,18 +128,16 @@ func update_space(
 	return result
 
 func delete_space(space_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.spaces.delete(space_id)
 
 func create_channel(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.spaces.create_channel(
 		space_id, data
@@ -141,11 +152,8 @@ func update_channel(
 	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
-	var client: AccordClient = _c._client_for_channel(channel_id)
+	var client := _require_channel(channel_id)
 	if client == null:
-		push_error(
-			"[Client] No connection for channel: ", channel_id
-		)
 		return null
 	var result: RestResult = await client.channels.update(channel_id, data)
 	if result.ok and not space_id.is_empty():
@@ -156,11 +164,8 @@ func delete_channel(channel_id: String) -> RestResult:
 	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
-	var client: AccordClient = _c._client_for_channel(channel_id)
+	var client := _require_channel(channel_id)
 	if client == null:
-		push_error(
-			"[Client] No connection for channel: ", channel_id
-		)
 		return null
 	var result: RestResult = await client.channels.delete(channel_id)
 	if result.ok and not space_id.is_empty():
@@ -170,9 +175,8 @@ func delete_channel(channel_id: String) -> RestResult:
 func create_role(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.roles.create(space_id, data)
 	if result.ok:
@@ -182,9 +186,8 @@ func create_role(
 func update_role(
 	space_id: String, role_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.roles.update(
 		space_id, role_id, data
@@ -196,9 +199,8 @@ func update_role(
 func delete_role(
 	space_id: String, role_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.roles.delete(space_id, role_id)
 	if result.ok:
@@ -208,9 +210,8 @@ func delete_role(
 func kick_member(
 	space_id: String, user_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.kick(space_id, user_id)
 	if result.ok:
@@ -221,9 +222,8 @@ func ban_member(
 	space_id: String, user_id: String,
 	data: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.bans.create(
 		space_id, user_id, data
@@ -236,9 +236,8 @@ func ban_member(
 func unban_member(
 	space_id: String, user_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.bans.remove(space_id, user_id)
 	if result.ok:
@@ -248,9 +247,8 @@ func unban_member(
 func add_member_role(
 	space_id: String, user_id: String, role_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.add_role(
 		space_id, user_id, role_id
@@ -262,9 +260,8 @@ func add_member_role(
 func remove_member_role(
 	space_id: String, user_id: String, role_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.remove_role(
 		space_id, user_id, role_id
@@ -276,9 +273,8 @@ func remove_member_role(
 func update_member(
 	space_id: String, user_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.members.update(
 		space_id, user_id, data
@@ -290,18 +286,16 @@ func update_member(
 func get_audit_log(
 	space_id: String, query: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.audit_logs.list(space_id, query)
 
 func get_bans(
 	space_id: String, query: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.bans.list(space_id, query)
 	if result.ok and result.data is Array:
@@ -316,9 +310,8 @@ func get_bans(
 	return result
 
 func get_invites(space_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.invites.list_space(space_id)
 	if result.ok and result.data is Array:
@@ -337,9 +330,8 @@ func get_invites(space_id: String) -> RestResult:
 func create_invite(
 	space_id: String, data: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.invites.create_space(
 		space_id, data
@@ -351,9 +343,8 @@ func create_invite(
 func delete_invite(
 	code: String, space_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.invites.delete(code)
 	if result.ok:
@@ -361,18 +352,16 @@ func delete_invite(
 	return result
 
 func get_emojis(space_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.emojis.list(space_id)
 
 func create_emoji(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.emojis.create(space_id, data)
 	if result.ok:
@@ -382,9 +371,8 @@ func create_emoji(
 func update_emoji(
 	space_id: String, emoji_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.emojis.update(
 		space_id, emoji_id, data
@@ -396,9 +384,8 @@ func update_emoji(
 func delete_emoji(
 	space_id: String, emoji_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.emojis.delete(
 		space_id, emoji_id
@@ -416,18 +403,16 @@ func get_emoji_url(
 	return AccordCDN.emoji(emoji_id, fmt, cdn_url)
 
 func get_sounds(space_id: String) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.soundboard.list(space_id)
 
 func create_sound(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.soundboard.create(space_id, data)
 	if result.ok:
@@ -437,9 +422,8 @@ func create_sound(
 func update_sound(
 	space_id: String, sound_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.soundboard.update(
 		space_id, sound_id, data
@@ -451,9 +435,8 @@ func update_sound(
 func delete_sound(
 	space_id: String, sound_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.soundboard.delete(
 		space_id, sound_id
@@ -465,9 +448,8 @@ func delete_sound(
 func play_sound(
 	space_id: String, sound_id: String
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.soundboard.play(space_id, sound_id)
 
@@ -480,9 +462,8 @@ func get_sound_url(
 func reorder_channels(
 	space_id: String, data: Array
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.spaces.reorder_channels(
 		space_id, data
@@ -494,9 +475,8 @@ func reorder_channels(
 func reorder_roles(
 	space_id: String, data: Array
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.roles.reorder(space_id, data)
 	if result.ok:
@@ -510,11 +490,8 @@ func update_channel_overwrites(
 	var space_id: String = _c._channel_to_space.get(
 		channel_id, ""
 	)
-	var client: AccordClient = _c._client_for_channel(channel_id)
+	var client := _require_channel(channel_id)
 	if client == null:
-		push_error(
-			"[Client] No connection for channel: ", channel_id
-		)
 		return null
 
 	# Delete overwrites that were reset to all-INHERIT
@@ -554,27 +531,24 @@ func update_channel_overwrites(
 func create_report(
 	space_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.reports.create(space_id, data)
 
 func get_reports(
 	space_id: String, query: Dictionary = {}
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	return await client.reports.list(space_id, query)
 
 func resolve_report(
 	space_id: String, report_id: String, data: Dictionary
 ) -> RestResult:
-	var client: AccordClient = _c._client_for_space(space_id)
+	var client := _require_space(space_id)
 	if client == null:
-		push_error("[Client] No connection for space:", space_id)
 		return null
 	var result: RestResult = await client.reports.resolve(
 		space_id, report_id, data

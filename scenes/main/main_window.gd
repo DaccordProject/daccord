@@ -10,24 +10,14 @@ const DrawerGestures := preload("res://scenes/main/drawer_gestures.gd")
 const PanelResizeHandle := preload("res://scenes/main/panel_resize_handle.gd")
 const MainWindowVoiceViewClass := preload("res://scenes/main/main_window_voice_view.gd")
 const MainWindowTabs := preload("res://scenes/main/main_window_tabs.gd")
-const ProfileCardScene := preload(
-	"res://scenes/user/profile_card.tscn"
-)
-const WelcomeScreenScene := preload(
-	"res://scenes/main/welcome_screen.tscn"
-)
-const ImageLightboxScene := preload(
-	"res://scenes/messages/image_lightbox.tscn"
-)
-const ToastScene := preload(
-	"res://scenes/main/toast.tscn"
+const MainWindowOverlaysClass := preload(
+	"res://scenes/main/main_window_overlays.gd"
 )
 
 var _tabs: RefCounted
 var _drawer: MainWindowDrawer
 var _voice_view: RefCounted # MainWindowVoiceView
-var _active_profile_card: PanelContainer = null
-var _welcome_screen: Control = null
+var _overlays: RefCounted # MainWindowOverlays
 var _member_list_before_medium: bool = true
 var _gestures: RefCounted
 var _thread_handle: Control
@@ -68,6 +58,7 @@ func _ready() -> void:
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
 	_voice_view = MainWindowVoiceViewClass.new(self)
+	_overlays = MainWindowOverlaysClass.new(self, layout_hbox)
 	_apply_ui_scale()
 	AudioServer.set_bus_volume_db(
 		0, linear_to_db(Config.voice.get_output_volume() / 100.0)
@@ -147,8 +138,7 @@ func _ready() -> void:
 	content_header.add_theme_stylebox_override("panel", header_style)
 
 	# Style topic bar
-	topic_bar.add_theme_font_size_override("font_size", 12)
-	topic_bar.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(topic_bar, 12, "text_muted")
 
 	# Create resize handles for side panels
 	_thread_handle = PanelResizeHandle.new(
@@ -187,17 +177,17 @@ func _ready() -> void:
 
 	# Error reporting consent (first launch only)
 	if not Config.has_error_reporting_preference():
-		call_deferred("_show_consent_dialog")
+		_overlays.call_deferred("show_consent_dialog")
 
 	# Crash recovery toast
 	if Config.get_error_reporting_enabled() and ErrorReporting._initialized:
 		var last_id: String = ErrorReporting.get_last_event_id()
 		if not last_id.is_empty():
-			call_deferred("_show_crash_toast")
+			_overlays.call_deferred("show_crash_toast")
 
 	# Welcome screen for first launch (no servers configured)
 	if not Config.has_servers():
-		_show_welcome_screen()
+		_overlays.show_welcome_screen()
 
 func _apply_ui_scale() -> void:
 	var scale: float = Config.get_ui_scale()
@@ -319,7 +309,7 @@ func _on_server_removed(space_id: String) -> void:
 		topic_bar.visible = false
 		_tabs.update_visibility()
 		if not Config.has_servers():
-			_show_welcome_screen()
+			_overlays.show_welcome_screen()
 		return
 
 	# Ensure a valid tab is selected
@@ -516,9 +506,9 @@ func _check_rules_interstitial(space_id: String) -> void:
 	if rules_ch.is_empty():
 		return
 	var RulesDialog := preload(
-		"res://scenes/admin/rules_interstitial_dialog.gd"
+		"res://scenes/admin/rules_interstitial_dialog.tscn"
 	)
-	var dialog: ModalBase = RulesDialog.new()
+	var dialog: ModalBase = RulesDialog.instantiate()
 	dialog.setup(space_id, rules_ch)
 	get_tree().root.add_child(dialog)
 
@@ -568,92 +558,10 @@ func _on_backdrop_input(event: InputEvent) -> void:
 	elif event is InputEventScreenTouch and event.pressed:
 		AppState.close_sidebar_drawer()
 
-func _on_profile_card_requested(user_id: String, pos: Vector2) -> void:
-	if _active_profile_card and is_instance_valid(_active_profile_card):
-		_active_profile_card.queue_free()
-	var user_data: Dictionary = Client.get_user_by_id(user_id)
-	if user_data.is_empty():
-		return
-	_active_profile_card = ProfileCardScene.instantiate()
-	add_child(_active_profile_card)
-	var space_id: String = ""
-	if not AppState.is_dm_mode:
-		space_id = AppState.current_space_id
-	_active_profile_card.setup(user_data, space_id)
-	# Position near click, clamped to viewport
-	await get_tree().process_frame
-	var vp_size := get_viewport().get_visible_rect().size
-	var card_size := _active_profile_card.size
-	var x: float = clampf(pos.x, 0.0, vp_size.x - card_size.x)
-	var y: float = clampf(pos.y, 0.0, vp_size.y - card_size.y)
-	_active_profile_card.position = Vector2(x, y)
-
-func _show_welcome_screen() -> void:
-	_welcome_screen = WelcomeScreenScene.instantiate()
-	# Add as full-window overlay covering sidebar + content
-	add_child(_welcome_screen)
-	# Hide normal layout
-	layout_hbox.visible = false
-	# Listen for first server connection
-	if not AppState.spaces_updated.is_connected(_on_first_server_added):
-		AppState.spaces_updated.connect(
-			_on_first_server_added, CONNECT_ONE_SHOT
-		)
-
-func _on_first_server_added() -> void:
-	# Guard: spaces_updated can fire from disconnect_server() too.
-	# Only dismiss the welcome screen when a server actually exists.
-	if not Config.has_servers():
-		if not AppState.spaces_updated.is_connected(_on_first_server_added):
-			AppState.spaces_updated.connect(
-				_on_first_server_added, CONNECT_ONE_SHOT
-			)
-		return
-	if _welcome_screen and is_instance_valid(_welcome_screen):
-		_welcome_screen.dismissed.connect(func() -> void:
-			layout_hbox.visible = true
-			_welcome_screen = null
-		)
-		_welcome_screen.dismiss()
-	else:
-		layout_hbox.visible = true
-		_welcome_screen = null
-
-func _show_consent_dialog() -> void:
-	# Mark consent as shown immediately so the dialog never reappears,
-	# regardless of how it is dismissed. Default is disabled (safe).
-	Config.set_error_reporting_consent_shown()
-	var dialog := ConfirmationDialog.new()
-	dialog.title = tr("Error Reporting")
-	dialog.dialog_text = tr(
-		"Help improve daccord by sending anonymous crash and "
-		+ "error reports?\n\n"
-		+ "No personal data is included. You can change this "
-		+ "in Settings > Notifications at any time."
-	)
-	dialog.ok_button_text = tr("Enable")
-	dialog.cancel_button_text = tr("No thanks")
-	dialog.confirmed.connect(func() -> void:
-		Config.set_error_reporting_enabled(true)
-		ErrorReporting.init_sentry()
-		dialog.queue_free()
-	)
-	dialog.canceled.connect(func() -> void:
-		Config.set_error_reporting_enabled(false)
-		dialog.queue_free()
-	)
-	add_child(dialog)
-	dialog.popup_centered()
-
-func _show_crash_toast() -> void:
-	_show_toast(
-		tr("An error report from your last session was sent.")
-	)
-
-func _show_toast(text: String, is_error: bool = false) -> void:
-	var toast: PanelContainer = ToastScene.instantiate()
-	toast.setup(text, is_error)
-	add_child(toast)
+func _on_profile_card_requested(
+	user_id: String, pos: Vector2,
+) -> void:
+	_overlays.on_profile_card_requested(user_id, pos)
 
 func _on_voice_view_opened(channel_id: String) -> void:
 	_voice_view.on_voice_view_opened(
@@ -673,16 +581,12 @@ func _on_voice_left_pip(channel_id: String) -> void:
 	_voice_view.on_voice_left(channel_id)
 
 func _on_voice_error(error: String) -> void:
-	_show_toast(tr("Voice error: %s") % error, true)
+	_overlays.show_toast(tr("Voice error: %s") % error, true)
 
 func _on_image_lightbox_requested(
 	_url: String, texture: ImageTexture,
 ) -> void:
-	if texture == null:
-		return
-	var lightbox: ColorRect = ImageLightboxScene.instantiate()
-	add_child(lightbox)
-	lightbox.show_image(texture)
+	_overlays.on_image_lightbox_requested(_url, texture)
 
 func _on_update_indicator_show(_info: Dictionary) -> void:
 	_update_indicator.visible = true
@@ -709,7 +613,7 @@ func _on_profile_switched() -> void:
 	topic_bar.visible = false
 	# Show welcome screen if no servers in new profile
 	if not Config.has_servers():
-		_show_welcome_screen()
+		_overlays.show_welcome_screen()
 
 func _on_reauth_needed(
 	server_index: int, base_url: String,

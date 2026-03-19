@@ -8,7 +8,7 @@ func _ready() -> void:
 		return
 	if not ClassDB.class_exists(&"SentrySDK"):
 		return
-	_sentry_tree = load("res://scripts/sentry_scene_tree.gd")
+	_sentry_tree = load("res://scripts/helpers/sentry_scene_tree.gd")
 	if _sentry_tree == null:
 		return
 	if _sentry_tree.initialized:

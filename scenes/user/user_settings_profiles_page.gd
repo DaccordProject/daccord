@@ -51,8 +51,7 @@ func build() -> VBoxContainer:
 
 
 func _refresh_profiles_list() -> void:
-	for child in _profiles_list_vbox.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_profiles_list_vbox)
 
 	var prof_list: Array = Config.profiles.get_profiles()
 	var active_slug: String = Config.profiles.get_active_slug()
@@ -75,19 +74,13 @@ func _refresh_profiles_list() -> void:
 		if has_pw:
 			var lock_lbl := Label.new()
 			lock_lbl.text = tr("[locked]")
-			lock_lbl.add_theme_font_size_override("font_size", 11)
-			lock_lbl.add_theme_color_override(
-				"font_color", ThemeManager.get_color("text_muted")
-			)
+			ThemeManager.style_label(lock_lbl, 11, "text_muted")
 			row.add_child(lock_lbl)
 
 		if is_active:
 			var active_lbl := Label.new()
 			active_lbl.text = tr("(Active)")
-			active_lbl.add_theme_font_size_override("font_size", 12)
-			active_lbl.add_theme_color_override(
-				"font_color", ThemeManager.get_color("accent")
-			)
+			ThemeManager.style_label(active_lbl, 12, "accent")
 			row.add_child(active_lbl)
 		else:
 			var switch_btn := Button.new()

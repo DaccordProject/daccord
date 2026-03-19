@@ -118,8 +118,7 @@ func setup(data: Dictionary) -> void:
 		_gear_btn.custom_minimum_size = Vector2(20, 20)
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
-		_gear_btn.add_theme_font_size_override("font_size", 14)
-		_gear_btn.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		ThemeManager.style_label(_gear_btn, 14, "text_muted")
 		_gear_btn.tooltip_text = tr("Edit Channel")
 		_gear_btn.pressed.connect(_on_edit_channel)
 		$ChannelButton/HBox.add_child(_gear_btn)
@@ -146,8 +145,7 @@ func _on_voice_left(cid: String) -> void:
 
 func _refresh_participants() -> void:
 	# Clear old participant items and avatar tracking
-	for child in participant_container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(participant_container)
 	_participant_avatars.clear()
 
 	var voice_users: Array = Client.get_voice_users(channel_id)
@@ -221,15 +219,13 @@ func _refresh_participants() -> void:
 		if self_deaf:
 			var deaf_label := Label.new()
 			deaf_label.text = "D"
-			deaf_label.add_theme_font_size_override("font_size", 10)
-			deaf_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
+			ThemeManager.style_label(deaf_label, 10, "error")
 			deaf_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(deaf_label)
 		elif self_mute:
 			var mute_label := Label.new()
 			mute_label.text = "M"
-			mute_label.add_theme_font_size_override("font_size", 10)
-			mute_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
+			ThemeManager.style_label(mute_label, 10, "error")
 			mute_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(mute_label)
 
@@ -239,15 +235,13 @@ func _refresh_participants() -> void:
 		if self_video:
 			var video_label := Label.new()
 			video_label.text = "V"
-			video_label.add_theme_font_size_override("font_size", 10)
-			video_label.add_theme_color_override("font_color", ThemeManager.get_color("success"))
+			ThemeManager.style_label(video_label, 10, "success")
 			video_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(video_label)
 		if self_stream:
 			var stream_label := Label.new()
 			stream_label.text = "S"
-			stream_label.add_theme_font_size_override("font_size", 10)
-			stream_label.add_theme_color_override("font_color", ThemeManager.get_color("accent"))
+			ThemeManager.style_label(stream_label, 10, "accent")
 			stream_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(stream_label)
 

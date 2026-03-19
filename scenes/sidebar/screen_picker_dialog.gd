@@ -43,7 +43,7 @@ func _populate_sources() -> void:
 			var w: int = window.get("width", 0)
 			var h: int = window.get("height", 0)
 			_add_source_button(name, "%dx%d" % [w, h], source)
-	if monitors.size() == 0 and windows.size() == 0:
+	if not monitors and not windows:
 		_add_empty_label(tr("No screens or windows found"))
 
 func _add_source_button(
@@ -63,10 +63,7 @@ func _add_source_button(
 func _add_section_label(text: String) -> void:
 	var lbl := Label.new()
 	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_body")
-	)
+	ThemeManager.style_label(lbl, 13, "text_body")
 	_source_list.add_child(lbl)
 
 func _add_empty_label(text: String) -> void:
@@ -89,5 +86,4 @@ func _add_error_label(text: String) -> void:
 	_source_list.add_child(lbl)
 
 func _clear_list() -> void:
-	for child in _source_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(_source_list)

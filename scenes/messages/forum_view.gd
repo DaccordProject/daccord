@@ -46,8 +46,7 @@ func _build_ui() -> void:
 	add_child(header)
 
 	_forum_title = Label.new()
-	_forum_title.add_theme_font_size_override("font_size", 16)
-	_forum_title.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(_forum_title, 16, "text_white")
 	header.add_child(_forum_title)
 
 	var spacer := Control.new()
@@ -93,16 +92,14 @@ func _build_ui() -> void:
 	_empty_title_label = Label.new()
 	_empty_title_label.text = tr("No posts yet")
 	_empty_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_empty_title_label.add_theme_font_size_override("font_size", 20)
-	_empty_title_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(_empty_title_label, 20, "text_white")
 	_empty_state.add_child(_empty_title_label)
 
 	_empty_desc_label = Label.new()
 	_empty_desc_label.text = tr("Start the conversation by creating a new post!")
 	_empty_desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_empty_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_empty_desc_label.add_theme_font_size_override("font_size", 14)
-	_empty_desc_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+	ThemeManager.style_label(_empty_desc_label, 14, "text_muted")
 	_empty_state.add_child(_empty_desc_label)
 
 	var empty_btn := Button.new()

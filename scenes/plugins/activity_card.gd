@@ -47,18 +47,12 @@ func setup(plugin: Dictionary) -> void:
 	if max_p > 0:
 		var p_label := Label.new()
 		p_label.text = tr("%d players max") % max_p
-		p_label.add_theme_font_size_override("font_size", 11)
-		p_label.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(p_label, 11, "text_muted")
 		_meta_row.add_child(p_label)
 
 	var version_str: String = plugin.get("version", "")
 	if not version_str.is_empty():
 		var v_label := Label.new()
 		v_label.text = "v" + version_str
-		v_label.add_theme_font_size_override("font_size", 11)
-		v_label.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_muted")
-		)
+		ThemeManager.style_label(v_label, 11, "text_muted")
 		_meta_row.add_child(v_label)

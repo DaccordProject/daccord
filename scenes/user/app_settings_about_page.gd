@@ -26,10 +26,7 @@ func build() -> VBoxContainer:
 
 	var mit_label := Label.new()
 	mit_label.text = tr("MIT License — Copyright (c) 2025 daccord-projects")
-	mit_label.add_theme_font_size_override("font_size", 12)
-	mit_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(mit_label, 12, "text_muted")
 	vbox.add_child(mit_label)
 
 	vbox.add_child(HSeparator.new())
@@ -104,10 +101,7 @@ func build() -> VBoxContainer:
 		+ "for test API and MCP server access."
 	)
 	dev_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	dev_desc.add_theme_font_size_override("font_size", 11)
-	dev_desc.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(dev_desc, 11, "text_muted")
 	vbox.add_child(dev_desc)
 
 	return vbox
@@ -123,10 +117,7 @@ func _build_credit_card(
 	)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_bottom", 10)
+	ThemeManager.set_margins(margin, 12, 12, 10, 10)
 	panel.add_child(margin)
 
 	var card_vbox := VBoxContainer.new()
@@ -140,36 +131,24 @@ func _build_credit_card(
 
 	var desc_label := Label.new()
 	desc_label.text = description
-	desc_label.add_theme_font_size_override("font_size", 12)
-	desc_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(desc_label, 12, "text_muted")
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card_vbox.add_child(desc_label)
 
 	var copy_label := Label.new()
 	copy_label.text = copyright
-	copy_label.add_theme_font_size_override("font_size", 11)
-	copy_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(copy_label, 11, "text_muted")
 	card_vbox.add_child(copy_label)
 
 	var license_label := Label.new()
 	license_label.text = license_text
-	license_label.add_theme_font_size_override("font_size", 11)
-	license_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(license_label, 11, "text_muted")
 	card_vbox.add_child(license_label)
 
 	var link := LinkButton.new()
 	link.text = url
 	link.uri = url
-	link.add_theme_font_size_override("font_size", 11)
-	link.add_theme_color_override(
-		"font_color", ThemeManager.get_color("link")
-	)
+	ThemeManager.style_label(link, 11, "link")
 	card_vbox.add_child(link)
 
 	return panel

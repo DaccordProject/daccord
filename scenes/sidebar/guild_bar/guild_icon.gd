@@ -11,7 +11,7 @@ const EmojiMgmtScene := preload("res://scenes/admin/emoji_management_dialog.tscn
 const AuditLogScene := preload("res://scenes/admin/audit_log_dialog.tscn")
 const ReportListScene := preload("res://scenes/admin/report_list_dialog.tscn")
 const SoundboardMgmtScene := preload("res://scenes/admin/soundboard_management_dialog.tscn")
-const PluginMgmtScript := preload("res://scenes/admin/plugin_management_dialog.gd")
+const PluginMgmtScene := preload("res://scenes/admin/plugin_management_dialog.tscn")
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const ImposterPickerScene := preload("res://scenes/admin/imposter_picker_dialog.tscn")
 const ServerManagementPanel := preload(
@@ -267,7 +267,7 @@ func _on_admin_submenu_id_pressed(id: int) -> void:
 		tr("View As..."): ImposterPickerScene,
 	}
 	if label == tr("Plugins"):
-		var dialog: ColorRect = PluginMgmtScript.new()
+		var dialog: ColorRect = PluginMgmtScene.instantiate()
 		get_tree().root.add_child(dialog)
 		dialog.setup(space_id)
 	elif scene_map.has(label):
@@ -368,8 +368,7 @@ func _show_folder_dialog() -> void:
 	if existing_folders.size() > 0:
 		var label := Label.new()
 		label.text = tr("Existing folders:")
-		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		ThemeManager.style_label(label, 12, "text_muted")
 		vbox.add_child(label)
 		for fname in existing_folders:
 			var btn := Button.new()
@@ -483,8 +482,7 @@ func _space_get_drag_data(_at_position: Vector2) -> Variant:
 		return null
 	var preview := Label.new()
 	preview.text = space_name
-	preview.add_theme_font_size_override("font_size", 11)
-	preview.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(preview, 11, "text_white")
 	set_drag_preview(preview)
 	return {"type": "space_bar_item", "item_type": "space", "space_id": space_id, "source_node": self}
 

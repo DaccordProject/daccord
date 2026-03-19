@@ -17,13 +17,13 @@ func before_each() -> void:
 	config._registry.set_value("profile_default", "name", "Default")
 	config._profile_slug = "default"
 	var ProfilesScript = load(
-		"res://scripts/autoload/config_profiles.gd"
+		"res://scripts/config/config_profiles.gd"
 	)
 	config.profiles = ProfilesScript.new(
 		config, "daccord-profile-v1"
 	)
 	var VoiceScript = load(
-		"res://scripts/autoload/config_voice.gd"
+		"res://scripts/config/config_voice.gd"
 	)
 	config.voice = VoiceScript.new(config)
 

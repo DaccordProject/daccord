@@ -147,7 +147,7 @@ func _download_and_prepare_scripted_runtime(
 
 	if _scripted_runtime_class == null:
 		_scripted_runtime_class = load(
-			"res://scenes/plugins/scripted_runtime.gd"
+			"res://scripts/plugins/scripted_runtime.gd"
 		)
 	var runtime: Node = _scripted_runtime_class.new()
 	runtime.session_id = _active_session_id
@@ -248,7 +248,7 @@ func _download_and_prepare_native_runtime(
 				return
 
 	if _native_runtime_class == null:
-		_native_runtime_class = load("res://scenes/plugins/native_runtime.gd")
+		_native_runtime_class = load("res://scripts/plugins/native_runtime.gd")
 
 	var context := PluginContext.new()
 	context.plugin_id = plugin_id

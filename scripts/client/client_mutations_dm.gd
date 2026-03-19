@@ -30,10 +30,7 @@ func create_dm(user_id: String) -> void:
 		{"recipient_id": user_id}
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error("[Client] Failed to create DM: ", err)
 		return
 	var channel: AccordChannel = result.data
@@ -74,10 +71,7 @@ func create_group_dm(user_ids: Array) -> void:
 		{"recipients": user_ids}
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to create group DM: ", err
 		)
@@ -127,10 +121,7 @@ func add_dm_member(
 			channel_id, user_id
 		)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to add DM member: ", err
 		)
@@ -156,10 +147,7 @@ func remove_dm_member(
 			channel_id, user_id
 		)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to remove DM member: ", err
 		)
@@ -191,10 +179,7 @@ func rename_group_dm(
 		channel_id, {"name": new_name}
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error(
 			"[Client] Failed to rename group DM: ", err
 		)
@@ -215,10 +200,7 @@ func close_dm(channel_id: String) -> void:
 		channel_id
 	)
 	if not result.ok:
-		var err: String = (
-			result.error.message
-			if result.error else "unknown"
-		)
+		var err: String = NodeUtils.rest_error(result)
 		push_error("[Client] Failed to close DM: ", err)
 		return
 	_c._dm_channel_cache.erase(channel_id)

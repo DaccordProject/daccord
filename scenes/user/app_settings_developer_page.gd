@@ -58,10 +58,7 @@ func build() -> VBoxContainer:
 	vbox.add_child(_test_api_toggle)
 
 	_test_api_status = Label.new()
-	_test_api_status.add_theme_font_size_override("font_size", 12)
-	_test_api_status.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_test_api_status, 12, "text_muted")
 	_update_test_api_status()
 	vbox.add_child(_test_api_status)
 
@@ -85,10 +82,7 @@ func build() -> VBoxContainer:
 
 	# Token display
 	_test_api_token_label = Label.new()
-	_test_api_token_label.add_theme_font_size_override("font_size", 12)
-	_test_api_token_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_test_api_token_label, 12, "text_muted")
 	_update_token_display(
 		_test_api_token_label,
 		Config.developer.get_test_api_token()
@@ -127,10 +121,7 @@ func build() -> VBoxContainer:
 		+ "Token is optional."
 	)
 	no_auth_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	no_auth_note.add_theme_font_size_override("font_size", 11)
-	no_auth_note.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(no_auth_note, 11, "text_muted")
 	vbox.add_child(no_auth_note)
 
 	vbox.add_child(HSeparator.new())
@@ -145,10 +136,7 @@ func build() -> VBoxContainer:
 	vbox.add_child(_mcp_toggle)
 
 	_mcp_status = Label.new()
-	_mcp_status.add_theme_font_size_override("font_size", 12)
-	_mcp_status.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_mcp_status, 12, "text_muted")
 	_update_mcp_status()
 	vbox.add_child(_mcp_status)
 
@@ -172,10 +160,7 @@ func build() -> VBoxContainer:
 
 	# MCP Token display
 	_mcp_token_label = Label.new()
-	_mcp_token_label.add_theme_font_size_override("font_size", 12)
-	_mcp_token_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_mcp_token_label, 12, "text_muted")
 	_update_token_display(
 		_mcp_token_label, Config.developer.get_mcp_token()
 	)
@@ -229,10 +214,7 @@ func build() -> VBoxContainer:
 		+ "and --test-api-port flags for CI use."
 	)
 	cli_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	cli_note.add_theme_font_size_override("font_size", 11)
-	cli_note.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(cli_note, 11, "text_muted")
 	vbox.add_child(cli_note)
 
 	return vbox

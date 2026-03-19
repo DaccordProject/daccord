@@ -151,8 +151,7 @@ func _with_button_loading(
 
 ## Remove all children from a container node.
 static func _clear_children(container: Node) -> void:
-	for child in container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(container)
 
 
 ## Try to close with unsaved-changes guard. Requires _dirty var in subclass.

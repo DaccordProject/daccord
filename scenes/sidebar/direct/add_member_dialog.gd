@@ -41,8 +41,7 @@ func setup(
 
 
 func _populate_users() -> void:
-	for child in user_list.get_children():
-		child.queue_free()
+	NodeUtils.free_children(user_list)
 
 	var query: String = search_input.text.strip_edges().to_lower()
 

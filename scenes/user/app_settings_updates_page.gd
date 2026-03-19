@@ -50,10 +50,7 @@ func build() -> VBoxContainer:
 	_check_btn.pressed.connect(_on_check_updates_pressed)
 	check_row.add_child(_check_btn)
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 13)
-	_status_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_status_label, 13, "text_muted")
 	check_row.add_child(_status_label)
 	vbox.add_child(check_row)
 
@@ -62,10 +59,7 @@ func build() -> VBoxContainer:
 	_update_row.add_theme_constant_override("separation", 8)
 	_update_row.visible = false
 	_update_version_label = Label.new()
-	_update_version_label.add_theme_font_size_override("font_size", 14)
-	_update_version_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("accent")
-	)
+	ThemeManager.style_label(_update_version_label, 14, "accent")
 	_update_row.add_child(_update_version_label)
 	_view_changes_btn = Button.new()
 	_view_changes_btn.text = tr("View Changes")
@@ -101,10 +95,7 @@ func build() -> VBoxContainer:
 	_progress_bar.max_value = 100.0
 	_progress_row.add_child(_progress_bar)
 	_progress_label = Label.new()
-	_progress_label.add_theme_font_size_override("font_size", 12)
-	_progress_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_muted")
-	)
+	ThemeManager.style_label(_progress_label, 12, "text_muted")
 	_progress_row.add_child(_progress_label)
 	_cancel_btn = Button.new()
 	_cancel_btn.text = tr("Cancel")
@@ -128,10 +119,7 @@ func build() -> VBoxContainer:
 
 	# Error label
 	_error_label_update = Label.new()
-	_error_label_update.add_theme_color_override(
-		"font_color", ThemeManager.get_color("error")
-	)
-	_error_label_update.add_theme_font_size_override("font_size", 13)
+	ThemeManager.style_label(_error_label_update, 13, "error")
 	_error_label_update.visible = false
 	vbox.add_child(_error_label_update)
 

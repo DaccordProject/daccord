@@ -152,8 +152,7 @@ func setup(data: Dictionary) -> void:
 
 func _render_fields(fields_arr: Array) -> void:
 	# Clear existing field nodes
-	for child in fields_container.get_children():
-		child.queue_free()
+	NodeUtils.free_children(fields_container)
 
 	var i := 0
 	while i < fields_arr.size():
@@ -185,8 +184,7 @@ func _create_field_cell(field: Dictionary) -> VBoxContainer:
 
 	var name_label := Label.new()
 	name_label.text = field.get("name", "")
-	name_label.add_theme_font_size_override("font_size", 12)
-	name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
+	ThemeManager.style_label(name_label, 12, "text_white")
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	cell.add_child(name_label)
 

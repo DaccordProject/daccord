@@ -101,10 +101,7 @@ func _ready() -> void:
 	# Build icon upload section (inserted after Header)
 	var icon_label := Label.new()
 	icon_label.text = tr("SPACE ICON")
-	icon_label.add_theme_font_size_override("font_size", 11)
-	icon_label.add_theme_color_override(
-		"font_color", ThemeManager.get_color("text_body")
-	)
+	ThemeManager.style_label(icon_label, 11, "text_body")
 	_vbox.add_child(icon_label)
 	_vbox.move_child(icon_label, 1)
 
