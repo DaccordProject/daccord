@@ -246,7 +246,9 @@ func load_space(space_id: String) -> void:
 					continue
 				select_id = ch["id"]
 				break
-	pending_channel_id = ""
+	# Only clear pending if channels have loaded (so it survives empty fetches)
+	if not channel_item_nodes.is_empty() or select_id == pending_channel_id:
+		pending_channel_id = ""
 	if select_id != "":
 		_on_channel_pressed(select_id)
 

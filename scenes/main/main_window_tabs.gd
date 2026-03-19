@@ -44,7 +44,9 @@ func find_tab(channel_id: String) -> int:
 func on_tab_changed(tab_index: int) -> void:
 	if tab_index >= 0 and tab_index < tabs.size():
 		var channel_id: String = tabs[tab_index]["channel_id"]
+		var space_id: String = tabs[tab_index]["space_id"]
 		AppState.select_channel(channel_id)
+		Config.set_last_selection(space_id, channel_id)
 
 
 func on_tab_close(tab_index: int) -> void:
@@ -56,10 +58,11 @@ func on_tab_close(tab_index: int) -> void:
 		_tab_bar.current_tab >= 0
 		and _tab_bar.current_tab < tabs.size()
 	):
-		var channel_id: String = (
-			tabs[_tab_bar.current_tab]["channel_id"]
+		var tab: Dictionary = tabs[_tab_bar.current_tab]
+		AppState.select_channel(tab["channel_id"])
+		Config.set_last_selection(
+			tab["space_id"], tab["channel_id"],
 		)
-		AppState.select_channel(channel_id)
 	update_visibility()
 	update_icons()
 
