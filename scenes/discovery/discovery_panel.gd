@@ -122,12 +122,31 @@ func _fetch_directory(query: String = "", tag: String = "") -> void:
 	_populate_tags(spaces)
 	_ping_servers(spaces)
 
+
+func _is_space_joined(space_data: Dictionary) -> bool:
+	var space_id: String = space_data.get("space_id", space_data.get("id", ""))
+	if space_id.is_empty():
+		return false
+	var server_url: String = space_data.get("server_url", "")
+	var normalized := _normalize_url(server_url)
+	for space in Client.spaces:
+		if space.get("id", "") != space_id:
+			continue
+		# Match server URL to avoid false positives across servers
+		var conn_idx: int = Client.get_conn_index_for_space(space_id)
+		if conn_idx < 0:
+			continue
+		var base_url: String = Client.get_base_url_for_space(space_id)
+		if _normalize_url(base_url) == normalized:
+			return true
+	return false
+
 func _populate_grid(spaces: Array) -> void:
 	_clear_grid()
 	for space in spaces:
 		var card: PanelContainer = DiscoveryCardScene.instantiate()
 		_grid.add_child(card)
-		card.setup(space)
+		card.setup(space, _is_space_joined(space))
 		card.card_clicked.connect(_on_card_clicked)
 
 func _clear_grid() -> void:
@@ -290,7 +309,7 @@ func _on_card_clicked(space_data: Dictionary) -> void:
 
 	_detail_view = DiscoveryDetailScene.instantiate()
 	_detail_container.add_child(_detail_view)
-	_detail_view.setup(space_data)
+	_detail_view.setup(space_data, _is_space_joined(space_data))
 	_detail_view.back_pressed.connect(_on_detail_back)
 	_detail_view.join_pressed.connect(_on_detail_join_with_slug)
 	_detail_view.preview_pressed.connect(_on_detail_preview)

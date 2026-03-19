@@ -26,6 +26,17 @@ func _ready() -> void:
 	add_child(_admin_menu)
 	settings_button.pressed.connect(_show_admin_menu)
 	AppState.imposter_mode_changed.connect(_on_imposter_mode_changed)
+	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
+	_apply_compact_height(AppState.current_layout_mode)
+
+func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
+	_apply_compact_height(mode)
+
+func _apply_compact_height(mode: AppState.LayoutMode) -> void:
+	if mode == AppState.LayoutMode.COMPACT:
+		custom_minimum_size.y = 48.0
+	else:
+		custom_minimum_size.y = 80.0
 
 func _apply_theme() -> void:
 	space_name_label.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))

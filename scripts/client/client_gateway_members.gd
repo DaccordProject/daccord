@@ -65,10 +65,14 @@ func on_member_join(member: AccordMember, conn_index: int) -> void:
 	var member_dict := ClientModels.member_to_dict(member, _c._user_cache, cdn_url)
 	if not _c._member_cache.has(space_id):
 		_c._member_cache[space_id] = []
-	_c._member_cache[space_id].append(member_dict)
 	if not _c._member_id_index.has(space_id):
 		_c._member_id_index[space_id] = {}
-	_c._member_id_index[space_id][member.user_id] = _c._member_cache[space_id].size() - 1
+	var existing_idx: int = _c._member_index_for(space_id, member.user_id)
+	if existing_idx != -1:
+		_c._member_cache[space_id][existing_idx] = member_dict
+	else:
+		_c._member_cache[space_id].append(member_dict)
+		_c._member_id_index[space_id][member.user_id] = _c._member_cache[space_id].size() - 1
 	AppState.member_joined.emit(space_id, member_dict)
 	AppState.members_updated.emit(space_id)
 

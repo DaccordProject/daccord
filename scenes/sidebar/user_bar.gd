@@ -18,6 +18,8 @@ func _ready() -> void:
 	voice_indicator.visible = false
 	AppState.voice_joined.connect(_on_voice_joined)
 	AppState.voice_left.connect(_on_voice_left)
+	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
+	_apply_compact_height(AppState.current_layout_mode)
 	# Avatar hover animation
 	avatar.mouse_entered.connect(_on_avatar_hover_enter)
 	avatar.mouse_exited.connect(_on_avatar_hover_exit)
@@ -72,6 +74,17 @@ func _apply_theme() -> void:
 		"font_color", ThemeManager.get_color("text_muted")
 	)
 	ThemeManager.apply_font_colors(self)
+
+func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
+	_apply_compact_height(mode)
+
+func _apply_compact_height(mode: AppState.LayoutMode) -> void:
+	if mode == AppState.LayoutMode.COMPACT:
+		custom_minimum_size.y = 40.0
+		username.visible = false
+	else:
+		custom_minimum_size.y = 52.0
+		username.visible = true
 
 func setup(user: Dictionary) -> void:
 	display_name.text = user.get(

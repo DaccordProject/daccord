@@ -3,6 +3,7 @@ extends PanelContainer
 signal card_clicked(space_data: Dictionary)
 
 var _data: Dictionary = {}
+var _joined := false
 
 @onready var _icon: TextureRect = $Margin/VBox/Header/Icon
 @onready var _name_label: Label = $Margin/VBox/Header/Info/TopRow/NameLabel
@@ -19,9 +20,12 @@ func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_apply_style()
 
-func setup(data: Dictionary) -> void:
+func setup(data: Dictionary, joined: bool = false) -> void:
 	_data = data
+	_joined = joined
 	_name_label.text = data.get("name", tr("Unknown Space"))
+	if _joined:
+		_add_joined_badge()
 	var member_count: int = data.get("member_count", 0)
 	var presence_count: int = data.get("presence_count", 0)
 	_member_label.text = tr("%d members") % member_count
@@ -77,6 +81,18 @@ func set_ping(ms: int) -> void:
 
 func _apply_theme() -> void:
 	_apply_style()
+
+func _add_joined_badge() -> void:
+	var badge := Label.new()
+	badge.text = tr("Joined")
+	ThemeManager.style_label(badge, 10, "text_white")
+	badge.add_theme_stylebox_override("normal",
+		ThemeManager.make_flat_style("success", 4, [6, 2, 6, 2])
+	)
+	# Insert badge after the name label in TopRow
+	var top_row: HBoxContainer = _name_label.get_parent()
+	top_row.add_child(badge)
+	top_row.move_child(badge, _name_label.get_index() + 1)
 
 func _apply_style() -> void:
 	add_theme_stylebox_override("panel", ThemeManager.make_flat_style("nav_bg", 8))

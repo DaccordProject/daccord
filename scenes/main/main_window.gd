@@ -648,6 +648,7 @@ func _on_voice_text_closed() -> void:
 	_sync_handle_visibility()
 
 func _on_discovery_opened() -> void:
+	AppState.close_sidebar_drawer()
 	discovery_panel.visible = true
 	discovery_panel.activate()
 	content_area.visible = false

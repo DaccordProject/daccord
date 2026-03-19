@@ -30,9 +30,12 @@ func _ready() -> void:
 func _apply_theme() -> void:
 	_apply_style()
 
-func setup(data: Dictionary) -> void:
+func setup(data: Dictionary, joined: bool = false) -> void:
 	_data = data
 	_name_label.text = data.get("name", tr("Unknown Space"))
+	if joined:
+		_join_button.text = tr("Joined")
+		_join_button.disabled = true
 
 	var member_count: int = data.get("member_count", 0)
 	var presence_count: int = data.get("presence_count", 0)

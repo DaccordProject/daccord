@@ -197,6 +197,14 @@ static func _parse_release(data: Dictionary) -> Dictionary:
 				fallback_asset = asset
 			elif aname.ends_with(".zip") and fallback_asset.is_empty():
 				fallback_asset = asset
+		elif platform_key == "android":
+			if aname.ends_with(".apk"):
+				var arch: String = Engine.get_architecture_name()
+				if aname.contains(arch):
+					best_asset = asset
+					break
+				if fallback_asset.is_empty():
+					fallback_asset = asset
 		else:
 			if fallback_asset.is_empty():
 				fallback_asset = asset
@@ -270,7 +278,9 @@ func download_update(version_info: Dictionary) -> void:
 	_downloading = true
 	_download_version = version
 	var ext: String
-	if OS.get_name() == "Linux":
+	if OS.get_name() == "Android":
+		ext = ".apk"
+	elif OS.get_name() == "Linux":
 		ext = ".tar.gz"
 	elif download_url.ends_with(".dmg"):
 		ext = ".dmg"
@@ -281,7 +291,8 @@ func download_update(version_info: Dictionary) -> void:
 
 	_download_http = HTTPRequest.new()
 	_download_http.download_file = global_path
-	_download_http.use_threads = true
+	# Threaded downloads can fail to signal completion on Android
+	_download_http.use_threads = OS.get_name() != "Android"
 	add_child(_download_http)
 	_download_http.request_completed.connect(_on_download_completed)
 
@@ -340,6 +351,16 @@ func _on_download_completed(
 	if _download_http and is_instance_valid(_download_http):
 		_download_http.queue_free()
 	_download_http = null
+
+	# Android: APK is ready to install directly, no extraction needed
+	if OS.get_name() == "Android":
+		var apk_path: String = ProjectSettings.globalize_path(
+			_download_path
+		)
+		_staged_binary_path = apk_path
+		_update_ready = true
+		AppState.update_download_complete.emit(apk_path)
+		return
 
 	# Extract the update
 	var extract_result: Dictionary = _extract_update(_download_path)
@@ -486,7 +507,9 @@ func apply_update_and_restart() -> void:
 
 	_save_draft_messages()
 
-	if OS.get_name() == "macOS":
+	if OS.get_name() == "Android":
+		_apply_android_update()
+	elif OS.get_name() == "macOS":
 		_apply_macos_update()
 	else:
 		_apply_binary_update()
@@ -550,6 +573,11 @@ func _apply_binary_update() -> void:
 	var args: PackedStringArray = OS.get_cmdline_args()
 	OS.create_process(current_binary, args)
 	get_tree().quit()
+
+
+func _apply_android_update() -> void:
+	# Launch the system package installer for the downloaded APK
+	OS.shell_open(_staged_binary_path)
 
 
 func _list_dir_files(dir_path: String) -> PackedStringArray:

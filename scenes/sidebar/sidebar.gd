@@ -79,8 +79,9 @@ func _on_space_selected(space_id: String) -> void:
 	channel_list.load_space(space_id)
 	AppState.select_space(space_id)
 	Config.set_last_selection(space_id, AppState.current_channel_id)
-	# In medium mode, show channel panel when space is selected
-	if AppState.current_layout_mode == AppState.LayoutMode.MEDIUM:
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		AppState.close_sidebar_drawer()
+	elif AppState.current_layout_mode == AppState.LayoutMode.MEDIUM:
 		AppState.channel_panel_visible = true
 		set_channel_panel_visible(true)
 

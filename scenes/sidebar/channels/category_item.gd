@@ -225,6 +225,8 @@ func get_category_id() -> String:
 # --- Drag-and-drop reordering ---
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		return null
 	if space_id == "" or not Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		return null
 	var preview := Label.new()
