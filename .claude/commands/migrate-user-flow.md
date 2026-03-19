@@ -1,7 +1,7 @@
 ---
 description: Migrate a user flow into a technical maintenance document in agentsdb
 argument-hint: <flow-name or file>
-allowed-tools: Read, Glob, Grep, Bash(wc:*), Task, mcp__agentsdb__agents_search, mcp__agentsdb__agents_context_write
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(wc:*), Task, mcp__agentsdb__agents_search, mcp__agentsdb__agents_context_write
 ---
 
 You are converting a product-oriented user flow document into a technical maintenance document written by engineers for engineers, and storing it in agentsdb.
@@ -110,6 +110,37 @@ agents_context_write(
   sources: ["user_flows/<name>.md"]
 )
 ```
+
+### 8. Stub the user flow (full flows only)
+
+After successfully writing to agentsdb, **replace the full user flow with a stub**. The detailed content now lives in agentsdb as the maintenance document — the user flow should be reduced to a compact reference.
+
+Use this format (modeled on `user_flows/ui_animations.md`):
+
+```markdown
+# <Feature Name>
+
+Priority: <N>
+Depends on: <deps>
+Status: Complete
+
+<1-2 sentence summary of what the feature covers, mentioning key subsystems and entry points.>
+
+## Key Files
+
+| File | Role |
+|------|------|
+| `path/to/file.gd` | Concise one-line role description |
+```
+
+Rules for stubbing:
+- Keep the header (title, priority, depends on, status)
+- Write a single paragraph summary — compress the Overview section into 1-2 sentences
+- Keep the Key Files table but **shorten each Role column** to a concise phrase (no line numbers, no method lists)
+- **Remove** all other sections: User Steps, Signal Flow, Implementation Details, Implementation Status, Gaps/TODO
+- The resulting file should be ~30 lines or fewer
+
+Do NOT stub if the flow was already stubbed (≤30 lines) in step 3.
 
 ## Maintenance Document Template
 
