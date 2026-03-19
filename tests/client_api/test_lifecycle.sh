@@ -10,11 +10,11 @@ echo "$RESULT" | jq -e '.ok == true' > /dev/null || { echo "FAIL: wait_frames no
 echo "$RESULT" | jq -e '.frames_waited == 2' > /dev/null || { echo "FAIL: wrong frame count"; exit 1; }
 
 # Unknown endpoint should return error
-RESULT=$(curl -sf "$API/nonexistent_endpoint" -X POST -d '{}')
+RESULT=$(curl -s "$API/nonexistent_endpoint" -X POST -d '{}')
 echo "$RESULT" | jq -e 'has("error")' > /dev/null || { echo "FAIL: expected error for unknown endpoint"; exit 1; }
 
 # Missing required params
-RESULT=$(curl -sf "$API/select_channel" -X POST -d '{}')
+RESULT=$(curl -s "$API/select_channel" -X POST -d '{}')
 echo "$RESULT" | jq -e 'has("error")' > /dev/null || { echo "FAIL: expected error for missing channel_id"; exit 1; }
 
 # list_surfaces
