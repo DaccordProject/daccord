@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-03-19
+
+### Added
+- MCP tools, content embedding, and gateway events
+- Client HTTP API
+
+### Changed
+- Reorganized scripts into domain subdirectories and split large files
+- Moved mute/color/developer helpers to proper subsystems
+
+### Fixed
+- Remove curl -f flag from test assertions expecting HTTP errors
+- Clean stale test DB from CWD and add missing UID files
+- Use platform-specific asset extensions in updater tests
+- Fix GitHub org URLs and add self-hosting deployment guide
+
 ## [0.1.13] - 2026-03-17
 
 ### Added
