@@ -181,8 +181,8 @@ wait_for() {
     local endpoint="$2"
     local body="${3:-{}}"
     local timeout="${4:-10}"
-    local elapsed=0
-    while [ $elapsed -lt "$timeout" ]; do
+    local deadline=$((SECONDS + timeout))
+    while [ $SECONDS -lt "$deadline" ]; do
         local result
         result=$($api_fn "$endpoint" "$body")
         if echo "$result" | jq -e '.ok == true' > /dev/null 2>&1; then
@@ -190,7 +190,6 @@ wait_for() {
             return 0
         fi
         sleep 0.5
-        elapsed=$((elapsed + 1))
     done
     echo '{"error":"timeout waiting for '"$endpoint"'"}'
     return 1
@@ -203,8 +202,8 @@ wait_for_message() {
     local channel_id="$2"
     local filter="$3"
     local timeout="${4:-15}"
-    local elapsed=0
-    while [ $elapsed -lt "$timeout" ]; do
+    local deadline=$((SECONDS + timeout))
+    while [ $SECONDS -lt "$deadline" ]; do
         local result
         result=$($api_fn "list_messages" "{\"channel_id\":\"$channel_id\",\"limit\":20}")
         if echo "$result" | jq -e ".messages[]? | select($filter)" > /dev/null 2>&1; then
@@ -212,7 +211,6 @@ wait_for_message() {
             return 0
         fi
         sleep 0.5
-        elapsed=$((elapsed + 1))
     done
     echo '{"error":"timeout waiting for message matching: '"$filter"'"}'
     return 1

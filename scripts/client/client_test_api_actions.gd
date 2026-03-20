@@ -362,15 +362,20 @@ func endpoint_simulate_text(args: Dictionary) -> Dictionary:
 	if text.is_empty():
 		return {"error": "text is required"}
 
-	# Send each character as a key event with unicode
+	# Send each character as press + release key events with unicode
 	for i in text.length():
 		var ch: String = text[i]
-		var ev := InputEventKey.new()
-		ev.pressed = true
-		ev.unicode = ch.unicode_at(0)
-		ev.keycode = KEY_NONE
-		Input.parse_input_event(ev)
-	await _c.get_tree().process_frame
+		var press := InputEventKey.new()
+		press.pressed = true
+		press.unicode = ch.unicode_at(0)
+		press.keycode = KEY_NONE
+		Input.parse_input_event(press)
+		var release := InputEventKey.new()
+		release.pressed = false
+		release.unicode = ch.unicode_at(0)
+		release.keycode = KEY_NONE
+		Input.parse_input_event(release)
+		await _c.get_tree().process_frame
 	return {"ok": true, "length": text.length()}
 
 
