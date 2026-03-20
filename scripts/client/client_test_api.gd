@@ -341,6 +341,13 @@ func _init_endpoints() -> void:
 		"leave_voice": _actions.endpoint_leave_voice,
 		"toggle_mute": _actions.endpoint_toggle_mute,
 		"toggle_deafen": _actions.endpoint_toggle_deafen,
+		# Login / connection (delegated to _actions)
+		"login": _actions.endpoint_login,
+		# Input simulation (delegated to _actions)
+		"simulate_click": _actions.endpoint_simulate_click,
+		"simulate_key": _actions.endpoint_simulate_key,
+		"simulate_text": _actions.endpoint_simulate_text,
+		"simulate_mouse_move": _actions.endpoint_simulate_mouse_move,
 		# Lifecycle (delegated to _actions)
 		"wait_frames": _actions.endpoint_wait_frames,
 		"quit": _actions.endpoint_quit,
