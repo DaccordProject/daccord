@@ -1,6 +1,12 @@
 extends VBoxContainer
 
 const EmbedScene := preload("res://scenes/messages/embed.tscn")
+const AudioPlayerScene := preload(
+	"res://scenes/messages/audio_player.tscn"
+)
+const VideoPlaceholderScene := preload(
+	"res://scenes/messages/video_placeholder.tscn"
+)
 
 # Static LRU image cache for attachments
 const IMAGE_CACHE_CAP := 100
@@ -467,91 +473,47 @@ func _show_gif_fallback(container: Control, url: String) -> void:
 			OS.shell_open(url)
 	)
 
-func _create_video_placeholder(url: String, filename: String) -> Control:
-	var container := Control.new()
-	container.custom_minimum_size = Vector2(400, 225)
-	container.mouse_filter = Control.MOUSE_FILTER_STOP
-	var bg := ColorRect.new()
+func _create_video_placeholder(
+	url: String, filename: String,
+) -> Control:
+	var container: Control = \
+		VideoPlaceholderScene.instantiate()
+	var bg: ColorRect = container.get_node("Background")
 	bg.color = ThemeManager.get_color("input_bg")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(bg)
-	# Play triangle
-	var play_label := Label.new()
-	play_label.text = "\u25b6"
-	play_label.add_theme_font_size_override("font_size", 48)
-	play_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
-	play_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	play_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	play_label.set_anchors_preset(Control.PRESET_CENTER)
-	play_label.position.y -= 10
-	play_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(play_label)
-	# Filename at bottom
-	var name_label := Label.new()
+	var name_label: Label = container.get_node(
+		"%NameLabel"
+	)
 	name_label.text = filename
 	ThemeManager.style_label(name_label, 11, "text_muted")
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	name_label.offset_top = -24
-	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(name_label)
-	# Click to open in browser
-	container.gui_input.connect(func(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			OS.shell_open(url)
+	container.gui_input.connect(
+		func(event: InputEvent) -> void:
+			if event is InputEventMouseButton \
+					and event.pressed \
+					and event.button_index \
+					== MOUSE_BUTTON_LEFT:
+				OS.shell_open(url)
 	)
 	return container
 
 func _create_audio_player(
 	url: String, filename: String, _content_type: String,
 ) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.custom_minimum_size = Vector2(300, 36)
-	# Background
-	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeManager.get_color("nav_bg")
-	style.corner_radius_top_left = 4
-	style.corner_radius_top_right = 4
-	style.corner_radius_bottom_left = 4
-	style.corner_radius_bottom_right = 4
-	style.content_margin_left = 8.0
-	style.content_margin_right = 8.0
-	style.content_margin_top = 4.0
-	style.content_margin_bottom = 4.0
+	var row: HBoxContainer = AudioPlayerScene.instantiate()
+	var panel: PanelContainer = row.get_node("Panel")
+	var style := ThemeManager.make_flat_style(
+		"nav_bg", 4, [8, 4, 8, 4]
+	)
 	panel.add_theme_stylebox_override("panel", style)
-	var inner_row := HBoxContainer.new()
-	inner_row.add_theme_constant_override("separation", 8)
-	panel.add_child(inner_row)
-	# Play/Pause button
-	var play_btn := Button.new()
-	play_btn.text = "\u25b6"
-	play_btn.custom_minimum_size = Vector2(32, 32)
-	inner_row.add_child(play_btn)
-	# Progress slider
-	var slider := HSlider.new()
-	slider.custom_minimum_size = Vector2(150, 0)
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.01
-	inner_row.add_child(slider)
-	# Time label
-	var time_label := Label.new()
-	time_label.text = "0:00"
+	var play_btn: Button = row.get_node("%PlayButton")
+	var slider: HSlider = row.get_node("%Slider")
+	var time_label: Label = row.get_node("%TimeLabel")
 	ThemeManager.style_label(time_label, 11, "text_muted")
-	inner_row.add_child(time_label)
-	# Filename
-	var name_label := Label.new()
+	var name_label: Label = row.get_node("%NameLabel")
 	name_label.text = filename
 	ThemeManager.style_label(name_label, 11, "text_muted")
-	inner_row.add_child(name_label)
-	row.add_child(panel)
-	# Audio playback logic
-	var stream_player := AudioStreamPlayer.new()
-	row.add_child(stream_player)
+	var stream_player: AudioStreamPlayer = row.get_node(
+		"%StreamPlayer"
+	)
 	var is_loaded := [false]
 	var is_playing := [false]
 	play_btn.pressed.connect(func() -> void:

@@ -1,0 +1,40 @@
+[gd_scene format=3]
+
+[node name="AudioPlayer" type="HBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(300, 36)
+theme_override_constants/separation = 8
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 2
+
+[node name="InnerRow" type="HBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayButton" type="Button" parent="Panel/InnerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(32, 32)
+text = "▶"
+
+[node name="Slider" type="HSlider" parent="Panel/InnerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 3
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+
+[node name="TimeLabel" type="Label" parent="Panel/InnerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0:00"
+
+[node name="NameLabel" type="Label" parent="Panel/InnerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="StreamPlayer" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true

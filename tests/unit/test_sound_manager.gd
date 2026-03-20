@@ -113,6 +113,7 @@ func test_play_for_message_unfocused_not_mention_no_crash() -> void:
 	sound_manager.play_for_message(
 		"c_other", "other_user", [], false
 	)
+	assert_true(true, "No crash on unfocused non-mention playback")
 
 
 # ==================================================================

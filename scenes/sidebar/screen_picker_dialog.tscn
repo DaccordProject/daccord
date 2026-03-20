@@ -62,3 +62,36 @@ size_flags_vertical = 3
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
+
+[node name="PreviewPanel" type="VBoxContainer" parent="CenterContainer/Panel/VBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="PreviewTexture" type="TextureRect" parent="CenterContainer/Panel/VBox/PreviewPanel"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 225)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+stretch_mode = 6
+expand_mode = 3
+
+[node name="PreviewLabel" type="Label" parent="CenterContainer/Panel/VBox/PreviewPanel"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="ButtonRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox/PreviewPanel"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="BackButton" type="Button" parent="CenterContainer/Panel/VBox/PreviewPanel/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 36)
+text = "Back"
+
+[node name="ShareButton" type="Button" parent="CenterContainer/Panel/VBox/PreviewPanel/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 36)
+text = "Start Sharing"

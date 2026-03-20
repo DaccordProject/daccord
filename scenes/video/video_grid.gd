@@ -8,6 +8,15 @@ const VideoTileScene := preload(
 const ActivityLobbyScene := preload(
 	"res://scenes/plugins/activity_lobby.tscn"
 )
+const ActivityHeaderScene := preload(
+	"res://scenes/video/activity_header.tscn"
+)
+const ActivityFooterScene := preload(
+	"res://scenes/video/activity_footer.tscn"
+)
+const PendingActivityBannerScene := preload(
+	"res://scenes/video/pending_activity_banner.tscn"
+)
 const VerticalResizeHandle := preload(
 	"res://scenes/video/vertical_resize_handle.gd"
 )
@@ -530,46 +539,46 @@ func _rebuild_pending_activity(tiles: Array) -> void:
 	spotlight_area.visible = true
 	_v_resize_handle.visible = false
 
-	var container := VBoxContainer.new()
-	container.add_theme_constant_override("separation", 12)
-	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	container.alignment = BoxContainer.ALIGNMENT_CENTER
-	spotlight_area.add_child(container)
+	var banner: VBoxContainer = \
+		PendingActivityBannerScene.instantiate()
+	spotlight_area.add_child(banner)
 
 	var manifest: Dictionary = Client.plugins.get_plugin(
 		_pending_plugin_id
 	)
-	var activity_name: String = manifest.get("name", tr("Activity"))
-	var host_id: String = AppState.pending_activity_host_user_id
-	var host_user: Dictionary = Client.get_user_by_id(host_id)
+	var activity_name: String = manifest.get(
+		"name", tr("Activity")
+	)
+	var host_id: String = \
+		AppState.pending_activity_host_user_id
+	var host_user: Dictionary = \
+		Client.get_user_by_id(host_id)
 	var host_name: String = host_user.get(
-		"display_name", host_user.get("username", tr("Someone"))
+		"display_name",
+		host_user.get("username", tr("Someone")),
 	)
 
-	var label := Label.new()
-	label.text = tr("%s started %s") % [host_name, activity_name]
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 16)
-	container.add_child(label)
+	var label: Label = banner.get_node("%Label")
+	label.text = tr("%s started %s") % [
+		host_name, activity_name,
+	]
 
-	var join_btn := Button.new()
-	join_btn.text = tr("Join Activity")
-	join_btn.custom_minimum_size = Vector2(140, 40)
+	var join_btn: Button = banner.get_node("%JoinButton")
 	var btn_style := ThemeManager.make_flat_style(
 		"accent", 6, [16, 10, 16, 10]
 	)
-	join_btn.add_theme_stylebox_override("normal", btn_style)
+	join_btn.add_theme_stylebox_override(
+		"normal", btn_style
+	)
 	join_btn.add_theme_color_override(
 		"font_color", ThemeManager.get_color("text_white")
 	)
-	join_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	join_btn.pressed.connect(_on_join_activity)
-	container.add_child(join_btn)
 
 	# Voice participant tiles below
 	for tile_data in tiles:
-		var tile: PanelContainer = VideoTileScene.instantiate()
+		var tile: PanelContainer = \
+			VideoTileScene.instantiate()
 		grid.add_child(tile)
 		_setup_tile(tile, tile_data)
 
@@ -579,34 +588,33 @@ func _on_join_activity() -> void:
 
 
 func _build_activity_header() -> PanelContainer:
-	var header_panel := PanelContainer.new()
+	var header_panel: PanelContainer = \
+		ActivityHeaderScene.instantiate()
 	var hstyle := ThemeManager.make_flat_style(
 		"nav_bg", 0, [12, 8, 12, 8]
 	)
 	header_panel.add_theme_stylebox_override("panel", hstyle)
 
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 8)
-	header_panel.add_child(hbox)
+	var name_lbl: Label = header_panel.get_node("%NameLabel")
+	name_lbl.text = _activity_manifest.get(
+		"name", tr("Activity")
+	)
 
-	var name_lbl := Label.new()
-	name_lbl.text = _activity_manifest.get("name", tr("Activity"))
-	name_lbl.add_theme_font_size_override("font_size", 15)
-	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hbox.add_child(name_lbl)
-
-	var runtime_lbl := Label.new()
+	var runtime_lbl: Label = header_panel.get_node(
+		"%RuntimeLabel"
+	)
 	runtime_lbl.text = _activity_manifest.get(
 		"runtime", ""
 	).capitalize()
 	ThemeManager.style_label(runtime_lbl, 11, "text_muted")
-	hbox.add_child(runtime_lbl)
 
-	var session_state: String = AppState.active_activity_session_state
+	var start_btn: Button = header_panel.get_node(
+		"%StartButton"
+	)
+	var session_state: String = \
+		AppState.active_activity_session_state
 	if session_state == "lobby" and _activity_is_host:
-		var start_btn := Button.new()
-		start_btn.text = tr("Start")
-		start_btn.custom_minimum_size = Vector2(60, 32)
+		start_btn.visible = true
 		var start_style := ThemeManager.make_flat_style(
 			"accent", 4, [8, 4, 8, 4]
 		)
@@ -614,14 +622,14 @@ func _build_activity_header() -> PanelContainer:
 			"normal", start_style
 		)
 		start_btn.add_theme_color_override(
-			"font_color", ThemeManager.get_color("text_white")
+			"font_color",
+			ThemeManager.get_color("text_white"),
 		)
 		start_btn.pressed.connect(_on_activity_start)
-		hbox.add_child(start_btn)
 
-	var leave_btn := Button.new()
-	leave_btn.text = tr("Leave")
-	leave_btn.custom_minimum_size = Vector2(60, 32)
+	var leave_btn: Button = header_panel.get_node(
+		"%LeaveButton"
+	)
 	var leave_style := ThemeManager.make_flat_style(
 		Color(ThemeManager.get_color("error"), 0.3),
 		4, [8, 4, 8, 4],
@@ -630,25 +638,23 @@ func _build_activity_header() -> PanelContainer:
 		"normal", leave_style
 	)
 	leave_btn.pressed.connect(_on_activity_leave)
-	hbox.add_child(leave_btn)
 
 	return header_panel
 
 func _build_activity_footer() -> PanelContainer:
-	var footer_panel := PanelContainer.new()
+	var footer_panel: PanelContainer = \
+		ActivityFooterScene.instantiate()
 	var fstyle := ThemeManager.make_flat_style(
 		"nav_bg", 0, [12, 6, 12, 6]
 	)
 	footer_panel.add_theme_stylebox_override("panel", fstyle)
 
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 8)
-	footer_panel.add_child(hbox)
-
-	var role_lbl := Label.new()
-	role_lbl.text = tr("Role: %s") % AppState.active_activity_role.capitalize()
+	var role_lbl: Label = footer_panel.get_node(
+		"%RoleLabel"
+	)
+	role_lbl.text = tr("Role: %s") % \
+		AppState.active_activity_role.capitalize()
 	ThemeManager.style_label(role_lbl, 12, "text_muted")
-	hbox.add_child(role_lbl)
 	_activity_container.set_meta("role_label", role_lbl)
 
 	return footer_panel
