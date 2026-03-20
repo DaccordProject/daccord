@@ -215,10 +215,10 @@ func test_route_known_endpoint_exists() -> void:
 		)
 
 
-func test_endpoint_count_is_39() -> void:
+func test_endpoint_count_is_44() -> void:
 	assert_eq(
-		api._endpoints.size(), 39,
-		"Should have exactly 39 registered endpoints"
+		api._endpoints.size(), 44,
+		"Should have exactly 44 registered endpoints"
 	)
 
 
