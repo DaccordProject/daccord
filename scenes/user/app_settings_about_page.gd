@@ -85,6 +85,33 @@ func build() -> VBoxContainer:
 		)
 		vbox.add_child(card)
 
+	# Privacy & Legal
+	vbox.add_child(HSeparator.new())
+	vbox.add_child(_section_label.call(tr("PRIVACY & LEGAL")))
+
+	var privacy_desc := Label.new()
+	privacy_desc.text = tr(
+		"daccord collects only the data you provide (profile, "
+		+ "messages) and optional anonymous crash reports. "
+		+ "No data is shared with third parties. You can export "
+		+ "or delete your data from each server's settings."
+	)
+	privacy_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ThemeManager.style_label(privacy_desc, 12, "text_muted")
+	vbox.add_child(privacy_desc)
+
+	var privacy_link := LinkButton.new()
+	privacy_link.text = tr("Privacy Policy")
+	privacy_link.uri = "https://daccord.cc/privacy"
+	ThemeManager.style_label(privacy_link, 12, "link")
+	vbox.add_child(privacy_link)
+
+	var tos_link := LinkButton.new()
+	tos_link.text = tr("Terms of Service")
+	tos_link.uri = "https://daccord.cc/terms"
+	ThemeManager.style_label(tos_link, 12, "link")
+	vbox.add_child(tos_link)
+
 	# Developer Mode toggle
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(_section_label.call(tr("ADVANCED")))

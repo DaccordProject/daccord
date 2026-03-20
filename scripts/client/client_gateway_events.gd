@@ -47,6 +47,12 @@ func on_report_create(_data: Dictionary, conn_index: int) -> void:
 	var space_id: String = _c._connections[conn_index]["space_id"]
 	AppState.reports_updated.emit(space_id)
 
+func on_audit_log_create(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	var space_id: String = _c._connections[conn_index]["space_id"]
+	AppState.audit_log_entry_created.emit(space_id, data)
+
 func on_invite_create(invite: AccordInvite, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
 		return

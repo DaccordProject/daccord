@@ -2,7 +2,7 @@ extends SettingsBase
 
 ## Per-server account settings panel.
 ## Pages: My Account, Notifications, Change Password, Delete Account,
-##        Two-Factor Auth, Connections.
+##        Two-Factor Auth, Connections, Privacy & Data.
 
 var _space_id: String = ""
 var _accord_client: AccordClient = null
@@ -31,6 +31,7 @@ func _get_sections() -> Array:
 	return [
 		tr("My Account"), tr("Notifications"), tr("Change Password"),
 		tr("Delete Account"), tr("Two-Factor Auth"), tr("Connections"),
+		tr("Privacy & Data"),
 	]
 
 func _build_pages() -> Array:
@@ -41,6 +42,7 @@ func _build_pages() -> Array:
 		_build_delete_page(),
 		_build_twofa_page(),
 		_build_connections_page(),
+		_build_privacy_page(),
 	]
 
 # --- My Account page ---
@@ -192,5 +194,152 @@ func _fetch_connections(
 			name_lbl.add_theme_color_override(
 				"font_color", ThemeManager.get_color("text_muted")
 			)
+			name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(name_lbl)
+			var disconnect_btn := SettingsBase.create_danger_button(
+				tr("Disconnect")
+			)
+			var conn_id: String = str(conn.get("id", ""))
+			disconnect_btn.pressed.connect(
+				_on_disconnect_connection.bind(conn_id, row)
+			)
+			row.add_child(disconnect_btn)
 			vbox.add_child(row)
+
+func _on_disconnect_connection(
+	conn_id: String, row: HBoxContainer,
+) -> void:
+	if _accord_client == null or conn_id.is_empty():
+		return
+	var result: RestResult = await _accord_client.rest.make_request(
+		"DELETE", "/users/@me/connections/" + conn_id
+	)
+	if result.ok:
+		row.queue_free()
+
+# --- Privacy & Data page ---
+
+func _build_privacy_page() -> VBoxContainer:
+	var vbox := _page_vbox(tr("Privacy & Data"))
+
+	# Data export section
+	vbox.add_child(_section_label(tr("DATA EXPORT")))
+	var export_desc := Label.new()
+	export_desc.text = tr(
+		"Download a copy of your personal data stored on this "
+		+ "server, including your profile, messages, and "
+		+ "relationships. The export is provided as a JSON file."
+	)
+	export_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	export_desc.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	vbox.add_child(export_desc)
+
+	var export_btn := SettingsBase.create_action_button(
+		tr("Request Data Export")
+	)
+	var export_status := Label.new()
+	export_status.visible = false
+	export_btn.pressed.connect(
+		_on_request_data_export.bind(export_btn, export_status)
+	)
+	vbox.add_child(export_btn)
+	vbox.add_child(export_status)
+
+	vbox.add_child(HSeparator.new())
+
+	# Data deletion info
+	vbox.add_child(_section_label(tr("DATA DELETION")))
+	var delete_desc := Label.new()
+	delete_desc.text = tr(
+		"When you delete your account, all personal data is "
+		+ "permanently removed from the server. This includes your "
+		+ "profile, messages, reactions, memberships, tokens, and "
+		+ "applications. This action cannot be undone."
+	)
+	delete_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	delete_desc.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	vbox.add_child(delete_desc)
+
+	vbox.add_child(HSeparator.new())
+
+	# Data retention info
+	vbox.add_child(_section_label(tr("DATA RETENTION")))
+	var retention_desc := Label.new()
+	retention_desc.text = tr(
+		"Data is retained for as long as your account exists. "
+		+ "There is no automatic expiration of messages or "
+		+ "attachments. Server administrators may configure "
+		+ "their own retention policies."
+	)
+	retention_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	retention_desc.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	vbox.add_child(retention_desc)
+
+	return vbox
+
+func _on_request_data_export(
+	btn: Button, status_label: Label,
+) -> void:
+	if _accord_client == null:
+		return
+	btn.disabled = true
+	btn.text = tr("Exporting...")
+	status_label.visible = false
+
+	var result: RestResult = await _accord_client.users.request_data_export()
+	if not result.ok:
+		btn.disabled = false
+		btn.text = tr("Request Data Export")
+		status_label.text = tr("Export failed. Please try again.")
+		status_label.add_theme_color_override(
+			"font_color", ThemeManager.get_color("error")
+		)
+		status_label.visible = true
+		return
+
+	# Open save dialog for the JSON export
+	var dialog := FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.filters = PackedStringArray(["*.json ; JSON files"])
+	dialog.current_file = "daccord-data-export.json"
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(600, 400))
+
+	var path: String = await dialog.file_selected
+	dialog.queue_free()
+
+	if path.is_empty():
+		btn.disabled = false
+		btn.text = tr("Request Data Export")
+		return
+
+	# Write the export data to the chosen file
+	var json_str: String = JSON.stringify(result.data, "\t")
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		status_label.text = tr("Failed to write file.")
+		status_label.add_theme_color_override(
+			"font_color", ThemeManager.get_color("error")
+		)
+		status_label.visible = true
+		btn.disabled = false
+		btn.text = tr("Request Data Export")
+		return
+
+	file.store_string(json_str)
+	file.close()
+
+	status_label.text = tr("Data exported successfully.")
+	status_label.add_theme_color_override(
+		"font_color", ThemeManager.get_color("success")
+	)
+	status_label.visible = true
+	btn.disabled = false
+	btn.text = tr("Request Data Export")

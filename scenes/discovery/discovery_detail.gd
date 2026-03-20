@@ -67,6 +67,13 @@ func setup(data: Dictionary, joined: bool = false) -> void:
 	_ping_label.text = tr("Measuring...")
 	_ping_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 
+	# Disable preview if guest access is not allowed
+	if not data.get("allow_guest_access", true):
+		_preview_button.disabled = true
+		_preview_button.tooltip_text = tr(
+			"Guest preview is disabled for this space"
+		)
+
 	# Load banner
 	var banner_url: String = data.get("banner_url", "")
 	if banner_url.is_empty():

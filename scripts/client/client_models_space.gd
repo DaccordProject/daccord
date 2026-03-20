@@ -44,6 +44,7 @@ static func space_to_dict(
 		"default_notifications": space.default_notifications,
 		"preferred_locale": space.preferred_locale,
 		"public": is_public,
+		"allow_guest_access": space.allow_guest_access,
 		"nsfw_level": space.nsfw_level,
 		"explicit_content_filter": space.explicit_content_filter,
 		"rules_channel_id": (

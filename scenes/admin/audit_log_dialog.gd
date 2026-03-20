@@ -39,10 +39,19 @@ func _ready() -> void:
 	_filter_option.add_item(tr("Invite Delete"), 12)
 	_filter_option.add_item(tr("Message Delete"), 13)
 	_filter_option.add_item(tr("Space Update"), 14)
+	_filter_option.add_item(tr("Invite Accept"), 15)
+	_filter_option.add_item(tr("Member Join"), 16)
 
 func setup(space_id: String) -> void:
 	_space_id = space_id
+	AppState.audit_log_entry_created.connect(_on_gateway_entry)
 	_load_entries()
+
+
+func _exit_tree() -> void:
+	super._exit_tree()
+	if AppState.audit_log_entry_created.is_connected(_on_gateway_entry):
+		AppState.audit_log_entry_created.disconnect(_on_gateway_entry)
 
 func _load_entries() -> void:
 	_clear_children(_entry_list)
@@ -96,7 +105,7 @@ func _rebuild_list(entries: Array) -> void:
 	for entry_dict in entries:
 		var row := AuditLogRowScene.instantiate()
 		_entry_list.add_child(row)
-		row.setup(entry_dict)
+		row.setup(entry_dict, _space_id)
 
 func _get_selected_action_type() -> String:
 	var idx: int = _filter_option.selected
@@ -105,6 +114,7 @@ func _get_selected_action_type() -> String:
 		"member_update", "role_create", "role_update", "role_delete",
 		"channel_create", "channel_update", "channel_delete",
 		"invite_create", "invite_delete", "message_delete", "space_update",
+		"invite_accept", "member_join",
 	]
 	if idx >= 0 and idx < action_types.size():
 		return action_types[idx]
@@ -131,4 +141,24 @@ func _on_load_more() -> void:
 	await _with_button_loading(
 		_load_more_btn, tr("Load More"), _fetch_page
 	)
+
+
+func _on_gateway_entry(space_id: String, entry: Dictionary) -> void:
+	if space_id != _space_id:
+		return
+	if not entry.has("id"):
+		return
+	# Check filter match
+	var action_filter: String = _get_selected_action_type()
+	if not action_filter.is_empty() \
+			and entry.get("action_type", "") != action_filter:
+		return
+	# Prepend to cached entries
+	_all_entries.insert(0, entry)
+	_empty_label.visible = false
+	# Prepend row to UI
+	var row := AuditLogRowScene.instantiate()
+	_entry_list.add_child(row)
+	_entry_list.move_child(row, 0)
+	row.setup(entry, _space_id)
 

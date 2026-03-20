@@ -582,7 +582,7 @@ The following cross-cutting UX improvements are implemented across all admin dia
 - [x] Emoji CDN image loading (via `HTTPRequest` + `Client.get_emoji_url()`)
 - [x] Emoji name validation (alphanumeric + underscore, no duplicates)
 - [x] Role toggle visual feedback (green/red flash, disabled during API call)
-- [ ] Audit log viewer
+- [x] Audit log viewer (see [audit_logs.md](audit_logs.md))
 
 ## Tasks
 
@@ -593,12 +593,12 @@ The following cross-cutting UX improvements are implemented across all admin dia
 - **Tags:** api
 - **Notes:** May miss members in large spaces. The server supports cursor-based pagination but the client does not follow cursors.
 
-### ADMIN-2: Audit log gaps (change diffs, real-time updates)
+### ADMIN-2: Audit log gaps (date range filter, export)
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 3
-- **Tags:** api, gateway
-- **Notes:** Audit log viewer and API exist (see [audit_logs.md](audit_logs.md)). Remaining gaps: no change diff display, no gateway events for live updates, target names not resolved.
+- **Tags:** api, ui
+- **Notes:** Audit log viewer, API, change diff display, gateway live updates, and target name resolution all exist (see [audit_logs.md](audit_logs.md)). Remaining gaps: no date range filter, no export/download.
 
 ### ADMIN-3: Channel permission overwrite editor only supports role overwrites
 - **Status:** open

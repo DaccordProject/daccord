@@ -96,6 +96,9 @@ signal relationship_add(relationship: AccordRelationship)
 signal relationship_update(relationship: AccordRelationship)
 signal relationship_remove(data: Dictionary)
 
+# Audit Log
+signal audit_log_create(data: Dictionary)
+
 # Raw event for anything not explicitly handled
 signal raw_event(event_type: String, data: Dictionary)
 
@@ -421,6 +424,8 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			relationship_update.emit(AccordRelationship.from_dict(data))
 		"relationship.remove":
 			relationship_remove.emit(data)
+		"audit_log.create":
+			audit_log_create.emit(data)
 
 	raw_event.emit(event_type, data)
 

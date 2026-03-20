@@ -20,6 +20,8 @@ var _system_channel_btn: OptionButton
 @onready var _notifications_btn: OptionButton = \
 	$CenterContainer/Panel/VBox/NotificationsRow/NotificationsOption
 @onready var _public_check: CheckBox = $CenterContainer/Panel/VBox/PublicRow/PublicCheck
+@onready var _guest_access_check: CheckBox = \
+	$CenterContainer/Panel/VBox/GuestAccessRow/GuestAccessCheck
 @onready var _nsfw_level_btn: OptionButton = \
 	$CenterContainer/Panel/VBox/NsfwLevelRow/NsfwLevelOption
 @onready var _content_filter_btn: OptionButton = \
@@ -135,6 +137,7 @@ func _ready() -> void:
 	_verification_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_notifications_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_public_check.toggled.connect(func(_b: bool): _dirty = true)
+	_guest_access_check.toggled.connect(func(_b: bool): _dirty = true)
 	_nsfw_level_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_content_filter_btn.item_selected.connect(func(_i: int): _dirty = true)
 	_rules_channel_btn.item_selected.connect(func(_i: int): _dirty = true)
@@ -166,6 +169,7 @@ func setup(space_id: String) -> void:
 		_notifications_btn.select(0)
 
 	_public_check.button_pressed = space.get("public", false)
+	_guest_access_check.button_pressed = space.get("allow_guest_access", true)
 
 	var nsfw: String = space.get("nsfw_level", "default")
 	match nsfw:
@@ -231,6 +235,7 @@ func _on_save() -> void:
 	}
 
 	data["public"] = _public_check.button_pressed
+	data["allow_guest_access"] = _guest_access_check.button_pressed
 
 	# Rules channel
 	var rules_sel: int = _rules_channel_btn.selected

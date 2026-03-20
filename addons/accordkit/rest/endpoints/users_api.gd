@@ -99,3 +99,10 @@ func delete_relationship(user_id: String) -> RestResult:
 	return await _rest.make_request(
 		"DELETE", "/users/@me/relationships/" + user_id
 	)
+
+
+## Requests a full data export of the current user's personal data
+## (GDPR Article 20 — data portability). Returns user profile, messages,
+## spaces, and relationships as JSON.
+func request_data_export() -> RestResult:
+	return await _rest.make_request("GET", "/users/@me/data-export")

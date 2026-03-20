@@ -141,12 +141,35 @@ layout_mode = 2
 
 [node name="PublicCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/PublicRow"]
 layout_mode = 2
-text = "Public space"
+text = "Allow open joining"
 
 [node name="PublicInfo" type="Label" parent="CenterContainer/Panel/VBox/PublicRow"]
 layout_mode = 2
 text = "ⓘ"
 tooltip_text = "When enabled, this space appears in the public directory and anyone can join."
+mouse_filter = 0
+metadata/theme_font_color = "text_muted"
+theme_override_font_sizes/font_size = 14
+
+[node name="PublicDesc" type="Label" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "When disabled, users can only join through invite links."
+metadata/theme_font_color = "text_muted"
+theme_override_font_sizes/font_size = 11
+autowrap_mode = 2
+
+[node name="GuestAccessRow" type="HBoxContainer" parent="CenterContainer/Panel/VBox"]
+layout_mode = 2
+
+[node name="GuestAccessCheck" type="CheckBox" parent="CenterContainer/Panel/VBox/GuestAccessRow"]
+layout_mode = 2
+button_pressed = true
+text = "Allow guest access"
+
+[node name="GuestAccessInfo" type="Label" parent="CenterContainer/Panel/VBox/GuestAccessRow"]
+layout_mode = 2
+text = "ⓘ"
+tooltip_text = "When enabled, unauthenticated users can preview this space in read-only mode. Disable to require registration."
 mouse_filter = 0
 metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 14

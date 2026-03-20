@@ -66,8 +66,16 @@ func try_auto_connect() -> bool:
 					display_name,
 				)
 				var idx: int = Config.get_servers().size() - 1
-				_c.connect_server(idx)
-				return true
+				var result: Dictionary = await _c.connect_server(idx)
+				if not result.has("error"):
+					return true
+				# Stored token is stale — remove it and fall through
+				# to guest mode below.
+				push_warning(
+					"[WebLinks] Stored token failed, clearing: ",
+					result.get("error", "")
+				)
+				_remove_local_storage("daccord_auth_token")
 	# 2. If no auth token, try auto-guest via preset server
 	if _preset_base_url.is_empty():
 		return false

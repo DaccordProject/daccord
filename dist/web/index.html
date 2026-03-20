@@ -127,15 +127,13 @@
 
     <!-- Preset server configuration for auto-guest mode.
          When set, visitors are automatically connected as guests with zero
-         interaction required. Omit base_url to use window.location.origin.
-         To enable, uncomment and set your server details:
+         interaction required. Omit base_url to use window.location.origin. -->
     <script>
       window.daccordPresetServer = {
-        base_url: "https://api.example.com",
+        // base_url defaults to window.location.origin when omitted
         space_slug: "community"
       };
     </script>
-    -->
 
     <!-- Parse URL fragment for deep link routing (#space/channel/post-id).
          The Godot engine reads window.daccordDeepLink on startup to navigate

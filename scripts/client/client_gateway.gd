@@ -67,6 +67,8 @@ func connect_signals(
 		on_role_delete.bind(idx))
 	client.ban_create.connect(_events.on_ban_create.bind(idx))
 	client.ban_delete.connect(_events.on_ban_delete.bind(idx))
+	client.audit_log_create.connect(
+		_events.on_audit_log_create.bind(idx))
 	client.report_create.connect(
 		_events.on_report_create.bind(idx))
 	client.invite_create.connect(
