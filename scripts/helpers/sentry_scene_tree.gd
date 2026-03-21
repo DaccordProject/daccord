@@ -5,9 +5,14 @@ extends SceneTree
 ## before_send callback gates every event on user consent so no data leaves
 ## the device until the user explicitly opts in.
 ##
-## Registered via Project Settings → Application → Run → Main Loop Type.
+## Registered via Project Settings -> Application -> Run -> Main Loop Type.
 ## On platforms where the SentrySDK GDExtension is unavailable (web, headless)
 ## this class is still used as the main loop but skips SDK initialization.
+##
+## IMPORTANT: This script must NOT reference Sentry types (SentrySDK,
+## SentryOptions, SentryEvent, SentryBreadcrumb) in type annotations
+## because the GDExtension is excluded from web exports.  All Sentry
+## access uses duck-typed Variant calls guarded by ClassDB checks.
 
 const _SALT := "daccord-config-v1"
 const _REGISTRY_PATH := "user://profile_registry.cfg"
@@ -16,7 +21,6 @@ static var initialized := false
 
 
 func _initialize() -> void:
-	super._initialize()
 	if DisplayServer.get_name() == "headless":
 		return
 	if not ClassDB.class_exists(&"SentrySDK"):
@@ -26,8 +30,8 @@ func _initialize() -> void:
 
 static func late_init() -> void:
 	## Called by ErrorReporting when the user enables crash reporting
-	## after startup (consent dialog).  If the SDK was already initialized
-	## in _initialize() this is a no-op.
+	## after startup (consent dialog).  If the SDK was already
+	## initialized in _initialize() this is a no-op.
 	if initialized:
 		return
 	if DisplayServer.get_name() == "headless":
@@ -39,7 +43,12 @@ static func late_init() -> void:
 
 static func _init_sdk() -> void:
 	initialized = true
-	SentrySDK.init(func(options: SentryOptions) -> void:
+	# Use duck-typed access — no SentrySDK/SentryOptions type refs.
+	var sdk = Engine.get_singleton(&"SentrySDK")
+	if sdk == null:
+		initialized = false
+		return
+	sdk.init(func(options) -> void:
 		options.dsn = ProjectSettings.get_setting(
 			"sentry/config/dsn", ""
 		)
@@ -48,20 +57,20 @@ static func _init_sdk() -> void:
 	var version: String = ProjectSettings.get_setting(
 		"application/config/version", "unknown"
 	)
-	SentrySDK.set_tag("app_version", version)
-	SentrySDK.set_tag(
+	sdk.set_tag("app_version", version)
+	sdk.set_tag(
 		"godot_version", Engine.get_version_info().string
 	)
-	SentrySDK.set_tag("os", OS.get_name())
-	SentrySDK.set_tag("renderer", ProjectSettings.get_setting(
+	sdk.set_tag("os", OS.get_name())
+	sdk.set_tag("renderer", ProjectSettings.get_setting(
 		"rendering/renderer/rendering_method", "unknown"
 	))
 
 
-static func _before_send(event: SentryEvent) -> SentryEvent:
-	# Re-read consent at send time — the user may have toggled it off
-	# after init.  Try the Config autoload first, fall back to disk.
-	var node: Node = (
+static func _before_send(event) -> Variant:
+	# Re-read consent at send time — the user may have toggled it
+	# off after init.  Try Config autoload first, fall back to disk.
+	var node = (
 		Engine.get_singleton("Config")
 		if Engine.has_singleton("Config")
 		else null
@@ -82,7 +91,7 @@ static func _before_send(event: SentryEvent) -> SentryEvent:
 	return event
 
 
-static func _scrub_pii(event: SentryEvent) -> void:
+static func _scrub_pii(event) -> void:
 	var msg: String = event.message
 	if msg.is_empty():
 		return
@@ -93,7 +102,9 @@ static func _scrub_pii(event: SentryEvent) -> void:
 	param_re.compile("token=[^&\\s\"']+")
 	msg = param_re.sub(msg, "token=[REDACTED]", true)
 	var url_re := RegEx.new()
-	url_re.compile("https?://[^\\s\"']+:\\d{2,5}[^\\s\"']*")
+	url_re.compile(
+		"https?://[^\\s\"']+:\\d{2,5}[^\\s\"']*"
+	)
 	msg = url_re.sub(msg, "[URL REDACTED]", true)
 	event.message = msg
 
@@ -104,28 +115,45 @@ static func add_breadcrumb(
 	message: String, category: String,
 	type: String = "default",
 ) -> void:
-	var crumb: SentryBreadcrumb = SentryBreadcrumb.create(
-		message
-	)
+	var sdk = Engine.get_singleton(&"SentrySDK")
+	if sdk == null:
+		return
+	# SentryBreadcrumb.create() is a static factory — call via
+	# ClassDB.instantiate() and set message property directly.
+	var crumb = ClassDB.instantiate(&"SentryBreadcrumb")
+	if crumb == null:
+		return
+	crumb.message = message
 	crumb.category = category
 	crumb.type = type
-	SentrySDK.add_breadcrumb(crumb)
+	sdk.add_breadcrumb(crumb)
 
 
 static func set_tag(key: String, value: String) -> void:
-	SentrySDK.set_tag(key, value)
+	var sdk = Engine.get_singleton(&"SentrySDK")
+	if sdk == null:
+		return
+	sdk.set_tag(key, value)
 
 
 static func capture_message(
 	description: String, level: int = -1,
 ) -> void:
+	var sdk = Engine.get_singleton(&"SentrySDK")
+	if sdk == null:
+		return
 	if level < 0:
-		level = SentrySDK.LEVEL_INFO
-	SentrySDK.capture_message(description, level)
+		level = ClassDB.class_get_integer_constant(
+			&"SentrySDK", &"LEVEL_INFO"
+		)
+	sdk.capture_message(description, level)
 
 
 static func get_last_event_id() -> String:
-	var val = SentrySDK.get_last_event_id()
+	var sdk = Engine.get_singleton(&"SentrySDK")
+	if sdk == null:
+		return ""
+	var val = sdk.get_last_event_id()
 	return val if val != null else ""
 
 
