@@ -28,8 +28,11 @@ func _build_invite_url() -> String:
 	var base_url: String = Client.get_base_url_for_space(_space_id)
 	if base_url.is_empty():
 		return _code
-	var host := base_url.replace("https://", "").replace("http://", "")
-	return "daccord://invite/" + _code + "@" + host
+	# Generate an HTTP URL so links are shareable anywhere — the server
+	# will redirect to daccord:// for desktop clients.
+	if not base_url.ends_with("/"):
+		base_url += "/"
+	return base_url + "invite/" + _code
 
 func setup(invite: Dictionary, selected: bool, space_id: String = "") -> void:
 	_code = invite.get("code", "")

@@ -315,6 +315,7 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item(tr("Unmute Channel"), 10)
 	else:
 		_context_menu.add_item(tr("Mute Channel"), 10)
+	_context_menu.add_item(tr("Copy Link"), 12)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_context_menu.add_separator()
 		_context_menu.add_item(tr("Edit Channel"), 0)
@@ -328,12 +329,26 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		0: _on_edit_channel()
 		1: _on_delete_channel()
 		10: _on_toggle_mute()
+		12: _on_copy_link()
 
 func _on_toggle_mute() -> void:
 	if Client.is_channel_muted(channel_id):
 		Client.unmute_channel(channel_id)
 	else:
 		Client.mute_channel(channel_id)
+
+func _on_copy_link() -> void:
+	var base_url: String = Client.get_base_url_for_space(space_id)
+	if base_url.is_empty():
+		return
+	var space_data: Dictionary = Client.get_space_by_id(space_id)
+	var slug: String = space_data.get("slug", "")
+	var chan_name: String = _channel_data.get("name", "")
+	if slug.is_empty() or chan_name.is_empty():
+		return
+	if not base_url.ends_with("/"):
+		base_url += "/"
+	DisplayServer.clipboard_set(base_url + "s/" + slug + "/" + chan_name)
 
 func _on_edit_channel() -> void:
 	_gear_just_pressed = true
