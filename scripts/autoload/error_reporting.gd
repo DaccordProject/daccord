@@ -13,13 +13,15 @@ func _ready() -> void:
 		return
 	if not ClassDB.class_exists(&"SentrySDK"):
 		return
-	_sentry_tree = load("res://scripts/helpers/sentry_scene_tree.gd")
+	_sentry_tree = load(
+		"res://scripts/helpers/sentry_scene_tree.gd"
+	)
 	if _sentry_tree == null:
 		return
+	# The SDK is initialized early by SentrySceneTree._initialize().
+	# We just need to connect breadcrumb signals here.
 	if _sentry_tree.initialized:
 		_on_sdk_ready()
-	elif _sentry_tree._read_consent_from_disk():
-		init_sentry()
 
 func _try_init_web() -> void:
 	if not Config.has_error_reporting_preference():
@@ -27,9 +29,9 @@ func _try_init_web() -> void:
 	if Config.get_error_reporting_enabled():
 		init_sentry()
 
-## Called by the consent dialog (main_window.gd) when the user enables error
-## reporting after startup. Delegates to SentrySceneTree.late_init() which
-## calls SentrySDK.init() if it wasn't already initialized at startup.
+## Called by the consent dialog when the user enables error reporting
+## after startup.  On desktop the SDK was already initialized by
+## SentrySceneTree._initialize(); late_init() is a safe no-op if so.
 ## On web, initializes the JavaScript Sentry SDK instead.
 func init_sentry() -> void:
 	if _initialized:

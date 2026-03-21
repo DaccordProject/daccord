@@ -1,9 +1,13 @@
 class_name SentrySceneTree
-extends RefCounted
-## Sentry SDK initialization helper. Provides consent reading from encrypted
-## config on disk, SDK initialization, before_send filtering, and PII
-## scrubbing. Called by the ErrorReporting autoload at startup or via the
-## consent dialog — not used as a custom MainLoop.
+extends SceneTree
+## Custom MainLoop that initializes the Sentry SDK at the earliest possible
+## point (_initialize), before any scenes or autoloads are loaded.  The
+## before_send callback gates every event on user consent so no data leaves
+## the device until the user explicitly opts in.
+##
+## Registered via Project Settings → Application → Run → Main Loop Type.
+## On platforms where the SentrySDK GDExtension is unavailable (web, headless)
+## this class is still used as the main loop but skips SDK initialization.
 
 const _SALT := "daccord-config-v1"
 const _REGISTRY_PATH := "user://profile_registry.cfg"
@@ -11,10 +15,24 @@ const _REGISTRY_PATH := "user://profile_registry.cfg"
 static var initialized := false
 
 
+func _initialize() -> void:
+	super._initialize()
+	if DisplayServer.get_name() == "headless":
+		return
+	if not ClassDB.class_exists(&"SentrySDK"):
+		return
+	_init_sdk()
+
+
 static func late_init() -> void:
+	## Called by ErrorReporting when the user enables crash reporting
+	## after startup (consent dialog).  If the SDK was already initialized
+	## in _initialize() this is a no-op.
 	if initialized:
 		return
 	if DisplayServer.get_name() == "headless":
+		return
+	if not ClassDB.class_exists(&"SentrySDK"):
 		return
 	_init_sdk()
 
@@ -22,7 +40,9 @@ static func late_init() -> void:
 static func _init_sdk() -> void:
 	initialized = true
 	SentrySDK.init(func(options: SentryOptions) -> void:
-		options.dsn = ProjectSettings.get_setting("sentry/config/dsn", "")
+		options.dsn = ProjectSettings.get_setting(
+			"sentry/config/dsn", ""
+		)
 		options.before_send = _before_send
 	)
 	var version: String = ProjectSettings.get_setting(
@@ -39,12 +59,18 @@ static func _init_sdk() -> void:
 
 
 static func _before_send(event: SentryEvent) -> SentryEvent:
-	# Re-read consent at send time — the user may have toggled it off after
-	# init. We read from the Config autoload if available, otherwise from
-	# disk as a fallback.
-	var node: Node = Engine.get_singleton("Config") if Engine.has_singleton("Config") else null
+	# Re-read consent at send time — the user may have toggled it off
+	# after init.  Try the Config autoload first, fall back to disk.
+	var node: Node = (
+		Engine.get_singleton("Config")
+		if Engine.has_singleton("Config")
+		else null
+	)
 	var enabled: bool
-	if node != null and node.has_method("get_error_reporting_enabled"):
+	if (
+		node != null
+		and node.has_method("get_error_reporting_enabled")
+	):
 		enabled = node.get_error_reporting_enabled()
 	else:
 		enabled = _read_consent_from_disk()
@@ -72,12 +98,15 @@ static func _scrub_pii(event: SentryEvent) -> void:
 	event.message = msg
 
 
-## --- Helpers called by ErrorReporting to avoid direct Sentry class refs ---
+## --- Helpers called by ErrorReporting ---
 
 static func add_breadcrumb(
-	message: String, category: String, type: String = "default",
+	message: String, category: String,
+	type: String = "default",
 ) -> void:
-	var crumb: SentryBreadcrumb = SentryBreadcrumb.create(message)
+	var crumb: SentryBreadcrumb = SentryBreadcrumb.create(
+		message
+	)
 	crumb.category = category
 	crumb.type = type
 	SentrySDK.add_breadcrumb(crumb)
@@ -106,7 +135,9 @@ static func _read_consent_from_disk() -> bool:
 	var registry := ConfigFile.new()
 	if FileAccess.file_exists(_REGISTRY_PATH):
 		if registry.load(_REGISTRY_PATH) == OK:
-			slug = registry.get_value("state", "active", "default")
+			slug = registry.get_value(
+				"state", "active", "default"
+			)
 
 	# 2. Read the encrypted profile config
 	var path := "user://profiles/%s/config.cfg" % slug
@@ -116,7 +147,7 @@ static func _read_consent_from_disk() -> bool:
 	var key := _SALT
 	var err := config.load_encrypted_pass(path, key)
 	if err != OK:
-		# Try legacy key (salt + data dir) used in older versions
+		# Try legacy key (salt + data dir)
 		var legacy_key := _SALT + OS.get_user_data_dir()
 		err = config.load_encrypted_pass(path, legacy_key)
 	if err != OK:
@@ -126,4 +157,6 @@ static func _read_consent_from_disk() -> bool:
 			return false
 
 	# 3. Read the consent preference
-	return config.get_value("error_reporting", "enabled", false)
+	return config.get_value(
+		"error_reporting", "enabled", false
+	)
