@@ -18,6 +18,7 @@ config/name="Daccord"
 config/version="0.1.15"
 run/main_scene="res://scenes/main/main_window.tscn"
 config/features=PackedStringArray("4.5", "GL Compatibility")
+run/main_loop_type="SentrySceneTree"
 run/low_processor_mode=true
 boot_splash/image="uid://blwsotnvxy7uq"
 config/icon="res://icon.svg"

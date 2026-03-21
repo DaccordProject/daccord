@@ -2,31 +2,65 @@ extends Node
 
 var _sentry_tree = null # loaded dynamically; null on web
 var _initialized := false
+var _is_web := false
 
 func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		return
+	_is_web = OS.has_feature("web")
+	if _is_web:
+		_try_init_web()
+		return
 	if not ClassDB.class_exists(&"SentrySDK"):
 		return
-	_sentry_tree = load("res://scripts/helpers/sentry_scene_tree.gd")
+	_sentry_tree = load(
+		"res://scripts/helpers/sentry_scene_tree.gd"
+	)
 	if _sentry_tree == null:
 		return
+	# The SDK is initialized early by SentrySceneTree._initialize().
+	# We just need to connect breadcrumb signals here.
 	if _sentry_tree.initialized:
 		_on_sdk_ready()
-	elif _sentry_tree._read_consent_from_disk():
+
+func _try_init_web() -> void:
+	if not Config.has_error_reporting_preference():
+		return
+	if Config.get_error_reporting_enabled():
 		init_sentry()
 
-## Called by the consent dialog (main_window.gd) when the user enables error
-## reporting after startup. Delegates to SentrySceneTree.late_init() which
-## calls SentrySDK.init() if it wasn't already initialized at startup.
+## Called by the consent dialog when the user enables error reporting
+## after startup.  On desktop the SDK was already initialized by
+## SentrySceneTree._initialize(); late_init() is a safe no-op if so.
+## On web, initializes the JavaScript Sentry SDK instead.
 func init_sentry() -> void:
 	if _initialized:
+		return
+	if _is_web:
+		_init_web_sentry()
 		return
 	if _sentry_tree == null:
 		return
 	_sentry_tree.late_init()
 	if _sentry_tree.initialized:
 		_on_sdk_ready()
+
+func _init_web_sentry() -> void:
+	var dsn: String = ProjectSettings.get_setting(
+		"sentry/config/dsn", ""
+	)
+	if dsn.is_empty():
+		return
+	var version: String = ProjectSettings.get_setting(
+		"application/config/version", "unknown"
+	)
+	var js := "window.daccordSentry && window.daccordSentry.init(%s, %s, %s)" % [
+		JSON.stringify(dsn),
+		JSON.stringify("web"),
+		JSON.stringify("daccord@" + version),
+	]
+	JavaScriptBridge.eval(js)
+	_on_sdk_ready()
 
 func _on_sdk_ready() -> void:
 	_initialized = true
@@ -113,23 +147,40 @@ func _add_breadcrumb(
 	if not _initialized:
 		return
 	var scrubbed := scrub_pii_text(message)
-	_sentry_tree.add_breadcrumb(scrubbed, category)
+	if _is_web:
+		_web_call(
+			"addBreadcrumb(%s, %s)"
+			% [JSON.stringify(scrubbed), JSON.stringify(category)]
+		)
+	else:
+		_sentry_tree.add_breadcrumb(scrubbed, category)
 
 func update_context() -> void:
 	if not _initialized:
 		return
-	_sentry_tree.set_tag(
-		"server_count",
-		str(Config.get_servers().size())
-	)
+	var server_count := str(Config.get_servers().size())
+	if _is_web:
+		_web_call("setTag('server_count', %s)" % JSON.stringify(
+			server_count
+		))
+	else:
+		_sentry_tree.set_tag("server_count", server_count)
 	if not AppState.current_space_id.is_empty():
-		_sentry_tree.set_tag(
-			"space_id", _truncate_id(AppState.current_space_id)
-		)
+		var sid := _truncate_id(AppState.current_space_id)
+		if _is_web:
+			_web_call(
+				"setTag('space_id', %s)" % JSON.stringify(sid)
+			)
+		else:
+			_sentry_tree.set_tag("space_id", sid)
 	if not AppState.current_channel_id.is_empty():
-		_sentry_tree.set_tag(
-			"channel_id", _truncate_id(AppState.current_channel_id)
-		)
+		var cid := _truncate_id(AppState.current_channel_id)
+		if _is_web:
+			_web_call(
+				"setTag('channel_id', %s)" % JSON.stringify(cid)
+			)
+		else:
+			_sentry_tree.set_tag("channel_id", cid)
 
 func get_last_event_id() -> String:
 	if not _initialized or _sentry_tree == null:
@@ -140,5 +191,19 @@ func report_problem(description: String) -> void:
 	if not _initialized:
 		return
 	update_context()
-	_sentry_tree.set_tag("type", "user-feedback")
-	_sentry_tree.capture_message(description)
+	if _is_web:
+		_web_call("setTag('type', 'user-feedback')")
+		var scrubbed := scrub_pii_text(description)
+		_web_call(
+			"captureMessage(%s, 'info')"
+			% JSON.stringify(scrubbed)
+		)
+	else:
+		_sentry_tree.set_tag("type", "user-feedback")
+		_sentry_tree.capture_message(description)
+
+func _web_call(method_and_args: String) -> void:
+	JavaScriptBridge.eval(
+		"window.daccordSentry && window.daccordSentry."
+		+ method_and_args
+	)

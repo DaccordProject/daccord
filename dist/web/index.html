@@ -164,6 +164,9 @@
       })();
     </script>
 
+    <!-- Sentry error reporting (consent-gated, lazy-loads SDK on init). -->
+    <script src="daccord-sentry.js"></script>
+
     <!-- livekit-client.js + godot-livekit-web.js must load before the Godot
          WASM module so that GodotLiveKit.createRoom() works at runtime. -->
     <script src="livekit-client.umd.min.js"></script>

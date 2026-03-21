@@ -32,7 +32,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_DIR="$(cd "$SCRIPT_DIR/../accordserver" && pwd)"
+SERVER_DIR="$SCRIPT_DIR/../accordserver"
 SERVER_LOG="$SCRIPT_DIR/test_server.log"
 SERVER_PID=""
 EXIT_CODE=0
