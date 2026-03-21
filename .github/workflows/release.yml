@@ -534,6 +534,8 @@ jobs:
           # Copy godot-livekit web wrapper and COOP/COEP service worker
           cp dist/web/godot-livekit-web.js dist/build/web/
           cp dist/web/coop_coep.js dist/build/web/
+          # Copy Sentry JS wrapper for web crash reporting
+          cp dist/web/daccord-sentry.js dist/build/web/
           echo "Web JS dependencies bundled:"
           ls -lh dist/build/web/*.js
 

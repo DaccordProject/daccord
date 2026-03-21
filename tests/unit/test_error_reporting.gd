@@ -151,3 +151,22 @@ func test_scrub_combined_pii() -> void:
 		"URL should be redacted")
 	assert_false(result.contains("abc"),
 		"Query token should be redacted")
+
+
+# =============================================================================
+# 4. Web platform detection
+# =============================================================================
+
+func test_is_web_false_on_desktop() -> void:
+	# In headless test, _is_web should be false (not running in browser)
+	assert_false(er._is_web,
+		"_is_web should be false when not running in a browser")
+
+
+func test_web_call_no_crash_when_not_web() -> void:
+	# _web_call should not crash when called on non-web platform
+	# (it would only be called when _is_web is true, but verify safety)
+	er._is_web = false
+	er._initialized = true
+	er._add_breadcrumb("test", "test")
+	pass_test("No crash calling _add_breadcrumb on non-web")

@@ -679,10 +679,12 @@ jobs:
           done
           exit $failed
 
-      - name: Copy COOP/COEP service worker into web build
+      - name: Copy COOP/COEP service worker and Sentry JS into web build
         run: |
           cp dist/web/coop_coep.js dist/build/web/coop_coep.js
           echo "Service worker copied: $(du -h dist/build/web/coop_coep.js | cut -f1)"
+          cp dist/web/daccord-sentry.js dist/build/web/daccord-sentry.js
+          echo "Sentry JS copied: $(du -h dist/build/web/daccord-sentry.js | cut -f1)"
 
       - name: Start HTTP server with COOP/COEP headers
         run: |
