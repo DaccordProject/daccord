@@ -12,6 +12,7 @@ signal edit_requested(message_id: String)
 signal message_deleted(message_id: String)
 signal layout_mode_changed(mode: LayoutMode)
 signal sidebar_drawer_toggled(is_open: bool)
+signal member_drawer_toggled(is_open: bool)
 @warning_ignore("unused_signal")
 signal spaces_updated()
 @warning_ignore("unused_signal")
@@ -226,6 +227,7 @@ var replying_to_message_id: String = ""
 var editing_message_id: String = ""
 var current_layout_mode: LayoutMode = LayoutMode.FULL
 var sidebar_drawer_open: bool = false
+var member_drawer_open: bool = false
 var member_list_visible: bool = true
 var channel_panel_visible: bool = true
 var search_open: bool = false
@@ -348,6 +350,20 @@ func close_sidebar_drawer() -> void:
 		sidebar_drawer_open = false
 		nav_history.remove(&"drawer")
 		sidebar_drawer_toggled.emit(false)
+
+func toggle_member_drawer() -> void:
+	member_drawer_open = not member_drawer_open
+	if member_drawer_open:
+		nav_history.push(&"member_drawer")
+	else:
+		nav_history.remove(&"member_drawer")
+	member_drawer_toggled.emit(member_drawer_open)
+
+func close_member_drawer() -> void:
+	if member_drawer_open:
+		member_drawer_open = false
+		nav_history.remove(&"member_drawer")
+		member_drawer_toggled.emit(false)
 
 func toggle_member_list() -> void:
 	member_list_visible = not member_list_visible

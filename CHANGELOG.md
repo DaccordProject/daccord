@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-03-22
+
+### Added
+- Mobile gesture navigation (swipe drawer)
+- Mobile optimization improvements
+- Multi-instance automated app test suite with login and input simulation
+- Windows smoke test to CI
+- Audit log live updates, guest access control, privacy & data export, screen picker preview
+
+### Fixed
+- Mobile modal responsive layout issues
+- Crash reporting: restore web crash reporting via JavaScript Sentry SDK, initialize Sentry SDK from MainLoop for desktop
+- CI failures in SentrySceneTree MainLoop
+- Missing .uid files for NavigationHistory and GuestPromptDialog
+- Headless test failures and endpoint count test
+- Extracted scenes from programmatic UI
+
 ## [0.1.15] - 2026-03-19
 
 ### Fixed

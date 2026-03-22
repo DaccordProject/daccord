@@ -1,6 +1,6 @@
 extends Control
-
 const PANEL_HANDLE_WIDTH := 6.0
+const _MEMORY_BUDGET_BYTES: int = 300 * 1024 * 1024 # 300 MB
 const MESSAGE_VIEW_MIN := 300.0
 const PANEL_MIN_THREAD := 240.0
 const PANEL_MIN_MEMBER := 180.0
@@ -26,6 +26,7 @@ var _search_handle: Control
 var _voice_text_handle: Control
 var _clamping_panels: bool = false
 var _update_indicator: Button = null
+var _memory_timer: Timer
 
 @onready var video_grid: PanelContainer = $LayoutHBox/ContentArea/VideoGrid
 @onready var content_header: PanelContainer = $LayoutHBox/ContentArea/ContentHeader
@@ -50,6 +51,8 @@ var _update_indicator: Button = null
 @onready var search_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/SearchPanel
 @onready var drawer_backdrop: ColorRect = $DrawerBackdrop
 @onready var drawer_container: Control = $DrawerContainer
+@onready var member_drawer_backdrop: ColorRect = $MemberDrawerBackdrop
+@onready var member_drawer_container: Control = $MemberDrawerContainer
 
 func _ready() -> void:
 	add_to_group("themed")
@@ -57,15 +60,24 @@ func _ready() -> void:
 	_drawer = MainWindowDrawer.new(
 		self, sidebar, drawer_container, drawer_backdrop, layout_hbox
 	)
+	_drawer.member_list = member_list
+	_drawer.member_drawer_container = member_drawer_container
+	_drawer.member_drawer_backdrop = member_drawer_backdrop
+	_drawer.content_body = content_body
 	_voice_view = MainWindowVoiceViewClass.new(self)
 	_overlays = MainWindowOverlaysClass.new(self, layout_hbox)
 	_apply_ui_scale()
+	# Cap FPS on mobile to save battery — a chat app doesn't need 120Hz.
+	if OS.has_feature("mobile"):
+		Engine.max_fps = 60
 	AudioServer.set_bus_volume_db(
 		0, linear_to_db(Config.voice.get_output_volume() / 100.0)
 	)
 	_gestures = DrawerGestures.new(self)
 	AppState.channel_selected.connect(_on_channel_selected)
 	AppState.sidebar_drawer_toggled.connect(_drawer.on_sidebar_drawer_toggled)
+	AppState.member_drawer_toggled.connect(_drawer.on_member_drawer_toggled)
+	member_drawer_backdrop.gui_input.connect(_on_member_backdrop_input)
 	AppState.layout_mode_changed.connect(_on_layout_mode_changed)
 	tab_bar.tab_changed.connect(_tabs.on_tab_changed)
 	tab_bar.tab_close_pressed.connect(_tabs.on_tab_close)
@@ -172,6 +184,15 @@ func _ready() -> void:
 
 	_tabs.update_visibility()
 
+	# Mobile optimisations: safe-area insets + memory budget monitor
+	if OS.has_feature("mobile"):
+		_apply_safe_area_insets()
+		_memory_timer = Timer.new()
+		_memory_timer.wait_time = 60.0
+		_memory_timer.timeout.connect(_check_memory_budget)
+		add_child(_memory_timer)
+		_memory_timer.start()
+
 	# Apply initial layout
 	_on_viewport_resized()
 
@@ -233,6 +254,23 @@ func _auto_ui_scale() -> float:
 		return 1.0
 	return clampf(screen_scale, 1.0, 3.0)
 
+func _apply_safe_area_insets() -> void:
+	var ss := DisplayServer.screen_get_size()
+	var sa: Rect2i = DisplayServer.get_display_safe_area()
+	var s: float = get_window().content_scale_factor
+	offset_top = sa.position.y / s
+	offset_left = sa.position.x / s
+	offset_bottom = -(ss.y - sa.position.y - sa.size.y) / s
+	offset_right = -(ss.x - sa.position.x - sa.size.x) / s
+
+func _check_memory_budget() -> void:
+	var usage: int = OS.get_static_memory_usage()
+	if usage > _MEMORY_BUDGET_BYTES:
+		push_warning(
+			"Memory budget exceeded: %.0f MB (budget: 300 MB)"
+			% (usage / 1048576.0)
+		)
+
 func _input(event: InputEvent) -> void:
 	if AppState.current_layout_mode != AppState.LayoutMode.COMPACT:
 		return
@@ -247,19 +285,22 @@ func _unhandled_input(event: InputEvent) -> void:
 func _handle_back_navigation() -> bool:
 	# Pop the most recent entry from the navigation history and close it.
 	var entry: StringName = AppState.nav_history.pop()
+	var handled := true
 	match entry:
 		&"drawer":
 			AppState.close_sidebar_drawer()
-			return true
 		&"thread":
 			AppState.close_thread()
-			return true
 		&"voice_view":
 			AppState.close_voice_view()
-			return true
 		&"discovery":
 			AppState.close_discovery()
-			return true
+		&"member_drawer":
+			AppState.close_member_drawer()
+		_:
+			handled = false
+	if handled:
+		return true
 	# Nothing on stack — in COMPACT mode, toggle the sidebar drawer.
 	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
 		if not AppState.sidebar_drawer_open:
@@ -363,6 +404,7 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 		# Still handle sidebar/drawer transitions
 		if mode == AppState.LayoutMode.COMPACT:
 			_drawer.move_sidebar_to_drawer()
+			_drawer.move_member_to_drawer()
 			sidebar.set_channel_panel_visible_immediate(true)
 			hamburger_button.visible = true
 			sidebar_toggle.visible = false
@@ -371,6 +413,8 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 			_voice_text_handle.visible = false
 		else:
 			_drawer.move_sidebar_to_layout()
+			_drawer.move_member_to_layout()
+			_drawer.close_member_drawer_immediate()
 			sidebar.visible = true
 			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
 			hamburger_button.visible = false
@@ -388,6 +432,8 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	match mode:
 		AppState.LayoutMode.FULL, AppState.LayoutMode.MEDIUM:
 			_drawer.move_sidebar_to_layout()
+			_drawer.move_member_to_layout()
+			_drawer.close_member_drawer_immediate()
 			sidebar.visible = true
 			sidebar.set_channel_panel_visible_immediate(AppState.channel_panel_visible)
 			hamburger_button.visible = false
@@ -404,10 +450,12 @@ func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 			_sync_handle_visibility()
 		AppState.LayoutMode.COMPACT:
 			_drawer.move_sidebar_to_drawer()
+			_drawer.move_member_to_drawer()
 			sidebar.set_channel_panel_visible_immediate(true)
 			hamburger_button.visible = true
 			sidebar_toggle.visible = false
 			_drawer.close_drawer_immediate()
+			_drawer.close_member_drawer_immediate()
 			member_toggle.visible = false
 			member_list.visible = false
 			search_toggle.visible = false
@@ -587,6 +635,20 @@ func _on_backdrop_input(event: InputEvent) -> void:
 	elif event is InputEventScreenTouch and event.pressed:
 		AppState.close_sidebar_drawer()
 
+func _on_member_backdrop_input(event: InputEvent) -> void:
+	if _gestures.is_member_close_tracking:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		AppState.close_member_drawer()
+	elif event is InputEventScreenTouch and event.pressed:
+		AppState.close_member_drawer()
+
+func _hide_drawer_nodes() -> void:
+	_drawer.hide_drawer_nodes()
+
+func _hide_member_drawer_nodes() -> void:
+	_drawer.hide_member_drawer_nodes()
+
 func _on_profile_card_requested(
 	user_id: String, pos: Vector2,
 ) -> void:
@@ -722,6 +784,7 @@ func _on_tab_bar_input(event: InputEvent) -> void:
 
 func _apply_theme() -> void:
 	drawer_backdrop.color = ThemeManager.get_color("overlay")
+	member_drawer_backdrop.color = ThemeManager.get_color("overlay")
 	var header_sb: StyleBox = content_header.get_theme_stylebox("panel")
 	if header_sb is StyleBoxFlat:
 		header_sb.bg_color = ThemeManager.get_color("content_bg")

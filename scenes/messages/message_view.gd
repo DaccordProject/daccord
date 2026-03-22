@@ -23,6 +23,7 @@ var _channel_transition_tween: Tween
 var _pending_edit_content: Dictionary = {}
 var _message_node_index: Dictionary = {} # message_id -> scene node
 
+var _is_mobile: bool = OS.has_feature("mobile")
 var _banner_hide_timer: Timer
 var _loading_timeout_timer: Timer
 var _banner: MessageViewBanner
@@ -159,6 +160,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _process(_delta: float) -> void:
+	if _is_mobile:
+		return
 	_hover.process()
 
 func _on_channel_selected(channel_id: String) -> void:
