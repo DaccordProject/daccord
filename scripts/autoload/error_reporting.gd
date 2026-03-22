@@ -20,7 +20,7 @@ func _ready() -> void:
 		return
 	# The SDK is initialized early by SentrySceneTree._initialize().
 	# We just need to connect breadcrumb signals here.
-	if _sentry_tree.initialized:
+	if _sentry_tree._is_initialized():
 		_on_sdk_ready()
 
 func _try_init_web() -> void:
@@ -42,7 +42,7 @@ func init_sentry() -> void:
 	if _sentry_tree == null:
 		return
 	_sentry_tree.late_init()
-	if _sentry_tree.initialized:
+	if _sentry_tree._is_initialized():
 		_on_sdk_ready()
 
 func _init_web_sentry() -> void:

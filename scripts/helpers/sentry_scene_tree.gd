@@ -17,7 +17,18 @@ extends SceneTree
 const _SALT := "daccord-config-v1"
 const _REGISTRY_PATH := "user://profile_registry.cfg"
 
-static var initialized := false
+## Whether the Sentry SDK has been successfully initialized.
+## Stored as Engine metadata instead of a static var to avoid triggering
+## a @static_initializer — SceneTree::get_singleton() is null when
+## Godot registers this class_name, causing an error in the scene debugger.
+static func _is_initialized() -> bool:
+	return Engine.has_meta(&"_sentry_initialized")
+
+static func _set_initialized(value: bool) -> void:
+	if value:
+		Engine.set_meta(&"_sentry_initialized", true)
+	else:
+		Engine.remove_meta(&"_sentry_initialized")
 
 
 func _initialize() -> void:
@@ -32,7 +43,7 @@ static func late_init() -> void:
 	## Called by ErrorReporting when the user enables crash reporting
 	## after startup (consent dialog).  If the SDK was already
 	## initialized in _initialize() this is a no-op.
-	if initialized:
+	if _is_initialized():
 		return
 	if DisplayServer.get_name() == "headless":
 		return
@@ -42,11 +53,11 @@ static func late_init() -> void:
 
 
 static func _init_sdk() -> void:
-	initialized = true
+	_set_initialized(true)
 	# Use duck-typed access — no SentrySDK/SentryOptions type refs.
 	var sdk = Engine.get_singleton(&"SentrySDK")
 	if sdk == null:
-		initialized = false
+		_set_initialized(false)
 		return
 	sdk.init(func(options) -> void:
 		options.dsn = ProjectSettings.get_setting(
@@ -118,8 +129,8 @@ static func add_breadcrumb(
 	var sdk = Engine.get_singleton(&"SentrySDK")
 	if sdk == null:
 		return
-	# SentryBreadcrumb.create() is a static factory — call via
-	# ClassDB.instantiate() and set message property directly.
+	if not ClassDB.can_instantiate(&"SentryBreadcrumb"):
+		return
 	var crumb = ClassDB.instantiate(&"SentryBreadcrumb")
 	if crumb == null:
 		return
