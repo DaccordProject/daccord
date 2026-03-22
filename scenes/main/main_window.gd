@@ -238,6 +238,35 @@ func _input(event: InputEvent) -> void:
 		return
 	_gestures.handle_input(event)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if _handle_back_navigation():
+		get_viewport().set_input_as_handled()
+
+func _handle_back_navigation() -> bool:
+	# Pop the most recent entry from the navigation history and close it.
+	var entry: StringName = AppState.nav_history.pop()
+	match entry:
+		&"drawer":
+			AppState.close_sidebar_drawer()
+			return true
+		&"thread":
+			AppState.close_thread()
+			return true
+		&"voice_view":
+			AppState.close_voice_view()
+			return true
+		&"discovery":
+			AppState.close_discovery()
+			return true
+	# Nothing on stack — in COMPACT mode, toggle the sidebar drawer.
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		if not AppState.sidebar_drawer_open:
+			AppState.toggle_sidebar_drawer()
+			return true
+	return false
+
 func _on_channel_selected(channel_id: String) -> void:
 	# Close discovery panel if open
 	if AppState.is_discovery_open:

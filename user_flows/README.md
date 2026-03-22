@@ -86,3 +86,4 @@ Ordered by natural user journey:
 | 78 | [Server Welcoming](server_welcoming.md) | Discord-style welcome channel: system message on member join, system_channel_id config, wave-to-welcome reactions, admin channel picker |
 | 79 | [Client Test API](client_test_api.md) | Local HTTP API for programmatic client control; 34 endpoints across state/navigate/screenshot/action/moderation/voice groups; primary use case is integration testing a running app; also the core layer under the MCP server; gated behind Developer Mode or `--test-api` CLI flag |
 | 80 | [Mobile Optimization](mobile_optimization.md) | Android performance review: FPS cap, _process() audit, threaded loading, immersive mode, memory budget, emoji atlas, thermal testing, debug stripping |
+| 81 | [Mobile Gesture Navigation](mobile_gesture_navigation.md) | Edge-swipe drawer open/close, velocity-based snap, long-press detection, layout mode transitions, Android back button / navigation history |
