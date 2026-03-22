@@ -74,12 +74,6 @@ jobs:
             exit 1
           fi
 
-      - name: Install audio libraries (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
-
       - name: Set up Java JDK (Android)
         if: matrix.platform == 'android'
         uses: actions/setup-java@v4
@@ -139,75 +133,17 @@ jobs:
           echo "ANDROID_KEYSTORE_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "ANDROID_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
 
-      - name: Cache GUT
-        uses: actions/cache@v4
+      - uses: ./.github/actions/setup-project
         with:
-          path: addons/gut
-          key: gut-${{ env.GUT_VERSION }}
-
-      - name: Install GUT
-        run: |
-          if [ ! -d addons/gut ]; then
-            curl -sL https://github.com/bitwes/Gut/archive/refs/tags/v${GUT_VERSION}.tar.gz -o /tmp/gut.tar.gz
-            tar xzf /tmp/gut.tar.gz -C /tmp
-            cp -r /tmp/Gut-${GUT_VERSION}/addons/gut addons/gut
-            rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
-          fi
-
-      - name: Cache Sentry SDK
-        uses: actions/cache@v4
-        with:
-          path: addons/sentry
-          key: sentry-godot-${{ env.SENTRY_VERSION }}
-
-      - name: Install Sentry SDK
-        run: |
-          if [ ! -d addons/sentry ]; then
-            gh release download $SENTRY_VERSION --repo getsentry/sentry-godot \
-              --pattern "*.zip" --dir /tmp/sentry_dl
-            unzip -o /tmp/sentry_dl/*.zip -d /tmp/sentry_extract
-            cp -r /tmp/sentry_extract/addons/sentry addons/sentry
-            rm -rf /tmp/sentry_dl /tmp/sentry_extract
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-
-      - name: Install godot-livekit addon (latest release)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Downloading godot-livekit addon (latest release)..."
-          TMPDIR=$(mktemp -d)
-          gh release download --repo NodotProject/godot-livekit \
-            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
-          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
-          if [ ! -d "$TMPDIR/extracted/addons/godot-livekit" ]; then
-            echo "::error::godot-livekit addon not found in release asset"
-            exit 1
-          fi
-          rm -rf addons/godot-livekit
-          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
-          rm -rf "$TMPDIR"
-          echo "godot-livekit addon installed from latest release."
-
-      - name: Cache Lua GDExtension
-        uses: actions/cache@v4
-        with:
-          path: addons/lua-gdextension
-          key: lua-gdextension-lua-${{ env.LUA_GDEXT_VERSION }}
-
-      - name: Install Lua GDExtension
-        run: |
-          if [ ! -d addons/lua-gdextension ]; then
-            TMPDIR=$(mktemp -d)
-            gh release download "$LUA_GDEXT_VERSION" --repo gilzoide/lua-gdextension \
-              --pattern "lua-gdextension.zip" --dir "$TMPDIR"
-            unzip -o "$TMPDIR/lua-gdextension.zip" -d "$TMPDIR/extracted"
-            cp -R "$TMPDIR/extracted/addons/lua-gdextension" addons/lua-gdextension
-            rm -rf "$TMPDIR"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
+          godot-version: ${{ env.GODOT_VERSION }}
+          gut-version: ${{ env.GUT_VERSION }}
+          sentry-version: ${{ env.SENTRY_VERSION }}
+          gh-token: ${{ github.token }}
+          gh-pat: ${{ secrets.GH_PAT }}
+          include-templates: "true"
+          cache-suffix: ${{ matrix.platform }}
+          lua-gdextension-version: ${{ env.LUA_GDEXT_VERSION }}
+          import-strict: "false"
 
       - name: Remove godot-livekit if platform binary missing
         run: |
@@ -269,25 +205,6 @@ jobs:
           else
             echo "No macOS dylibs found to stash"
           fi
-
-      - name: Set up Godot
-        uses: chickensoft-games/setup-godot@v2
-        with:
-          version: ${{ env.GODOT_VERSION }}
-          use-dotnet: false
-          include-templates: true
-
-      - name: Cache Godot import
-        uses: actions/cache@v4
-        with:
-          path: .godot/imported
-          key: godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-${{ github.sha }}
-          restore-keys: |
-            godot-import-${{ env.GODOT_VERSION }}-${{ matrix.platform }}-
-
-      - name: Import project
-        run: godot --headless --import . || true
-        timeout-minutes: 2
 
       - name: Inject Sentry DSN
         if: env.SENTRY_DSN != ''
@@ -726,4 +643,3 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: artifacts/*
-
