@@ -32,6 +32,7 @@ func setup_context_menu() -> void:
 	_context_menu.add_item("Remove All Reactions", 4)
 	_context_menu.add_item("Start Thread", 5)
 	_context_menu.add_item("Report", 6)
+	_context_menu.add_item("Copy Message Link", 7)
 	_context_menu.id_pressed.connect(on_context_menu_id_pressed)
 	_view.add_child(_context_menu)
 
@@ -87,10 +88,11 @@ func on_context_menu_requested(
 ) -> void:
 	_context_menu_data = msg_data
 
-	# Guest mode: disable all action items
+	# Guest mode: disable all action items except Copy Message Link
 	if AppState.is_guest_mode:
 		for i in _context_menu.item_count:
-			_context_menu.set_item_disabled(i, true)
+			var item_id: int = _context_menu.get_item_id(i)
+			_context_menu.set_item_disabled(i, item_id != 7)
 		_context_menu.hide()
 		_context_menu.position = pos
 		_context_menu.popup()
@@ -131,6 +133,10 @@ func on_context_menu_requested(
 
 
 func on_context_menu_id_pressed(id: int) -> void:
+	# Copy Message Link is read-only — allow in guest mode
+	if id == 7:
+		_copy_message_link()
+		return
 	if GuestPrompt.show_if_guest():
 		return
 	match id:
@@ -197,6 +203,8 @@ func on_context_menu_id_pressed(id: int) -> void:
 				var dialog := ReportDialogScene.instantiate()
 				_view.get_tree().root.add_child(dialog)
 				dialog.setup_message(sid, cid, mid)
+		7: # Copy Message Link
+			_copy_message_link()
 
 
 func _on_remove_reactions_confirmed() -> void:
@@ -209,6 +217,17 @@ func _on_remove_reactions_confirmed() -> void:
 	if not cid.is_empty() and not mid.is_empty():
 		Client.remove_all_reactions(cid, mid)
 	_pending_remove_reactions = {}
+
+
+func _copy_message_link() -> void:
+	var channel_id: String = _context_menu_data.get("channel_id", "")
+	var message_id: String = _context_menu_data.get("id", "")
+	var space_id: String = Client._channel_to_space.get(channel_id, "")
+	if space_id.is_empty():
+		return
+	var url := UriHandler.build_navigate_url(space_id, channel_id, message_id)
+	DisplayServer.clipboard_set(url)
+	AppState.toast_requested.emit(tr("Link copied!"))
 
 
 func open_reaction_picker(msg_data: Dictionary) -> void:

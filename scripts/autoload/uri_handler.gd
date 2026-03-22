@@ -83,6 +83,7 @@ static func parse_uri(uri: String) -> Dictionary:
 static func _parse_connect(payload: String) -> Dictionary:
 	var token := ""
 	var invite_code := ""
+	var channel_name := ""
 
 	# Extract query parameters
 	var q_pos := payload.find("?")
@@ -97,6 +98,8 @@ static func _parse_connect(payload: String) -> Dictionary:
 						token = kv[1]
 					"invite":
 						invite_code = kv[1]
+					"channel":
+						channel_name = kv[1].uri_decode()
 
 	# Split remaining into host[:port][/space-slug]
 	var space_slug := "general"
@@ -124,7 +127,7 @@ static func _parse_connect(payload: String) -> Dictionary:
 	if host.is_empty() or not _is_valid_host(host):
 		return {}
 
-	return {
+	var result := {
 		"route": "connect",
 		"host": host,
 		"port": port,
@@ -132,6 +135,9 @@ static func _parse_connect(payload: String) -> Dictionary:
 		"token": token,
 		"invite_code": invite_code,
 	}
+	if not channel_name.is_empty():
+		result["channel"] = channel_name
+	return result
 
 
 static func _parse_invite(payload: String) -> Dictionary:
@@ -172,7 +178,17 @@ static func _parse_invite(payload: String) -> Dictionary:
 
 
 static func _parse_navigate(payload: String) -> Dictionary:
-	# Format: <space-id>[/<channel-id>]
+	# Format: <space-id>[/<channel-id>][?msg=<message-id>]
+	var message_id := ""
+	var q_pos := payload.find("?")
+	if q_pos != -1:
+		var query_str := payload.substr(q_pos + 1)
+		payload = payload.substr(0, q_pos)
+		for param in query_str.split("&"):
+			var kv := param.split("=", true, 1)
+			if kv.size() == 2 and kv[0] == "msg":
+				message_id = kv[1]
+
 	var parts := payload.split("/")
 	if parts.is_empty() or parts[0].is_empty():
 		return {}
@@ -184,6 +200,9 @@ static func _parse_navigate(payload: String) -> Dictionary:
 
 	if parts.size() > 1 and not parts[1].is_empty():
 		result["channel_id"] = parts[1]
+
+	if not message_id.is_empty():
+		result["message_id"] = message_id
 
 	return result
 
@@ -212,6 +231,32 @@ static func build_base_url(host: String, port: int) -> String:
 	return "https://" + host + ":" + str(port)
 
 
+## Constructs a daccord://connect/ URL for sharing a space or channel.
+static func build_connect_url(
+	host: String, port: int, space_slug: String, channel_name: String = ""
+) -> String:
+	var url := "daccord://connect/" + host
+	if port != 443:
+		url += ":" + str(port)
+	if not space_slug.is_empty():
+		url += "/" + space_slug
+	if not channel_name.is_empty():
+		url += "?channel=" + channel_name.uri_encode()
+	return url
+
+
+## Constructs a daccord://navigate/ URL for sharing a message or channel link.
+static func build_navigate_url(
+	space_id: String, channel_id: String, message_id: String = ""
+) -> String:
+	var url := "daccord://navigate/" + space_id
+	if not channel_id.is_empty():
+		url += "/" + channel_id
+	if not message_id.is_empty():
+		url += "?msg=" + message_id
+	return url
+
+
 ## Processes a parsed URI by dispatching to the appropriate handler.
 func _process_uri(uri: String) -> void:
 	var parsed := parse_uri(uri)
@@ -233,10 +278,23 @@ func _handle_connect(parsed: Dictionary) -> void:
 	var space_slug: String = parsed["space_slug"]
 	var token: String = parsed["token"]
 	var invite_code: String = parsed["invite_code"]
+	var channel_name: String = parsed.get("channel", "")
+	var host: String = parsed["host"]
+	var port: int = parsed["port"]
+
+	# Check if already connected to this server — navigate directly
+	var base_url: String = build_base_url(host, port)
+	for space in Client.spaces:
+		var sid: String = space.get("id", "")
+		var surl: String = Client.get_base_url_for_space(sid)
+		if surl == base_url and space.get("slug", "") == space_slug:
+			AppState.select_space(sid)
+			if not channel_name.is_empty():
+				_navigate_to_channel_by_name(sid, channel_name)
+			return
 
 	# Build a URL string the AddServerDialog can understand
-	var url_str: String = parsed["host"]
-	var port: int = parsed["port"]
+	var url_str: String = host
 	if port != 443:
 		url_str += ":" + str(port)
 	url_str += "#" + space_slug
@@ -267,6 +325,7 @@ func _handle_invite(parsed: Dictionary) -> void:
 func _handle_navigate(parsed: Dictionary) -> void:
 	var space_id: String = parsed["space_id"]
 	var channel_id: String = parsed.get("channel_id", "")
+	var message_id: String = parsed.get("message_id", "")
 
 	# Check if we're connected to this space
 	var spaces := Client.spaces
@@ -283,6 +342,17 @@ func _handle_navigate(parsed: Dictionary) -> void:
 	AppState.select_space(space_id)
 	if not channel_id.is_empty():
 		AppState.select_channel(channel_id)
+	if not message_id.is_empty():
+		AppState.navigate_to_message.emit(channel_id, message_id)
+
+
+## Finds a channel by name within a space and selects it.
+func _navigate_to_channel_by_name(space_id: String, channel_name: String) -> void:
+	for ch in Client.channels:
+		if ch.get("space_id", "") == space_id and ch.get("name", "") == channel_name:
+			AppState.select_channel(ch.get("id", ""))
+			return
+	push_warning("UriHandler: channel '%s' not found in space %s" % [channel_name, space_id])
 
 
 ## Opens the Add Server dialog with a pre-filled URL.

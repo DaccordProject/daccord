@@ -112,6 +112,7 @@ func _ready() -> void:
 	AppState.voice_text_closed.connect(_on_voice_text_closed)
 	AppState.discovery_opened.connect(_on_discovery_opened)
 	AppState.discovery_closed.connect(_on_discovery_closed)
+	AppState.toast_requested.connect(_on_toast_requested)
 
 	# Update indicator in content header (hidden until update available)
 	_update_indicator = Button.new()
@@ -674,6 +675,9 @@ func _on_voice_left_pip(channel_id: String) -> void:
 func _on_voice_error(error: String) -> void:
 	_overlays.show_toast(tr("Voice error: %s") % error, true)
 
+func _on_toast_requested(text: String) -> void:
+	_overlays.show_toast(text)
+
 func _on_image_lightbox_requested(
 	_url: String, texture: ImageTexture,
 ) -> void:
@@ -707,8 +711,7 @@ func _on_profile_switched() -> void:
 		_overlays.show_welcome_screen()
 
 func _on_reauth_needed(
-	server_index: int, base_url: String,
-	username: String,
+	server_index: int, base_url: String, username: String,
 ) -> void:
 	var AuthDialog: PackedScene = load(
 		"res://scenes/sidebar/guild_bar/auth_dialog.tscn"
@@ -716,14 +719,11 @@ func _on_reauth_needed(
 	var dlg: ColorRect = AuthDialog.instantiate()
 	dlg.setup(base_url, username)
 	dlg.auth_completed.connect(func(
-		_url: String, token: String,
-		new_username: String, _password: String,
-		_dn: String,
+		_url: String, token: String, new_username: String,
+		_password: String, _dn: String,
 	) -> void:
 		Config.update_server_token(server_index, token)
-		Config.update_server_username(
-			server_index, new_username,
-		)
+		Config.update_server_username(server_index, new_username)
 		Client.reconnect_server(server_index)
 	)
 	get_tree().root.add_child(dlg)

@@ -126,6 +126,10 @@ signal message_fetch_failed(channel_id: String, error: String)
 signal reaction_failed(channel_id: String, message_id: String, emoji: String, error: String)
 @warning_ignore("unused_signal")
 signal image_lightbox_requested(url: String, texture: ImageTexture)
+@warning_ignore("unused_signal")
+signal toast_requested(text: String)
+@warning_ignore("unused_signal")
+signal navigate_to_message(channel_id: String, message_id: String)
 
 # Thread signals
 @warning_ignore("unused_signal")

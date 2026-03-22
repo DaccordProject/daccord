@@ -80,21 +80,24 @@ MainWindow._overlays.show_toast(tr("Link copied!"))
 
 | File | Role |
 |------|------|
-| `scripts/autoload/uri_handler.gd` | URL builder statics: `build_base_url()` (line 209), new `build_connect_url()` and `build_navigate_url()` |
-| `scenes/sidebar/guild_bar/guild_icon.gd` | Space context menu: `_show_context_menu()` (line 157), `_on_context_menu_id_pressed()` (line 276) — add "Copy Server Link" |
-| `scenes/sidebar/channels/channel_item.gd` | Channel context menu: `_show_context_menu()` (line 209), `_on_context_menu_id_pressed()` (line 229) — add "Copy Channel Link" |
-| `scenes/messages/message_view_actions.gd` | Message context menu: `setup_context_menu()` (line 26), `on_context_menu_id_pressed()` (line 133) — add "Copy Message Link" |
-| `scenes/admin/invite_row.gd` | Existing reference implementation: `_build_invite_url()` (line 27), `_on_copy()` (line 22) — uses `DisplayServer.clipboard_set()` and `Client.get_base_url_for_space()` |
+| `scripts/autoload/uri_handler.gd` | URL builder statics: `build_base_url()` (line 228), `build_connect_url()` (line 235), `build_navigate_url()` (line 249); query param parsing for `?channel=` (line 99) and `?msg=` (line 177); auto-navigate on connect (line 260) |
+| `scripts/autoload/app_state.gd` | `toast_requested` signal (line 130), `navigate_to_message` signal (line 132) |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Space context menu: "Copy Server Link" item (line 237), handler (line 303), `_copy_server_link()` (line 308) |
+| `scenes/sidebar/channels/channel_item.gd` | Channel context menu: "Copy Channel Link" item (line 222), handler (line 234), `_on_copy_channel_link()` (line 257) |
+| `scenes/messages/message_view_actions.gd` | Message context menu: "Copy Message Link" item (line 35), handler (line 136), `_copy_message_link()` (line 222); guest mode exemption (line 94) |
+| `scenes/main/main_window.gd` | `toast_requested` connection (line 115), `_on_toast_requested()` handler (line 678) |
+| `scenes/admin/invite_row.gd` | Reference implementation: `_build_invite_url()` (line 27), `_on_copy()` (line 22) |
 | `scripts/autoload/client.gd` | `get_base_url_for_space()` (line 750), `get_space_by_id()` (line 495), `_channel_to_space` (line 135), `_channel_cache` (line 101) |
 | `scripts/client/client_models_space.gd` | `space_to_dict()` (line 20) includes `slug` (line 35); `channel_to_dict()` (line 60) includes `name` (line 75) and `space_id` (line 67) |
 | `scenes/main/main_window_overlays.gd` | `show_toast()` (line 91) — instantiates toast PanelContainer |
 | `scenes/main/toast.gd` | Toast widget: auto-positioned, 4s display, fade-out dismiss (line 58-65) |
+| `tests/unit/test_uri_handler.gd` | Unit tests for `build_connect_url` (lines 157-181), `build_navigate_url` (lines 186-196), `?channel=` parsing (lines 200-213), `?msg=` parsing (lines 218-227) |
 
 ## Implementation Details
 
 ### URL Builder Helpers (uri_handler.gd)
 
-Two new static methods are needed on `UriHandler` alongside the existing `build_base_url()` (line 209):
+Two static methods on `UriHandler` alongside `build_base_url()` (line 228):
 
 **`build_connect_url(host, port, space_slug, channel_name)`:**
 - Constructs `daccord://connect/<host>[:<port>]/<space-slug>[?channel=<channel-name>]`
@@ -208,77 +211,85 @@ On web exports, `DisplayServer.clipboard_set()` requires a user gesture (click) 
 ## Implementation Status
 
 - [x] `daccord://` URL scheme and parser (`uri_handler.gd`)
-- [x] `build_base_url()` static helper (`uri_handler.gd` line 209)
+- [x] `build_base_url()` static helper (`uri_handler.gd` line 228)
 - [x] Invite copy-to-clipboard reference implementation (`invite_row.gd` lines 22-32)
-- [x] Space context menu infrastructure (`guild_icon.gd` lines 50-52, 157-250, 276-300)
-- [x] Channel context menu infrastructure (`channel_item.gd` lines 48-51, 209-227, 229-233)
-- [x] Message context menu infrastructure (`message_view_actions.gd` lines 26-36, 133-199)
+- [x] Space context menu infrastructure (`guild_icon.gd` lines 50-52, 157-252, 278-304)
+- [x] Channel context menu infrastructure (`channel_item.gd` lines 48-51, 209-228, 229-235)
+- [x] Message context menu infrastructure (`message_view_actions.gd` lines 26-37, 133-212)
 - [x] Toast notification system (`toast.gd`, `main_window_overlays.gd` line 91)
 - [x] `Client.get_base_url_for_space()` for host extraction (`client.gd` line 750)
 - [x] Space `slug` field in data model (`client_models_space.gd` line 35)
-- [ ] `UriHandler.build_connect_url()` static method
-- [ ] `UriHandler.build_navigate_url()` static method
-- [ ] "Copy Server Link" in space context menu (`guild_icon.gd`)
-- [ ] "Copy Channel Link" in channel context menu (`channel_item.gd`)
-- [ ] "Copy Message Link" in message context menu (`message_view_actions.gd`)
-- [ ] `AppState.toast_requested` signal for clipboard feedback
-- [ ] `MainWindow` connection to `toast_requested` -> `_overlays.show_toast()`
-- [ ] `_parse_connect` support for `?channel=` query parameter
-- [ ] `_parse_navigate` support for `?msg=` query parameter
-- [ ] `_handle_connect` auto-navigate to channel when already connected
-- [ ] `_handle_navigate` scroll-to-message when `msg` ID is provided
-- [ ] Unit tests for `build_connect_url()` and `build_navigate_url()`
+- [x] `UriHandler.build_connect_url()` static method (`uri_handler.gd` line 235)
+- [x] `UriHandler.build_navigate_url()` static method (`uri_handler.gd` line 249)
+- [x] "Copy Server Link" in space context menu (`guild_icon.gd` line 237, handler line 303, impl line 308)
+- [x] "Copy Channel Link" in channel context menu (`channel_item.gd` line 222, handler line 234, impl line 257)
+- [x] "Copy Message Link" in message context menu (`message_view_actions.gd` line 35, handler line 136, impl line 222)
+- [x] `AppState.toast_requested` signal for clipboard feedback (`app_state.gd` line 130)
+- [x] `MainWindow` connection to `toast_requested` -> `_overlays.show_toast()` (`main_window.gd` line 115, handler line 678)
+- [x] `_parse_connect` support for `?channel=` query parameter (`uri_handler.gd` line 99)
+- [x] `_parse_navigate` support for `?msg=` query parameter (`uri_handler.gd` line 177)
+- [x] `_handle_connect` auto-navigate to channel when already connected (`uri_handler.gd` line 260)
+- [x] `_handle_navigate` emit `navigate_to_message` when `msg` ID is provided (`uri_handler.gd` line 303)
+- [x] Unit tests for `build_connect_url()` and `build_navigate_url()` (`test_uri_handler.gd` lines 157-213)
+- [ ] `message_view.gd` scroll-to-message on `navigate_to_message` signal (message fetching if not in current page)
+
+## Gaps / TODO
+
+| Gap | Severity | Notes |
+|-----|----------|-------|
+| Scroll-to-message on navigate | Medium | `navigate_to_message` signal emitted but no listener in `message_view.gd` — message may not be in current page, needs fetch-then-scroll |
+| Category context menu "Copy Link" | Low | Categories aren't directly navigable; SHARE-8 deferred |
 
 ## Tasks
 
 ### SHARE-1: Add URL builder statics to UriHandler
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** core
-- **Notes:** Add `build_connect_url(host, port, space_slug, channel_name)` and `build_navigate_url(space_id, channel_id, message_id)` as static methods in `uri_handler.gd`. Follow the pattern of `build_base_url()` (line 209). Add corresponding unit tests in `test_uri_handler.gd`.
+- **Notes:** Added `build_connect_url()` (line 235) and `build_navigate_url()` (line 249) as static methods in `uri_handler.gd`. Unit tests added in `test_uri_handler.gd` (lines 157-213).
 
 ### SHARE-2: Add "Copy Server Link" to space context menu
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** ui
-- **Notes:** In `guild_icon.gd`, add a "Copy Server Link" item to `_show_context_menu()` after the Mute/Unmute item (line 235). Handler in `_on_context_menu_id_pressed()` builds URL from `Client.get_base_url_for_space(space_id)` + `Client.get_space_by_id(space_id).slug` and calls `DisplayServer.clipboard_set()`. Not shown when disconnected.
+- **Notes:** Added "Copy Server Link" item in `guild_icon.gd` `_show_context_menu()` (line 237) after Mute/Unmute. Handler dispatches via label match (line 303) to `_copy_server_link()` (line 308). Not shown when disconnected (early return at line 165).
 
 ### SHARE-3: Add "Copy Channel Link" to channel context menu
-- **Status:** open
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** ui
-- **Notes:** In `channel_item.gd`, add "Copy Channel Link" (id 12) to `_show_context_menu()` after Notification Settings (line 220). Handler builds URL from space host + slug + `_channel_data["name"]`. Only shown for space channels (not DM channels — `space_id` must be non-empty).
+- **Notes:** Added "Copy Channel Link" (id 12) in `channel_item.gd` `_show_context_menu()` (line 222). Handler in match (line 234) calls `_on_copy_channel_link()` (line 257). Only shown when `space_id` is non-empty.
 
 ### SHARE-4: Add "Copy Message Link" to message context menu
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** ui
-- **Notes:** In `message_view_actions.gd`, add "Copy Message Link" (id 7) in `setup_context_menu()` after Report (line 34). Handler extracts `channel_id` and `message_id` from `_context_menu_data`, resolves `space_id` via `Client._channel_to_space`. Not gated by guest mode — read-only action.
+- **Notes:** Added "Copy Message Link" (id 7) in `message_view_actions.gd` `setup_context_menu()` (line 35). Handled before guest prompt check (line 136) since it's read-only. Guest mode keeps this item enabled while disabling others (line 94). `_copy_message_link()` at line 222.
 
 ### SHARE-5: Toast feedback for clipboard copy
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** ui
-- **Notes:** Add `signal toast_requested(text: String)` to `AppState`. Connect in `main_window.gd` to `_overlays.show_toast()`. Context menu copy handlers emit `AppState.toast_requested.emit(tr("Link copied!"))`. Replaces per-component toast implementations with a single pattern.
+- **Notes:** Added `signal toast_requested(text: String)` to `AppState` (line 130). Connected in `main_window.gd` (line 115) to `_on_toast_requested()` (line 678) which calls `_overlays.show_toast()`. All copy handlers emit `AppState.toast_requested.emit(tr("Link copied!"))`.
 
 ### SHARE-6: Connect route `?channel=` support
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** core
-- **Notes:** `_parse_connect` (line 83-134) needs to recognize `?channel=<name>` as a query parameter. `_handle_connect` needs to auto-navigate to the channel if the user is already connected to the server, by searching `Client._channel_cache` for a channel matching the name within the target space.
+- **Notes:** `_parse_connect` now recognizes `?channel=<name>` (line 99, URI-decoded). `_handle_connect` checks if already connected and auto-navigates (line 260) via `_navigate_to_channel_by_name()` (line 350).
 
 ### SHARE-7: Navigate route `?msg=` support and scroll-to-message
-- **Status:** open
+- **Status:** partial
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** core, ui
-- **Notes:** `_parse_navigate` (line 174-188) needs query parameter extraction for `?msg=<id>`. `_handle_navigate` (line 267) passes message ID to `AppState`. `message_view.gd` needs to support scrolling to a specific message ID, potentially fetching it if not in the current page. This is the highest-effort task in this flow.
+- **Notes:** `_parse_navigate` now extracts `?msg=<id>` (line 177). `_handle_navigate` emits `AppState.navigate_to_message` signal (line 303). Signal declared in `app_state.gd` (line 132). **Remaining:** `message_view.gd` listener to scroll to the message ID and potentially fetch it if not loaded.
 
 ### SHARE-8: Category context menu "Copy Link"
 - **Status:** open

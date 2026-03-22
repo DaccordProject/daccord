@@ -218,6 +218,8 @@ func _show_context_menu(pos: Vector2i) -> void:
 	_notification_submenu.set_item_checked(1, level == "mentions")
 	_notification_submenu.set_item_checked(2, level == "muted")
 	_context_menu.add_submenu_node_item(tr("Notification Settings"), _notification_submenu, 11)
+	if not space_id.is_empty():
+		_context_menu.add_item(tr("Copy Channel Link"), 12)
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_context_menu.add_separator()
 		_context_menu.add_item(tr("Edit Channel"), 0)
@@ -231,6 +233,7 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		0: _on_edit_channel()
 		1: _on_delete_channel()
 		10: _on_toggle_mute()
+		12: _on_copy_channel_link()
 
 func _on_notification_submenu_id_pressed(id: int) -> void:
 	match id:
@@ -250,6 +253,25 @@ func _on_toggle_mute() -> void:
 		Client.unmute_channel(channel_id)
 	else:
 		Client.mute_channel(channel_id)
+
+func _on_copy_channel_link() -> void:
+	var base_url: String = Client.get_base_url_for_space(space_id)
+	if base_url.is_empty():
+		return
+	var host := base_url.replace("https://", "").replace("http://", "")
+	var space_data: Dictionary = Client.get_space_by_id(space_id)
+	var slug: String = space_data.get("slug", "")
+	var ch_name: String = _channel_data.get("name", "")
+	var port := 443
+	var colon_pos := host.rfind(":")
+	if colon_pos != -1:
+		var port_str := host.substr(colon_pos + 1)
+		if port_str.is_valid_int():
+			port = port_str.to_int()
+			host = host.substr(0, colon_pos)
+	var url := UriHandler.build_connect_url(host, port, slug, ch_name)
+	DisplayServer.clipboard_set(url)
+	AppState.toast_requested.emit(tr("Link copied!"))
 
 func _on_delete_channel() -> void:
 	DialogHelper.confirm(ConfirmDialogScene, get_tree(),

@@ -151,3 +151,83 @@ func test_build_base_url_default_port() -> void:
 
 func test_build_base_url_custom_port() -> void:
 	assert_eq(UriHandler.build_base_url("localhost", 39099), "https://localhost:39099")
+
+
+# --- build_connect_url ---
+
+func test_build_connect_url_space_only() -> void:
+	var url := UriHandler.build_connect_url("chat.example.com", 443, "general")
+	assert_eq(url, "daccord://connect/chat.example.com/general")
+
+
+func test_build_connect_url_with_port() -> void:
+	var url := UriHandler.build_connect_url("localhost", 39099, "myspace")
+	assert_eq(url, "daccord://connect/localhost:39099/myspace")
+
+
+func test_build_connect_url_with_channel() -> void:
+	var url := UriHandler.build_connect_url("chat.example.com", 443, "general", "announcements")
+	assert_eq(url, "daccord://connect/chat.example.com/general?channel=announcements")
+
+
+func test_build_connect_url_channel_with_spaces() -> void:
+	var url := UriHandler.build_connect_url("example.com", 443, "general", "my channel")
+	assert_true(url.contains("?channel=my%20channel"))
+
+
+func test_build_connect_url_empty_slug() -> void:
+	var url := UriHandler.build_connect_url("example.com", 443, "")
+	assert_eq(url, "daccord://connect/example.com")
+
+
+# --- build_navigate_url ---
+
+func test_build_navigate_url_channel_only() -> void:
+	var url := UriHandler.build_navigate_url("123456", "789012")
+	assert_eq(url, "daccord://navigate/123456/789012")
+
+
+func test_build_navigate_url_with_message() -> void:
+	var url := UriHandler.build_navigate_url("123456", "789012", "345678")
+	assert_eq(url, "daccord://navigate/123456/789012?msg=345678")
+
+
+func test_build_navigate_url_space_only() -> void:
+	var url := UriHandler.build_navigate_url("123456", "")
+	assert_eq(url, "daccord://navigate/123456")
+
+
+# --- connect route with channel query param ---
+
+func test_connect_with_channel_param() -> void:
+	var r: Dictionary = parse.call("daccord://connect/chat.example.com/general?channel=announcements")
+	assert_eq(r["route"], "connect")
+	assert_eq(r["host"], "chat.example.com")
+	assert_eq(r["space_slug"], "general")
+	assert_eq(r["channel"], "announcements")
+
+
+func test_connect_channel_with_token() -> void:
+	var r: Dictionary = parse.call("daccord://connect/example.com/space?token=abc&channel=chat")
+	assert_eq(r["token"], "abc")
+	assert_eq(r["channel"], "chat")
+
+
+func test_connect_without_channel_has_no_key() -> void:
+	var r: Dictionary = parse.call("daccord://connect/example.com/space")
+	assert_false(r.has("channel"))
+
+
+# --- navigate route with msg query param ---
+
+func test_navigate_with_message_id() -> void:
+	var r: Dictionary = parse.call("daccord://navigate/123456/789012?msg=345678")
+	assert_eq(r["route"], "navigate")
+	assert_eq(r["space_id"], "123456")
+	assert_eq(r["channel_id"], "789012")
+	assert_eq(r["message_id"], "345678")
+
+
+func test_navigate_without_message_has_no_key() -> void:
+	var r: Dictionary = parse.call("daccord://navigate/123456/789012")
+	assert_false(r.has("message_id"))

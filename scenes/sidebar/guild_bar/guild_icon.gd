@@ -234,6 +234,9 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item(tr("Mute Server"), idx)
 	idx += 1
 
+	_context_menu.add_item(tr("Copy Server Link"), idx)
+	idx += 1
+
 	var current_folder: String = Config.get_space_folder(space_id)
 	if current_folder.is_empty():
 		_context_menu.add_item(tr("Move to Folder"), idx)
@@ -296,8 +299,29 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		_show_folder_dialog()
 	elif label == tr("Remove from Folder"):
 		_remove_from_folder()
+	elif label == tr("Copy Server Link"):
+		_copy_server_link()
 	elif label == tr("Remove Server"):
 		_confirm_remove_server()
+
+
+func _copy_server_link() -> void:
+	var base_url: String = Client.get_base_url_for_space(space_id)
+	if base_url.is_empty():
+		return
+	var host := base_url.replace("https://", "").replace("http://", "")
+	var space_data: Dictionary = Client.get_space_by_id(space_id)
+	var slug: String = space_data.get("slug", "")
+	var port := 443
+	var colon_pos := host.rfind(":")
+	if colon_pos != -1:
+		var port_str := host.substr(colon_pos + 1)
+		if port_str.is_valid_int():
+			port = port_str.to_int()
+			host = host.substr(0, colon_pos)
+	var url := UriHandler.build_connect_url(host, port, slug)
+	DisplayServer.clipboard_set(url)
+	AppState.toast_requested.emit(tr("Link copied!"))
 
 
 func _remove_from_folder() -> void:
