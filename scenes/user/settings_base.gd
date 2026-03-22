@@ -5,6 +5,9 @@ extends ModalBase
 ## Subclasses override _get_sections(), _build_pages(), _get_modal_size(),
 ## and optionally _get_subtitle() to customise the nav and content.
 
+## Threshold below which sidebar collapses to a dropdown.
+const _NAV_COMPACT_THRESHOLD: float = 600.0
+
 var initial_page: int = 0
 
 var _nav_buttons: Array[Button] = []
@@ -12,6 +15,11 @@ var _pages: Array[Control] = []
 var _current_page: int = 0
 var _nav_panel: PanelContainer
 var _body_hbox: HBoxContainer
+
+## Compact-mode nav: dropdown replaces sidebar on narrow viewports.
+var _nav_dropdown: OptionButton
+var _nav_dropdown_margin: MarginContainer
+var _is_compact_nav: bool = false
 
 func _ready() -> void:
 	var modal_size: Vector2 = _get_modal_size()
@@ -45,6 +53,16 @@ func _ready() -> void:
 	)
 	close_btn.pressed.connect(_close)
 	header.add_child(close_btn)
+
+	# Compact-mode nav dropdown (hidden by default)
+	_nav_dropdown = OptionButton.new()
+	_nav_dropdown.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_nav_dropdown.item_selected.connect(_on_nav_dropdown_selected)
+	_nav_dropdown_margin = MarginContainer.new()
+	ThemeManager.set_margins(_nav_dropdown_margin, 12, 12, 0, 0)
+	_nav_dropdown_margin.add_child(_nav_dropdown)
+	_nav_dropdown_margin.visible = false
+	content_container.add_child(_nav_dropdown_margin)
 
 	# Body: nav + content side by side
 	_body_hbox = HBoxContainer.new()
@@ -92,6 +110,7 @@ func _ready() -> void:
 		btn.pressed.connect(_on_nav_pressed.bind(i))
 		nav_vbox.add_child(btn)
 		_nav_buttons.append(btn)
+		_nav_dropdown.add_item(sections[i])
 
 	# Right content area
 	var content_scroll := ScrollContainer.new()
@@ -120,6 +139,11 @@ func _ready() -> void:
 func _on_nav_pressed(index: int) -> void:
 	_show_page(index)
 
+
+func _on_nav_dropdown_selected(index: int) -> void:
+	_show_page(index)
+
+
 func _show_page(index: int) -> void:
 	for i in _pages.size():
 		_pages[i].visible = (i == index)
@@ -131,6 +155,25 @@ func _show_page(index: int) -> void:
 			)
 		else:
 			_nav_buttons[i].remove_theme_color_override("font_color")
+	if _nav_dropdown and _nav_dropdown.selected != index:
+		_nav_dropdown.selected = index
+
+
+func _on_viewport_resized() -> void:
+	super._on_viewport_resized()
+	_update_compact_nav()
+
+
+func _update_compact_nav() -> void:
+	if not is_instance_valid(_nav_panel):
+		return
+	var vp_w: float = get_viewport_rect().size.x
+	var should_compact: bool = vp_w < _NAV_COMPACT_THRESHOLD
+	if should_compact == _is_compact_nav:
+		return
+	_is_compact_nav = should_compact
+	_nav_panel.visible = not should_compact
+	_nav_dropdown_margin.visible = should_compact
 
 # --- Subclass hooks ---
 
