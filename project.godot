@@ -59,6 +59,7 @@ enabled=PackedStringArray("res://addons/accordkit/plugin.cfg")
 
 [gui]
 
+common/default_scroll_deadzone=24
 theme/custom="res://assets/theme/discord_dark.tres"
 
 [locale]

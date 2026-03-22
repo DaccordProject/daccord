@@ -27,6 +27,7 @@ var _voice_text_handle: Control
 var _clamping_panels: bool = false
 var _update_indicator: Button = null
 var _memory_timer: Timer
+var _voice_bar_in_content: bool = false
 
 @onready var video_grid: PanelContainer = $LayoutHBox/ContentArea/VideoGrid
 @onready var content_header: PanelContainer = $LayoutHBox/ContentArea/ContentHeader
@@ -49,6 +50,8 @@ var _memory_timer: Timer
 @onready var thread_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/ThreadPanel
 @onready var member_list: PanelContainer = $LayoutHBox/ContentArea/ContentBody/MemberList
 @onready var search_panel: PanelContainer = $LayoutHBox/ContentArea/ContentBody/SearchPanel
+@onready var voice_bar: PanelContainer = $LayoutHBox/Sidebar/ChannelPanel/VoiceBar
+@onready var channel_panel: VBoxContainer = $LayoutHBox/Sidebar/ChannelPanel
 @onready var drawer_backdrop: ColorRect = $DrawerBackdrop
 @onready var drawer_container: Control = $DrawerContainer
 @onready var member_drawer_backdrop: ColorRect = $MemberDrawerBackdrop
@@ -102,6 +105,8 @@ func _ready() -> void:
 	AppState.profile_card_requested.connect(_on_profile_card_requested)
 	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
 	AppState.voice_error.connect(_on_voice_error)
+	AppState.voice_joined.connect(_on_voice_joined_reparent)
+	AppState.voice_left.connect(_on_voice_left_reparent)
 	AppState.voice_view_opened.connect(_on_voice_view_opened)
 	AppState.voice_view_closed.connect(_on_voice_view_closed)
 	AppState.voice_left.connect(_on_voice_left_pip)
@@ -401,6 +406,13 @@ func _on_viewport_resized() -> void:
 
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	# When voice view is open, skip content visibility management
+	# Move voice bar between sidebar and content area based on layout
+	if not AppState.voice_channel_id.is_empty():
+		if mode == AppState.LayoutMode.COMPACT:
+			_move_voice_bar_to_content()
+		else:
+			_move_voice_bar_to_sidebar()
+
 	if AppState.is_voice_view_open:
 		# Still handle sidebar/drawer transitions
 		if mode == AppState.LayoutMode.COMPACT:
@@ -671,6 +683,32 @@ func _on_voice_view_closed() -> void:
 
 func _on_voice_left_pip(channel_id: String) -> void:
 	_voice_view.on_voice_left(channel_id)
+
+func _on_voice_joined_reparent(_channel_id: String) -> void:
+	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
+		_move_voice_bar_to_content()
+
+func _on_voice_left_reparent(_channel_id: String) -> void:
+	_move_voice_bar_to_sidebar()
+
+func _move_voice_bar_to_content() -> void:
+	if _voice_bar_in_content:
+		return
+	_voice_bar_in_content = true
+	channel_panel.remove_child(voice_bar)
+	content_area.add_child(voice_bar)
+	# Place before ContentBody so it sits between the header and messages
+	content_area.move_child(voice_bar, content_body.get_index())
+
+func _move_voice_bar_to_sidebar() -> void:
+	if not _voice_bar_in_content:
+		return
+	_voice_bar_in_content = false
+	content_area.remove_child(voice_bar)
+	channel_panel.add_child(voice_bar)
+	# Place before UserBar (last child)
+	var user_bar_idx: int = channel_panel.get_child_count() - 1
+	channel_panel.move_child(voice_bar, user_bar_idx)
 
 func _on_voice_error(error: String) -> void:
 	_overlays.show_toast(tr("Voice error: %s") % error, true)
