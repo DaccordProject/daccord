@@ -216,6 +216,8 @@ func _on_viewport_resized() -> void:
 		h = minf(h, max_h)
 
 	_modal_panel.custom_minimum_size = Vector2(w, h)
+	# Hard-cap so content can never push the panel beyond the viewport
+	_modal_panel.custom_maximum_size = Vector2(max_w, max_h)
 
 	# For auto-height modals, also clamp if content grew too tall
 	if modal_height <= 0.0 and _modal_panel.size.y > max_h:
