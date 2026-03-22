@@ -276,6 +276,7 @@ func _on_channel_pressed(channel_id: String) -> void:
 		):
 			return
 		_set_active_channel(channel_id)
+		channel_selected.emit(channel_id)
 		if AppState.voice_channel_id == channel_id:
 			# Already in this voice channel — open the video view
 			AppState.open_voice_view()
