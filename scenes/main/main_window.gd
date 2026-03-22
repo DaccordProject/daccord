@@ -102,9 +102,15 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	AppState.thread_opened.connect(_on_thread_opened)
 	AppState.thread_closed.connect(_on_thread_closed)
-	AppState.profile_card_requested.connect(_on_profile_card_requested)
-	AppState.image_lightbox_requested.connect(_on_image_lightbox_requested)
-	AppState.voice_error.connect(_on_voice_error)
+	AppState.profile_card_requested.connect(
+		_overlays.on_profile_card_requested
+	)
+	AppState.image_lightbox_requested.connect(
+		_overlays.on_image_lightbox_requested
+	)
+	AppState.voice_error.connect(func(e: String) -> void:
+		_overlays.show_toast(tr("Voice error: %s") % e, true)
+	)
 	AppState.voice_joined.connect(_on_voice_joined_reparent)
 	AppState.voice_left.connect(_on_voice_left_reparent)
 	AppState.voice_view_opened.connect(_on_voice_view_opened)
@@ -113,11 +119,13 @@ func _ready() -> void:
 	AppState.update_available.connect(_on_update_indicator_show)
 	AppState.update_download_complete.connect(_on_update_indicator_ready)
 	AppState.config_changed.connect(_on_config_changed)
-	AppState.voice_text_opened.connect(_on_voice_text_opened)
-	AppState.voice_text_closed.connect(_on_voice_text_closed)
+	AppState.voice_text_opened.connect(
+		_sync_handle_visibility.unbind(1)
+	)
+	AppState.voice_text_closed.connect(_sync_handle_visibility)
 	AppState.discovery_opened.connect(_on_discovery_opened)
 	AppState.discovery_closed.connect(_on_discovery_closed)
-	AppState.toast_requested.connect(_on_toast_requested)
+	AppState.toast_requested.connect(_overlays.show_toast)
 
 	# Update indicator in content header (hidden until update available)
 	_update_indicator = Button.new()
@@ -651,9 +659,8 @@ func _on_backdrop_input(event: InputEvent) -> void:
 func _on_member_backdrop_input(event: InputEvent) -> void:
 	if _gestures.is_member_close_tracking:
 		return
-	if event is InputEventMouseButton and event.pressed:
-		AppState.close_member_drawer()
-	elif event is InputEventScreenTouch and event.pressed:
+	if event.pressed and (event is InputEventMouseButton
+			or event is InputEventScreenTouch):
 		AppState.close_member_drawer()
 
 func _hide_drawer_nodes() -> void:
@@ -661,11 +668,6 @@ func _hide_drawer_nodes() -> void:
 
 func _hide_member_drawer_nodes() -> void:
 	_drawer.hide_member_drawer_nodes()
-
-func _on_profile_card_requested(
-	user_id: String, pos: Vector2,
-) -> void:
-	_overlays.on_profile_card_requested(user_id, pos)
 
 func _on_voice_view_opened(channel_id: String) -> void:
 	_voice_view.on_voice_view_opened(
@@ -709,17 +711,6 @@ func _move_voice_bar_to_sidebar() -> void:
 	# Place before UserBar (last child)
 	var user_bar_idx: int = channel_panel.get_child_count() - 1
 	channel_panel.move_child(voice_bar, user_bar_idx)
-
-func _on_voice_error(error: String) -> void:
-	_overlays.show_toast(tr("Voice error: %s") % error, true)
-
-func _on_toast_requested(text: String) -> void:
-	_overlays.show_toast(text)
-
-func _on_image_lightbox_requested(
-	_url: String, texture: ImageTexture,
-) -> void:
-	_overlays.on_image_lightbox_requested(_url, texture)
 
 func _on_update_indicator_show(_info: Dictionary) -> void:
 	_update_indicator.visible = true
@@ -770,12 +761,6 @@ func _on_config_changed(section: String, key: String) -> void:
 	if section == "accessibility" and key == "ui_scale":
 		_apply_ui_scale()
 
-func _on_voice_text_opened(_channel_id: String) -> void:
-	_sync_handle_visibility()
-
-func _on_voice_text_closed() -> void:
-	_sync_handle_visibility()
-
 func _on_discovery_opened() -> void:
 	AppState.close_sidebar_drawer()
 	discovery_panel.visible = true
@@ -795,30 +780,7 @@ func _on_discovery_closed() -> void:
 	_sync_handle_visibility()
 
 func _on_tab_bar_input(event: InputEvent) -> void:
-	if not event is InputEventMouseButton:
-		return
-	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	var i: int = tab_bar.current_tab
-	if i < 0 or i >= tab_bar.tab_count:
-		return
-	var close_icon: Texture2D = tab_bar.get_theme_icon("close")
-	if close_icon == null:
-		return
-	var icon_size: Vector2 = close_icon.get_size()
-	var tab_rect: Rect2 = tab_bar.get_tab_rect(i)
-	var style: StyleBox = tab_bar.get_theme_stylebox("tab_selected")
-	var right_margin: float = style.content_margin_right if style else 0.0
-	var close_rect := Rect2(
-		Vector2(
-			tab_rect.end.x - right_margin - icon_size.x,
-			tab_rect.position.y + (tab_rect.size.y - icon_size.y) / 2.0,
-		),
-		icon_size,
-	)
-	if close_rect.has_point(event.position):
-		_tabs.on_tab_close(i)
-		tab_bar.accept_event()
+	_tabs.handle_tab_bar_input(event)
 
 func _apply_theme() -> void:
 	drawer_backdrop.color = ThemeManager.get_color("overlay")

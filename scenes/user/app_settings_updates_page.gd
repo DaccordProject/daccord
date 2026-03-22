@@ -51,15 +51,20 @@ func build() -> VBoxContainer:
 	check_row.add_child(_check_btn)
 	_status_label = Label.new()
 	ThemeManager.style_label(_status_label, 13, "text_muted")
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	check_row.add_child(_status_label)
 	vbox.add_child(check_row)
 
-	# Update available row (hidden until update found)
+	# Update available row (hidden until update found, wraps on narrow screens)
 	_update_row = HBoxContainer.new()
 	_update_row.add_theme_constant_override("separation", 8)
 	_update_row.visible = false
+	_update_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_update_version_label = Label.new()
 	ThemeManager.style_label(_update_version_label, 14, "accent")
+	_update_version_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_update_version_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_update_row.add_child(_update_version_label)
 	_view_changes_btn = Button.new()
 	_view_changes_btn.text = tr("View Changes")
@@ -91,7 +96,8 @@ func build() -> VBoxContainer:
 	_progress_row.add_theme_constant_override("separation", 8)
 	_progress_row.visible = false
 	_progress_bar = ProgressBar.new()
-	_progress_bar.custom_minimum_size = Vector2(200, 20)
+	_progress_bar.custom_minimum_size = Vector2(80, 20)
+	_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_progress_bar.max_value = 100.0
 	_progress_row.add_child(_progress_bar)
 	_progress_label = Label.new()
@@ -120,6 +126,7 @@ func build() -> VBoxContainer:
 	# Error label
 	_error_label_update = Label.new()
 	ThemeManager.style_label(_error_label_update, 13, "error")
+	_error_label_update.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_error_label_update.visible = false
 	vbox.add_child(_error_label_update)
 

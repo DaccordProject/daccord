@@ -210,6 +210,38 @@ func _resize_for_tab(image: Image) -> ImageTexture:
 	return ImageTexture.create_from_image(image)
 
 
+func handle_tab_bar_input(event: InputEvent) -> void:
+	if not event is InputEventMouseButton:
+		return
+	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var i: int = _tab_bar.current_tab
+	if i < 0 or i >= _tab_bar.tab_count:
+		return
+	var close_icon: Texture2D = _tab_bar.get_theme_icon("close")
+	if close_icon == null:
+		return
+	var icon_size: Vector2 = close_icon.get_size()
+	var tab_rect: Rect2 = _tab_bar.get_tab_rect(i)
+	var style: StyleBox = _tab_bar.get_theme_stylebox(
+		"tab_selected",
+	)
+	var right_margin: float = (
+		style.content_margin_right if style else 0.0
+	)
+	var close_rect := Rect2(
+		Vector2(
+			tab_rect.end.x - right_margin - icon_size.x,
+			tab_rect.position.y
+			+ (tab_rect.size.y - icon_size.y) / 2.0,
+		),
+		icon_size,
+	)
+	if close_rect.has_point(event.position):
+		on_tab_close(i)
+		_tab_bar.accept_event()
+
+
 func _create_color_swatch(
 	c: Color, px: int = TAB_ICON_HEIGHT,
 ) -> ImageTexture:
