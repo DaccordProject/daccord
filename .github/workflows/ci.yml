@@ -785,3 +785,163 @@ jobs:
           else
             echo "Export failed — no artifacts produced." >> $GITHUB_STEP_SUMMARY
           fi
+
+  windows-smoke-test:
+    name: Windows Export & Smoke Test
+    needs: lint
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: default
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install system libraries and Wine
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev \
+            wine64
+
+      - name: Install godot-livekit addon (latest release)
+        run: |
+          TMPDIR=$(mktemp -d)
+          gh release download --repo NodotProject/godot-livekit \
+            --pattern "godot-livekit-release.zip" --dir "$TMPDIR"
+          unzip -o "$TMPDIR/godot-livekit-release.zip" -d "$TMPDIR/extracted"
+          rm -rf addons/godot-livekit
+          cp -R "$TMPDIR/extracted/addons/godot-livekit" addons/godot-livekit
+          rm -rf "$TMPDIR"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Cache GUT
+        uses: actions/cache@v4
+        with:
+          path: addons/gut
+          key: gut-${{ env.GUT_VERSION }}
+
+      - name: Install GUT
+        run: |
+          if [ ! -d addons/gut ]; then
+            wget -q https://github.com/bitwes/Gut/archive/refs/tags/v${GUT_VERSION}.tar.gz -O /tmp/gut.tar.gz
+            tar xzf /tmp/gut.tar.gz -C /tmp
+            cp -r /tmp/Gut-${GUT_VERSION}/addons/gut addons/gut
+            rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
+          fi
+
+      - name: Cache Sentry SDK
+        uses: actions/cache@v4
+        with:
+          path: addons/sentry
+          key: sentry-godot-${{ env.SENTRY_VERSION }}
+
+      - name: Install Sentry SDK
+        run: |
+          if [ ! -d addons/sentry ]; then
+            gh release download $SENTRY_VERSION --repo getsentry/sentry-godot \
+              --pattern "*.zip" --dir /tmp/sentry_dl
+            unzip -o /tmp/sentry_dl/*.zip -d /tmp/sentry_extract
+            cp -r /tmp/sentry_extract/addons/sentry addons/sentry
+            rm -rf /tmp/sentry_dl /tmp/sentry_extract
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Verify all addons installed
+        run: |
+          failed=0
+          for addon in godot-livekit gut sentry; do
+            if [ ! -d "addons/$addon" ]; then
+              echo "::error::Required addon missing: addons/$addon"
+              failed=1
+            else
+              echo "OK: addons/$addon"
+            fi
+          done
+          exit $failed
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Download GodotLite Windows template
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/templates
+          ASSET="godotlite-${GODOTLITE_TAG}-windows-x86_64.exe"
+          DEST="dist/templates/godot.windows.template_release.x86_64.exe"
+          gh release download "${GODOTLITE_TAG}" \
+            --repo NodotProject/GodotLite \
+            --pattern "${ASSET}" \
+            --dir dist/templates
+          mv "dist/templates/${ASSET}" "${DEST}"
+          echo "GodotLite Windows template installed: ${DEST} ($(du -h "${DEST}" | cut -f1))"
+
+      - name: Cache Godot import
+        uses: actions/cache@v4
+        with:
+          path: .godot/imported
+          key: godot-import-${{ env.GODOT_VERSION }}-windows-${{ github.sha }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-windows-
+
+      - name: Import project
+        run: godot --headless --import .
+        timeout-minutes: 2
+
+      - name: Export Windows build
+        run: |
+          mkdir -p dist/build/windows
+          godot --headless --export-release "Windows" 2>&1 | tee /tmp/win_export.log
+          if [ ! -f dist/build/windows/daccord.exe ]; then
+            echo "::error::Windows export failed — daccord.exe not produced"
+            cat /tmp/win_export.log
+            exit 1
+          fi
+          echo "Export successful: $(du -h dist/build/windows/daccord.exe | cut -f1)"
+          echo "Build directory contents:"
+          ls -lah dist/build/windows/
+        timeout-minutes: 5
+
+      - name: Validate Windows binary starts (Wine)
+        run: |
+          cd dist/build/windows
+          # Use Wine to run the Windows binary in headless mode
+          timeout 30 wine64 daccord.exe --headless --quit 2>&1 | tee /tmp/wine_startup.log || true
+          # Check for fatal errors that indicate broken export
+          if grep -qiE "MainLoop type doesn't exist|SCRIPT ERROR|Cannot open file|Failed loading resource" /tmp/wine_startup.log; then
+            echo "::error::Windows binary failed startup validation under Wine"
+            echo "## Windows Smoke Test Errors" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            grep -iE "ERROR|SCRIPT ERROR|Cannot open|Failed loading|MainLoop|doesn't exist" /tmp/wine_startup.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "Windows binary started and quit successfully under Wine"
+        timeout-minutes: 2
+
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-windows-build
+          path: dist/build/windows/
+          retention-days: 7
+
+      - name: Windows smoke test summary
+        if: always()
+        run: |
+          echo "## Windows Smoke Test" >> $GITHUB_STEP_SUMMARY
+          if [ -f dist/build/windows/daccord.exe ]; then
+            echo "Export successful:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -lah dist/build/windows/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Export failed — no artifacts produced." >> $GITHUB_STEP_SUMMARY
+          fi
