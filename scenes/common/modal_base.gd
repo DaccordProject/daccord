@@ -216,12 +216,16 @@ func _on_viewport_resized() -> void:
 		h = minf(h, max_h)
 
 	_modal_panel.custom_minimum_size = Vector2(w, h)
-	# Hard-cap so content can never push the panel beyond the viewport
-	_modal_panel.custom_maximum_size = Vector2(max_w, max_h)
+	_modal_panel.clip_contents = true
 
-	# For auto-height modals, also clamp if content grew too tall
+	# For auto-height modals, clamp if content grew too tall
 	if modal_height <= 0.0 and _modal_panel.size.y > max_h:
 		_modal_panel.custom_minimum_size.y = max_h
+	# Hard-cap: if panel exceeds viewport bounds, force-shrink via size
+	if _modal_panel.size.x > max_w or _modal_panel.size.y > max_h:
+		_modal_panel.set_deferred("size", Vector2(
+			minf(_modal_panel.size.x, max_w),
+			minf(_modal_panel.size.y, max_h)))
 
 
 func _exit_tree() -> void:
