@@ -499,6 +499,10 @@ func _rebuild_activity(tiles: Array) -> void:
 			lobby.setup(_activity_manifest, _activity_is_host)
 			content.add_child(lobby)
 			container.set_meta("lobby", lobby)
+			var initial_parts: Array = \
+				Client.plugins.get_session_participants()
+			if not initial_parts.is_empty():
+				lobby.update_participants(initial_parts)
 		"running":
 			var vp_rect := TextureRect.new()
 			vp_rect.set_anchors_preset(Control.PRESET_FULL_RECT)

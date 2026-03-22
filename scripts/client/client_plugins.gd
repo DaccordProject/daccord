@@ -15,6 +15,7 @@ var _active_session_id: String = ""
 var _active_conn_index: int = -1
 var _is_host: bool = false
 var _host_user_id: String = ""
+var _session_participants: Array = []
 
 var _scripted_runtime_class = null  # loaded on demand
 var _native_runtime_class = null   # loaded on demand
@@ -101,11 +102,12 @@ func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	AppState.active_activity_session_id = session_id
 	AppState.active_activity_session_state = state
 	AppState.active_activity_role = "player"
+	var session_participants: Array = session.get("participants", [])
+	_session_participants = session_participants
 	AppState.activity_started.emit(plugin_id, channel_id)
 
 	# Prepare the appropriate runtime based on plugin type.
 	var manifest: Dictionary = get_plugin(plugin_id)
-	var session_participants: Array = session.get("participants", [])
 	var runtime_type: String = manifest.get("runtime", "")
 	if runtime_type == "scripted":
 		await _download_and_prepare_scripted_runtime(
@@ -392,12 +394,13 @@ func join_activity() -> void:
 	AppState.active_activity_session_id = session_id
 	AppState.active_activity_session_state = state
 	AppState.active_activity_role = "player"
+	var session_data: Dictionary = result.data if result.data is Dictionary else {}
+	var participants: Array = session_data.get("participants", [])
+	_session_participants = participants
 	AppState.activity_started.emit(plugin_id, channel_id)
 
 	# Download and prepare runtime
 	var manifest: Dictionary = get_plugin(plugin_id)
-	var session_data: Dictionary = result.data if result.data is Dictionary else {}
-	var participants: Array = session_data.get("participants", [])
 	var runtime_type: String = manifest.get("runtime", "")
 	if runtime_type == "scripted":
 		await _download_and_prepare_scripted_runtime(
@@ -422,6 +425,8 @@ func stop_activity(plugin_id: String) -> void:
 	var client: AccordClient = conn["client"]
 	if _is_host:
 		await client.plugins.delete_session(plugin_id, _active_session_id)
+	else:
+		await client.plugins.leave_session(plugin_id, _active_session_id)
 	_clear_active_activity()
 	AppState.activity_ended.emit(plugin_id)
 
@@ -497,6 +502,11 @@ func is_activity_host() -> bool:
 	return _is_host
 
 
+## Returns the current session participants list.
+func get_session_participants() -> Array:
+	return _session_participants
+
+
 ## Checks if there's an active session in the given voice channel.
 ## Called on voice join and reconnect to discover ongoing activities.
 func check_active_session(
@@ -540,6 +550,7 @@ func check_active_session(
 		_active_conn_index = conn_index
 		_is_host = host_user_id == my_id
 		_host_user_id = host_user_id
+		_session_participants = participants
 		AppState.active_activity_plugin_id = plugin_id
 		AppState.active_activity_channel_id = channel_id
 		AppState.active_activity_session_id = session_id
@@ -665,6 +676,7 @@ func on_plugin_role_changed(data: Dictionary, _conn_index: int) -> void:
 				ctx.role_changed.emit(user_id, role)
 	AppState.activity_role_changed.emit(plugin_id, user_id, role)
 	if not participants.is_empty():
+		_session_participants = participants
 		AppState.activity_participants_updated.emit(
 			session_id, participants
 		)
@@ -708,6 +720,14 @@ func _on_voice_left(_channel_id: String) -> void:
 	if _active_session_id.is_empty():
 		return
 	var plugin_id: String = AppState.active_activity_plugin_id
+	# Notify server so we're removed from the participant list
+	if not _is_host and not _active_session_id.is_empty():
+		var conn_idx: int = get_conn_index_for_plugin(plugin_id)
+		if conn_idx >= 0 and conn_idx < _c._connections.size():
+			var conn: Dictionary = _c._connections[conn_idx]
+			if conn != null and conn.get("client") != null:
+				var client: AccordClient = conn["client"]
+				client.plugins.leave_session(plugin_id, _active_session_id)
 	_clear_active_activity()
 	if not plugin_id.is_empty():
 		AppState.activity_ended.emit(plugin_id)
@@ -728,6 +748,7 @@ func _clear_active_activity() -> void:
 	_active_conn_index = -1
 	_is_host = false
 	_host_user_id = ""
+	_session_participants = []
 	# Disconnect LiveKit data channel routing
 	if _c.has_node("LiveKitAdapter"):
 		var adapter: Node = _c.get_node("LiveKitAdapter")

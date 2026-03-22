@@ -282,6 +282,13 @@ func _on_channel_pressed(channel_id: String) -> void:
 			AppState.open_voice_view()
 		else:
 			Client.join_voice_channel(channel_id)
+			# Auto-open voice view once the join completes
+			AppState.voice_joined.connect(
+				func(cid: String) -> void:
+					if cid == channel_id:
+						AppState.open_voice_view(),
+				CONNECT_ONE_SHOT
+			)
 		return
 
 	# NSFW age gate

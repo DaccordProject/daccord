@@ -82,6 +82,15 @@ func update_session_state(plugin_id: String, session_id: String, state: String) 
 	return result
 
 
+## Leaves an activity session (non-host). Removes the user from the
+## participant list on the server so they won't be auto-rejoined.
+func leave_session(plugin_id: String, session_id: String) -> RestResult:
+	var result := await _rest.make_request(
+		"POST", "/plugins/" + plugin_id + "/sessions/" + session_id + "/leave"
+	)
+	return result
+
+
 ## Assigns a participant role within a session.
 ## role should be "player" or "spectator".
 func assign_role(plugin_id: String, session_id: String, user_id: String, role: String) -> RestResult:

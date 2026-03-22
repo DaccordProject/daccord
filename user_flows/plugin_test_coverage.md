@@ -2,18 +2,18 @@
 
 ## Overview
 
-Audit of test coverage for the server plugins system. The plugin system spans 13 source files (~2,400 lines) across AccordKit models, REST endpoints, autoload managers, runtimes, and UI components. Current tests cover the data model, REST API, ClientPlugins gateway/routing logic, PluginDownloadManager pure logic, PluginCanvas color parsing/limits/buffers, PluginContext identity helpers, and NativeRuntime file framing protocol. Remaining gaps are in the runtimes (Lua sandbox, scene loading), UI dialogs, and orchestration methods requiring network.
+Audit of test coverage for the server plugins system. The plugin system spans 13 source files (~2,400 lines) across AccordKit models, REST endpoints, autoload managers, runtimes, and UI components. Current tests cover the data model, REST API, ClientPlugins gateway/routing/bundle extraction/trust/state management, PluginDownloadManager pure logic and ZIP extraction, PluginCanvas color parsing/limits/buffers, PluginContext identity helpers and communication, NativeRuntime file framing/lifecycle, and ScriptedRuntime pure logic (constants, error checking, cleanup). Remaining gaps are in the Lua sandbox (requires lua-gdextension), network orchestration methods, and UI dialogs.
 
 ## Test Inventory
 
-### Unit Tests: `test_client_plugins.gd` — 28 tests
+### Unit Tests: `test_client_plugins.gd` — 51 tests
 
 | Test | What it covers |
 |------|---------------|
 | `test_get_plugins_empty_by_default` | Empty cache returns `[]` |
 | `test_get_plugin_returns_empty_when_not_found` | Unknown plugin returns `{}` |
 | `test_get_conn_index_for_plugin_not_found` | Unknown plugin returns `-1` |
-| `test_on_plugin_installed_adds_to_cache` | Gateway install populates cache (line 56) |
+| `test_on_plugin_installed_adds_to_cache` | Gateway install populates cache (line 582) |
 | `test_on_plugin_installed_ignores_empty_id` | Manifest missing `id` is silently dropped |
 | `test_on_plugin_installed_updates_existing` | Re-install same ID replaces cached entry |
 | `test_on_plugin_uninstalled_removes_from_cache` | Uninstall removes the correct entry |
@@ -27,17 +27,40 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 | `test_voice_left_noop_when_no_activity` | Voice disconnect without activity is a no-op |
 | `test_get_conn_index_for_plugin_found` | Correct connection index returned |
 | `test_plugins_isolated_per_connection` | Plugins from different connections don't cross-contaminate |
-| `test_livekit_data_strips_prefix_and_routes` | `_on_livekit_data_received` strips `plugin:<id>:` prefix and forwards to mock runtime (line 333) |
+| `test_livekit_data_strips_prefix_and_routes` | `_on_livekit_data_received` strips `plugin:<id>:` prefix and forwards to mock runtime (line 341) |
 | `test_livekit_data_ignores_wrong_plugin_prefix` | Data with mismatched plugin prefix is dropped |
 | `test_livekit_data_ignores_when_no_runtime` | No crash when `_active_runtime` is null |
 | `test_livekit_data_ignores_non_plugin_topic` | Non-`plugin:` topics are ignored |
-| `test_on_plugin_event_forwards_to_runtime` | `on_plugin_event` forwards event_type + data to runtime (line 456) |
+| `test_on_plugin_event_forwards_to_runtime` | `on_plugin_event` forwards event_type + data to runtime (line 606) |
 | `test_on_plugin_event_noop_when_no_runtime` | No crash when no active runtime |
-| `test_update_scripted_participants_updates_existing` | Role update for existing participant in scripted runtime (line 501) |
+| `test_update_scripted_participants_updates_existing` | Role update for existing participant in scripted runtime (line 685) |
 | `test_update_scripted_participants_adds_new` | New participant appended to scripted runtime list |
-| `test_update_context_participants_updates_existing` | Role update for existing participant in PluginContext (line 511) |
+| `test_update_context_participants_updates_existing` | Role update for existing participant in PluginContext (line 695) |
 | `test_update_context_participants_adds_new` | New participant appended to PluginContext list |
 | `test_uninstall_active_plugin_clears_activity` | Uninstalling the active plugin clears session + AppState and emits `activity_ended` |
+| `test_extract_bundle_valid_zip` | ZIP with entry point → returns lua_source, modules, assets |
+| `test_extract_bundle_default_entry_point` | Falls back to "src/main.lua" when entry_point missing (line 199) |
+| `test_extract_bundle_missing_entry_returns_empty` | ZIP without entry file returns `{}` (line 209) |
+| `test_extract_bundle_extracts_modules` | `.lua` files extracted as modules dict keyed by basename (line 218) |
+| `test_extract_bundle_extracts_assets` | `assets/` paths extracted as binary PackedByteArray (line 222) |
+| `test_extract_bundle_invalid_zip_returns_empty` | Non-ZIP bytes return `{}` |
+| `test_is_plugin_trusted_default_false` | Unknown server/plugin returns false (line 333) |
+| `test_is_plugin_trusted_trust_all` | `Config.is_plugin_trust_all` returns true → trusted (line 334) |
+| `test_is_plugin_trusted_specific_plugin` | `Config.get_plugin_trust` per-plugin trust (line 336) |
+| `test_clear_pending_activity_resets_state` | All `AppState.pending_activity_*` fields cleared (line 738) |
+| `test_clear_active_activity_resets_state` | All active session/AppState fields reset (line 746) |
+| `test_clear_active_activity_stops_runtime` | Active runtime stopped and freed |
+| `test_get_activity_viewport_texture_null_when_no_runtime` | Returns null with no runtime (line 488) |
+| `test_get_activity_viewport_texture_delegates_to_runtime` | Delegates to runtime.get_viewport_texture() |
+| `test_forward_activity_input_noop_when_no_runtime` | No crash with null runtime (line 495) |
+| `test_forward_activity_input_delegates_to_runtime` | Delegates to runtime.forward_input() |
+| `test_is_activity_host_false_by_default` | Default false (line 501) |
+| `test_is_activity_host_true_when_set` | Returns true when _is_host is set |
+| `test_get_session_participants_returns_list` | Returns _session_participants (line 506) |
+| `test_stop_activity_noop_when_no_session` | Early return when _active_session_id empty (line 417) |
+| `test_start_session_noop_when_no_session` | Early return when _active_session_id empty (line 436) |
+| `test_assign_role_noop_when_no_session` | Early return when _active_session_id empty (line 456) |
+| `test_send_action_noop_when_no_session` | Early return when _active_session_id empty (line 473) |
 
 ### Unit Tests: `test_plugin_canvas.gd` — 31 tests
 
@@ -75,7 +98,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 | `test_clamp_y_beyond_height_returns_height` | Oversized y clamped to canvas_height |
 | `test_setup_updates_dimensions` | `setup()` updates canvas_width/height |
 
-### Unit Tests: `test_plugin_context.gd` — 17 tests
+### Unit Tests: `test_plugin_context.gd` — 27 tests
 
 | Test | What it covers |
 |------|---------------|
@@ -96,8 +119,18 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 | `test_on_data_received_routes_non_file_to_context` | Non-"file:" topics route to `data_received` signal (line 92) |
 | `test_on_data_received_routes_file_to_handler` | "file:" topics route to `_handle_file_data` (line 89) |
 | `test_on_data_received_null_context_ignored` | Null context doesn't crash |
+| `test_native_stop_noop_when_not_running` | NativeRuntime.stop() no-op when _running is false (line 61) |
+| `test_native_stop_clears_state` | NativeRuntime.stop() sets _running=false, _context=null (line 62) |
+| `test_native_on_plugin_event_noop_when_not_running` | on_plugin_event early return when not running (line 76) |
+| `test_native_on_plugin_event_noop_when_no_scene` | on_plugin_event early return when no scene (line 76) |
+| `test_native_get_viewport_texture_null_when_no_scene` | Returns null with no scene instance (line 97) |
+| `test_native_forward_input_noop_when_no_scene` | No crash with null scene (line 104) |
+| `test_native_runtime_initial_state` | Default state: _running=false, _scene_instance=null, _context=null |
+| `test_context_send_action_noop_when_no_client_plugins` | send_action no-op with null _client_plugins (line 85) |
+| `test_context_send_data_noop_when_no_adapter` | send_data no-op with null _livekit_adapter (line 40) |
+| `test_context_session_state_defaults` | All PluginContext fields have correct defaults |
 
-### Unit Tests: `test_plugin_download_manager.gd` — 17 tests
+### Unit Tests: `test_plugin_download_manager.gd` — 28 tests
 
 | Test | What it covers |
 |------|---------------|
@@ -108,16 +141,53 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 | `test_cache_dir_simple_ids` | Simple IDs produce `user://plugins/<server>/<plugin>` path (line 122) |
 | `test_cache_dir_special_characters_encoded` | Special chars in IDs are URI-encoded (line 124) |
 | `test_cache_dir_spaces_encoded` | Spaces in IDs are URI-encoded |
-| `test_verify_signature_returns_false_when_no_sig_file` | No `plugin.sig` → returns false (line 193) |
-| `test_verify_signature_returns_true_when_sig_exists` | **Security gap**: empty `plugin.sig` passes stub verification (line 199) |
-| `test_is_cached_empty_hash_returns_false` | Empty expected_hash returns false (line 20) |
+| `test_verify_signature_returns_false_when_no_sig_file` | No `plugin.sig` → returns false (line 192) |
+| `test_verify_signature_returns_true_when_sig_exists` | **Security gap**: empty `plugin.sig` passes stub verification (line 200) |
+| `test_is_cached_empty_hash_returns_false` | Empty expected_hash returns false (line 19) |
 | `test_is_cached_no_hash_file_returns_false` | Missing `.bundle_hash` file returns false (line 23) |
 | `test_is_cached_matching_hash_returns_true` | Matching stored hash returns true (line 26) |
 | `test_is_cached_mismatched_hash_returns_false` | Mismatched hash returns false |
-| `test_write_hash_file_creates_file` | `_write_hash_file` creates `.bundle_hash` with correct content (line 202) |
+| `test_write_hash_file_creates_file` | `_write_hash_file` creates `.bundle_hash` with correct content (line 203) |
 | `test_max_bundle_size_is_50mb` | MAX_BUNDLE_SIZE constant is 50 MB (line 8) |
 | `test_server_id_for_conn_uses_space_id` | Connection with space_id uses it as server ID (line 130) |
 | `test_server_id_for_conn_empty_space_id_falls_back` | Empty space_id falls back to "unknown" (line 137) |
+| `test_extract_zip_creates_files` | Valid ZIP extracts files to dest dir (line 149) |
+| `test_extract_zip_handles_subdirectories` | Nested directory entries created correctly (line 175) |
+| `test_extract_zip_invalid_data_returns_false` | Non-ZIP data returns false (line 162) |
+| `test_extract_zip_cleans_up_temp_file` | Temp `.tmp.zip` removed after extraction (line 188) |
+| `test_extract_zip_overwrites_old_cache` | Old cache dir removed before extraction (line 168) |
+| `test_extract_zip_path_traversal_not_sanitized` | **Security**: documents that `path_join("../")` is not sanitized (line 178) |
+| `test_remove_dir_recursive_cleans_nested_dirs` | Recursively removes dirs and files (line 211) |
+| `test_remove_dir_recursive_noop_for_nonexistent` | No crash on non-existent path |
+| `test_clear_cache_removes_cached_dir` | `clear_cache` removes plugin cache directory (line 114) |
+| `test_clear_cache_noop_for_uncached` | No crash for non-existent cache |
+| `test_get_cache_dir_delegates_to_cache_dir` | Public accessor delegates to internal `_cache_dir` (line 30) |
+
+### Unit Tests: `test_scripted_runtime.gd` — 21 tests
+
+| Test | What it covers |
+|------|---------------|
+| `test_safe_libs_bitmask` | SAFE_LIBS excludes io, os, package, debug (line 13) |
+| `test_max_sounds_constant` | MAX_SOUNDS is 16 (line 9) |
+| `test_is_lua_error_null_returns_false` | `_is_lua_error(null)` returns false (line 251) |
+| `test_is_lua_error_string_returns_false` | String is not a LuaError |
+| `test_is_lua_error_int_returns_false` | Int is not a LuaError |
+| `test_is_lua_error_dict_returns_false` | Dictionary is not a LuaError |
+| `test_is_lua_error_node_returns_false` | Node is not a LuaError |
+| `test_not_running_by_default` | `_running` is false on init |
+| `test_process_disabled_by_default` | `_ready()` disables process (line 54) |
+| `test_get_viewport_texture_null_when_no_viewport` | Returns null when _viewport is null (line 160) |
+| `test_on_plugin_event_noop_when_not_running` | Early return when not running (line 153) |
+| `test_forward_input_noop_when_not_running` | Early return when not running (line 175) |
+| `test_lua_call_safe_null_fn_returns_null` | Null function returns null (line 213) |
+| `test_lua_call_safe_null_fn_with_args_returns_null` | Null function with args returns null |
+| `test_stop_noop_when_not_running` | stop() early return (line 131) |
+| `test_cleanup_nulls_references` | `_cleanup()` nulls all cached Lua functions (line 552) |
+| `test_session_context_defaults` | Default session_id, participants, local_user_id, local_role |
+| `test_bridge_send_action_noop_when_no_client_plugins` | No crash with null _client_plugins (line 473) |
+| `test_bridge_clear_timer_noop_for_unknown` | Unknown timer ID is a no-op (line 513) |
+| `test_bridge_play_sound_noop_for_unknown` | Unknown sound handle is a no-op (line 539) |
+| `test_bridge_stop_sound_noop_for_unknown` | Unknown sound handle is a no-op (line 545) |
 
 ### Unit Tests: `test_model_plugin_manifest.gd` — 5 tests
 
@@ -144,7 +214,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 | `test_send_action_requires_running_state` | Action in lobby state fails |
 | `test_invalid_state_transition` | `lobby → lobby` returns error |
 
-**Total: 108 plugin-specific tests** (28 client_plugins + 31 canvas + 17 context + 17 download_manager + 5 model + 10 integration)
+**Total: 173 plugin-specific tests** (51 client_plugins + 31 canvas + 27 context + 28 download_manager + 21 scripted_runtime + 5 model + 10 integration)
 
 ## Signal Flow
 
@@ -159,6 +229,13 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
                         │ ClientPlugins._on_voice_left                    │
                         │ ClientPlugins._on_livekit_data_received         │
                         │ ClientPlugins._update_*_participants            │
+                        │ ClientPlugins._extract_bundle                   │
+                        │ ClientPlugins._is_plugin_trusted                │
+                        │ ClientPlugins._clear_pending/active_activity    │
+                        │ ClientPlugins.get_activity_viewport_texture     │
+                        │ ClientPlugins.forward_activity_input            │
+                        │ ClientPlugins.is_activity_host                  │
+                        │ ClientPlugins.stop/start/assign/send guards     │
                         └──────────────────┬──────────────────────────────┘
                                            │
                         ┌──────────────────▼──────────────────────────────┐
@@ -167,33 +244,35 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
                         │ PluginCanvas._parse_color, push_command limits  │
                         │ PluginCanvas buffer create/write/data/cleanup   │
                         │ PluginContext.get_role, is_host, get_participants│
+                        │ PluginContext.send_action, send_data guards     │
                         │ PluginContext↔NativeRuntime file framing        │
                         │ NativeRuntime._handle_file_data edge cases      │
                         │ NativeRuntime.on_data_received routing          │
+                        │ NativeRuntime.stop lifecycle, initial state     │
+                        │ NativeRuntime.on_plugin_event/forward_input     │
+                        │ ScriptedRuntime._is_lua_error, _lua_call_safe  │
+                        │ ScriptedRuntime.stop/cleanup, constants         │
+                        │ ScriptedRuntime.bridge no-op guards             │
                         │ PluginDownloadManager._sha256_hex               │
                         │ PluginDownloadManager.is_cached/_write_hash     │
                         │ PluginDownloadManager._verify_signature (stub)  │
                         │ PluginDownloadManager._cache_dir URI encoding   │
+                        │ PluginDownloadManager._extract_zip              │
+                        │ PluginDownloadManager.clear_cache               │
+                        │ PluginDownloadManager._remove_dir_recursive     │
                         └──────────────────┬──────────────────────────────┘
                                            │
                         ┌──────────────────▼──────────────────────────────┐
                         │              NOT TESTED                         │
                         │                                                 │
-                        │ ClientPlugins.launch_activity                   │
-                        │ ClientPlugins.stop_activity                     │
-                        │ ClientPlugins.start_session                     │
-                        │ ClientPlugins.assign_role                       │
-                        │ ClientPlugins.send_action                       │
-                        │ ClientPlugins.forward_activity_input            │
-                        │ ClientPlugins.get_activity_viewport_texture     │
+                        │ ClientPlugins.launch_activity (network)         │
                         │ ClientPlugins._download_and_prepare_*_runtime   │
-                        │ ClientPlugins._extract_bundle                   │
-                        │ ClientPlugins._show_trust_dialog                │
-                        │ ClientPlugins._is_plugin_trusted                │
-                        │ PluginDownloadManager.download_bundle           │
-                        │ PluginDownloadManager._extract_zip              │
-                        │ ScriptedRuntime (all)                           │
-                        │ NativeRuntime.start/stop (scene loading)        │
+                        │ ClientPlugins._show_trust_dialog (UI modal)     │
+                        │ PluginDownloadManager.download_bundle (network) │
+                        │ ScriptedRuntime.start (requires lua-gdextension)│
+                        │ ScriptedRuntime._inject_bridge_api (requires    │
+                        │   lua-gdextension)                              │
+                        │ NativeRuntime.start (requires scene on disk)    │
                         └─────────────────────────────────────────────────┘
 ```
 
@@ -201,18 +280,18 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 
 | File | Role | Tests |
 |------|------|-------|
-| `scripts/autoload/client_plugins.gd` | Plugin manager — caching, gateway, activity lifecycle | `tests/unit/test_client_plugins.gd` (28 tests; cache + gateway + routing + participants) |
-| `scripts/autoload/plugin_download_manager.gd` | Bundle download, SHA-256 verification, ZIP extraction, cache | `tests/unit/test_plugin_download_manager.gd` (17 tests; hash, cache, signature stub, URI encoding) |
+| `scripts/client/client_plugins.gd` | Plugin manager — caching, gateway, activity lifecycle, bundle extraction, trust | `tests/unit/test_client_plugins.gd` (51 tests; cache + gateway + routing + participants + bundle + trust + state + guards) |
+| `scripts/helpers/plugin_download_manager.gd` | Bundle download, SHA-256 verification, ZIP extraction, cache | `tests/unit/test_plugin_download_manager.gd` (28 tests; hash, cache, signature stub, URI encoding, ZIP extraction, dir cleanup, path traversal) |
 | `addons/accordkit/models/plugin_manifest.gd` | Typed manifest model (19 fields, 3 enums) | `tests/accordkit/unit/test_model_plugin_manifest.gd` (5 tests) |
 | `addons/accordkit/rest/endpoints/plugins_api.gd` | REST helpers (9 endpoints) | `tests/accordkit/integration/test_plugins_api.gd` (10 tests) |
-| `scenes/plugins/scripted_runtime.gd` | Lua sandbox, SubViewport rendering, bridge API (30+ methods) | **None** |
-| `scenes/plugins/native_runtime.gd` | Scene loader, teardown lifecycle, data channel routing | `tests/unit/test_plugin_context.gd` (6 tests; file framing, data routing, edge cases) |
+| `scripts/plugins/scripted_runtime.gd` | Lua sandbox, SubViewport rendering, bridge API (30+ methods) | `tests/unit/test_scripted_runtime.gd` (21 tests; constants, error checking, cleanup, guards, defaults) |
+| `scripts/plugins/native_runtime.gd` | Scene loader, teardown lifecycle, data channel routing | `tests/unit/test_plugin_context.gd` (16 tests; file framing, data routing, stop lifecycle, event/input guards) |
 | `scenes/plugins/plugin_canvas.gd` | Draw command queue, image/buffer management, color parsing | `tests/unit/test_plugin_canvas.gd` (31 tests; color parsing, limits, buffers, clamping) |
-| `scenes/plugins/plugin_context.gd` | Native plugin bridge (data channels, file transfer, role queries) | `tests/unit/test_plugin_context.gd` (11 tests; get_role, is_host, file framing roundtrip) |
-| `scenes/plugins/plugin_trust_dialog.gd` | Trust confirmation for unsigned native plugins | **None** |
-| `scenes/plugins/activity_lobby.gd` | Lobby UI (player slots, spectators, start button) | **None** |
-| `scenes/plugins/activity_modal.gd` | Activity picker dialog | **None** |
-| `scenes/admin/plugin_management_dialog.gd` | Admin plugin list, upload, uninstall | **None** |
+| `scripts/plugins/plugin_context.gd` | Native plugin bridge (data channels, file transfer, role queries) | `tests/unit/test_plugin_context.gd` (11 tests; get_role, is_host, file framing roundtrip, send_action/send_data guards, defaults) |
+| `scenes/plugins/plugin_trust_dialog.gd` | Trust confirmation for unsigned native plugins | **None** (62 lines, UI-only) |
+| `scenes/plugins/activity_lobby.gd` | Lobby UI (player slots, spectators, start button) | **None** (95 lines, UI-only) |
+| `scenes/plugins/activity_modal.gd` | Activity picker dialog | **None** (85 lines, UI-only) |
+| `scenes/admin/plugin_management_dialog.gd` | Admin plugin list, upload, uninstall | **None** (292 lines, UI-only) |
 
 ## Implementation Status
 
@@ -224,46 +303,55 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 - [x] ClientPlugins participant updates — tested (`_update_scripted_participants`, `_update_context_participants`)
 - [x] ClientPlugins uninstall cleanup — tested (uninstalling active plugin clears session + AppState)
 - [x] Voice disconnect cleanup — tested (clears activity, emits signal)
+- [x] ClientPlugins `_extract_bundle` — tested (valid ZIP, missing entry, modules, assets, invalid ZIP, default entry point)
+- [x] ClientPlugins `_is_plugin_trusted` — tested (default false, trust-all, per-plugin trust via Config)
+- [x] ClientPlugins state management — tested (`_clear_pending_activity`, `_clear_active_activity` reset all fields)
+- [x] ClientPlugins delegation — tested (`get_activity_viewport_texture`, `forward_activity_input`, `is_activity_host`, `get_session_participants`)
+- [x] ClientPlugins no-session guards — tested (`stop_activity`, `start_session`, `assign_role`, `send_action` early return)
 - [x] PluginCanvas color parsing — fully tested (named, hex, array RGB/RGBA, Color passthrough, fallbacks)
 - [x] PluginCanvas command limits — tested (MAX_COMMANDS_PER_FRAME boundary, clear)
 - [x] PluginCanvas buffer management — tested (create, limits, clamp, pixel write, data replace, cleanup)
 - [x] PluginContext identity helpers — tested (get_role, is_host, get_participants copy safety)
+- [x] PluginContext communication guards — tested (send_action null client, send_data null adapter)
 - [x] PluginContext↔NativeRuntime file framing — tested (roundtrip, empty name, empty data, unicode, truncation)
 - [x] NativeRuntime data routing — tested (file vs non-file topic dispatch, null context safety)
+- [x] NativeRuntime lifecycle — tested (stop clears state, event/input/viewport guards, initial state)
+- [x] ScriptedRuntime pure logic — tested (constants, _is_lua_error, _lua_call_safe null, cleanup, stop, bridge guards)
 - [x] PluginDownloadManager SHA-256 — tested (known hashes, determinism, uniqueness)
 - [x] PluginDownloadManager cache checking — tested (is_cached match/mismatch/empty, _write_hash_file)
 - [x] PluginDownloadManager signature stub — tested (documents the security gap: empty .sig passes)
 - [x] PluginDownloadManager URI encoding — tested (cache dir path encoding)
-- [ ] ClientPlugins `launch_activity` — 0 tests
-- [ ] ClientPlugins `stop_activity` — 0 tests
-- [ ] ClientPlugins `start_session` / `assign_role` / `send_action` — 0 tests
-- [ ] ClientPlugins `_extract_bundle` — 0 tests
-- [ ] ClientPlugins trust checking (`_is_plugin_trusted`, `_show_trust_dialog`) — 0 tests
+- [x] PluginDownloadManager `_extract_zip` — tested (file creation, subdirectories, invalid data, temp cleanup, cache overwrite)
+- [x] PluginDownloadManager `_remove_dir_recursive` — tested (nested cleanup, nonexistent no-op)
+- [x] PluginDownloadManager `clear_cache` — tested (removes dir, nonexistent no-op)
+- [x] ZIP path traversal — documented (test verifies path_join doesn't strip `../`)
+- [ ] ClientPlugins `launch_activity` — 0 tests (requires network + scene tree)
+- [ ] ClientPlugins `_download_and_prepare_*_runtime` — 0 tests (requires network)
+- [ ] ClientPlugins `_show_trust_dialog` — 0 tests (requires UI modal)
 - [ ] PluginDownloadManager `download_bundle` — 0 tests (requires network)
-- [ ] PluginDownloadManager `_extract_zip` — 0 tests (requires filesystem)
-- [ ] ScriptedRuntime — 0 tests (Lua sandbox, bridge API, lifecycle, timers, audio, input forwarding)
-- [ ] NativeRuntime `start`/`stop` — 0 tests (requires scene loading from bundle dir)
-- [ ] PluginTrustDialog — 0 tests (trust_granted/denied signals, remember checkbox)
-- [ ] ActivityLobby — 0 tests (slot rendering, participant updates, start button enable/disable)
-- [ ] ActivityModal — 0 tests (activity listing, type filtering, launch signal)
-- [ ] PluginManagementDialog — 0 tests (plugin list rendering, upload flow, uninstall confirmation)
+- [ ] ScriptedRuntime `start` / `_inject_bridge_api` — 0 tests (requires lua-gdextension)
+- [ ] NativeRuntime `start` — 0 tests (requires scene loading from bundle dir)
+- [ ] PluginTrustDialog — 0 tests (62 lines, UI-only: trust_granted/denied signals, remember checkbox)
+- [ ] ActivityLobby — 0 tests (95 lines, UI-only: slot rendering, participant updates, start button)
+- [ ] ActivityModal — 0 tests (85 lines, UI-only: activity listing, type filtering, launch signal)
+- [ ] PluginManagementDialog — 0 tests (292 lines, UI-only: plugin list, upload flow, uninstall)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| **PluginDownloadManager `_extract_zip` untested** | High | `_extract_zip` (line 148) writes ZIP entries to `dest_dir.path_join(file_path)` without checking for `../` sequences — ZIP path traversal vulnerability. The pure-logic helpers (`_sha256_hex`, `is_cached`, `_write_hash_file`, `_verify_signature`, `_cache_dir`) are now tested, but the actual extraction and download flow remain untested. |
-| **ScriptedRuntime has no tests** | High | 565 lines, 0 tests. The Lua sandbox (`SAFE_LIBS` bitmask, line 13), bridge API injection (lines 260–467), lifecycle functions (`start`/`stop`), timer management, and audio handling are all untested. Requires lua-gdextension GDExtension to be present. |
-| **ClientPlugins `_extract_bundle` untested** | Medium | Lines 174–219: ZIP reading, entry point resolution, module/asset extraction. Pure logic once you provide a PackedByteArray of a valid ZIP. Testable by constructing a small in-memory ZIP. |
-| **ClientPlugins `launch_activity` untested** | Medium | Lines 71–113: the full orchestration (create session → set AppState → download → prepare runtime) has no test. Hard to unit-test due to network + scene tree requirements. |
-| **Plugin trust flow untested** | Medium | `_is_plugin_trusted` (line 325) checks Config; `_show_trust_dialog` (line 284) awaits user response. Trust decisions are security-sensitive — a regression could auto-trust or always-deny. `_is_plugin_trusted` is testable by mocking Config. |
-| **NativeRuntime `start`/`stop` untested** | Medium | Scene loading from bundle dir and teardown lifecycle require a mock scene on disk. |
-| **Ed25519 signature verification is a stub** | Medium | `PluginDownloadManager._verify_signature` (line 191) only checks if `plugin.sig` exists, always returns `true`. Now documented by `test_verify_signature_returns_true_when_sig_exists` which asserts the gap. |
+| **ZIP path traversal — no sanitization** | Critical | `_extract_zip` (line 178) writes ZIP entries to `dest_dir.path_join(file_path)` without checking for `../` sequences. Now documented by `test_extract_zip_path_traversal_not_sanitized` which verifies `path_join` preserves `..` components. Same issue in `_extract_bundle` (line 218). |
+| **ScriptedRuntime `start` / `_inject_bridge_api` untested** | High | Requires lua-gdextension. The Lua sandbox setup, bridge API injection (30+ bridge methods), and full lifecycle need the GDExtension present. Pure-logic methods (constants, error checking, guards, cleanup) are now tested (21 tests). |
+| **ClientPlugins `launch_activity` untested** | Medium | Lines 75–121: full orchestration (create session → set AppState → download → prepare runtime). Requires network + scene tree. |
+| **ClientPlugins `_show_trust_dialog` untested** | Medium | Lines 292–308: UI modal with trust_granted/denied signals. Requires scene tree. `_is_plugin_trusted` is now tested separately. |
+| **NativeRuntime `start` untested** | Medium | Scene loading from bundle dir requires a `.tscn` on disk. `stop()` lifecycle, event/input guards, and initial state are now tested. |
+| **Ed25519 signature verification is a stub** | Medium | `PluginDownloadManager._verify_signature` (line 192) only checks if `plugin.sig` exists, always returns `true`. Documented by `test_verify_signature_returns_true_when_sig_exists`. |
 | **`get_source`/`get_bundle` REST endpoints untested** | Medium | `PluginsApi.get_source` (line 38) and `get_bundle` (line 45) return raw `PackedByteArray` — no integration test verifies binary download. `install_plugin` multipart upload (line 21) is also untested. |
-| **PluginTrustDialog untested** | Low | 84 lines. Signals `trust_granted(remember)` and `trust_denied` should be verified. The `_remember_check` checkbox state should propagate correctly. |
-| **ActivityLobby untested** | Low | 135 lines. `update_participants` (line 79) enables start button based on player count — testable by feeding mock participant arrays. |
-| **ActivityModal untested** | Low | 162 lines. `_refresh_list` (line 54) filters to `type == "activity"` only — should verify bot/theme/command plugins are excluded. |
-| **PluginManagementDialog untested** | Low | 316 lines. `_extract_manifest` (line 245) parses plugin.json from a ZIP — testable with fixture ZIPs. |
+| **PluginDownloadManager `download_bundle` untested** | Medium | Lines 37–110: full download orchestration with hash validation. Requires network. |
+| **PluginTrustDialog untested** | Low | 62 lines, UI-only. Signals `trust_granted(remember)` and `trust_denied` should be verified. |
+| **ActivityLobby untested** | Low | 95 lines, UI-only. `update_participants` (line 44) enables start button based on player count. |
+| **ActivityModal untested** | Low | 85 lines, UI-only. `_refresh_list` (line 56) filters to `type == "activity"` only. |
+| **PluginManagementDialog untested** | Low | 292 lines, UI-only. `_extract_manifest` (line 220) parses plugin.json from a ZIP. |
 
 ## Coverage Summary
 
@@ -271,17 +359,17 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 |-------|-------|----------------|-------|----------|
 | AccordKit model | 1 | 97 | 5 | Good — all fields, defaults, enums |
 | AccordKit REST | 1 | 94 | 10 | Good — 6 of 9 endpoints tested; `get_source`, `get_bundle`, `install_plugin` missing |
-| ClientPlugins (cache + gateway + routing) | 1 | ~250 of 554 | 28 | Good — cache, gateway, data channel routing, participant updates, uninstall cleanup |
-| ClientPlugins (activity lifecycle) | 1 | ~300 of 554 | 0 | **None** — launch, stop, bundle extraction, trust flow |
-| PluginDownloadManager (pure logic) | 1 | ~80 of 225 | 17 | Good — hash, cache check, signature stub, URI encoding, server ID |
-| PluginDownloadManager (I/O) | 1 | ~145 of 225 | 0 | **None** — download_bundle, _extract_zip |
+| ClientPlugins (cache + gateway + routing) | 1 | ~350 of 768 | 51 | Good — cache, gateway, data channel routing, participants, bundle extraction, trust, state mgmt, delegation, guards |
+| ClientPlugins (network orchestration) | 1 | ~418 of 768 | 0 | **None** — launch_activity, _download_and_prepare_*_runtime, _show_trust_dialog (require network/UI) |
+| PluginDownloadManager (pure logic + I/O) | 1 | ~180 of 226 | 28 | Good — hash, cache, signature stub, URI encoding, ZIP extraction, dir cleanup, path traversal doc |
+| PluginDownloadManager (network) | 1 | ~46 of 226 | 0 | **None** — download_bundle (requires network) |
 | PluginCanvas | 1 | 331 | 31 | Good — color parsing, command limits, buffer lifecycle, clamping |
-| PluginContext | 1 | 93 | 11 | Good — identity helpers, file framing roundtrip |
-| NativeRuntime | 1 | 119 | 6 | Partial — file protocol parsing + data routing tested; scene start/stop untested |
-| ScriptedRuntime | 1 | 565 | 0 | **None** — Lua sandbox, bridge API, timers, audio |
-| UI (4 files) | 4 | ~700 | 0 | **None** — trust, lobby, modal, admin dialogs |
+| PluginContext | 1 | 93 | 11 | Good — identity helpers, file framing roundtrip, communication guards, defaults |
+| NativeRuntime | 1 | 119 | 16 | Good — file protocol, data routing, stop lifecycle, event/input/viewport guards, initial state |
+| ScriptedRuntime | 1 | 565 | 21 | Partial — constants, error checking, cleanup, stop, guards tested; start/bridge API require lua-gdextension |
+| UI (4 files) | 4 | ~534 | 0 | **None** — trust dialog, lobby, modal, admin dialogs (UI-only, would need scene tree) |
 
-**Overall: ~45% of plugin system lines now have test coverage (up from ~28%). The newly tested areas are PluginCanvas (color/limits/buffers), PluginDownloadManager (hash/cache/signature), PluginContext (identity/framing), NativeRuntime (file protocol/routing), and ClientPlugins (data channel routing/participants/event forwarding).**
+**Overall: ~65% of plugin system lines now have test coverage (up from ~45%). Newly tested areas: ClientPlugins bundle extraction/trust/state management/delegation/guards (+23 tests), PluginDownloadManager ZIP extraction/cleanup/path traversal (+11 tests), ScriptedRuntime pure logic (+21 new file), NativeRuntime lifecycle/guards (+10 tests), PluginContext communication guards (+3 tests). Remaining untested code is primarily network orchestration and UI dialogs.**
 
 ## Security Audit
 
@@ -309,7 +397,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 
 | Control | Status | Location | Tested? |
 |---------|--------|----------|---------|
-| Lua sandbox — dangerous libs blocked | OK | `scripted_runtime.gd:13` — io, os, package, debug, ffi excluded via bitmask | No |
+| Lua sandbox — dangerous libs blocked | OK | `scripted_runtime.gd:13` — io, os, package, debug, ffi excluded via bitmask | **Yes** (bitmask verified) |
 | Lua `require()` restricted to bundle | OK | `scripted_runtime.gd:441-458` — only loads from `_modules` dict, no filesystem | No |
 | Canvas coordinate clamping | OK | `plugin_canvas.gd:205-209` — all coords clamped to canvas bounds | **Yes** |
 | Canvas resource limits | OK | `plugin_canvas.gd:7-9` — MAX_IMAGES=64, MAX_BUFFERS=4, MAX_COMMANDS=4096 | **Yes** |
@@ -321,7 +409,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 | Data channel namespacing | OK | `plugin_context.gd:42` — `plugin:<id>:` prefix isolates topics | **Yes** |
 | Data channel prefix stripping | OK | `client_plugins.gd:341-344` — strips prefix, routes to runtime | **Yes** |
 | Plugin isolation per connection | OK | `client_plugins.gd:10` — `_plugin_cache[conn_index]` separates servers | **Yes** |
-| Trust gating before native execution | OK | `client_plugins.gd:236-248` — unsigned natives require explicit user consent | No |
+| Trust gating before native execution | OK | `client_plugins.gd:243-256` — unsigned natives require explicit user consent | **Yes** (`_is_plugin_trusted` tested) |
 | Voice disconnect cleanup | OK | `client_plugins.gd:524-530` — leaving voice clears activity state | **Yes** |
 | LiveKit data channel disconnect | OK | `client_plugins.gd:538-542` — `_clear_active_activity` disconnects handler | **Yes** |
 | File framing protocol consistency | OK | `plugin_context.gd:51-62` ↔ `native_runtime.gd:108-118` — roundtrip tested | **Yes** |
@@ -330,22 +418,22 @@ Audit of test coverage for the server plugins system. The plugin system spans 13
 
 | # | Test Needed | Why |
 |---|-------------|-----|
-| 1 | **ZIP path traversal in `_extract_zip`** | Craft a ZIP with `../../../etc/passwd` entry, verify it is rejected or sanitized. Currently it writes outside the cache dir. |
-| 2 | **ZIP path traversal in `_extract_bundle`** | Same attack via scripted plugin bundle entry_point containing `../`. |
-| 3 | **Trust-all persists across new plugins** | Install plugin A, grant trust-all, install plugin B — verify B runs without prompt. Then verify there's no way to revoke. |
+| 1 | ~~**ZIP path traversal in `_extract_zip`**~~ | **Documented** — `test_extract_zip_path_traversal_not_sanitized` verifies that `path_join` preserves `..` components. Fix needed: sanitize paths before writing. |
+| 2 | **ZIP path traversal in `_extract_bundle`** | Same attack via scripted plugin bundle entry_point containing `../`. Entry point comes from server manifest (line 198). |
+| 3 | ~~**Trust-all persists across new plugins**~~ | **Tested** — `test_is_plugin_trusted_trust_all` verifies that trust-all returns true for any plugin ID. The gap (no revocation UI) is architectural, not a test gap. |
 | 4 | ~~**Signature stub accepts any plugin.sig**~~ | **Done** — `test_verify_signature_returns_true_when_sig_exists` documents this gap. |
-| 5 | **BBCode injection in trust dialog** | Set plugin name to `[url]http://evil[/url]`, verify it renders literally (not as a link). |
+| 5 | **BBCode injection in trust dialog** | Set plugin name to `[url]http://evil[/url]`, verify it renders literally (not as a link). Requires scene tree. |
 | 6 | **Concurrent temp file race** | Launch two scripted plugins simultaneously, verify they don't corrupt each other's `user://tmp_plugin_bundle.zip`. |
-| 7 | **Lua CPU exhaustion** | Run `while true do end` in `_ready()`, verify it doesn't permanently freeze the client (currently it will). |
+| 7 | **Lua CPU exhaustion** | Run `while true do end` in `_ready()`, verify it doesn't permanently freeze the client (currently it will). Requires lua-gdextension. |
 | 8 | **Manifest field injection on upload** | Upload a manifest with `signed: true` + fake `plugin.sig`, verify the server or client rejects it. |
 | 9 | **HTTP downgrade for plugin download** | Connect to HTTP server, download plugin, verify hash check catches MITM replacement (it should — but test it). |
-| 10 | **Module name collision** | Bundle two `.lua` files with the same basename at different paths, verify correct one loads. |
+| 10 | **Module name collision** | Bundle two `.lua` files with the same basename at different paths, verify correct one loads. `_extract_bundle` uses `get_file().get_basename()` (line 218) — last one wins. |
 
 ## Recommended Next Test Priorities
 
-1. **ZIP path traversal** (Critical) — craft malicious ZIPs with `../` entries, verify rejection in both `_extract_zip` and `_extract_bundle`
-2. **ClientPlugins._extract_bundle** — construct a small ZIP in-memory, verify entry/module/asset extraction
-3. **BBCode escaping in trust dialog** — verify plugin names can't inject formatting
-4. **NativeRuntime.start/stop** — mock scene on disk, verify lifecycle calls
-5. **ActivityLobby.update_participants** — feed participant arrays, verify start button enable state
-6. **ScriptedRuntime bridge API** — requires lua-gdextension; test bridge callback closures in isolation
+1. **Fix ZIP path traversal** (Critical) — add `../` sanitization in `_extract_zip` and `_extract_bundle`, then update `test_extract_zip_path_traversal_not_sanitized` to assert rejection
+2. **BBCode escaping in trust dialog** — verify plugin names can't inject formatting (requires scene tree)
+3. **NativeRuntime.start** — create a mock `.tscn` scene on disk, verify scene loading and `setup(context)` call
+4. **ScriptedRuntime bridge API** — requires lua-gdextension; test bridge callback closures in isolation
+5. **PluginDownloadManager.download_bundle** — integration test with mock REST responses
+6. **Module name collision** — `_extract_bundle` test with two `.lua` files sharing the same basename

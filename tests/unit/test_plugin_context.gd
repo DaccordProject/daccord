@@ -284,3 +284,121 @@ func test_on_data_received_null_context_ignored() -> void:
 	# Should not crash
 	runtime.on_data_received("u1", "test", PackedByteArray())
 	runtime.free()
+
+
+# ------------------------------------------------------------------
+# NativeRuntime.stop — lifecycle cleanup
+# ------------------------------------------------------------------
+
+func test_native_stop_noop_when_not_running() -> void:
+	var runtime := NativeRuntime.new()
+	runtime._running = false
+	# Should not crash
+	runtime.stop()
+	assert_false(runtime._running)
+	runtime.free()
+
+
+func test_native_stop_clears_state() -> void:
+	var runtime := NativeRuntime.new()
+	runtime._running = true
+	runtime._context = PluginContext.new()
+	# No scene instance — stop should still work
+	runtime.stop()
+
+	assert_false(runtime._running)
+	assert_null(runtime._context)
+	runtime.free()
+
+
+# ------------------------------------------------------------------
+# NativeRuntime.on_plugin_event — delegation
+# ------------------------------------------------------------------
+
+func test_native_on_plugin_event_noop_when_not_running() -> void:
+	var runtime := NativeRuntime.new()
+	runtime._running = false
+	# Should not crash
+	runtime.on_plugin_event("test", {"key": "value"})
+	runtime.free()
+
+
+func test_native_on_plugin_event_noop_when_no_scene() -> void:
+	var runtime := NativeRuntime.new()
+	runtime._running = true
+	runtime._scene_instance = null
+	# Should not crash
+	runtime.on_plugin_event("test", {})
+	runtime.free()
+
+
+# ------------------------------------------------------------------
+# NativeRuntime.get_viewport_texture — no scene
+# ------------------------------------------------------------------
+
+func test_native_get_viewport_texture_null_when_no_scene() -> void:
+	var runtime := NativeRuntime.new()
+	assert_null(runtime.get_viewport_texture())
+	runtime.free()
+
+
+# ------------------------------------------------------------------
+# NativeRuntime.forward_input — no scene
+# ------------------------------------------------------------------
+
+func test_native_forward_input_noop_when_no_scene() -> void:
+	var runtime := NativeRuntime.new()
+	runtime._scene_instance = null
+	var event := InputEventKey.new()
+	# Should not crash
+	runtime.forward_input(event)
+	runtime.free()
+
+
+# ------------------------------------------------------------------
+# NativeRuntime — initial state
+# ------------------------------------------------------------------
+
+func test_native_runtime_initial_state() -> void:
+	var runtime := NativeRuntime.new()
+	assert_false(runtime._running)
+	assert_null(runtime._scene_instance)
+	assert_null(runtime._context)
+	runtime.free()
+
+
+# ------------------------------------------------------------------
+# PluginContext — send_action delegation
+# ------------------------------------------------------------------
+
+func test_context_send_action_noop_when_no_client_plugins() -> void:
+	var ctx := PluginContext.new()
+	ctx._client_plugins = null
+	# Should not crash
+	ctx.send_action({"move": "e4"})
+
+
+# ------------------------------------------------------------------
+# PluginContext — send_data noop when no adapter
+# ------------------------------------------------------------------
+
+func test_context_send_data_noop_when_no_adapter() -> void:
+	var ctx := PluginContext.new()
+	ctx._livekit_adapter = null
+	# Should not crash
+	ctx.send_data("topic", "data".to_utf8_buffer())
+
+
+# ------------------------------------------------------------------
+# PluginContext — session state defaults
+# ------------------------------------------------------------------
+
+func test_context_session_state_defaults() -> void:
+	var ctx := PluginContext.new()
+	assert_eq(ctx.plugin_id, "")
+	assert_eq(ctx.session_id, "")
+	assert_eq(ctx.conn_index, -1)
+	assert_eq(ctx.local_user_id, "")
+	assert_eq(ctx.session_state, "lobby")
+	assert_eq(ctx.participants, [])
+	assert_eq(ctx.host_user_id, "")

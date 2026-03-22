@@ -414,3 +414,317 @@ class _MockRuntime:
 
 	func on_plugin_event(event_type: String, data: Dictionary) -> void:
 		events.append({"type": event_type, "data": data})
+
+	func get_viewport_texture() -> ViewportTexture:
+		return null
+
+	func forward_input(_event: InputEvent) -> void:
+		received.append({"type": "input"})
+
+	func stop() -> void:
+		pass
+
+
+# ------------------------------------------------------------------
+# _extract_bundle — ZIP construction and extraction
+# ------------------------------------------------------------------
+
+func test_extract_bundle_valid_zip() -> void:
+	var zip_bytes: PackedByteArray = _build_test_zip(
+		"src/main.lua", "print('hello')", {}, {}
+	)
+	var manifest := {"entry_point": "src/main.lua"}
+	var result: Dictionary = plugins._extract_bundle(zip_bytes, manifest)
+
+	assert_false(result.is_empty())
+	assert_eq(result.get("lua_source"), "print('hello')")
+	assert_true(result.has("modules"))
+	assert_true(result.has("assets"))
+
+
+func test_extract_bundle_default_entry_point() -> void:
+	# When entry_point is empty, falls back to manifest.entry then "src/main.lua"
+	var zip_bytes: PackedByteArray = _build_test_zip(
+		"src/main.lua", "return 42", {}, {}
+	)
+	var manifest := {}  # No entry_point specified
+	var result: Dictionary = plugins._extract_bundle(zip_bytes, manifest)
+
+	assert_false(result.is_empty())
+	assert_eq(result.get("lua_source"), "return 42")
+
+
+func test_extract_bundle_missing_entry_returns_empty() -> void:
+	var zip_bytes: PackedByteArray = _build_test_zip(
+		"src/other.lua", "print('wrong')", {}, {}
+	)
+	var manifest := {"entry_point": "src/main.lua"}
+	var result: Dictionary = plugins._extract_bundle(zip_bytes, manifest)
+
+	assert_eq(result, {})
+	assert_push_error("[ClientPlugins] Entry file not found in bundle: src/main.lua")
+
+
+func test_extract_bundle_extracts_modules() -> void:
+	var modules := {"src/utils.lua": "return {}", "src/lib/math.lua": "return 1"}
+	var zip_bytes: PackedByteArray = _build_test_zip(
+		"src/main.lua", "require('utils')", modules, {}
+	)
+	var manifest := {"entry_point": "src/main.lua"}
+	var result: Dictionary = plugins._extract_bundle(zip_bytes, manifest)
+
+	assert_false(result.is_empty())
+	var mods: Dictionary = result.get("modules", {})
+	# Module name is filename without extension
+	assert_true(mods.has("utils"))
+	assert_eq(mods["utils"], "return {}")
+	assert_true(mods.has("math"))
+	assert_eq(mods["math"], "return 1")
+
+
+func test_extract_bundle_extracts_assets() -> void:
+	var asset_data: PackedByteArray = "PNG_DATA".to_utf8_buffer()
+	var assets := {"assets/sprite.png": asset_data}
+	var zip_bytes: PackedByteArray = _build_test_zip(
+		"src/main.lua", "-- main", {}, assets
+	)
+	var manifest := {"entry_point": "src/main.lua"}
+	var result: Dictionary = plugins._extract_bundle(zip_bytes, manifest)
+
+	assert_false(result.is_empty())
+	var result_assets: Dictionary = result.get("assets", {})
+	assert_true(result_assets.has("assets/sprite.png"))
+	assert_eq(
+		result_assets["assets/sprite.png"],
+		"PNG_DATA".to_utf8_buffer()
+	)
+
+
+func test_extract_bundle_invalid_zip_returns_empty() -> void:
+	var bad_bytes: PackedByteArray = "not a zip".to_utf8_buffer()
+	var manifest := {"entry_point": "src/main.lua"}
+	var result: Dictionary = plugins._extract_bundle(bad_bytes, manifest)
+
+	assert_eq(result, {})
+
+
+# Helper: builds a ZIP file as PackedByteArray using ZIPPacker
+func _build_test_zip(
+	entry_path: String, entry_source: String,
+	extra_lua: Dictionary, assets: Dictionary,
+) -> PackedByteArray:
+	var tmp_path := "user://test_build_zip.zip"
+	var packer := ZIPPacker.new()
+	packer.open(tmp_path)
+	# Entry file
+	packer.start_file(entry_path)
+	packer.write_file(entry_source.to_utf8_buffer())
+	packer.close_file()
+	# Extra Lua modules
+	for path in extra_lua:
+		packer.start_file(path)
+		packer.write_file(extra_lua[path].to_utf8_buffer())
+		packer.close_file()
+	# Assets (binary)
+	for path in assets:
+		packer.start_file(path)
+		packer.write_file(assets[path])
+		packer.close_file()
+	packer.close()
+	var f := FileAccess.open(tmp_path, FileAccess.READ)
+	var bytes: PackedByteArray = f.get_buffer(f.get_length())
+	f.close()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp_path))
+	return bytes
+
+
+# ------------------------------------------------------------------
+# _is_plugin_trusted
+# ------------------------------------------------------------------
+
+func test_is_plugin_trusted_default_false() -> void:
+	# Unknown server/plugin should not be trusted
+	var result: bool = plugins._is_plugin_trusted(
+		"unknown_server_xyz", "unknown_plugin_xyz"
+	)
+	assert_false(result)
+
+
+func test_is_plugin_trusted_trust_all() -> void:
+	var server_id := "test_trust_all_server"
+	Config.set_plugin_trust_all(server_id, true)
+
+	assert_true(plugins._is_plugin_trusted(server_id, "any_plugin"))
+
+	# Cleanup
+	Config.set_plugin_trust_all(server_id, false)
+
+
+func test_is_plugin_trusted_specific_plugin() -> void:
+	var server_id := "test_trust_specific_server"
+	var plugin_id := "test_trust_specific_plugin"
+	Config.set_plugin_trust(server_id, plugin_id, true)
+
+	assert_true(plugins._is_plugin_trusted(server_id, plugin_id))
+	# A different plugin on the same server should not be trusted
+	assert_false(plugins._is_plugin_trusted(server_id, "other_plugin"))
+
+	# Cleanup
+	Config.set_plugin_trust(server_id, plugin_id, false)
+
+
+# ------------------------------------------------------------------
+# _clear_pending_activity
+# ------------------------------------------------------------------
+
+func test_clear_pending_activity_resets_state() -> void:
+	AppState.pending_activity_plugin_id = "p1"
+	AppState.pending_activity_channel_id = "ch_1"
+	AppState.pending_activity_session_id = "sess_1"
+	AppState.pending_activity_host_user_id = "host_1"
+	AppState.pending_activity_state = "lobby"
+
+	plugins._clear_pending_activity()
+
+	assert_eq(AppState.pending_activity_plugin_id, "")
+	assert_eq(AppState.pending_activity_channel_id, "")
+	assert_eq(AppState.pending_activity_session_id, "")
+	assert_eq(AppState.pending_activity_host_user_id, "")
+	assert_eq(AppState.pending_activity_state, "")
+
+
+# ------------------------------------------------------------------
+# _clear_active_activity
+# ------------------------------------------------------------------
+
+func test_clear_active_activity_resets_state() -> void:
+	plugins._active_session_id = "sess_1"
+	plugins._active_conn_index = 2
+	plugins._is_host = true
+	plugins._host_user_id = "host_1"
+	plugins._session_participants = [{"user_id": "u1"}]
+	AppState.active_activity_plugin_id = "p1"
+	AppState.active_activity_channel_id = "ch_1"
+	AppState.active_activity_session_id = "sess_1"
+	AppState.active_activity_session_state = "running"
+	AppState.active_activity_role = "player"
+
+	plugins._clear_active_activity()
+
+	assert_eq(plugins._active_session_id, "")
+	assert_eq(plugins._active_conn_index, -1)
+	assert_false(plugins._is_host)
+	assert_eq(plugins._host_user_id, "")
+	assert_eq(plugins._session_participants, [])
+	assert_eq(AppState.active_activity_plugin_id, "")
+	assert_eq(AppState.active_activity_channel_id, "")
+	assert_eq(AppState.active_activity_session_id, "")
+	assert_eq(AppState.active_activity_session_state, "")
+	assert_eq(AppState.active_activity_role, "")
+
+
+func test_clear_active_activity_stops_runtime() -> void:
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+
+	plugins._clear_active_activity()
+
+	assert_null(plugins._active_runtime)
+	# MockRuntime is a Node, queue_free was called
+	mock_runtime.free()
+
+
+# ------------------------------------------------------------------
+# get_activity_viewport_texture
+# ------------------------------------------------------------------
+
+func test_get_activity_viewport_texture_null_when_no_runtime() -> void:
+	plugins._active_runtime = null
+	assert_null(plugins.get_activity_viewport_texture())
+
+
+func test_get_activity_viewport_texture_delegates_to_runtime() -> void:
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+
+	# MockRuntime.get_viewport_texture returns null, but the delegation works
+	var result: ViewportTexture = plugins.get_activity_viewport_texture()
+	assert_null(result)
+
+	plugins._active_runtime = null
+	mock_runtime.free()
+
+
+# ------------------------------------------------------------------
+# forward_activity_input
+# ------------------------------------------------------------------
+
+func test_forward_activity_input_noop_when_no_runtime() -> void:
+	plugins._active_runtime = null
+	# Should not crash
+	var event := InputEventKey.new()
+	plugins.forward_activity_input(event)
+
+
+func test_forward_activity_input_delegates_to_runtime() -> void:
+	var mock_runtime := _MockRuntime.new()
+	plugins._active_runtime = mock_runtime
+
+	var event := InputEventKey.new()
+	plugins.forward_activity_input(event)
+
+	assert_eq(mock_runtime.received.size(), 1)
+	assert_eq(mock_runtime.received[0]["type"], "input")
+
+	plugins._active_runtime = null
+	mock_runtime.free()
+
+
+# ------------------------------------------------------------------
+# is_activity_host / get_session_participants
+# ------------------------------------------------------------------
+
+func test_is_activity_host_false_by_default() -> void:
+	assert_false(plugins.is_activity_host())
+
+
+func test_is_activity_host_true_when_set() -> void:
+	plugins._is_host = true
+	assert_true(plugins.is_activity_host())
+	plugins._is_host = false
+
+
+func test_get_session_participants_returns_list() -> void:
+	plugins._session_participants = [
+		{"user_id": "u1", "role": "player"},
+		{"user_id": "u2", "role": "spectator"},
+	]
+	var result: Array = plugins.get_session_participants()
+	assert_eq(result.size(), 2)
+	assert_eq(result[0]["user_id"], "u1")
+	plugins._session_participants = []
+
+
+# ------------------------------------------------------------------
+# Early-return guards (no active session)
+# ------------------------------------------------------------------
+
+func test_stop_activity_noop_when_no_session() -> void:
+	plugins._active_session_id = ""
+	# Should return early without error
+	plugins.stop_activity("p1")
+
+
+func test_start_session_noop_when_no_session() -> void:
+	plugins._active_session_id = ""
+	plugins.start_session()
+
+
+func test_assign_role_noop_when_no_session() -> void:
+	plugins._active_session_id = ""
+	plugins.assign_role("user_1", "spectator")
+
+
+func test_send_action_noop_when_no_session() -> void:
+	plugins._active_session_id = ""
+	plugins.send_action("p1", {"move": "a1"})
