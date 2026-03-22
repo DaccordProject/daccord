@@ -270,6 +270,28 @@ jobs:
             echo "No macOS dylibs found to stash"
           fi
 
+      - name: Stash macOS lua-gdextension dylibs to prevent editor crash
+        if: matrix.platform == 'macos'
+        run: |
+          # lua-gdextension crashes (signal 11) when loaded by the headless
+          # Godot editor on macOS during the autoload creation phase.
+          # Same fix as godot-livekit: stash dylibs, inject post-export.
+          STASH="$RUNNER_TEMP/lua_dylibs"
+          mkdir -p "$STASH"
+          moved=0
+          for f in addons/lua-gdextension/build/*.dylib; do
+            [ -f "$f" ] || continue
+            mv "$f" "$STASH/"
+            echo "  Stashed $(basename "$f")"
+            moved=$((moved + 1))
+          done
+          if [ "$moved" -gt 0 ]; then
+            echo "LUA_DYLIB_STASH=$STASH" >> "$GITHUB_ENV"
+            echo "Stashed $moved lua-gdextension macOS dylibs — will inject post-export"
+          else
+            echo "No lua-gdextension macOS dylibs found to stash"
+          fi
+
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -478,6 +500,31 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           rm -rf "$WORK"
           echo "macOS export updated with godot-livekit dylibs"
+
+      - name: Inject lua-gdextension dylibs into macOS export
+        if: matrix.platform == 'macos' && env.LUA_DYLIB_STASH != ''
+        run: |
+          EXPORT_ZIP="dist/build/macos/daccord.zip"
+          WORK=$(mktemp -d)
+          unzip -o "$EXPORT_ZIP" -d "$WORK"
+
+          # Godot resolves res://addons/... under Contents/Frameworks/ on macOS
+          FW="$WORK/daccord.app/Contents/Frameworks"
+          BUILD="$FW/addons/lua-gdextension/build"
+          mkdir -p "$BUILD"
+          cp "$LUA_DYLIB_STASH"/*.dylib "$BUILD/"
+          echo "Injected lua-gdextension dylibs into Contents/Frameworks/:"
+          find "$BUILD" -name "*.dylib" -exec ls -lh {} \;
+
+          # Ad-hoc sign each injected dylib
+          find "$BUILD" -name "*.dylib" -exec codesign --force --sign - {} \;
+
+          # Re-package
+          cd "$WORK"
+          zip -r "$GITHUB_WORKSPACE/$EXPORT_ZIP" daccord.app
+          cd "$GITHUB_WORKSPACE"
+          rm -rf "$WORK"
+          echo "macOS export updated with lua-gdextension dylibs"
 
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
