@@ -135,6 +135,7 @@ func _finish_open_swipe() -> void:
 
 func _snap_drawer_open(progress: float) -> void:
 	AppState.sidebar_drawer_open = true
+	AppState.nav_history.push(&"drawer")
 	if Config.get_reduced_motion():
 		_w.sidebar.position.x = 0.0
 		_w.drawer_backdrop.modulate.a = 1.0
@@ -255,6 +256,7 @@ func _finish_close_swipe() -> void:
 		_snap_drawer_open(1.0 - close_progress)
 	else:
 		AppState.sidebar_drawer_open = false
+		AppState.nav_history.remove(&"drawer")
 		_snap_drawer_closed_from_close(close_progress)
 
 

@@ -6,6 +6,7 @@ extends ColorRect
 func _ready() -> void:
 	close_button.pressed.connect(_close)
 	gui_input.connect(_on_backdrop_input)
+	AppState.nav_history.push(&"lightbox")
 
 func show_image(texture: ImageTexture) -> void:
 	image_rect.texture = texture
@@ -26,9 +27,10 @@ func _on_backdrop_input(event: InputEvent) -> void:
 		_close()
 
 func _input(event: InputEvent) -> void:
-	if visible and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if visible and event.is_action_pressed("ui_cancel"):
 		_close()
 		get_viewport().set_input_as_handled()
 
 func _close() -> void:
+	AppState.nav_history.remove(&"lightbox")
 	queue_free()

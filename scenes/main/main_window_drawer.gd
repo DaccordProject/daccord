@@ -115,3 +115,4 @@ func hide_drawer_nodes() -> void:
 	drawer_backdrop.visible = false
 	drawer_container.visible = false
 	AppState.sidebar_drawer_open = false
+	AppState.nav_history.remove(&"drawer")

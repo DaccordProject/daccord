@@ -261,6 +261,8 @@ var imposter_role_name: String = ""
 var imposter_space_id: String = ""
 var imposter_role_id: String = ""
 
+var nav_history := NavigationHistory.new()
+
 func select_space(space_id: String) -> void:
 	if is_imposter_mode and space_id != imposter_space_id:
 		exit_imposter_mode()
@@ -335,11 +337,16 @@ func update_layout_mode(viewport_width: float, viewport_height: float = 0.0) -> 
 
 func toggle_sidebar_drawer() -> void:
 	sidebar_drawer_open = not sidebar_drawer_open
+	if sidebar_drawer_open:
+		nav_history.push(&"drawer")
+	else:
+		nav_history.remove(&"drawer")
 	sidebar_drawer_toggled.emit(sidebar_drawer_open)
 
 func close_sidebar_drawer() -> void:
 	if sidebar_drawer_open:
 		sidebar_drawer_open = false
+		nav_history.remove(&"drawer")
 		sidebar_drawer_toggled.emit(false)
 
 func toggle_member_list() -> void:
@@ -401,12 +408,14 @@ func open_voice_view() -> void:
 	if voice_channel_id.is_empty():
 		return
 	is_voice_view_open = true
+	nav_history.push(&"voice_view")
 	voice_view_opened.emit(voice_channel_id)
 
 func close_voice_view() -> void:
 	if not is_voice_view_open:
 		return
 	is_voice_view_open = false
+	nav_history.remove(&"voice_view")
 	voice_view_closed.emit()
 
 func set_spotlight(user_id: String) -> void:
@@ -422,11 +431,13 @@ func clear_spotlight() -> void:
 func open_thread(parent_message_id: String) -> void:
 	current_thread_id = parent_message_id
 	thread_panel_visible = true
+	nav_history.push(&"thread")
 	thread_opened.emit(parent_message_id)
 
 func close_thread() -> void:
 	current_thread_id = ""
 	thread_panel_visible = false
+	nav_history.remove(&"thread")
 	thread_closed.emit()
 
 func toggle_voice_text(channel_id: String) -> void:
@@ -449,12 +460,14 @@ func open_discovery() -> void:
 	if is_discovery_open:
 		return
 	is_discovery_open = true
+	nav_history.push(&"discovery")
 	discovery_opened.emit()
 
 func close_discovery() -> void:
 	if not is_discovery_open:
 		return
 	is_discovery_open = false
+	nav_history.remove(&"discovery")
 	discovery_closed.emit()
 
 func enter_imposter_mode(role_data: Dictionary) -> void:

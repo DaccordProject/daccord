@@ -102,6 +102,8 @@ DrawerGestures._handle_close_swipe()
 | `scripts/autoload/app_state.gd` | Layout mode enum/breakpoints (line 217), drawer state (line 228), toggle/close methods (line 336) |
 | `scripts/autoload/config.gd` | `get_reduced_motion()` (line 548) — skips tween animations when enabled |
 | `scripts/helpers/long_press_detector.gd` | Touch-specific long-press detection with drag cancellation (500ms threshold) |
+| `scripts/helpers/navigation_history.gd` | Stack-based navigation history for back button unwinding (max 32 entries) |
+| `scenes/messages/image_lightbox.gd` | Image lightbox overlay — pushes/pops nav history, handles `ui_cancel` directly |
 
 ## Implementation Details
 
@@ -185,7 +187,36 @@ DrawerGestures._handle_close_swipe()
 All drawer animations check `Config.get_reduced_motion()` (config.gd line 548). When enabled:
 - Open: sets final position/alpha immediately, no tween
 - Close: calls `hide_drawer_nodes()` immediately, no tween
-- Gesture snaps: same skip behavior in `_snap_drawer_open` (line 138), `_snap_drawer_closed` (line 155), `_snap_drawer_closed_from_close` (line 262)
+- Gesture snaps: same skip behavior in `_snap_drawer_open` (line 139), `_snap_drawer_closed` (line 156), `_snap_drawer_closed_from_close` (line 263)
+
+### Navigation History Stack
+
+`NavigationHistory` (`scripts/helpers/navigation_history.gd`) tracks a stack of `StringName` entries representing dismissable layers. Capped at 32 entries. Consecutive duplicate entries are deduplicated on push.
+
+**Tracked entries:**
+- `&"drawer"` — sidebar drawer open (pushed by `toggle_sidebar_drawer()`, `_snap_drawer_open()`)
+- `&"thread"` — thread panel open (pushed by `open_thread()`)
+- `&"voice_view"` — voice view open (pushed by `open_voice_view()`)
+- `&"discovery"` — discovery panel open (pushed by `open_discovery()`)
+- `&"lightbox"` — image lightbox open (pushed in `image_lightbox.gd` `_ready()`)
+
+Each entry is removed when its corresponding close method fires (e.g., `close_sidebar_drawer()` removes `&"drawer"`).
+
+### Android Back Button / Global Back Handler
+
+`main_window.gd` `_unhandled_input()` (line 241) catches `ui_cancel` (Android back button / Escape) after dialogs have had their chance to handle it via `_input()`:
+
+1. Pops the most recent `NavigationHistory` entry
+2. Matches the entry and calls the corresponding close method:
+   - `&"drawer"` → `AppState.close_sidebar_drawer()`
+   - `&"thread"` → `AppState.close_thread()`
+   - `&"voice_view"` → `AppState.close_voice_view()`
+   - `&"discovery"` → `AppState.close_discovery()`
+3. If the stack is empty and in COMPACT mode, opens the sidebar drawer as a fallback
+
+The image lightbox handles `ui_cancel` in its own `_input()` handler (line 28), which runs before `_unhandled_input`, so it closes itself and removes its nav history entry.
+
+Individual dialogs (25+ files) continue to handle `ui_cancel` independently in their own `_input()` handlers. These do not participate in the nav history stack since they self-manage.
 
 ## Implementation Status
 
@@ -206,8 +237,9 @@ All drawer animations check `Config.get_reduced_motion()` (config.gd line 548). 
 - [x] Layout mode breakpoints (COMPACT < 500px, MEDIUM < 768px, FULL >= 768px)
 - [x] Sidebar reparenting between layout and drawer container
 - [x] Thread panel replaces message view in COMPACT mode
-- [ ] Android back button global handler
-- [ ] Navigation history stack
+- [x] Android back button global handler (`_unhandled_input` + `ui_cancel`)
+- [x] Navigation history stack (`NavigationHistory` class, 32-entry cap)
+- [x] Lightbox handles back button via `ui_cancel` in `_input()`
 - [ ] Right-edge swipe to reveal member list
 - [ ] Swipe between content panels (messages ↔ threads ↔ members)
 - [ ] Horizontal page-swipe navigation between sidebar / content / member panels
@@ -216,8 +248,8 @@ All drawer animations check `Config.get_reduced_motion()` (config.gd line 548). 
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No global Android back button handler | High | Android maps the back button to `ui_cancel`. Individual dialogs (25+ files) handle `ui_cancel` to close themselves, but there is no global `_unhandled_input` handler that maps back-press to: close drawer → close thread → close lightbox → close voice view → navigate back. Each overlay must be dismissed individually. |
-| No navigation history stack | High | There is no `NavigationHistory` or back-stack tracking which screens/panels the user has visited. Without this, a back button handler cannot intelligently unwind state (e.g., close thread → return to channel → return to sidebar). AppState tracks current state but not previous state. |
+| ~~No global Android back button handler~~ | ~~High~~ | Implemented: `main_window.gd` `_unhandled_input()` pops `NavigationHistory` and dispatches close actions. |
+| ~~No navigation history stack~~ | ~~High~~ | Implemented: `NavigationHistory` class tracks drawer, thread, voice_view, discovery, lightbox entries. |
 | No right-edge swipe for member list | Medium | The drawer gesture system only handles the left-edge sidebar. In COMPACT mode the member list is hidden entirely (main_window.gd line 383) with no swipe gesture to reveal it. A right-edge swipe mirroring the drawer system could show a member list overlay. |
 | No horizontal page-swipe navigation | Medium | Mobile chat apps commonly allow swiping left/right to move between sidebar, content, and member panels. Currently the only way to access the sidebar in COMPACT mode is the edge swipe or hamburger button. A full-width page-swipe system would feel more native. |
 | Drawer closes channel panel auto-open only | Low | When entering COMPACT mode, `sidebar.set_channel_panel_visible_immediate(true)` forces the channel panel open (line 378). There is no memory of which space/channel the user was browsing if they close and reopen the drawer. |
