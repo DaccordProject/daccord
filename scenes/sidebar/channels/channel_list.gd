@@ -226,9 +226,17 @@ func load_space(space_id: String) -> void:
 
 	# Auto-select: pending channel if it exists, otherwise first non-voice/non-category channel.
 	# Skip locked channels — they cannot be selected in imposter mode.
+	# Never auto-select voice channels — they should not rejoin on startup.
 	var select_id: String = ""
+	var pending_is_voice: bool = false
 	if pending_channel_id != "" and channel_item_nodes.has(pending_channel_id):
-		select_id = pending_channel_id
+		for ch in channels:
+			if ch.get("id", "") == pending_channel_id:
+				pending_is_voice = ch.get("type", 0) \
+					== ClientModels.ChannelType.VOICE
+				break
+		if not pending_is_voice:
+			select_id = pending_channel_id
 	elif AppState.current_channel_id != "" and channel_item_nodes.has(AppState.current_channel_id):
 		select_id = AppState.current_channel_id
 	else:

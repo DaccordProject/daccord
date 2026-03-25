@@ -9,7 +9,6 @@ env:
   GODOT_VERSION: "4.5.0"
   GODOTLITE_TAG: "v4.5"
   GUT_VERSION: "9.5.0"
-  SENTRY_VERSION: "1.3.2"
   LUA_GDEXT_VERSION: "0.7.0"
 
 permissions:
@@ -154,23 +153,6 @@ jobs:
             rm -rf /tmp/gut.tar.gz /tmp/Gut-${GUT_VERSION}
           fi
 
-      - name: Cache Sentry SDK
-        uses: actions/cache@v4
-        with:
-          path: addons/sentry
-          key: sentry-godot-${{ env.SENTRY_VERSION }}
-
-      - name: Install Sentry SDK
-        run: |
-          if [ ! -d addons/sentry ]; then
-            gh release download $SENTRY_VERSION --repo getsentry/sentry-godot \
-              --pattern "*.zip" --dir /tmp/sentry_dl
-            unzip -o /tmp/sentry_dl/*.zip -d /tmp/sentry_extract
-            cp -r /tmp/sentry_extract/addons/sentry addons/sentry
-            rm -rf /tmp/sentry_dl /tmp/sentry_extract
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Install godot-livekit addon (latest release)
         env:
@@ -220,7 +202,7 @@ jobs:
           fi
           case "${{ matrix.platform }}" in
             linux)       LIB="addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" ;;
-            linux-arm64) LIB="addons/godot-livekit/bin/libgodot-livekit.linux.x86_64.so" ;;
+            linux-arm64) LIB="addons/godot-livekit/bin/libgodot-livekit.linux.arm64.so" ;;
             windows)     LIB="addons/godot-livekit/bin/libgodot-livekit.windows.x86_64.dll" ;;
             macos)       LIB="addons/godot-livekit/bin/libgodot-livekit.macos.arm64.dylib" ;;
             android)     LIB="addons/godot-livekit/bin/libgodot-livekit.android.arm64.so" ;;
@@ -426,6 +408,33 @@ jobs:
         run: godot --headless --export-release "${{ matrix.preset }}"
         timeout-minutes: 10
 
+      - name: Ensure GDExtension binaries in export
+        if: matrix.platform != 'macos' && matrix.platform != 'web'
+        run: |
+          BUILD_DIR="dist/build/${{ matrix.platform }}"
+          case "${{ matrix.platform }}" in
+            linux)       PLAT_KEY="linux.x86_64" ;;
+            linux-arm64) PLAT_KEY="linux.arm64" ;;
+            windows)     PLAT_KEY="windows.x86_64" ;;
+            android)     PLAT_KEY="android.arm64" ;;
+            *) exit 0 ;;
+          esac
+          echo "Checking GDExtension binaries for platform key: $PLAT_KEY"
+          for gdext in $(find addons/ -name '*.gdextension' 2>/dev/null); do
+            [ -f "$gdext" ] || continue
+            echo "  Processing: $gdext"
+            grep "$PLAT_KEY" "$gdext" | grep -o 'res://[^"]*' | while read -r res_path; do
+              rel_path="${res_path#res://}"
+              if [ -f "$rel_path" ] && [ ! -f "$BUILD_DIR/$rel_path" ]; then
+                mkdir -p "$BUILD_DIR/$(dirname "$rel_path")"
+                cp "$rel_path" "$BUILD_DIR/$rel_path"
+                echo "    Copied: $rel_path"
+              elif [ -f "$BUILD_DIR/$rel_path" ]; then
+                echo "    Already present: $rel_path"
+              fi
+            done
+          done
+
       - name: Inject godot-livekit dylibs into macOS export
         if: matrix.platform == 'macos' && env.LIVEKIT_DYLIB_STASH != ''
         run: |
@@ -525,6 +534,42 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           rm -rf "$WORK"
           echo "macOS export updated with lua-gdextension dylibs"
+
+      - name: Verify addon binaries in build
+        if: matrix.platform != 'web'
+        run: |
+          BUILD_DIR="dist/build/${{ matrix.platform }}"
+          case "${{ matrix.platform }}" in
+            linux)       PLAT_KEY="linux.x86_64" ;;
+            linux-arm64) PLAT_KEY="linux.arm64" ;;
+            windows)     PLAT_KEY="windows.x86_64" ;;
+            macos)       PLAT_KEY="macos" ;;
+            android)     PLAT_KEY="android.arm64" ;;
+            *) exit 0 ;;
+          esac
+          echo "Verifying GDExtension binaries for ${{ matrix.platform }} (key: $PLAT_KEY)"
+          for gdext in $(find addons/ -name '*.gdextension' 2>/dev/null); do
+            [ -f "$gdext" ] || continue
+            if [ "${{ matrix.platform }}" = "macos" ]; then
+              # macOS binaries are injected into the zip — verified by inject steps
+              continue
+            fi
+            grep "$PLAT_KEY" "$gdext" | grep -o 'res://[^"]*' | while read -r res_path; do
+              rel_path="${res_path#res://}"
+              if [ ! -f "$BUILD_DIR/$rel_path" ]; then
+                echo "::error::Missing addon binary in build: $rel_path"
+                echo 1 >> /tmp/.addon_missing
+              else
+                echo "  OK: $rel_path ($(du -h "$BUILD_DIR/$rel_path" | cut -f1))"
+              fi
+            done
+          done
+          if [ -f /tmp/.addon_missing ]; then
+            COUNT=$(wc -l < /tmp/.addon_missing | tr -d ' ')
+            echo "::error::$COUNT addon binary(ies) missing from ${{ matrix.platform }} build — release would be broken"
+            exit 1
+          fi
+          echo "All addon binaries verified in ${{ matrix.platform }} build"
 
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
@@ -675,6 +720,80 @@ jobs:
             "$GITHUB_WORKSPACE/daccord-macos-x86_64.dmg"
           rm -rf "$TMPDIR"
 
+      - name: Verify packaged artifact contains addon binaries
+        run: |
+          case "${{ matrix.platform }}" in
+            linux|linux-arm64)
+              PLAT_KEY="${{ matrix.platform == 'linux' && 'linux.x86_64' || 'linux.arm64' }}"
+              ARCHIVE="${{ matrix.artifact }}.tar.gz"
+              LIST_CMD="tar tzf"
+              ;;
+            windows)
+              PLAT_KEY="windows.x86_64"
+              ARCHIVE="${{ matrix.artifact }}.zip"
+              LIST_CMD="unzip -l"
+              ;;
+            macos)
+              PLAT_KEY="macos"
+              ARCHIVE="${{ matrix.artifact }}.zip"
+              LIST_CMD="unzip -l"
+              ;;
+            android)
+              PLAT_KEY="android.arm64"
+              ARCHIVE="${{ matrix.artifact }}.apk"
+              LIST_CMD="unzip -l"
+              ;;
+            web)
+              # Verify web JS dependencies are in the zip
+              ARCHIVE="${{ matrix.artifact }}.zip"
+              MISSING=0
+              for js in livekit-client.umd.min.js godot-livekit-web.js coop_coep.js daccord-sentry.js; do
+                if ! unzip -l "$ARCHIVE" | grep -q "$js"; then
+                  echo "::error::Missing JS dependency in web archive: $js"
+                  MISSING=$((MISSING + 1))
+                else
+                  echo "  OK: $js"
+                fi
+              done
+              if [ "$MISSING" -gt 0 ]; then
+                echo "::error::$MISSING JS file(s) missing from web archive"
+                exit 1
+              fi
+              echo "All web JS dependencies verified in archive"
+              exit 0
+              ;;
+          esac
+
+          echo "Inspecting $ARCHIVE for $PLAT_KEY addon binaries..."
+          MISSING=0
+          for gdext in $(find addons/ -name '*.gdextension' 2>/dev/null); do
+            [ -f "$gdext" ] || continue
+            grep "$PLAT_KEY" "$gdext" | grep -o 'res://[^"]*' | while read -r res_path; do
+              rel_path="${res_path#res://}"
+              # For macOS, binaries are inside daccord.app/Contents/Frameworks/
+              if [ "${{ matrix.platform }}" = "macos" ]; then
+                search_path="daccord.app/Contents/Frameworks/$rel_path"
+              else
+                search_path="$rel_path"
+              fi
+              # Check for the file path (basename match for tar, path for zip)
+              if ! $LIST_CMD "$ARCHIVE" 2>/dev/null | grep -q "$(basename "$rel_path")"; then
+                echo "::error::Addon binary missing from $ARCHIVE: $rel_path"
+                echo 1 >> /tmp/.pkg_missing
+              else
+                echo "  OK: $rel_path"
+              fi
+            done
+          done
+          if [ -f /tmp/.pkg_missing ]; then
+            COUNT=$(wc -l < /tmp/.pkg_missing | tr -d ' ')
+            echo "::error::$COUNT addon binary(ies) missing from packaged artifact — users will get a broken release"
+            echo "Archive contents:"
+            $LIST_CMD "$ARCHIVE" 2>/dev/null | head -50
+            exit 1
+          fi
+          echo "All addon binaries verified in $ARCHIVE"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -702,6 +821,38 @@ jobs:
         run: |
           mkdir -p dist/build/windows
           Expand-Archive -Path daccord-windows-x86_64.zip -DestinationPath dist/build/windows
+        shell: pwsh
+
+      - name: Verify addon binaries in installer input
+        run: |
+          $missing = 0
+          $requiredDlls = @(
+            "addons\godot-livekit\bin\libgodot-livekit.windows.x86_64.dll",
+            "addons\godot-livekit\bin\livekit_ffi.dll",
+            "addons\godot-livekit\bin\livekit.dll"
+          )
+          foreach ($dll in $requiredDlls) {
+            $path = "dist\build\windows\$dll"
+            if (Test-Path $path) {
+              $size = (Get-Item $path).Length / 1KB
+              Write-Host "  OK: $dll ($([math]::Round($size))KB)"
+            } else {
+              Write-Host "::error::Missing addon binary for installer: $dll"
+              $missing++
+            }
+          }
+          # Also check for lua-gdextension if present
+          $luaDlls = Get-ChildItem -Path "dist\build\windows\addons\lua-gdextension" -Filter "*.dll" -Recurse -ErrorAction SilentlyContinue
+          if ($luaDlls) {
+            foreach ($dll in $luaDlls) {
+              Write-Host "  OK: $($dll.FullName.Replace("$PWD\", ''))"
+            }
+          }
+          if ($missing -gt 0) {
+            Write-Host "::error::$missing addon binary(ies) missing — installer would ship a broken build"
+            exit 1
+          }
+          Write-Host "All addon binaries present for installer"
         shell: pwsh
 
       - name: Get version from project.godot

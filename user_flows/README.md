@@ -25,7 +25,7 @@ Ordered by natural user journey:
 | 17 | [Soundboard](soundboard.md) | Playing audio clips into voice channels, sound management, server/client mixing architecture, permission model |
 | 18 | [Message Reactions](message_reactions.md) | Adding/removing emoji reactions, reaction pills, optimistic updates, gateway sync, emoji picker integration |
 | 19 | [Channel Permission Management](channel_permission_management.md) | Per-channel role permission overwrites, Allow/Inherit/Deny toggles, Discord-style resolution algorithm, server-side enforcement |
-| 20 | [Test Coverage](test_coverage.md) | GUT test framework, test runner, CI pipeline, 437 tests across unit/integration/e2e/LiveKit suites, coverage gaps |
+| 20 | [Test Coverage](test_coverage.md) | GUT test framework, test runner, CI pipeline (6 jobs), 1590 tests across 94 files (unit/integration/e2e/LiveKit/sync), Client API bash tests, coverage gaps |
 | 21 | [Video Chat](video_chat.md) | Camera video, screen/window sharing, WebRTC video tracks, SDP negotiation, LiveKit media pipeline, video state flags |
 | 22 | [Reducing Build Size](reducing_build_size.md) | Custom export templates, stripping unused engine features (3D, Vulkan, OpenXR), selective modules, UPX compression, CI integration |
 | 23 | [UI Animations](ui_animations.md) | Tween-based drawer/panel/pill/avatar animations, shader morphing, typing indicator sine wave, hover state machines, flash feedback |

@@ -6,7 +6,6 @@
 # External addons (installed separately)
 addons/gut
 addons/godot-livekit
-addons/sentry
 addons/lua-gdextension
 
 # Build output

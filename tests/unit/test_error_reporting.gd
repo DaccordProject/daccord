@@ -14,7 +14,7 @@ func after_each() -> void:
 
 
 # =============================================================================
-# 1. Guard clauses -- Sentry is NOT initialized in tests
+# 1. Guard clauses -- GlitchTip client is NOT initialized in tests
 # =============================================================================
 
 func test_not_initialized_by_default() -> void:
@@ -23,7 +23,7 @@ func test_not_initialized_by_default() -> void:
 
 
 func test_add_breadcrumb_returns_early_when_not_initialized() -> void:
-	# Should not crash -- the _initialized guard prevents SentrySDK calls
+	# Should not crash -- the _initialized guard prevents API calls
 	er._add_breadcrumb("test message", "test")
 	assert_false(er._initialized,
 		"Still not initialized after _add_breadcrumb")

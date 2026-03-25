@@ -329,7 +329,7 @@ State enum uses `ClientModels.VoiceSessionState` (line 17): `DISCONNECTED = 0`, 
 
 ### End-to-End Encryption (E2EE)
 
-Conditionally compiled behind `LIVEKIT_E2EE_SUPPORTED` (livekit_e2ee.h). Provides:
+Conditionally compiled behind `LIVEKIT_E2EE_SUPPORTED` (livekit_e2ee.h). **Enabled by default** in the build system (`SConstruct` line 181 defaults `e2ee` to `yes`); disable with `e2ee=no`. Release binaries include E2EE classes. Provides:
 
 - `LiveKitE2eeOptions`: encryption type (`ENCRYPTION_NONE`, `ENCRYPTION_GCM`, `ENCRYPTION_CUSTOM`), shared key, ratchet salt/window, failure tolerance
 - `LiveKitKeyProvider`: per-participant or shared key management with key ratcheting

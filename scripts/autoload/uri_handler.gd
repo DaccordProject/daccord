@@ -305,6 +305,11 @@ func _handle_connect(parsed: Dictionary) -> void:
 	elif not invite_code.is_empty():
 		url_str += "?invite=" + invite_code
 
+	# Token-bearing URIs get a confirmation dialog before proceeding
+	if not token.is_empty():
+		_confirm_token_connect(host, url_str)
+		return
+
 	_open_add_server_prefilled(url_str)
 
 
@@ -313,7 +318,16 @@ func _handle_invite(parsed: Dictionary) -> void:
 	var port: int = parsed["port"]
 	var code: String = parsed["invite_code"]
 
-	# For now, open add server dialog with the invite code
+	# Check if already connected to this server — accept invite directly
+	var base_url: String = build_base_url(host, port)
+	for space in Client.spaces:
+		var sid: String = space.get("id", "")
+		var surl: String = Client.get_base_url_for_space(sid)
+		if surl == base_url:
+			_accept_invite_directly(sid, code)
+			return
+
+	# Not connected — open add server dialog with the invite code
 	var url_str := host
 	if port != 443:
 		url_str += ":" + str(port)
@@ -337,6 +351,7 @@ func _handle_navigate(parsed: Dictionary) -> void:
 
 	if not found:
 		push_warning("UriHandler: not connected to space %s" % space_id)
+		AppState.toast_requested.emit(tr("Space not found — not connected"))
 		return
 
 	AppState.select_space(space_id)
@@ -353,6 +368,42 @@ func _navigate_to_channel_by_name(space_id: String, channel_name: String) -> voi
 			AppState.select_channel(ch.get("id", ""))
 			return
 	push_warning("UriHandler: channel '%s' not found in space %s" % [channel_name, space_id])
+	AppState.toast_requested.emit(tr("Channel not found"))
+
+
+## Accepts an invite directly using an existing connection to the server.
+func _accept_invite_directly(space_id: String, code: String) -> void:
+	var accord_client: AccordClient = Client._client_for_space(space_id)
+	if accord_client == null:
+		push_warning("UriHandler: no client for space %s" % space_id)
+		AppState.toast_requested.emit(tr("Failed to accept invite"))
+		return
+
+	var result: RestResult = await accord_client.invites.accept(code)
+	if result.ok:
+		AppState.toast_requested.emit(tr("Invite accepted!"))
+	else:
+		push_warning("UriHandler: invite accept failed: %s" % result.error_message)
+		AppState.toast_requested.emit(tr("Failed to accept invite"))
+
+
+## Shows a confirmation dialog before connecting with a token-bearing URI.
+func _confirm_token_connect(host: String, url_str: String) -> void:
+	var main_window := get_tree().root.get_node_or_null("MainWindow")
+	if main_window == null:
+		push_warning("UriHandler: MainWindow not found")
+		return
+
+	var dialog := ConfirmationDialog.new()
+	dialog.title = tr("Connect to Server")
+	dialog.dialog_text = tr("Connect to %s with an embedded token?\n\n" % host
+		+ "Only proceed if you trust the source of this link.")
+	dialog.ok_button_text = tr("Connect")
+	dialog.confirmed.connect(func() -> void:
+		_open_add_server_prefilled(url_str)
+	)
+	main_window.add_child(dialog)
+	dialog.popup_centered()
 
 
 ## Opens the Add Server dialog with a pre-filled URL.

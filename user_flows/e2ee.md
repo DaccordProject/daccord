@@ -5,7 +5,7 @@ Depends on: Godot-LiveKit
 
 ## Overview
 
-End-to-end encryption ensures that voice/video media streams are encrypted at the sender and only decrypted at the intended recipients — the LiveKit server (SFU) relays opaque ciphertext and cannot read the media. The godot-livekit GDExtension has E2EE classes compiled behind a `LIVEKIT_E2EE_SUPPORTED` build flag, but the current release binaries are **not** built with E2EE enabled, and daccord does not wire the E2EE API into its voice pipeline. Text messages are not covered by this flow — they travel over REST/WebSocket with transport-layer TLS only.
+End-to-end encryption ensures that voice/video media streams are encrypted at the sender and only decrypted at the intended recipients — the LiveKit server (SFU) relays opaque ciphertext and cannot read the media. The godot-livekit GDExtension has E2EE classes compiled behind a `LIVEKIT_E2EE_SUPPORTED` build flag. E2EE is **enabled by default** in the build system (`SConstruct` defaults `e2ee` to `yes`), so release binaries include E2EE classes. However, daccord does not wire the E2EE API into its voice pipeline — no shared key is exchanged and no E2EE options are passed during room connection. Text messages are not covered by this flow — they travel over REST/WebSocket with transport-layer TLS only.
 
 ## User Steps
 
@@ -66,10 +66,10 @@ ClientVoice                   |                                                 
 |------|------|
 | `src/livekit_e2ee.h` | Declares `LiveKitE2eeOptions`, `LiveKitKeyProvider`, `LiveKitFrameCryptor`, `LiveKitE2eeManager` |
 | `src/livekit_e2ee.cpp` | Implements E2EE classes — shared/per-participant key management, ratcheting, frame cryptor enable/disable |
-| `src/livekit_room.h` | `LiveKitRoom` — holds `LiveKitE2eeManager` behind `#ifdef LIVEKIT_E2EE_SUPPORTED` (line 94), exposes `get_e2ee_manager()` (line 122) |
-| `src/livekit_room.cpp` | Parses `e2ee` option from connect dictionary (line 162), initializes E2EE manager after connect (line 229), emits `e2ee_state_changed` and `participant_encryption_status_changed` signals (lines 723-743) |
-| `src/register_types.cpp` | Conditionally registers E2EE classes with ClassDB (lines 57-62) |
-| `SConstruct` | E2EE opt-in: `e2ee=yes` build arg sets `LIVEKIT_E2EE_SUPPORTED` define (lines 121-123), appends `livekit_e2ee.cpp` to sources (lines 137-138) |
+| `src/livekit_room.h` | `LiveKitRoom` — holds `LiveKitE2eeManager` behind `#ifdef LIVEKIT_E2EE_SUPPORTED` (line 109), exposes `get_e2ee_manager()` (line 140) |
+| `src/livekit_room.cpp` | Parses `e2ee` option from connect dictionary (line 198), initializes E2EE manager after connect (line 327), emits `e2ee_state_changed` and `participant_encryption_status_changed` signals (lines 825, 837) |
+| `src/register_types.cpp` | Conditionally registers E2EE classes with ClassDB (lines 71-77) |
+| `SConstruct` | E2EE enabled by default: `e2ee` arg defaults to `yes`, sets `LIVEKIT_E2EE_SUPPORTED` define (lines 181-183), appends `livekit_e2ee.cpp` to sources (lines 201-202) |
 | `test/unit/test_e2ee.gd` | 11 tests for E2EE classes — options defaults, key roundtrip, frame cryptor, manager unbound behavior |
 | `test/unit/test_platform.gd` | Platform test that checks whether E2EE classes are registered (informational, lines 37-59) |
 
@@ -79,15 +79,15 @@ ClientVoice                   |                                                 
 
 All daccord traffic already uses transport encryption:
 
-- **REST API**: HTTPS by default. The Add Server dialog (`add_server_dialog.gd`, line 66) prepends `https://` to URLs. If HTTPS fails, it falls back to HTTP (line 214) — this is a security concern but separate from E2EE.
+- **REST API**: HTTPS by default. The Add Server dialog (`add_server_dialog.gd`, line 66) prepends `https://` to URLs. No HTTP fallback — transport encryption is guaranteed (see E2EE-8, resolved).
 - **WebSocket gateway**: Uses `wss://` for TLS-protected WebSocket connections.
 - **LiveKit WebRTC**: DTLS-SRTP is mandatory in WebRTC, so media is always encrypted in transit between client and the LiveKit SFU. However, the SFU can decrypt and re-encrypt the media — E2EE adds a second layer that the SFU cannot read.
 
 ### godot-livekit E2EE Classes (Conditional Compile)
 
-E2EE is compiled only when building with `scons e2ee=yes` (`SConstruct`, line 121). All E2EE code is wrapped in `#ifdef LIVEKIT_E2EE_SUPPORTED`. The current release binaries are **not** built with this flag.
+E2EE is **enabled by default** in the build system (`SConstruct`, line 181). The `e2ee` build arg defaults to `yes`; pass `e2ee=no` to disable. All E2EE code is wrapped in `#ifdef LIVEKIT_E2EE_SUPPORTED`. Release binaries built via `build.sh` include E2EE classes since no `e2ee=no` override is passed.
 
-**LiveKitE2eeOptions** (`livekit_e2ee.h`, line 14):
+**LiveKitE2eeOptions** (`livekit_e2ee.h`, line 16):
 - `encryption_type`: `ENCRYPTION_NONE (0)`, `ENCRYPTION_GCM (1)`, `ENCRYPTION_CUSTOM (2)` — default is GCM
 - `shared_key`: `PackedByteArray` — the symmetric key all participants must share
 - `ratchet_salt`: `PackedByteArray` — salt for the key derivation ratchet (default from `livekit::kDefaultRatchetSalt`)
@@ -95,26 +95,26 @@ E2EE is compiled only when building with `scons e2ee=yes` (`SConstruct`, line 12
 - `failure_tolerance`: `int` — how many decryption failures before giving up (default -1, unlimited)
 - `to_native()`: converts to `livekit::E2EEOptions` for the C++ SDK (line 84)
 
-**LiveKitKeyProvider** (`livekit_e2ee.h`, line 56):
+**LiveKitKeyProvider** (`livekit_e2ee.h`, line 58):
 - `set_shared_key(key, key_index)` / `get_shared_key(key_index)` — room-wide shared key at a given index
 - `ratchet_shared_key(key_index)` — advances the shared key via ratchet, returns the new key
 - `set_key(participant_identity, key, key_index)` / `get_key(...)` — per-participant keys
 - `ratchet_key(participant_identity, key_index)` — per-participant ratchet
 - All methods are no-ops with error prints if the provider is unbound (`livekit_e2ee.cpp`, lines 126-191)
 
-**LiveKitFrameCryptor** (`livekit_e2ee.h`, line 80):
+**LiveKitFrameCryptor** (`livekit_e2ee.h`, line 82):
 - `participant_identity`: read-only, set from bound native object
 - `enabled`: enable/disable encryption for a specific participant's tracks
 - `key_index`: which key slot to use for this participant's encryption
 
-**LiveKitE2eeManager** (`livekit_e2ee.h`, line 108):
+**LiveKitE2eeManager** (`livekit_e2ee.h`, line 110):
 - `enabled`: master enable/disable toggle for the room's E2EE
-- `key_provider`: returns the `LiveKitKeyProvider` for the room (lazy-initialized, line 304 of `livekit_e2ee.cpp`)
+- `key_provider`: returns the `LiveKitKeyProvider` for the room (lazy-initialized, line 297 of `livekit_e2ee.cpp`)
 - `frame_cryptors`: returns an `Array` of `LiveKitFrameCryptor` objects, one per participant's track
 
 ### Room Connection with E2EE
 
-When `connect_to_room()` is called, `livekit_room.cpp` checks for an `"e2ee"` key in the options dictionary (line 162):
+When `connect_to_room()` is called, `livekit_room.cpp` checks for an `"e2ee"` key in the options dictionary (line 198):
 
 ```cpp
 if (options.has("e2ee")) {
@@ -125,7 +125,7 @@ if (options.has("e2ee")) {
 }
 ```
 
-After a successful connection, the E2EE manager is initialized (line 229):
+After a successful connection, the E2EE manager is initialized (line 327):
 
 ```cpp
 livekit::E2EEManager *mgr = room->e2eeManager();
@@ -137,7 +137,7 @@ if (mgr) {
 
 ### Room Signals for E2EE
 
-Two signals are registered when E2EE is supported (`livekit_room.cpp`, lines 109-116):
+Two signals are registered when E2EE is supported (`livekit_room.cpp`, lines 118-126):
 
 - `e2ee_state_changed(participant: LiveKitParticipant, state: int)` — fired when a participant's E2EE state changes (e.g., from encrypting to decrypted, or failure)
 - `participant_encryption_status_changed(participant: LiveKitParticipant, is_encrypted: bool)` — fired when a participant starts or stops using encryption
@@ -148,7 +148,7 @@ The key ratchet provides forward secrecy for voice sessions. When `ratchet_share
 
 ### What daccord Would Need to Wire
 
-1. **Build godot-livekit with E2EE**: `scons platform=linux e2ee=yes` — the current release binaries do not include E2EE
+1. **E2EE binaries already available**: Release binaries include E2EE classes by default (no build changes needed)
 2. **Key exchange**: Either the server provides a shared key in `AccordVoiceServerUpdate`, or clients use an out-of-band key agreement (e.g., a room passphrase entered by the channel creator)
 3. **LiveKitAdapter changes**: Pass `LiveKitE2eeOptions` in the options dict when calling `_room.connect_to_room()`, connect the two E2EE signals
 4. **Config persistence**: Add `Config.voice.get_e2ee_enabled()` / `set_e2ee_enabled()` to `config_voice.gd`
@@ -159,14 +159,14 @@ The key ratchet provides forward secrecy for voice sessions. When `ratchet_share
 ## Implementation Status
 
 - [x] E2EE C++ classes written and conditionally compiled in godot-livekit (`LiveKitE2eeOptions`, `LiveKitKeyProvider`, `LiveKitFrameCryptor`, `LiveKitE2eeManager`)
-- [x] Room connection accepts `e2ee` options in the connect dictionary (`livekit_room.cpp`, line 162)
-- [x] E2EE manager auto-initializes after room connect (`livekit_room.cpp`, line 229)
+- [x] Room connection accepts `e2ee` options in the connect dictionary (`livekit_room.cpp`, line 198)
+- [x] E2EE manager auto-initializes after room connect (`livekit_room.cpp`, line 327)
 - [x] E2EE signals wired from C++ delegate to Godot signal surface (`e2ee_state_changed`, `participant_encryption_status_changed`)
 - [x] Key provider supports shared keys and per-participant keys with ratcheting
 - [x] Frame cryptor supports per-participant enable/disable and key index selection
 - [x] Unit tests for all E2EE classes in godot-livekit (`test/unit/test_e2ee.gd`, 11 tests)
 - [x] Platform detection test for E2EE availability (`test/unit/test_platform.gd`)
-- [ ] Release binaries built with `e2ee=yes` flag
+- [x] Release binaries built with E2EE (enabled by default since `SConstruct` defaults `e2ee` to `yes`)
 - [ ] `LiveKitAdapter.connect_to_room()` passes E2EE options
 - [ ] `LiveKitAdapter` connects E2EE signals (`e2ee_state_changed`, `participant_encryption_status_changed`)
 - [ ] Key exchange mechanism (server-side or client-side passphrase)
@@ -183,11 +183,11 @@ The key ratchet provides forward secrecy for voice sessions. When `ratchet_share
 ## Tasks
 
 ### E2EE-1: Release binaries not built with E2EE
-- **Status:** open
+- **Status:** done
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** ci, security, voice
-- **Notes:** `SConstruct` line 121 requires `e2ee=yes` build arg. Current release binaries from `build.sh` do not pass this flag. The LiveKit C++ SDK build must also include E2EE symbols.
+- **Notes:** `SConstruct` line 181 defaults `e2ee` to `yes`. Release binaries built via `build.sh` include E2EE classes without any override needed. Resolved: E2EE is now enabled by default in the build system.
 
 ### E2EE-2: No key exchange protocol
 - **Status:** open
@@ -208,7 +208,7 @@ The key ratchet provides forward secrecy for voice sessions. When `ratchet_share
 - **Impact:** 4
 - **Effort:** 3
 - **Tags:** ci, security, voice
-- **Notes:** The two E2EE signals (`e2ee_state_changed`, `participant_encryption_status_changed`) emitted by `LiveKitRoom` (lines 723-743 of `livekit_room.cpp`) are not connected in `connect_to_room()` (`livekit_adapter.gd`, lines 62-71).
+- **Notes:** The two E2EE signals (`e2ee_state_changed`, `participant_encryption_status_changed`) emitted by `LiveKitRoom` (lines 825, 837 of `livekit_room.cpp`) are not connected in `connect_to_room()` (`livekit_adapter.gd`).
 
 ### E2EE-5: No E2EE config persistence
 - **Status:** open
