@@ -571,6 +571,40 @@ jobs:
           fi
           echo "All addon binaries verified in ${{ matrix.platform }} build"
 
+      - name: Remove duplicate GDExtension DLLs from Windows root
+        if: matrix.platform == 'windows'
+        run: |
+          BUILD_DIR="dist/build/windows"
+          # Godot copies GDExtension libraries to the exe directory during export,
+          # but they are already in addons/ where the GDExtension system loads them.
+          # Only dependency DLLs (livekit_ffi, livekit) need to be next to the exe
+          # for the Windows DLL loader. Remove the duplicated main libraries.
+          for gdext in $(find addons/ -name '*.gdextension' 2>/dev/null); do
+            [ -f "$gdext" ] || continue
+            grep "windows.x86_64" "$gdext" | grep -v '^\[' | grep -v '{' | grep -o 'res://[^"]*' | while read -r res_path; do
+              rel_path="${res_path#res://}"
+              basename=$(basename "$rel_path")
+              if [ -f "$BUILD_DIR/$basename" ] && [ -f "$BUILD_DIR/$rel_path" ]; then
+                rm "$BUILD_DIR/$basename"
+                echo "  Removed duplicate from root: $basename (kept in $rel_path)"
+              fi
+            done
+          done
+
+      - name: Verify ANGLE DLLs in Windows build
+        if: matrix.platform == 'windows'
+        run: |
+          BUILD_DIR="dist/build/windows"
+          for dll in libEGL.dll libGLESv2.dll; do
+            if [ -f "$BUILD_DIR/$dll" ]; then
+              echo "  OK: $dll ($(du -h "$BUILD_DIR/$dll" | cut -f1))"
+            else
+              echo "::error::Missing ANGLE DLL in Windows build: $dll — ensure export_angle is enabled in export_presets.cfg"
+              exit 1
+            fi
+          done
+          echo "ANGLE DLLs verified in Windows build"
+
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
         run: |
@@ -829,7 +863,9 @@ jobs:
           $requiredDlls = @(
             "addons\godot-livekit\bin\libgodot-livekit.windows.x86_64.dll",
             "addons\godot-livekit\bin\livekit_ffi.dll",
-            "addons\godot-livekit\bin\livekit.dll"
+            "addons\godot-livekit\bin\livekit.dll",
+            "libEGL.dll",
+            "libGLESv2.dll"
           )
           foreach ($dll in $requiredDlls) {
             $path = "dist\build\windows\$dll"
