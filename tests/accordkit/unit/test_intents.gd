@@ -37,7 +37,7 @@ func test_privileged_count() -> void:
 
 func test_unprivileged_count() -> void:
 	var unpriv := GatewayIntents.unprivileged()
-	assert_eq(unpriv.size(), 11)
+	assert_eq(unpriv.size(), 14)
 
 
 func test_all_is_union() -> void:
