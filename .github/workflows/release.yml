@@ -571,6 +571,31 @@ jobs:
           fi
           echo "All addon binaries verified in ${{ matrix.platform }} build"
 
+      - name: Bundle ANGLE DLLs for Windows
+        if: matrix.platform == 'windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BUILD_DIR="dist/build/windows"
+          # Some Windows systems need separate ANGLE DLLs for OpenGL ES
+          # translation (GodotLite may not have ANGLE statically linked).
+          # Source them from mmozeiko/build-angle weekly builds.
+          ANGLE_DIR=$(mktemp -d)
+          gh release download --repo mmozeiko/build-angle \
+            --pattern "angle-x64-*.zip" --dir "$ANGLE_DIR"
+          unzip -j "$ANGLE_DIR"/angle-x64-*.zip "angle-x64/bin/libEGL.dll" "angle-x64/bin/libGLESv2.dll" \
+            -d "$BUILD_DIR"
+          rm -rf "$ANGLE_DIR"
+          for dll in libEGL.dll libGLESv2.dll; do
+            if [ -f "$BUILD_DIR/$dll" ]; then
+              echo "  OK: $dll ($(du -h "$BUILD_DIR/$dll" | cut -f1))"
+            else
+              echo "::error::Missing ANGLE DLL after extraction: $dll"
+              exit 1
+            fi
+          done
+          echo "ANGLE DLLs bundled for Windows"
+
       - name: Remove duplicate GDExtension DLLs from Windows root
         if: matrix.platform == 'windows'
         run: |
@@ -849,7 +874,9 @@ jobs:
           $requiredDlls = @(
             "addons\godot-livekit\bin\libgodot-livekit.windows.x86_64.dll",
             "addons\godot-livekit\bin\livekit_ffi.dll",
-            "addons\godot-livekit\bin\livekit.dll"
+            "addons\godot-livekit\bin\livekit.dll",
+            "libEGL.dll",
+            "libGLESv2.dll"
           )
           foreach ($dll in $requiredDlls) {
             $path = "dist\build\windows\$dll"
