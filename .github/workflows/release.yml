@@ -591,19 +591,28 @@ jobs:
             done
           done
 
-      - name: Verify ANGLE DLLs in Windows build
+      - name: Copy ANGLE DLLs into Windows build
         if: matrix.platform == 'windows'
         run: |
           BUILD_DIR="dist/build/windows"
+          # GodotLite templates don't include ANGLE DLLs, so copy them from
+          # the stock Godot export templates installed by setup-godot.
+          GODOT_TPL_VERSION="${GODOT_VERSION%.*}"
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TPL_VERSION}.stable"
           for dll in libEGL.dll libGLESv2.dll; do
             if [ -f "$BUILD_DIR/$dll" ]; then
-              echo "  OK: $dll ($(du -h "$BUILD_DIR/$dll" | cut -f1))"
+              echo "  Already present: $dll"
+            elif [ -f "$TPL_DIR/$dll" ]; then
+              cp "$TPL_DIR/$dll" "$BUILD_DIR/$dll"
+              echo "  Copied from stock templates: $dll ($(du -h "$BUILD_DIR/$dll" | cut -f1))"
             else
-              echo "::error::Missing ANGLE DLL in Windows build: $dll — ensure export_angle is enabled in export_presets.cfg"
+              echo "::error::ANGLE DLL not found in build or stock templates: $dll"
+              echo "  Searched: $TPL_DIR"
+              ls -la "$TPL_DIR"/*.dll 2>/dev/null || echo "  No DLLs in template dir"
               exit 1
             fi
           done
-          echo "ANGLE DLLs verified in Windows build"
+          echo "ANGLE DLLs ready in Windows build"
 
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
