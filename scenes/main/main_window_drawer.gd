@@ -62,6 +62,13 @@ func move_sidebar_to_drawer() -> void:
 	layout_hbox.remove_child(sidebar)
 	drawer_container.add_child(sidebar)
 	sidebar.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	# Explicitly reset offsets so the sidebar stretches to full drawer height.
+	# set_anchors_preset() with keep_offsets=false recalculates offsets to
+	# preserve the previous rect, which keeps the old 600px height from the
+	# .tscn instead of filling the parent.
+	sidebar.offset_top = 0
+	sidebar.offset_bottom = 0
+	sidebar.offset_left = 0
 	sidebar.offset_right = get_drawer_width()
 
 
@@ -143,8 +150,12 @@ func move_member_to_drawer() -> void:
 	content_body.remove_child(member_list)
 	member_drawer_container.add_child(member_list)
 	member_list.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	# Explicitly reset offsets for full height (same reason as sidebar).
 	var dw := get_member_drawer_width()
+	member_list.offset_top = 0
+	member_list.offset_bottom = 0
 	member_list.offset_left = -dw
+	member_list.offset_right = 0
 	member_list.visible = false
 
 

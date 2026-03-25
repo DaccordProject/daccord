@@ -218,6 +218,13 @@ func _on_viewport_resized() -> void:
 	_modal_panel.custom_minimum_size = Vector2(w, h)
 	_modal_panel.clip_contents = true
 
+	# Cap inner content minimum sizes so child nodes cannot force the panel
+	# wider than the viewport. CenterContainer allocates the child's combined
+	# minimum size, which can exceed the capped panel width if inner nodes
+	# have large fixed custom_minimum_size values.
+	if w < modal_width:
+		_cap_children_min_width(_modal_panel, w)
+
 	# For auto-height modals, clamp if content grew too tall
 	if modal_height <= 0.0 and _modal_panel.size.y > max_h:
 		_modal_panel.custom_minimum_size.y = max_h
@@ -226,6 +233,17 @@ func _on_viewport_resized() -> void:
 		_modal_panel.set_deferred("size", Vector2(
 			minf(_modal_panel.size.x, max_w),
 			minf(_modal_panel.size.y, max_h)))
+
+
+func _cap_children_min_width(node: Control, max_w: float) -> void:
+	var style: StyleBox = node.get_theme_stylebox("panel")
+	var pad: float = 0.0
+	if style is StyleBoxFlat:
+		pad = style.content_margin_left + style.content_margin_right
+	var inner: float = maxf(max_w - pad, 100.0)
+	for child in node.get_children():
+		if child is Control and child.custom_minimum_size.x > inner:
+			child.custom_minimum_size.x = inner
 
 
 func _exit_tree() -> void:
