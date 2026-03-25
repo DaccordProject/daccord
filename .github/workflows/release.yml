@@ -593,26 +593,30 @@ jobs:
 
       - name: Copy ANGLE DLLs into Windows build
         if: matrix.platform == 'windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           BUILD_DIR="dist/build/windows"
-          # GodotLite templates don't include ANGLE DLLs, so copy them from
-          # the stock Godot export templates installed by setup-godot.
-          GODOT_TPL_VERSION="${GODOT_VERSION%.*}"
-          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TPL_VERSION}.stable"
+          # ANGLE DLLs are only shipped with the Windows Godot editor, not the
+          # export templates. Since this is a cross-compile on Linux, download
+          # them from the Godot Windows editor release.
+          ANGLE_DIR=$(mktemp -d)
+          gh release download "v${GODOT_VERSION}-stable" \
+            --repo godotengine/godot \
+            --pattern "Godot_v${GODOT_VERSION}-stable_win64.exe.zip" \
+            --dir "$ANGLE_DIR"
+          unzip -j "$ANGLE_DIR/Godot_v${GODOT_VERSION}-stable_win64.exe.zip" \
+            "libEGL.dll" "libGLESv2.dll" -d "$BUILD_DIR"
+          rm -rf "$ANGLE_DIR"
           for dll in libEGL.dll libGLESv2.dll; do
             if [ -f "$BUILD_DIR/$dll" ]; then
-              echo "  Already present: $dll"
-            elif [ -f "$TPL_DIR/$dll" ]; then
-              cp "$TPL_DIR/$dll" "$BUILD_DIR/$dll"
-              echo "  Copied from stock templates: $dll ($(du -h "$BUILD_DIR/$dll" | cut -f1))"
+              echo "  OK: $dll ($(du -h "$BUILD_DIR/$dll" | cut -f1))"
             else
-              echo "::error::ANGLE DLL not found in build or stock templates: $dll"
-              echo "  Searched: $TPL_DIR"
-              ls -la "$TPL_DIR"/*.dll 2>/dev/null || echo "  No DLLs in template dir"
+              echo "::error::Failed to extract ANGLE DLL: $dll"
               exit 1
             fi
           done
-          echo "ANGLE DLLs ready in Windows build"
+          echo "ANGLE DLLs copied from Godot Windows editor release"
 
       - name: Package Linux
         if: startsWith(matrix.platform, 'linux')
