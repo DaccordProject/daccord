@@ -11,6 +11,9 @@ const DIRECT_MESSAGES := "direct_messages"
 const DM_REACTIONS := "dm_reactions"
 const DM_TYPING := "dm_typing"
 const SCHEDULED_EVENTS := "scheduled_events"
+const PLUGINS := "plugins"
+const RELATIONSHIPS := "relationships"
+const SOUNDBOARD := "soundboard"
 
 # Privileged intents
 const MEMBERS := "members"
@@ -22,7 +25,8 @@ static func unprivileged() -> Array:
 		SPACES, MODERATION, EMOJIS, VOICE_STATES,
 		MESSAGES, MESSAGE_REACTIONS, MESSAGE_TYPING,
 		DIRECT_MESSAGES, DM_REACTIONS, DM_TYPING,
-		SCHEDULED_EVENTS,
+		SCHEDULED_EVENTS, PLUGINS, RELATIONSHIPS,
+		SOUNDBOARD,
 	]
 
 static func privileged() -> Array:

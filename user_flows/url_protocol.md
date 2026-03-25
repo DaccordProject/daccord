@@ -316,11 +316,15 @@ All handlers copy to clipboard and emit `AppState.toast_requested.emit(tr("Link 
 - [x] Confirmation dialog for token-bearing URIs (`_confirm_token_connect`, line 390-406)
 - [x] Direct invite acceptance when already connected (`_accept_invite_directly`, line 374-387)
 - [x] Error toast for failed navigate (line 354) and channel-not-found (line 371)
+- [x] Fix channel navigation on cold start (navigate routes await `server_synced` signal)
+- [x] Fix IPC forwarding (heartbeat-based lock detection for reliable instance detection)
 - [ ] macOS Apple Event delivery testing (CFBundleURLTypes is configured but untested)
 
 ## Gaps / TODO
 
 | Gap | Severity | Notes |
 |-----|----------|-------|
+| Channel navigation fails on cold start | High | **Fixed.** Navigate routes now await `AppState.server_synced` for the target space before dispatching. A 15s fallback timeout prevents indefinite waiting if the space never syncs. Connect/invite routes still use `call_deferred` since they open dialogs that don't need channel data. |
+| Second instance does not forward URI to running instance | High | **Fixed.** `SingleInstance` now writes a heartbeat to the lock file every 2s. The second instance checks if the lock file was modified within the last 5s (more reliable than `kill -0` which can fail due to permissions or PID reuse). Falls back to process-alive check for the brief startup window before the first heartbeat. |
 | macOS Apple Event delivery untested | Medium | `CFBundleURLTypes` is configured in `export_presets.cfg` (line 157) but Godot 4's handling of Apple Events has not been verified on a real macOS build |
 | Token exposure in URLs | Low | Auth tokens in `daccord://connect/...?token=...` may leak via browser history/logs; confirmation dialog mitigates but doesn't prevent exposure. Prefer invite codes for sharing |

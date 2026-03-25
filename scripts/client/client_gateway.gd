@@ -10,12 +10,14 @@ var _typing_timers: Dictionary = {} # channel_id -> Timer node
 var _reactions: ClientGatewayReactions
 var _events: ClientGatewayEvents
 var _members: ClientGatewayMembers
+var _ready_handler: ClientGatewayReady
 
 func _init(client_node: Node) -> void:
 	_c = client_node
 	_reactions = ClientGatewayReactions.new(client_node)
 	_events = ClientGatewayEvents.new(client_node)
 	_members = ClientGatewayMembers.new(client_node)
+	_ready_handler = ClientGatewayReady.new(client_node)
 
 func connect_signals(
 	client: AccordClient, idx: int
@@ -142,8 +144,13 @@ func on_gateway_ready(_data: Dictionary, conn_index: int) -> void:
 	var space_id: String = conn["space_id"]
 	if was_down and not space_id.is_empty():
 		AppState.server_reconnected.emit(space_id)
-	# Refetch all data (awaited so server_synced fires after completion)
-	await _refetch_data(conn, conn_index)
+
+	# Use enriched READY payload if available (avoids 10+ REST calls)
+	if _data.has("channels"):
+		_ready_handler.apply(_data, conn, conn_index)
+	else:
+		# Fallback for older servers that don't send enriched READY
+		await _refetch_data(conn, conn_index)
 
 	# Apply initial presences from READY payload
 	var presences: Array = _data.get("presences", [])

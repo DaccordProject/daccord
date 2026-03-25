@@ -39,6 +39,10 @@ ThemeManager="*res://scripts/autoload/theme_manager.gd"
 UriHandler="*res://scripts/autoload/uri_handler.gd"
 SyncManager="*res://scripts/autoload/sync_manager.gd"
 
+[daccord]
+
+error_dsn="https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1"
+
 [debug]
 
 settings/gdscript/always_track_call_stacks=true
@@ -77,7 +81,3 @@ common/physics_ticks_per_second=1
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
-
-[sentry]
-
-config/dsn="https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1"

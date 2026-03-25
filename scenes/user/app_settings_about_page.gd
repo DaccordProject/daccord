@@ -57,13 +57,6 @@ func build() -> VBoxContainer:
 			"https://github.com/livekit/client-sdk-cpp",
 		],
 		[
-			"Sentry SDK for Godot",
-			tr("Error reporting and crash monitoring."),
-			"Copyright (c) Sentry",
-			"MIT License",
-			"https://github.com/getsentry/sentry-godot",
-		],
-		[
 			"GUT (Godot Unit Test)",
 			tr("Testing framework."),
 			"Copyright (c) Tom \"Butch\" Wesley",

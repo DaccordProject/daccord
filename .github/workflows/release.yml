@@ -293,12 +293,12 @@ jobs:
         run: godot --headless --import . || true
         timeout-minutes: 2
 
-      - name: Inject Sentry DSN
+      - name: Inject error reporting DSN
         if: env.SENTRY_DSN != ''
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          sed -i.bak 's|config/dsn="[^"]*"|config/dsn="'"$SENTRY_DSN"'"|' project.godot
+          sed -i.bak 's|error_dsn="[^"]*"|error_dsn="'"$SENTRY_DSN"'"|' project.godot
           rm -f project.godot.bak
 
       - name: Download GodotLite template

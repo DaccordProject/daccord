@@ -190,3 +190,183 @@ func test_bridge_play_sound_noop_for_unknown() -> void:
 func test_bridge_stop_sound_noop_for_unknown() -> void:
 	# Should not crash
 	runtime._bridge_stop_sound(999)
+
+
+# ------------------------------------------------------------------
+# Bulk bridge constants
+# ------------------------------------------------------------------
+
+func test_max_action_payload_bytes_constant() -> void:
+	assert_eq(ScriptedRuntime.MAX_ACTION_PAYLOAD_BYTES, 8192)
+
+
+func test_max_collection_elements_constant() -> void:
+	assert_eq(ScriptedRuntime.MAX_COLLECTION_ELEMENTS, 200)
+
+
+# ------------------------------------------------------------------
+# parse_flat_array — bulk Array conversion
+# ------------------------------------------------------------------
+
+func test_parse_flat_array_integers() -> void:
+	var result := ScriptedRuntime.parse_flat_array("n0\u001en1\u001en2\u001en3")
+	assert_eq(result, [0, 1, 2, 3])
+	assert_typeof(result[0], TYPE_INT)
+
+
+func test_parse_flat_array_floats() -> void:
+	var result := ScriptedRuntime.parse_flat_array("n1.5\u001en2.7")
+	assert_eq(result, [1.5, 2.7])
+	assert_typeof(result[0], TYPE_FLOAT)
+
+
+func test_parse_flat_array_booleans() -> void:
+	var result := ScriptedRuntime.parse_flat_array("btrue\u001ebfalse")
+	assert_eq(result, [true, false])
+	assert_typeof(result[0], TYPE_BOOL)
+
+
+func test_parse_flat_array_strings() -> void:
+	var result := ScriptedRuntime.parse_flat_array("shello\u001esworld")
+	assert_eq(result, ["hello", "world"])
+
+
+func test_parse_flat_array_mixed_types() -> void:
+	var result := ScriptedRuntime.parse_flat_array(
+		"n42\u001en3.14\u001ebtrue\u001estext"
+	)
+	assert_eq(result.size(), 4)
+	assert_eq(result[0], 42)
+	assert_typeof(result[0], TYPE_INT)
+	assert_eq(result[1], 3.14)
+	assert_typeof(result[1], TYPE_FLOAT)
+	assert_eq(result[2], true)
+	assert_eq(result[3], "text")
+
+
+func test_parse_flat_array_single_element() -> void:
+	var result := ScriptedRuntime.parse_flat_array("n99")
+	assert_eq(result, [99])
+
+
+func test_parse_flat_array_string_that_looks_like_int() -> void:
+	# Snowflake IDs must stay as strings, not become ints
+	var result := ScriptedRuntime.parse_flat_array("s189012345678901234")
+	assert_eq(result, ["189012345678901234"])
+	assert_typeof(result[0], TYPE_STRING)
+
+
+func test_parse_flat_array_board_serialization() -> void:
+	# Simulates a 10x10 battleships board (100 cells, values 0-1)
+	var cells := PackedStringArray()
+	cells.resize(100)
+	for i in 100:
+		cells[i] = "n0"
+	# Place some ships
+	cells[0] = "n1"
+	cells[1] = "n1"
+	cells[2] = "n1"
+	var packed := "\u001e".join(cells)
+	var result := ScriptedRuntime.parse_flat_array(packed)
+	assert_eq(result.size(), 100)
+	assert_eq(result[0], 1)
+	assert_eq(result[1], 1)
+	assert_eq(result[2], 1)
+	assert_eq(result[3], 0)
+	assert_eq(result[99], 0)
+
+
+# ------------------------------------------------------------------
+# parse_flat_dict — bulk Dictionary conversion
+# ------------------------------------------------------------------
+
+func test_parse_flat_dict_simple() -> void:
+	var result := ScriptedRuntime.parse_flat_dict(
+		"action\u001fsfire\u001erow\u001fn3\u001ecol\u001fn7"
+	)
+	assert_eq(result["action"], "fire")
+	assert_eq(result["row"], 3)
+	assert_eq(result["col"], 7)
+
+
+func test_parse_flat_dict_with_booleans() -> void:
+	var result := ScriptedRuntime.parse_flat_dict(
+		"ready\u001fbtrue\u001edone\u001fbfalse"
+	)
+	assert_eq(result["ready"], true)
+	assert_eq(result["done"], false)
+
+
+func test_parse_flat_dict_empty_string() -> void:
+	var result := ScriptedRuntime.parse_flat_dict("")
+	assert_eq(result, {})
+
+
+func test_parse_flat_dict_single_pair() -> void:
+	var result := ScriptedRuntime.parse_flat_dict("key\u001fsvalue")
+	assert_eq(result, {"key": "value"})
+
+
+func test_parse_flat_dict_preserves_string_user_id() -> void:
+	# User IDs that look like numbers must stay as strings
+	var result := ScriptedRuntime.parse_flat_dict(
+		"action\u001fsjoin\u001euser_id\u001fs189012345678901234"
+	)
+	assert_eq(result["action"], "join")
+	assert_typeof(result["action"], TYPE_STRING)
+	assert_eq(result["user_id"], "189012345678901234")
+	assert_typeof(result["user_id"], TYPE_STRING)
+
+
+# ------------------------------------------------------------------
+# _parse_typed_value — type-prefixed decoding
+# ------------------------------------------------------------------
+
+func test_parse_typed_value_negative_int() -> void:
+	var result = ScriptedRuntime._parse_typed_value("n-5")
+	assert_eq(result, -5)
+	assert_typeof(result, TYPE_INT)
+
+
+func test_parse_typed_value_zero() -> void:
+	var result = ScriptedRuntime._parse_typed_value("n0")
+	assert_eq(result, 0)
+	assert_typeof(result, TYPE_INT)
+
+
+func test_parse_typed_value_negative_float() -> void:
+	var result = ScriptedRuntime._parse_typed_value("n-1.5")
+	assert_eq(result, -1.5)
+	assert_typeof(result, TYPE_FLOAT)
+
+
+func test_parse_typed_value_plain_string() -> void:
+	var result = ScriptedRuntime._parse_typed_value("shello")
+	assert_eq(result, "hello")
+	assert_typeof(result, TYPE_STRING)
+
+
+func test_parse_typed_value_numeric_string_stays_string() -> void:
+	var result = ScriptedRuntime._parse_typed_value("s12345")
+	assert_eq(result, "12345")
+	assert_typeof(result, TYPE_STRING)
+
+
+# ------------------------------------------------------------------
+# _bridge_send_action — payload size limit
+# ------------------------------------------------------------------
+
+func test_bridge_send_action_rejects_oversized_payload() -> void:
+	runtime._client_plugins = null
+	var big := {}
+	# Build a payload that exceeds 8KB when serialized with var_to_bytes
+	for i in 500:
+		big["key_%d" % i] = "x".repeat(100)
+	var captured := []
+	runtime.runtime_error.connect(
+		func(msg: String) -> void: captured.append(msg)
+	)
+	runtime._bridge_send_action(big)
+	assert_eq(captured.size(), 1, "Should emit exactly one runtime_error")
+	if captured.size() > 0:
+		assert_string_contains(captured[0], "payload too large")

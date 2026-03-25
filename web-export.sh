@@ -77,5 +77,11 @@ if [ -f "${TEMPLATE_DIR}/coop_coep.js" ]; then
   echo "Copied coop_coep.js"
 fi
 
+# --- 5. Copy error reporting JS bridge ----------------------------------------
+if [ -f "${TEMPLATE_DIR}/daccord-sentry.js" ]; then
+  cp "${TEMPLATE_DIR}/daccord-sentry.js" "${DIST_DIR}/daccord-sentry.js"
+  echo "Copied daccord-sentry.js"
+fi
+
 echo "Done. Output in ${DIST_DIR}/"
 ls -lh "$DIST_DIR"

@@ -95,7 +95,6 @@ Platform-specific: `LiveKitAdapter` (desktop/mobile GDExtension) vs `WebVoiceSes
 - `addons/gut/` — GUT test framework
 - `addons/godot-livekit/` — LiveKit C++ GDExtension (download from NodotProject/godot-livekit releases)
 - `addons/lua-gdextension/` — Lua scripting runtime, LuaJIT variant (download from gilzoide/lua-gdextension releases)
-- `addons/sentry/` — Error reporting (CI-installed)
 
 ## Related Projects
 

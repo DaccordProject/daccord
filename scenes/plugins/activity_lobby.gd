@@ -77,7 +77,9 @@ func _rebuild_slots(participants: Array) -> void:
 		label.add_theme_font_size_override("font_size", 13)
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		if i < players.size():
-			label.text = players[i].get("display_name", tr("Player %d") % (i + 1))
+			label.text = _resolve_display_name(
+				players[i], tr("Player %d") % (i + 1)
+			)
 		else:
 			label.text = tr("Empty Slot")
 			label.add_theme_color_override(
@@ -87,8 +89,21 @@ func _rebuild_slots(participants: Array) -> void:
 		_slots_grid.add_child(slot)
 
 	# Spectators
-	for spec in spectators:
+	for spec: Dictionary in spectators:
 		var label := Label.new()
-		label.text = spec.get("display_name", tr("Spectator"))
+		label.text = _resolve_display_name(spec, tr("Spectator"))
 		ThemeManager.style_label(label, 12, "text_muted")
 		_spectator_list.add_child(label)
+
+
+func _resolve_display_name(participant: Dictionary, fallback: String) -> String:
+	var name: String = participant.get("display_name", "")
+	if not name.is_empty():
+		return name
+	var uid: String = str(participant.get("user_id", ""))
+	if uid.is_empty():
+		return fallback
+	var user: Dictionary = Client.get_user_by_id(uid)
+	if user.is_empty():
+		return fallback
+	return user.get("display_name", user.get("username", fallback))

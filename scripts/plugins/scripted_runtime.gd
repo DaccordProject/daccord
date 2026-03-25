@@ -7,6 +7,8 @@ extends Node
 signal runtime_error(message: String)
 
 const MAX_SOUNDS := 16
+const MAX_ACTION_PAYLOAD_BYTES := 8192
+const MAX_COLLECTION_ELEMENTS := 200
 
 # Safe Lua libraries bitmask (no io, os, package, debug, ffi)
 # LUA_BASE=1 | LUA_COROUTINE=4 | LUA_STRING=8 | LUA_MATH=32 | LUA_TABLE=64
@@ -207,6 +209,49 @@ func forward_input(event: InputEvent) -> void:
 	_lua_call_safe(_fn_input, [_dict_to_lua(d)])
 
 
+# --- Bulk bridge parsing (static, testable without Lua) ---
+
+## Parses a \u001e-separated type-prefixed values into a Godot Array.
+## Each token starts with a type char: n=number, b=boolean, s=string.
+static func parse_flat_array(packed: String) -> Array:
+	var result: Array = []
+	var parts := packed.split("\u001e")
+	for p in parts:
+		result.append(_parse_typed_value(p))
+	return result
+
+
+## Parses \u001e-separated "key\u001fvalue" pairs into a Godot Dictionary.
+## Values are type-prefixed: n=number, b=boolean, s=string.
+static func parse_flat_dict(packed: String) -> Dictionary:
+	var result: Dictionary = {}
+	if packed.is_empty():
+		return result
+	var entries := packed.split("\u001e")
+	for entry in entries:
+		var kv := entry.split("\u001f", 2)
+		if kv.size() == 2:
+			result[kv[0]] = _parse_typed_value(kv[1])
+	return result
+
+
+## Decodes a type-prefixed value: "n<number>", "b<bool>", "s<string>".
+static func _parse_typed_value(s: String) -> Variant:
+	if s.is_empty():
+		return ""
+	var prefix: String = s[0]
+	var body: String = s.substr(1)
+	match prefix:
+		"n":
+			if body.is_valid_int():
+				return body.to_int()
+			return body.to_float()
+		"b":
+			return body == "true"
+		_:  # "s" or any other prefix — treat as string
+			return body
+
+
 # --- Safe Lua function call wrapper ---
 
 func _lua_call_safe(fn, args: Array = []) -> Variant:
@@ -395,6 +440,13 @@ func _inject_bridge_api() -> void:
 		a.append(value)
 		return a
 
+	# Bulk bridge: single-call converters that avoid N bridge round-trips
+	# which exhaust the WASM Lua stack.
+	api["_array_from_flat"] = func(packed: String) -> Array:
+		return ScriptedRuntime.parse_flat_array(packed)
+	api["_dict_from_flat"] = func(packed: String) -> Dictionary:
+		return ScriptedRuntime.parse_flat_dict(packed)
+
 	_lua.globals["api"] = api
 
 	# Module sources for require()
@@ -413,9 +465,38 @@ func _inject_bridge_api() -> void:
 			end
 			_api._gd_print(table.concat(parts, '\t'))
 		end
+		local _RS = "\\30"  -- record separator for bulk bridge
+		local _US = "\\31"  -- unit separator for key/value pairs
+		local _MAX_ELEMS = 200
+		local function _encode(v)
+			local t = type(v)
+			if t == "number" then
+				return "n" .. tostring(v)
+			elseif t == "boolean" then
+				return "b" .. tostring(v)
+			else
+				return "s" .. tostring(v)
+			end
+		end
 		function Dictionary(t)
+			if t == nil then return _api._new_dict() end
+			local count = 0
+			local all_simple = true
+			for k, v in pairs(t) do
+				count = count + 1
+				if type(v) == "table" then all_simple = false end
+			end
+			if count > _MAX_ELEMS then
+				error("Dictionary exceeds max size (" .. _MAX_ELEMS .. ")", 2)
+			end
+			if all_simple and count > 0 then
+				local parts = {}
+				for k, v in pairs(t) do
+					parts[#parts + 1] = tostring(k) .. _US .. _encode(v)
+				end
+				return _api._dict_from_flat(table.concat(parts, _RS))
+			end
 			local d = _api._new_dict()
-			if t == nil then return d end
 			for k, v in pairs(t) do
 				if type(v) == "table" then
 					d = _api._dict_set(d, tostring(k), Dictionary(v))
@@ -426,9 +507,23 @@ func _inject_bridge_api() -> void:
 			return d
 		end
 		function Array(t)
+			if t == nil then return _api._new_array() end
+			local n = #t
+			if n == 0 then return _api._new_array() end
+			if n > _MAX_ELEMS then
+				error("Array exceeds max size (" .. _MAX_ELEMS .. ")", 2)
+			end
+			local all_simple = true
+			for i = 1, n do
+				if type(t[i]) == "table" then all_simple = false; break end
+			end
+			if all_simple then
+				local parts = {}
+				for i = 1, n do parts[i] = _encode(t[i]) end
+				return _api._array_from_flat(table.concat(parts, _RS))
+			end
 			local a = _api._new_array()
-			if t == nil then return a end
-			for i = 1, #t do
+			for i = 1, n do
 				local v = t[i]
 				if type(v) == "table" then
 					a = _api._array_append(a, Dictionary(v))
@@ -470,6 +565,14 @@ func _inject_bridge_api() -> void:
 # --- Bridge send action ---
 
 func _bridge_send_action(data: Dictionary) -> void:
+	var payload := var_to_bytes(data)
+	if payload.size() > MAX_ACTION_PAYLOAD_BYTES:
+		var msg := "send_action payload too large (%d bytes, max %d)" % [
+			payload.size(), MAX_ACTION_PAYLOAD_BYTES,
+		]
+		push_warning("[ScriptedRuntime] " + msg)
+		runtime_error.emit(msg)
+		return
 	if _client_plugins != null and _client_plugins.has_method("send_action"):
 		_client_plugins.send_action(_plugin_id, data)
 

@@ -37,14 +37,14 @@ func _do_init() -> void:
 	if _client == null:
 		return
 	var dsn: String = ProjectSettings.get_setting(
-		"sentry/config/dsn", ""
+		"daccord/error_dsn", ""
 	)
 	if _client.init(dsn):
 		_on_sdk_ready()
 
 func _init_web_sentry() -> void:
 	var dsn: String = ProjectSettings.get_setting(
-		"sentry/config/dsn", ""
+		"daccord/error_dsn", ""
 	)
 	if dsn.is_empty():
 		return

@@ -105,6 +105,7 @@ func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	var session_participants: Array = session.get("participants", [])
 	_session_participants = session_participants
 	AppState.activity_started.emit(plugin_id, channel_id)
+	_broadcast_activity_presence(plugin_id)
 
 	# Prepare the appropriate runtime based on plugin type.
 	var manifest: Dictionary = get_plugin(plugin_id)
@@ -398,6 +399,7 @@ func join_activity() -> void:
 	var participants: Array = session_data.get("participants", [])
 	_session_participants = participants
 	AppState.activity_started.emit(plugin_id, channel_id)
+	_broadcast_activity_presence(plugin_id)
 
 	# Download and prepare runtime
 	var manifest: Dictionary = get_plugin(plugin_id)
@@ -428,6 +430,7 @@ func stop_activity(plugin_id: String) -> void:
 	else:
 		await client.plugins.leave_session(plugin_id, _active_session_id)
 	_clear_active_activity()
+	_broadcast_activity_presence("")
 	AppState.activity_ended.emit(plugin_id)
 
 
@@ -557,6 +560,7 @@ func check_active_session(
 		AppState.active_activity_session_state = state
 		AppState.active_activity_role = "player"
 		AppState.activity_started.emit(plugin_id, channel_id)
+		_broadcast_activity_presence(plugin_id)
 		var manifest: Dictionary = get_plugin(plugin_id)
 		var runtime_type: String = manifest.get("runtime", "")
 		if runtime_type == "scripted":
@@ -599,6 +603,7 @@ func on_plugin_uninstalled(data: Dictionary, conn_index: int) -> void:
 	# If the uninstalled plugin is the active activity, clean up
 	if pid == AppState.active_activity_plugin_id:
 		_clear_active_activity()
+		_broadcast_activity_presence("")
 		AppState.activity_ended.emit(pid)
 	AppState.plugins_updated.emit()
 
@@ -628,6 +633,7 @@ func on_plugin_session_state(data: Dictionary, _conn_index: int) -> void:
 		AppState.activity_session_state_changed.emit(plugin_id, state)
 		if state == "ended":
 			_clear_active_activity()
+			_broadcast_activity_presence("")
 			AppState.activity_ended.emit(plugin_id)
 		return
 
@@ -730,10 +736,27 @@ func _on_voice_left(_channel_id: String) -> void:
 				client.plugins.leave_session(plugin_id, _active_session_id)
 	_clear_active_activity()
 	if not plugin_id.is_empty():
+		_broadcast_activity_presence("")
 		AppState.activity_ended.emit(plugin_id)
 
 
 # --- Internal ---
+
+## Sends a presence update with the current activity to all connected servers.
+## Pass an empty plugin_id to clear the activity from presence.
+func _broadcast_activity_presence(plugin_id: String) -> void:
+	var activity: Dictionary = {}
+	if not plugin_id.is_empty():
+		var manifest: Dictionary = get_plugin(plugin_id)
+		activity = {"name": manifest.get("name", plugin_id), "type": "playing"}
+	var status: int = _c.current_user.get("status", 0)
+	var s: String = ClientModels._status_enum_to_string(status)
+	for conn in _c._connections:
+		if conn != null \
+				and conn["status"] == "connected" \
+				and conn["client"] != null:
+			conn["client"].update_presence(s, activity)
+
 
 func _clear_pending_activity() -> void:
 	AppState.pending_activity_plugin_id = ""

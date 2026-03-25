@@ -10,6 +10,8 @@ const URI_IPC_FILE := "user://daccord.uri"
 const IPC_POLL_INTERVAL := 0.5
 
 var _ipc_timer: Timer
+var _pending_uri := ""
+var _sync_timeout_timer: Timer
 
 func _ready() -> void:
 	_ensure_protocol_registered()
@@ -17,8 +19,22 @@ func _ready() -> void:
 	# Process any --uri CLI arg
 	var uri := _get_cli_uri()
 	if not uri.is_empty():
-		# Defer processing until Client has finished its startup connect flow
-		call_deferred("_process_uri", uri)
+		var parsed := parse_uri(uri)
+		# Navigate routes need channels to be loaded — wait for server_synced.
+		# Connect/invite routes open dialogs that don't require channel data,
+		# so they can run immediately after a short defer.
+		if parsed.get("route", "") == "navigate":
+			_pending_uri = uri
+			AppState.server_synced.connect(_on_server_synced_for_uri)
+			# Fallback timeout in case the target space never syncs
+			_sync_timeout_timer = Timer.new()
+			_sync_timeout_timer.wait_time = 15.0
+			_sync_timeout_timer.one_shot = true
+			_sync_timeout_timer.timeout.connect(_on_sync_timeout)
+			add_child(_sync_timeout_timer)
+			_sync_timeout_timer.start()
+		else:
+			call_deferred("_process_uri", uri)
 
 	# Start IPC file watcher for URIs forwarded from duplicate instances
 	_ipc_timer = Timer.new()
@@ -26,6 +42,35 @@ func _ready() -> void:
 	_ipc_timer.timeout.connect(_poll_ipc_file)
 	add_child(_ipc_timer)
 	_ipc_timer.start()
+
+
+## Processes a pending startup URI once the server has finished syncing.
+func _on_server_synced_for_uri(_space_id: String) -> void:
+	if _pending_uri.is_empty():
+		return
+	# Check if the synced space matches the one we're navigating to
+	var parsed := parse_uri(_pending_uri)
+	var target_space: String = parsed.get("space_id", "")
+	if not target_space.is_empty() and _space_id != target_space:
+		return  # Not the space we're waiting for
+	_consume_pending_uri()
+
+
+func _on_sync_timeout() -> void:
+	if _pending_uri.is_empty():
+		return
+	push_warning("UriHandler: timed out waiting for server sync")
+	_consume_pending_uri()
+
+
+func _consume_pending_uri() -> void:
+	if AppState.server_synced.is_connected(_on_server_synced_for_uri):
+		AppState.server_synced.disconnect(_on_server_synced_for_uri)
+	if _sync_timeout_timer and not _sync_timeout_timer.is_stopped():
+		_sync_timeout_timer.stop()
+	var uri := _pending_uri
+	_pending_uri = ""
+	_process_uri(uri)
 
 
 ## Extracts --uri value from command-line arguments.
