@@ -6,6 +6,7 @@ const MessageActionBarScene := preload("res://scenes/messages/message_action_bar
 const MessageViewActionsScript := preload("res://scenes/messages/message_view_actions.gd")
 const MessageViewHoverScript := preload("res://scenes/messages/message_view_hover.gd")
 const MessageViewScrollScript := preload("res://scenes/messages/message_view_scroll.gd")
+const MessageViewVirtualScript := preload("res://scenes/messages/message_view_virtual.gd")
 const ForumViewScene := preload("res://scenes/messages/forum_view.tscn")
 const ActiveThreadsDialogScript := preload("res://scenes/messages/active_threads_dialog.gd")
 
@@ -18,10 +19,10 @@ var _forum_view: VBoxContainer
 var _actions # MessageViewActions
 var _hover # MessageViewHover
 var _scroll # MessageViewScroll
+var _virtual # MessageViewVirtual
 
 var _channel_transition_tween: Tween
 var _pending_edit_content: Dictionary = {}
-var _message_node_index: Dictionary = {} # message_id -> scene node
 
 var _is_mobile: bool = OS.has_feature("mobile")
 var _banner_hide_timer: Timer
@@ -39,13 +40,13 @@ var _banner: MessageViewBanner
 @onready var channel_name_label: Label = $VBox/TopicBar/ChannelNameLabel
 @onready var threads_button: Button = $VBox/TopicBar/ThreadsButton
 @onready var scroll_container: ScrollContainer = $VBox/ScrollContainer
-@onready var message_list: VBoxContainer = $VBox/ScrollContainer/MessageList
+@onready var virtual_content: Control = $VBox/ScrollContainer/VirtualContent
 @onready var typing_indicator: HBoxContainer = $VBox/TypingIndicator
 @onready var composer: PanelContainer = $VBox/Composer
-@onready var older_btn: Button = $VBox/ScrollContainer/MessageList/OlderMessagesBtn
-@onready var empty_state: VBoxContainer = $VBox/ScrollContainer/MessageList/EmptyState
-@onready var loading_skeleton: VBoxContainer = $VBox/ScrollContainer/MessageList/LoadingSkeleton
-@onready var loading_label: Label = $VBox/ScrollContainer/MessageList/LoadingLabel
+@onready var older_btn: Button = $VBox/OlderMessagesBtn
+@onready var empty_state: VBoxContainer = $VBox/EmptyState
+@onready var loading_skeleton: VBoxContainer = $VBox/LoadingSkeleton
+@onready var loading_label: Label = $VBox/LoadingLabel
 
 func _ready() -> void:
 	AppState.channel_selected.connect(_on_channel_selected)
@@ -64,18 +65,32 @@ func _ready() -> void:
 	AppState.message_fetch_failed.connect(_on_message_fetch_failed)
 	AppState.message_delete_failed.connect(_on_message_delete_failed)
 	AppState.user_updated.connect(_on_user_updated)
+
+	_virtual = MessageViewVirtualScript.new(self)
 	_scroll = MessageViewScrollScript.new(self)
-	scroll_container.get_v_scroll_bar().changed.connect(_scroll.on_scrollbar_changed)
-	scroll_container.get_v_scroll_bar().value_changed.connect(_scroll.on_scroll_value_changed)
+	scroll_container.get_v_scroll_bar().changed.connect(
+		_scroll.on_scrollbar_changed
+	)
+	scroll_container.get_v_scroll_bar().value_changed.connect(
+		_scroll.on_scroll_value_changed
+	)
+	scroll_container.get_v_scroll_bar().value_changed.connect(
+		func(val): _virtual.update_visible_rows(val)
+	)
+	scroll_container.resized.connect(_on_scroll_resized)
 	older_btn.pressed.connect(_scroll.on_older_messages_pressed)
-	banner_retry_button.pressed.connect(func(): _banner.on_retry_pressed())
+	banner_retry_button.pressed.connect(
+		func(): _banner.on_retry_pressed()
+	)
 	loading_label.gui_input.connect(_on_loading_label_input)
 
 	# Banner auto-hide timer
 	_banner_hide_timer = Timer.new()
 	_banner_hide_timer.wait_time = 3.0
 	_banner_hide_timer.one_shot = true
-	_banner_hide_timer.timeout.connect(func(): connection_banner.visible = false)
+	_banner_hide_timer.timeout.connect(
+		func(): connection_banner.visible = false
+	)
 	add_child(_banner_hide_timer)
 
 	# Connection banner helper
@@ -86,8 +101,12 @@ func _ready() -> void:
 		_banner_hide_timer,
 		_space_for_current_channel,
 	)
-	AppState.server_disconnected.connect(_banner.on_server_disconnected)
-	AppState.server_reconnecting.connect(_banner.on_server_reconnecting)
+	AppState.server_disconnected.connect(
+		_banner.on_server_disconnected
+	)
+	AppState.server_reconnecting.connect(
+		_banner.on_server_reconnecting
+	)
 	AppState.server_reconnected.connect(_on_server_reconnected)
 	AppState.server_synced.connect(_banner.on_server_synced)
 
@@ -97,8 +116,12 @@ func _ready() -> void:
 
 	# Guest banner
 	AppState.guest_mode_changed.connect(_on_guest_mode_changed)
-	guest_sign_in_btn.pressed.connect(func(): GuestPrompt._open_auth_dialog())
-	guest_register_btn.pressed.connect(func(): GuestPrompt._open_auth_dialog())
+	guest_sign_in_btn.pressed.connect(
+		func(): GuestPrompt._open_auth_dialog()
+	)
+	guest_register_btn.pressed.connect(
+		func(): GuestPrompt._open_auth_dialog()
+	)
 	guest_banner.visible = AppState.is_guest_mode
 
 	threads_button.pressed.connect(_on_threads_button_pressed)
@@ -123,7 +146,9 @@ func _ready() -> void:
 	action_bar.action_edit.connect(_actions.on_bar_edit)
 	action_bar.action_thread.connect(_actions.on_bar_thread)
 	action_bar.action_delete.connect(_actions.on_bar_delete)
-	action_bar.mouse_exited.connect(_hover.on_action_bar_unhovered)
+	action_bar.mouse_exited.connect(
+		_hover.on_action_bar_unhovered
+	)
 	add_to_group("themed")
 	_apply_theme()
 
@@ -135,15 +160,8 @@ func _apply_theme() -> void:
 		_banner.update_styles()
 	ThemeManager.apply_font_colors(self)
 
-func _is_persistent_node(child: Node) -> bool:
-	return (
-		child == older_btn or child == empty_state
-		or child == loading_skeleton or child == loading_label
-	)
-
 func _on_guest_mode_changed(is_guest: bool) -> void:
 	guest_banner.visible = is_guest
-	# Style the banner
 	if is_guest:
 		var style := StyleBoxFlat.new()
 		style.bg_color = ThemeManager.get_color("accent")
@@ -151,7 +169,9 @@ func _on_guest_mode_changed(is_guest: bool) -> void:
 		style.content_margin_right = 8.0
 		style.content_margin_top = 4.0
 		style.content_margin_bottom = 4.0
-		guest_banner.add_theme_stylebox_override("panel", style)
+		guest_banner.add_theme_stylebox_override(
+			"panel", style
+		)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if AppState.is_imposter_mode and event is InputEventKey \
@@ -163,6 +183,16 @@ func _process(_delta: float) -> void:
 	if _is_mobile:
 		return
 	_hover.process()
+	_virtual.replenish_buffer()
+
+func _on_scroll_resized() -> void:
+	if _virtual.row_count() > 0:
+		_virtual.update_visible_rows(
+			scroll_container.get_v_scroll_bar().value
+		)
+
+func _on_virtual_measure() -> void:
+	_virtual.measure_heights()
 
 func _on_channel_selected(channel_id: String) -> void:
 	current_channel_id = channel_id
@@ -183,7 +213,9 @@ func _on_channel_selected(channel_id: String) -> void:
 		for dm in Client.dm_channels:
 			if dm["id"] == channel_id:
 				var user: Dictionary = dm.get("user", {})
-				_current_channel_name = user.get("display_name", "DM")
+				_current_channel_name = user.get(
+					"display_name", "DM"
+				)
 				break
 
 	# Update topic bar
@@ -191,13 +223,17 @@ func _on_channel_selected(channel_id: String) -> void:
 		channel_name_label.text = _current_channel_name
 	else:
 		channel_name_label.text = "#%s" % _current_channel_name
-	threads_button.visible = not AppState.is_dm_mode and not is_forum
+	threads_button.visible = (
+		not AppState.is_dm_mode and not is_forum
+	)
 
 	# NSFW warning banner
 	nsfw_banner.visible = is_nsfw and not AppState.is_dm_mode
 	if nsfw_banner.visible:
 		var style := StyleBoxFlat.new()
-		style.bg_color = ThemeManager.get_color("error").darkened(0.3)
+		style.bg_color = ThemeManager.get_color("error").darkened(
+			0.3
+		)
 		style.content_margin_left = 8.0
 		style.content_margin_right = 8.0
 		style.content_margin_top = 4.0
@@ -216,27 +252,23 @@ func _on_channel_selected(channel_id: String) -> void:
 
 	_hover.hide_action_bar()
 
-	# If we already have cached messages, render from cache immediately
+	# If we already have cached messages, render immediately
 	var cached := Client.get_messages_for_channel(channel_id)
 	if not cached.is_empty():
 		_is_loading = false
 		_scroll._old_message_count = cached.size()
-		_message_node_index.clear()
 		_load_messages(channel_id)
 	else:
 		_is_loading = true
 		_scroll._old_message_count = 0
-		_message_node_index.clear()
-		# Clear old message nodes before showing loading state
-		for child in message_list.get_children():
-			if not _is_persistent_node(child):
-				child.queue_free()
+		_virtual.clear()
 		_update_empty_state([])
-		# Reset loading label style (used for error/timeout states)
-		loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
+		loading_label.add_theme_color_override(
+			"font_color",
+			ThemeManager.get_color("text_muted"),
+		)
 		loading_label.text = tr("Loading messages...")
 		loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Show skeleton during loading
 		loading_skeleton.visible = true
 		loading_skeleton.reset_shimmer()
 		loading_label.visible = false
@@ -253,12 +285,12 @@ func _enter_forum_mode(channel_id: String) -> void:
 	typing_indicator.visible = false
 	composer.visible = false
 	_hover.hide_action_bar()
-	# Lazily instantiate forum view
 	if _forum_view == null:
 		_forum_view = ForumViewScene.instantiate()
 		$VBox.add_child(_forum_view)
-		# Place before typing indicator
-		$VBox.move_child(_forum_view, scroll_container.get_index())
+		$VBox.move_child(
+			_forum_view, scroll_container.get_index()
+		)
 	_forum_view.visible = true
 	_forum_view.load_forum(channel_id, _current_channel_name)
 
@@ -281,14 +313,25 @@ func _update_empty_state(messages: Array) -> void:
 		loading_skeleton.visible = false
 		loading_label.visible = false
 		var title_label: Label = empty_state.get_node("Title")
-		var desc_label: Label = empty_state.get_node("Description")
+		var desc_label: Label = empty_state.get_node(
+			"Description"
+		)
 		if AppState.is_dm_mode:
 			title_label.text = tr("No messages yet")
-			desc_label.text = tr("Send a message to start the conversation.")
+			desc_label.text = tr(
+				"Send a message to start the conversation."
+			)
 		else:
-			title_label.text = tr("Welcome to #%s") % _current_channel_name
-			desc_label.text = tr("This is the beginning of this channel.") \
-				+ " " + tr("Send a message to get the conversation started!")
+			title_label.text = (
+				tr("Welcome to #%s") % _current_channel_name
+			)
+			desc_label.text = (
+				tr("This is the beginning of this channel.")
+				+ " " + tr(
+					"Send a message to get the conversation "
+					+ "started!"
+				)
+			)
 	else:
 		empty_state.visible = false
 		loading_skeleton.visible = false
@@ -298,8 +341,9 @@ func _load_messages(channel_id: String) -> void:
 	_hover.hide_action_bar()
 	_loading_timeout_timer.stop()
 
-	# Reset scroll container visibility (kills any in-progress channel transition)
-	if _channel_transition_tween and _channel_transition_tween.is_valid():
+	# Reset scroll container visibility
+	if _channel_transition_tween \
+			and _channel_transition_tween.is_valid():
 		_channel_transition_tween.kill()
 	scroll_container.modulate.a = 1.0
 
@@ -307,23 +351,15 @@ func _load_messages(channel_id: String) -> void:
 	var editing_id := AppState.editing_message_id
 	var editing_text := ""
 	if not editing_id.is_empty():
-		for child in message_list.get_children():
-			if _is_persistent_node(child):
-				continue
-			var mc = child.get("message_content")
+		var edit_node: Control = _virtual.find_node_for_message(
+			editing_id
+		)
+		if edit_node:
+			var mc = edit_node.get("message_content")
 			if mc and mc.is_editing():
 				editing_text = mc.get_edit_text()
-				break
 
-	# Track message count before clearing for animation decisions
 	var old_count: int = _scroll._old_message_count
-
-	# Clear existing messages (skip persistent nodes)
-	_message_node_index.clear()
-	for child in message_list.get_children():
-		if _is_persistent_node(child):
-			continue
-		child.queue_free()
 
 	var messages := Client.get_messages_for_channel(channel_id)
 	_is_loading = false
@@ -332,69 +368,63 @@ func _load_messages(channel_id: String) -> void:
 	var new_count := messages.size()
 	_scroll._old_message_count = new_count
 
-	# Only show "older messages" button if we hit the message cap (more may exist)
+	# Show "older messages" button if at message cap
 	older_btn.visible = messages.size() >= Client.MESSAGE_CAP
-	var prev_author_id: String = ""
 
-	for i in messages.size():
-		var msg: Dictionary = messages[i]
-		var author: Dictionary = msg.get("author", {})
-		var author_id: String = author.get("id", "")
-		var has_reply: bool = msg.get("reply_to", "") != ""
+	# Rebuild virtual rows
+	_virtual.rebuild_from_messages(messages)
+	_virtual.update_visible_rows(
+		scroll_container.get_v_scroll_bar().value
+	)
 
-		# Use collapsed style if same author and no reply
-		var use_collapsed: bool = (author_id == prev_author_id) and not has_reply and i > 0
-
-		var node: HBoxContainer
-		if use_collapsed:
-			node = CollapsedMessageScene.instantiate()
-			message_list.add_child(node)
-			node.setup(msg)
-		else:
-			node = CozyMessageScene.instantiate()
-			message_list.add_child(node)
-			node.setup(msg)
-		node.mouse_entered.connect(_hover.on_msg_hovered.bind(node))
-		node.mouse_exited.connect(_hover.on_msg_unhovered.bind(node))
-		if node.has_signal("context_menu_requested"):
-			node.context_menu_requested.connect(_on_context_menu_requested)
-		_message_node_index[msg.get("id", "")] = node
-
-		prev_author_id = author_id
-
-	# Restore editing state if a message was being edited
+	# Restore editing state
 	if not editing_id.is_empty():
-		for child in message_list.get_children():
-			if _is_persistent_node(child):
-				continue
-			if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == editing_id:
-				var mc = child.get("message_content")
+		# Ensure the message node is created by scrolling to it
+		var row_idx: int = (
+			_virtual.find_row_index_for_message(editing_id)
+		)
+		if row_idx >= 0:
+			_scroll_to_row(row_idx)
+			await get_tree().process_frame
+			var node: Control = _virtual.find_node_for_message(
+				editing_id
+			)
+			if node:
+				var mc = node.get("message_content")
 				if mc:
 					mc.enter_edit_mode(editing_id, editing_text)
-				break
+					_virtual.pin_editing(editing_id)
 
 	# Determine which animation to play
-	var is_single_new_message: bool = old_count > 0 and new_count == old_count + 1
+	var is_single_new: bool = (
+		old_count > 0 and new_count == old_count + 1
+	)
 
 	if not Config.get_reduced_motion():
-		if is_single_new_message and not _scroll.is_loading_older:
-			# Fade in the last message child
-			var last_msg: Control = _scroll.get_last_message_child()
+		if is_single_new and not _scroll.is_loading_older:
+			var last_msg: Control = _virtual.get_last_row_node()
 			if last_msg:
 				last_msg.modulate.a = 0.0
 				var msg_tween := create_tween()
-				msg_tween.tween_property(last_msg, "modulate:a", 1.0, 0.15) \
-					.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-		elif not _scroll.is_loading_older and old_count != new_count:
-			# Channel transition fade-in (not for single new messages or older-message loads)
-			if _channel_transition_tween and _channel_transition_tween.is_valid():
+				msg_tween.tween_property(
+					last_msg, "modulate:a", 1.0, 0.15
+				).set_ease(Tween.EASE_OUT).set_trans(
+					Tween.TRANS_CUBIC
+				)
+		elif not _scroll.is_loading_older \
+				and old_count != new_count:
+			if _channel_transition_tween \
+					and _channel_transition_tween.is_valid():
 				_channel_transition_tween.kill()
 			scroll_container.modulate.a = 0.0
 			_channel_transition_tween = create_tween()
-			_channel_transition_tween.tween_property(scroll_container, "modulate:a", 1.0, 0.15) \
-				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+			_channel_transition_tween.tween_property(
+				scroll_container, "modulate:a", 1.0, 0.15
+			).set_ease(Tween.EASE_OUT).set_trans(
+				Tween.TRANS_CUBIC
+			)
 
-	# Scroll to bottom (skip when loading older messages to preserve position)
+	# Scroll to bottom (skip when loading older messages)
 	if not _scroll.is_loading_older:
 		_scroll.auto_scroll = true
 		await get_tree().process_frame
@@ -404,16 +434,23 @@ func _on_message_sent(text: String) -> void:
 	var reply_to: String = AppState.replying_to_message_id
 	var attachments: Array = AppState.pending_attachments.duplicate()
 	AppState.pending_attachments.clear()
-	Client.send_message_to_channel(current_channel_id, text, reply_to, attachments)
+	Client.send_message_to_channel(
+		current_channel_id, text, reply_to, attachments
+	)
 
-func _on_message_edited(message_id: String, new_content: String) -> void:
+func _on_message_edited(
+	message_id: String, new_content: String,
+) -> void:
 	_pending_edit_content[message_id] = new_content
 	Client.update_message_content(message_id, new_content)
 
-func _on_message_edit_failed(message_id: String, error: String) -> void:
-	var failed_content: String = _pending_edit_content.get(message_id, "")
+func _on_message_edit_failed(
+	message_id: String, error: String,
+) -> void:
+	var failed_content: String = _pending_edit_content.get(
+		message_id, ""
+	)
 	_pending_edit_content.erase(message_id)
-	# Re-enter edit mode on the failed message with the content that failed to save
 	AppState.start_editing(message_id)
 	var node: Control = _find_message_node(message_id)
 	if node:
@@ -427,18 +464,31 @@ func _on_message_deleted(message_id: String) -> void:
 
 func _on_edit_requested(message_id: String) -> void:
 	var node: Control = _find_message_node(message_id)
+	if not node:
+		# Off-screen: scroll to it first
+		var row_idx: int = (
+			_virtual.find_row_index_for_message(message_id)
+		)
+		if row_idx >= 0:
+			_scroll_to_row(row_idx)
+			await get_tree().process_frame
+			node = _virtual.find_node_for_message(message_id)
 	if node:
 		var mc = node.get("message_content")
 		if mc:
-			mc.enter_edit_mode(message_id, node._message_data.get("content", ""))
+			mc.enter_edit_mode(
+				message_id,
+				node._message_data.get("content", ""),
+			)
+			_virtual.pin_editing(message_id)
 
 func _on_messages_updated(channel_id: String) -> void:
 	if channel_id != current_channel_id:
 		return
 	if _is_forum_channel:
 		return
-	# First load or older-messages load: fall back to full re-render
-	if _message_node_index.is_empty() or _scroll.is_loading_older:
+	# First load or older-messages load: full re-render
+	if _virtual.row_count() == 0 or _scroll.is_loading_older:
 		_load_messages(channel_id)
 		return
 	_diff_messages(channel_id)
@@ -449,186 +499,84 @@ func _diff_messages(channel_id: String) -> void:
 	_is_loading = false
 	_update_empty_state(messages)
 
-	# Build set of current message IDs from cache
-	var cache_ids: Dictionary = {}
-	for msg in messages:
-		cache_ids[msg.get("id", "")] = true
-
-	# REMOVE: nodes for messages no longer in cache
-	var removed_ids: Array = []
-	for mid in _message_node_index:
-		if not cache_ids.has(mid):
-			removed_ids.append(mid)
-	for mid in removed_ids:
-		var node: Control = _message_node_index[mid]
-		if is_instance_valid(node):
-			node.queue_free()
-		_message_node_index.erase(mid)
-
-	# UPDATE: existing nodes with fresh data
-	for msg in messages:
-		var mid: String = msg.get("id", "")
-		if _message_node_index.has(mid):
-			var node: Control = _message_node_index[mid]
-			if is_instance_valid(node) and node.has_method("update_data"):
-				node.update_data(msg)
-
-	# APPEND: new messages at the end that aren't in the index
-	var appended_nodes: Array = []
-	for i in range(messages.size() - 1, -1, -1):
-		var msg: Dictionary = messages[i]
-		var mid: String = msg.get("id", "")
-		if _message_node_index.has(mid):
-			break  # Hit an existing message, stop looking
-		# Determine cozy vs collapsed
-		var author: Dictionary = msg.get("author", {})
-		var author_id: String = author.get("id", "")
-		var has_reply: bool = msg.get("reply_to", "") != ""
-		var prev_author_id: String = ""
-		if i > 0:
-			prev_author_id = messages[i - 1].get("author", {}).get("id", "")
-		var use_collapsed: bool = (author_id == prev_author_id) and not has_reply and i > 0
-		var node: HBoxContainer
-		if use_collapsed:
-			node = CollapsedMessageScene.instantiate()
-		else:
-			node = CozyMessageScene.instantiate()
-		appended_nodes.append({"node": node, "msg": msg, "id": mid})
-
-	# Add appended nodes in correct order (we iterated in reverse)
-	appended_nodes.reverse()
-	for entry in appended_nodes:
-		var node: HBoxContainer = entry["node"]
-		var msg: Dictionary = entry["msg"]
-		message_list.add_child(node)
-		node.setup(msg)
-		node.mouse_entered.connect(_hover.on_msg_hovered.bind(node))
-		node.mouse_exited.connect(_hover.on_msg_unhovered.bind(node))
-		if node.has_signal("context_menu_requested"):
-			node.context_menu_requested.connect(_on_context_menu_requested)
-		_message_node_index[entry["id"]] = node
-
-	# Handle layout fixup after deletion: if first message became collapsed
-	# but now has no predecessor with same author, promote to cozy
-	if not removed_ids.is_empty():
-		_fixup_layouts_after_delete(messages)
-
-	# If messages were inserted in the middle (not just appended), fall back
-	var node_order_valid := true
-	var msg_children: Array = []
-	for child in message_list.get_children():
-		if _is_persistent_node(child):
-			continue
-		msg_children.append(child)
-	if msg_children.size() != messages.size():
-		node_order_valid = false
-	else:
-		for i in messages.size():
-			var mid: String = messages[i].get("id", "")
-			var child_data: Dictionary = msg_children[i].get("_message_data")
-			if child_data == null or child_data.get("id", "") != mid:
-				node_order_valid = false
-				break
-	if not node_order_valid:
-		_load_messages(channel_id)
-		return
-
-	var new_count := messages.size()
 	var old_count: int = _scroll._old_message_count
+	var appended: int = _virtual.diff_update(messages)
+	var new_count := messages.size()
 	_scroll._old_message_count = new_count
 	older_btn.visible = messages.size() >= Client.MESSAGE_CAP
 
+	# Re-render visible window
+	_virtual.update_visible_rows(
+		scroll_container.get_v_scroll_bar().value
+	)
+
 	# Animate new appended messages
-	if not Config.get_reduced_motion() and appended_nodes.size() > 0 and old_count > 0:
-		for entry in appended_nodes:
-			var node: Control = entry["node"]
-			node.modulate.a = 0.0
-			var msg_tween := create_tween()
-			msg_tween.tween_property(node, "modulate:a", 1.0, 0.15) \
-				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	if not Config.get_reduced_motion() and appended > 0 \
+			and old_count > 0:
+		# Find the last `appended` rows and fade them in
+		var start_row: int = _virtual.row_count() - appended
+		for i in range(start_row, _virtual.row_count()):
+			var node: Control = _virtual.find_node_for_message(
+				messages[i].get("id", "")
+			)
+			if node:
+				node.modulate.a = 0.0
+				var msg_tween := create_tween()
+				msg_tween.tween_property(
+					node, "modulate:a", 1.0, 0.15
+				).set_ease(Tween.EASE_OUT).set_trans(
+					Tween.TRANS_CUBIC
+				)
 
 	# Auto-scroll for new messages
-	if _scroll.auto_scroll and appended_nodes.size() > 0:
+	if _scroll.auto_scroll and appended > 0:
 		await get_tree().process_frame
 		_scroll.scroll_to_bottom_animated()
 
-func _fixup_layouts_after_delete(messages: Array) -> void:
-	for i in messages.size():
-		var msg: Dictionary = messages[i]
-		var mid: String = msg.get("id", "")
-		if not _message_node_index.has(mid):
-			continue
-		var node: Control = _message_node_index[mid]
-		if not is_instance_valid(node):
-			continue
-		var author_id: String = msg.get("author", {}).get("id", "")
-		var has_reply: bool = msg.get("reply_to", "") != ""
-		var prev_author_id: String = ""
-		if i > 0:
-			prev_author_id = messages[i - 1].get("author", {}).get("id", "")
-		var should_be_collapsed: bool = (author_id == prev_author_id) and not has_reply and i > 0
-		var is_currently_collapsed: bool = node.get("is_collapsed") == true
-		if should_be_collapsed != is_currently_collapsed:
-			# Layout mismatch — replace node
-			var idx := node.get_index()
-			node.queue_free()
-			var new_node: HBoxContainer
-			if should_be_collapsed:
-				new_node = CollapsedMessageScene.instantiate()
-			else:
-				new_node = CozyMessageScene.instantiate()
-			message_list.add_child(new_node)
-			message_list.move_child(new_node, idx)
-			new_node.setup(msg)
-			new_node.mouse_entered.connect(_hover.on_msg_hovered.bind(new_node))
-			new_node.mouse_exited.connect(_hover.on_msg_unhovered.bind(new_node))
-			if new_node.has_signal("context_menu_requested"):
-				new_node.context_menu_requested.connect(_on_context_menu_requested)
-			_message_node_index[mid] = new_node
-
-func _on_reactions_updated(channel_id: String, message_id: String) -> void:
+func _on_reactions_updated(
+	channel_id: String, message_id: String,
+) -> void:
 	if channel_id != current_channel_id:
 		return
-	# Targeted update: use index for O(1) lookup
-	if _message_node_index.has(message_id):
-		var node: Control = _message_node_index[message_id]
-		if is_instance_valid(node):
-			var mc = node.get("message_content")
-			if mc:
-				var msg := Client.get_message_by_id(message_id)
-				var reactions: Array = msg.get("reactions", [])
-				mc.reaction_bar.setup(reactions, channel_id, message_id)
-		return
-	# Fallback: linear scan if index misses
-	for child in message_list.get_children():
-		if _is_persistent_node(child):
-			continue
-		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
-			var mc = child.get("message_content")
-			if mc:
-				var msg := Client.get_message_by_id(message_id)
-				var reactions: Array = msg.get("reactions", [])
-				mc.reaction_bar.setup(reactions, channel_id, message_id)
-			break
+	var node: Control = _virtual.find_node_for_message(
+		message_id
+	)
+	if not node:
+		return  # Off-screen — cache already updated
+	var mc = node.get("message_content")
+	if mc:
+		var msg := Client.get_message_by_id(message_id)
+		var reactions: Array = msg.get("reactions", [])
+		mc.reaction_bar.setup(
+			reactions, channel_id, message_id
+		)
 
 func _on_user_updated(user_id: String) -> void:
-	var user_dict: Dictionary = Client._user_cache.get(user_id, {})
+	var user_dict: Dictionary = Client._user_cache.get(
+		user_id, {}
+	)
 	if user_dict.is_empty():
 		return
-	for node in _message_node_index.values():
+	for node in _virtual.get_visible_nodes():
 		if not is_instance_valid(node):
 			continue
-		var author: Dictionary = node._message_data.get("author", {})
+		var author: Dictionary = node._message_data.get(
+			"author", {}
+		)
 		if author.get("id", "") == user_id:
 			if node.has_method("update_author"):
 				node.update_author(user_dict)
 
-func _on_typing_started(channel_id: String, username: String) -> void:
-	if channel_id == current_channel_id and not _is_forum_channel:
+func _on_typing_started(
+	channel_id: String, username: String,
+) -> void:
+	if channel_id == current_channel_id \
+			and not _is_forum_channel:
 		typing_indicator.show_typing(username)
 
 func _on_typing_stopped(channel_id: String) -> void:
-	if channel_id == current_channel_id and not _is_forum_channel:
+	if channel_id == current_channel_id \
+			and not _is_forum_channel:
 		typing_indicator.hide_typing()
 
 func _on_context_menu_requested(
@@ -640,22 +588,20 @@ func _on_context_menu_requested(
 
 func _on_server_reconnected(space_id: String) -> void:
 	_banner.on_server_reconnected(space_id)
-	# Refetch messages for the currently viewed channel if it belongs to this space
 	if current_channel_id.is_empty():
 		return
-	var ch_space: String = Client._channel_to_space.get(current_channel_id, "")
+	var ch_space: String = Client._channel_to_space.get(
+		current_channel_id, ""
+	)
 	if ch_space != space_id:
 		return
-	# Clear stale forum post and thread caches for this space's channels
 	for ch_id in Client._channel_to_space:
 		if Client._channel_to_space[ch_id] == space_id:
 			Client._forum_post_cache.erase(ch_id)
-			# Clear thread caches for messages in this channel
 			if Client._message_cache.has(ch_id):
 				for msg in Client._message_cache[ch_id]:
 					var mid: String = msg.get("id", "")
 					Client._thread_message_cache.erase(mid)
-	# Refetch messages for the current channel
 	if _is_forum_channel:
 		Client.fetch.fetch_forum_posts(current_channel_id)
 	else:
@@ -664,25 +610,38 @@ func _on_server_reconnected(space_id: String) -> void:
 # --- Connection Banner ---
 
 func _space_for_current_channel() -> String:
-	return Client._channel_to_space.get(current_channel_id, "")
+	return Client._channel_to_space.get(
+		current_channel_id, ""
+	)
 
 # --- Fetch Failure & Loading Timeout ---
 
-func _on_message_delete_failed(message_id: String, error: String) -> void:
+func _on_message_delete_failed(
+	message_id: String, error: String,
+) -> void:
 	var node: Control = _find_message_node(message_id)
 	if node:
 		var mc = node.get("message_content")
 		if mc and mc.has_method("show_edit_error"):
-			mc.show_edit_error(tr("Delete failed: %s") % error)
+			mc.show_edit_error(
+				tr("Delete failed: %s") % error
+			)
 
-func _on_message_fetch_failed(channel_id: String, error: String) -> void:
+func _on_message_fetch_failed(
+	channel_id: String, error: String,
+) -> void:
 	if channel_id != current_channel_id:
 		return
 	_is_loading = false
 	_loading_timeout_timer.stop()
 	loading_skeleton.visible = false
-	loading_label.text = tr("Failed to load messages: %s\nClick to retry") % error
-	loading_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
+	loading_label.text = (
+		tr("Failed to load messages: %s\nClick to retry")
+		% error
+	)
+	loading_label.add_theme_color_override(
+		"font_color", ThemeManager.get_color("error")
+	)
 	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -691,21 +650,31 @@ func _on_loading_timeout() -> void:
 		return
 	_is_loading = false
 	loading_skeleton.visible = false
-	loading_label.text = tr("Loading timed out. Click to retry")
-	loading_label.add_theme_color_override("font_color", ThemeManager.get_color("error"))
+	loading_label.text = tr(
+		"Loading timed out. Click to retry"
+	)
+	loading_label.add_theme_color_override(
+		"font_color", ThemeManager.get_color("error")
+	)
 	loading_label.visible = true
 	loading_label.mouse_filter = Control.MOUSE_FILTER_STOP
 
 func _on_loading_label_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
 		if not _is_loading and loading_label.visible:
 			_is_loading = true
 			loading_label.visible = false
 			loading_skeleton.visible = true
 			loading_skeleton.reset_shimmer()
 			loading_label.text = tr("Loading messages...")
-			loading_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-			loading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			loading_label.add_theme_color_override(
+				"font_color",
+				ThemeManager.get_color("text_muted"),
+			)
+			loading_label.mouse_filter = (
+				Control.MOUSE_FILTER_IGNORE
+			)
 			_loading_timeout_timer.start()
 			Client.fetch.fetch_messages(current_channel_id)
 
@@ -721,14 +690,9 @@ func _on_threads_button_pressed() -> void:
 # --- Helpers ---
 
 func _find_message_node(message_id: String) -> Control:
-	if _message_node_index.has(message_id):
-		var node: Control = _message_node_index[message_id]
-		if is_instance_valid(node):
-			return node
-	# Fallback: linear scan
-	for child in message_list.get_children():
-		if _is_persistent_node(child):
-			continue
-		if child.get("_message_data") is Dictionary and child._message_data.get("id", "") == message_id:
-			return child as Control
-	return null
+	return _virtual.find_node_for_message(message_id)
+
+func _scroll_to_row(row_index: int) -> void:
+	var y: float = _virtual.get_row_y(row_index)
+	scroll_container.scroll_vertical = int(y)
+	_virtual.update_visible_rows(y)

@@ -4,7 +4,9 @@ var _ScrollScript: GDScript
 
 
 func before_all() -> void:
-	_ScrollScript = load("res://scenes/messages/message_view_scroll.gd")
+	_ScrollScript = load(
+		"res://scenes/messages/message_view_scroll.gd"
+	)
 
 
 # --- _old_message_count ---
@@ -67,13 +69,15 @@ func test_is_loading_older_default_false() -> void:
 # --- get_last_message_child ---
 
 func test_get_last_message_child_returns_null_when_empty() -> void:
-	var mock_script: GDScript = load("res://tests/unit/helpers/mock_message_view.gd")
+	var mock_script: GDScript = load(
+		"res://tests/unit/helpers/mock_message_view.gd"
+	)
 	var mock_view = mock_script.new()
 	var sc := ScrollContainer.new()
-	var ml := VBoxContainer.new()
-	sc.add_child(ml)
+	var vc := Control.new()
+	sc.add_child(vc)
 	mock_view.scroll_container = sc
-	mock_view.message_list = ml
+	mock_view.virtual_content = vc
 	mock_view.add_child(sc)
 	add_child(mock_view)
 	await get_tree().process_frame
@@ -84,19 +88,19 @@ func test_get_last_message_child_returns_null_when_empty() -> void:
 
 
 func test_get_last_message_child_returns_last_child() -> void:
-	var mock_script: GDScript = load("res://tests/unit/helpers/mock_message_view.gd")
+	var mock_script: GDScript = load(
+		"res://tests/unit/helpers/mock_message_view.gd"
+	)
 	var mock_view = mock_script.new()
 	var sc := ScrollContainer.new()
-	var ml := VBoxContainer.new()
-	sc.add_child(ml)
+	var vc := Control.new()
+	sc.add_child(vc)
 	mock_view.scroll_container = sc
-	mock_view.message_list = ml
+	mock_view.virtual_content = vc
 	mock_view.add_child(sc)
 	add_child(mock_view)
-	var child1 := Control.new()
 	var child2 := Control.new()
-	ml.add_child(child1)
-	ml.add_child(child2)
+	mock_view._virtual._last_row_node = child2
 	await get_tree().process_frame
 	var scroll = _ScrollScript.new(mock_view)
 	var result: Control = scroll.get_last_message_child()
