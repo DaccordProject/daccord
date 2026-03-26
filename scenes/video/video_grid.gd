@@ -125,7 +125,7 @@ func _on_voice_state_updated(_channel_id: String) -> void:
 func _on_voice_joined(_channel_id: String) -> void:
 	_schedule_rebuild()
 
-func _on_voice_left(_channel_id: String) -> void:
+func _on_voice_left(_channel_id: String, _intentional: bool = true) -> void:
 	_clear()
 	visible = false
 
@@ -185,9 +185,9 @@ func _on_activity_participants_updated(
 		return
 	if session_id != AppState.active_activity_session_id:
 		return
-	var lobby: VBoxContainer = _activity_container.get_meta(
-		"lobby", null
-	)
+	if not _activity_container.has_meta("lobby"):
+		return
+	var lobby: VBoxContainer = _activity_container.get_meta("lobby")
 	if lobby != null and lobby.has_method("update_participants"):
 		lobby.update_participants(participants)
 

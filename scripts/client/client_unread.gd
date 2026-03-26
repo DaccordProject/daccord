@@ -6,7 +6,11 @@ func _init(client_node: Node) -> void:
 	_c = client_node
 
 func on_channel_selected_clear_unread(cid: String) -> void:
-	clear_channel_unread(cid)
+	if _c._unread_channels.has(cid):
+		clear_channel_unread(cid)
+	else:
+		# Still ack to update server read position even if not locally unread
+		_ack_channel(cid)
 
 func clear_channel_unread(cid: String) -> void:
 	if not _c._unread_channels.has(cid):
@@ -22,6 +26,35 @@ func clear_channel_unread(cid: String) -> void:
 	elif _c._dm_channel_cache.has(cid):
 		_c._dm_channel_cache[cid]["unread"] = false
 		AppState.dm_channels_updated.emit()
+	# Tell the server we've read this channel
+	_ack_channel(cid)
+
+func _ack_channel(cid: String) -> void:
+	var last_msg_id: String = _get_last_message_id(cid)
+	if last_msg_id.is_empty():
+		return
+	var client: AccordClient = _c._client_for_channel(cid)
+	if client == null:
+		return
+	var result: RestResult = await client.channels.ack(cid, last_msg_id)
+	if not result.ok:
+		var err: String = result.error.message if result.error else "unknown"
+		push_warning("[Client] Failed to ack channel %s: %s" % [cid, err])
+
+func _get_last_message_id(cid: String) -> String:
+	# Check message cache for the most recent message
+	var msgs: Array = _c._message_cache.get(cid, [])
+	if not msgs.is_empty():
+		var last: Dictionary = msgs[msgs.size() - 1]
+		var mid: String = last.get("id", "")
+		if not mid.is_empty():
+			return mid
+	# Fall back to the channel cache's last_message_id
+	if _c._channel_cache.has(cid):
+		return _c._channel_cache[cid].get("last_message_id", "")
+	if _c._dm_channel_cache.has(cid):
+		return _c._dm_channel_cache[cid].get("last_message_id", "")
+	return ""
 
 func mark_channel_unread(cid: String, is_mention: bool = false) -> void:
 	_c._unread_channels[cid] = true

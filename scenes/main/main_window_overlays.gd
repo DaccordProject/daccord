@@ -104,6 +104,21 @@ func on_image_lightbox_requested(
 	lightbox.show_image(texture)
 
 
+func check_rules_interstitial(space_id: String) -> void:
+	if Config.has_rules_accepted(space_id):
+		return
+	var space: Dictionary = Client.get_space_by_id(space_id)
+	var rules_ch: String = space.get("rules_channel_id", "")
+	if rules_ch.is_empty():
+		return
+	var RulesDialog := preload(
+		"res://scenes/admin/rules_interstitial_dialog.tscn"
+	)
+	var dialog: ModalBase = RulesDialog.instantiate()
+	dialog.setup(space_id, rules_ch)
+	_parent.get_tree().root.add_child(dialog)
+
+
 func on_profile_card_requested(
 	user_id: String, pos: Vector2,
 ) -> void:

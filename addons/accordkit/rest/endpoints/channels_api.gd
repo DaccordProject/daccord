@@ -80,3 +80,12 @@ func unmute(channel_id: String) -> RestResult:
 	return await _rest.make_request(
 		"DELETE", "/channels/" + channel_id + "/mute"
 	)
+
+
+## Acknowledges (marks as read) a channel up to the given message ID.
+func ack(channel_id: String, message_id: String) -> RestResult:
+	return await _rest.make_request(
+		"POST",
+		"/channels/" + channel_id + "/ack",
+		{"message_id": message_id},
+	)

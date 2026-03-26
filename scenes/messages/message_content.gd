@@ -271,8 +271,11 @@ func _detect_theme_string(raw_text: String) -> void:
 	var json_str: String = Marshalls.base64_to_utf8(cleaned)
 	if json_str.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(json_str)
-	if parsed == null or not (parsed is Dictionary):
+	var json := JSON.new()
+	if json.parse(json_str) != OK:
+		return
+	var parsed: Variant = json.data
+	if not (parsed is Dictionary):
 		return
 	if not parsed.has("accent") and not parsed.has("text_body"):
 		return

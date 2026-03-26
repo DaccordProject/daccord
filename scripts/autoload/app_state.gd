@@ -58,7 +58,7 @@ signal voice_state_updated(channel_id: String)
 @warning_ignore("unused_signal")
 signal voice_joined(channel_id: String)
 @warning_ignore("unused_signal")
-signal voice_left(channel_id: String)
+signal voice_left(channel_id: String, intentional: bool)
 @warning_ignore("unused_signal")
 signal voice_error(error: String)
 @warning_ignore("unused_signal")
@@ -391,7 +391,7 @@ func join_voice(channel_id: String, space_id: String) -> void:
 	voice_space_id = space_id
 	voice_joined.emit(channel_id)
 
-func leave_voice() -> void:
+func leave_voice(intentional: bool = true) -> void:
 	var old_channel := voice_channel_id
 	voice_channel_id = ""
 	voice_space_id = ""
@@ -406,7 +406,7 @@ func leave_voice() -> void:
 		spotlight_user_id = ""
 		spotlight_changed.emit("")
 	if not old_channel.is_empty():
-		voice_left.emit(old_channel)
+		voice_left.emit(old_channel, intentional)
 
 func set_voice_muted(muted: bool) -> void:
 	is_voice_muted = muted

@@ -212,9 +212,6 @@ func _on_file_selected(path: String) -> void:
 		_error_label.text = err_msg
 		_error_label.visible = true
 		return
-	if result.data != null:
-		_all_plugins.append(result.data.to_dict())
-		_rebuild_list()
 
 
 func _extract_manifest(zip_bytes: PackedByteArray) -> Dictionary:

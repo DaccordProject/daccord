@@ -127,7 +127,7 @@ func _refresh_active_user() -> void:
 func _on_voice_joined(_channel_id: String) -> void:
 	voice_indicator.visible = true
 
-func _on_voice_left(_channel_id: String) -> void:
+func _on_voice_left(_channel_id: String, _intentional: bool = true) -> void:
 	voice_indicator.visible = false
 
 func _on_avatar_hover_enter() -> void:

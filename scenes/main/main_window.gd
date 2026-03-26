@@ -85,7 +85,7 @@ func _ready() -> void:
 	tab_bar.tab_changed.connect(_tabs.on_tab_changed)
 	tab_bar.tab_close_pressed.connect(_tabs.on_tab_close)
 	tab_bar.active_tab_rearranged.connect(_tabs.on_tab_rearranged)
-	tab_bar.gui_input.connect(_on_tab_bar_input)
+	tab_bar.gui_input.connect(_tabs.on_tab_bar_input)
 	hamburger_button.pressed.connect(_on_hamburger_pressed)
 	sidebar_toggle.pressed.connect(_on_sidebar_toggle_pressed)
 	member_toggle.pressed.connect(_on_member_toggle_pressed)
@@ -113,8 +113,10 @@ func _ready() -> void:
 	AppState.update_available.connect(_on_update_indicator_show)
 	AppState.update_download_complete.connect(_on_update_indicator_ready)
 	AppState.config_changed.connect(_on_config_changed)
-	AppState.voice_text_opened.connect(_on_voice_text_opened)
-	AppState.voice_text_closed.connect(_on_voice_text_closed)
+	AppState.voice_text_opened.connect(
+		func(_ch: String) -> void: _sync_handle_visibility()
+	)
+	AppState.voice_text_closed.connect(_sync_handle_visibility)
 	AppState.discovery_opened.connect(_on_discovery_opened)
 	AppState.discovery_closed.connect(_on_discovery_closed)
 	AppState.toast_requested.connect(_on_toast_requested)
@@ -586,21 +588,7 @@ func _on_space_selected(space_id: String) -> void:
 	_update_member_list_visibility()
 	_update_search_visibility()
 	AppState.close_search()
-	_check_rules_interstitial(space_id)
-
-func _check_rules_interstitial(space_id: String) -> void:
-	if Config.has_rules_accepted(space_id):
-		return
-	var space: Dictionary = Client.get_space_by_id(space_id)
-	var rules_ch: String = space.get("rules_channel_id", "")
-	if rules_ch.is_empty():
-		return
-	var RulesDialog := preload(
-		"res://scenes/admin/rules_interstitial_dialog.tscn"
-	)
-	var dialog: ModalBase = RulesDialog.instantiate()
-	dialog.setup(space_id, rules_ch)
-	get_tree().root.add_child(dialog)
+	_overlays.check_rules_interstitial(space_id)
 
 func _update_member_list_visibility() -> void:
 	if AppState.is_dm_mode:
@@ -681,14 +669,14 @@ func _on_voice_view_closed() -> void:
 		_voice_text_handle, _sync_handle_visibility,
 	)
 
-func _on_voice_left_pip(channel_id: String) -> void:
+func _on_voice_left_pip(channel_id: String, _intentional: bool = true) -> void:
 	_voice_view.on_voice_left(channel_id)
 
 func _on_voice_joined_reparent(_channel_id: String) -> void:
 	if AppState.current_layout_mode == AppState.LayoutMode.COMPACT:
 		_move_voice_bar_to_content()
 
-func _on_voice_left_reparent(_channel_id: String) -> void:
+func _on_voice_left_reparent(_channel_id: String, _intentional: bool = true) -> void:
 	_move_voice_bar_to_sidebar()
 
 func _move_voice_bar_to_content() -> void:
@@ -770,12 +758,6 @@ func _on_config_changed(section: String, key: String) -> void:
 	if section == "accessibility" and key == "ui_scale":
 		_apply_ui_scale()
 
-func _on_voice_text_opened(_channel_id: String) -> void:
-	_sync_handle_visibility()
-
-func _on_voice_text_closed() -> void:
-	_sync_handle_visibility()
-
 func _on_discovery_opened() -> void:
 	AppState.close_sidebar_drawer()
 	discovery_panel.visible = true
@@ -793,32 +775,6 @@ func _on_discovery_closed() -> void:
 	_update_member_list_visibility()
 	_update_search_visibility()
 	_sync_handle_visibility()
-
-func _on_tab_bar_input(event: InputEvent) -> void:
-	if not event is InputEventMouseButton:
-		return
-	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	var i: int = tab_bar.current_tab
-	if i < 0 or i >= tab_bar.tab_count:
-		return
-	var close_icon: Texture2D = tab_bar.get_theme_icon("close")
-	if close_icon == null:
-		return
-	var icon_size: Vector2 = close_icon.get_size()
-	var tab_rect: Rect2 = tab_bar.get_tab_rect(i)
-	var style: StyleBox = tab_bar.get_theme_stylebox("tab_selected")
-	var right_margin: float = style.content_margin_right if style else 0.0
-	var close_rect := Rect2(
-		Vector2(
-			tab_rect.end.x - right_margin - icon_size.x,
-			tab_rect.position.y + (tab_rect.size.y - icon_size.y) / 2.0,
-		),
-		icon_size,
-	)
-	if close_rect.has_point(event.position):
-		_tabs.on_tab_close(i)
-		tab_bar.accept_event()
 
 func _apply_theme() -> void:
 	drawer_backdrop.color = ThemeManager.get_color("overlay")

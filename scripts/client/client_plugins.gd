@@ -4,6 +4,10 @@ extends RefCounted
 ## Manages plugin state: caching manifests, launching/stopping activities,
 ## and handling gateway events for plugins.
 
+const HelpersClass := preload(
+	"res://scripts/client/client_plugins_helpers.gd"
+)
+
 var _c: Node # Client autoload
 
 # Per-connection plugin cache: conn_index -> { plugin_id -> manifest dict }
@@ -20,11 +24,13 @@ var _session_participants: Array = []
 var _scripted_runtime_class = null  # loaded on demand
 var _native_runtime_class = null   # loaded on demand
 var _download_manager: PluginDownloadManager = null
+var _helpers: HelpersClass = null
 
 
 func _init(client_node: Node) -> void:
 	_c = client_node
 	_download_manager = PluginDownloadManager.new(client_node)
+	_helpers = HelpersClass.new(client_node)
 	AppState.voice_left.connect(_on_voice_left)
 	AppState.voice_joined.connect(_on_voice_joined)
 
@@ -70,8 +76,10 @@ func get_conn_index_for_plugin(plugin_id: String) -> int:
 	return -1
 
 
-## Launches an activity: creates a session on the server, downloads the Lua
-## source (for scripted plugins), starts the runtime, and updates AppState.
+## Launches an activity: checks for an existing session in the channel first
+## and rejoins it if found, otherwise creates a new session on the server.
+## Downloads the Lua source (for scripted plugins), starts the runtime, and
+## updates AppState.
 func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	var conn_idx: int = get_conn_index_for_plugin(plugin_id)
 	if conn_idx == -1:
@@ -81,6 +89,16 @@ func launch_activity(plugin_id: String, channel_id: String) -> Dictionary:
 	if conn == null or conn.get("client") == null:
 		return {"error": "Not connected"}
 	var client: AccordClient = conn["client"]
+
+	# Check for an existing session in this channel before creating a new one.
+	var existing: Dictionary = await _find_existing_session(
+		client, plugin_id, channel_id
+	)
+	if not existing.is_empty():
+		return await _rejoin_session(
+			existing, plugin_id, channel_id, conn_idx, client
+		)
+
 	var result: RestResult = await client.plugins.create_session(
 		plugin_id, channel_id
 	)
@@ -149,7 +167,7 @@ func _download_and_prepare_scripted_runtime(
 		return
 
 	# Extract entry source, modules, and assets from the bundle ZIP
-	var bundle: Dictionary = _extract_bundle(zip_bytes, manifest)
+	var bundle: Dictionary = HelpersClass.extract_bundle(zip_bytes, manifest)
 	if bundle.is_empty():
 		push_error("[ClientPlugins] Failed to extract plugin bundle")
 		return
@@ -177,57 +195,6 @@ func _download_and_prepare_scripted_runtime(
 	_active_runtime = runtime
 
 
-## Extracts entry Lua source, modules, and assets from a plugin bundle ZIP.
-## Returns { "lua_source": String, "modules": Dictionary, "assets": Dictionary }
-## or an empty Dictionary on failure.
-func _extract_bundle(
-	zip_bytes: PackedByteArray, manifest: Dictionary,
-) -> Dictionary:
-	var tmp_path: String = "user://tmp_plugin_bundle.zip"
-	var f := FileAccess.open(tmp_path, FileAccess.WRITE)
-	if f == null:
-		return {}
-	f.store_buffer(zip_bytes)
-	f.close()
-
-	var reader := ZIPReader.new()
-	var err: Error = reader.open(tmp_path)
-	if err != OK:
-		DirAccess.remove_absolute(tmp_path)
-		return {}
-
-	var entry: String = str(manifest.get("entry_point", ""))
-	if entry.is_empty():
-		entry = str(manifest.get("entry", "src/main.lua"))
-
-	var files: PackedStringArray = reader.get_files()
-
-	# Read entry file
-	var entry_bytes: PackedByteArray = reader.read_file(entry)
-	if entry_bytes.is_empty():
-		reader.close()
-		DirAccess.remove_absolute(tmp_path)
-		push_error("[ClientPlugins] Entry file not found in bundle: ", entry)
-		return {}
-
-	var lua_source: String = entry_bytes.get_string_from_utf8()
-	var modules: Dictionary = {}
-	var assets: Dictionary = {}
-
-	for file_path in files:
-		if file_path.ends_with(".lua") and file_path != entry:
-			var module_name: String = file_path.get_file().get_basename()
-			var src: PackedByteArray = reader.read_file(file_path)
-			modules[module_name] = src.get_string_from_utf8()
-		elif file_path.begins_with("assets/") and not file_path.ends_with("/"):
-			assets[file_path] = reader.read_file(file_path)
-
-	reader.close()
-	DirAccess.remove_absolute(tmp_path)
-
-	return {"lua_source": lua_source, "modules": modules, "assets": assets}
-
-
 ## Downloads the native plugin bundle, extracts it, creates a NativeRuntime,
 ## and wires up data channel routing via LiveKitAdapter.
 func _download_and_prepare_native_runtime(
@@ -247,8 +214,8 @@ func _download_and_prepare_native_runtime(
 		var server_id: String = _download_manager._server_id_for_conn(
 			_c._connections[conn_idx]
 		)
-		if not _is_plugin_trusted(server_id, plugin_id):
-			var trusted: bool = await _show_trust_dialog(
+		if not HelpersClass.is_plugin_trusted(server_id, plugin_id):
+			var trusted: bool = await _helpers.show_trust_dialog(
 				manifest.get("name", plugin_id), server_id, plugin_id,
 			)
 			if not trusted:
@@ -288,55 +255,6 @@ func _download_and_prepare_native_runtime(
 	_active_runtime = runtime
 
 
-## Shows a trust confirmation dialog and waits for the user's response.
-## Returns true if the user grants trust, false if denied.
-func _show_trust_dialog(
-	plugin_name: String, server_id: String, plugin_id: String,
-) -> bool:
-	var dialog_scene: PackedScene = load("res://scenes/plugins/plugin_trust_dialog.tscn")
-	var dialog: ModalBase = dialog_scene.instantiate()
-	dialog.setup(plugin_name, server_id)
-	_c.get_tree().root.add_child(dialog)
-	# Wait for user response
-	var result: Array = await _await_trust_signal(dialog)
-	var granted: bool = result[0]
-	var remember: bool = result[1]
-	if granted:
-		if remember:
-			Config.set_plugin_trust_all(server_id, true)
-		else:
-			Config.set_plugin_trust(server_id, plugin_id, true)
-	return granted
-
-
-func _await_trust_signal(dialog) -> Array:
-	# Returns [granted: bool, remember: bool]
-	var granted := false
-	var remember := false
-	var done := false
-	dialog.trust_granted.connect(func(rem: bool):
-		granted = true
-		remember = rem
-		done = true
-	)
-	dialog.trust_denied.connect(func():
-		done = true
-	)
-	dialog.closed.connect(func():
-		done = true
-	)
-	while not done:
-		await _c.get_tree().process_frame
-	return [granted, remember]
-
-
-## Checks if a native plugin has been trusted for a given server.
-func _is_plugin_trusted(server_id: String, plugin_id: String) -> bool:
-	if Config.is_plugin_trust_all(server_id):
-		return true
-	return Config.get_plugin_trust(server_id, plugin_id)
-
-
 ## Handles incoming data from LiveKit data channels and routes to the
 ## active native runtime.
 func _on_livekit_data_received(
@@ -363,6 +281,9 @@ func join_activity() -> void:
 	var host_user_id: String = AppState.pending_activity_host_user_id
 	var state: String = AppState.pending_activity_state
 	if plugin_id.is_empty() or session_id.is_empty():
+		return
+	# Non-participants cannot join a session that is already running
+	if state == "running":
 		return
 
 	var conn_idx: int = get_conn_index_for_plugin(plugin_id)
@@ -512,12 +433,14 @@ func get_session_participants() -> Array:
 
 ## Checks if there's an active session in the given voice channel.
 ## Called on voice join and reconnect to discover ongoing activities.
+## If a session is found the user is automatically rejoined (re-added as
+## participant if needed), so they land back in the lobby with their slot.
 func check_active_session(
 	channel_id: String, conn_index: int,
 ) -> void:
-	if channel_id.is_empty() or conn_index < 0:
-		return
-	if conn_index >= _c._connections.size():
+	if channel_id.is_empty() or conn_index < 0 \
+		or conn_index >= _c._connections.size() \
+		or not AppState.active_activity_session_id.is_empty():
 		return
 	var conn: Dictionary = _c._connections[conn_index]
 	if conn == null or conn.get("client") == null:
@@ -533,52 +456,11 @@ func check_active_session(
 		return
 	var session: Dictionary = sessions[0]
 	var plugin_id: String = str(session.get("plugin_id", ""))
-	var session_id: String = str(session.get("id", ""))
-	var state: String = str(session.get("state", ""))
-	var host_user_id: String = str(session.get("host_user_id", ""))
-	if plugin_id.is_empty() or session_id.is_empty() \
-		or not AppState.active_activity_session_id.is_empty():
+	if plugin_id.is_empty() or str(session.get("id", "")).is_empty():
 		return
-	# Check if we're already a participant
-	var my_id: String = _c.current_user.get("id", "")
-	var participants: Array = session.get("participants", [])
-	var is_participant := false
-	for p in participants:
-		if str(p.get("user_id", "")) == my_id:
-			is_participant = true
-			break
-	if is_participant:
-		# Rejoin — we were already in this session (reconnect scenario)
-		_active_session_id = session_id
-		_active_conn_index = conn_index
-		_is_host = host_user_id == my_id
-		_host_user_id = host_user_id
-		_session_participants = participants
-		AppState.active_activity_plugin_id = plugin_id
-		AppState.active_activity_channel_id = channel_id
-		AppState.active_activity_session_id = session_id
-		AppState.active_activity_session_state = state
-		AppState.active_activity_role = "player"
-		AppState.activity_started.emit(plugin_id, channel_id)
-		_broadcast_activity_presence(plugin_id)
-		var manifest: Dictionary = get_plugin(plugin_id)
-		var runtime_type: String = manifest.get("runtime", "")
-		if runtime_type == "scripted":
-			await _download_and_prepare_scripted_runtime(
-				plugin_id, manifest, conn_index, participants,
-			)
-		elif runtime_type == "native":
-			await _download_and_prepare_native_runtime(
-				plugin_id, manifest, conn_index, participants,
-			)
-	else:
-		# Show as pending (joinable)
-		AppState.pending_activity_plugin_id = plugin_id
-		AppState.pending_activity_channel_id = channel_id
-		AppState.pending_activity_session_id = session_id
-		AppState.pending_activity_host_user_id = host_user_id
-		AppState.pending_activity_state = state
-		AppState.activity_available.emit(plugin_id, channel_id, session_id)
+	# Auto-rejoin: _rejoin_session handles both "still a participant" and
+	# "need to re-add" cases, preserving the player's lobby slot.
+	await _rejoin_session(session, plugin_id, channel_id, conn_index, client)
 
 
 # --- Gateway event handlers ---
@@ -644,6 +526,12 @@ func on_plugin_session_state(data: Dictionary, _conn_index: int) -> void:
 			_clear_pending_activity()
 		return
 
+	# Session transitioned to "running" — non-participants can no longer join
+	if state == "running":
+		if session_id == AppState.pending_activity_session_id:
+			_clear_pending_activity()
+		return
+
 	# Only show pending activity if we're in the same voice channel
 	if channel_id.is_empty() or channel_id != AppState.voice_channel_id:
 		return
@@ -674,11 +562,15 @@ func on_plugin_role_changed(data: Dictionary, _conn_index: int) -> void:
 	# Update participants list on the active runtime
 	if _active_runtime != null:
 		if _active_runtime is ScriptedRuntime:
-			_update_scripted_participants(user_id, role)
+			HelpersClass.update_scripted_participants(
+				_active_runtime, user_id, role,
+			)
 		elif _active_runtime is NativeRuntime:
 			var ctx: PluginContext = _active_runtime._context
 			if ctx != null:
-				_update_context_participants(ctx, user_id, role)
+				HelpersClass.update_context_participants(
+					ctx, user_id, role,
+				)
 				ctx.role_changed.emit(user_id, role)
 	AppState.activity_role_changed.emit(plugin_id, user_id, role)
 	if not participants.is_empty():
@@ -686,27 +578,6 @@ func on_plugin_role_changed(data: Dictionary, _conn_index: int) -> void:
 		AppState.activity_participants_updated.emit(
 			session_id, participants
 		)
-
-
-func _update_scripted_participants(user_id: String, role: String) -> void:
-	var parts: Array = _active_runtime.participants
-	for i in parts.size():
-		if parts[i] is Dictionary and str(parts[i].get("user_id", "")) == user_id:
-			parts[i]["role"] = role
-			return
-	# New participant
-	parts.append({"user_id": user_id, "role": role})
-
-
-func _update_context_participants(
-	ctx: PluginContext, user_id: String, role: String,
-) -> void:
-	var parts: Array = ctx.participants
-	for i in parts.size():
-		if parts[i] is Dictionary and str(parts[i].get("user_id", "")) == user_id:
-			parts[i]["role"] = role
-			return
-	parts.append({"user_id": user_id, "role": role})
 
 
 # --- Voice join/leave ---
@@ -721,12 +592,18 @@ func _on_voice_joined(channel_id: String) -> void:
 		check_active_session(channel_id, conn_idx)
 
 
-func _on_voice_left(_channel_id: String) -> void:
+func _on_voice_left(_channel_id: String, intentional: bool = true) -> void:
 	_clear_pending_activity()
 	if _active_session_id.is_empty():
 		return
 	var plugin_id: String = AppState.active_activity_plugin_id
-	# Notify server so we're removed from the participant list
+	# Non-intentional disconnect (network drop, server kick): keep the
+	# runtime alive so game state is preserved.  When voice reconnects
+	# the session resumes seamlessly — check_active_session sees the
+	# active session and skips re-creation.
+	if not intentional:
+		return
+	# Intentional leave: remove ourselves from the session and tear down.
 	if not _is_host and not _active_session_id.is_empty():
 		var conn_idx: int = get_conn_index_for_plugin(plugin_id)
 		if conn_idx >= 0 and conn_idx < _c._connections.size():
@@ -741,6 +618,122 @@ func _on_voice_left(_channel_id: String) -> void:
 
 
 # --- Internal ---
+
+## Queries active sessions in a channel and returns the first one matching
+## the given plugin_id. Returns an empty Dictionary if none found.
+func _find_existing_session(
+	client: AccordClient, plugin_id: String, channel_id: String,
+) -> Dictionary:
+	var result: RestResult = await client.plugins.get_channel_sessions(
+		channel_id
+	)
+	if not result.ok or not (result.data is Array):
+		return {}
+	for session in result.data:
+		if str(session.get("plugin_id", "")) == plugin_id:
+			return session
+	return {}
+
+
+## Rejoins an existing session: assigns self as player if not already a
+## participant, then sets up state and starts the runtime.
+func _rejoin_session(
+	session: Dictionary, plugin_id: String, channel_id: String,
+	conn_idx: int, client: AccordClient,
+) -> Dictionary:
+	var session_id: String = str(session.get("id", ""))
+	var state: String = str(session.get("state", ""))
+	var host_user_id: String = str(session.get("host_user_id", ""))
+	var my_id: String = _c.current_user.get("id", "")
+	var participants: Array = session.get("participants", [])
+
+	# Check if we're already a participant
+	var is_participant := false
+	for p in participants:
+		if str(p.get("user_id", "")) == my_id:
+			is_participant = true
+			break
+
+	# Non-participants cannot join a session that is already running
+	if not is_participant and state == "running":
+		return {"error": "Session already running"}
+
+	# If not a participant, join by assigning self as player
+	if not is_participant:
+		var role_result: RestResult = await client.plugins.assign_role(
+			plugin_id, session_id, my_id, "player"
+		)
+		if not role_result.ok:
+			var err: String = (
+				role_result.error.message if role_result.error else "unknown"
+			)
+			push_error("[ClientPlugins] Failed to rejoin session: ", err)
+			return {"error": err}
+		if role_result.data is Dictionary:
+			participants = role_result.data.get("participants", participants)
+
+	_clear_pending_activity()
+	# Stop any previously active runtime before setting up the new one.
+	# Without this the old runtime leaks and on web/WASM Lua errors from
+	# the stale state can trigger an unrecoverable abort.
+	if _active_runtime != null:
+		if _active_runtime.has_method("stop"):
+			_active_runtime.stop()
+		if _active_runtime is Node:
+			_active_runtime.queue_free()
+		_active_runtime = null
+	_active_session_id = session_id
+	_active_conn_index = conn_idx
+	_is_host = host_user_id == my_id
+	_host_user_id = host_user_id
+	_session_participants = participants
+	AppState.active_activity_plugin_id = plugin_id
+	AppState.active_activity_channel_id = channel_id
+	AppState.active_activity_session_id = session_id
+	AppState.active_activity_session_state = state
+	AppState.active_activity_role = "player"
+
+	# Prepare the runtime BEFORE emitting activity_started so that the
+	# viewport texture is available when the video grid rebuilds.  This
+	# matters when the session state is "running" (rejoin mid-game).
+	var manifest: Dictionary = get_plugin(plugin_id)
+	var runtime_type: String = manifest.get("runtime", "")
+	if runtime_type == "scripted":
+		await _download_and_prepare_scripted_runtime(
+			plugin_id, manifest, conn_idx, participants,
+		)
+	elif runtime_type == "native":
+		await _download_and_prepare_native_runtime(
+			plugin_id, manifest, conn_idx, participants,
+		)
+
+	AppState.activity_started.emit(plugin_id, channel_id)
+	_broadcast_activity_presence(plugin_id)
+
+	# Request the current game state from the host so the rejoining player
+	# can resume where they left off.  Not gated on server session state
+	# because games manage phase transitions inside Lua without updating
+	# the server session state.
+	_request_state_sync(plugin_id, my_id)
+
+	return session
+
+
+## Notifies the session that a player has rejoined and needs the current
+## game state.  Sends a "state_request" action through the server so the
+## host's Lua runtime receives it via _on_event and can respond with a
+## full state snapshot.
+func _request_state_sync(plugin_id: String, user_id: String) -> void:
+	# Ask the host to push current game state via the server.
+	# NOTE: We intentionally do NOT fire a local "rejoin" event on the
+	# runtime here — the runtime was just created fresh during rejoin, so
+	# its Lua code hasn't accumulated any state to reset.  Sending a
+	# "rejoin" event to uninitialised Lua state triggers a type error
+	# that crashes web/WASM builds (luaD_throw → ___cxa_throw → abort).
+	send_action(
+		plugin_id, {"action": "state_request", "user_id": user_id}
+	)
+
 
 ## Sends a presence update with the current activity to all connected servers.
 ## Pass an empty plugin_id to clear the activity from presence.

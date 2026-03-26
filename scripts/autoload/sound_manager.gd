@@ -122,7 +122,7 @@ func _on_message_sent(_text: String) -> void:
 func _on_voice_joined(_channel_id: String) -> void:
 	play("voice_join")
 
-func _on_voice_left(_channel_id: String) -> void:
+func _on_voice_left(_channel_id: String, _intentional: bool = true) -> void:
 	play("voice_leave")
 	_sound_meta_cache.clear()
 	_audio_cache.clear() # clear in-memory; disk cache persists

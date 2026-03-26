@@ -34,7 +34,7 @@ func _on_track_changed(_value: bool) -> void:
 func _on_remote_changed(_user_id: String, _track = null) -> void:
 	_rebuild_pip()
 
-func _on_voice_left(_channel_id: String) -> void:
+func _on_voice_left(_channel_id: String, _intentional: bool = true) -> void:
 	queue_free()
 
 func _rebuild_pip() -> void:

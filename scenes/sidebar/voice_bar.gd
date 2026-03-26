@@ -101,7 +101,7 @@ func _on_status_row_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		AppState.open_voice_view()
 
-func _on_voice_left(_channel_id: String) -> void:
+func _on_voice_left(_channel_id: String, _intentional: bool = true) -> void:
 	_stop_pulse()
 	visible = false
 	_close_soundboard_panel()

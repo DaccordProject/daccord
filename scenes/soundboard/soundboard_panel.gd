@@ -14,7 +14,7 @@ func _ready() -> void:
 	_close_btn.pressed.connect(close)
 	_search_input.text_changed.connect(_on_search_changed)
 	AppState.soundboard_updated.connect(_on_soundboard_updated)
-	AppState.voice_left.connect(func(_ch: String) -> void: close())
+	AppState.voice_left.connect(func(_ch: String, _i: bool) -> void: close())
 
 func _apply_theme() -> void:
 	var style: StyleBox = get_theme_stylebox("panel")

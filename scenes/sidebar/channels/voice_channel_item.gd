@@ -139,7 +139,7 @@ func _on_voice_joined(cid: String) -> void:
 	if cid == channel_id:
 		_refresh_participants()
 
-func _on_voice_left(cid: String) -> void:
+func _on_voice_left(cid: String, _intentional: bool = true) -> void:
 	if cid == channel_id:
 		_refresh_participants()
 

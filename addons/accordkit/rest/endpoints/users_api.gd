@@ -61,7 +61,7 @@ func list_mutes() -> RestResult:
 ## Lists all channels with unread messages for the current user.
 ## Each entry is a dict with at least "channel_id" and optionally "mention_count".
 func list_unread() -> RestResult:
-	return await _rest.make_request("GET", "/users/@me/unread")
+	return await _rest.make_request("GET", "/users/@me/read-states")
 
 
 ## Returns mutual friends between the current user and the given user.

@@ -415,7 +415,7 @@ func _make_client(
 func disconnect_all() -> void:
 	# Leave voice if active
 	if not AppState.voice_channel_id.is_empty():
-		AppState.leave_voice()
+		AppState.leave_voice(false)
 	# Logout and free all clients
 	for conn in _c._connections:
 		if conn != null:
@@ -461,7 +461,7 @@ func disconnect_server(space_id: String) -> void:
 		return
 	# If user is in voice on this server, leave
 	if AppState.voice_space_id == space_id:
-		AppState.leave_voice()
+		AppState.leave_voice(false)
 	# Sync friend book before losing the connection data
 	if _c.relationships != null:
 		_c.relationships._sync_to_friend_book()

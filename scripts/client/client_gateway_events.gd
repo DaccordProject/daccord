@@ -265,7 +265,7 @@ func on_voice_state_update(state: AccordVoiceState, conn_index: int) -> void:
 
 	# Detect force-disconnect: if our user's channel_id becomes empty
 	if user_id == my_id and new_channel.is_empty() and not AppState.voice_channel_id.is_empty():
-		AppState.leave_voice()
+		AppState.leave_voice(false)
 
 func on_voice_server_update(info: AccordVoiceServerUpdate, conn_index: int) -> void:
 	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:

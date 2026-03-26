@@ -36,12 +36,31 @@ func _ready() -> void:
 	)
 
 
-func setup(plugin: Dictionary) -> void:
+func setup(
+	plugin: Dictionary, has_active_session: bool = false,
+	session_state: String = "",
+) -> void:
 	_plugin_id = plugin.get("id", "")
 	_name_label.text = plugin.get("name", tr("Unknown"))
 	_desc_label.text = plugin.get("description", "")
 	var rt: String = plugin.get("runtime", "scripted")
 	_runtime_label.text = rt.capitalize()
+
+	if has_active_session and session_state == "running":
+		# Session already running — non-participants cannot join
+		_launch_btn.text = tr("In Progress")
+		_launch_btn.disabled = true
+		var base: Color = ThemeManager.get_color("text_muted")
+		ThemeManager.style_button(
+			_launch_btn, base, base, base, 4, [12, 6, 12, 6]
+		)
+	elif has_active_session:
+		_launch_btn.text = tr("Join")
+		var base: Color = ThemeManager.get_color("success")
+		ThemeManager.style_button(
+			_launch_btn, base, base.lightened(0.15),
+			base.darkened(0.15), 4, [12, 6, 12, 6]
+		)
 
 	var max_p: int = plugin.get("max_participants", 0)
 	if max_p > 0:

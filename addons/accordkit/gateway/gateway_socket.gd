@@ -121,6 +121,8 @@ var _max_reconnect_attempts: int = 10
 var _reconnect_cancelled: bool = false
 var _resume_pending: bool = false
 var _config: AccordConfig
+var _tab_hidden: bool = false
+var _cb_visibility_change = null
 
 
 func setup(
@@ -159,12 +161,20 @@ func disconnect_from_gateway(code: int = 1000, reason: String = "client disconne
 
 func _ready() -> void:
 	set_process(false)
+	if OS.has_feature("web"):
+		_cb_visibility_change = JavaScriptBridge.create_callback(_on_visibility_change)
+		var doc: JavaScriptObject = JavaScriptBridge.get_interface("document")
+		doc.addEventListener("visibilitychange", _cb_visibility_change)
 
 func _exit_tree() -> void:
 	if _state != State.DISCONNECTED:
 		_socket.close(1001, "going away")
 		_state = State.DISCONNECTED
 		set_process(false)
+	if _cb_visibility_change != null:
+		var doc: JavaScriptObject = JavaScriptBridge.get_interface("document")
+		doc.removeEventListener("visibilitychange", _cb_visibility_change)
+		_cb_visibility_change = null
 
 
 func _process(delta: float) -> void:
@@ -209,6 +219,23 @@ func _process(delta: float) -> void:
 			_attempt_reconnect()
 
 
+func _on_visibility_change(_args: Array) -> void:
+	var hidden: bool = JavaScriptBridge.eval("document.hidden", true)
+	if hidden:
+		_tab_hidden = true
+	else:
+		_tab_hidden = false
+		# Tab just became visible again
+		if _state == State.CONNECTED or _state == State.RESUMING:
+			# Forgive any missed ACK — the tab was throttled, not the server
+			_heartbeat_ack_received = true
+			_heartbeat_timer = 0.0
+			_send_heartbeat()
+		elif _state == State.DISCONNECTED and not _reconnect_cancelled:
+			# Connection dropped while backgrounded — reconnect immediately
+			_attempt_reconnect()
+
+
 func _send(payload: Dictionary) -> void:
 	var text := JSON.stringify(payload)
 	_socket.send_text(text)
@@ -216,6 +243,11 @@ func _send(payload: Dictionary) -> void:
 
 func _send_heartbeat() -> void:
 	if not _heartbeat_ack_received:
+		# If the tab is hidden, browsers throttle timers heavily.
+		# Don't treat a missed ACK as fatal — just skip this beat and
+		# wait for the tab to become visible again.
+		if _tab_hidden:
+			return
 		push_warning("AccordKit: Heartbeat ACK not received, reconnecting")
 		_socket.close(4000, "heartbeat timeout")
 		return

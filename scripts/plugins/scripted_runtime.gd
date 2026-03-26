@@ -105,6 +105,14 @@ func start(lua_source: String, manifest: Dictionary) -> bool:
 	# Build and inject the bridge API table
 	_inject_bridge_api()
 
+	# Pre-seed the Lua RNG so plugins don't need os.time() (blocked by sandbox).
+	# Without this, plugins calling math.randomseed() with a bad argument crash
+	# the WASM build (interror → luaL_argerror → abort).
+	var seed_val: int = Time.get_ticks_msec() % 2147483647
+	if seed_val == 0:
+		seed_val = 1
+	_lua.do_string("math.randomseed(%d)" % seed_val, "rng_seed")
+
 	# Load plugin source
 	var result = _lua.do_string(lua_source, "plugin")
 	if _is_lua_error(result):
@@ -409,6 +417,12 @@ func _inject_bridge_api() -> void:
 		return {}
 	api["get_role"] = func() -> String: return local_role
 	api["get_user_id"] = func() -> String: return local_user_id
+
+	# Time (os.time is unavailable in the sandbox)
+	api["time"] = func() -> int:
+		return int(Time.get_unix_time_from_system()) % 2147483647
+	api["ticks_ms"] = func() -> int:
+		return Time.get_ticks_msec() % 2147483647
 
 	# Timers
 	api["set_interval"] = func(callback_name: String, interval_ms: int) -> int:

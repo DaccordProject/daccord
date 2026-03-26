@@ -69,13 +69,30 @@ func _refresh_list() -> void:
 			return p.get("type", "") == "activity"
 	)
 
+	# Query active sessions in this channel to show Join vs Launch
+	# Maps plugin_id -> session state string ("lobby" or "running")
+	var active_sessions: Dictionary = {}
+	var conn: Dictionary = Client._connections[conn_idx]
+	if conn != null and conn.get("client") != null:
+		var client: AccordClient = conn["client"]
+		var sess_result: RestResult = (
+			await client.plugins.get_channel_sessions(_channel_id)
+		)
+		if sess_result.ok and sess_result.data is Array:
+			for s in sess_result.data:
+				var pid: String = str(s.get("plugin_id", ""))
+				if not pid.is_empty():
+					active_sessions[pid] = str(s.get("state", "lobby"))
+
 	_loading_label.visible = false
 	_empty_label.visible = activities.is_empty()
 
 	for plugin in activities:
 		var card := ActivityCardScene.instantiate()
 		_list.add_child(card)
-		card.setup(plugin)
+		var pid: String = plugin.get("id", "")
+		var session_state: String = active_sessions.get(pid, "")
+		card.setup(plugin, not session_state.is_empty(), session_state)
 		card.launch_pressed.connect(_on_launch)
 
 
