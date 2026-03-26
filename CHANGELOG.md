@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-03-26
+
+### Added
+- Session rejoin, web gateway resilience, and unread acknowledgement
+- Plugin helpers refactor
+
+### Fixed
+- Mobile responsive layout: full-height drawers and modal width capping
+
 ## [0.1.16] - 2026-03-22
 
 ### Added
