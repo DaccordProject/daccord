@@ -113,38 +113,38 @@ tooltip_text = "Threads"
 flat = true
 icon = ExtResource("7")
 
-[node name="OlderMessagesBtn" type="Button" parent="VBox"]
-visible = false
+[node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="MessageList" type="VBoxContainer" parent="VBox/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="OlderMessagesBtn" type="Button" parent="VBox/ScrollContainer/MessageList"]
 layout_mode = 2
 text = "Show older messages"
 flat = true
 metadata/theme_font_color = "text_muted"
 theme_override_font_sizes/font_size = 12
 
-[node name="ScrollContainer" type="ScrollContainer" parent="VBox"]
-layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-
-[node name="VirtualContent" type="Control" parent="VBox/ScrollContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="EmptyState" type="VBoxContainer" parent="VBox"]
+[node name="EmptyState" type="VBoxContainer" parent="VBox/ScrollContainer/MessageList"]
 visible = false
 layout_mode = 2
 size_flags_vertical = 3
 alignment = 1
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="VBox/EmptyState"]
+[node name="Title" type="Label" parent="VBox/ScrollContainer/MessageList/EmptyState"]
 layout_mode = 2
 text = "Welcome to #channel"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 20
 metadata/theme_font_color = "text_white"
 
-[node name="Description" type="Label" parent="VBox/EmptyState"]
+[node name="Description" type="Label" parent="VBox/ScrollContainer/MessageList/EmptyState"]
 layout_mode = 2
 text = "This is the beginning of this channel."
 horizontal_alignment = 1
@@ -152,10 +152,10 @@ autowrap_mode = 2
 theme_override_font_sizes/font_size = 14
 metadata/theme_font_color = "text_muted"
 
-[node name="LoadingSkeleton" parent="VBox" instance=ExtResource("6")]
+[node name="LoadingSkeleton" parent="VBox/ScrollContainer/MessageList" instance=ExtResource("6")]
 layout_mode = 2
 
-[node name="LoadingLabel" type="Label" parent="VBox"]
+[node name="LoadingLabel" type="Label" parent="VBox/ScrollContainer/MessageList"]
 visible = false
 layout_mode = 2
 size_flags_vertical = 3
