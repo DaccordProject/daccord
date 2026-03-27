@@ -318,6 +318,10 @@ jobs:
 
       - name: Run Client API tests
         run: |
+          # Kill any stale process on port 39100
+          fuser -k 39100/tcp 2>/dev/null || true
+          sleep 1
+
           # Start Daccord with test API enabled
           godot --headless --test-api --test-api-port 39100 \
             --test-api-no-auth --test-api-verbose &
