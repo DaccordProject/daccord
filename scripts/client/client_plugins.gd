@@ -524,12 +524,14 @@ func on_plugin_session_state(data: Dictionary, _conn_index: int) -> void:
 		# Clear pending if it matches
 		if session_id == AppState.pending_activity_session_id:
 			_clear_pending_activity()
+			AppState.activity_ended.emit(plugin_id)
 		return
 
 	# Session transitioned to "running" — non-participants can no longer join
 	if state == "running":
 		if session_id == AppState.pending_activity_session_id:
 			_clear_pending_activity()
+			AppState.activity_ended.emit(plugin_id)
 		return
 
 	# Only show pending activity if we're in the same voice channel

@@ -161,13 +161,17 @@ func _on_activity_started(
 	_schedule_rebuild()
 
 func _on_activity_ended(plugin_id: String) -> void:
-	if plugin_id != _activity_plugin_id:
+	var is_active: bool = plugin_id == _activity_plugin_id
+	var is_pending: bool = plugin_id == _pending_plugin_id
+	if not is_active and not is_pending:
 		return
-	_activity_plugin_id = ""
-	_activity_manifest = {}
-	_activity_is_host = false
-	_pending_plugin_id = ""
-	_pending_session_id = ""
+	if is_active:
+		_activity_plugin_id = ""
+		_activity_manifest = {}
+		_activity_is_host = false
+	if is_active or is_pending:
+		_pending_plugin_id = ""
+		_pending_session_id = ""
 	_schedule_rebuild()
 
 func _on_activity_available(

@@ -157,6 +157,71 @@ func test_on_plugin_session_state_ended_clears_activity() -> void:
 	assert_eq(plugins._active_session_id, "")
 
 
+func test_on_plugin_session_state_running_clears_pending_and_emits() -> void:
+	# Simulate the third user who saw the lobby invitation but didn't join.
+	# When the session transitions to "running", their pending state must be
+	# cleared AND activity_ended must be emitted so the UI removes the banner.
+	AppState.pending_activity_plugin_id = "p1"
+	AppState.pending_activity_channel_id = "ch_1"
+	AppState.pending_activity_session_id = "sess_1"
+	AppState.pending_activity_host_user_id = "host_1"
+	AppState.pending_activity_state = "lobby"
+	plugins._active_session_id = ""  # not a participant
+
+	watch_signals(AppState)
+	plugins.on_plugin_session_state({
+		"plugin_id": "p1",
+		"session_id": "sess_1",
+		"state": "running",
+		"channel_id": "ch_1",
+	}, 0)
+
+	assert_eq(AppState.pending_activity_plugin_id, "")
+	assert_eq(AppState.pending_activity_session_id, "")
+	assert_signal_emitted(AppState, "activity_ended")
+
+
+func test_on_plugin_session_state_ended_clears_pending_and_emits() -> void:
+	# Same scenario but session ends entirely instead of starting.
+	AppState.pending_activity_plugin_id = "p1"
+	AppState.pending_activity_channel_id = "ch_1"
+	AppState.pending_activity_session_id = "sess_1"
+	AppState.pending_activity_host_user_id = "host_1"
+	AppState.pending_activity_state = "lobby"
+	plugins._active_session_id = ""
+
+	watch_signals(AppState)
+	plugins.on_plugin_session_state({
+		"plugin_id": "p1",
+		"session_id": "sess_1",
+		"state": "ended",
+		"channel_id": "ch_1",
+	}, 0)
+
+	assert_eq(AppState.pending_activity_plugin_id, "")
+	assert_eq(AppState.pending_activity_session_id, "")
+	assert_signal_emitted(AppState, "activity_ended")
+
+
+func test_on_plugin_session_state_running_no_emit_when_not_pending() -> void:
+	# If the session that transitioned to "running" isn't our pending one,
+	# activity_ended should NOT be emitted.
+	AppState.pending_activity_session_id = "other_sess"
+	plugins._active_session_id = ""
+
+	watch_signals(AppState)
+	plugins.on_plugin_session_state({
+		"plugin_id": "p1",
+		"session_id": "sess_1",
+		"state": "running",
+		"channel_id": "ch_1",
+	}, 0)
+
+	assert_signal_not_emitted(AppState, "activity_ended")
+	# Cleanup
+	AppState.pending_activity_session_id = ""
+
+
 func test_on_plugin_session_state_ignores_other_sessions() -> void:
 	plugins._active_session_id = "sess_1"
 	AppState.active_activity_session_state = "lobby"
