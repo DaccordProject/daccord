@@ -528,6 +528,14 @@ func _apply_binary_update() -> void:
 		)
 		return
 
+	# Windows: the running exe and pck are locked by the OS, so we
+	# delegate replacement to a batch script that runs after we exit.
+	if OS.get_name() == "Windows":
+		_apply_windows_update(
+			current_binary, install_dir, staged_dir, staged_files
+		)
+		return
+
 	# Phase 1: Rename existing files to .old for rollback
 	var renamed: Array[String] = []
 	for fname in staged_files:
@@ -572,6 +580,57 @@ func _apply_binary_update() -> void:
 
 	var args: PackedStringArray = OS.get_cmdline_args()
 	OS.create_process(current_binary, args)
+	get_tree().quit()
+
+
+func _apply_windows_update(
+	current_binary: String, install_dir: String,
+	staged_dir: String, staged_files: PackedStringArray,
+) -> void:
+	# Build a batch script that waits for our process to exit, copies
+	# the new files over the locked ones, then relaunches the app.
+	var pid: int = OS.get_process_id()
+	var bat_path: String = install_dir.path_join("_daccord_update.bat")
+
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append("@echo off")
+	# Wait for the running instance to exit (poll every second, up to 30s)
+	lines.append(
+		"for /L %%i in (1,1,30) do ("
+	)
+	lines.append(
+		"  tasklist /FI \"PID eq %d\" 2>NUL | find /I \"%d\" >NUL || goto :do_copy"
+		% [pid, pid]
+	)
+	lines.append("  timeout /t 1 /nobreak >NUL")
+	lines.append(")")
+	lines.append(":do_copy")
+	for fname in staged_files:
+		var src: String = staged_dir.path_join(fname)
+		var dst: String = install_dir.path_join(fname)
+		lines.append(
+			"copy /y \"%s\" \"%s\" >NUL 2>&1" % [src, dst]
+		)
+	# Relaunch the updated binary
+	var args_str: String = " ".join(OS.get_cmdline_args())
+	lines.append(
+		"start \"\" \"%s\" %s" % [current_binary, args_str]
+	)
+	# Clean up the batch script itself
+	lines.append("del \"%~f0\"")
+
+	var f := FileAccess.open(bat_path, FileAccess.WRITE)
+	if f == null:
+		AppState.update_download_failed.emit(
+			"Failed to write update script (error %d)"
+			% FileAccess.get_open_error()
+		)
+		return
+	f.store_string("\r\n".join(lines) + "\r\n")
+	f.close()
+
+	# Launch the script hidden (no visible cmd window)
+	OS.create_process("cmd.exe", PackedStringArray(["/c", bat_path]))
 	get_tree().quit()
 
 
