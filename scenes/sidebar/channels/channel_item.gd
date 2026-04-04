@@ -25,6 +25,8 @@ var _drop_hovered: bool = false
 var _has_unread: bool = false
 var _is_active: bool = false
 var _is_rules_channel: bool = false
+var _long_press: LongPressDetector
+var _is_mobile: bool = OS.has_feature("mobile")
 
 @onready var type_icon: TextureRect = $HBox/TypeIcon
 @onready var channel_name: Label = $HBox/ChannelName
@@ -51,6 +53,7 @@ func _ready() -> void:
 	add_child(_context_menu)
 
 	gui_input.connect(_on_gui_input)
+	_long_press = LongPressDetector.new(self, _show_context_menu)
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
 	active_bg.visible = false
@@ -71,6 +74,8 @@ func setup(data: Dictionary) -> void:
 	space_id = data.get("space_id", "")
 	_channel_data = data
 	channel_name.text = data.get("name", "")
+	if _is_mobile:
+		custom_minimum_size.y = 44.0
 	tooltip_text = data.get("name", "")
 
 	# Locked channels are visible to admins in imposter mode but not interactive.
@@ -138,8 +143,8 @@ func setup(data: Dictionary) -> void:
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
-		_gear_btn.visible = false
-		_gear_btn.custom_minimum_size = Vector2(20, 20)
+		_gear_btn.visible = _is_mobile
+		_gear_btn.custom_minimum_size = Vector2(36, 36) if _is_mobile else Vector2(20, 20)
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		ThemeManager.style_label(_gear_btn, 14, "text_muted")
@@ -190,14 +195,14 @@ func _apply_icon_color() -> void:
 		type_icon.modulate = _icon_color_default
 
 func _on_mouse_entered() -> void:
-	if _gear_btn:
+	if _gear_btn and not _is_mobile:
 		_gear_btn.visible = true
 	if not _is_active and not _channel_data.get("nsfw", false) \
 			and not _is_rules_channel:
 		type_icon.modulate = _icon_color_hover
 
 func _on_mouse_exited() -> void:
-	if _gear_btn:
+	if _gear_btn and not _is_mobile:
 		_gear_btn.visible = false
 	_apply_icon_color()
 
