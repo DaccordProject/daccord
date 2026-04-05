@@ -15,7 +15,7 @@ env:
 jobs:
   lint:
     name: Lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,7 +48,7 @@ jobs:
   test:
     name: Unit Tests
     needs: lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     environment: default
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +163,7 @@ jobs:
   integration-test:
     name: Integration Tests
     needs: lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     environment: default
     steps:
       - uses: actions/checkout@v4
@@ -401,7 +401,7 @@ jobs:
   godotlite-validation:
     name: GodotLite Export Validation
     needs: lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     environment: default
     steps:
       - uses: actions/checkout@v4
@@ -569,7 +569,7 @@ jobs:
   web-export:
     name: Web Export & Chrome Smoke Test
     needs: lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     environment: default
     steps:
       - uses: actions/checkout@v4
@@ -768,7 +768,7 @@ jobs:
   windows-smoke-test:
     name: Windows Export & Smoke Test
     needs: lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     environment: default
     steps:
       - uses: actions/checkout@v4

@@ -51,7 +51,7 @@ This flow documents how daccord builds release artifacts via GitHub Actions and 
 
 ### Windows Installer
 
-29. After the build job completes, a separate `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 621).
+29. After the build job completes, a separate `windows-installer` job runs on `windows-2025` (line 621).
 30. The job downloads the `daccord-windows-x86_64` zip artifact from the build job and extracts it into `dist/build/windows/`.
 31. Inno Setup is installed via `choco install innosetup` (lines 645-648).
 32. The version is extracted from `project.godot` and passed to the Inno Setup compiler (`iscc`) which compiles `dist/installer.iss` into `daccord-windows-x86_64-setup.exe` (lines 650-652).
@@ -60,7 +60,7 @@ This flow documents how daccord builds release artifacts via GitHub Actions and 
 
 ### Release Creation
 
-35. After both the build and windows-installer jobs succeed, the release job runs on `blacksmith-4vcpu-ubuntu-2404` (line 676) and downloads all artifacts.
+35. After both the build and windows-installer jobs succeed, the release job runs on `ubuntu-24.04` (line 676) and downloads all artifacts.
 36. The job extracts changelog notes for the tagged version from `CHANGELOG.md` using `awk`.
 37. If no matching changelog section is found, the release body falls back to `"Release <tag>"`.
 38. A GitHub Release is created via `softprops/action-gh-release@v2` with the tag name as the release title, changelog as the body, and all platform artifacts attached (including the Windows installer, macOS DMGs, Web zip, and Android APK).
@@ -154,7 +154,7 @@ build job (matrix: linux, linux-arm64, windows, macos, android, web — needs: c
   -> [macOS] Create two DMGs (arm64 + x86_64) with Applications symlink (hdiutil create)
   -> actions/upload-artifact@v4
 
-windows-installer job (needs: build, runs-on: blacksmith-4vcpu-windows-2025):
+windows-installer job (needs: build, runs-on: windows-2025):
   -> actions/checkout@v4
   -> actions/download-artifact@v4 (daccord-windows-x86_64)
   -> Expand-Archive into dist/build/windows/
@@ -167,7 +167,7 @@ windows-installer job (needs: build, runs-on: blacksmith-4vcpu-windows-2025):
   -> [conditional] Sign installer with signtool (if WINDOWS_CERT_BASE64 secret)
   -> actions/upload-artifact@v4
 
-release job (needs: [build, windows-installer], runs-on: blacksmith-4vcpu-ubuntu-2404):
+release job (needs: [build, windows-installer], runs-on: ubuntu-24.04):
   -> actions/checkout@v4
   -> actions/download-artifact@v4 (pattern: daccord-*, merge-multiple: true)
   -> Extract changelog section for version via awk
@@ -183,7 +183,7 @@ release job (needs: [build, windows-installer], runs-on: blacksmith-4vcpu-ubuntu
 | File | Role |
 |------|------|
 | `.github/workflows/release.yml` | Release CI pipeline. Calls CI as reusable workflow, installs GUT/Sentry/audio libs/godot-livekit, validates version tag, downloads GodotLite templates, stashes/injects macOS LiveKit dylibs, builds all 6 platforms in parallel, bundles web JS dependencies, clears missing custom templates, packages with .desktop files and DMGs, optionally signs/notarizes, creates GitHub Release. |
-| `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests + web export smoke test + GodotLite validation). Runs on push to `master`, PR to `master`, and as reusable `workflow_call`. Five jobs on `blacksmith-4vcpu-ubuntu-2404` runners. |
+| `.github/workflows/ci.yml` | CI pipeline (lint + unit tests + integration tests + web export smoke test + GodotLite validation). Runs on push to `master`, PR to `master`, and as reusable `workflow_call`. Five jobs on `ubuntu-24.04` runners. |
 | `export_presets.cfg` | Godot export presets for Linux x86_64 (preset.0), Windows (preset.1), macOS (preset.2), Linux ARM64 (preset.3), Android (preset.4), Web (preset.5). Defines output paths, architectures, custom templates, and platform-specific options. |
 | `project.godot` | Project config. Declares version (`config/version="0.1.12"`, line 18), Sentry DSN (`sentry/config/dsn`), renderer (GL Compatibility), and autoloads. |
 | `CHANGELOG.md` | Keep a Changelog format. The release job extracts notes for the tagged version from this file. Latest release: `[0.1.12] - 2026-03-14`. |
@@ -302,11 +302,11 @@ If missing, the entire `.gdextension` file (and its `.uid`) is removed.
 
 ### Windows Installer Job
 
-The `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 621) after the build job completes.
+The `windows-installer` job runs on `windows-2025` (line 621) after the build job completes.
 
 **Why a separate job:** Inno Setup is a Windows-only tool. The Windows build itself cross-compiles on `ubuntu-latest` via Godot's export templates. Rather than running Inno Setup through Wine (which is fragile), a dedicated Windows runner provides native, reliable installer compilation.
 
-**Inno Setup installation** (lines 645-648): Inno Setup is installed via `choco install innosetup` since it is not pre-installed on the Blacksmith Windows runner.
+**Inno Setup installation** (lines 645-648): Inno Setup is installed via `choco install innosetup` since it is not pre-installed on the GitHub-hosted Windows runner.
 
 **Artifact flow:** The job downloads the `daccord-windows-x86_64` artifact (the zip from the build job), extracts it into `dist/build/windows/`, then runs `iscc` against `dist/installer.iss`. The script's `[Files]` section reads from `build\windows\*` relative to the `dist/` directory.
 
@@ -327,7 +327,7 @@ The `windows-installer` job runs on `blacksmith-4vcpu-windows-2025` (line 621) a
 
 ### Release Job
 
-The release job depends on both `build` and `windows-installer` (`needs: [build, windows-installer]`, line 675). Runs on `blacksmith-4vcpu-ubuntu-2404` (line 676).
+The release job depends on both `build` and `windows-installer` (`needs: [build, windows-installer]`, line 675). Runs on `ubuntu-24.04` (line 676).
 
 **Artifact download**: Uses `pattern: daccord-*` and `merge-multiple: true` to merge all platform artifacts (including the Windows installer, macOS DMGs, Web zip, and Android APK) into a single `artifacts/` directory.
 
@@ -403,7 +403,7 @@ All desktop presets reference GodotLite custom templates from `dist/templates/` 
 
 ### CI Workflow (`.github/workflows/ci.yml`)
 
-The CI workflow runs on push to `master`, PR to `master`, and as a reusable `workflow_call` (lines 3-8). It has five jobs, all on `blacksmith-4vcpu-ubuntu-2404` runners:
+The CI workflow runs on push to `master`, PR to `master`, and as a reusable `workflow_call` (lines 3-8). It has five jobs, all on `ubuntu-24.04` runners:
 
 - **Lint job** (line 17): Installs `gdtoolkit` via pip, runs `gdlint scripts/ scenes/`. Also runs `gdradon` complexity analysis and flags functions with grades C-F.
 - **Unit test job** (line 49, needs lint): Installs godot-livekit, audio libraries, GUT and Sentry SDK (with caching), sets up Godot (without templates), validates project startup, caches Godot imports, runs GUT unit tests from `tests/unit/`. Also runs LiveKit tests with `continue-on-error` (may crash without audio hardware). Outputs test summaries to GitHub Step Summary.
@@ -513,13 +513,13 @@ After signing/notarization, two DMG disk images are created (lines 590-607):
 - [x] `dist/icons/` and `dist/daccord.desktop` tracked in git
 - [x] ARM64 Linux build in matrix
 - [x] Windows build (LiveKit types resolved dynamically; voice/video disabled without `.dll`)
-- [x] Windows installer via Inno Setup (`dist/installer.iss`, built on `blacksmith-4vcpu-windows-2025`)
+- [x] Windows installer via Inno Setup (`dist/installer.iss`, built on `windows-2025`)
 - [x] Windows installer with `daccord://` URL protocol registration
 - [x] Windows installer code signing step (conditional on `WINDOWS_CERT_BASE64` secret, uses native `signtool`)
 - [x] macOS build with LiveKit dylib stash/inject workflow
 - [x] Android build with Java/SDK/NDK setup, SDK caching, and keystore management
 - [x] Android keystore via `GODOT_ANDROID_KEYSTORE_*` env vars (Godot 4.3+ native support)
-- [x] Blacksmith runners for Windows installer and release jobs
+- [x] GitHub-hosted runners for Windows installer and release jobs
 - [x] Web export preset with custom HTML shell and JS dependency bundling
 - [ ] GodotLite templates for Linux ARM64, Android, and Web (no GodotLite builds available — stock fallback used)
 - [ ] Android min/target SDK versions (export_presets.cfg lines 450-451 are empty, using Godot defaults)
