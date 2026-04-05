@@ -21,6 +21,8 @@ var _drop_above: bool = false
 var _drop_hovered: bool = false
 var _drop_channel_hover: bool = false
 var _drop_style: StyleBoxFlat
+var _long_press: LongPressDetector
+var _is_mobile: bool = OS.has_feature("mobile")
 
 @onready var header: Button = $Header
 @onready var chevron: TextureRect = $Header/HBox/Chevron
@@ -54,6 +56,7 @@ func _ready() -> void:
 	add_child(_context_menu)
 
 	header.gui_input.connect(_on_header_gui_input)
+	_long_press = LongPressDetector.new(header, _show_context_menu)
 	header.mouse_entered.connect(_on_header_mouse_entered)
 	header.mouse_exited.connect(_on_header_mouse_exited)
 	AppState.channel_mutes_updated.connect(_on_mutes_updated)
@@ -100,8 +103,8 @@ func setup(data: Dictionary, child_channels: Array) -> void:
 	if space_id != "" and Client.has_permission(space_id, AccordPermission.MANAGE_CHANNELS):
 		_plus_btn = Button.new()
 		_plus_btn.flat = true
-		_plus_btn.visible = false
-		_plus_btn.custom_minimum_size = Vector2(16, 16)
+		_plus_btn.visible = _is_mobile
+		_plus_btn.custom_minimum_size = Vector2(36, 36) if _is_mobile else Vector2(16, 16)
 		_plus_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_plus_btn.icon = PLUS_ICON
 		_plus_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -148,11 +151,11 @@ func get_channel_items() -> Array:
 	return items
 
 func _on_header_mouse_entered() -> void:
-	if _plus_btn:
+	if _plus_btn and not _is_mobile:
 		_plus_btn.visible = true
 
 func _on_header_mouse_exited() -> void:
-	if _plus_btn:
+	if _plus_btn and not _is_mobile:
 		_plus_btn.visible = false
 
 func _on_header_gui_input(event: InputEvent) -> void:

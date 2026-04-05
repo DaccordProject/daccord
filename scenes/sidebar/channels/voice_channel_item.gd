@@ -22,6 +22,8 @@ var _has_unread: bool = false
 var _drop_above: bool = false
 var _drop_hovered: bool = false
 var _participant_avatars: Dictionary = {} # user_id -> Avatar node ref
+var _long_press: LongPressDetector
+var _is_mobile: bool = OS.has_feature("mobile")
 
 @onready var channel_button: Button = $ChannelButton
 @onready var type_icon: TextureRect = $ChannelButton/HBox/TypeIcon
@@ -66,6 +68,7 @@ func _ready() -> void:
 
 	add_to_group("themed")
 	channel_button.gui_input.connect(_on_gui_input)
+	_long_press = LongPressDetector.new(channel_button, _show_context_menu)
 	channel_button.mouse_entered.connect(_on_mouse_entered)
 	channel_button.mouse_exited.connect(_on_mouse_exited)
 	AppState.channel_mutes_updated.connect(_on_mutes_updated)
@@ -99,8 +102,8 @@ func setup(data: Dictionary) -> void:
 	_chat_btn = Button.new()
 	_chat_btn.icon = CHAT_ICON
 	_chat_btn.flat = true
-	_chat_btn.visible = false
-	_chat_btn.custom_minimum_size = Vector2(20, 20)
+	_chat_btn.visible = _is_mobile
+	_chat_btn.custom_minimum_size = Vector2(36, 36) if _is_mobile else Vector2(20, 20)
 	_chat_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_chat_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 	_chat_btn.add_theme_color_override("icon_normal_color", ThemeManager.get_color("text_muted"))
@@ -114,8 +117,8 @@ func setup(data: Dictionary) -> void:
 		_gear_btn = Button.new()
 		_gear_btn.text = "\u2699"
 		_gear_btn.flat = true
-		_gear_btn.visible = false
-		_gear_btn.custom_minimum_size = Vector2(20, 20)
+		_gear_btn.visible = _is_mobile
+		_gear_btn.custom_minimum_size = Vector2(36, 36) if _is_mobile else Vector2(20, 20)
 		_gear_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_gear_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		ThemeManager.style_label(_gear_btn, 14, "text_muted")
@@ -169,7 +172,7 @@ func _refresh_participants() -> void:
 	for vs in voice_users:
 		var user: Dictionary = vs.get("user", {})
 		var row := HBoxContainer.new()
-		row.custom_minimum_size = Vector2(0, 24)
+		row.custom_minimum_size = Vector2(0, 36) if _is_mobile else Vector2(0, 24)
 
 		# Indent spacer
 		var spacer := Control.new()
@@ -287,18 +290,18 @@ func _on_chat_pressed() -> void:
 	AppState.toggle_voice_text(channel_id)
 
 func _on_mouse_entered() -> void:
-	if _chat_btn:
+	if _chat_btn and not _is_mobile:
 		_chat_btn.visible = true
-	if _gear_btn:
+	if _gear_btn and not _is_mobile:
 		_gear_btn.visible = true
 	if AppState.voice_channel_id != channel_id:
 		type_icon.modulate = ThemeManager.get_color("icon_hover")
 	channel_name.add_theme_color_override("font_color", ThemeManager.get_color("text_white"))
 
 func _on_mouse_exited() -> void:
-	if _chat_btn:
+	if _chat_btn and not _is_mobile:
 		_chat_btn.visible = false
-	if _gear_btn:
+	if _gear_btn and not _is_mobile:
 		_gear_btn.visible = false
 	if AppState.voice_channel_id != channel_id:
 		type_icon.modulate = ThemeManager.get_color("icon_default")
