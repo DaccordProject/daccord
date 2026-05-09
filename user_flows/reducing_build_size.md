@@ -284,17 +284,13 @@ Stock template comparison (~85MB for Linux), so the custom template provides a ~
 - [x] Pre-built templates available via [GodotLite](https://github.com/NodotProject/GodotLite) for all three platforms
 - [x] `custom.py` build flags maintained in GodotLite repo
 - [x] `build.sh` build script maintained in GodotLite repo
-- [ ] `custom.build` profile generated via Godot's Engine Compilation Configuration Editor
 - [x] Custom export templates for Linux (via GodotLite release)
 - [x] Custom export templates for Windows (via GodotLite release)
 - [x] Custom export templates for macOS (via GodotLite release)
 - [x] `export_presets.cfg` updated to reference custom templates
 - [x] `dist/templates/` directory created and git-lfs tracked
 - [x] CI release workflow updated (Godot version `4.6` -> `4.5`)
-- [ ] UPX post-processing added to CI for Windows/Linux
 - [x] Build size measured (Linux: 30MB template, 75MB total export)
-- [ ] `disable_advanced_gui` confirmed as unsafe (RichTextLabel dependency)
-- [ ] Selective module list validated against actual imports
 
 ## Tasks
 
@@ -312,30 +308,3 @@ Stock template comparison (~85MB for Linux), so the custom template provides a ~
 - **Tags:** ci
 - **Notes:** — `release.yml` updated to `GODOT_VERSION: "4.5.0"`.
 
-### BUILD-3: Module list not validated
-- **Status:** open
-- **Impact:** 3
-- **Effort:** 3
-- **Tags:** ci, testing
-- **Notes:** The selective module list is a best guess. Need to export with `modules_enabled_by_default="no"` and test that the app runs correctly, adding back any missing modules.
-
-### BUILD-4: No post-export compression
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 2
-- **Tags:** ci
-- **Notes:** UPX could further reduce Windows/Linux binaries but has trade-offs (RAM, antivirus). Consider for optional/advanced builds.
-
-### BUILD-5: No web export
-- **Status:** open
-- **Impact:** 2
-- **Effort:** 2
-- **Tags:** ci
-- **Notes:** Web-specific optimizations (wasm-opt, Brotli) are documented for future reference but not actionable today.
-
-### BUILD-6: LiveKit native binary
-- **Status:** open
-- **Impact:** 3
-- **Effort:** 3
-- **Tags:** ci, voice
-- **Notes:** `addons/livekit/` includes a GDExtension native binary (`.so`/`.dll`/`.dylib`) at 28MB that ships alongside the Godot export. Its size is separate from the export template and may need its own optimization (strip symbols, LTO in Rust/C++ build).

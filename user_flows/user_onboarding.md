@@ -262,13 +262,6 @@ The welcome screen (`welcome_screen.gd`) layers three visual elements:
 - **Tags:** general
 - **Notes:** ** Welcome screen now shows animated shader background, floating particles, branding, feature cards, and "Add a Server" CTA. Dismissed automatically when first server connects.
 
-### ONBOARD-2: No connection progress during startup
-- **Status:** removed
-- **Impact:** 3
-- **Effort:** 3
-- **Tags:** general
-- **Notes:** Connecting overlay removed. Space icon indicators in the guild bar now show per-server connection status instead of blocking the UI with an overlay.
-
 ### ONBOARD-3: No main window empty state
 - **Status:** done
 - **Impact:** 3

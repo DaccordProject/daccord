@@ -1,6 +1,6 @@
 # User Configuration
 
-Last touched: 2026-03-17
+Last touched: 2026-03-28
 Priority: 27
 Depends on: User Management
 
@@ -150,6 +150,38 @@ Mode stays CONNECTING              v
 ```
 
 ```
+=== PROFILE LOCK-ON-IDLE ===
+
+Client._check_idle() fires every 10s
+    |
+    v
+idle_secs = now - _last_input_time
+    |
+    v
+[idle_secs >= timeout?] --yes--> set _is_auto_idle, update_presence(IDLE)
+    |
+    v
+[idle_secs >= timeout * 2 AND active profile has password AND not already locked?]
+    |
+    yes --> _profile_locked = true
+    |       AppState.profile_lock_requested.emit()
+    |           |
+    |           v
+    |       main_window._on_profile_lock_requested()
+    |           |
+    |           v
+    |       ProfilePasswordDialog shown (modal)
+    |           |
+    |           v
+    |       User enters correct password
+    |           |
+    |           v
+    |       Client._profile_locked = false
+    |
+    no --> (no action)
+```
+
+```
 === PROFILE SWITCH ===
 
 User clicks target profile in Settings > Profiles
@@ -221,8 +253,10 @@ Client._on_profile_switched()
 | `scenes/sidebar/guild_bar/guild_icon.gd` | Reads/writes space folder assignment |
 | `scenes/sidebar/guild_bar/add_server_dialog.gd` | Adds server entries to Config |
 | `scenes/sidebar/guild_bar/auth_dialog.gd` | Authentication dialog; accepts optional username pre-fill for re-auth flows |
+| `scripts/client/client_emoji.gd` | Custom emoji download, disk caching, LRU eviction (`_evict_cache_if_needed()`, max 500 files) |
+| `scripts/autoload/single_instance.gd` | Multi-instance guard: lockfile, heartbeat, PID check, URI forwarding |
 | `scenes/messages/composer/emoji_picker.gd` | Reads/writes recently used emoji |
-| `scenes/main/main_window.gd` | Error reporting consent dialog on first launch |
+| `scenes/main/main_window.gd` | Error reporting consent dialog on first launch; profile lock-on-idle dialog |
 
 ## Implementation Details
 
@@ -303,7 +337,11 @@ Sections and keys within each profile's `config.cfg`:
 
 On startup, Config resolves the active profile's path from the registry, then attempts `load_encrypted_pass()` with a derived key. If that fails, it falls back to a plaintext `load()` -- this supports first-run (no file) and migration from unencrypted configs. If the plaintext load succeeds, the file is immediately re-saved encrypted. If both fail, the corrupted file is backed up and `_config` starts fresh.
 
-The encryption key is now the static salt `"daccord-config-v1"` (`_derive_key()`, line 244). The previous key derivation appended `OS.get_user_data_dir()`, which broke on project renames and Godot upgrades. That old key is listed in `_legacy_keys()` (line 249) so existing configs encrypted with it are automatically migrated on load.
+The encryption key is now the static salt `"daccord-config-v1"` (`_derive_key()`, line 257). The previous key derivation appended `OS.get_user_data_dir()`, which broke on project renames and Godot upgrades. That old key is listed in `_legacy_keys()` (line 262) so existing configs encrypted with it are automatically migrated on load.
+
+### Deferred save
+
+`_save()` does not write to disk immediately. Instead, it sets a `_save_pending` flag and schedules `_flush_save()` via `call_deferred()`. Multiple setters called within the same engine frame batch into a single `save_encrypted_pass()` call. A `_notification()` handler catches `NOTIFICATION_WM_CLOSE_REQUEST` and `NOTIFICATION_EXIT_TREE` to flush any pending save before the process exits.
 
 ### Profile path resolution
 
@@ -355,7 +393,7 @@ Voice/video configuration is delegated to `Config.voice` (`config_voice.gd`). Th
 
 Additional voice settings include input sensitivity (0-100, mapped logarithmically to a speaking threshold via `get_speaking_threshold()`, line 130), input volume (0-200), output volume (0-200), and debug logging toggle.
 
-Video resolution offers three hardcoded presets: 480p (index 0), 720p (index 1), 1080p (index 2). FPS choices are 15, 30, and 60.
+Video resolution and FPS options are defined as constants in `config_voice.gd`: `RESOLUTION_LABELS` (`["480p", "720p", "1080p"]`), `RESOLUTION_HEIGHTS` (`[480, 720, 1080]`), and `FPS_OPTIONS` (`[15, 30, 60]`). The settings UI reads these constants to populate dropdowns. `get_video_resolution_height()` converts a preset index to the actual pixel height.
 
 ### Sound settings (user_settings.gd -- Sound page)
 
@@ -368,6 +406,8 @@ The Sound page (page 3) in User Settings lists sound events with per-event check
 ### Custom emoji cache
 
 Custom space emoji are downloaded and cached as PNG files in `user://profiles/<slug>/emoji_cache/<emoji_id>.png` (per-profile). This is a write-once disk cache -- emoji are checked on disk before downloading. Each profile has its own emoji cache directory so switching profiles and connecting to different servers won't have stale emoji from other profiles' servers.
+
+After each download, `ClientEmoji._evict_cache_if_needed()` checks the file count against `EMOJI_CACHE_MAX_FILES` (500). If exceeded, the oldest files (by modification time) are deleted until the count is within the cap.
 
 ### Notification preferences
 
@@ -402,7 +442,15 @@ Profile slugs are derived from the display name: lowercased, spaces replaced wit
 
 ### Command-line profile selection
 
-Daccord accepts a `--profile <slug>` command-line argument (`config.gd` lines 50-55) that overrides the registry's `active` field for that session. The override is stored in `_cli_profile_override` and used during `_ready()` (line 60-61) to select the profile slug instead of reading from the registry. When a CLI override is active, `Config.profiles.switch()` skips updating the registry's `active` key (`config_profiles.gd` line 105-106), so the next normal launch still uses the previously active profile. This is useful for launching multiple instances with different profiles.
+Daccord accepts a `--profile <slug>` command-line argument (`config.gd` lines 62-67) that overrides the registry's `active` field for that session. The override is stored in `_cli_profile_override` and used during `_ready()` (line 71-72) to select the profile slug instead of reading from the registry. When a CLI override is active, `Config.profiles.switch()` skips updating the registry's `active` key (`config_profiles.gd` line 105-106), so the next normal launch still uses the previously active profile. This is useful for launching multiple instances with different profiles.
+
+### Profile lock-on-idle
+
+Password-protected profiles automatically re-lock after extended inactivity. `Client._check_idle()` tracks `_last_input_time` (reset on every `_input()` event). When idle time exceeds 2× the configured idle timeout and `Config.profiles.active_has_password()` is true, it sets `_profile_locked = true` and emits `AppState.profile_lock_requested`. `main_window.gd` responds by showing the `ProfilePasswordDialog`. On successful password entry, `_profile_locked` is reset to `false`. The 2× multiplier ensures the status goes idle first (at 1× timeout), then the profile locks (at 2×), giving the user a visual cue before lock.
+
+### Multi-instance guard
+
+`single_instance.gd` (autoload) prevents multiple instances from running simultaneously. On startup, `_another_instance_running()` checks for `user://daccord.lock`. The check uses two signals: file freshness (modification time within 5 seconds, maintained by a 2-second heartbeat timer) and PID liveness (`kill -0` on Linux/macOS, `tasklist /FI` on Windows). If another instance is detected, any `--uri` CLI argument is written to `user://daccord.uri` for IPC; otherwise an alert dialog is shown. On exit, the lock file is removed.
 
 ## Local Data Summary
 
@@ -491,6 +539,11 @@ Legacy paths (pre-profile migration):
 - [x] Encryption key simplified to static salt (legacy key migration on load)
 - [x] Constant-time password comparison
 - [x] `wipe_active_profile()` for account deletion cleanup
+- [x] Deferred/batched config save (`_save()` sets dirty flag, `_flush_save()` runs on next idle frame via `call_deferred`; flush on app exit via `_notification`)
+- [x] Emoji cache eviction (LRU, max 500 files per profile; `ClientEmoji._evict_cache_if_needed()` after each download)
+- [x] Video resolution/FPS presets as data-driven constants (`config_voice.gd` `RESOLUTION_LABELS`, `RESOLUTION_HEIGHTS`, `FPS_OPTIONS`)
+- [x] Profile lock-on-idle (password-protected profiles re-lock after 2× idle timeout; `AppState.profile_lock_requested` signal; `main_window.gd` shows password dialog)
+- [x] Multi-instance guard (`single_instance.gd` lockfile + heartbeat + PID check + IPC URI forwarding)
 
 ## Tasks
 
@@ -502,11 +555,11 @@ Legacy paths (pre-profile migration):
 - **Notes:** Resolved. `_derive_key()` now returns the static salt `"daccord-config-v1"`. The old directory-dependent key is in `_legacy_keys()` for migration. Existing configs are automatically re-encrypted with the new key on load.
 
 ### USRCFG-2: No emoji cache eviction
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** emoji, performance
-- **Notes:** Per-profile `emoji_cache/` directories grow unboundedly as custom emoji are encountered. No max-size or LRU eviction is implemented.
+- **Notes:** Resolved. `ClientEmoji._evict_cache_if_needed()` runs after each download and evicts oldest files when the cache exceeds `EMOJI_CACHE_MAX_FILES` (500). Uses file modification time for LRU ordering.
 
 ### USRCFG-3: Emoji cache duplication across profiles
 - **Status:** open
@@ -516,18 +569,18 @@ Legacy paths (pre-profile migration):
 - **Notes:** Profiles connecting to the same server will each download and store the same custom emoji. A shared cache with refcounting would save disk space but adds complexity. Not worth it unless storage becomes a concern.
 
 ### USRCFG-4: Video resolution presets are hardcoded
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** video, voice
-- **Notes:** Resolution options (480p, 720p, 1080p) and FPS options (15, 30, 60) are defined as literals rather than being data-driven or coming from LiveKit capabilities.
+- **Notes:** Resolved. Resolution and FPS options are now constants in `config_voice.gd` (`RESOLUTION_LABELS`, `RESOLUTION_HEIGHTS`, `FPS_OPTIONS`). `app_settings.gd` reads from these constants instead of hardcoding labels and values. Added `get_video_resolution_height()` helper to convert preset index to pixel height.
 
 ### USRCFG-5: `save()` called on every individual setter
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** api, audio, ci, config, security
-- **Notes:** Each `Config.set_*()` calls `save_encrypted_pass()` immediately. Rapid successive changes (e.g., applying all sound settings) trigger multiple disk writes. A deferred/batched save would be more efficient.
+- **Notes:** Resolved. `_save()` now sets a `_save_pending` flag and schedules `_flush_save()` via `call_deferred()`. Multiple rapid setters within the same frame batch into a single `save_encrypted_pass()` call. A `_notification` handler flushes any pending save on app exit to prevent data loss.
 
 ### USRCFG-6: SHA-256 is fast to brute-force
 - **Status:** done
@@ -537,15 +590,15 @@ Legacy paths (pre-profile migration):
 - **Notes:** Resolved. Now uses PBKDF2-HMAC-SHA256 with 10,000 iterations and random per-profile salts. Legacy SHA-256 hashes are auto-upgraded on successful verification. Profile passwords remain a convenience lock (local filesystem is the trust boundary), but are no longer trivially brute-forceable.
 
 ### USRCFG-7: No profile lock-on-idle
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 2
 - **Tags:** security
-- **Notes:** Once a password-protected profile is unlocked, it stays unlocked for the session. No idle timeout that re-locks the profile.
+- **Notes:** Resolved. When a password-protected profile is idle for 2× the idle timeout, `Client._check_idle()` sets `_profile_locked = true` and emits `AppState.profile_lock_requested`. `main_window.gd` shows the profile password dialog; on successful unlock, `_profile_locked` is reset. Any user input resets the idle timer, preventing re-lock during active use.
 
 ### USRCFG-8: No multi-instance guard
-- **Status:** open
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** config, gateway
-- **Notes:** Two daccord instances could run with the same profile simultaneously, causing config write conflicts. A lockfile would prevent this but isn't planned for v1.
+- **Notes:** Resolved. `single_instance.gd` (autoload) writes a PID lockfile at `user://daccord.lock` with a 2-second heartbeat. On startup, `_another_instance_running()` checks file freshness (5s stale threshold) and PID liveness (cross-platform). If another instance is running, any `--uri` argument is forwarded via an IPC file; otherwise an alert is shown and the app quits.

@@ -1,19 +1,19 @@
 # Godot-LiveKit
 
-Last touched: 2026-03-17 (updated tasks: LIVEKIT-2/5/8/9 resolved, corrected line numbers, added new features)
+Last touched: 2026-03-28 (Android arm64 support, LiveKitPoller/ZombieThreadPool infra, connection_failed signal, corrected file paths and line numbers, 13 unit tests)
 Priority: 25
 Depends on: None
 
 ## Overview
 
-Godot-LiveKit is a GDExtension addon that wraps the [LiveKit C++ SDK](https://github.com/livekit/client-sdk-cpp) for real-time voice, video, and data streaming within Godot 4.5. It is developed in a separate repository (`godot-livekit`) and its compiled binaries are vendored into daccord at `addons/godot-livekit/`. The extension exposes 15+ native classes to GDScript, and daccord wraps them via `LiveKitAdapter` (a GDScript adapter) to bridge room-based media into the signal surface that `Client` and `ClientVoice` expect.
+Godot-LiveKit is a GDExtension addon that wraps the [LiveKit C++ SDK](https://github.com/livekit/client-sdk-cpp) for real-time voice, video, and data streaming within Godot 4.5. It is developed in a separate repository (`godot-livekit`) and its compiled binaries are vendored into daccord at `addons/godot-livekit/`. The extension exposes 15+ native classes to GDScript across 4 platforms (Linux x86_64, Windows x86_64, macOS universal, Android arm64), and daccord wraps them via `LiveKitAdapter` (a GDScript adapter) to bridge room-based media into the signal surface that `Client` and `ClientVoice` expect.
 
 ## User Steps
 
 From a developer's perspective (building and integrating):
 
 1. Clone the `godot-livekit` repository
-2. Run `./build.sh linux|macos|windows` to compile the GDExtension
+2. Run `./build.sh linux|macos|windows|android` to compile the GDExtension
 3. Copy the resulting `addons/godot-livekit/` folder into the daccord project's `addons/` directory
 4. Godot auto-detects the `.gdextension` file and registers all LiveKit classes at scene initialization
 5. `LiveKitAdapter` (daccord's GDScript wrapper) creates `LiveKitRoom` instances and manages the connection lifecycle
@@ -59,10 +59,10 @@ LiveKitRoom                                      |                              
          |                                       |-- track_received ----------------> on_track_received()
          |                                       |                                    |-- remote_track_received
          |                                       |                                    |
-         | (per frame, in _process)              |                                    |
-         |                                       | _room.poll_events()               |
-         |                                       |   (drain C++ callbacks to main    |
-         |                                       |    thread)                        |
+         | (per frame, via LiveKitPoller)         |                                    |
+         |                                       | LiveKitPoller auto-polls room     |
+         |                                       |   (drains C++ callbacks to main   |
+         |                                       |    thread via frame callback)     |
          |                                       | poll remote video streams          |
          |                                       | poll remote audio into playback    |
          |                                       | compute audio levels               |
@@ -84,13 +84,13 @@ LiveKitRoom                                      |                              
 |------|------|
 | `addons/godot-livekit/godot-livekit.gdextension` | GDExtension manifest: entry symbol, platform library paths, native dependencies |
 | `addons/godot-livekit/bin/` | Prebuilt platform binaries (Linux `.so`, Windows `.dll`, macOS `.dylib`) + LiveKit FFI shared libraries |
-| `scripts/autoload/livekit_adapter.gd` | GDScript adapter wrapping `LiveKitRoom`: room lifecycle, local audio/video/screen publishing, remote audio playback, mic capture, audio level detection, plugin data channels, camera hot-swap |
-| `scripts/autoload/client_voice.gd` | `ClientVoice` helper: wires LiveKitAdapter signals to AppState, manages voice join/leave/mute/deafen, auto-reconnect, camera republish on config change |
-| `scripts/autoload/client.gd` | Creates `LiveKitAdapter` in `_ready()` (line 199), connects session signals (lines 201-218), speaking debounce timer (lines 224-228) |
+| `scripts/voice/livekit_adapter.gd` | GDScript adapter wrapping `LiveKitRoom` (719 lines): room lifecycle, local audio/video/screen publishing, remote audio playback, mic capture, audio level detection, plugin data channels, camera hot-swap, `LocalVideoPreview` inner class |
+| `scripts/client/client_voice.gd` | `ClientVoice` helper (530 lines): wires LiveKitAdapter signals to AppState, manages voice join/leave/mute/deafen, auto-reconnect, camera republish on config change, voice debug logging |
+| `scripts/autoload/client.gd` | Creates `LiveKitAdapter` in `_ready()` (line 203), connects 6 session signals (lines 208-225), web platform detection loads `WebVoiceSession` instead (line 197) |
 | `scenes/video/video_tile.gd` | Renders `LiveKitVideoStream` textures in video tiles, speaking border indicator |
 | `scenes/video/video_grid.gd` | Grid layout for local/remote video tiles, rebuilds on track add/remove |
-| `scripts/autoload/config_voice.gd` | Persists voice/video device preferences (input/output device, resolution, FPS), applies device routing via `AudioServer.input_device`/`output_device` |
-| `tests/livekit/unit/test_livekit_adapter.gd` | Unit tests for LiveKitAdapter (state machine, mute/deafen, signals, disconnect). No server needed. |
+| `scripts/config/config_voice.gd` | Persists voice/video device preferences (input/output device, video device, resolution, FPS), applies device routing via `AudioServer.input_device`/`output_device`, logarithmic speaking threshold |
+| `tests/livekit/unit/test_livekit_adapter.gd` | 13 unit tests for LiveKitAdapter (state machine, mute/deafen, signals, disconnect, screen capture preservation). No server needed. |
 | `tests/accordkit/e2e/test_voice_auth_handshake.gd` | E2E tests for voice auth handshake: REST join/leave, LiveKit credential validation, mute/deaf flags. Requires server with `ACCORD_TEST_MODE=true`. |
 | `tests/accordkit/helpers/test_base.gd` | `AccordTestBase`: test harness with seed data and `ACCORD_TEST_URL` env var override (line 26) |
 
@@ -108,8 +108,11 @@ LiveKitRoom                                      |                              
 | `src/livekit_video_source.h/cpp` | `LiveKitVideoSource`: capture video frames (Godot `Image`) into LiveKit |
 | `src/livekit_video_stream.h/cpp` | `LiveKitVideoStream`: receives remote video via background reader thread, provides `ImageTexture` via `poll()` |
 | `src/livekit_e2ee.h/cpp` | `LiveKitE2eeOptions`, `LiveKitKeyProvider`, `LiveKitFrameCryptor`, `LiveKitE2eeManager` (conditional compile) |
-| `build.sh` | Build script: fetches LiveKit C++ SDK + godot-cpp prebuilts, compiles with SCons |
-| `SConstruct` | SCons build configuration for the GDExtension |
+| `src/livekit_poller.h/cpp` | `LiveKitPoller` singleton: auto-polls rooms, video streams, and screen captures once per frame via registered frame callback |
+| `src/detachable_thread.h` | `DetachableThread`: move-only thread wrapper with `join_or_detach()` for safe cleanup via `ZombieThreadPool` |
+| `src/thread_pool.h` | `ZombieThreadPool` singleton: collects detached threads and joins them at shutdown (3s timeout) |
+| `build.sh` | Build script: fetches LiveKit C++ SDK + godot-cpp prebuilts, compiles with SCons. Supports `linux`, `macos`, `windows`, `android` |
+| `SConstruct` | SCons build configuration for the GDExtension. E2EE on by default, screen capture off for Android |
 
 ## Implementation Details
 
@@ -117,7 +120,7 @@ LiveKitRoom                                      |                              
 
 The addon is a native C++ GDExtension, compiled against `godot-cpp` (Godot's C++ binding layer). It wraps the [LiveKit C++ SDK](https://github.com/livekit/client-sdk-cpp) (version 0.3.2) which handles all WebRTC internals (SDP negotiation, ICE, DTLS, SRTP).
 
-**Class registration** (`register_types.cpp`): On `MODULE_INITIALIZATION_LEVEL_SCENE`, the extension calls `livekit::initialize()` and registers all classes with `ClassDB`. On shutdown, it calls `livekit::shutdown()`.
+**Class registration** (`register_types.cpp`): On `MODULE_INITIALIZATION_LEVEL_SCENE`, the extension calls `livekit::initialize()`, registers a frame callback for `LiveKitPoller::instance().poll_all()`, and registers all classes with `ClassDB`. On shutdown, `ZombieThreadPool` drains with a 3s timeout before `livekit::shutdown()`.
 
 **Registered classes** (16 core + 4 E2EE):
 - Room: `LiveKitRoom`
@@ -136,16 +139,16 @@ The central class. Wraps `livekit::Room` and uses a `GodotRoomDelegate` (inner c
 **Connection states** (enum `ConnectionState`):
 - `STATE_DISCONNECTED = 0`, `STATE_CONNECTED = 1`, `STATE_RECONNECTING = 2`
 
-**Threading model**: `connect_to_room()` runs connection in a background `std::thread` (line 82-83, `connect_thread_`, `connecting_async_`), then finalizes on the main thread via `_finalize_connection()`. The adapter calls `poll_events()` every frame in `_process()` (line 172) to drain the thread-safe event queue, executing C++ callbacks (connection results, participant joins/leaves, track subscriptions) on the main thread.
+**Threading model**: `connect_to_room()` runs connection in a background `DetachableThread` (line 88-91, `connect_thread_`, `connecting_async_`), then finalizes on the main thread via `_finalize_connection()`. `LiveKitPoller` auto-polls rooms every frame via a registered frame callback, draining the thread-safe event queue and executing C++ callbacks (connection results, participant joins/leaves, track subscriptions) on the main thread. `DetachableThread` instances use `join_or_detach()` with `ZombieThreadPool` fallback for safe cleanup at shutdown.
 
-**Connection options**: The adapter passes `{"auto_reconnect": false}` to `connect_to_room()` (line 89 of `livekit_adapter.gd`), disabling the SDK's built-in reconnection. Reconnection is handled at the application layer by `ClientVoice._try_auto_reconnect()` which fetches a fresh token and reconnects on unexpected disconnect.
+**Connection options**: The adapter passes `{"auto_reconnect": false}` to `connect_to_room()` (line 89 of `livekit_adapter.gd`), disabling the SDK's built-in reconnection. Reconnection is handled at the application layer by `ClientVoice._try_auto_reconnect()` (line 395 of `client_voice.gd`) which fetches a fresh token and reconnects on unexpected disconnect.
 
-**Screen capture persistence**: `connect_to_room()` (line 57) stashes active `_screen_capture` and `_screen_preview` before tearing down the old room, then `_on_connected()` calls `_republish_screen()` (line 252) to re-create room-dependent objects (source, track, publication) for the surviving capture.
+**Screen capture persistence**: `connect_to_room()` (line 58-71) stashes active `_screen_capture` and `_screen_preview` before tearing down the old room, then `_on_connected()` calls `_republish_screen()` (line 252) to re-create room-dependent objects (source, track, publication) for the surviving capture.
 
-**Disconnect optimization**: `disconnect_voice()` (line 91) skips the blocking `unpublish_track()` SDK calls and instead drops all local track references before calling `disconnect_from_room()`, relying on the room teardown to handle track cleanup internally.
+**Disconnect optimization**: `disconnect_voice()` (line 91-115) skips the blocking `unpublish_track()` SDK calls and instead drops all local track references before calling `disconnect_from_room()`, relying on the room teardown to handle track cleanup internally.
 
 **Signals emitted** (from `GodotRoomDelegate` overrides):
-- `connected`, `disconnected`, `reconnecting`, `reconnected`
+- `connected`, `disconnected`, `connection_failed(error: String)`, `reconnecting`, `reconnected`
 - `participant_connected(participant)`, `participant_disconnected(participant)`
 - `track_published`, `track_unpublished`, `track_subscribed(track, publication, participant)`, `track_unsubscribed(track, publication, participant)`
 - `track_muted(participant, publication)`, `track_unmuted(participant, publication)`
@@ -201,7 +204,7 @@ Base `LiveKitParticipant`:
 1. `LiveKitAudioSource.create(48000, 1, 200)` -- creates a source with 48kHz, mono, 200ms queue
 2. `LiveKitLocalAudioTrack.create("microphone", source)` -- creates a track backed by the source
 3. `LocalParticipant.publish_track(track, {"source": SOURCE_MICROPHONE})` -- publishes to the room
-4. `LiveKitAdapter._setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection (line 491)
+4. `LiveKitAdapter._setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection (lines 491-510)
 5. The LiveKit C++ SDK reads from the audio source internally and sends via WebRTC
 
 **Receiving (remote audio -> Godot playback)**:
@@ -209,33 +212,34 @@ Base `LiveKitParticipant`:
 2. `LiveKitAudioStream.from_track(track)` -- creates a stream with a background reader thread (`_reader_loop`, `livekit_audio_stream.h` line 34) that buffers incoming audio
 3. `AudioStreamGenerator` + `AudioStreamPlayer` created per remote participant
 4. Per-frame `LiveKitAudioStream.poll(playback)` pushes buffered audio into `AudioStreamGeneratorPlayback`
-5. Deafen sets player `volume_db` to `-80.0` (line 131 of `livekit_adapter.gd`)
+5. Deafen sets player `volume_db` to `-80.0` (line 125-131 of `livekit_adapter.gd`)
 
 **Audio level detection** (`livekit_adapter.gd`, `_process`, lines 312-372):
-- Remote: `_estimate_audio_level(player)` reads `AudioServer.get_bus_peak_volume_left_db()`, converts dB to linear (line 650)
-- Local: reads `AudioEffectCapture.get_buffer()`, computes RMS with input volume gain, applies noise gate via `Config.voice.get_speaking_threshold()` (lines 349-372)
+- Remote: `_estimate_audio_level(player)` reads `AudioServer.get_bus_peak_volume_left_db()`, converts dB to linear (line 650-659)
+- Local: reads `AudioEffectCapture.get_buffer()`, computes RMS with input volume gain, applies noise gate via `Config.voice.get_speaking_threshold()` (lines 345-372)
+- Speaking threshold uses logarithmic mapping in `config_voice.gd` (line 141-144): 0% → 0.1, 50% → ~0.003, 100% → 0.0001
 
 ### Video Pipeline
 
-**Publishing camera** (`LiveKitAdapter.publish_camera()`, line 142):
+**Publishing camera** (`LiveKitAdapter.publish_camera()`, line 142-172):
 1. `LiveKitVideoSource.create(width, height)` -- creates a video source
 2. If `device_id` is provided, calls `_local_video_source.set_device(device_id)` (line 150)
 3. `LiveKitLocalVideoTrack.create("camera", source)` -- creates a track
-4. `_bitrate_for_resolution()` computes a max bitrate cap (480p→800kbps, 720p→2.5Mbps, 1080p→4Mbps) passed as `max_bitrate` in publish options (line 162)
+4. `_bitrate_for_resolution()` (line 175) computes a max bitrate cap (480p→800kbps, 720p→2.5Mbps, 1080p→4Mbps) passed as `max_bitrate` in publish options (line 162)
 5. `LocalParticipant.publish_track(track, opts)` -- publishes
 6. Returns `LiveKitVideoStream.from_track()` for local preview
 
-**Camera hot-swap** (`LiveKitAdapter.swap_camera()`, line 185):
+**Camera hot-swap** (`LiveKitAdapter.swap_camera()`, line 185-210):
 1. If the track supports `set_source()`, replaces the video source in-place without tearing down the publication
 2. Falls back to full `publish_camera()` if `set_source()` is unavailable
 
-**Publishing screen** (`LiveKitAdapter.publish_screen()`, line 215):
+**Publishing screen** (`LiveKitAdapter.publish_screen()`, line 215-250):
 1. Takes a `source: Dictionary` from the screen picker (monitor or window)
 2. Creates `LiveKitScreenCapture` from the source (monitor or window variant)
-3. `_capped_size()` downscales to `Config.get_max_screen_capture_size()` preserving aspect ratio (line 635)
+3. `_capped_size()` downscales to `Config.get_max_screen_capture_size()` preserving aspect ratio (line 635-646)
 4. `LiveKitVideoSource.create(capped_w, capped_h)` -- creates a video source at the capped resolution
 5. `LocalParticipant.publish_track(track, {"source": SOURCE_SCREENSHARE, "max_bitrate": ...})` -- publishes with 2x bitrate for text clarity
-6. Returns a `LocalVideoPreview` (inner class, line 692) for the local preview tile
+6. Returns a `LocalVideoPreview` (inner class, line 688-719) for the local preview tile
 
 ### Screen Capture (LiveKitScreenCapture)
 
@@ -314,22 +318,26 @@ This class replaces the need for Godot's `DisplayServer.get_screen_count()` / `s
 
 State enum uses `ClientModels.VoiceSessionState` (line 17): `DISCONNECTED = 0`, `CONNECTING = 1`, `CONNECTED = 2`, `RECONNECTING = 3`, `FAILED = 4`
 
-**Connection timeout**: `CONNECT_TIMEOUT_SEC = 15.0` (line 20). A `Timer` fires `_on_connect_timeout()` (line 676) which transitions to `FAILED` if still `CONNECTING`.
+**Connection timeout**: `CONNECT_TIMEOUT_SEC = 15.0` (line 20). A `Timer` fires `_on_connect_timeout()` (line 661-681) which transitions to `FAILED` if still `CONNECTING`.
 
-**Track management** -- LiveKitAdapter holds 9 track-related variables (lines 29-37) plus screen capture state (lines 38-40):
+**Track management** -- LiveKitAdapter holds 9 track-related variables (lines 28-40) plus screen capture state (lines 38-40):
 - Local audio: `_local_audio_source`, `_local_audio_track`, `_local_audio_pub`
 - Local video (camera): `_local_video_source`, `_local_video_track`, `_local_video_pub`
 - Local screen: `_local_screen_source`, `_local_screen_track`, `_local_screen_pub`
 - Screen capture: `_screen_capture` (LiveKitScreenCapture), `_screen_preview` (LocalVideoPreview), `_screen_capture_size` (Vector2i)
 
 **Remote tracking**:
-- `_remote_audio: Dictionary` (line 43): identity -> `{stream, player, playback, generator}`
+- `_remote_audio: Dictionary` (line 42-43): identity -> `{stream, player, playback, generator}`
 - `_remote_video: Dictionary` (line 45): identity -> `LiveKitVideoStream`
-- `_identity_to_user: Dictionary` (line 48): participant identity -> user_id mapping
+- `_identity_to_user: Dictionary` (line 47-48): participant identity -> user_id mapping
+
+**Microphone capture** (lines 491-527):
+- `_setup_mic_capture()` creates an `AudioEffectCapture` on a muted "MicCapture" bus for local level detection
+- `_cleanup_mic_capture()` removes the bus and effect
 
 ### End-to-End Encryption (E2EE)
 
-Conditionally compiled behind `LIVEKIT_E2EE_SUPPORTED` (livekit_e2ee.h). **Enabled by default** in the build system (`SConstruct` line 181 defaults `e2ee` to `yes`); disable with `e2ee=no`. Release binaries include E2EE classes. Provides:
+Conditionally compiled behind `LIVEKIT_E2EE_SUPPORTED` (livekit_e2ee.h). **Enabled by default** in the build system (`SConstruct` line 180-181 defaults `e2ee` to `yes`); disable with `e2ee=no`. Release binaries include E2EE classes on all platforms including Android. Provides:
 
 - `LiveKitE2eeOptions`: encryption type (`ENCRYPTION_NONE`, `ENCRYPTION_GCM`, `ENCRYPTION_CUSTOM`), shared key, ratchet salt/window, failure tolerance
 - `LiveKitKeyProvider`: per-participant or shared key management with key ratcheting
@@ -346,9 +354,10 @@ The `.gdextension` file maps platform targets to library paths:
 |----------|-------------------|-------------|
 | Linux x86_64 | `libgodot-livekit.linux.x86_64.so` | `liblivekit_ffi.so`, `liblivekit.so` |
 | Windows x86_64 | `libgodot-livekit.windows.x86_64.dll` | `livekit_ffi.dll`, `livekit.dll` |
-| macOS universal | `libgodot-livekit.macos.universal.dylib` | `liblivekit_ffi.dylib`, `liblivekit.dylib` |
+| macOS arm64/x86_64 | `libgodot-livekit.macos.{arch}.dylib` | `liblivekit_ffi.dylib`, `liblivekit.dylib` |
+| Android arm64 | `libgodot-livekit.android.arm64.so` | `android-arm64/liblivekit_ffi.so`, `android-arm64/liblivekit.so` |
 
-Uses the same binary for both debug and release configurations.
+Uses the same binary for both debug and release configurations. Android builds have screen capture disabled and E2EE enabled.
 
 **Linux RPATH fix**: The release binaries do not set an RPATH, so `dlopen` cannot find `liblivekit.so` in the same directory. After downloading, run `patchelf --set-rpath '$ORIGIN'` on the Linux `.so` to fix this:
 ```bash
@@ -357,12 +366,12 @@ patchelf --set-rpath '$ORIGIN' addons/godot-livekit/bin/libgodot-livekit.linux.x
 
 ### Build Process (build.sh)
 
-1. Validates platform argument (`linux`, `macos`, `windows`)
-2. Checks and installs dependencies (SCons, g++/MSVC, curl, etc.)
+1. Validates platform argument (`linux`, `macos`, `windows`, `android`)
+2. Checks and installs dependencies (SCons, g++/MSVC, curl, etc.; Android requires `ANDROID_NDK_ROOT`)
 3. Fetches LiveKit C++ SDK (version 0.3.2) from GitHub Releases if not cached
 4. Fetches `godot-cpp` prebuilt binaries (Godot 4.5 stable) if not cached
-5. Runs `scons platform=<platform> arch=<arch> target=template_release`
-6. Copies LiveKit shared libraries to `addons/godot-livekit/bin/`
+5. Runs `scons platform=<platform> arch=<arch> target=template_release` (Android: `screen_capture=no`)
+6. Copies LiveKit shared libraries to `addons/godot-livekit/bin/` (Android: `bin/android-arm64/`)
 
 ### Data Channels and RPC
 
@@ -382,14 +391,16 @@ The extension supports data messaging and RPC between participants. Data channel
 
 #### Unit Tests (test_livekit_adapter.gd)
 
-10 tests covering the LiveKitAdapter GDScript wrapper (no server needed, run via `./test.sh livekit`):
-- `test_initial_state_is_disconnected` -- verifies initial state (line 15)
-- `test_is_muted_default_false` / `test_is_deafened_default_false` -- default flags (lines 23, 30)
-- `test_set_muted_updates_state` / `test_set_deafened_updates_state` -- toggle behavior (lines 37, 50)
-- `test_disconnect_voice_from_disconnected` -- idempotent disconnect (line 63)
-- `test_has_required_signals` -- verifies all 5 signals exist (line 73)
-- `test_disconnect_emits_state_signal` -- signal emission (line 96)
-- `test_unpublish_camera_without_room` / `test_unpublish_screen_without_room` -- no-error on null room, asserts state stays DISCONNECTED (lines 108, 118)
+13 tests covering the LiveKitAdapter GDScript wrapper (no server needed, run via `./test.sh livekit`):
+- `test_initial_state_is_disconnected` -- verifies initial state (line 17)
+- `test_is_muted_default_false` / `test_is_deafened_default_false` -- default flags (lines 25, 32)
+- `test_set_muted_updates_state` / `test_set_deafened_updates_state` -- toggle behavior (lines 39, 52)
+- `test_disconnect_voice_from_disconnected` -- idempotent disconnect (line 65)
+- `test_has_required_signals` -- verifies all 6 signals exist (line 75)
+- `test_disconnect_emits_state_signal` -- signal emission (line 102)
+- `test_unpublish_camera_without_room` / `test_unpublish_screen_without_room` -- no-error on null room, asserts state stays DISCONNECTED (lines 114, 124)
+- `test_connect_to_room_preserves_screen_capture` -- verifies screen capture survives reconnection (line 134)
+- `test_disconnect_voice_destroys_screen_capture` -- explicit disconnect tears down screen capture (line 179)
 
 #### E2E Voice Auth Handshake (test_voice_auth_handshake.gd)
 
@@ -414,7 +425,7 @@ ACCORD_TEST_URL=http://192.168.1.144:39099 ./test.sh accordkit
 
 | Test file | Test | Failure | Severity |
 |-----------|------|---------|----------|
-| `test_livekit_adapter.gd` | All 10 tests | Fail if Linux RPATH not patched (see Platform Binaries section) | Fixed with `patchelf` |
+| `test_livekit_adapter.gd` | All 13 tests | Fail if Linux RPATH not patched (see Platform Binaries section) | Fixed with `patchelf` |
 | `test_voice_auth_handshake.gd` | `test_voice_join_returns_livekit_credentials` | Skipped (pass) when server backend is "none" (local test server has no LiveKit configured) | Expected |
 | `test_voice_auth_handshake.gd` | `test_voice_join_with_mute_and_deaf_flags` | Same skip as above | Expected |
 | `test_gateway_connect.gd` | `test_bot_connect_receives_ready` | Bot gateway connection times out after 15s | Pre-existing |
@@ -454,7 +465,7 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - [x] Deafen implementation (remote players set to -80dB)
 - [x] Speaking level detection from AudioServer bus peak dB
 - [x] Build script with dependency caching (LiveKit SDK + godot-cpp)
-- [x] Unit tests for LiveKitAdapter (10 tests, no server required)
+- [x] Unit tests for LiveKitAdapter (13 tests, no server required)
 - [x] E2E voice auth handshake tests (5 tests, validates REST join/leave and LiveKit credentials)
 - [x] `ACCORD_TEST_URL` env var for running tests against remote servers
 - [x] Video tile rendering with speaking border indicator
@@ -473,10 +484,15 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - [x] Noise gate on local mic audio (silence below `Config.voice.get_speaking_threshold()`)
 - [x] Input volume gain applied to mic capture frames
 - [x] Config change live-reload for video settings (`on_voice_config_changed` triggers `_republish_camera()`)
+- [x] Android arm64 build support (screen capture disabled, E2EE enabled)
+- [x] LiveKitPoller singleton for automatic per-frame polling of rooms, video streams, and screen captures
+- [x] DetachableThread + ZombieThreadPool for safe thread lifecycle management at shutdown
+- [x] `connection_failed(error)` signal on LiveKitRoom for error reporting
+- [x] macOS ad-hoc codesigning of dylibs in release builds
 - [ ] E2EE integration in daccord (classes exist but not wired)
 - [ ] RPC usage in daccord (classes exist but not used)
 - [ ] WebRTC stats surfaced in UI
-- [ ] ARM64 / Linux ARM builds
+- [ ] Linux ARM64 builds (Android arm64 exists but Linux ARM is missing)
 - [ ] Web platform support (see web_export.md)
 
 ## Tasks
@@ -516,12 +532,12 @@ The gateway timeout failures are pre-existing and unrelated to voice/LiveKit -- 
 - **Tags:** video, voice
 - **Notes:** `publish_screen()` now takes a `source: Dictionary` with actual width/height from the screen picker. `_capped_size()` (line 635) downscales to `Config.get_max_screen_capture_size()` preserving aspect ratio. Uses `LiveKitScreenCapture` for native frame capture.
 
-### LIVEKIT-6: No ARM64 builds
-- **Status:** open
-- **Impact:** 3
+### LIVEKIT-6: No Linux ARM64 builds
+- **Status:** open (partial)
+- **Impact:** 2
 - **Effort:** 2
 - **Tags:** ci
-- **Notes:** Build script only supports x86_64 for Linux/Windows. macOS builds are universal (x86_64 + arm64) but Linux ARM is missing.
+- **Notes:** Android arm64 now supported (commit `314c0eb`, 2026-03-05). macOS builds are universal (x86_64 + arm64). Linux ARM64 is still missing — build script only supports x86_64 for Linux/Windows.
 
 ### LIVEKIT-7: No web platform
 - **Status:** open

@@ -1,6 +1,6 @@
 # Video Chat
 
-Last touched: 2026-03-18 (closed all open tasks: resize handle idle dots, bandwidth adaptation, camera device routing, camera hot-swap all confirmed implemented)
+Last touched: 2026-03-28 (changed task statuses from closed to done for accordman compatibility)
 Priority: 23
 Depends on: Voice Channels, Server Plugins
 
@@ -591,28 +591,28 @@ Extracted as `RefCounted` helper owned by `main_window.gd` (line 68). Manages th
 ## Tasks
 
 ### VIDEO-1: Camera device not routed to publish
-- **Status:** closed
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** config, video, voice
 - **Notes:** Implemented — `toggle_video()` reads `Config.voice.get_video_device()` (client_voice.gd line 239) and passes it to `publish_camera()` (line 241). Adapter applies it via `LiveKitVideoSource.set_device()` if the method exists (livekit_adapter.gd lines 149-151).
 
 ### VIDEO-2: No bandwidth adaptation
-- **Status:** closed
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** video
 - **Notes:** Implemented — `_bitrate_for_resolution()` (livekit_adapter.gd lines 175-183) returns 800 kbps/2.5 Mbps/4 Mbps based on pixel count. The value is passed as `max_bitrate` in publish options (lines 162-164). LiveKit SFU adapts dynamically below this cap.
 
 ### VIDEO-3: No video track hot-swap
-- **Status:** closed
+- **Status:** done
 - **Impact:** 2
 - **Effort:** 3
 - **Tags:** video
 - **Notes:** Implemented — `swap_camera()` (livekit_adapter.gd lines 185-210) mutes the existing track, replaces the source via `set_source()`, then unmutes. Falls back to full republish if the GDExtension lacks `set_source`. Triggered by `on_voice_config_changed()` in ClientVoice when video device/resolution changes.
 
 ### VIDEO-4: Resize handle invisible until hovered
-- **Status:** closed
+- **Status:** done
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** ux, video, activity
