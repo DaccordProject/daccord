@@ -2,11 +2,11 @@
 
 ## Overview
 
-Audit of test coverage for the server plugins system. The plugin system spans 14 source files (~3,000 lines) across AccordKit models, REST endpoints, autoload managers, runtimes, and UI components. Current tests cover the data model, REST API, ClientPlugins gateway/routing/bundle extraction/trust/state management, PluginDownloadManager pure logic and ZIP extraction, PluginCanvas color parsing/limits/buffers, PluginContext identity helpers and communication, NativeRuntime file framing/lifecycle, and ScriptedRuntime pure logic (constants, error checking, cleanup, bulk bridge parsing, payload validation). Remaining gaps are in the Lua sandbox (requires lua-gdextension), network orchestration methods (including newer `join_activity`, `check_active_session`), and UI dialogs.
+Audit of test coverage for the server plugins system. The plugin system spans 14 source files (~3,000 lines) across AccordKit models, REST endpoints, autoload managers, runtimes, and UI components. Current tests cover the data model, REST API (including channel/space session queries and leave), ClientPlugins gateway/routing/bundle extraction/trust/state management/join+check guards/voice join+leave/space session cache/broadcast presence, PluginDownloadManager pure logic and ZIP extraction, PluginCanvas color parsing/limits/buffers, PluginContext identity helpers and communication, NativeRuntime file framing/lifecycle, and ScriptedRuntime pure logic (constants, error checking, cleanup, bulk bridge parsing, payload validation). Remaining gaps are in the Lua sandbox (requires lua-gdextension), network orchestration bodies (the parts after guard checks in `launch_activity`, `join_activity`, `check_active_session` that make REST calls), and UI dialogs.
 
 ## Test Inventory
 
-### Unit Tests: `test_client_plugins.gd` — 51 tests
+### Unit Tests: `test_client_plugins.gd` + `test_client_plugins_guards.gd` — 79 tests
 
 | Test | What it covers |
 |------|---------------|
@@ -61,6 +61,31 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 | `test_start_session_noop_when_no_session` | Early return when _active_session_id empty (line 435) |
 | `test_assign_role_noop_when_no_session` | Early return when _active_session_id empty (line 455) |
 | `test_send_action_noop_when_no_session` | Early return when _active_session_id empty (line 472) |
+| `test_join_activity_noop_when_empty_plugin_id` | `join_activity` early return when `pending_activity_plugin_id` empty (line 340) |
+| `test_join_activity_noop_when_empty_session_id` | `join_activity` early return when `pending_activity_session_id` empty (line 340) |
+| `test_join_activity_noop_when_state_running` | `join_activity` early return when state is "running" — non-participants can't join (line 343) |
+| `test_join_activity_noop_when_plugin_not_found` | `join_activity` early return when plugin not in cache → conn_idx == -1 (line 347) |
+| `test_check_active_session_noop_when_empty_channel` | `check_active_session` early return when channel_id empty (line 498) |
+| `test_check_active_session_noop_when_negative_conn` | `check_active_session` early return when conn_index < 0 (line 498) |
+| `test_check_active_session_noop_when_conn_out_of_range` | `check_active_session` early return when conn_index >= connections size (line 499) |
+| `test_check_active_session_noop_when_already_active` | `check_active_session` early return when `active_activity_session_id` non-empty (line 500) |
+| `test_on_voice_joined_noop_when_unknown_channel` | `_on_voice_joined` early return when channel not in `_channel_to_space` (line 668) |
+| `test_on_voice_joined_noop_when_no_conn_for_space` | `_on_voice_joined` early return when space has no connection (line 671) |
+| `test_voice_left_preserves_runtime_on_unintentional_disconnect` | `_on_voice_left(ch, false)` keeps runtime alive for seamless reconnection (line 685) |
+| `test_voice_left_always_clears_pending` | `_on_voice_left` clears pending activity even on unintentional disconnect (line 677) |
+| `test_broadcast_activity_presence_noop_empty_connections` | `_broadcast_activity_presence` no crash with empty `_connections` (line 828) |
+| `test_broadcast_activity_presence_skips_null_connections` | `_broadcast_activity_presence` skips null entries in `_connections` (line 828) |
+| `test_get_space_sessions_empty_by_default` | Unknown space returns empty array (line 83) |
+| `test_get_space_sessions_returns_cached` | Returns cached sessions from `_space_sessions` (line 84) |
+| `test_on_plugin_session_state_updates_space_cache` | Non-active session state event populates `_space_sessions` (line 585-598) |
+| `test_on_plugin_session_state_ended_removes_from_space_cache` | Ended state removes session from `_space_sessions` (line 589) |
+| `test_on_plugin_session_state_sets_pending_when_in_voice` | Lobby session in same voice channel sets pending activity fields (line 624-630) |
+| `test_on_plugin_session_state_ignores_when_not_in_voice` | Lobby session in different voice channel does not set pending (line 617) |
+| `test_on_plugin_session_state_no_pending_when_already_active` | Lobby session does not overwrite existing active activity (line 621) |
+| `test_on_plugin_role_changed_updates_participants_array` | Participants array updated from role_changed event data (line 657) |
+| `test_extract_bundle_module_name_collision_last_wins` | Two `.lua` files with same basename collide in modules dict (line 52) |
+| `test_fetch_plugins_noop_when_negative_conn_index` | `fetch_plugins` early return when conn_index < 0 (line 43) |
+| `test_fetch_plugins_noop_when_conn_out_of_range` | `fetch_plugins` early return when conn_index >= connections size (line 43) |
 
 ### Unit Tests: `test_plugin_canvas.gd` — 31 tests
 
@@ -220,7 +245,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 | `test_canvas_size_from_separate_fields` | `canvas_width`/`canvas_height` fallback works |
 | `test_enums_defined` | PluginRuntime, SessionState, ParticipantRole enums accessible |
 
-### Integration Tests: `test_plugins_api.gd` — 10 tests
+### Integration Tests: `test_plugins_api.gd` — 14 tests
 
 | Test | What it covers |
 |------|---------------|
@@ -234,8 +259,12 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 | `test_send_action` | Action dispatch in running state succeeds |
 | `test_send_action_requires_running_state` | Action in lobby state fails |
 | `test_invalid_state_transition` | `lobby → lobby` returns error |
+| `test_get_channel_sessions` | GET `/channels/:id/sessions/active` returns created session |
+| `test_get_space_sessions` | GET `/spaces/:id/sessions/active` returns created session |
+| `test_leave_session` | POST `/sessions/:id/leave` succeeds for participant |
+| `test_get_source` | GET `/plugins/:id/source` returns PackedByteArray or 404 |
 
-**Total: 194 plugin-specific tests** (51 client_plugins + 31 canvas + 27 context + 28 download_manager + 42 scripted_runtime + 5 model + 10 integration)
+**Total: 226 plugin-specific tests** (79 client_plugins + 31 canvas + 27 context + 28 download_manager + 42 scripted_runtime + 5 model + 14 integration)
 
 ## Signal Flow
 
@@ -245,18 +274,29 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
                         │                                                 │
   Gateway event ──────► │ ClientPlugins.on_plugin_installed/uninstalled   │
                         │ ClientPlugins.on_plugin_session_state           │
+                        │   (incl. space cache + pending banner logic)    │
                         │ ClientPlugins.on_plugin_role_changed            │
+                        │   (incl. participants array update)             │
                         │ ClientPlugins.on_plugin_event                   │
                         │ ClientPlugins._on_voice_left                    │
+                        │   (incl. intentional vs unintentional)          │
+                        │ ClientPlugins._on_voice_joined (guards)         │
                         │ ClientPlugins._on_livekit_data_received         │
                         │ ClientPlugins._update_*_participants            │
                         │ ClientPlugins._extract_bundle                   │
+                        │   (incl. module name collision)                 │
                         │ ClientPlugins._is_plugin_trusted                │
                         │ ClientPlugins._clear_pending/active_activity    │
+                        │ ClientPlugins._broadcast_activity_presence      │
+                        │   (guards: empty/null connections)              │
                         │ ClientPlugins.get_activity_viewport_texture     │
                         │ ClientPlugins.forward_activity_input            │
                         │ ClientPlugins.is_activity_host                  │
+                        │ ClientPlugins.get_space_sessions (cache)        │
+                        │ ClientPlugins.fetch_plugins (guards)            │
                         │ ClientPlugins.stop/start/assign/send guards     │
+                        │ ClientPlugins.join_activity (guards)            │
+                        │ ClientPlugins.check_active_session (guards)     │
                         └──────────────────┬──────────────────────────────┘
                                            │
                         ┌──────────────────▼──────────────────────────────┐
@@ -289,12 +329,10 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
                         ┌──────────────────▼──────────────────────────────┐
                         │              NOT TESTED                         │
                         │                                                 │
-                        │ ClientPlugins.launch_activity (network)         │
-                        │ ClientPlugins.join_activity (network)           │
-                        │ ClientPlugins.check_active_session (network)    │
-                        │ ClientPlugins._on_voice_joined (network)        │
+                        │ ClientPlugins.launch_activity (network body)    │
+                        │ ClientPlugins.join_activity (network body)      │
+                        │ ClientPlugins.check_active_session (net body)   │
                         │ ClientPlugins._download_and_prepare_*_runtime   │
-                        │ ClientPlugins._broadcast_activity_presence      │
                         │ ClientPlugins._show_trust_dialog (UI modal)     │
                         │ ClientPlugins._await_trust_signal (UI modal)    │
                         │ PluginDownloadManager.download_bundle (network) │
@@ -309,10 +347,10 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 
 | File | Role | Tests |
 |------|------|-------|
-| `scripts/client/client_plugins.gd` | Plugin manager — caching, gateway, activity lifecycle, join/discover sessions, bundle extraction, trust | `tests/unit/test_client_plugins.gd` (51 tests; cache + gateway + routing + participants + bundle + trust + state + guards) |
+| `scripts/client/client_plugins.gd` | Plugin manager — caching, gateway, activity lifecycle, join/discover sessions, bundle extraction, trust | `tests/unit/test_client_plugins.gd` + `test_client_plugins_guards.gd` (79 tests; cache + gateway + routing + participants + bundle + trust + state + guards + join/check/voice/broadcast guards + space cache + pending banner + module collision) |
 | `scripts/helpers/plugin_download_manager.gd` | Bundle download, SHA-256 verification, ZIP extraction, cache | `tests/unit/test_plugin_download_manager.gd` (28 tests; hash, cache, signature stub, URI encoding, ZIP extraction, dir cleanup, path traversal) |
 | `addons/accordkit/models/plugin_manifest.gd` | Typed manifest model (21 fields, 3 enums) | `tests/accordkit/unit/test_model_plugin_manifest.gd` (5 tests) |
-| `addons/accordkit/rest/endpoints/plugins_api.gd` | REST helpers (12 endpoints) | `tests/accordkit/integration/test_plugins_api.gd` (10 tests) |
+| `addons/accordkit/rest/endpoints/plugins_api.gd` | REST helpers (12 endpoints) | `tests/accordkit/integration/test_plugins_api.gd` (14 tests; 10 of 12 endpoints) |
 | `scripts/plugins/scripted_runtime.gd` | Lua sandbox, SubViewport rendering, bridge API (30+ methods), bulk bridge parsing | `tests/unit/test_scripted_runtime.gd` (42 tests; constants, error checking, cleanup, guards, defaults, bulk bridge parsing, payload validation) |
 | `scripts/plugins/native_runtime.gd` | Scene loader, teardown lifecycle, data channel routing | `tests/unit/test_plugin_context.gd` (16 tests; file framing, data routing, stop lifecycle, event/input guards) |
 | `scripts/plugins/plugin_canvas.gd` | Draw command queue, image/buffer management, color parsing | `tests/unit/test_plugin_canvas.gd` (31 tests; color parsing, limits, buffers, clamping) |
@@ -326,7 +364,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 ## Implementation Status
 
 - [x] Plugin manifest model — fully tested (deserialization, roundtrip, enums, defaults)
-- [x] REST API endpoints — partially tested (list, filter, session CRUD, roles, actions, state transitions; `get_channel_sessions`, `leave_session`, `get_source`, `get_bundle`, `install_plugin` untested)
+- [x] REST API endpoints — mostly tested (list, filter, session CRUD, roles, actions, state transitions, `get_channel_sessions`, `get_space_sessions`, `leave_session`, `get_source`; `get_bundle` and `install_plugin` untested)
 - [x] ClientPlugins cache — fully tested (get, install, uninstall, multi-connection isolation)
 - [x] ClientPlugins gateway handlers — fully tested (install, uninstall, session_state, role_changed, plugin_event)
 - [x] ClientPlugins data channel routing — tested (`_on_livekit_data_received` prefix stripping, mock runtime)
@@ -357,11 +395,17 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 - [x] PluginDownloadManager `_remove_dir_recursive` — tested (nested cleanup, nonexistent no-op)
 - [x] PluginDownloadManager `clear_cache` — tested (removes dir, nonexistent no-op)
 - [x] ZIP path traversal — documented (test verifies path_join doesn't strip `../`)
-- [ ] ClientPlugins `launch_activity` — 0 tests (requires network + scene tree)
-- [ ] ClientPlugins `join_activity` — 0 tests (line 359; joins existing session as non-host, requires network)
-- [ ] ClientPlugins `check_active_session` — 0 tests (line 515; discovers active sessions on voice join/reconnect via `get_channel_sessions`, requires network)
-- [ ] ClientPlugins `_on_voice_joined` — 0 tests (line 714; triggers `check_active_session` on voice join)
-- [ ] ClientPlugins `_broadcast_activity_presence` — 0 tests (line 747; sends presence updates across all connections, requires network)
+- [x] ClientPlugins `join_activity` guards — tested (empty plugin_id, empty session_id, running state, plugin not found all return early; network body untested)
+- [x] ClientPlugins `check_active_session` guards — tested (empty channel, negative/OOB conn_index, already-active session all return early; network body untested)
+- [x] ClientPlugins `_on_voice_joined` guards — tested (unknown channel, missing connection return early)
+- [x] ClientPlugins `_on_voice_left` intentional vs unintentional — tested (unintentional keeps runtime alive, always clears pending)
+- [x] ClientPlugins `_broadcast_activity_presence` guards — tested (empty connections, null connection entries)
+- [x] ClientPlugins space session cache — tested (`get_space_sessions`, `on_plugin_session_state` cache updates/removals)
+- [x] ClientPlugins pending activity banner — tested (sets pending in same voice channel, ignores other channel, no overwrite when active)
+- [x] ClientPlugins `on_plugin_role_changed` participants update — tested (participants array from event data)
+- [x] ClientPlugins `fetch_plugins` guards — tested (negative/OOB conn_index)
+- [x] Module name collision in `_extract_bundle` — tested (two `.lua` with same basename → last wins)
+- [ ] ClientPlugins `launch_activity` — 0 tests (network body: create session → set state → download → prepare runtime)
 - [ ] ClientPlugins `_download_and_prepare_*_runtime` — 0 tests (requires network)
 - [ ] ClientPlugins `_show_trust_dialog` / `_await_trust_signal` — 0 tests (requires UI modal)
 - [ ] PluginDownloadManager `download_bundle` — 0 tests (requires network)
@@ -378,13 +422,13 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 |-----|----------|-------|
 | **ZIP path traversal — no sanitization** | Critical | `_extract_zip` (line 178) writes ZIP entries to `dest_dir.path_join(file_path)` without checking for `../` sequences. Now documented by `test_extract_zip_path_traversal_not_sanitized` which verifies `path_join` preserves `..` components. Same issue in `_extract_bundle` (line 217). |
 | **ScriptedRuntime `start` / `_inject_bridge_api` untested** | High | Requires lua-gdextension. The Lua sandbox setup, bridge API injection (30+ bridge methods), and full lifecycle need the GDExtension present. Pure-logic methods (constants, error checking, guards, cleanup, bulk bridge parsing, payload validation) are now tested (42 tests). |
-| **ClientPlugins `launch_activity` untested** | Medium | Lines 75–121: full orchestration (create session → set AppState → download → prepare runtime). Requires network + scene tree. |
-| **ClientPlugins `join_activity` untested** | Medium | Lines 358–413: joins existing session as non-host player via `assign_role`, sets AppState, downloads runtime. Requires network. |
-| **ClientPlugins `check_active_session` untested** | Medium | Lines 512–577: discovers active sessions in a voice channel on join/reconnect via `get_channel_sessions`. Auto-rejoins if already a participant, otherwise shows as pending. Requires network. |
-| **ClientPlugins `_show_trust_dialog` / `_await_trust_signal` untested** | Medium | Lines 292–329: UI modal with trust_granted/denied signals and signal-waiting loop. Requires scene tree. `_is_plugin_trusted` is now tested separately. |
+| **ClientPlugins `launch_activity` network body untested** | Medium | Lines 140–197: full orchestration (create session → set AppState → download → prepare runtime). Guard logic before network calls is now covered by `join_activity` and `check_active_session` guard tests. |
+| **ClientPlugins `join_activity` network body untested** | Low | Lines 354–392: network body after guards (REST assign_role, download runtime). Guards (empty IDs, running state, plugin not found) now tested. |
+| **ClientPlugins `check_active_session` network body untested** | Low | Lines 505–520: network body after guards (REST get_channel_sessions, rejoin). Guards (empty channel, bad conn_index, already-active) now tested. |
+| **ClientPlugins `_show_trust_dialog` / `_await_trust_signal` untested** | Medium | Lines 66–105 in helpers: UI modal with trust_granted/denied signals and signal-waiting loop. Requires scene tree. `_is_plugin_trusted` is now tested separately. |
 | **NativeRuntime `start` untested** | Medium | Scene loading from bundle dir requires a `.tscn` on disk. `stop()` lifecycle, event/input guards, and initial state are now tested. |
 | **Ed25519 signature verification is a stub** | Medium | `PluginDownloadManager._verify_signature` (line 192) only checks if `plugin.sig` exists, always returns `true`. Documented by `test_verify_signature_returns_true_when_sig_exists`. |
-| **5 REST endpoints untested** | Medium | `PluginsApi.get_source` (line 38), `get_bundle` (line 45), `install_plugin` (line 21), `get_channel_sessions` (line 51), and `leave_session` (line 87) have no integration tests. The latter two are new endpoints used by `check_active_session` and `stop_activity`/`_on_voice_left`. |
+| **2 REST endpoints untested** | Low | `PluginsApi.get_bundle` (line 45) and `install_plugin` (line 21) have no integration tests. `get_channel_sessions`, `get_space_sessions`, `leave_session`, and `get_source` are now tested. |
 | **PluginDownloadManager `download_bundle` untested** | Medium | Lines 37–110: full download orchestration with hash validation. Requires network. |
 | **PluginTrustDialog untested** | Low | 62 lines, UI-only. Signals `trust_granted(remember)` and `trust_denied` should be verified. |
 | **ActivityLobby untested** | Low | 109 lines, UI-only. `update_participants` (line 44) enables start button based on player count. `_resolve_display_name` (line 99) resolves user names via Client cache. |
@@ -396,9 +440,9 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 | Layer | Files | Lines (approx) | Tests | Coverage |
 |-------|-------|----------------|-------|----------|
 | AccordKit model | 1 | 97 | 5 | Good — all 21 fields, defaults, enums |
-| AccordKit REST | 1 | 110 | 10 | Partial — 7 of 12 endpoints tested; `get_source`, `get_bundle`, `install_plugin`, `get_channel_sessions`, `leave_session` missing |
-| ClientPlugins (cache + gateway + routing) | 1 | ~350 of 790 | 51 | Good — cache, gateway, data channel routing, participants, bundle extraction, trust, state mgmt, delegation, guards |
-| ClientPlugins (network orchestration) | 1 | ~440 of 790 | 0 | **None** — launch_activity, join_activity, check_active_session, _on_voice_joined, _download_and_prepare_*_runtime, _show_trust_dialog, _broadcast_activity_presence (require network/UI) |
+| AccordKit REST | 1 | 110 | 14 | Good — 10 of 12 endpoints tested; `get_bundle` and `install_plugin` missing |
+| ClientPlugins (cache + gateway + routing + guards) | 1 | ~530 of 865 | 79 | Good — cache, gateway, data channel routing, participants, bundle extraction, trust, state mgmt, delegation, guards, join/check/voice/broadcast guards, space session cache, pending banner, module collision |
+| ClientPlugins (network body + UI) | 1 | ~335 of 865 | 0 | **None** — launch_activity/join_activity/check_active_session network bodies (after guards), _download_and_prepare_*_runtime, _show_trust_dialog (require network/UI) |
 | PluginDownloadManager (pure logic + I/O) | 1 | ~180 of 225 | 28 | Good — hash, cache, signature stub, URI encoding, ZIP extraction, dir cleanup, path traversal doc |
 | PluginDownloadManager (network) | 1 | ~45 of 225 | 0 | **None** — download_bundle (requires network) |
 | PluginCanvas | 1 | 330 | 31 | Good — color parsing, command limits, buffer lifecycle, clamping |
@@ -407,7 +451,7 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 | ScriptedRuntime | 1 | 667 | 42 | Good — constants, error checking, cleanup, stop, guards, bulk bridge parsing (parse_flat_array/dict, _parse_typed_value), payload size validation tested; start/bridge API require lua-gdextension |
 | UI (4 files) | 4 | ~545 | 0 | **None** — trust dialog, lobby, modal, admin dialogs (UI-only, would need scene tree) |
 
-**Overall: ~65% of plugin system lines have test coverage. The tested surface covers ClientPlugins cache/gateway/routing/bundle/trust/state/delegation/guards (51 tests), PluginDownloadManager pure logic/ZIP extraction (28 tests), ScriptedRuntime pure logic + bulk bridge parsing + payload validation (42 tests), NativeRuntime lifecycle/guards (16 tests), PluginContext identity/framing/guards (11 tests). Since last audit, ScriptedRuntime gained bulk bridge protocol (parse_flat_array, parse_flat_dict, _parse_typed_value — all tested), payload size limits (MAX_ACTION_PAYLOAD_BYTES=8KB, MAX_COLLECTION_ELEMENTS=200 — tested), and runtime_error signal. ClientPlugins gained `_broadcast_activity_presence` (line 747) for updating activity status across all connections. ActivityLobby gained `_resolve_display_name` (line 99) for resolving user display names via Client cache. GatewayIntents added `PLUGINS` intent (line 14). Remaining untested code is network orchestration (launch/join/check_active_session/broadcast_presence), session discovery, and UI dialogs.**
+**Overall: ~75% of plugin system lines have test coverage. The tested surface covers ClientPlugins cache/gateway/routing/bundle/trust/state/delegation/guards/join+check guards/voice join+leave/space session cache/broadcast presence/pending banner/module collision (79 tests), PluginDownloadManager pure logic/ZIP extraction (28 tests), ScriptedRuntime pure logic + bulk bridge parsing + payload validation (42 tests), NativeRuntime lifecycle/guards (16 tests), PluginContext identity/framing/guards (11 tests), AccordKit REST endpoints (14 tests, 10 of 12 endpoints). Since last audit: added 28 unit tests covering `join_activity` guard paths (empty IDs, running state, missing plugin), `check_active_session` guards (empty channel, bad conn_index, already-active), `_on_voice_joined` guards, `_on_voice_left` intentional vs unintentional disconnect, `_broadcast_activity_presence` null-safety, space session cache (`get_space_sessions`, `on_plugin_session_state` cache updates/removals), pending activity banner logic, participants array update from role_changed events, `fetch_plugins` guards, and module name collision in `_extract_bundle`. Also added 4 integration tests for `get_channel_sessions`, `get_space_sessions`, `leave_session`, and `get_source`. Remaining untested code is network orchestration bodies (the REST call + runtime download portions of launch/join/check_active_session), `_download_and_prepare_*_runtime`, trust dialog UI, and UI-only scenes.**
 
 ## Security Audit
 
@@ -467,16 +511,14 @@ Audit of test coverage for the server plugins system. The plugin system spans 14
 | 7 | **Lua CPU exhaustion** | Run `while true do end` in `_ready()`, verify it doesn't permanently freeze the client (currently it will). Requires lua-gdextension. |
 | 8 | **Manifest field injection on upload** | Upload a manifest with `signed: true` + fake `plugin.sig`, verify the server or client rejects it. |
 | 9 | **HTTP downgrade for plugin download** | Connect to HTTP server, download plugin, verify hash check catches MITM replacement (it should — but test it). |
-| 10 | **Module name collision** | Bundle two `.lua` files with the same basename at different paths, verify correct one loads. `_extract_bundle` uses `get_file().get_basename()` (line 217) — last one wins. |
+| 10 | ~~**Module name collision**~~ | **Done** — `test_extract_bundle_module_name_collision_last_wins` verifies that two `.lua` files with same basename produce a single module entry. The collision is documented behavior (last wins). |
 
 ## Recommended Next Test Priorities
 
 1. **Fix ZIP path traversal** (Critical) — add `../` sanitization in `_extract_zip` and `_extract_bundle`, then update `test_extract_zip_path_traversal_not_sanitized` to assert rejection
 2. **BBCode escaping in trust dialog** — verify plugin names can't inject formatting (requires scene tree)
-3. **`join_activity` / `check_active_session` guards** — test early-return paths (empty IDs, bad conn_index, already-active session) without network; the pure guard logic at the top of each method can be unit tested
-4. **REST endpoint coverage** — add integration tests for `get_channel_sessions`, `leave_session`, `get_source`, `get_bundle`, `install_plugin`
-5. **NativeRuntime.start** — create a mock `.tscn` scene on disk, verify scene loading and `setup(context)` call
-6. **ScriptedRuntime bridge API** — requires lua-gdextension; test bridge callback closures in isolation (bulk bridge parsing is now fully tested without lua-gdextension)
-7. **PluginDownloadManager.download_bundle** — integration test with mock REST responses
-8. **Module name collision** — `_extract_bundle` test with two `.lua` files sharing the same basename
-9. **`_broadcast_activity_presence` guards** — test early-return for empty connections list, null clients
+3. **NativeRuntime.start** — create a mock `.tscn` scene on disk, verify scene loading and `setup(context)` call
+4. **ScriptedRuntime bridge API** — requires lua-gdextension; test bridge callback closures in isolation (bulk bridge parsing is now fully tested without lua-gdextension)
+5. **PluginDownloadManager.download_bundle** — integration test with mock REST responses
+6. **REST endpoint coverage** — add integration tests for `get_bundle` and `install_plugin`
+7. **Network orchestration bodies** — `launch_activity`, `join_activity`, `check_active_session` network bodies could be tested with mock AccordClient (guards are now covered)
