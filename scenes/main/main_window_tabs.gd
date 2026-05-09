@@ -9,6 +9,8 @@ var _tab_bar: TabBar
 var _parent: Node
 var _header_spacer: Control
 var _space_icon_cache: Dictionary = {}
+var _context_menu: PopupMenu
+var _context_tab_index: int = -1
 
 
 func _init(
@@ -131,8 +133,16 @@ func select_current() -> void:
 func on_tab_bar_input(event: InputEvent) -> void:
 	if not event is InputEventMouseButton:
 		return
-	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+	var mb: InputEventMouseButton = event
+	if not mb.pressed:
 		return
+	if mb.button_index == MOUSE_BUTTON_LEFT:
+		_handle_close_icon_click(mb)
+	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		_handle_right_click(mb)
+
+
+func _handle_close_icon_click(mb: InputEventMouseButton) -> void:
 	var i: int = _tab_bar.current_tab
 	if i < 0 or i >= _tab_bar.tab_count:
 		return
@@ -150,9 +160,123 @@ func on_tab_bar_input(event: InputEvent) -> void:
 		),
 		icon_size,
 	)
-	if close_rect.has_point(event.position):
+	if close_rect.has_point(mb.position):
 		on_tab_close(i)
 		_tab_bar.accept_event()
+
+
+func _handle_right_click(mb: InputEventMouseButton) -> void:
+	var idx: int = _tab_bar.get_tab_idx_at_point(mb.position)
+	if idx < 0:
+		return
+	_show_context_menu(idx, mb.global_position)
+	_tab_bar.accept_event()
+
+
+func _show_context_menu(tab_index: int, screen_pos: Vector2) -> void:
+	if _context_menu == null:
+		_context_menu = PopupMenu.new()
+		_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
+		_parent.add_child(_context_menu)
+	_context_tab_index = tab_index
+	_context_menu.clear()
+	var has_space: bool = not String(
+		tabs[tab_index].get("space_id", "")
+	).is_empty()
+	_context_menu.add_item(tr("Copy Link"), 0)
+	_context_menu.set_item_disabled(
+		_context_menu.item_count - 1, not has_space,
+	)
+	_context_menu.add_separator()
+	_context_menu.add_item(tr("Close"), 1)
+	_context_menu.set_item_disabled(
+		_context_menu.item_count - 1, tabs.size() <= 1,
+	)
+	_context_menu.add_item(tr("Close to the Right"), 2)
+	_context_menu.set_item_disabled(
+		_context_menu.item_count - 1, tab_index >= tabs.size() - 1,
+	)
+	_context_menu.add_item(tr("Close Others"), 3)
+	_context_menu.set_item_disabled(
+		_context_menu.item_count - 1, tabs.size() <= 1,
+	)
+	_context_menu.hide()
+	_context_menu.popup(Rect2i(
+		Vector2i(int(screen_pos.x), int(screen_pos.y)), Vector2i.ZERO,
+	))
+
+
+func _on_context_menu_id_pressed(id: int) -> void:
+	var idx: int = _context_tab_index
+	if idx < 0 or idx >= tabs.size():
+		return
+	match id:
+		0: _copy_tab_link(idx)
+		1: on_tab_close(idx)
+		2: _close_tabs_to_right(idx)
+		3: _close_other_tabs(idx)
+
+
+func _copy_tab_link(tab_index: int) -> void:
+	var tab: Dictionary = tabs[tab_index]
+	var space_id: String = tab.get("space_id", "")
+	var channel_id: String = tab.get("channel_id", "")
+	if space_id.is_empty():
+		return
+	var base_url: String = Client.get_base_url_for_space(space_id)
+	if base_url.is_empty():
+		return
+	var host: String = base_url.replace("https://", "").replace("http://", "")
+	var port := 443
+	var colon_pos: int = host.rfind(":")
+	if colon_pos != -1:
+		var port_str: String = host.substr(colon_pos + 1)
+		if port_str.is_valid_int():
+			port = port_str.to_int()
+			host = host.substr(0, colon_pos)
+	var space_data: Dictionary = Client.get_space_by_id(space_id)
+	var slug: String = space_data.get("slug", "")
+	var ch_name := ""
+	for ch in Client.channels:
+		if ch.get("id", "") == channel_id:
+			ch_name = ch.get("name", "")
+			break
+	var url: String = UriHandler.build_connect_url(
+		host, port, slug, ch_name,
+	)
+	DisplayServer.clipboard_set(url)
+	AppState.toast_requested.emit(tr("Link copied!"))
+
+
+func _close_tabs_to_right(from_index: int) -> void:
+	if from_index >= tabs.size() - 1:
+		return
+	var i: int = tabs.size() - 1
+	while i > from_index:
+		tabs.remove_at(i)
+		_tab_bar.remove_tab(i)
+		i -= 1
+	_tab_bar.current_tab = from_index
+	var tab: Dictionary = tabs[from_index]
+	AppState.select_channel(tab["channel_id"])
+	Config.set_last_selection(tab["space_id"], tab["channel_id"])
+	update_visibility()
+	update_icons()
+
+
+func _close_other_tabs(keep_index: int) -> void:
+	if tabs.size() <= 1:
+		return
+	var keep: Dictionary = tabs[keep_index]
+	tabs.clear()
+	_tab_bar.clear_tabs()
+	tabs.append(keep)
+	_tab_bar.add_tab(keep["name"])
+	_tab_bar.current_tab = 0
+	AppState.select_channel(keep["channel_id"])
+	Config.set_last_selection(keep["space_id"], keep["channel_id"])
+	update_visibility()
+	update_icons()
 
 
 func _set_space_icon_for_tab(tab_index: int) -> void:
