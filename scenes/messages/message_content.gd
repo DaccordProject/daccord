@@ -231,7 +231,7 @@ func _add_wave_button(data: Dictionary) -> void:
 	if ch_id.is_empty() or msg_id.is_empty():
 		return
 	var btn := Button.new()
-	btn.text = "\U0001f44b " + tr("Wave to welcome!")
+	btn.text = "\U01f44b " + tr("Wave to welcome!")
 	btn.custom_minimum_size = Vector2(0, 28)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var accent: Color = ThemeManager.get_color("accent")
@@ -251,8 +251,8 @@ func _add_wave_button(data: Dictionary) -> void:
 	btn.add_theme_stylebox_override("hover", hover_sb)
 	btn.add_theme_color_override("font_color", Color.WHITE)
 	btn.pressed.connect(func() -> void:
-		Client.add_reaction(ch_id, msg_id, "\U0001f44b")
-		btn.text = "\U0001f44b " + tr("Waved!")
+		Client.add_reaction(ch_id, msg_id, "\U01f44b")
+		btn.text = "\U01f44b " + tr("Waved!")
 		btn.disabled = true
 	)
 	add_child(btn)
