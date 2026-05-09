@@ -86,6 +86,33 @@ func send_action(data: Dictionary) -> void:
 		_client_plugins.send_action(plugin_id, data)
 
 
+## Submits a score to a plugin leaderboard.
+func leaderboard_submit(board_id: String, score: float, metadata: Dictionary = {}) -> void:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_submit"):
+		_client_plugins.leaderboard_submit(plugin_id, board_id, score, metadata)
+
+
+## Returns the top entries for a leaderboard.
+func leaderboard_get(board_id: String, limit: int = 50) -> Array:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_get"):
+		return await _client_plugins.leaderboard_get(plugin_id, board_id, limit)
+	return []
+
+
+## Returns leaderboard entries around the current user's rank.
+func leaderboard_around_me(board_id: String, limit: int = 10) -> Array:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_around"):
+		return await _client_plugins.leaderboard_around(plugin_id, board_id, limit)
+	return []
+
+
+## Returns a specific user's leaderboard record.
+func leaderboard_get_user(board_id: String, user_id: String) -> Dictionary:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_get_user"):
+		return await _client_plugins.leaderboard_get_user(plugin_id, board_id, user_id)
+	return {}
+
+
 ## Requests a file from the host (sends a data channel message asking for it).
 func request_file(filename: String) -> void:
 	var payload: PackedByteArray = filename.to_utf8_buffer()

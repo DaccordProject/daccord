@@ -259,9 +259,9 @@ func _build_voice_page() -> VBoxContainer:
 	# Video resolution
 	vbox.add_child(_section_label(tr("VIDEO RESOLUTION")))
 	var res_dropdown := OptionButton.new()
-	res_dropdown.add_item(tr("480p"))
-	res_dropdown.add_item(tr("720p"))
-	res_dropdown.add_item(tr("1080p"))
+	var res_labels: Array = Config.voice.RESOLUTION_LABELS
+	for label in res_labels:
+		res_dropdown.add_item(tr(label))
 	res_dropdown.selected = Config.voice.get_video_resolution()
 	res_dropdown.item_selected.connect(func(idx: int) -> void:
 		Config.voice.set_video_resolution(idx)
@@ -271,17 +271,14 @@ func _build_voice_page() -> VBoxContainer:
 	# Video FPS
 	vbox.add_child(_section_label(tr("VIDEO FPS")))
 	var fps_dropdown := OptionButton.new()
-	fps_dropdown.add_item(tr("15 FPS"))
-	fps_dropdown.add_item(tr("30 FPS"))
-	fps_dropdown.add_item(tr("60 FPS"))
+	var fps_opts: Array = Config.voice.FPS_OPTIONS
+	for fps in fps_opts:
+		fps_dropdown.add_item(tr("%d FPS") % fps)
 	var fps_val: int = Config.voice.get_video_fps()
-	match fps_val:
-		15: fps_dropdown.selected = 0
-		60: fps_dropdown.selected = 2
-		_: fps_dropdown.selected = 1
+	var fps_idx: int = fps_opts.find(fps_val)
+	fps_dropdown.selected = fps_idx if fps_idx != -1 else 1
 	fps_dropdown.item_selected.connect(func(idx: int) -> void:
-		var fps_map := [15, 30, 60]
-		Config.voice.set_video_fps(fps_map[idx])
+		Config.voice.set_video_fps(fps_opts[idx])
 	)
 	vbox.add_child(fps_dropdown)
 

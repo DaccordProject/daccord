@@ -105,6 +105,8 @@ signal server_synced(space_id: String)
 @warning_ignore("unused_signal")
 signal profile_switched()
 @warning_ignore("unused_signal")
+signal profile_lock_requested()
+@warning_ignore("unused_signal")
 signal guest_mode_changed(is_guest: bool)
 @warning_ignore("unused_signal")
 signal anonymous_count_updated(space_id: String, count: int)
@@ -218,6 +220,8 @@ signal activity_role_changed(plugin_id: String, user_id: String, role: String)
 signal activity_available(plugin_id: String, channel_id: String, session_id: String)
 @warning_ignore("unused_signal")
 signal activity_participants_updated(session_id: String, participants: Array)
+@warning_ignore("unused_signal")
+signal active_sessions_updated(space_id: String)
 
 enum LayoutMode { COMPACT, MEDIUM, FULL }
 

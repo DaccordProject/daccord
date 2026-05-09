@@ -55,6 +55,14 @@ func get_channel_sessions(channel_id: String) -> RestResult:
 	return result
 
 
+## Returns all active (non-ended) sessions across all channels in a space.
+func get_space_sessions(space_id: String) -> RestResult:
+	var result := await _rest.make_request(
+		"GET", "/spaces/" + space_id + "/sessions/active"
+	)
+	return result
+
+
 ## Creates an activity session in a voice channel.
 ## Returns: { session_id, state, participants }
 func create_session(plugin_id: String, channel_id: String) -> RestResult:
@@ -106,5 +114,48 @@ func send_action(plugin_id: String, session_id: String, data: Dictionary) -> Res
 	var result := await _rest.make_request(
 		"POST", "/plugins/" + plugin_id + "/sessions/" + session_id + "/actions",
 		data
+	)
+	return result
+
+
+# ── Leaderboards ─────────────────────────────────────────────────────────
+
+## Submits a score to a leaderboard.
+func leaderboard_submit(
+	plugin_id: String, board_id: String, score: float,
+	metadata: Dictionary = {},
+) -> RestResult:
+	var body := {"score": score}
+	if not metadata.is_empty():
+		body["metadata"] = metadata
+	var result := await _rest.make_request(
+		"POST", "/plugins/" + plugin_id + "/leaderboards/" + board_id + "/submit",
+		body
+	)
+	return result
+
+
+## Returns the top entries for a leaderboard.
+func leaderboard_get(plugin_id: String, board_id: String, limit: int = 50) -> RestResult:
+	var result := await _rest.make_request(
+		"GET", "/plugins/" + plugin_id + "/leaderboards/" + board_id,
+		null, {"limit": str(limit)}
+	)
+	return result
+
+
+## Returns leaderboard entries around the current user's rank.
+func leaderboard_around(plugin_id: String, board_id: String, limit: int = 10) -> RestResult:
+	var result := await _rest.make_request(
+		"GET", "/plugins/" + plugin_id + "/leaderboards/" + board_id + "/around",
+		null, {"limit": str(limit)}
+	)
+	return result
+
+
+## Returns a specific user's leaderboard entry.
+func leaderboard_get_user(plugin_id: String, board_id: String, user_id: String) -> RestResult:
+	var result := await _rest.make_request(
+		"GET", "/plugins/" + plugin_id + "/leaderboards/" + board_id + "/user/" + user_id
 	)
 	return result

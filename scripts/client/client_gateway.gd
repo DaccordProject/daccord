@@ -97,6 +97,8 @@ func connect_signals(
 		_events.on_plugin_session_state.bind(idx))
 	client.plugin_role_changed.connect(
 		_events.on_plugin_role_changed.bind(idx))
+	client.plugin_leaderboard_updated.connect(
+		_events.on_plugin_leaderboard_updated.bind(idx))
 	client.soundboard_create.connect(
 		_events.on_soundboard_create.bind(idx))
 	client.soundboard_update.connect(
@@ -374,15 +376,31 @@ func on_message_create(message: AccordMessage, conn_index: int) -> void:
 			else:
 				# Determine if this is a mention
 				var is_mention: bool = my_id in message.mentions
-				if message.mention_everyone and not Config.get_suppress_everyone():
+				# Per-server suppress @everyone overrides global setting
+				var suppress_everyone: bool
+				var server_override: int = Config.get_server_suppress_everyone(space_id)
+				if server_override == 1:
+					suppress_everyone = true
+				elif server_override == 0:
+					suppress_everyone = false
+				else:
+					suppress_everyone = Config.get_suppress_everyone()
+				if message.mention_everyone and not suppress_everyone:
 					is_mention = true
 				if not is_mention:
 					is_mention = _has_role_mention(message.mention_roles, space_id)
 
-				# Enforce default_notifications setting
-				var space: Dictionary = _c._space_cache.get(space_id, {})
-				var notif_level: String = space.get("default_notifications", "all")
-				if notif_level == "mentions" and not is_mention:
+				# Per-channel notification level overrides space default
+				var ch_notif: String = Config.get_channel_notification_level(
+					message.channel_id
+				)
+				var effective_level: String = ch_notif
+				if effective_level == "default":
+					var space: Dictionary = _c._space_cache.get(space_id, {})
+					effective_level = space.get("default_notifications", "all")
+				if effective_level == "muted":
+					pass # Channel notification level is muted — skip
+				elif effective_level == "mentions" and not is_mention:
 					pass # Not a mention in mentions-only mode — skip
 				else:
 					_c.mark_channel_unread(message.channel_id, is_mention)

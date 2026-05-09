@@ -76,6 +76,7 @@ signal plugin_uninstalled(data: Dictionary)
 signal plugin_event(data: Dictionary)
 signal plugin_session_state(data: Dictionary)
 signal plugin_role_changed(data: Dictionary)
+signal plugin_leaderboard_updated(data: Dictionary)
 
 # Anonymous (guest) count
 signal anonymous_count_updated(data: Dictionary)
@@ -434,6 +435,8 @@ func _dispatch_event(event_type: String, data: Dictionary) -> void:
 			plugin_session_state.emit(data)
 		"plugin.role_changed":
 			plugin_role_changed.emit(data)
+		"plugin.leaderboard_updated":
+			plugin_leaderboard_updated.emit(data)
 		"anonymous_count.update":
 			anonymous_count_updated.emit(data)
 		"emoji.create":

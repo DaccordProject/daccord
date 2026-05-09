@@ -173,6 +173,11 @@ func on_plugin_role_changed(data: Dictionary, conn_index: int) -> void:
 		return
 	_c.plugins.on_plugin_role_changed(data, conn_index)
 
+func on_plugin_leaderboard_updated(data: Dictionary, conn_index: int) -> void:
+	if conn_index >= _c._connections.size() or _c._connections[conn_index] == null:
+		return
+	_c.plugins.on_plugin_leaderboard_updated(data, conn_index)
+
 # --- Anonymous count events ---
 
 func on_anonymous_count_updated(data: Dictionary, conn_index: int) -> void:

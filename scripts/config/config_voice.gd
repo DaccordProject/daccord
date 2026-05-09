@@ -1,6 +1,10 @@
 extends RefCounted
 ## Voice and video device configuration helper for Config.
 
+const RESOLUTION_LABELS := ["480p", "720p", "1080p"]
+const RESOLUTION_HEIGHTS := [480, 720, 1080]
+const FPS_OPTIONS := [15, 30, 60]
+
 var _parent: Node # Config singleton
 
 
@@ -54,6 +58,13 @@ func get_video_resolution() -> int:
 	return _parent._config.get_value(
 		"voice", "video_resolution", 0
 	)
+
+
+func get_video_resolution_height() -> int:
+	var idx: int = get_video_resolution()
+	if idx < 0 or idx >= RESOLUTION_HEIGHTS.size():
+		return RESOLUTION_HEIGHTS[0]
+	return RESOLUTION_HEIGHTS[idx]
 
 
 func set_video_resolution(preset: int) -> void:

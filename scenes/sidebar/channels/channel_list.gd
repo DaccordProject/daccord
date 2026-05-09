@@ -10,6 +10,9 @@ const NsfwGateDialogScene := preload("res://scenes/admin/nsfw_gate_dialog.tscn")
 const UncategorizedDropTargetScene := preload(
 	"res://scenes/sidebar/channels/uncategorized_drop_target.tscn"
 )
+const ActivitiesSectionScene := preload(
+	"res://scenes/sidebar/channels/activities_section.tscn"
+)
 
 var channel_item_nodes: Dictionary = {}
 var active_channel_id: String = ""
@@ -213,6 +216,15 @@ func load_space(space_id: String) -> void:
 				if item.channel_id == ch["id"]:
 					channel_item_nodes[ch["id"]] = item
 
+	# Activities section: shows active plugin sessions across the space
+	var activities := ActivitiesSectionScene.instantiate()
+	channel_vbox.add_child(activities)
+	activities.setup(space_id)
+	activities.join_lobby_requested.connect(_on_join_lobby)
+	activities.join_voice_requested.connect(_on_join_voice)
+	# Trigger initial fetch of space sessions
+	Client.plugins.fetch_space_sessions(space_id)
+
 	# "Create Channel" button at bottom (only if user has permission and channels exist)
 	if can_manage and selectable_channels > 0:
 		var create_btn := Button.new()
@@ -360,3 +372,43 @@ func _on_uncategorized_drop(channel_data: Dictionary) -> void:
 	if channel_data.get("parent_id", "") == "":
 		return
 	Client.admin.update_channel(channel_id, {"parent_id": null})
+
+
+func _on_join_lobby(session_data: Dictionary) -> void:
+	var plugin_id: String = str(session_data.get("plugin_id", ""))
+	var session_id: String = str(session_data.get("id", ""))
+	var channel_id: String = str(session_data.get("channel_id", ""))
+	var host_user_id: String = str(session_data.get("host_user_id", ""))
+	var state: String = str(session_data.get("state", ""))
+	if plugin_id.is_empty() or session_id.is_empty():
+		return
+	# Set pending activity state for join_activity()
+	AppState.pending_activity_plugin_id = plugin_id
+	AppState.pending_activity_channel_id = channel_id
+	AppState.pending_activity_session_id = session_id
+	AppState.pending_activity_host_user_id = host_user_id
+	AppState.pending_activity_state = state
+	# If not in the session's voice channel, join voice first
+	if AppState.voice_channel_id != channel_id:
+		AppState.voice_joined.connect(
+			func(cid: String) -> void:
+				if cid == channel_id:
+					Client.plugins.join_activity(),
+			CONNECT_ONE_SHOT
+		)
+		Client.join_voice_channel(channel_id)
+	else:
+		Client.plugins.join_activity()
+
+
+func _on_join_voice(channel_id: String) -> void:
+	if channel_id.is_empty():
+		return
+	if not Client.has_channel_permission(
+		_current_space_id, channel_id, AccordPermission.CONNECT
+	):
+		return
+	if AppState.voice_channel_id == channel_id:
+		AppState.open_voice_view()
+	else:
+		Client.join_voice_channel(channel_id)

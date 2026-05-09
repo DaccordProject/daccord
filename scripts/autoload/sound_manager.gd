@@ -92,7 +92,23 @@ func play_for_message(
 	if channel_id == AppState.current_channel_id:
 		return
 
+	# Respect per-channel notification level
+	var ch_level: String = Config.get_channel_notification_level(channel_id)
+	if ch_level == "muted":
+		return
+
+	# Check server mute
+	var space_id: String = Client._channel_to_space.get(channel_id, "")
+	if not space_id.is_empty() and Config.is_server_muted(space_id):
+		return
+
+	# Check channel mute (server-side)
+	if Client.is_channel_muted(channel_id):
+		return
+
 	var is_mention: bool = my_id in mentions or mention_everyone
+	if ch_level == "mentions" and not is_mention:
+		return
 	if is_mention:
 		play("mention_received")
 	elif not _window_focused:
