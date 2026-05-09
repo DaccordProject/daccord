@@ -48,6 +48,19 @@ func update_me(space_id: String, data: Dictionary) -> RestResult:
 	return result.deserialize(AccordMember.from_dict)
 
 
+## Leaves a space (self-removal). If delete_data is true, all of the user's
+## messages, reactions, read states, and channel mutes within the space are
+## also deleted (GDPR per-space erasure).
+func leave_me(space_id: String, delete_data: bool = false) -> RestResult:
+	var query := {}
+	if delete_data:
+		query["delete_data"] = "true"
+	var result := await _rest.make_request(
+		"DELETE", "/spaces/" + space_id + "/members/@me", null, query
+	)
+	return result
+
+
 ## Adds a role to a member in a space.
 func add_role(space_id: String, user_id: String, role_id: String) -> RestResult:
 	var path := (

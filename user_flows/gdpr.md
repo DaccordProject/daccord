@@ -5,7 +5,7 @@ Depends on: User Management
 
 ## Overview
 
-daccord provides several GDPR-relevant features across its client and server interactions: account deletion (right to erasure) with full server-side cascade, server-side data export (data portability), client-side config export, opt-in error reporting with PII scrubbing, privacy policy display, data retention disclosure, OAuth connection management, and password/2FA management for data security.
+daccord provides several GDPR-relevant features across its client and server interactions: account deletion (right to erasure) with full server-side cascade, per-space leave with optional data deletion (per-space right to erasure), server-side data export (data portability), client-side config export, opt-in error reporting with PII scrubbing, privacy policy display, data retention disclosure, OAuth connection management, and password/2FA management for data security.
 
 ## User Steps
 
@@ -63,6 +63,27 @@ daccord provides several GDPR-relevant features across its client and server int
 3. User clicks "Disconnect" to send `DELETE /users/@me/connections/{id}`.
 4. On success, the connection row is removed from the list.
 
+### Leaving a space & deleting per-space data (right to erasure, per-space)
+
+1. User right-clicks a space icon in the space bar.
+2. User selects "Leave Server" (keeps data) or "Leave & Delete Data" (erases data).
+3. A confirmation dialog explains the consequences.
+4. User confirms.
+5. Client sends `DELETE /spaces/{space_id}/members/@me` (optionally with `?delete_data=true`).
+6. Server verifies the user is not the space owner.
+7. If `delete_data=true`, server cascade-deletes all user data within the space (messages, reactions, read states, channel mutes, invite/emoji attribution).
+8. Otherwise, only the membership is removed (messages remain).
+9. Server broadcasts `member.leave` gateway event.
+10. Client calls `disconnect_server()` to clean up local caches.
+
+Alternatively, via Server Settings → "Privacy & Data":
+
+1. User opens the "Leave & Delete Data" section.
+2. User clicks "Leave & Delete My Data" (red danger button).
+3. A ConfirmationDialog asks for final confirmation.
+4. Same REST call and server-side cascade as above.
+5. Settings panel closes automatically.
+
 ### Enabling 2FA (data security)
 
 1. User opens Server Settings → "Two-Factor Auth".
@@ -105,6 +126,28 @@ Profile export:
     → UserSettingsProfilesPage._export_profile()
       → Config.export_config(path)                         [writes .daccord-profile file]
 
+Per-space leave & data deletion (context menu):
+  User clicks "Leave Server" or "Leave & Delete Data"
+    → guild_icon._confirm_leave_server(delete_data)
+      → DialogHelper.confirm() → Client.leave_space(space_id, delete_data)
+        → client_mutations.leave_space()
+          → AccordClient.members.leave_me(space_id, delete_data)  [DELETE /spaces/{id}/members/@me]
+          → Server: require_membership() → owner check
+            → delete_data=true: db::members::remove_member_and_data()
+              → DELETE reactions, messages, read_states, channel_mutes
+              → NULL invites.inviter_id, emojis.creator_id
+              → DELETE members (FK cascades member_roles)
+            → delete_data=false: db::members::remove_member()
+          → Gateway: member.leave broadcast
+        → client_connection.disconnect_server() (local cache cleanup)
+
+Per-space leave & data deletion (settings panel):
+  User clicks "Leave & Delete My Data" in Privacy & Data page
+    → server_settings._on_leave_and_delete_data()
+      → ConfirmationDialog.confirmed → _do_leave_and_delete()
+        → Client.leave_space(space_id, true)  [same flow as above]
+        → _close() (dismiss settings panel)
+
 OAuth disconnect:
   User clicks "Disconnect"
     → server_settings._on_disconnect_connection(conn_id, row)
@@ -117,7 +160,8 @@ OAuth disconnect:
 | File | Role |
 |------|------|
 | `scenes/user/user_settings_danger.gd` | Change Password and Delete Account page builders and handlers |
-| `scenes/user/server_settings.gd` | Per-server settings panel: Connections with disconnect, Privacy & Data page with export |
+| `scenes/user/server_settings.gd` | Per-server settings panel: Connections with disconnect, Privacy & Data page with export and per-space leave & delete |
+| `scenes/sidebar/guild_bar/guild_icon.gd` | Space context menu: "Leave Server" / "Leave & Delete Data" options |
 | `scenes/user/app_settings.gd` | App-wide settings panel with error reporting toggle (line 704) |
 | `scenes/user/app_settings_about_page.gd` | About page with Privacy & Legal links |
 | `scenes/user/user_settings_profiles_page.gd` | Profile export/import |
@@ -128,9 +172,12 @@ OAuth disconnect:
 | `scripts/autoload/config_profiles.gd` | Profile deletion with local file cleanup |
 | `scripts/autoload/error_reporting.gd` | Sentry init, PII scrubbing, consent gating |
 | `scenes/main/main_window.gd` | Error reporting consent dialog |
+| `addons/accordkit/rest/endpoints/members_api.gd` | `leave_me()` — self-removal from space with optional data deletion |
 | `addons/accordkit/rest/endpoints/users_api.gd` | `delete_me()`, `request_data_export()` |
 | `addons/accordkit/rest/endpoints/auth_api.gd` | `change_password()`, 2FA endpoints |
 | `project.godot` | `send_default_pii=false` Sentry setting |
+| `../accordserver/src/routes/members.rs` | `leave_space()` — `DELETE /spaces/{id}/members/@me` with optional `?delete_data=true` |
+| `../accordserver/src/db/members.rs` | `remove_member_and_data()` — per-space cascade (messages, reactions, read states, mutes, invites, emojis) |
 | `../accordserver/src/routes/users.rs` | `delete_current_user()`, `export_current_user_data()` |
 | `../accordserver/src/routes/auth.rs` | `verify_user_password()` (now pub(crate)) |
 | `../accordserver/src/db/admin.rs` | `delete_user()` cascade logic |
@@ -229,6 +276,34 @@ Both links open in the system browser via Godot's `LinkButton.uri` property.
 - `POST /auth/2fa/disable` — requires password
 - `POST /auth/2fa/backup-codes` — retrieves offline recovery codes
 
+### Per-Space Leave & Data Deletion (GDPR Per-Space Erasure)
+
+The server-side endpoint `DELETE /spaces/{space_id}/members/@me` (line 227 of `routes/members.rs`) allows a user to leave a space. It accepts an optional `?delete_data=true` query parameter.
+
+**Ownership guard:** The handler fetches the space row and rejects the request if the authenticated user is the space owner (`space.owner_id == auth.user_id`), returning a 400 error instructing them to transfer ownership first.
+
+**Without `delete_data`:** Calls `db::members::remove_member()` which deletes the membership row. FK cascade removes `member_roles`.
+
+**With `delete_data=true`:** Calls `db::members::remove_member_and_data()` (line 126 of `db/members.rs`) which performs a scoped cascade:
+
+1. `reactions` — deletes reactions by the user on messages in the space's channels
+2. `messages` — deletes messages authored by the user in the space's channels
+3. `read_states` — deletes read states for the user in the space's channels
+4. `channel_mutes` — deletes channel mutes for the user in the space's channels
+5. `invites` — NULLs `inviter_id` where the user created invites in the space
+6. `emojis` — NULLs `creator_id` where the user created emojis in the space
+7. `members` — removes the membership (FK cascades `member_roles`)
+
+Both paths broadcast a `member.leave` gateway event.
+
+**Client entry points:**
+
+1. **Context menu** (`guild_icon.gd`, line 352): `_confirm_leave_server(delete_data)` shows a confirmation dialog then calls `Client.leave_space()`. "Leave Server" sets `delete_data=false`; "Leave & Delete Data" sets `delete_data=true`. Space owners do not see these options.
+
+2. **Privacy & Data page** (`server_settings.gd`, line 253): A "LEAVE & DELETE DATA" section with a red "Leave & Delete My Data" button. Clicking triggers `_on_leave_and_delete_data()` which shows a `ConfirmationDialog`, then `_do_leave_and_delete()` calls `Client.leave_space(space_id, true)` and closes the settings panel. Space owners see a note to transfer ownership instead.
+
+**Client mutation:** `client_mutations.leave_space()` (line 468) calls `AccordClient.members.leave_me()` then `disconnect_server()` to clean up local caches.
+
 ### Data Retention & Deletion Disclosure
 
 The Privacy & Data page (`server_settings.gd:_build_privacy_page()`, line 222) displays:
@@ -256,7 +331,10 @@ The Privacy & Data page (`server_settings.gd:_build_privacy_page()`, line 222) d
 - [x] Privacy policy and terms links in About page
 - [x] Data deletion disclosure in Privacy & Data page
 - [x] Data retention disclosure in Privacy & Data page
-- [ ] Per-server data deletion request (delete data from one server without deleting account)
+- [x] Per-server data deletion request (leave space with `?delete_data=true` cascade)
+- [x] "Leave Server" / "Leave & Delete Data" context menu options
+- [x] "Leave & Delete My Data" button in Privacy & Data settings page
+- [x] Server-side `DELETE /spaces/{id}/members/@me` endpoint with ownership guard
 
 ## Tasks
 
@@ -315,3 +393,10 @@ The Privacy & Data page (`server_settings.gd:_build_privacy_page()`, line 222) d
 - **Effort:** 3
 - **Tags:** ci, config, security
 - **Notes:** `Config.export_config()` already strips `token` and `password` keys from server sections via a sanitized copy (skips keys in `_IMPORT_BLOCKED_KEYS`). The export file contains only preferences, not credentials.
+
+### GDPR-9: Per-server data deletion request
+- **Status:** done
+- **Impact:** 4
+- **Effort:** 4
+- **Tags:** gdpr, security
+- **Notes:** `DELETE /spaces/{id}/members/@me?delete_data=true` endpoint added to accordserver (`routes/members.rs:leave_space()`). Cascade deletes messages, reactions, read states, channel mutes, and NULLs invite/emoji attribution within the space. Client exposes this via "Leave Server" / "Leave & Delete Data" in the space context menu and "Leave & Delete My Data" in Server Settings → Privacy & Data. Space owners must transfer ownership before leaving.

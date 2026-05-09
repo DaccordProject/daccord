@@ -97,6 +97,7 @@ func _ready() -> void:
 	AppState.space_selected.connect(_on_space_selected)
 	AppState.reauth_needed.connect(_on_reauth_needed)
 	AppState.profile_switched.connect(_on_profile_switched)
+	AppState.profile_lock_requested.connect(_on_profile_lock_requested)
 	AppState.server_removed.connect(_on_server_removed)
 	drawer_backdrop.gui_input.connect(_on_backdrop_input)
 	get_viewport().size_changed.connect(_on_viewport_resized)
@@ -735,6 +736,19 @@ func _on_profile_switched() -> void:
 	# Show welcome screen if no servers in new profile
 	if not Config.has_servers():
 		_overlays.show_welcome_screen()
+
+func _on_profile_lock_requested() -> void:
+	var ProfilePasswordDialog: PackedScene = load(
+		"res://scenes/user/profile_password_dialog.tscn"
+	)
+	var slug: String = Config.profiles.get_active_slug()
+	var pname: String = Config.get_profile_name(slug)
+	var dialog: ColorRect = ProfilePasswordDialog.instantiate()
+	dialog.setup(slug, pname)
+	dialog.password_verified.connect(func(_s: String) -> void:
+		Client._profile_locked = false
+	)
+	get_tree().root.add_child(dialog)
 
 func _on_reauth_needed(
 	server_index: int, base_url: String, username: String,

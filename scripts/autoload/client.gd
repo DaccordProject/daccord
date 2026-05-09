@@ -150,6 +150,7 @@ var _voice_session # LiveKitAdapter on desktop/mobile, WebVoiceSession on web
 var _idle_timer: Timer
 var _is_auto_idle: bool = false
 var _last_input_time: float = 0.0
+var _profile_locked: bool = false
 var _camera_track  # LiveKitVideoStream (local preview)
 var _screen_track  # LiveKitVideoStream (local preview)
 var _remote_tracks: Dictionary = {} # user_id -> LiveKitVideoStream
@@ -293,17 +294,21 @@ func _check_idle() -> void:
 	var timeout: int = Config.get_idle_timeout()
 	if timeout <= 0:
 		return
-	if _is_auto_idle:
-		return
-	var status: int = current_user.get(
-		"status", ClientModels.UserStatus.OFFLINE
-	)
-	if status != ClientModels.UserStatus.ONLINE:
-		return
 	var now: float = Time.get_ticks_msec() / 1000.0
-	if now - _last_input_time >= timeout:
-		_is_auto_idle = true
-		update_presence(ClientModels.UserStatus.IDLE)
+	var idle_secs: float = now - _last_input_time
+	if not _is_auto_idle:
+		var status: int = current_user.get(
+			"status", ClientModels.UserStatus.OFFLINE
+		)
+		if status == ClientModels.UserStatus.ONLINE \
+				and idle_secs >= timeout:
+			_is_auto_idle = true
+			update_presence(ClientModels.UserStatus.IDLE)
+	# Lock password-protected profile after 2x idle timeout
+	if not _profile_locked and Config.profiles.active_has_password() \
+			and idle_secs >= timeout * 2:
+		_profile_locked = true
+		AppState.profile_lock_requested.emit()
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
@@ -652,6 +657,9 @@ func change_password(
 	return await mutations.change_password(
 		current_pw, new_pw
 	)
+
+func leave_space(space_id: String, delete_data: bool = false) -> Dictionary:
+	return await mutations.leave_space(space_id, delete_data)
 
 func delete_account(password: String) -> Dictionary:
 	return await mutations.delete_account(password)

@@ -69,6 +69,7 @@ func _ready() -> void:
 	button_container.add_child(_status_dot)
 
 	add_to_group("themed")
+	add_to_group("guild_icons")
 	AppState.server_disconnected.connect(_on_connection_changed)
 	AppState.server_reconnecting.connect(_on_connection_changed_3)
 	AppState.server_reconnected.connect(_on_connection_changed_1)
@@ -244,6 +245,12 @@ func _show_context_menu(pos: Vector2i) -> void:
 		_context_menu.add_item(tr("Remove from Folder"), idx)
 	idx += 1
 
+	if not Client.is_space_owner(space_id):
+		_context_menu.add_item(tr("Leave Server"), idx)
+		idx += 1
+		_context_menu.add_item(tr("Leave & Delete Data"), idx)
+		idx += 1
+
 	_context_menu.add_separator()
 	idx += 1
 	_context_menu.add_item(tr("Remove Server"), idx)
@@ -301,6 +308,10 @@ func _on_context_menu_id_pressed(id: int) -> void:
 		_remove_from_folder()
 	elif label == tr("Copy Server Link"):
 		_copy_server_link()
+	elif label == tr("Leave Server"):
+		_confirm_leave_server(false)
+	elif label == tr("Leave & Delete Data"):
+		_confirm_leave_server(true)
 	elif label == tr("Remove Server"):
 		_confirm_remove_server()
 
@@ -338,6 +349,33 @@ func _remove_from_folder() -> void:
 	Config.set_space_folder(space_id, "")
 	Client.update_space_folder(space_id, "")
 
+
+func _confirm_leave_server(delete_data: bool) -> void:
+	var title: String
+	var msg: String
+	if delete_data:
+		title = tr("Leave & Delete Data")
+		msg = tr(
+			"Are you sure you want to leave '%s' and delete "
+			+ "all your messages and data from this server? "
+			+ "This action cannot be undone."
+		) % space_name
+	else:
+		title = tr("Leave Server")
+		msg = tr(
+			"Are you sure you want to leave '%s'? "
+			+ "Your messages will remain on the server."
+		) % space_name
+	DialogHelper.confirm(ConfirmDialogScene, get_tree(),
+		title, msg, tr("Leave"), delete_data, func():
+			var result: Dictionary = await Client.leave_space(
+				space_id, delete_data
+			)
+			if not result.get("ok", false):
+				AppState.toast_requested.emit(
+					tr("Failed to leave: %s") % result.get("error", "")
+				)
+	)
 
 func _confirm_remove_server() -> void:
 	var srv_url: String = ""

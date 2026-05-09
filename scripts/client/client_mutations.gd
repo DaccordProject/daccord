@@ -465,6 +465,18 @@ func change_password(
 		return {"ok": false, "error": NodeUtils.rest_error(result)}
 	return {"ok": true}
 
+func leave_space(space_id: String, delete_data: bool = false) -> Dictionary:
+	var client: AccordClient = _c._client_for_space(space_id)
+	if client == null:
+		return {"ok": false, "error": "Not connected"}
+	var result: RestResult = await client.members.leave_me(
+		space_id, delete_data
+	)
+	if not result.ok:
+		return {"ok": false, "error": NodeUtils.rest_error(result)}
+	_c.connection.disconnect_server(space_id)
+	return {"ok": true}
+
 func delete_account(password: String) -> Dictionary:
 	var client: AccordClient = _c._first_connected_client()
 	if client == null:
