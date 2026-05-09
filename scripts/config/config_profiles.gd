@@ -35,6 +35,11 @@ func get_active_slug() -> String:
 	return _parent._profile_slug
 
 
+func active_has_password() -> bool:
+	var section: String = "profile_" + _parent._profile_slug
+	return _parent._registry.has_section_key(section, "password_hash")
+
+
 func create(
 	pname: String, pw: String = "",
 	copy_current: bool = false,

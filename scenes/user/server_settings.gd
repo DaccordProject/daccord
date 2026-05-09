@@ -249,7 +249,48 @@ func _build_privacy_page() -> VBoxContainer:
 
 	vbox.add_child(HSeparator.new())
 
-	# Data deletion info
+	# Per-space data deletion
+	vbox.add_child(_section_label(tr("LEAVE & DELETE DATA")))
+	var leave_desc := Label.new()
+	leave_desc.text = tr(
+		"Leave this server and permanently delete all your "
+		+ "data from it, including messages, reactions, and "
+		+ "read states. Your account on this instance remains "
+		+ "active. This action cannot be undone."
+	)
+	leave_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	leave_desc.add_theme_color_override(
+		"font_color", ThemeManager.get_color("text_muted")
+	)
+	vbox.add_child(leave_desc)
+
+	if not Client.is_space_owner(_space_id):
+		var leave_btn := SettingsBase.create_action_button(
+			tr("Leave & Delete My Data")
+		)
+		ThemeManager.style_button(
+			leave_btn, "error", "error_hover",
+			"error_pressed", 4, [16, 6, 16, 6]
+		)
+		leave_btn.pressed.connect(
+			_on_leave_and_delete_data.bind(leave_btn)
+		)
+		vbox.add_child(leave_btn)
+	else:
+		var owner_note := Label.new()
+		owner_note.text = tr(
+			"You are the space owner. Transfer ownership "
+			+ "before you can leave."
+		)
+		owner_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		owner_note.add_theme_color_override(
+			"font_color", ThemeManager.get_color("text_muted")
+		)
+		vbox.add_child(owner_note)
+
+	vbox.add_child(HSeparator.new())
+
+	# Data deletion info (account-wide)
 	vbox.add_child(_section_label(tr("DATA DELETION")))
 	var delete_desc := Label.new()
 	delete_desc.text = tr(
@@ -343,3 +384,35 @@ func _on_request_data_export(
 	status_label.visible = true
 	btn.disabled = false
 	btn.text = tr("Request Data Export")
+
+func _on_leave_and_delete_data(btn: Button) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = tr("Leave & Delete Data")
+	dialog.dialog_text = tr(
+		"This will permanently leave '%s' and delete all "
+		+ "your messages, reactions, and data from this "
+		+ "server. This cannot be undone.\n\n"
+		+ "Are you sure?"
+	) % _server_name
+	dialog.ok_button_text = tr("Leave & Delete")
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(
+		_do_leave_and_delete.bind(btn, dialog)
+	)
+
+func _do_leave_and_delete(btn: Button, dialog: Node) -> void:
+	dialog.queue_free()
+	btn.disabled = true
+	btn.text = tr("Leaving...")
+	var result: Dictionary = await Client.leave_space(
+		_space_id, true
+	)
+	if not result.get("ok", false):
+		btn.disabled = false
+		btn.text = tr("Leave & Delete My Data")
+		AppState.toast_requested.emit(
+			tr("Failed: %s") % result.get("error", "")
+		)
+		return
+	_close()
