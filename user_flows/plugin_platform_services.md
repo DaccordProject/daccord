@@ -2,31 +2,82 @@
 
 Priority: 80
 Depends on: Plugin System
-Status: Planned
+Status: Planned (leaderboard endpoints & simulator — implementation target)
 
 Server-provided backend services that plugin developers can use out of the box: persistent storage, leaderboards, achievements, matchmaking, server-authoritative state, timed events, virtual currencies, plugin announcements, and cross-session statistics. These services eliminate the need for plugin authors to build or host their own backends, enabling richer voice channel activities with minimal effort.
 
 ## Key Files
 
+### Client (daccord)
+
 | File | Role |
 |------|------|
-| `scripts/plugins/scripted_runtime.gd` | Lua bridge — new storage/leaderboard/achievement/etc. functions added here |
-| `scripts/plugins/plugin_context.gd` | Native plugin bridge — matching GDScript API surface |
-| `scripts/client/client_plugins.gd` | Routes bridge calls to REST, handles gateway events for platform services |
-| `addons/accordkit/rest/endpoints/plugins_api.gd` | AccordKit REST endpoint class — new platform service endpoints |
-| `addons/accordkit/models/plugin_manifest.gd` | PluginManifest model — `services` block parsing |
-| `addons/accordkit/gateway/gateway_socket.gd` | Gateway dispatch for `plugin_storage/leaderboard/achievement/etc.` events |
-| `scenes/plugins/activity_card.gd` | Plugin info card — displays achievements, leaderboard rank, stats |
-| `accordserver/src/routes/plugins.rs` | Server route handlers for all platform service endpoints |
-| `accordserver/src/db/plugin_storage.rs` | Storage table CRUD |
-| `accordserver/src/db/plugin_leaderboards.rs` | Leaderboard table queries and ranking |
-| `accordserver/src/db/plugin_achievements.rs` | Achievement tracking and progress |
-| `accordserver/src/db/plugin_stats.rs` | Cross-session statistics |
-| `accordserver/src/db/plugin_wallet.rs` | Currency balances and transactions |
+| `scripts/plugins/scripted_runtime.gd` | Lua bridge — `_inject_bridge_api()` (line 313) injects `api.*` functions into sandbox |
+| `scripts/plugins/plugin_context.gd` | Native plugin bridge — GDScript API surface for native plugins (93 lines) |
+| `scripts/client/client_plugins.gd` | Routes bridge calls to REST via `send_action()`, handles gateway events (786 lines) |
+| `addons/accordkit/rest/endpoints/plugins_api.gd` | AccordKit REST endpoint class — 12 endpoints (list/install/delete/sessions/actions) |
+| `addons/accordkit/models/plugin_manifest.gd` | AccordPluginManifest model — no `services` block yet (97 lines) |
+| `addons/accordkit/gateway/gateway_socket.gd` | Gateway dispatch — `plugin_event` signal (line 76), no platform service signals yet |
+
+### Server (accordserver)
+
+| File | Role |
+|------|------|
+| `src/routes/plugins.rs` | Route handlers — 12 endpoints, `broadcast_plugin_event()` helper (line 695) |
+| `src/routes/mod.rs` | Route registration — plugin routes at lines 309–347 |
+| `src/db/plugins.rs` | Database functions — CRUD for plugins/sessions/participants (408 lines) |
+| `src/models/plugin.rs` | Model structs — `PluginManifest`, `Plugin`, `PluginSession`, `PluginAction` (128 lines) |
+| `migrations/019_plugins.sql` | SQLite schema — `plugins`, `plugin_sessions`, `plugin_session_participants` tables |
+| `migrations/postgres/003_plugins.sql` | Postgres equivalent |
+
+### Editor (daccord-editor)
+
+| File | Role |
+|------|------|
+| `scenes/plugins/scripted_runtime.gd` | Editor Lua bridge — same API surface minus `time()`/`ticks_ms()` |
+| `scenes/plugins/plugin_canvas.gd` | Drawing command queue executor |
+| `scripts/editor.gd` | Editor harness — `MockClientPlugins` (line 328), action loopback, user simulation |
 
 ## Overview
 
-Today plugins communicate via `send_action()` (a passthrough REST call) and LiveKit data channels (`send_data()`). Session state is ephemeral — when a session ends, everything is lost. Plugin developers who want persistence, ranking, or server authority must build it themselves. These platform services fill that gap by providing first-class, server-managed primitives that any plugin (scripted or native) can call through the existing bridge API.
+Today plugins communicate via `send_action()` (a passthrough REST call at `POST /plugins/{id}/sessions/{sid}/actions`) and LiveKit data channels (`send_data()`). Session state is ephemeral — when a session ends, everything is lost. Plugin developers who want persistence, ranking, or server authority must build it themselves. These platform services fill that gap by providing first-class, server-managed primitives that any plugin (scripted or native) can call through the existing bridge API.
+
+## Current Plugin Infrastructure
+
+### What Exists
+
+**Server (accordserver):**
+- Database tables: `plugins`, `plugin_sessions`, `plugin_session_participants` (migration 019)
+- 13 REST endpoints registered at `src/routes/mod.rs:309-347`
+- Gateway broadcast helper `broadcast_plugin_event()` at `src/routes/plugins.rs:695-716`
+- Bundle parsing with manifest validation, signature checks (`src/routes/plugins.rs:587-691`)
+- SQLite + PostgreSQL support with abstracted query placeholders
+
+**Client (daccord):**
+- Bridge API with ~30 functions injected at `scripted_runtime.gd:313-576`
+  - Canvas/drawing (12 functions), state/networking (7), timers (3), audio (3), assets (1), helpers (6)
+  - `time()` and `ticks_ms()` (lines 422-425) — not in editor
+  - Bulk bridge `_array_from_flat()`/`_dict_from_flat()` — WASM optimization
+  - Payload validation: `MAX_ACTION_PAYLOAD_BYTES = 8192` (line 10)
+- Native plugin bridge via `PluginContext` — `send_action()`, `send_data()`, `send_file()`, `get_participants()`, `is_host()`
+- Gateway signals: `plugin_installed`, `plugin_uninstalled`, `plugin_event`, `plugin_session_state`, `plugin_role_changed` (gateway_socket.gd lines 73-78)
+- AccordPluginManifest model with 20+ fields, no `services` block (plugin_manifest.gd)
+
+**Editor (daccord-editor):**
+- `MockClientPlugins` inner class (editor.gd:328-331) — loops `send_action()` back as `on_plugin_event("action", data)`
+- Multi-user simulation with `_users` array and `_apply_user_context()` (editor.gd:310-316)
+- Rejoin simulation (editor.gd:391-451) — intercepts `state_sync`, stops/restarts runtime
+- Same bridge API as client minus `time()`/`ticks_ms()` and bulk bridge helpers
+
+### What's Missing (All Platform Services)
+
+No platform service code exists in any of the three codebases:
+- ❌ No `plugin_leaderboard_records` / `plugin_storage` / `plugin_achievements` / `plugin_stats` / `plugin_wallet` / `plugin_transactions` / `plugin_timers` tables
+- ❌ No leaderboard/storage/achievement REST endpoints
+- ❌ No `plugin_leaderboard_updated` / `plugin_storage_updated` / `plugin_achievement_unlocked` gateway signals
+- ❌ No `leaderboard_submit` / `storage_set` / `achievement_unlock` bridge functions
+- ❌ No `services` block in PluginManifest (server or client models)
+- ❌ No editor simulators for any platform service
 
 ## User Steps
 
@@ -50,6 +101,49 @@ Today plugins communicate via `send_action()` (a passthrough REST call) and Live
 1. User opens a plugin's info card from the activity modal
 2. Card shows the user's achievements, leaderboard rank, and stats for that plugin
 3. User can browse the full leaderboard or compare with friends
+
+## Signal Flow
+
+### Current (send_action passthrough)
+
+```
+Plugin calls api.send_action(data)
+    → ScriptedRuntime._bridge_send_action(data)             (scripted_runtime.gd:581)
+        → size check: var_to_bytes(data) > 8192 → reject    (scripted_runtime.gd:582-589)
+        → _client_plugins.send_action(_plugin_id, data)     (scripted_runtime.gd:590-591)
+            → REST: POST /plugins/{id}/sessions/{sid}/actions
+                → Server broadcasts plugin.event via gateway
+    → Gateway: plugin_event signal                           (gateway_socket.gd:76)
+        → client_gateway_events.on_plugin_event()
+            → ClientPlugins._on_plugin_event(data)
+                → ScriptedRuntime.on_plugin_event(event_type, data)
+                    → Lua: _on_event(event_type, data)
+```
+
+### Planned (dedicated leaderboard endpoint)
+
+```
+Plugin calls api.leaderboard_submit(board_id, score, metadata)
+    → ScriptedRuntime._bridge_leaderboard_submit(board_id, score, metadata)
+        → REST: POST /plugins/{id}/leaderboards/{board_id}/submit
+            → Server validates, updates plugin_leaderboard_records
+            → Server broadcasts plugin_leaderboard_updated via gateway
+    → Gateway: plugin_leaderboard_updated signal
+        → client_gateway_events.on_plugin_leaderboard_updated()
+            → ClientPlugins._on_plugin_leaderboard_updated(data)
+                → ScriptedRuntime.on_plugin_event("leaderboard_updated", data)
+                    → Lua: _on_event("leaderboard_updated", data)
+```
+
+### Planned (editor simulator loopback)
+
+```
+Plugin calls api.leaderboard_submit(board_id, score, metadata)
+    → ScriptedRuntime._bridge_leaderboard_submit(board_id, score, metadata)
+        → In-memory sorted array update (no REST, no server)
+        → Immediate callback: on_plugin_event("leaderboard_updated", result)
+            → Lua: _on_event("leaderboard_updated", data)
+```
 
 ## Features
 
@@ -127,6 +221,14 @@ leaderboard_submit(board_id, score, metadata)
 leaderboard_get(board_id, limit) -> [{user_id, display_name, score, rank, metadata}]
 leaderboard_around_me(board_id, limit) -> [{user_id, display_name, score, rank}]
 leaderboard_get_user(board_id, user_id) -> {score, rank}
+```
+
+**Bridge API (native — PluginContext):**
+```gdscript
+context.leaderboard_submit(board_id: String, score: float, metadata: Dictionary) -> void
+context.leaderboard_get(board_id: String, limit: int) -> Array[Dictionary]
+context.leaderboard_around_me(board_id: String, limit: int) -> Array[Dictionary]
+context.leaderboard_get_user(board_id: String, user_id: String) -> Dictionary
 ```
 
 **Operators:**
@@ -412,24 +514,6 @@ stat_top(stat_name, limit) -> [{user_id, display_name, value, rank}]
 
 **Use cases:** lifetime statistics, win/loss records, total play time, skill ratings.
 
-## Signal Flow
-
-```
-Plugin calls bridge function (e.g., leaderboard_submit)
-    -> ScriptedRuntime._bridge_leaderboard_submit(board_id, score, metadata)
-        -> send_action({type: "leaderboard_submit", board_id, score, metadata})
-            -> REST: POST /plugins/{id}/sessions/{sid}/actions
-                -> Server routes to leaderboard handler
-                -> Updates leaderboard table
-                -> Broadcasts plugin_leaderboard_updated via gateway
-    -> Gateway: plugin_leaderboard_updated event
-        -> client_gateway_events.on_plugin_event()
-            -> ClientPlugins._on_plugin_event(event_type, data)
-                -> ScriptedRuntime.on_event("leaderboard_updated", data)
-                    -> Lua: _on_event("leaderboard_updated", data)
-                        -> Plugin updates its UI
-```
-
 ## Database Schema (accordserver)
 
 ### plugin_storage
@@ -536,6 +620,201 @@ CREATE TABLE plugin_timers (
 );
 ```
 
+## Implementation Details
+
+### Leaderboard Implementation — Server (accordserver)
+
+**New files to create:**
+- `src/db/plugin_leaderboards.rs` — CRUD functions for `plugin_leaderboard_records` table
+- Migration file (e.g., `migrations/024_plugin_leaderboards.sql` + `migrations/postgres/008_plugin_leaderboards.sql`)
+
+**Files to modify:**
+
+1. **`src/models/plugin.rs`** — Add structs:
+   ```rust
+   pub struct LeaderboardSubmit { pub score: f64, pub metadata: Option<serde_json::Value> }
+   pub struct LeaderboardRecord { pub user_id: String, pub display_name: String, pub score: f64, pub rank: i64, pub metadata: Option<serde_json::Value> }
+   pub struct LeaderboardQuery { pub limit: Option<i64>, pub cursor: Option<String> }
+   ```
+   Add `services` field to `PluginManifest` (line 6):
+   ```rust
+   #[serde(default)]
+   pub services: Option<serde_json::Value>,
+   ```
+
+2. **`src/routes/plugins.rs`** — Add 4 handler functions:
+   - `leaderboard_submit()` — POST `/plugins/{id}/leaderboards/{board_id}/submit`
+   - `leaderboard_list()` — GET `/plugins/{id}/leaderboards/{board_id}`
+   - `leaderboard_around()` — GET `/plugins/{id}/leaderboards/{board_id}/around`
+   - `leaderboard_get_user()` — GET `/plugins/{id}/leaderboards/{board_id}/user/{user_id}`
+
+   Submit handler must:
+   - Validate the user is a member of the plugin's space
+   - Look up the board config from manifest `services.leaderboards`
+   - Apply operator logic (`best`/`set`/`increment`)
+   - Upsert into `plugin_leaderboard_records`
+   - Broadcast `plugin_leaderboard_updated` via `broadcast_plugin_event()` (line 695)
+
+3. **`src/routes/mod.rs`** — Register new routes after line 347:
+   ```rust
+   .route("/plugins/{plugin_id}/leaderboards/{board_id}/submit", post(plugins::leaderboard_submit))
+   .route("/plugins/{plugin_id}/leaderboards/{board_id}", get(plugins::leaderboard_list))
+   .route("/plugins/{plugin_id}/leaderboards/{board_id}/around", get(plugins::leaderboard_around))
+   .route("/plugins/{plugin_id}/leaderboards/{board_id}/user/{user_id}", get(plugins::leaderboard_get_user))
+   ```
+
+4. **`src/db/plugins.rs`** — Add functions:
+   - `upsert_leaderboard_record()` — insert or update based on operator
+   - `get_leaderboard()` — sorted query with limit/cursor pagination
+   - `get_leaderboard_around()` — records around a specific user's rank
+   - `get_user_leaderboard_record()` — single user lookup with rank
+
+### Leaderboard Implementation — Client (daccord)
+
+**Files to modify:**
+
+1. **`addons/accordkit/rest/endpoints/plugins_api.gd`** — Add 4 methods after line 118:
+   ```gdscript
+   func leaderboard_submit(plugin_id: String, board_id: String, score: float, metadata: Dictionary = {}) -> RestResult
+   func leaderboard_get(plugin_id: String, board_id: String, limit: int = 50) -> RestResult
+   func leaderboard_around(plugin_id: String, board_id: String, limit: int = 10) -> RestResult
+   func leaderboard_get_user(plugin_id: String, board_id: String, user_id: String) -> RestResult
+   ```
+
+2. **`addons/accordkit/gateway/gateway_socket.gd`** — Add signal after line 78:
+   ```gdscript
+   signal plugin_leaderboard_updated(data: Dictionary)
+   ```
+
+3. **`scripts/plugins/scripted_runtime.gd`** — Add bridge functions in `_inject_bridge_api()` after line 425:
+   ```gdscript
+   api["leaderboard_submit"] = func(board_id: String, score: float, metadata):
+       _bridge_leaderboard_submit(board_id, score, metadata)
+   api["leaderboard_get"] = func(board_id: String, limit: int):
+       return _bridge_leaderboard_get(board_id, limit)
+   api["leaderboard_around_me"] = func(board_id: String, limit: int):
+       return _bridge_leaderboard_around_me(board_id, limit)
+   api["leaderboard_get_user"] = func(board_id: String, user_id: String):
+       return _bridge_leaderboard_get_user(board_id, user_id)
+   ```
+
+4. **`scripts/plugins/plugin_context.gd`** — Add matching methods after line 93:
+   ```gdscript
+   func leaderboard_submit(board_id: String, score: float, metadata: Dictionary = {}) -> void
+   func leaderboard_get(board_id: String, limit: int = 50) -> Array
+   func leaderboard_around_me(board_id: String, limit: int = 10) -> Array
+   func leaderboard_get_user(board_id: String, user_id: String) -> Dictionary
+   ```
+
+5. **`scripts/client/client_plugins.gd`** — Add routing for leaderboard REST calls and gateway event handler
+
+6. **`addons/accordkit/models/plugin_manifest.gd`** — Add `services` field (after line 30):
+   ```gdscript
+   var services: Dictionary = {}  # {leaderboards: [...], achievements: [...], ...}
+   ```
+
+### Leaderboard Simulator — Editor (daccord-editor)
+
+**Files to modify:**
+
+1. **`scenes/plugins/scripted_runtime.gd`** — Add in-memory leaderboard state and bridge functions:
+   ```gdscript
+   var _leaderboards: Dictionary = {}  # board_id -> Array[{user_id, score, rank, metadata}]
+   ```
+
+   Add in `_inject_bridge_api()` after line 363:
+   ```gdscript
+   api["leaderboard_submit"] = func(board_id: String, score: float, metadata):
+       _sim_leaderboard_submit(board_id, score, metadata)
+   api["leaderboard_get"] = func(board_id: String, limit: int):
+       return _sim_leaderboard_get(board_id, limit)
+   api["leaderboard_around_me"] = func(board_id: String, limit: int):
+       return _sim_leaderboard_around_me(board_id, limit)
+   api["leaderboard_get_user"] = func(board_id: String, user_id: String):
+       return _sim_leaderboard_get_user(board_id, user_id)
+   ```
+
+   Simulator logic:
+   - Parse board config from manifest `services.leaderboards` array
+   - Maintain sorted arrays per `board_id`
+   - Apply operator (`best`/`set`/`increment`) — compare current vs submitted
+   - Re-sort and assign ranks after each submit
+   - Fire `on_plugin_event("leaderboard_updated", result)` immediately (loopback)
+   - Persist across plugin reloads within the same editor session
+
+2. **`scripts/editor.gd`** — No changes needed if simulator is self-contained in ScriptedRuntime. Optionally add leaderboard state display in the status panel.
+
+### Extension Points for Adding Bridge Functions
+
+Both runtimes follow the same pattern (editor at line 254, client at line 313):
+
+```gdscript
+func _inject_bridge_api() -> void:
+    var api = _lua.create_table()
+    # 1. Add lambda to api table
+    api["function_name"] = func(args): _bridge_function(args)
+    # 2. Inject into Lua globals
+    _lua.globals["api"] = api
+```
+
+State tracking follows the timer/sound pattern (dictionaries keyed by ID):
+- Timers: `_timers: Dictionary = {}` (scripted_runtime.gd line 38)
+- Sounds: `_sounds: Dictionary = {}` (scripted_runtime.gd line 42)
+- Leaderboards: `_leaderboards: Dictionary = {}` (same pattern)
+
+## Implementation Status
+
+- [x] Plugin manifest model (server: `PluginManifest` struct, client: `AccordPluginManifest`)
+- [x] Plugin session lifecycle (create → lobby → running → ended)
+- [x] `send_action()` passthrough (REST + gateway broadcast)
+- [x] Bridge API — canvas, state, timers, audio, assets
+- [x] Editor action loopback and user simulation
+- [ ] Manifest `services` block parsing
+- [ ] Key-value storage — server endpoints and database
+- [ ] Key-value storage — client bridge API
+- [ ] **Leaderboards — server endpoints and database**
+- [ ] **Leaderboards — client bridge API**
+- [ ] **Leaderboards — editor simulator**
+- [ ] Achievements — server endpoints and database
+- [ ] Achievements — client bridge API and toast
+- [ ] Server-authoritative state sync — server
+- [ ] Server-authoritative state sync — client bridge
+- [ ] Matchmaking — server
+- [ ] Matchmaking — client bridge
+- [ ] Server-side timers
+- [ ] Server-side timers — client bridge
+- [ ] Virtual currencies — server
+- [ ] Virtual currencies — client bridge
+- [ ] Plugin announcements
+- [ ] Cross-session statistics — server
+- [ ] Cross-session statistics — client bridge
+- [ ] Plugin info card — persistent data display
+- [ ] Editor simulator — storage
+- [ ] Editor simulator — achievements
+- [ ] Editor simulator — server-authoritative state
+- [ ] Editor simulator — matchmaking (stub)
+- [ ] Editor simulator — server-side timers
+- [ ] Editor simulator — virtual currencies
+- [ ] Editor simulator — announcements
+- [ ] Editor simulator — cross-session statistics
+- [ ] Editor simulator — inspector panel
+
+## Gaps / TODO
+
+| Gap | Severity | Notes |
+|-----|----------|-------|
+| No `services` field in PluginManifest | High | Server `PluginManifest` (models/plugin.rs:6-43) and client `AccordPluginManifest` (plugin_manifest.gd:1-97) have no `services` block — prerequisite for all platform services |
+| No leaderboard database table | High | `plugin_leaderboard_records` table missing from migrations/019_plugins.sql — needs new migration |
+| No leaderboard REST endpoints | High | `src/routes/plugins.rs` has no submit/query/around handlers; `src/routes/mod.rs` has no leaderboard route registration (currently ends at line 347) |
+| No leaderboard bridge functions | High | `scripted_runtime.gd` `_inject_bridge_api()` (line 313) has no `leaderboard_*` functions; `plugin_context.gd` (93 lines) has no leaderboard methods |
+| No `plugin_leaderboard_updated` gateway signal | High | `gateway_socket.gd` plugin signals (lines 73-78) don't include leaderboard events |
+| No leaderboard REST client methods | High | `plugins_api.gd` (119 lines) has no leaderboard endpoint helpers |
+| No editor leaderboard simulator | Medium | Editor `scripted_runtime.gd` has no in-memory leaderboard state or simulator functions |
+| No period/reset logic for leaderboards | Medium | Leaderboard reset schedules (daily/weekly) need either background task or on-read archival in server |
+| Editor missing `time()`/`ticks_ms()` bridge | Low | Editor scripted_runtime.gd has no time functions — client has them at scripted_runtime.gd:422-425 |
+| No plugin info card UI | Low | No UI to display leaderboard ranks, achievements, or stats outside of active sessions |
+| No client-side leaderboard caching | Low | `client_plugins.gd` has `_plugin_cache` for manifests but no cache for leaderboard data |
+
 ## Tasks
 
 ### PPS-1: Key-Value Storage — server endpoints and database
@@ -557,14 +836,14 @@ CREATE TABLE plugin_timers (
 - **Impact:** 3
 - **Effort:** 2
 - **Tags:** server, leaderboard
-- **Notes:** Add `plugin_leaderboard_records` table, submit/query/around-me endpoints. Implement `best`/`set`/`increment` operators. Add reset schedule via background task or on-read check.
+- **Notes:** Add `plugin_leaderboard_records` table (new migration), submit/query/around-me endpoints in `src/routes/plugins.rs`. Implement `best`/`set`/`increment` operators. Register routes in `src/routes/mod.rs` after line 347. Add upsert and query functions in `src/db/plugins.rs` (or new `src/db/plugin_leaderboards.rs`). Add `LeaderboardSubmit`, `LeaderboardRecord`, `LeaderboardQuery` structs to `src/models/plugin.rs`. Broadcast `plugin_leaderboard_updated` via existing `broadcast_plugin_event()` helper (line 695). Add reset schedule via background task or on-read check.
 
 ### PPS-4: Leaderboards — client bridge API
 - **Status:** open
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** client, leaderboard, bridge
-- **Notes:** Add `leaderboard_submit/get/around_me/get_user` to bridge APIs. Handle `plugin_leaderboard_updated` gateway event.
+- **Notes:** Add `leaderboard_submit/get/around_me/get_user` to `scripted_runtime.gd` `_inject_bridge_api()` (after line 425) and `plugin_context.gd` (after line 93). Add 4 REST endpoint methods to `plugins_api.gd` (after line 118). Add `plugin_leaderboard_updated` signal to `gateway_socket.gd` (after line 78). Add routing in `client_plugins.gd`. Add `services` field to `AccordPluginManifest` (plugin_manifest.gd).
 
 ### PPS-5: Achievements — server endpoints and database
 - **Status:** open
@@ -662,7 +941,7 @@ CREATE TABLE plugin_timers (
 - **Impact:** 3
 - **Effort:** 1
 - **Tags:** server, client, manifest
-- **Notes:** Extend PluginManifest model with `services` block. Server validates and pre-creates resources on plugin install. Client displays requested services in plugin info card. AccordKit model updated.
+- **Notes:** Extend `PluginManifest` (models/plugin.rs:6-43) with `services: Option<serde_json::Value>`. Extend `AccordPluginManifest` (plugin_manifest.gd) with `services: Dictionary`. Server validates and pre-creates resources on plugin install. Client displays requested services in plugin info card.
 
 ### PPS-19: Plugin info card — persistent data display
 - **Status:** open
@@ -676,14 +955,14 @@ CREATE TABLE plugin_timers (
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** editor, storage
-- **Notes:** Add in-memory KV storage simulator to daccord-editor. Inject `storage_set/get/delete/list` bridge functions into ScriptedRuntime. Scope user/session/global with session scope cleared on reload.
+- **Notes:** Add in-memory KV storage simulator to daccord-editor `scenes/plugins/scripted_runtime.gd`. Inject `storage_set/get/delete/list` bridge functions. Scope user/session/global with session scope cleared on reload.
 
 ### PPS-21: Editor simulator — leaderboards
 - **Status:** open
 - **Impact:** 2
 - **Effort:** 1
 - **Tags:** editor, leaderboard
-- **Notes:** Add in-memory leaderboard simulator. Sorted arrays per board, `best/set/increment` operators, `around_me` pagination. Inject `leaderboard_submit/get/around_me/get_user` into bridge. Configure from manifest `services.leaderboards`.
+- **Notes:** Add in-memory leaderboard simulator to editor `scenes/plugins/scripted_runtime.gd`. Sorted arrays per board, `best/set/increment` operators, `around_me` pagination. Inject `leaderboard_submit/get/around_me/get_user` into bridge (after line 363). Configure from manifest `services.leaderboards`. Persist across reloads within same editor session.
 
 ### PPS-22: Editor simulator — achievements
 - **Status:** open

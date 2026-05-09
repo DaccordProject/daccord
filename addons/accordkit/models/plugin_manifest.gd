@@ -28,6 +28,7 @@ var data_topics: Array = []
 var signed: bool = false
 var signature = null
 var canvas_size: Array = [480, 360] # [width, height] for scripted plugins
+var services: Dictionary = {}      # {leaderboards: [...], achievements: [...], ...}
 
 
 static func from_dict(d: Dictionary) -> AccordPluginManifest:
@@ -56,6 +57,7 @@ static func from_dict(d: Dictionary) -> AccordPluginManifest:
 	m.signed = d.get("signed", false)
 	var raw_sig = d.get("signature", null)
 	m.signature = str(raw_sig) if raw_sig != null else null
+	m.services = d.get("services", {})
 	var raw_canvas = d.get("canvas_size", null)
 	if raw_canvas is Array and raw_canvas.size() >= 2:
 		m.canvas_size = [int(raw_canvas[0]), int(raw_canvas[1])]
@@ -83,6 +85,8 @@ func to_dict() -> Dictionary:
 		"signed": signed,
 		"canvas_size": canvas_size,
 	}
+	if not services.is_empty():
+		d["services"] = services
 	if not format.is_empty():
 		d["format"] = format
 	if icon_url != null:

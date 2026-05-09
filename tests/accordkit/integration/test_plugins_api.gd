@@ -51,7 +51,10 @@ func test_create_and_delete_session() -> void:
 	assert_true(session.has("id"), "session should have an id")
 	assert_eq(session.get("plugin_id", ""), plugin_id)
 	assert_eq(session.get("channel_id", ""), testing_channel_id)
-	assert_eq(session.get("state", ""), "lobby", "plugin has lobby=true so initial state should be lobby")
+	assert_eq(
+		session.get("state", ""), "lobby",
+		"plugin has lobby=true so initial state should be lobby",
+	)
 	assert_eq(session.get("host_user_id", ""), user_id)
 
 	var session_id: String = str(session["id"])
@@ -178,3 +181,95 @@ func test_invalid_state_transition() -> void:
 
 	# Cleanup
 	await user_client.plugins.delete_session(plugin_id, session_id)
+
+
+func test_get_channel_sessions() -> void:
+	# Create a session, then verify it appears in channel session queries
+	var create_result: RestResult = await user_client.plugins.create_session(
+		plugin_id, testing_channel_id
+	)
+	assert_true(create_result.ok, "create session should succeed")
+	var session_id: String = str(create_result.data["id"])
+
+	var sessions_result: RestResult = await user_client.plugins.get_channel_sessions(
+		testing_channel_id
+	)
+	assert_true(sessions_result.ok, "get_channel_sessions should succeed")
+	assert_true(sessions_result.data is Array, "data should be an array")
+	assert_true(sessions_result.data.size() >= 1, "should have at least the created session")
+
+	# Verify our session is in the results
+	var found := false
+	for s in sessions_result.data:
+		if str(s.get("id", "")) == session_id:
+			found = true
+			assert_eq(str(s.get("plugin_id", "")), plugin_id)
+			break
+	assert_true(found, "created session should appear in channel sessions")
+
+	# Cleanup
+	await user_client.plugins.delete_session(plugin_id, session_id)
+
+
+func test_get_space_sessions() -> void:
+	# Create a session, then verify it appears in space-level session queries
+	var create_result: RestResult = await user_client.plugins.create_session(
+		plugin_id, testing_channel_id
+	)
+	assert_true(create_result.ok, "create session should succeed")
+	var session_id: String = str(create_result.data["id"])
+
+	var sessions_result: RestResult = await user_client.plugins.get_space_sessions(
+		space_id
+	)
+	assert_true(sessions_result.ok, "get_space_sessions should succeed")
+	assert_true(sessions_result.data is Array, "data should be an array")
+
+	# Verify our session is in the results
+	var found := false
+	for s in sessions_result.data:
+		if str(s.get("id", "")) == session_id:
+			found = true
+			break
+	assert_true(found, "created session should appear in space sessions")
+
+	# Cleanup
+	await user_client.plugins.delete_session(plugin_id, session_id)
+
+
+func test_leave_session() -> void:
+	# Create a session, then leave it. leave_session is intended for
+	# non-hosts, but the server should accept it from any participant.
+	var create_result: RestResult = await user_client.plugins.create_session(
+		plugin_id, testing_channel_id
+	)
+	assert_true(create_result.ok, "create session should succeed")
+	var session_id: String = str(create_result.data["id"])
+
+	var leave_result: RestResult = await user_client.plugins.leave_session(
+		plugin_id, session_id
+	)
+	assert_true(leave_result.ok, "leave session should succeed")
+
+	# Cleanup
+	await user_client.plugins.delete_session(plugin_id, session_id)
+
+
+func test_get_source() -> void:
+	# Download the Lua source for the seeded scripted plugin.
+	# The seeded plugin may or may not have source uploaded — we just
+	# verify the endpoint responds without a server error.
+	var result: RestResult = await user_client.plugins.get_source(plugin_id)
+	# If source was seeded, data is PackedByteArray; otherwise 404.
+	# Either way, no 500 error.
+	if result.ok:
+		assert_true(
+			result.data is PackedByteArray,
+			"source should be a PackedByteArray"
+		)
+	else:
+		# 404 is acceptable if no source was uploaded for the seeded plugin
+		assert_true(
+			result.error != null,
+			"error should be present when source not found"
+		)

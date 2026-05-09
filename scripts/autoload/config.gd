@@ -33,6 +33,7 @@ var _profile_slug: String = "default"
 var _cli_profile_override: String = ""
 var _load_ok: bool = false
 var _last_backup_time: int = 0
+var _save_pending: bool = false
 
 func _config_path() -> String:
 	return "user://profiles/%s/config.cfg" % _profile_slug
@@ -45,6 +46,12 @@ func _profile_emoji_cache_dir() -> String:
 
 func get_emoji_cache_path(emoji_id: String) -> String:
 	return _profile_emoji_cache_dir() + "/" + emoji_id + ".png"
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST \
+			or what == NOTIFICATION_EXIT_TREE:
+		if _save_pending:
+			_flush_save()
 
 func _ready() -> void:
 	profiles = ConfigProfilesScript.new(self , _PROFILE_SALT)
@@ -321,6 +328,12 @@ func _save() -> void:
 	if not _load_ok:
 		push_warning("[Config] _save() blocked — config was not loaded successfully")
 		return
+	if not _save_pending:
+		_save_pending = true
+		_flush_save.call_deferred()
+
+func _flush_save() -> void:
+	_save_pending = false
 	_throttled_backup()
 	var path := _config_path()
 	var err := _config.save_encrypted_pass(path, _derive_key())

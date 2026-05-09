@@ -27,62 +27,59 @@ ClientGatewayEvents.on_plugin_session_state()
   v
 ClientPlugins.on_plugin_session_state()
   |
+  +---> Updates _space_sessions cache (line 575)
+  +---> AppState.active_sessions_updated.emit(space_id) (line 586)
   +---> AppState.activity_session_state_changed(plugin_id, state)
   +---> AppState.activity_available(plugin_id, channel_id, session_id)
   +---> AppState.activity_participants_updated(session_id, participants)
-  +---> [NEW] AppState.active_sessions_updated(space_id)
           |
           v
-        ChannelList._on_active_sessions_updated(space_id)
+        ActivitiesSection._on_active_sessions_updated(space_id)
           |
           v
-        ActivitiesSection.refresh(sessions)
+        ActivitiesSection.refresh() -> rebuilds rows from _space_sessions
           |
-          +---> For each session: ActivityRow.setup(session_data)
+          +---> For each session: ActivityRow.setup(session_data, manifest)
                   |
-                  +---> Join Lobby button -> ClientPlugins.join_activity()
-                  +---> Join Voice button -> Client.join_voice_channel()
+                  +---> Join Lobby button -> channel_list._on_join_lobby()
+                  |       -> sets pending activity state
+                  |       -> auto-joins voice if needed
+                  |       -> calls Client.plugins.join_activity()
+                  +---> Join Voice button -> channel_list._on_join_voice()
+                          -> Client.join_voice_channel()
 
 Voice state updates:
   Gateway voice_state_update
     -> AppState.voice_state_updated(channel_id)
     -> ActivitiesSection._on_voice_state_updated(channel_id)
-    -> Update "Join Voice" button visibility per row
+    -> Each ActivityRow.update_voice_state()
+    -> Updates "Join Voice" button visibility per row
 ```
 
 ## Key Files
 | File | Role |
 |------|------|
-| `scripts/client/client_plugins.gd` | Activity lifecycle, session management, plugin cache |
-| `scripts/client/client_gateway_events.gd` | Routes gateway plugin/voice events to Client |
-| `scripts/autoload/app_state.gd` | Signal bus for activity and voice state (lines 206-261) |
-| `scripts/autoload/client.gd` | Voice state cache, `get_voice_users()` |
-| `scenes/sidebar/channels/channel_list.gd` | Channel list population — activities section to be added here |
+| `scripts/client/client_plugins.gd` | Activity lifecycle, session management, plugin cache, space-level session cache (`_space_sessions`, line 25) |
+| `scripts/client/client_gateway_events.gd` | Routes gateway plugin/voice events to Client (line 166) |
+| `scripts/autoload/app_state.gd` | Signal bus: activity signals (lines 206-222), `active_sessions_updated` (line 222) |
+| `scripts/autoload/client.gd` | Voice state cache, `get_voice_users()` (line 534) |
+| `scenes/sidebar/channels/channel_list.gd` | Channel list population, activities section injection (line 220), join lobby/voice handlers (lines 377-415) |
+| `scenes/sidebar/channels/activities_section.gd` | Collapsible "ACTIVITIES" section with real-time signal wiring |
+| `scenes/sidebar/channels/activities_section.tscn` | Activities section scene (header + row container) |
+| `scenes/sidebar/channels/activity_row.gd` | Individual activity row: name, state badge, participant count, Join Lobby/Voice buttons |
+| `scenes/sidebar/channels/activity_row.tscn` | Activity row scene layout |
 | `scenes/sidebar/channels/voice_channel_item.gd` | Existing voice channel UI (reference for participant display) |
-| `addons/accordkit/rest/endpoints/plugins_api.gd` | `get_channel_sessions()` REST call (line 51) |
+| `addons/accordkit/rest/endpoints/plugins_api.gd` | `get_channel_sessions()` (line 51), `get_space_sessions()` (line 59) |
 | `addons/accordkit/models/plugin_manifest.gd` | Plugin metadata: `lobby`, `max_participants`, `max_spectators` |
 | `scripts/client/client_voice.gd` | Voice channel join/leave |
 
 ## Implementation Details
 
-### Current State: Activities Are Coupled to Voice Channels
+### Activities Section in Channel List
 
-Activities are currently discovered and displayed in two places:
+A collapsible **Activities** section is injected into `channel_list.gd`'s `load_space()` method (line 220), appended after all channel categories. It renders when there are active sessions in any voice channel within the current space.
 
-1. **On voice join** — `ClientPlugins._on_voice_joined()` (line 585) calls `check_active_session()` which queries `get_channel_sessions()` for the voice channel the user just joined. If a session exists, it auto-rejoins.
-
-2. **In the video grid** — `scenes/video/video_grid.gd` listens for `AppState.activity_available` (line 83) and shows a `pending_activity_banner.tscn` overlay inside the video view. This only works when the user is already in the voice channel.
-
-There is no way to discover or browse active activities from the channel list without already being in voice.
-
-### New: Activities Section in Channel List
-
-A new collapsible **Activities** section should be injected into `channel_list.gd`'s `load_space()` method, appended after all channel categories. It renders when there are active sessions in any voice channel within the current space.
-
-**Data source:** The section needs active sessions across all voice channels in the space. Two approaches:
-
-- **Option A (per-channel polling):** For each voice channel in the space, call `get_channel_sessions()`. This reuses the existing REST endpoint but requires N requests.
-- **Option B (new space-level endpoint):** Add `GET /spaces/{space_id}/sessions/active` to accordserver that returns all active sessions in the space in one call. This is the preferred approach.
+**Data source:** The section uses a space-level session cache (`ClientPlugins._space_sessions`, line 25). On load, `fetch_space_sessions()` (line 89) calls `GET /spaces/{space_id}/sessions/active` (implemented in accordserver `routes/plugins.rs`). A per-channel polling fallback exists via `_fetch_space_sessions_fallback()` (line 114) for older server versions.
 
 **Session data shape** (returned by `get_channel_sessions`, line 51):
 ```gdscript
@@ -98,92 +95,67 @@ A new collapsible **Activities** section should be injected into `channel_list.g
 }
 ```
 
-### Activities Section UI (New Scene)
+### Activities Section UI (`activities_section.gd`)
 
-A new scene `scenes/sidebar/channels/activities_section.tscn` with script:
-
-- **Header row:** Collapsible "ACTIVITIES" label (styled like category headers in `category_item.gd`)
-- **Activity rows:** One per active session, each containing:
-  - Plugin icon (from manifest `icon` field, or a default game controller icon)
+- **Header row:** Collapsible "ACTIVITIES" label styled like category headers (font size 11, muted color, chevron icon)
+- **Activity rows:** One per active session via `ActivityRowScene`, each containing:
+  - Plugin icon (default gamepad icon from `assets/theme/icons/rocket.svg`)
   - Activity name (from `manifest.name`)
-  - State badge: "Lobby" (green) or "In Progress" (yellow)
+  - State badge: "Lobby" (green/success color) or "In Progress" (yellow/warning color)
   - Participant count: `"{current}/{max}"` using `participants.size()` and `manifest.max_participants` (0 = unlimited, show as `"{current}"`)
-  - **Join Lobby** button: Calls `ClientPlugins.join_activity()` after setting pending activity state. Disabled when `state == "running"` (non-participants cannot join mid-game, line 286-287 of `client_plugins.gd`). Disabled when at max capacity.
-  - **Join Voice** button: Visible only when the host user (`host_user_id`) appears in the voice state cache for the session's `channel_id`. Calls `Client.join_voice_channel(channel_id)`.
+  - **Join Lobby** button: Disabled when `state == "running"` or at max capacity
+  - **Join Voice** button: Visible only when the host user appears in the voice state cache
+- **Collapse toggle:** Hides/shows row container, shows count label when collapsed
 
 ### Real-Time Updates
 
-The section must stay current by listening to these signals:
+The activities section stays current by listening to these signals:
 
-| Signal | Update |
-|--------|--------|
-| `AppState.activity_session_state_changed(plugin_id, state)` | Update state badge; remove row if "ended" |
-| `AppState.activity_available(plugin_id, channel_id, session_id)` | Add new row for the session |
-| `AppState.activity_participants_updated(session_id, participants)` | Update participant count; enable/disable Join Lobby |
-| `AppState.activity_ended(plugin_id)` | Remove row; hide section if empty |
-| `AppState.voice_state_updated(channel_id)` | Check if host is in voice → toggle Join Voice button |
-| `AppState.voice_joined(channel_id)` | Same as above |
-| `AppState.voice_left(channel_id)` | Same as above |
-| `AppState.plugins_updated()` | Refresh manifest data (name, icon, limits) |
+| Signal | Handler | Update |
+|--------|---------|--------|
+| `AppState.active_sessions_updated(space_id)` | `_on_active_sessions_updated` | Full refresh from cache |
+| `AppState.activity_session_state_changed(plugin_id, state)` | `_on_session_state_changed` | Refresh (updates badge, button state) |
+| `AppState.activity_participants_updated(session_id, participants)` | `_on_participants_updated` | Update participant count on specific row |
+| `AppState.activity_ended(plugin_id)` | `_on_activity_ended` | Refresh (removes ended sessions) |
+| `AppState.voice_state_updated(channel_id)` | `_on_voice_state_updated` | Toggle Join Voice button per row |
+| `AppState.voice_joined(channel_id)` | `_on_voice_changed` | Toggle Join Voice button per row |
+| `AppState.voice_left(channel_id, intentional)` | `_on_voice_changed` | Toggle Join Voice button per row |
 
-### Scope of Gateway Changes
+### Space-Level Session Cache
 
-The `plugin_session_state` gateway event (handled at `client_plugins.gd` line 500) currently only sets pending activity state when the user is in the same voice channel (line 536). For the activities section to show all space-wide sessions, this filtering needs to be relaxed — sessions should be cached at the space level regardless of whether the local user is in that voice channel.
+`ClientPlugins._space_sessions` (line 25) is a `Dictionary` mapping `space_id -> { session_id -> session_dict }`. Updated by:
 
-**New cache needed in ClientPlugins:**
-```gdscript
-# Space-level active session cache: space_id -> { session_id -> session_dict }
-var _space_sessions: Dictionary = {}
-```
+- `on_plugin_session_state()` (line 557) — adds/updates/removes sessions on gateway events, regardless of whether the local user is in the voice channel
+- `fetch_space_sessions()` (line 89) — pre-fetches active sessions for a space on initial load
+- `_fetch_space_sessions_fallback()` (line 114) — per-channel polling fallback when the server endpoint is unavailable
 
-Updated on:
-- `on_plugin_session_state()` — add/update/remove from `_space_sessions`
-- `fetch_plugins()` — optionally pre-fetch active sessions for the space
-- Voice state changes — update host voice status within cached sessions
+The gateway handler resolves `space_id` from the event payload (if the server includes it) or falls back to `_channel_to_space` lookup.
 
-A new signal `AppState.active_sessions_updated(space_id)` would notify the channel list to rebuild the activities section.
-
-### Accordserver Changes (../accordserver)
-
-A new REST endpoint is needed:
-
-```
-GET /spaces/{space_id}/sessions/active
-```
-
-Returns all non-ended plugin sessions across all channels in the space. This avoids the client needing to poll each voice channel individually.
-
-Additionally, the `plugin_session_state` gateway event should include `space_id` so the client can cache sessions at the space level without a channel-to-space lookup.
-
-### Join Lobby Flow
+### Join Lobby Flow (`channel_list.gd` line 377)
 
 When the user clicks **Join Lobby** on a session row:
 
 1. Set `AppState.pending_activity_*` fields from the session data
 2. If user is not in the session's voice channel:
    - Call `Client.join_voice_channel(session.channel_id)` first
-   - On `voice_joined`, call `Client.plugins.join_activity()`
+   - On `voice_joined` (one-shot), call `Client.plugins.join_activity()`
 3. If user is already in the voice channel:
    - Call `Client.plugins.join_activity()` directly
-4. `join_activity()` (line 277) assigns the user as "player" via `assign_role()`, downloads the runtime, and emits `activity_started`
+4. `join_activity()` (line 335) assigns the user as "player" via `assign_role()`, downloads the runtime, and emits `activity_started`
 
-### Join Voice Flow
+### Join Voice Flow (`channel_list.gd` line 404)
 
 When the user clicks **Join Voice**:
 
 1. Look up the `channel_id` from the session data
 2. Check `AccordPermission.CONNECT` for that voice channel
 3. Call `Client.join_voice_channel(channel_id)`
-4. The existing `_on_voice_joined` handler in `ClientPlugins` (line 585) will auto-discover and rejoin the activity session via `check_active_session()`
+4. The existing `_on_voice_joined` handler in `ClientPlugins` (line 645) will auto-discover and rejoin the activity session via `check_active_session()`
 
-### Voice Status for Host
-
-To determine whether the host user is currently in voice:
+### Voice Status for Host (`activity_row.gd` line 119)
 
 ```gdscript
-func _is_host_in_voice(session: Dictionary) -> bool:
-    var channel_id: String = session.get("channel_id", "")
-    var host_id: String = session.get("host_user_id", "")
+func _is_host_in_voice(channel_id: String, host_id: String) -> bool:
     if channel_id.is_empty() or host_id.is_empty():
         return false
     var voice_users: Array = Client.get_voice_users(channel_id)
@@ -193,7 +165,17 @@ func _is_host_in_voice(session: Dictionary) -> bool:
     return false
 ```
 
-This uses the existing `_voice_state_cache` in `client.gd`, updated in real time by `voice_state_update` gateway events (handled at `client_gateway_events.gd` line 187).
+This uses the existing `_voice_state_cache` in `client.gd`, updated in real time by `voice_state_update` gateway events.
+
+### Existing Activity Coupling (Preserved)
+
+Activities are still discoverable in two existing places (unchanged):
+
+1. **On voice join** — `ClientPlugins._on_voice_joined()` (line 645) calls `check_active_session()` which queries `get_channel_sessions()` for the voice channel the user just joined. If a session exists, it auto-rejoins.
+
+2. **In the video grid** — `scenes/video/video_grid.gd` listens for `AppState.activity_available` and shows a `pending_activity_banner.tscn` overlay inside the video view.
+
+The new activities section provides a third discovery path that works without being in voice.
 
 ## Implementation Status
 - [x] Plugin manifest model with `lobby`, `max_participants`, `max_spectators` fields
@@ -204,26 +186,21 @@ This uses the existing `_voice_state_cache` in `client.gd`, updated in real time
 - [x] Voice state cache with real-time updates via gateway
 - [x] `ClientPlugins.join_activity()` flow for non-host joining
 - [x] Pending activity banner in video grid (existing approach)
-- [ ] Activities section scene (`activities_section.tscn` + script)
-- [ ] Activity row scene (`activity_row.tscn` + script) with Join Lobby / Join Voice buttons
-- [ ] Space-level active session cache in `ClientPlugins._space_sessions`
-- [ ] New `AppState.active_sessions_updated(space_id)` signal
-- [ ] Integration into `channel_list.gd` `load_space()` to inject activities section
-- [ ] Relax voice-channel filter in `on_plugin_session_state()` to cache all space sessions
-- [ ] `GET /spaces/{space_id}/sessions/active` endpoint in accordserver
-- [ ] `space_id` field in `plugin_session_state` gateway event payload
-- [ ] Real-time signal wiring for session/voice state changes in activities section
-- [ ] Auto-voice-join before lobby join when user is not in the session's voice channel
+- [x] Activities section scene (`activities_section.tscn` + script)
+- [x] Activity row scene (`activity_row.tscn` + script) with Join Lobby / Join Voice buttons
+- [x] Space-level active session cache in `ClientPlugins._space_sessions`
+- [x] New `AppState.active_sessions_updated(space_id)` signal
+- [x] Integration into `channel_list.gd` `load_space()` to inject activities section
+- [x] Relax voice-channel filter in `on_plugin_session_state()` to cache all space sessions
+- [x] `get_space_sessions()` REST wrapper in `plugins_api.gd` (line 59)
+- [x] Fallback per-channel polling when space endpoint unavailable
+- [x] Real-time signal wiring for session/voice state changes in activities section
+- [x] Auto-voice-join before lobby join when user is not in the session's voice channel
+- [x] `GET /spaces/{space_id}/sessions/active` endpoint in accordserver (`routes/plugins.rs`, `db/plugins.rs`)
+- [x] `space_id` field in `plugin_session_state` gateway event payload (all three broadcast sites)
 
 ## Gaps / TODO
 | Gap | Severity | Notes |
 |-----|----------|-------|
-| No space-level session endpoint | High | `get_channel_sessions()` (line 51) is per-channel only; need `GET /spaces/{space_id}/sessions/active` in accordserver to avoid N+1 queries |
-| `plugin_session_state` filtered by voice channel | High | `on_plugin_session_state()` (line 536) only caches sessions when `channel_id == AppState.voice_channel_id`; must cache all space sessions for the activities section |
-| No space-level session cache | High | `ClientPlugins` tracks only the single active session (`_active_session_id`); needs a `_space_sessions` dictionary for multiple concurrent sessions |
-| No `space_id` in session gateway event | Medium | `plugin_session_state` event payload lacks `space_id`; client must do `_channel_to_space` lookup which may miss channels not yet cached |
-| No activities section UI | High | No scene or script exists for the activities section in the channel list |
-| No activity row UI | High | No scene for individual activity rows with Join Lobby / Join Voice buttons |
-| Join Lobby requires voice join first | Medium | `join_activity()` assumes user is already in the voice channel; needs orchestration to auto-join voice first if not connected |
-| Running sessions not joinable | Low | By design, `state == "running"` blocks new players (line 286-287); spectator join for running sessions is not implemented |
-| No activity icon in manifests | Low | Plugin manifests have no `icon` field; activity rows would need a default icon or the manifest schema needs extending |
+| Running sessions not joinable | Low | By design, `state == "running"` blocks new players; spectator join for running sessions is not implemented |
+| No activity icon in manifests | Low | Plugin manifests have no `icon` field; activity rows use a default rocket icon (`rocket.svg`) |

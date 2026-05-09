@@ -431,6 +431,17 @@ func _inject_bridge_api() -> void:
 		return _bridge_set_timeout(callback_name, delay_ms)
 	api["clear_timer"] = func(tid: int): _bridge_clear_timer(tid)
 
+	# Leaderboards
+	api["leaderboard_submit"] = func(board_id: String, score: float, metadata = null):
+		var meta: Dictionary = metadata if metadata is Dictionary else {}
+		_bridge_leaderboard_submit(board_id, score, meta)
+	api["leaderboard_get"] = func(board_id: String, limit: int = 50) -> Array:
+		return await _bridge_leaderboard_get(board_id, limit)
+	api["leaderboard_around_me"] = func(board_id: String, limit: int = 10) -> Array:
+		return await _bridge_leaderboard_around_me(board_id, limit)
+	api["leaderboard_get_user"] = func(board_id: String, user_id: String) -> Dictionary:
+		return await _bridge_leaderboard_get_user(board_id, user_id)
+
 	# Assets
 	api["read_asset"] = func(path: String) -> PackedByteArray:
 		if _assets.has(path):
@@ -589,6 +600,31 @@ func _bridge_send_action(data: Dictionary) -> void:
 		return
 	if _client_plugins != null and _client_plugins.has_method("send_action"):
 		_client_plugins.send_action(_plugin_id, data)
+
+
+# --- Leaderboard bridge ---
+
+func _bridge_leaderboard_submit(board_id: String, score: float, metadata: Dictionary) -> void:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_submit"):
+		_client_plugins.leaderboard_submit(_plugin_id, board_id, score, metadata)
+
+
+func _bridge_leaderboard_get(board_id: String, limit: int) -> Array:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_get"):
+		return await _client_plugins.leaderboard_get(_plugin_id, board_id, limit)
+	return []
+
+
+func _bridge_leaderboard_around_me(board_id: String, limit: int) -> Array:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_around"):
+		return await _client_plugins.leaderboard_around(_plugin_id, board_id, limit)
+	return []
+
+
+func _bridge_leaderboard_get_user(board_id: String, user_id: String) -> Dictionary:
+	if _client_plugins != null and _client_plugins.has_method("leaderboard_get_user"):
+		return await _client_plugins.leaderboard_get_user(_plugin_id, board_id, user_id)
+	return {}
 
 
 # --- Timer/Sound implementations ---
