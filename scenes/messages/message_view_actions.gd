@@ -225,7 +225,9 @@ func _copy_message_link() -> void:
 	var space_id: String = Client._channel_to_space.get(channel_id, "")
 	if space_id.is_empty():
 		return
-	var url := UriHandler.build_navigate_url(space_id, channel_id, message_id)
+	var url := UriHandler.build_share_url(
+		UriHandler.build_navigate_url(space_id, channel_id, message_id)
+	)
 	DisplayServer.clipboard_set(url)
 	AppState.toast_requested.emit(tr("Link copied!"))
 

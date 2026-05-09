@@ -8,6 +8,7 @@ const AddServerDialogScene := preload(
 )
 const URI_IPC_FILE := "user://daccord.uri"
 const IPC_POLL_INTERVAL := 0.5
+const DACCORD_SHARE_BASE_URL := "https://daccord.gg/open/"
 
 var _ipc_timer: Timer
 var _pending_uri := ""
@@ -300,6 +301,14 @@ static func build_navigate_url(
 	if not message_id.is_empty():
 		url += "?msg=" + message_id
 	return url
+
+
+## Wraps a daccord:// URL in the website launcher prefix so the link works on
+## machines without Daccord installed (the launcher falls back to a download CTA).
+static func build_share_url(protocol_url: String) -> String:
+	if not protocol_url.begins_with("daccord://"):
+		return protocol_url
+	return DACCORD_SHARE_BASE_URL + protocol_url.substr("daccord://".length())
 
 
 ## Processes a parsed URI by dispatching to the appropriate handler.

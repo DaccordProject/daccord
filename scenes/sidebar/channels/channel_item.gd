@@ -275,7 +275,7 @@ func _on_copy_channel_link() -> void:
 		if port_str.is_valid_int():
 			port = port_str.to_int()
 			host = host.substr(0, colon_pos)
-	var url := UriHandler.build_connect_url(host, port, slug, ch_name)
+	var url := UriHandler.build_share_url(UriHandler.build_connect_url(host, port, slug, ch_name))
 	DisplayServer.clipboard_set(url)
 	AppState.toast_requested.emit(tr("Link copied!"))
 

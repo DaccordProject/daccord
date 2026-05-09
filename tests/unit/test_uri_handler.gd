@@ -231,3 +231,30 @@ func test_navigate_with_message_id() -> void:
 func test_navigate_without_message_has_no_key() -> void:
 	var r: Dictionary = parse.call("daccord://navigate/123456/789012")
 	assert_false(r.has("message_id"))
+
+
+# --- build_share_url ---
+
+func test_build_share_url_connect() -> void:
+	var url := UriHandler.build_share_url("daccord://connect/chat.example.com/general")
+	assert_eq(url, "https://daccord.gg/open/connect/chat.example.com/general")
+
+
+func test_build_share_url_connect_with_query() -> void:
+	var url := UriHandler.build_share_url(
+		"daccord://connect/chat.example.com:8080/general?token=abc&channel=announcements"
+	)
+	assert_eq(
+		url,
+		"https://daccord.gg/open/connect/chat.example.com:8080/general?token=abc&channel=announcements"
+	)
+
+
+func test_build_share_url_invite() -> void:
+	var url := UriHandler.build_share_url("daccord://invite/ABCDEF@chat.example.com:8080")
+	assert_eq(url, "https://daccord.gg/open/invite/ABCDEF@chat.example.com:8080")
+
+
+func test_build_share_url_navigate_with_msg() -> void:
+	var url := UriHandler.build_share_url("daccord://navigate/123456/789012?msg=345678")
+	assert_eq(url, "https://daccord.gg/open/navigate/123456/789012?msg=345678")
