@@ -156,7 +156,7 @@ Reads + deletes IPC file, dispatches URI via _process_uri()
 | `dist/daccord.desktop` | Linux desktop entry; `MimeType=x-scheme-handler/daccord;` (line 11), `Exec=daccord --uri %u` (line 4) |
 | `export_presets.cfg` | macOS bundle config; `CFBundleURLTypes` in `additional_plist_content` (line 157) |
 | `project.godot` | Autoload registration; `UriHandler` registered after `ThemeManager` (line 38) |
-| `tests/unit/test_uri_handler.gd` | 30 unit tests for URI parsing, URL building, and rejection cases |
+| `tests/unit/test_uri_handler.gd` | 42 unit tests for URI parsing, URL building, share-URL wrapping, and rejection cases |
 
 ## Implementation Details
 
@@ -218,8 +218,9 @@ Registered as the last autoload in `project.godot` (line 38), after `ThemeManage
 ### URL builders
 
 - `build_base_url(host, port)` (line 228-231): Constructs `https://host[:port]` for internal use.
-- `build_connect_url(host, port, space_slug, channel_name)` (line 235-245): Constructs `daccord://connect/...` URLs for sharing.
-- `build_navigate_url(space_id, channel_id, message_id)` (line 249-257): Constructs `daccord://navigate/...` URLs for sharing.
+- `build_connect_url(host, port, space_slug, channel_name)` (line 235-245): Constructs `daccord://connect/...` URLs (used by internal flows + as input to `build_share_url`).
+- `build_navigate_url(space_id, channel_id, message_id)` (line 249-257): Constructs `daccord://navigate/...` URLs (same).
+- `build_share_url(protocol_url)`: Swaps the `daccord://` prefix for `DACCORD_SHARE_BASE_URL` (`https://daccord.gg/open/`). Used by the three "Copy Link" context menus so shared links work on machines without Daccord installed. Path + query pass through unchanged.
 
 ### SingleInstance IPC extension (`scripts/autoload/single_instance.gd`)
 
@@ -239,12 +240,15 @@ Method `open_prefilled()` (lines 82-84):
 
 ### URL sharing context menus
 
-"Copy Link" context menu items generate `daccord://` URLs and copy them to the clipboard:
-- **Space links:** `guild_icon.gd` — "Copy Server Link" item (line 237), handler `_copy_server_link()` (line 308-324) uses `UriHandler.build_connect_url()`.
-- **Channel links:** `channel_item.gd` — "Copy Channel Link" item (line 222), handler `_on_copy_channel_link()` (line 257-274) uses `UriHandler.build_connect_url()` with channel name.
-- **Message links:** `message_view_actions.gd` — "Copy Message Link" item (line 35), handler `_copy_message_link()` (line 222-230) uses `UriHandler.build_navigate_url()` with message ID.
+"Copy Link" context menu items copy `https://daccord.gg/open/...` URLs to the clipboard. Each handler builds a `daccord://` URL via `build_connect_url()` / `build_navigate_url()` and then wraps it with `UriHandler.build_share_url()` (which swaps the `daccord://` prefix for `DACCORD_SHARE_BASE_URL`, defined at the top of `uri_handler.gd`):
+
+- **Space links:** `guild_icon.gd` — "Copy Server Link" item (line 237), handler `_copy_server_link()` (line 308-324).
+- **Channel links:** `channel_item.gd` — "Copy Channel Link" item (line 222), handler `_on_copy_channel_link()` (line 257-274).
+- **Message links:** `message_view_actions.gd` — "Copy Message Link" item (line 35), handler `_copy_message_link()` (line 222-230).
 
 All handlers copy to clipboard and emit `AppState.toast_requested.emit(tr("Link copied!"))` for visual feedback.
+
+**Why the website wrapper?** Bare `daccord://` links silently fail on machines without Daccord installed. The launcher at `https://daccord.gg/open/...` (in the `accordwebsite` repo, `open.html`) mirrors the protocol path 1:1 and tries `window.location = "daccord://..."`. If the app doesn't grab focus within ~1.8s (detected via the Page Visibility API), it falls back to an "Install Daccord" CTA. So the same shareable link works whether or not the recipient has the app — Steam-style. Internal flows (invite confirmation, etc.) still use the raw `build_connect_url()` / `build_navigate_url()` output.
 
 ### Platform registration
 
@@ -279,7 +283,7 @@ All handlers copy to clipboard and emit `AppState.toast_requested.emit(tr("Link 
 
 ### Test coverage (`tests/unit/test_uri_handler.gd`)
 
-30 unit tests covering:
+42 unit tests covering:
 - **Connect route (10 tests):** full URL with all params, host-only, host+slug, host+port, token-only, invite-only, default port, channel param, channel+token, no-channel-key.
 - **Invite route (4 tests):** full with port, default port, reject non-alphanumeric code, reject empty code.
 - **Navigate route (4 tests):** space+channel, space-only, with message ID, without message key.
@@ -287,6 +291,7 @@ All handlers copy to clipboard and emit `AppState.toast_requested.emit(tr("Link 
 - **build_base_url (2 tests):** default port (443 omitted), custom port (included).
 - **build_connect_url (5 tests):** space-only, with port, with channel, channel with spaces, empty slug.
 - **build_navigate_url (3 tests):** channel-only, with message, space-only.
+- **build_share_url (4 tests):** connect URL, connect URL with query params, invite URL, navigate URL with `?msg=`.
 
 ## Implementation Status
 
