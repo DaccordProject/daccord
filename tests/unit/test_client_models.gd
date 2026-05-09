@@ -106,19 +106,43 @@ func test_format_timestamp_no_t_returns_raw() -> void:
 	assert_eq(ClientModels._format_timestamp("2025-05-10"), "2025-05-10")
 
 
+func _expected_local_time_str(utc_hour: int, utc_minute: int) -> String:
+	# Mirror client_models_message._format_timestamp's UTC -> local conversion so the
+	# expectations work regardless of system timezone.
+	var sys_local: Dictionary = Time.get_datetime_dict_from_system(false)
+	var sys_utc: Dictionary = Time.get_datetime_dict_from_system(true)
+	var offset: int = (
+		Time.get_unix_time_from_datetime_dict(sys_local)
+		- Time.get_unix_time_from_datetime_dict(sys_utc)
+	)
+	var local: Dictionary = Time.get_datetime_dict_from_unix_time(
+		Time.get_unix_time_from_datetime_dict({
+			"year": 2020, "month": 1, "day": 15,
+			"hour": utc_hour, "minute": utc_minute, "second": 0,
+		}) + offset
+	)
+	var hour: int = local["hour"]
+	var am_pm := "PM" if hour >= 12 else "AM"
+	if hour > 12:
+		hour -= 12
+	if hour == 0:
+		hour = 12
+	return "%d:%02d %s" % [hour, local["minute"], am_pm]
+
+
 func test_format_timestamp_pm() -> void:
 	var result: String = ClientModels._format_timestamp("2020-01-15T14:30:00Z")
-	assert_string_contains(result, "2:30 PM")
+	assert_string_contains(result, _expected_local_time_str(14, 30))
 
 
 func test_format_timestamp_midnight() -> void:
 	var result: String = ClientModels._format_timestamp("2020-01-15T00:05:00Z")
-	assert_string_contains(result, "12:05 AM")
+	assert_string_contains(result, _expected_local_time_str(0, 5))
 
 
 func test_format_timestamp_noon() -> void:
 	var result: String = ClientModels._format_timestamp("2020-01-15T12:00:00Z")
-	assert_string_contains(result, "12:00 PM")
+	assert_string_contains(result, _expected_local_time_str(12, 0))
 
 
 # =============================================================================

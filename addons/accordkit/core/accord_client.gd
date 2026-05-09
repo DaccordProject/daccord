@@ -76,6 +76,7 @@ signal plugin_uninstalled(data: Dictionary)
 signal plugin_event(data: Dictionary)
 signal plugin_session_state(data: Dictionary)
 signal plugin_role_changed(data: Dictionary)
+signal plugin_leaderboard_updated(data: Dictionary)
 
 # Emojis
 signal emoji_create(data: Dictionary)
@@ -275,6 +276,8 @@ func _connect_gateway_signals() -> void:
 	gateway.plugin_event.connect(func(d): plugin_event.emit(d))
 	gateway.plugin_session_state.connect(func(d): plugin_session_state.emit(d))
 	gateway.plugin_role_changed.connect(func(d): plugin_role_changed.emit(d))
+	gateway.plugin_leaderboard_updated.connect(
+		func(d): plugin_leaderboard_updated.emit(d))
 	gateway.emoji_create.connect(func(d): emoji_create.emit(d))
 	gateway.emoji_update.connect(func(d): emoji_update.emit(d))
 	gateway.emoji_delete.connect(func(d): emoji_delete.emit(d))

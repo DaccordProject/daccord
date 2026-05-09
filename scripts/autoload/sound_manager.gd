@@ -89,25 +89,8 @@ func play_for_message(
 		play("member_join")
 		return
 
-	if channel_id == AppState.current_channel_id:
-		return
-
-	# Respect per-channel notification level
-	var ch_level: String = Config.get_channel_notification_level(channel_id)
-	if ch_level == "muted":
-		return
-
-	# Check server mute
-	var space_id: String = Client._channel_to_space.get(channel_id, "")
-	if not space_id.is_empty() and Config.is_server_muted(space_id):
-		return
-
-	# Check channel mute (server-side)
-	if Client.is_channel_muted(channel_id):
-		return
-
 	var is_mention: bool = my_id in mentions or mention_everyone
-	if ch_level == "mentions" and not is_mention:
+	if _is_message_muted(channel_id, is_mention):
 		return
 	if is_mention:
 		play("mention_received")
@@ -115,6 +98,22 @@ func play_for_message(
 		# Only play the generic message sound when the window is unfocused.
 		# Mentions always play regardless of focus.
 		play("message_received")
+
+
+func _is_message_muted(channel_id: String, is_mention: bool) -> bool:
+	if channel_id == AppState.current_channel_id:
+		return true
+	var ch_level: String = Config.get_channel_notification_level(channel_id)
+	if ch_level == "muted":
+		return true
+	var space_id: String = Client._channel_to_space.get(channel_id, "")
+	if not space_id.is_empty() and Config.is_server_muted(space_id):
+		return true
+	if Client.is_channel_muted(channel_id):
+		return true
+	if ch_level == "mentions" and not is_mention:
+		return true
+	return false
 
 func play_for_voice_state(user_id: String, joined_channel: String, left_channel: String) -> void:
 	var my_id: String = Client.current_user.get("id", "")

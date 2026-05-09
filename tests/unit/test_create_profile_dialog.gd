@@ -1,9 +1,25 @@
 extends GutTest
 
+const _REGISTRY_PATH := "user://profile_registry.cfg"
+const _DEFAULT_CFG := "user://profiles/default/config.cfg"
+
 var dialog: ColorRect
+var _saved_registry := PackedByteArray()
+var _saved_config := PackedByteArray()
+var _had_registry := false
+var _had_config := false
 
 
 func before_each() -> void:
+	# _on_create() persists profiles via the real Config autoload, which would
+	# pollute user data between runs. Snapshot the registry + default config so
+	# after_each can restore them and remove any test-created profile dirs.
+	_had_registry = FileAccess.file_exists(_REGISTRY_PATH)
+	if _had_registry:
+		_saved_registry = FileAccess.get_file_as_bytes(_REGISTRY_PATH)
+	_had_config = FileAccess.file_exists(_DEFAULT_CFG)
+	if _had_config:
+		_saved_config = FileAccess.get_file_as_bytes(_DEFAULT_CFG)
 	dialog = load("res://scenes/user/create_profile_dialog.tscn").instantiate()
 	add_child(dialog)
 	await get_tree().process_frame
@@ -14,6 +30,46 @@ func after_each() -> void:
 	if is_instance_valid(dialog):
 		dialog.queue_free()
 		await get_tree().process_frame
+	# Remove any profile dirs created by _on_create() during the test
+	var dir := DirAccess.open("user://profiles")
+	if dir:
+		dir.list_dir_begin()
+		var dname := dir.get_next()
+		while not dname.is_empty():
+			if dir.current_is_dir() and dname != "default":
+				_remove_dir_recursive("user://profiles/" + dname)
+			dname = dir.get_next()
+		dir.list_dir_end()
+	# Restore registry + default profile config
+	if _had_registry:
+		var f := FileAccess.open(_REGISTRY_PATH, FileAccess.WRITE)
+		if f:
+			f.store_buffer(_saved_registry)
+			f.close()
+	elif FileAccess.file_exists(_REGISTRY_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_REGISTRY_PATH))
+	if _had_config:
+		var f := FileAccess.open(_DEFAULT_CFG, FileAccess.WRITE)
+		if f:
+			f.store_buffer(_saved_config)
+			f.close()
+
+
+func _remove_dir_recursive(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if not dir:
+		return
+	dir.list_dir_begin()
+	var name := dir.get_next()
+	while not name.is_empty():
+		var child := path + "/" + name
+		if dir.current_is_dir():
+			_remove_dir_recursive(child)
+		else:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(child))
+		name = dir.get_next()
+	dir.list_dir_end()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 # --- UI structure ---
