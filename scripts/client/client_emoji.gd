@@ -3,6 +3,8 @@ extends RefCounted
 
 ## Handles custom emoji downloading and caching for Client.
 
+const EMOJI_CACHE_MAX_FILES := 500
+
 var _c: Node # Client autoload
 
 func _init(client_node: Node) -> void:
@@ -45,6 +47,7 @@ func register(
 		ClientModels.custom_emoji_paths[emoji_name] = cache_path
 		var tex := ImageTexture.create_from_image(img)
 		ClientModels.custom_emoji_textures[emoji_name] = tex
+		_evict_cache_if_needed()
 	)
 	http.request(url)
 
@@ -78,3 +81,37 @@ func trim_user_cache() -> void:
 			to_erase.append(uid)
 	for uid in to_erase:
 		_c._user_cache.erase(uid)
+
+
+## Evicts the oldest emoji files when the cache exceeds EMOJI_CACHE_MAX_FILES.
+func _evict_cache_if_needed() -> void:
+	var cache_dir: String = Config._profile_emoji_cache_dir()
+	var dir := DirAccess.open(cache_dir)
+	if dir == null:
+		return
+	# Collect all .png files with their modification times
+	var files: Array = [] # [{path, mtime}]
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while not fname.is_empty():
+		if not dir.current_is_dir() and fname.ends_with(".png"):
+			var full_path: String = cache_dir + "/" + fname
+			var mtime: int = FileAccess.get_modified_time(full_path)
+			if mtime >= 0:
+				files.append({"path": full_path, "mtime": mtime})
+		fname = dir.get_next()
+	dir.list_dir_end()
+	if files.size() <= EMOJI_CACHE_MAX_FILES:
+		return
+	# Sort oldest first
+	files.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return a.mtime < b.mtime
+	)
+	var to_remove: int = files.size() - EMOJI_CACHE_MAX_FILES
+	for i in to_remove:
+		var err := DirAccess.remove_absolute(files[i].path)
+		if err != OK:
+			push_warning(
+				"emoji cache: failed to evict %s (err %d)"
+				% [files[i].path, err]
+			)
