@@ -30,3 +30,4 @@ test_server.log
 .claude/settings.local.json
 .mcp.json
 AGENTS.decay.json
+.claude/worktrees
