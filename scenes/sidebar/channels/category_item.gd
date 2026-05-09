@@ -31,6 +31,7 @@ var _is_mobile: bool = OS.has_feature("mobile")
 
 func _ready() -> void:
 	add_to_group("themed")
+	add_to_group("category_items")
 	header.pressed.connect(_toggle_collapsed)
 	chevron.texture = CHEVRON_DOWN
 	category_name.add_theme_font_size_override("font_size", 11)

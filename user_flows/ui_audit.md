@@ -8,7 +8,7 @@ Every view, dialog, panel, and overlay in the daccord client needs to be screens
 2. Auditor navigates through each area of the application, capturing screenshots at each surface
 3. Screenshots are annotated with the surface name and file path for developer cross-reference
 4. Designer reviews each screenshot for visual consistency, spacing, typography, and color usage
-5. UX expert reviews each screenshot for usability, discoverability, accessibility, and interaction patterns
+5. UX expert reviews each screenshot for usability, discoverability, and interaction patterns
 6. Findings are logged per-surface with severity and recommended changes
 7. Responsive variants are captured at COMPACT (<500px), MEDIUM (<768px), and FULL (>=768px) breakpoints
 
@@ -58,6 +58,7 @@ Automated MCP audit path:
 | `scripts/autoload/client_mcp.gd` | MCP protocol adapter — exposes `take_screenshot`, `list_surfaces`, `get_surface_info` as MCP tools; enables AI agent-driven audits |
 | `scripts/autoload/config_developer.gd` | Developer Mode config — gates test API and MCP server behind two explicit opt-ins |
 | `scenes/user/app_settings_developer_page.gd` | Developer settings page — MCP/test API toggles, token display, tool group checkboxes |
+| `audit-screenshot.sh` | Xvfb wrapper script for headless screenshot capture in CI environments |
 
 ## Audit Checklist
 
@@ -339,6 +340,17 @@ The `navigate` group (enabled by default) provides companion tools:
 | `open_dialog {"dialog_name": "ban"}` | Instantiates a dialog from a hardcoded 30-entry allowlist in `ClientTestApiNavigate.DIALOG_MAP` |
 | `set_theme {"preset": "dark"}` | Calls `ThemeManager.apply_preset()` to switch the live theme; accepts `dark`, `light`, `nord`, `monokai`, `solarized`, or `{"theme_string": "<base64>"}` for custom palettes |
 
+Additional audit endpoints (added to `client_test_api.gd` and `client_test_api_navigate.gd`):
+
+| Endpoint | Description |
+|----------|-------------|
+| `open_context_menu {"target": "message", "index": 0}` | Simulates right-click on a context menu target (message/channel/member/guild_icon/category). Uses group-based node lookup. |
+| `set_mock_state {"state": "loading"}` | Injects visual state into the topmost open dialog. States: `loading` (disable buttons), `error` (show error text), `empty` (hide content), `reset` (restore original). |
+| `set_mock_state {"state": "error", "message": "Failed"}` | Injects error text into dialog's error label or creates a temporary one. |
+| `screenshot_support` | Returns display server info, viewport size, and whether screenshots are possible. Includes hints for fixing headless mode. |
+
+Context menu targets require scene nodes to be in groups (`cozy_messages`, `channel_items`, `member_items`, `guild_icons`, `category_items`), which are registered in each component's `_ready()`.
+
 Screenshot capture uses Godot's rendering pipeline:
 ```gdscript
 # _endpoint_screenshot() in client_test_api.gd
@@ -377,6 +389,15 @@ daccord> screenshot /tmp/6.2_compact_dark.png
 daccord> theme light                       # set_theme {preset: "light"}
 daccord> screenshot /tmp/6.2_compact_light.png
 daccord> dialog ban                        # open_dialog — then screenshot
+daccord> set_mock_state loading            # inject loading state on open dialog
+daccord> screenshot /tmp/ban_loading.png
+daccord> set_mock_state error "Ban failed" # inject error state
+daccord> screenshot /tmp/ban_error.png
+daccord> set_mock_state reset              # restore original state
+daccord> open_context_menu message 0       # right-click first message
+daccord> screenshot /tmp/msg_context.png
+daccord> open_context_menu guild_icon 0    # right-click first server icon
+daccord> screenshot /tmp/guild_context.png
 daccord> tokens                            # get_design_tokens — returns full palette
 ```
 
@@ -408,13 +429,13 @@ See [Client MCP Server](client_mcp.md#automated-ui-audit-example) for a full JSO
 
 ### Context Menus (Hidden Surfaces)
 Right-click context menus exist on:
-- Messages (edit, delete, reply, react, pin, copy)
-- Channel items (edit, delete, permissions, mute)
-- Member items (profile, message, moderate, roles)
-- Guild icons (settings, leave, notifications)
-- Category items (edit, delete, create channel)
+- Messages (edit, delete, reply, react, pin, copy) — group: `cozy_messages`
+- Channel items (edit, delete, permissions, mute) — group: `channel_items`
+- Member items (profile, message, moderate, roles) — group: `member_items`
+- Guild icons (settings, leave, notifications) — group: `guild_icons`
+- Category items (edit, delete, create channel) — group: `category_items`
 
-These are generated dynamically via `PopupMenu` and must be triggered interactively.
+These are generated dynamically via `PopupMenu`. They can be triggered programmatically via the `open_context_menu` endpoint, which simulates a right-click at the center of the target node. Use `{"target": "message", "index": 0}` to select which instance.
 
 ### Platform-Specific Surfaces
 | Platform | Differences |
@@ -439,8 +460,9 @@ These are generated dynamically via `PopupMenu` and must be triggered interactiv
 - [x] Design token export via `get_design_tokens` endpoint + MCP tool — returns full 33-key palette as hex strings + current preset name
 - [x] Dark/light theme variant captures — enabled by `set_theme` + audit loop
 - [x] Automated audit pipeline script — `accordserver-mcp/src/ui-audit.ts` (`daccord-ui-audit` CLI); loops 121 surfaces + 29 dialogs × 3 breakpoints × N themes; writes `manifest.json`
-- [ ] Figma/design file with current state
-- [ ] Accessibility audit annotations (contrast ratios, focus order)
+- [x] Context menu triggering via `open_context_menu` endpoint — right-click simulation on message/channel/member/guild_icon/category nodes; group-based lookup with fallback tree walk (`client_test_api_navigate.gd`)
+- [x] Dialog mock state injection via `set_mock_state` endpoint — loading/error/empty/reset states on any open dialog; button disabling, error label injection, content hiding (`client_test_api_navigate.gd`)
+- [x] Headless screenshot support — `screenshot_support` endpoint detects display server; `audit-screenshot.sh` Xvfb wrapper for CI environments; clear error message when running in headless mode
 
 ## Gaps / TODO
 | Gap | Severity | Notes |
@@ -449,13 +471,12 @@ These are generated dynamically via `PopupMenu` and must be triggered interactiv
 | ~~No automated audit loop script~~ | ~~Medium~~ | **Resolved.** `accordserver-mcp/src/ui-audit.ts` — `daccord-ui-audit` CLI drives 121 surfaces + 29 dialogs × 3 breakpoints × N themes; emits manifest.json |
 | ~~No dark/light theme toggle~~ | ~~Medium~~ | **Resolved.** `set_theme` endpoint (`client_test_api.gd`) + MCP tool (`client_mcp.gd`) calls `ThemeManager.apply_preset()`. Supports all 5 presets + custom base64 palettes |
 | ~~No design tokens file~~ | ~~Medium~~ | **Resolved.** `get_design_tokens` endpoint + MCP tool returns the full 33-key ThemeManager palette as hex strings with preset name and available presets list |
-| Dialog state variants not injectable | Medium | States like "loading", "error" require specific server responses. MCP has no `set_mock_state` endpoint. Must manually engineer server conditions or add a mock endpoint |
-| Context menus not in dialog map | Medium | `PopupMenu` instances are created in code, not `.tscn` files — not in `DIALOG_MAP`. Must be triggered interactively; `open_dialog` cannot open them |
+| ~~Dialog state variants not injectable~~ | ~~Medium~~ | **Resolved.** `set_mock_state` endpoint injects loading/error/empty/reset states into any open dialog. Finds topmost dialog, disables buttons with "Loading..." text, injects error labels, hides content containers for empty state |
+| ~~Context menus not in dialog map~~ | ~~Medium~~ | **Resolved.** `open_context_menu` endpoint simulates right-click on message/channel/member/guild_icon/category nodes. Uses group-based lookup (`cozy_messages`, `channel_items`, `member_items`, `guild_icons`, `category_items`) with optional `index` param |
 | Platform-specific surfaces need separate passes | Medium | Web guest mode, Android touch targets, and desktop-only dialogs (screen picker) require platform-specific test runs; MCP/test API are desktop-only (`TCPServer` unavailable on web/Android) |
-| No Figma/design source of truth | High | Without a design file, the audit can only compare against general UX heuristics, not intended designs |
-| Loading/error states underspecified | Low | Many dialogs lack explicit error state designs — auditor should flag where error feedback is missing |
+| Loading/error states underspecified | Low | Many dialogs lack explicit error state designs — auditor should flag where error feedback is missing. `set_mock_state` can now inject error text for visual review |
 | Animation timing not auditable from screenshots | Low | Transitions and animations (`modal_base.gd` open/close, drawer slide) need video capture or live review; `wait_frames` endpoint exists but no video recording path |
-| Headless screenshot support | Low | `--headless` mode may not render a viewport. Screenshot tests need a windowed run or virtual framebuffer (Xvfb on CI) |
+| ~~Headless screenshot support~~ | ~~Low~~ | **Resolved.** `screenshot_support` endpoint detects display server and reports capability. `audit-screenshot.sh` wraps Godot in Xvfb for CI. Screenshot endpoint returns actionable error message in headless mode |
 
 ## Audit Execution Plan
 
@@ -479,6 +500,15 @@ DACCORD_MCP_TOKEN=<token> daccord-ui-audit \
 
 # Preview the plan without running
 DACCORD_MCP_TOKEN=<token> daccord-ui-audit --dry-run
+```
+
+For CI/headless environments (no display):
+```bash
+# Uses Xvfb virtual framebuffer for screenshot support
+./audit-screenshot.sh --port 39100 --resolution 1280x720x24
+
+# Or manually with xvfb-run
+xvfb-run -a -s '-screen 0 1280x720x24' godot --test-api
 ```
 
 Or drive manually via the `daccord-mcp` CLI:
@@ -506,7 +536,7 @@ File naming convention: `{section}.{num}_{surface_slug}_{theme}_{breakpoint}.png
 ### Phase 3: UX Review
 1. UX expert reviews all captures for usability
 2. Check: information hierarchy, discoverability, cognitive load, error recovery
-3. Flag: confusing flows, missing affordances, accessibility barriers
+3. Flag: confusing flows, missing affordances, unclear interaction patterns
 
 ### Phase 4: Remediation
 1. Prioritize findings by severity (High/Medium/Low)

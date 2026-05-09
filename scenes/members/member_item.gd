@@ -15,6 +15,7 @@ var _role_start_index: int = -1
 @onready var status_dot: ColorRect = $HBox/StatusDot
 
 func _ready() -> void:
+	add_to_group("member_items")
 	_context_menu = PopupMenu.new()
 	_context_menu.id_pressed.connect(_on_context_menu_id_pressed)
 	add_child(_context_menu)

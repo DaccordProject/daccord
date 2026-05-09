@@ -38,6 +38,7 @@ var _is_mobile: bool = OS.has_feature("mobile")
 
 func _ready() -> void:
 	add_to_group("themed")
+	add_to_group("channel_items")
 	pressed.connect(func(): channel_pressed.emit(channel_id))
 
 	_notification_submenu = PopupMenu.new()

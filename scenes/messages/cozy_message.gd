@@ -22,6 +22,7 @@ var _is_hovered: bool = false
 
 func _ready() -> void:
 	add_to_group("themed")
+	add_to_group("cozy_messages")
 	# Allow mouse events to pass through child controls so hover
 	# detection covers the entire message area, not just gaps.
 	content_column.mouse_filter = Control.MOUSE_FILTER_PASS

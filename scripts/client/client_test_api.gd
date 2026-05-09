@@ -319,8 +319,11 @@ func _init_endpoints() -> void:
 		"set_viewport_size": _endpoint_set_viewport_size,
 		"navigate_to_surface": _endpoint_navigate_to_surface,
 		"open_dialog": _endpoint_open_dialog,
+		"open_context_menu": _endpoint_open_context_menu,
+		"set_mock_state": _endpoint_set_mock_state,
 		# Screenshot & design tokens (delegated to _state)
 		"screenshot": _state.endpoint_screenshot,
+		"screenshot_support": _state.endpoint_screenshot_support,
 		"list_surfaces": _endpoint_list_surfaces,
 		"get_surface_info": _endpoint_get_surface_info,
 		"get_design_tokens": _state.endpoint_get_design_tokens,
@@ -456,6 +459,12 @@ func _endpoint_navigate_to_surface(args: Dictionary) -> Dictionary:
 func _endpoint_open_dialog(args: Dictionary) -> Dictionary:
 	var dialog_name: String = args.get("dialog_name", "")
 	return await _navigate.open_dialog(dialog_name, args)
+
+func _endpoint_open_context_menu(args: Dictionary) -> Dictionary:
+	return await _navigate.open_context_menu(args)
+
+func _endpoint_set_mock_state(args: Dictionary) -> Dictionary:
+	return await _navigate.set_mock_state(args)
 
 func _endpoint_list_surfaces(args: Dictionary) -> Dictionary:
 	var section: String = args.get("section", "")

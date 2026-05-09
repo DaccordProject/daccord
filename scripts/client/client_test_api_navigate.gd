@@ -4,6 +4,11 @@ extends RefCounted
 ## Navigation helpers for the Client Test API.
 ## Surface catalog, dialog map, and viewport resize presets.
 
+## Context menu target types for open_context_menu endpoint.
+const CONTEXT_MENU_TARGETS: PackedStringArray = [
+	"message", "channel", "member", "guild_icon", "category",
+]
+
 ## Dialog name → scene path mapping for open_dialog endpoint.
 const DIALOG_MAP: Dictionary = {
 	"add_server": "res://scenes/connection/add_server_dialog.tscn",
@@ -152,6 +157,269 @@ func open_dialog(
 		"dialog_name": dialog_name,
 		"scene_path": scene_path,
 	}
+
+
+func open_context_menu(args: Dictionary) -> Dictionary:
+	var target: String = args.get("target", "")
+	if target.is_empty():
+		return {
+			"error": "target is required",
+			"available": CONTEXT_MENU_TARGETS,
+		}
+	if not target in CONTEXT_MENU_TARGETS:
+		return {
+			"error": "Unknown target: %s" % target,
+			"available": CONTEXT_MENU_TARGETS,
+		}
+
+	var tree: SceneTree = _c.get_tree()
+	var node: Control = _find_context_target(tree, target, args)
+	if node == null:
+		return {"error": "No %s node found to right-click" % target}
+
+	# Simulate a right-click at the center of the node
+	var rect: Rect2 = node.get_global_rect()
+	var pos: Vector2 = rect.position + rect.size / 2.0
+
+	var press := InputEventMouseButton.new()
+	press.position = pos
+	press.global_position = pos
+	press.button_index = MOUSE_BUTTON_RIGHT
+	press.pressed = true
+	Input.parse_input_event(press)
+	await tree.process_frame
+
+	var release := InputEventMouseButton.new()
+	release.position = pos
+	release.global_position = pos
+	release.button_index = MOUSE_BUTTON_RIGHT
+	release.pressed = false
+	Input.parse_input_event(release)
+	await tree.process_frame
+
+	# Wait an extra frame for the popup to appear
+	await tree.process_frame
+	return {
+		"ok": true,
+		"target": target,
+		"position": {"x": int(pos.x), "y": int(pos.y)},
+	}
+
+
+func _find_context_target(
+	tree: SceneTree, target: String, args: Dictionary
+) -> Control:
+	var group_map: Dictionary = {
+		"message": "cozy_messages",
+		"channel": "channel_items",
+		"member": "member_items",
+		"guild_icon": "guild_icons",
+		"category": "category_items",
+	}
+	var group: String = group_map.get(target, "")
+
+	# Try group-based lookup first
+	var nodes: Array[Node] = tree.get_nodes_in_group(group)
+	if not nodes.is_empty():
+		var index: int = args.get("index", 0)
+		index = clampi(index, 0, nodes.size() - 1)
+		if nodes[index] is Control:
+			return nodes[index] as Control
+		return null
+
+	# Fallback: walk tree looking for class name patterns
+	var class_hints: Dictionary = {
+		"message": "cozy_message",
+		"channel": "channel_item",
+		"member": "member_item",
+		"guild_icon": "guild_icon",
+		"category": "category_item",
+	}
+	var hint: String = class_hints.get(target, "")
+	return _find_node_by_script_hint(tree.root, hint)
+
+
+func _find_node_by_script_hint(
+	root: Node, hint: String
+) -> Control:
+	for child in root.get_children():
+		if child is Control:
+			var script: Script = child.get_script()
+			if script != null:
+				var path: String = script.resource_path
+				if hint in path.get_file().to_lower():
+					return child as Control
+		var found: Control = _find_node_by_script_hint(
+			child, hint
+		)
+		if found != null:
+			return found
+	return null
+
+
+func set_mock_state(args: Dictionary) -> Dictionary:
+	var mock_state: String = args.get("state", "")
+	if mock_state.is_empty():
+		return {
+			"error": "state is required",
+			"available": ["loading", "error", "empty", "reset"],
+		}
+
+	var tree: SceneTree = _c.get_tree()
+	var target_dialog: String = args.get("dialog", "")
+
+	# Find the topmost dialog (modal_base or popup)
+	var dialog: Node = _find_open_dialog(tree, target_dialog)
+	if dialog == null:
+		return {"error": "No open dialog found"}
+
+	match mock_state:
+		"loading":
+			_apply_loading_state(dialog)
+		"error":
+			var message: String = args.get(
+				"message", "Something went wrong"
+			)
+			_apply_error_state(dialog, message)
+		"empty":
+			_apply_empty_state(dialog)
+		"reset":
+			_reset_mock_state(dialog)
+		_:
+			return {"error": "Unknown state: %s" % mock_state}
+
+	await tree.process_frame
+	return {
+		"ok": true,
+		"state": mock_state,
+		"dialog": dialog.name,
+	}
+
+
+func _find_open_dialog(
+	tree: SceneTree, name_hint: String
+) -> Node:
+	# Walk root children in reverse (topmost = last added)
+	var root: Node = tree.root
+	for i in range(root.get_child_count() - 1, -1, -1):
+		var child: Node = root.get_child(i)
+		if child.is_in_group("themed") and child is Control:
+			# Check if it looks like a dialog/modal
+			var script: Script = child.get_script()
+			if script == null:
+				continue
+			var path: String = script.resource_path
+			if (
+				"modal" in path or "dialog" in path
+				or "panel" in path or "settings" in path
+			):
+				if name_hint.is_empty():
+					return child
+				if name_hint in path.get_file().to_lower():
+					return child
+	return null
+
+
+func _apply_loading_state(dialog: Node) -> void:
+	# Find all buttons and disable them with "Loading..." text
+	var buttons: Array[Node] = _find_nodes_of_type(
+		dialog, "Button"
+	)
+	for btn in buttons:
+		if btn is Button and btn.visible:
+			btn.set_meta("_mock_original_text", btn.text)
+			btn.set_meta("_mock_original_disabled", btn.disabled)
+			btn.disabled = true
+			if not btn.text.is_empty():
+				btn.text = "Loading..."
+
+
+func _apply_error_state(dialog: Node, message: String) -> void:
+	# Find a label that looks like an error label
+	var found: bool = false
+	if "_error_label" in dialog:
+		var label: Variant = dialog.get("_error_label")
+		if label is Label:
+			label.text = message
+			label.visible = true
+			found = true
+
+	if not found:
+		# Walk children for any Label named *error*
+		var labels: Array[Node] = _find_nodes_of_type(
+			dialog, "Label"
+		)
+		for lbl in labels:
+			if "error" in lbl.name.to_lower() and lbl is Label:
+				lbl.text = message
+				lbl.visible = true
+				found = true
+				break
+
+	if not found:
+		# Create a temporary error label
+		var err_label := Label.new()
+		err_label.name = "MockErrorLabel"
+		err_label.text = message
+		err_label.add_theme_color_override(
+			"font_color", Color.RED
+		)
+		err_label.set_meta("_mock_created", true)
+		dialog.add_child(err_label)
+
+
+func _apply_empty_state(dialog: Node) -> void:
+	# Hide all content containers to simulate empty state
+	for child in dialog.get_children():
+		if child is ScrollContainer or child is ItemList:
+			child.set_meta(
+				"_mock_original_visible", child.visible
+			)
+			child.visible = false
+
+
+func _reset_mock_state(dialog: Node) -> void:
+	# Restore button states
+	var buttons: Array[Node] = _find_nodes_of_type(
+		dialog, "Button"
+	)
+	for btn in buttons:
+		if btn is Button and btn.has_meta("_mock_original_text"):
+			btn.text = btn.get_meta("_mock_original_text")
+			btn.disabled = btn.get_meta(
+				"_mock_original_disabled"
+			)
+			btn.remove_meta("_mock_original_text")
+			btn.remove_meta("_mock_original_disabled")
+
+	# Restore visibility
+	for child in dialog.get_children():
+		if child.has_meta("_mock_original_visible"):
+			child.visible = child.get_meta(
+				"_mock_original_visible"
+			)
+			child.remove_meta("_mock_original_visible")
+
+	# Remove any mock-created labels
+	var to_remove: Array[Node] = []
+	for child in dialog.get_children():
+		if child.has_meta("_mock_created"):
+			to_remove.append(child)
+	for node in to_remove:
+		node.queue_free()
+
+
+func _find_nodes_of_type(
+	root: Node, type_name: String
+) -> Array[Node]:
+	var result: Array[Node] = []
+	for child in root.get_children():
+		if child.get_class() == type_name:
+			result.append(child)
+		result.append_array(
+			_find_nodes_of_type(child, type_name)
+		)
+	return result
 
 
 func set_viewport_size(args: Dictionary) -> Dictionary:

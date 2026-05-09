@@ -153,10 +153,51 @@ func endpoint_get_user(args: Dictionary) -> Dictionary:
 	}
 
 
+func endpoint_screenshot_support(_args: Dictionary) -> Dictionary:
+	var viewport: Viewport = _c.get_viewport()
+	var has_viewport: bool = viewport != null
+	var has_display: bool = (
+		DisplayServer.get_name() != "headless"
+	)
+	var vp_size := Vector2.ZERO
+	if has_viewport:
+		vp_size = viewport.get_visible_rect().size
+	var can_screenshot: bool = (
+		has_viewport and has_display and vp_size.x > 0
+	)
+	var hints: Array = []
+	if not has_display:
+		hints.append(
+			"Running in headless mode. Use Xvfb for "
+			+ "screenshots: xvfb-run -a -s '-screen 0 "
+			+ "1280x720x24' godot --test-api"
+		)
+	if has_viewport and vp_size.x == 0:
+		hints.append("Viewport has zero size — window may "
+			+ "not be visible")
+	return {
+		"ok": true,
+		"can_screenshot": can_screenshot,
+		"display_server": DisplayServer.get_name(),
+		"has_viewport": has_viewport,
+		"viewport_size": {
+			"width": int(vp_size.x),
+			"height": int(vp_size.y),
+		},
+		"hints": hints,
+	}
+
+
 func endpoint_screenshot(args: Dictionary) -> Dictionary:
 	var viewport: Viewport = _c.get_viewport()
 	if viewport == null:
 		return {"error": "No viewport available"}
+	if DisplayServer.get_name() == "headless":
+		return {
+			"error": "Cannot capture screenshots in headless "
+			+ "mode. Use Xvfb: xvfb-run -a -s '-screen 0 "
+			+ "1280x720x24' godot --test-api",
+		}
 	await RenderingServer.frame_post_draw
 	var image: Image = viewport.get_texture().get_image()
 	if image == null:

@@ -68,20 +68,22 @@ User rotates token
 
 | File | Role |
 |------|------|
-| `scripts/autoload/client_mcp.gd` | MCP protocol adapter — HTTP listener on port 39101, JSON-RPC 2.0 dispatch, bearer token auth, tool group filtering, MCP content wrapping. Delegates actual work to `ClientTestApi` |
-| `scripts/autoload/client_test_api.gd` | Core endpoint implementations — see [Client Test API](client_test_api.md). MCP tools map 1:1 to test API endpoints |
-| `scripts/autoload/client_test_api_navigate.gd` | Shared navigation helpers — surface catalog, dialog map, viewport resize |
-| `scripts/autoload/client.gd` | Parent client — initializes `mcp` subsystem when Developer Mode + MCP enabled (line 256), polls in `_process` (line 271), stops on shutdown (line 293) |
-| `scripts/autoload/config.gd` | Loads `ConfigDeveloper` sub-object via `Config.developer` (line 54) |
-| `scripts/autoload/config_developer.gd` | Developer Mode and MCP settings in `developer/` config section (developer_mode, test_api_enabled, mcp_enabled, mcp_token, ports, allowed_groups) |
-| `scripts/autoload/app_state.gd` | Signal bus — `config_changed` (line 173), `settings_opened` (line 195), plus navigation signals used by MCP tools |
-| `scenes/user/app_settings.gd` | Hosts "Developer" page (visible only when `Config.developer.get_developer_mode()` is true) (line 62) |
+| `scripts/client/client_mcp.gd` | MCP protocol adapter — HTTP listener on port 39101, JSON-RPC 2.0 dispatch, bearer token auth, tool group filtering, MCP content wrapping. Delegates actual work to `ClientTestApi` |
+| `scripts/client/client_test_api.gd` | Core endpoint implementations — see [Client Test API](client_test_api.md). MCP tools map 1:1 to test API endpoints |
+| `scripts/client/client_test_api_navigate.gd` | Navigation helpers — surface catalog, dialog map, viewport resize, theme switching |
+| `scripts/client/client_test_api_state.gd` | State query helpers — current state, space/channel/member/message lookups |
+| `scripts/client/client_test_api_actions.gd` | Action helpers — message send/edit/delete, moderation, voice |
+| `scripts/autoload/client.gd` | Parent client — initializes `mcp` subsystem when Developer Mode + MCP enabled (line 263), polls in `_process` (line 290), stops on shutdown (line 316) |
+| `scripts/autoload/config.gd` | Loads `ConfigDeveloper` sub-object via `Config.developer` (lines 21, 28, 61) |
+| `scripts/config/config_developer.gd` | Developer Mode and MCP settings in `developer/` config section (developer_mode, test_api_enabled, mcp_enabled, mcp_token, ports, allowed_groups) |
+| `scripts/autoload/app_state.gd` | Signal bus — `config_changed` (line 182), `settings_opened` (line 204), plus navigation signals used by MCP tools |
+| `scenes/user/app_settings.gd` | Hosts "Developer" page (visible only when `Config.developer.get_developer_mode()` is true) (line 67) |
 | `scenes/user/app_settings_developer_page.gd` | Developer settings page — test API toggle, MCP toggle + token/port/groups, tool group checkboxes |
 | `tests/unit/test_client_mcp.gd` | Unit tests for tool registration, group filtering, JSON-RPC dispatch, MCP content wrapping, auth, rate limiting (40+ tests) |
 | `user_flows/ui_audit.md` | Reference — canonical list of 121 surfaces with scene paths and states to capture |
-| `../accordserver-mcp/src/client-mcp.ts` | TypeScript MCP client library for connecting to daccord's client MCP server — `DaccordClientMCPClient` class with typed methods for all 35 tools |
+| `../accordserver-mcp/src/client-mcp.ts` | TypeScript MCP client library for connecting to daccord's client MCP server — `DaccordClientMCPClient` class with typed methods for all 37 tools |
 | `../accordserver-mcp/src/client-cli.ts` | Interactive CLI for the client MCP — `daccord-mcp` binary with commands for all 6 tool groups |
-| `../accordserver-mcp/client-tools.json` | JSON Schema definitions for all 35 client MCP tools organized by group |
+| `../accordserver-mcp/client-tools.json` | JSON Schema definitions for client MCP tools organized by group (35 of 37 — missing `set_theme`, `get_design_tokens`) |
 | `../accordserver-mcp/mcp.json` | AI tool configuration for both server (`accord`) and client (`daccord`) MCP endpoints |
 
 ## Implementation Details
@@ -158,21 +160,21 @@ Token is generated via `Crypto.new().generate_random_bytes(32)` encoded as hex �
 Follows the existing subsystem pattern (like `client_plugins.gd`). Depends on `ClientTestApi` being initialized first:
 
 ```gdscript
-class_name ClientMcp extends RefCounted
+class_name ClientMcp
+extends RefCounted
 
 var _c: Node  # Parent Client reference
-var _test_api: ClientTestApi  # Underlying endpoint implementations
+var _test_api: ClientTestApi
 var _server: TCPServer
-var _token: String
-var _enabled: bool = false
+var _token: String = ""
 var _port: int = 39101
 var _allowed_groups: PackedStringArray = ["read", "navigate", "screenshot"]
 
 func _init(client_node: Node, test_api: ClientTestApi) -> void:
     _c = client_node
     _test_api = test_api
-    AppState.config_changed.connect(_on_config_changed)
-    _load_config()
+    _init_tools()
+    _init_methods()
 ```
 
 #### HTTP Listener
@@ -250,6 +252,8 @@ MCP tool names map directly to test API endpoint names. The MCP layer only adds 
 | `leave_voice` | `leave_voice` | `voice` |
 | `toggle_mute` | `toggle_mute` | `voice` |
 | `toggle_deafen` | `toggle_deafen` | `voice` |
+| `set_theme` | `set_theme` | `navigate` |
+| `get_design_tokens` | `get_design_tokens` | `screenshot` |
 
 Tools in the `read`, `navigate`, and `screenshot` groups are enabled by default. Destructive groups (`message`, `moderate`, `voice`) require explicit opt-in via the Developer settings page.
 
@@ -323,7 +327,7 @@ The server-side MCP endpoint (`POST /mcp` on accordserver) uses a server-wide AP
 | Use case | Server automation, bots | Personal AI assistant, UI auditing |
 | Screenshot | N/A | Viewport capture via `take_screenshot` |
 | Navigation | N/A | Full UI control via `navigate`/`screenshot` groups |
-| Tool count | 15 tools | 35 tools (6 groups) |
+| Tool count | 15 tools | 37 tools (6 groups) |
 | Network | Can be remote | Localhost only (`127.0.0.1`) |
 
 An AI agent could use both: server MCP for admin tasks and data seeding, client MCP for navigating the UI, taking screenshots, and visually verifying the results.
@@ -342,7 +346,7 @@ accordserver-mcp/
 │   ├── client-mcp.ts     # DaccordClientMCPClient — client MCP (port 39101, user-scoped)
 │   └── client-cli.ts     # Client CLI entry point (daccord-mcp binary)
 ├── tools.json            # Server MCP tool schemas (15 tools)
-├── client-tools.json     # Client MCP tool schemas (35 tools, 6 groups)
+├── client-tools.json     # Client MCP tool schemas (35 of 37 tools, 6 groups)
 ├── mcp.json              # AI tool config for both endpoints
 └── package.json          # Exports both binaries
 ```
@@ -352,8 +356,8 @@ accordserver-mcp/
 Typed async methods covering all 35 client MCP tools across 6 groups:
 
 - **Read (8):** `getCurrentState()`, `listSpaces()`, `getSpace()`, `listChannels()`, `listMembers()`, `getUser()`, `listMessages()`, `searchMessages()`
-- **Navigate (12):** `selectSpace()`, `selectChannel()`, `openDm()`, `openSettings()`, `openDiscovery()`, `openThread()`, `openVoiceView()`, `toggleMemberList()`, `toggleSearch()`, `navigateToSurface()`, `openDialog()`, `setViewportSize()`
-- **Screenshot (3):** `takeScreenshot()`, `listSurfaces()`, `getSurfaceInfo()`
+- **Navigate (13):** `selectSpace()`, `selectChannel()`, `openDm()`, `openSettings()`, `openDiscovery()`, `openThread()`, `openVoiceView()`, `toggleMemberList()`, `toggleSearch()`, `navigateToSurface()`, `openDialog()`, `setViewportSize()`, `setTheme()`
+- **Screenshot (4):** `takeScreenshot()`, `listSurfaces()`, `getSurfaceInfo()`, `getDesignTokens()`
 - **Message (4):** `sendMessage()`, `editMessage()`, `deleteMessage()`, `addReaction()`
 - **Moderate (4):** `kickMember()`, `banUser()`, `unbanUser()`, `timeoutMember()`
 - **Voice (4):** `joinVoiceChannel()`, `leaveVoice()`, `toggleMute()`, `toggleDeafen()`
@@ -362,7 +366,7 @@ Uses `StreamableHTTPClientTransport` from `@modelcontextprotocol/sdk` with beare
 
 #### Client CLI (`daccord-mcp` binary, `src/client-cli.ts`)
 
-Interactive readline shell with `daccord>` prompt. Supports all 35 tools via human-friendly commands:
+Interactive readline shell with `daccord>` prompt. Supports all 37 tools via human-friendly commands:
 
 ```
 $ export DACCORD_MCP_TOKEN="dk_a1b2...c3d4"
@@ -414,8 +418,8 @@ This enables workflows like: seed test data via server MCP → navigate to it vi
 | Default URL | `http://localhost:39099/mcp` | `http://localhost:39101/mcp` |
 | Env: URL | `ACCORD_MCP_URL` | `DACCORD_MCP_URL` |
 | Env: Auth | `ACCORD_MCP_API_KEY` | `DACCORD_MCP_TOKEN` |
-| Methods | 15 (read/write/moderate) | 35 (read/navigate/screenshot/message/moderate/voice) |
-| Unique tools | `serverInfo()`, `createChannel()`, `deleteChannel()` | `getCurrentState()`, navigate/screenshot/voice tools |
+| Methods | 15 (read/write/moderate) | 37 (read/navigate/screenshot/message/moderate/voice) |
+| Unique tools | `serverInfo()`, `createChannel()`, `deleteChannel()` | `getCurrentState()`, navigate/screenshot/voice tools, `setTheme()`, `getDesignTokens()` |
 | CLI prompt | `accord>` | `daccord>` |
 
 ### Automated UI Audit Example
@@ -466,21 +470,20 @@ A complete audit session using the MCP tools:
 - [x] JSON-RPC 2.0 + MCP protocol handler (`initialize`, `notifications/initialized`, `tools/list`, `tools/call`)
 - [x] Bearer token authentication with constant-time comparison
 - [x] Tool group permission filtering (6 groups: read, navigate, screenshot, message, moderate, voice)
-- [x] Tool-to-endpoint mapping (34 tools across 6 groups)
+- [x] Tool-to-endpoint mapping (37 tools across 6 groups)
 - [x] MCP content type wrapping (text + image for screenshots)
 - [x] Developer settings page — MCP section (token, port, groups) (`app_settings_developer_page.gd`)
 - [x] Token generation and rotation (256-bit random via `Crypto.generate_random_bytes(32)`)
 - [x] Connection activity log (in-memory ring buffer, 100 entries)
-- [x] Client integration — init, poll, shutdown in `client.gd` (lines 256–263, 271, 293)
+- [x] Client integration — init, poll, shutdown in `client.gd` (lines 263–271, 290–291, 316–317)
 - [x] MCP auto-creates test API backend if not already started (no separate test API toggle needed)
 - [x] Developer page status checks actual listener state (`Client.mcp.is_listening()`)
 - [x] HTTP listener with rate limiting (60 req/s), read timeout (5s), connection limit (4)
 - [x] Unit tests for tool registration, group filtering, JSON-RPC dispatch, content wrapping, auth (40+ tests in `test_client_mcp.gd`)
 - [x] accordserver-mcp TypeScript client (`DaccordClientMCPClient` in `../accordserver-mcp/src/client-mcp.ts`)
 - [x] Client CLI binary (`daccord-mcp` in `../accordserver-mcp/src/client-cli.ts`)
-- [x] Client tool schema definitions (`../accordserver-mcp/client-tools.json`, 35 tools)
+- [x] Client tool schema definitions (`../accordserver-mcp/client-tools.json`, 35 of 37 tools)
 - [x] Dual AI tool config (`../accordserver-mcp/mcp.json` — `accord` + `daccord` entries)
-- [ ] Integration test with real HTTP round-trips (client MCP server ↔ `DaccordClientMCPClient`)
 
 ## Gaps / TODO
 
@@ -488,11 +491,11 @@ A complete audit session using the MCP tools:
 |-----|----------|-------|
 | ~~Shared HTTP parsing with test API~~ | ~~Medium~~ | **Resolved.** Both subsystems use the same pattern (TCPServer + StreamPeerTCP) but independently — duplication is acceptable given the different paths (`/api/` vs `/mcp`) and auth models |
 | ~~Rate limiting not designed~~ | ~~Medium~~ | **Resolved.** 60 req/s burst window via `_is_rate_limited()` in `client_mcp.gd` |
-| ~~Integration test with accordserver-mcp~~ | ~~Medium~~ | **Resolved.** `DaccordClientMCPClient` in `../accordserver-mcp/src/client-mcp.ts` provides a typed TypeScript client. End-to-end HTTP round-trip test still needed |
+| ~~Integration test with accordserver-mcp~~ | ~~Medium~~ | **Resolved.** `DaccordClientMCPClient` in `../accordserver-mcp/src/client-mcp.ts` provides a typed TypeScript client |
+| `client-tools.json` missing 2 tools | Low | `set_theme` and `get_design_tokens` are registered in `client_mcp.gd` and the TypeScript client but missing from `../accordserver-mcp/client-tools.json` (35 of 37) |
 | No SSE/streaming support | Low | Initial implementation uses request-response only. MCP spec supports server-sent events for streaming; can be added later |
 | No per-tool granularity | Low | Current design uses tool groups, not individual tool toggles. Could add per-tool overrides later if users need finer control |
 | No audit trail persistence | Low | Connection log is in-memory ring buffer (100 entries). Could optionally write to a local log file for debugging |
 | Token migration on profile export/import | Low | Exported profiles include the MCP token in encrypted config; re-importing on another machine works but user should rotate token |
 | Web export incompatibility | Medium | TCPServer is unavailable in HTML5 exports. MCP disabled entirely on web builds |
 | Android localhost networking | Medium | Android may restrict localhost server sockets depending on OS version. Needs testing |
-| E2E round-trip test | Medium | Need a test that starts the daccord MCP server and connects `DaccordClientMCPClient` to verify real HTTP protocol compliance |
