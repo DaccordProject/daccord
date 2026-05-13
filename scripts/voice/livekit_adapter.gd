@@ -121,6 +121,12 @@ func set_muted(muted: bool) -> void:
 			_local_audio_track.mute()
 		else:
 			_local_audio_track.unmute()
+	elif not muted and _state == VOICE_STATE.CONNECTED:
+		# Joined listen-only because no input device was available;
+		# remind the user why unmuting has no effect.
+		AppState.voice_error.emit(
+			tr("No microphone detected — joined as listen-only")
+		)
 
 func set_deafened(deafened: bool) -> void:
 	_deafened = deafened
@@ -470,8 +476,22 @@ func _on_data_received(
 
 # --- Local audio publishing ---
 
+func _has_audio_input() -> bool:
+	# Touching AudioStreamMicrophone with no capture device crashes the
+	# audio thread on PulseAudio/PipeWire. Pre-check the device list.
+	var devices: PackedStringArray = AudioServer.get_input_device_list()
+	return not devices.is_empty()
+
 func _publish_local_audio() -> void:
 	if _room == null:
+		return
+	if not _has_audio_input():
+		push_warning(
+			"[LiveKitAdapter] No audio input device — joining as listen-only"
+		)
+		AppState.voice_error.emit(
+			tr("No microphone detected — joined as listen-only")
+		)
 		return
 	var mix_rate: int = int(AudioServer.get_mix_rate())
 	_local_audio_source = LiveKitAudioSource.create(mix_rate, 1, 200)
