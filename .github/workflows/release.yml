@@ -75,9 +75,7 @@ jobs:
 
       - name: Install audio libraries (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
+        run: .github/scripts/apt-install.sh libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Set up Java JDK (Android)
         if: matrix.platform == 'android'
@@ -637,7 +635,7 @@ jobs:
           WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
-          sudo apt-get install -y osslsigncode
+          .github/scripts/apt-install.sh osslsigncode
           echo "$WINDOWS_CERT_BASE64" | base64 -d > cert.pfx
           # Re-extract, sign, re-package
           mkdir -p signed_windows
