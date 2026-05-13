@@ -521,10 +521,20 @@ func on_message_delete_bulk(data: Dictionary) -> void:
 		i -= 1
 	AppState.messages_updated.emit(channel_id)
 
+func _is_own_user_id(user_id: String) -> bool:
+	if user_id.is_empty():
+		return false
+	if user_id == _c.current_user.get("id", ""):
+		return true
+	for conn in _c._connections:
+		if conn != null and conn.get("user_id", "") == user_id:
+			return true
+	return false
+
 func on_typing_start(data: Dictionary) -> void:
 	var user_id: String = data.get("user_id", "")
 	var channel_id: String = data.get("channel_id", "")
-	if user_id == _c.current_user.get("id", ""):
+	if _is_own_user_id(user_id):
 		return
 	var user_dict: Dictionary = _c.get_user_by_id(user_id)
 	var username: String = user_dict.get("display_name", "Someone")
