@@ -312,7 +312,6 @@ func _on_card_clicked(space_data: Dictionary) -> void:
 	_detail_view.setup(space_data, _is_space_joined(space_data))
 	_detail_view.back_pressed.connect(_on_detail_back)
 	_detail_view.join_pressed.connect(_on_detail_join_with_slug)
-	_detail_view.preview_pressed.connect(_on_detail_preview)
 
 	# Apply cached ping to detail view
 	var server_url: String = space_data.get("server_url", "")
@@ -402,49 +401,6 @@ func _join_and_connect(
 	AppState.close_discovery()
 	if not joined_space_id.is_empty():
 		AppState.select_space(joined_space_id)
-
-func _on_detail_preview(server_url: String, space_id: String) -> void:
-	# Connect as guest to preview the space without creating an account
-	var api_url := server_url + AccordConfig.API_BASE_PATH
-	var rest := AccordRest.new(api_url)
-	add_child(rest)
-	var auth := AuthApi.new(rest)
-	var result: RestResult = await auth.guest()
-	rest.queue_free()
-
-	if not is_instance_valid(self):
-		return
-
-	if not result.ok:
-		var msg: String = (
-			result.error.message if result.error else "Preview not available"
-		)
-		if _detail_view and is_instance_valid(_detail_view):
-			_detail_view.show_error(msg)
-		return
-
-	var token: String = result.data.get("token", "")
-	var expires_at: String = result.data.get("expires_at", "")
-	if token.is_empty():
-		if _detail_view and is_instance_valid(_detail_view):
-			_detail_view.show_error("Failed to get guest token")
-		return
-
-	# Close discovery and connect as guest
-	AppState.close_discovery()
-	var connect_result: Dictionary = await Client.connect_guest(
-		server_url, token, space_id, expires_at
-	)
-
-	if not is_instance_valid(self):
-		return
-
-	if connect_result.has("error"):
-		push_warning("[Discovery] Guest preview failed: ", connect_result["error"])
-		return
-
-	if not connect_result.get("space_id", "").is_empty():
-		AppState.select_space(connect_result["space_id"])
 
 func _on_close() -> void:
 	if not _embedded:
