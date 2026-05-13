@@ -2,10 +2,8 @@ extends VBoxContainer
 
 signal back_pressed()
 signal join_pressed(server_url: String, space_id: String, space_slug: String)
-signal preview_pressed(server_url: String, space_id: String)
 
 var _data: Dictionary = {}
-var _preview_button: Button
 
 @onready var _back_button: Button = $Header/BackButton
 @onready var _banner: TextureRect = $BannerContainer/Banner
@@ -24,7 +22,6 @@ func _ready() -> void:
 	add_to_group("themed")
 	_back_button.pressed.connect(func(): back_pressed.emit())
 	_join_button.pressed.connect(_on_join_pressed)
-	_create_preview_button()
 	_apply_style()
 
 func _apply_theme() -> void:
@@ -66,13 +63,6 @@ func setup(data: Dictionary, joined: bool = false) -> void:
 
 	_ping_label.text = tr("Measuring...")
 	_ping_label.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
-
-	# Disable preview if guest access is not allowed
-	if not data.get("allow_guest_access", true):
-		_preview_button.disabled = true
-		_preview_button.tooltip_text = tr(
-			"Guest preview is disabled for this space"
-		)
 
 	# Load banner
 	var banner_url: String = data.get("banner_url", "")
@@ -138,28 +128,6 @@ func _apply_style() -> void:
 	# Back button
 	_back_button.add_theme_color_override("font_color", ThemeManager.get_color("text_muted"))
 	_back_button.add_theme_color_override("font_hover_color", ThemeManager.get_color("text_body"))
-
-func _create_preview_button() -> void:
-	_preview_button = Button.new()
-	_preview_button.text = tr("Preview")
-	_preview_button.pressed.connect(_on_preview_pressed)
-	# Insert just before the join button
-	_join_button.get_parent().add_child(_preview_button)
-	_join_button.get_parent().move_child(
-		_preview_button,
-		_join_button.get_index()
-	)
-
-func _on_preview_pressed() -> void:
-	var server_url: String = _data.get("server_url", "")
-	var space_id: String = _data.get("space_id", _data.get("id", ""))
-	if server_url.is_empty() or space_id.is_empty():
-		_status_label.text = tr("Missing server information")
-		_status_label.visible = true
-		return
-	_preview_button.disabled = true
-	_preview_button.text = tr("Loading...")
-	preview_pressed.emit(server_url, space_id)
 
 func _on_join_pressed() -> void:
 	var server_url: String = _data.get("server_url", "")
