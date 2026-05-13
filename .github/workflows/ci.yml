@@ -56,9 +56,7 @@ jobs:
           lfs: true
 
       - name: Install audio libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
+        run: .github/scripts/apt-install.sh libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -178,9 +176,7 @@ jobs:
           path: .accordserver_repo
 
       - name: Install audio libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
+        run: .github/scripts/apt-install.sh libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -409,9 +405,7 @@ jobs:
           lfs: true
 
       - name: Install system libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev libpipewire-0.3-dev
+        run: .github/scripts/apt-install.sh libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -578,8 +572,7 @@ jobs:
 
       - name: Install system libraries
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
+          .github/scripts/apt-install.sh \
             libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev \
             chromium-browser python3
 
@@ -776,13 +769,12 @@ jobs:
           lfs: true
 
       - name: Install system libraries and Wine
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
-          DEBIAN_FRONTEND: noninteractive
+          APT_INSTALL_EXTRA_FLAGS: "--no-install-recommends"
         run: |
           sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends \
+          .github/scripts/apt-install.sh \
             libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev \
             wine64
 
