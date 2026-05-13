@@ -1,6 +1,7 @@
 extends PanelContainer
 
 const EmojiPickerScene := preload("res://scenes/messages/composer/emoji_picker.tscn")
+const MentionPopupScene := preload("res://scenes/messages/composer/mention_popup.tscn")
 const MAX_FILE_SIZE := 25 * 1024 * 1024 # 25 MB
 const MAX_ATTACHMENT_COUNT := 10
 const LARGE_TEXT_THRESHOLD := 4096 # 4 KB — offer to convert to .txt
@@ -12,6 +13,9 @@ var _emoji_picker: PanelContainer = null
 var _saved_placeholder: String = ""
 var _pending_files: Array = [] # Array of {filename, content, content_type, size}
 var _file_dialog: FileDialog = null
+var _mention_popup: PanelContainer = null
+var _mention_line: int = -1
+var _mention_start_col: int = -1
 
 @onready var upload_button: Button = $VBox/HBox/UploadButton
 @onready var text_input: TextEdit = $VBox/HBox/TextInput
@@ -29,6 +33,7 @@ func _ready() -> void:
 	emoji_button.pressed.connect(_on_emoji_button)
 	text_input.gui_input.connect(_on_text_input)
 	text_input.text_changed.connect(_on_text_changed)
+	text_input.caret_changed.connect(_on_caret_changed)
 	cancel_reply_button.pressed.connect(_on_cancel_reply)
 	AppState.reply_initiated.connect(_on_reply_initiated)
 	AppState.reply_cancelled.connect(_on_reply_cancelled)
@@ -101,6 +106,25 @@ func _on_text_input(event: InputEvent) -> void:
 			GuestPrompt.show_if_guest()
 		return
 	if event is InputEventKey and event.pressed:
+		# Mention popup keyboard nav takes priority.
+		if _is_mention_popup_visible():
+			match event.keycode:
+				KEY_DOWN:
+					_mention_popup.move_selection(1)
+					get_viewport().set_input_as_handled()
+					return
+				KEY_UP:
+					_mention_popup.move_selection(-1)
+					get_viewport().set_input_as_handled()
+					return
+				KEY_ENTER, KEY_KP_ENTER, KEY_TAB:
+					if _mention_popup.pick_selected():
+						get_viewport().set_input_as_handled()
+						return
+				KEY_ESCAPE:
+					_hide_mention_popup()
+					get_viewport().set_input_as_handled()
+					return
 		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and not event.shift_pressed:
 			_on_send()
 			get_viewport().set_input_as_handled()
@@ -137,6 +161,10 @@ func _on_text_changed() -> void:
 		Client.send_typing(AppState.current_channel_id)
 	# Warn if typing @everyone without permission
 	_check_everyone_permission()
+	_update_mention_state()
+
+func _on_caret_changed() -> void:
+	_update_mention_state()
 
 func _check_everyone_permission() -> void:
 	var text := text_input.text
@@ -540,6 +568,160 @@ func _on_channel_selected_restore_draft(channel_id: String) -> void:
 		text_input.set_caret_column(draft.length())
 		Config.set_draft_text(channel_id, "")
 
+# --- Mention autocomplete ---
+
+func _is_mention_popup_visible() -> bool:
+	return _mention_popup != null \
+			and is_instance_valid(_mention_popup) \
+			and _mention_popup.visible
+
+func _update_mention_state() -> void:
+	var line: int = text_input.get_caret_line()
+	var col: int = text_input.get_caret_column()
+	var line_text: String = text_input.get_line(line)
+	var trigger: int = _find_mention_trigger(line_text, col)
+	if trigger == -1:
+		_hide_mention_popup()
+		return
+	var prefix: String = line_text.substr(trigger + 1, col - trigger - 1)
+	_mention_line = line
+	_mention_start_col = trigger
+	if _is_mention_popup_visible():
+		if not _mention_popup.filter(prefix):
+			_hide_mention_popup()
+	else:
+		_show_mention_popup(prefix)
+
+## Returns the column index of the active "@" trigger on [param line_text]
+## relative to caret [param col], or -1 if no active mention is being typed.
+## A trigger is valid when:
+##   - "@" is immediately preceded by start-of-line or a non-word char.
+##   - the run between "@" and the caret contains no whitespace.
+func _find_mention_trigger(line_text: String, col: int) -> int:
+	var i: int = col - 1
+	while i >= 0:
+		var ch: String = line_text.substr(i, 1)
+		if ch == "@":
+			if i == 0:
+				return i
+			var prev: String = line_text.substr(i - 1, 1)
+			if _is_word_char(prev):
+				return -1
+			return i
+		if ch == " " or ch == "\t":
+			return -1
+		i -= 1
+	return -1
+
+static func _is_word_char(ch: String) -> bool:
+	if ch.is_empty():
+		return false
+	var c: int = ch.unicode_at(0)
+	# Letters, digits, underscore.
+	if c >= 0x30 and c <= 0x39:
+		return true
+	if c >= 0x41 and c <= 0x5A:
+		return true
+	if c >= 0x61 and c <= 0x7A:
+		return true
+	if c == 0x5F:
+		return true
+	# Treat any non-ASCII letter-like codepoint as a word char.
+	return c > 0x7F
+
+func _show_mention_popup(prefix: String) -> void:
+	var members: Array = _get_mention_candidates()
+	if members.is_empty():
+		return
+	if _mention_popup == null or not is_instance_valid(_mention_popup):
+		_mention_popup = MentionPopupScene.instantiate()
+		get_tree().root.add_child(_mention_popup)
+		_mention_popup.member_picked.connect(_on_mention_picked)
+		_mention_popup.dismissed.connect(_hide_mention_popup)
+	_mention_popup.setup(members, prefix)
+	if not _mention_popup.has_results():
+		_hide_mention_popup()
+		return
+	_position_mention_popup()
+	_mention_popup.visible = true
+
+func _hide_mention_popup() -> void:
+	_mention_line = -1
+	_mention_start_col = -1
+	if _mention_popup and is_instance_valid(_mention_popup):
+		_mention_popup.visible = false
+
+func _position_mention_popup() -> void:
+	if not _mention_popup:
+		return
+	var input_rect := text_input.get_global_rect()
+	var size := _mention_popup.size
+	# Use the panel's minimum size on first frame before layout has settled.
+	if size.x <= 0 or size.y <= 0:
+		size = _mention_popup.custom_minimum_size
+		if size.y <= 0:
+			size.y = 200
+	var vp_size := get_viewport().get_visible_rect().size
+	# Anchor above the text input, left-aligned with it.
+	var x: float = input_rect.position.x
+	var y: float = input_rect.position.y - size.y - 4
+	if y < 4:
+		# Not enough room above — fall back to below the input.
+		y = input_rect.position.y + input_rect.size.y + 4
+	x = clampf(x, 4, vp_size.x - size.x - 4)
+	y = clampf(y, 4, vp_size.y - size.y - 4)
+	_mention_popup.position = Vector2(x, y)
+
+func _get_mention_candidates() -> Array:
+	var my_id: String = Client.current_user.get("id", "")
+	var out: Array = []
+	if AppState.is_dm_mode:
+		var ch_id: String = AppState.current_channel_id
+		for dm in Client.dm_channels:
+			if dm.get("id", "") != ch_id:
+				continue
+			for r in dm.get("recipients", []):
+				if r is Dictionary and r.get("id", "") != my_id:
+					out.append(r)
+			break
+		return out
+	var space_id: String = AppState.current_space_id
+	if space_id.is_empty():
+		return out
+	for m in Client.get_members_for_space(space_id):
+		if m is Dictionary and m.get("id", "") != my_id:
+			out.append(m)
+	return out
+
+func _on_mention_picked(member: Dictionary) -> void:
+	if _mention_line < 0 or _mention_start_col < 0:
+		_hide_mention_popup()
+		return
+	var line: int = _mention_line
+	var start: int = _mention_start_col
+	var caret_col: int = text_input.get_caret_column()
+	var line_text: String = text_input.get_line(line)
+	if start >= line_text.length() or line_text.substr(start, 1) != "@":
+		_hide_mention_popup()
+		return
+	# Prefer username for the wire format; fall back to display_name.
+	var handle: String = str(member.get("username", ""))
+	if handle.is_empty():
+		handle = str(member.get("display_name", ""))
+	if handle.is_empty():
+		_hide_mention_popup()
+		return
+	var insert: String = "@%s " % handle
+	var before: String = line_text.substr(0, start)
+	var after: String = line_text.substr(caret_col)
+	text_input.set_line(line, before + insert + after)
+	text_input.set_caret_line(line)
+	text_input.set_caret_column(start + insert.length())
+	_hide_mention_popup()
+	text_input.grab_focus()
+
 func _exit_tree() -> void:
 	if _emoji_picker and is_instance_valid(_emoji_picker):
 		_emoji_picker.queue_free()
+	if _mention_popup and is_instance_valid(_mention_popup):
+		_mention_popup.queue_free()
