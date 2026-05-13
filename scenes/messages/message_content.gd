@@ -231,7 +231,14 @@ func _add_wave_button(data: Dictionary) -> void:
 	if ch_id.is_empty() or msg_id.is_empty():
 		return
 	var btn := Button.new()
-	btn.text = "\U01f44b " + tr("Wave to welcome!")
+	btn.text = tr("Wave to welcome!")
+	var wave_tex: Texture2D = EmojiData.get_texture(
+		"wave", Config.get_emoji_skin_tone()
+	)
+	if wave_tex != null:
+		btn.icon = wave_tex
+		btn.expand_icon = false
+		btn.add_theme_constant_override("icon_max_width", 18)
 	btn.custom_minimum_size = Vector2(0, 28)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var accent: Color = ThemeManager.get_color("accent")

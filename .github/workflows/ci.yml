@@ -776,10 +776,13 @@ jobs:
           lfs: true
 
       - name: Install system libraries and Wine
+        timeout-minutes: 10
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo apt-get install -y -qq \
+          sudo apt-get install -y -qq --no-install-recommends \
             libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev \
             wine64
 
