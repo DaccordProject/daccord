@@ -721,6 +721,26 @@ func set_draft_text(channel_id: String, text: String) -> void:
 func get_draft_text(channel_id: String) -> String:
 	return _config.get_value("drafts", channel_id, "")
 
+## Wipes ALL locally stored client data: every profile directory, the profile
+## registry, and legacy config/emoji files. Intended for developer-mode use
+## (Developer settings → Reset Local User Data) so the next launch behaves as
+## a fresh install. Does not touch the server account.
+func wipe_all_local_data() -> void:
+	_save_pending = false
+	if DirAccess.dir_exists_absolute("user://profiles"):
+		ConfigDirUtils.remove_directory_recursive("user://profiles")
+	var reg_global := ProjectSettings.globalize_path(REGISTRY_PATH)
+	DirAccess.remove_absolute(reg_global)
+	# Legacy locations (pre-profile migration)
+	var legacy_cfg := ProjectSettings.globalize_path("user://config.cfg")
+	DirAccess.remove_absolute(legacy_cfg)
+	if DirAccess.dir_exists_absolute("user://emoji_cache"):
+		ConfigDirUtils.remove_directory_recursive("user://emoji_cache")
+	_config = ConfigFile.new()
+	_registry = ConfigFile.new()
+	_load_ok = false
+
+
 ## Wipes the active profile's local data (config, emoji cache) and removes
 ## it from the registry. Called after a successful account deletion so no
 ## stale credentials remain on disk.
