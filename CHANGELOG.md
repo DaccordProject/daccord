@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-05-13
+
+### Fixed
+- CI: harden apt-get installs against transient mirror failures (#65)
+
 ## [0.1.19] - 2026-05-13
 
 ### Added
