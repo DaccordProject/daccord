@@ -975,7 +975,7 @@ jobs:
           files: artifacts/*
 
       - name: Trigger website rebuild
-        if: ${{ !contains(github.ref_name, '-') }}
+        if: ${{ !contains(github.ref_name, '-') && env.GH_TOKEN != '' }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
