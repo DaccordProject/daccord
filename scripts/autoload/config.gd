@@ -722,9 +722,10 @@ func get_draft_text(channel_id: String) -> String:
 	return _config.get_value("drafts", channel_id, "")
 
 ## Wipes ALL locally stored client data: every profile directory, the profile
-## registry, and legacy config/emoji files. Intended for developer-mode use
-## (Developer settings → Reset Local User Data) so the next launch behaves as
-## a fresh install. Does not touch the server account.
+## registry, and legacy config/emoji files. Invoked from Profiles settings
+## (Reset Local User Data) so the next launch behaves as a fresh install.
+## Callers should log out of connected servers via Client.disconnect_all()
+## first; this does not touch the server account.
 func wipe_all_local_data() -> void:
 	_save_pending = false
 	if DirAccess.dir_exists_absolute("user://profiles"):

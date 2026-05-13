@@ -217,47 +217,7 @@ func build() -> VBoxContainer:
 	ThemeManager.style_label(cli_note, 11, "text_muted")
 	vbox.add_child(cli_note)
 
-	vbox.add_child(HSeparator.new())
-
-	# --- Reset Local Data section ---
-	vbox.add_child(_section_label.call(tr("RESET LOCAL DATA")))
-
-	var reset_desc := Label.new()
-	reset_desc.text = tr(
-		"Wipe all profiles, credentials, and cached data on this device, "
-		+ "then quit. The next launch starts as a fresh install. "
-		+ "Your server account is not affected."
-	)
-	reset_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	ThemeManager.style_label(reset_desc, 11, "text_muted")
-	vbox.add_child(reset_desc)
-
-	var reset_btn := SettingsBase.create_danger_button(
-		tr("Reset Local User Data")
-	)
-	reset_btn.pressed.connect(_on_reset_pressed)
-	vbox.add_child(reset_btn)
-
 	return vbox
-
-
-func _on_reset_pressed() -> void:
-	var dlg := ConfirmationDialog.new()
-	dlg.title = tr("Reset Local User Data")
-	dlg.dialog_text = tr(
-		"This will delete every locally stored profile, credential, and "
-		+ "cache, then quit the app. The server account is not affected. "
-		+ "Continue?"
-	)
-	dlg.ok_button_text = tr("Reset and Quit")
-	dlg.confirmed.connect(func() -> void:
-		Config.wipe_all_local_data()
-		dlg.queue_free()
-		_host.get_tree().quit()
-	)
-	dlg.canceled.connect(dlg.queue_free)
-	_host.add_child(dlg)
-	dlg.popup_centered()
 
 
 func _on_test_api_toggled(pressed: bool) -> void:
