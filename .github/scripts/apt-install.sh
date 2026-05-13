@@ -35,7 +35,6 @@ sudo tee /etc/apt/apt.conf.d/99-ci-robust >/dev/null <<'EOF'
 Acquire::Retries "5";
 Acquire::http::Timeout "30";
 Acquire::https::Timeout "30";
-Acquire::http::No-Cache "true";
 APT::Get::Assume-Yes "true";
 EOF
 
