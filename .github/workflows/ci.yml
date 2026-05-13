@@ -768,15 +768,27 @@ jobs:
         with:
           lfs: true
 
-      - name: Install system libraries and Wine
-        timeout-minutes: 15
+      - name: Install audio libraries
+        run: .github/scripts/apt-install.sh libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev
+
+      # Wine is only needed for the optional Windows-binary smoke test below.
+      # The export itself (which is the core thing this job validates) does not
+      # depend on Wine, so installation is soft-fail: if the mirror is degraded
+      # and Wine can't be installed within the timeout, we skip the smoke test
+      # with a warning rather than failing the whole job.
+      #
+      # Note: we deliberately do NOT enable the i386 architecture. wine64 alone
+      # runs 64-bit Windows binaries (which is what Godot's Windows export is),
+      # and adding i386 roughly doubles the apt manifest download and pulls in
+      # hundreds of MB of i386 dependencies — that was the actual cause of the
+      # previous 15-minute step timeouts.
+      - name: Install Wine (optional)
+        id: install_wine
+        continue-on-error: true
+        timeout-minutes: 10
         env:
           APT_INSTALL_EXTRA_FLAGS: "--no-install-recommends"
-        run: |
-          sudo dpkg --add-architecture i386
-          .github/scripts/apt-install.sh \
-            libasound2-dev libpulse-dev libopus-dev libpipewire-0.3-dev \
-            wine64
+        run: .github/scripts/apt-install.sh wine64
 
       - name: Install godot-livekit addon (latest release)
         run: |
@@ -911,8 +923,13 @@ jobs:
           echo "All addon binaries verified in Windows build"
 
       - name: Validate Windows binary starts (Wine)
+        if: steps.install_wine.outcome == 'success'
         run: |
           cd dist/build/windows
+          if ! command -v wine64 >/dev/null 2>&1; then
+            echo "::warning::wine64 not on PATH despite successful install — skipping smoke test"
+            exit 0
+          fi
           # Use Wine to run the Windows binary in headless mode
           timeout 30 wine64 daccord.exe --headless --quit 2>&1 | tee /tmp/wine_startup.log || true
           # Check for fatal errors that indicate broken export
@@ -926,6 +943,13 @@ jobs:
           fi
           echo "Windows binary started and quit successfully under Wine"
         timeout-minutes: 2
+
+      - name: Note skipped Wine smoke test
+        if: steps.install_wine.outcome != 'success'
+        run: |
+          echo "::warning::Wine install failed or timed out — Windows binary smoke test was skipped. The export itself (and addon-binary verification) still ran and passed; this is a degraded-mirror workaround, not an export failure."
+          echo "## Windows Smoke Test" >> $GITHUB_STEP_SUMMARY
+          echo "Wine install failed or timed out — binary smoke test skipped. Export and addon-binary checks still passed." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
