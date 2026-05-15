@@ -258,7 +258,7 @@ func _add_wave_button(data: Dictionary) -> void:
 	btn.add_theme_stylebox_override("hover", hover_sb)
 	btn.add_theme_color_override("font_color", Color.WHITE)
 	btn.pressed.connect(func() -> void:
-		Client.add_reaction(ch_id, msg_id, "\U01f44b")
+		Client.add_reaction(ch_id, msg_id, "wave")
 		btn.text = "\U01f44b " + tr("Waved!")
 		btn.disabled = true
 	)
