@@ -514,7 +514,55 @@ func _on_reset_password(user_id: String, uname: String) -> void:
 	get_tree().root.add_child(dialog)
 	dialog.setup(user_id, uname)
 
+## Collects the names of instance spaces still owned by the given user.
+## A user cannot be deleted while they own spaces — the server has no
+## ownership-transfer cascade, so the delete would fail with an opaque
+## referential-integrity error. Paginates defensively in case the admin
+## spaces endpoint is cursor-paged.
+func _spaces_owned_by(user_id: String) -> Array:
+	var owned: Array = []
+	var after: String = ""
+	while true:
+		var query: Dictionary = {"limit": 100}
+		if after != "":
+			query["after"] = after
+		var result: RestResult = await Client.admin.list_all_spaces(query)
+		if result == null or not result.ok or not (result.data is Array):
+			break
+		var page: Array = result.data
+		if page.is_empty():
+			break
+		for space in page:
+			var sid: String = ""
+			var sname: String = ""
+			var oid: String = ""
+			if space is AccordSpace:
+				sid = space.id
+				sname = space.name
+				oid = space.owner_id
+			elif space is Dictionary:
+				sid = space.get("id", "")
+				sname = space.get("name", "")
+				oid = space.get("owner_id", "")
+			if oid == user_id:
+				owned.append(sname if sname != "" else sid)
+			after = sid
+		if not result.has_more:
+			break
+	return owned
+
 func _on_delete_user(user_id: String, uname: String) -> void:
+	_users_error.visible = false
+	var owned: Array = await _spaces_owned_by(user_id)
+	if not owned.is_empty():
+		_users_error.text = (
+			tr("Cannot delete '%s': they still own %d space(s) (%s).")
+			% [uname, owned.size(), ", ".join(owned)]
+			+ " "
+			+ tr("Transfer ownership or delete these spaces first.")
+		)
+		_users_error.visible = true
+		return
 	var dialog := ConfirmDialogScene.instantiate()
 	get_tree().root.add_child(dialog)
 	dialog.setup(

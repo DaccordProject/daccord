@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Admin user deletion: block deleting a user who still owns spaces and show an actionable message instead of the opaque "referenced resource does not exist" server error
+
 ## [0.1.20] - 2026-05-13
 
 ### Fixed
