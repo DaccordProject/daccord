@@ -37,6 +37,7 @@ static var _catalog: Dictionary = {}
 static var _initialized := false
 static var _name_lookup: Dictionary = {}
 static var _char_to_name_lookup: Dictionary = {} # raw unicode char -> emoji name
+static var _char_to_name_built := false
 static var _texture_cache: Dictionary = {} # "emoji_name" -> Texture2D
 static var _skin_tone_textures: Dictionary = {} # "codepoint" -> Texture2D
 
@@ -85,7 +86,8 @@ static func resolve_name(input: String) -> String:
 	_build_name_lookup()
 	if _name_lookup.has(input):
 		return input
-	if _char_to_name_lookup.is_empty():
+	if not _char_to_name_built:
+		_char_to_name_built = true
 		for entry in _name_lookup.values():
 			_char_to_name_lookup[codepoint_to_char(entry["codepoint"])] = entry["name"]
 	return _char_to_name_lookup.get(input, "")

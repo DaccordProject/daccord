@@ -25,23 +25,25 @@ func _apply_theme() -> void:
 
 func setup(data: Dictionary) -> void:
 	_in_setup = true
-	emoji_key = data.get("emoji", "")
+	var raw_emoji: String = data.get("emoji", "")
+	# Normalise to canonical name so all code paths (texture lookup, server
+	# calls, reaction_failed matching) use the same identifier.
+	var resolved_name := EmojiData.resolve_name(raw_emoji)
+	emoji_key = resolved_name if not resolved_name.is_empty() else raw_emoji
 	reaction_count = data.get("count", 0)
 	channel_id = data.get("channel_id", "")
 	message_id = data.get("message_id", "")
 	button_pressed = data.get("active", false)
 
 	var skin_tone: int = Config.get_emoji_skin_tone()
-	var resolved_name := EmojiData.resolve_name(emoji_key)
-	var lookup_key := resolved_name if not resolved_name.is_empty() else emoji_key
-	var tone_tex: Texture2D = EmojiData.get_texture(lookup_key, skin_tone)
+	var tone_tex: Texture2D = EmojiData.get_texture(emoji_key, skin_tone)
 	if tone_tex:
 		icon = tone_tex
 	elif ClientModels.custom_emoji_textures.has(emoji_key):
 		icon = ClientModels.custom_emoji_textures[emoji_key]
 
 	text = str(reaction_count)
-	tooltip_text = ":%s:" % lookup_key
+	tooltip_text = ":%s:" % emoji_key
 	_update_active_style()
 	_in_setup = false
 
