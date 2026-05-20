@@ -28,6 +28,7 @@ var _clamping_panels: bool = false
 var _update_indicator: Button = null
 var _memory_timer: Timer
 var _voice_bar_in_content: bool = false
+var _last_keyboard_height: int = 0
 
 @onready var video_grid: PanelContainer = $LayoutHBox/ContentArea/VideoGrid
 @onready var content_header: PanelContainer = $LayoutHBox/ContentArea/ContentHeader
@@ -201,6 +202,9 @@ func _ready() -> void:
 		_memory_timer.timeout.connect(_check_memory_budget)
 		add_child(_memory_timer)
 		_memory_timer.start()
+	else:
+		# Only poll the on-screen keyboard height on mobile.
+		set_process(false)
 
 	# Apply initial layout
 	_on_viewport_resized()
@@ -269,8 +273,23 @@ func _apply_safe_area_insets() -> void:
 	var s: float = get_window().content_scale_factor
 	offset_top = sa.position.y / s
 	offset_left = sa.position.x / s
-	offset_bottom = -(ss.y - sa.position.y - sa.size.y) / s
+	# Reserve the larger of the system inset and the on-screen keyboard so
+	# the composer stays visible above the soft keyboard on Android.
+	var bottom_inset: int = ss.y - sa.position.y - sa.size.y
+	var kb_height: int = DisplayServer.virtual_keyboard_get_height()
+	if kb_height > bottom_inset:
+		bottom_inset = kb_height
+	offset_bottom = -bottom_inset / s
 	offset_right = -(ss.x - sa.position.x - sa.size.x) / s
+
+func _process(_delta: float) -> void:
+	# Soft-keyboard height is not signal-driven on Android; poll for changes
+	# and re-apply insets so the composer rises above the keyboard.
+	var kb: int = DisplayServer.virtual_keyboard_get_height()
+	if kb == _last_keyboard_height:
+		return
+	_last_keyboard_height = kb
+	_apply_safe_area_insets()
 
 func _check_memory_budget() -> void:
 	var usage: int = OS.get_static_memory_usage()
@@ -406,6 +425,9 @@ func _on_viewport_resized() -> void:
 	# Recalculate drawer width if sidebar is in drawer and open
 	if _drawer.is_in_drawer() and AppState.sidebar_drawer_open:
 		sidebar.offset_right = _drawer.get_drawer_width()
+	# Orientation change / system bar visibility can alter safe-area insets.
+	if OS.has_feature("mobile"):
+		_apply_safe_area_insets()
 
 func _on_layout_mode_changed(mode: AppState.LayoutMode) -> void:
 	# When voice view is open, skip content visibility management
