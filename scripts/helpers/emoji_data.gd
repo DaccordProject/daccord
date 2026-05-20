@@ -36,6 +36,8 @@ static var _category_icons: Dictionary = {}
 static var _catalog: Dictionary = {}
 static var _initialized := false
 static var _name_lookup: Dictionary = {}
+static var _char_to_name_lookup: Dictionary = {} # raw unicode char -> emoji name
+static var _char_to_name_built := false
 static var _texture_cache: Dictionary = {} # "emoji_name" -> Texture2D
 static var _skin_tone_textures: Dictionary = {} # "codepoint" -> Texture2D
 
@@ -74,6 +76,21 @@ static func get_all_for_category(category: Category) -> Array:
 static func get_by_name(emoji_name: String) -> Dictionary:
 	_build_name_lookup()
 	return _name_lookup.get(emoji_name, {})
+
+## Resolves an emoji identifier to its canonical name. Accepts either the
+## emoji name itself (e.g. "wave") or the raw unicode character ("\U01f44b").
+## Returns an empty string if no match is found.
+static func resolve_name(input: String) -> String:
+	if input.is_empty():
+		return ""
+	_build_name_lookup()
+	if _name_lookup.has(input):
+		return input
+	if not _char_to_name_built:
+		_char_to_name_built = true
+		for entry in _name_lookup.values():
+			_char_to_name_lookup[codepoint_to_char(entry["codepoint"])] = entry["name"]
+	return _char_to_name_lookup.get(input, "")
 
 ## Returns true if the emoji supports skin tone variants.
 static func supports_skin_tone(emoji_name: String) -> bool:

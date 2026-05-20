@@ -25,7 +25,11 @@ func _apply_theme() -> void:
 
 func setup(data: Dictionary) -> void:
 	_in_setup = true
-	emoji_key = data.get("emoji", "")
+	var raw_emoji: String = data.get("emoji", "")
+	# Normalise to canonical name so all code paths (texture lookup, server
+	# calls, reaction_failed matching) use the same identifier.
+	var resolved_name := EmojiData.resolve_name(raw_emoji)
+	emoji_key = resolved_name if not resolved_name.is_empty() else raw_emoji
 	reaction_count = data.get("count", 0)
 	channel_id = data.get("channel_id", "")
 	message_id = data.get("message_id", "")
