@@ -136,6 +136,11 @@ func _ready() -> void:
 
 	_show_page(initial_page)
 
+	# Initial compact-nav check: _setup_modal()'s _start_responsive() call
+	# fires before _nav_panel exists, so the first _update_compact_nav() bails
+	# out. Run it again now that the nav nodes are wired up.
+	_update_compact_nav()
+
 func _on_nav_pressed(index: int) -> void:
 	_show_page(index)
 
