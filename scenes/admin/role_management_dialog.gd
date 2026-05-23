@@ -3,12 +3,23 @@ extends ModalBase
 const ConfirmDialogScene := preload("res://scenes/admin/confirm_dialog.tscn")
 const RoleRowScene := preload("res://scenes/admin/role_row.tscn")
 
+## Sidebar collapses to a dropdown below this viewport width.
+const _COMPACT_THRESHOLD: float = 600.0
+
 var _space_id: String = ""
 var _selected_role: Dictionary = {}
 var _perm_checks: Dictionary = {} # perm_string -> CheckBox
 var _all_roles: Array = []
+var _visible_roles: Array = [] # currently displayed (filtered) role list
 var _dirty: bool = false
 
+# Compact-mode sidebar replacement
+var _compact_dropdown: OptionButton
+var _is_compact_layout: bool = false
+
+@onready var _vbox: VBoxContainer = $CenterContainer/Panel/VBox
+@onready var _role_scroll: ScrollContainer = \
+	$CenterContainer/Panel/VBox/Content/RoleScroll
 @onready var _close_btn: Button = \
 	$CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _new_role_btn: Button = \
@@ -45,6 +56,8 @@ func _ready() -> void:
 	_search_input.text_changed.connect(_on_search_changed)
 	_editor.visible = false
 	_build_perm_checkboxes()
+	_build_compact_dropdown()
+	_update_compact_layout()
 	AppState.roles_updated.connect(_on_roles_updated)
 
 	# Track dirty state
@@ -82,6 +95,7 @@ func _rebuild_role_list() -> void:
 func _build_role_buttons(roles: Array) -> void:
 	_clear_children(_role_list)
 
+	_visible_roles = roles
 	var role_counts: Dictionary = _compute_role_member_counts()
 
 	for i in roles.size():
@@ -93,6 +107,8 @@ func _build_role_buttons(roles: Array) -> void:
 		row.setup(role, i, roles.size(), count)
 		row.move_requested.connect(_on_move_role)
 		row.selected.connect(_select_role)
+
+	_rebuild_compact_dropdown()
 
 func _compute_role_member_counts() -> Dictionary:
 	var counts: Dictionary = {}
@@ -157,6 +173,7 @@ func _select_role(role: Dictionary) -> void:
 	_editor.visible = true
 	_error_label.visible = false
 	_dirty = false
+	_sync_compact_dropdown_selection()
 
 	_name_input.text = role.get("name", "")
 
@@ -276,3 +293,56 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_try_close()
 		get_viewport().set_input_as_handled()
+
+# --- Compact-mode sidebar collapse ---
+
+func _build_compact_dropdown() -> void:
+	_compact_dropdown = OptionButton.new()
+	_compact_dropdown.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_compact_dropdown.visible = false
+	_compact_dropdown.item_selected.connect(_on_compact_dropdown_selected)
+	# Insert directly after the SearchInput (index 2) so it sits above Content.
+	_vbox.add_child(_compact_dropdown)
+	_vbox.move_child(_compact_dropdown, 2)
+
+func _rebuild_compact_dropdown() -> void:
+	if not is_instance_valid(_compact_dropdown):
+		return
+	_compact_dropdown.clear()
+	for role in _visible_roles:
+		_compact_dropdown.add_item(role.get("name", ""))
+	_sync_compact_dropdown_selection()
+
+func _sync_compact_dropdown_selection() -> void:
+	if not is_instance_valid(_compact_dropdown):
+		return
+	if _selected_role.is_empty():
+		_compact_dropdown.selected = -1
+		return
+	var sel_id: String = _selected_role.get("id", "")
+	for i in _visible_roles.size():
+		if _visible_roles[i].get("id", "") == sel_id:
+			_compact_dropdown.selected = i
+			return
+	_compact_dropdown.selected = -1
+
+func _on_compact_dropdown_selected(idx: int) -> void:
+	if idx < 0 or idx >= _visible_roles.size():
+		return
+	_select_role(_visible_roles[idx])
+
+func _update_compact_layout() -> void:
+	if not is_instance_valid(_compact_dropdown) \
+			or not is_instance_valid(_role_scroll):
+		return
+	var vp_w: float = get_viewport_rect().size.x
+	var should_compact: bool = vp_w < _COMPACT_THRESHOLD
+	if should_compact == _is_compact_layout:
+		return
+	_is_compact_layout = should_compact
+	_role_scroll.visible = not should_compact
+	_compact_dropdown.visible = should_compact
+
+func _on_viewport_resized() -> void:
+	super._on_viewport_resized()
+	_update_compact_layout()
