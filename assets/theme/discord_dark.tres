@@ -1,4 +1,6 @@
-[gd_resource type="Theme" load_steps=23 format=3 uid="uid://s8v788hsibn3"]
+[gd_resource type="Theme" load_steps=24 format=3 uid="uid://s8v788hsibn3"]
+
+[sub_resource type="StyleBoxEmpty" id="scroll_focus_empty"]
 
 [sub_resource type="StyleBoxFlat" id="focus_outline"]
 bg_color = Color(0, 0, 0, 0)
@@ -230,6 +232,7 @@ ProgressBar/styles/background = SubResource("progressbar_bg")
 ProgressBar/styles/fill = SubResource("progressbar_fill")
 RichTextLabel/colors/default_color = Color(0.863, 0.867, 0.871, 1)
 RichTextLabel/styles/focus = SubResource("focus_outline")
+ScrollContainer/styles/focus = SubResource("scroll_focus_empty")
 ScrollContainer/styles/panel = SubResource("panel_default")
 SpinBox/styles/focus = SubResource("focus_outline")
 TabBar/colors/font_hovered_color = Color(0.863, 0.867, 0.871, 1)
