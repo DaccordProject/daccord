@@ -41,7 +41,7 @@ SyncManager="*res://scripts/autoload/sync_manager.gd"
 
 [daccord]
 
-error_dsn="https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1"
+error_dsn="https://f7c1b4791bdc42daac0b6411d41c8c4f@crash.daccord.gg/2"
 
 [debug]
 
