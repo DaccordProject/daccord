@@ -3,8 +3,9 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:firebridge/firebridge.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:bonfire/features/authentication/views/login.dart';
+import 'package:bonfire/features/authentication/views/accord_login.dart';
 import 'package:bonfire/features/authentication/views/mfa.dart';
+import 'package:bonfire/features/spaces/views/accord_home.dart';
 import 'package:bonfire/features/overview/views/navigation_frame.dart';
 import 'package:bonfire/features/overview/views/home.dart';
 import 'package:hive_ce/hive.dart';
@@ -18,11 +19,11 @@ final routerController = GoRouter(
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => const LoginScreen(),
+            builder: (context, state) => const AccordLoginScreen(),
             routes: [
               GoRoute(
                 path: 'login',
-                builder: (context, state) => const LoginScreen(),
+                builder: (context, state) => const AccordLoginScreen(),
               ),
               GoRoute(
                 path: 'switcher',
@@ -34,11 +35,15 @@ final routerController = GoRouter(
               ),
               GoRoute(
                 path: 'register',
-                builder: (context, state) => const LoginScreen(),
+                builder: (context, state) => const AccordLoginScreen(),
               ),
               GoRoute(
                 path: 'mfa',
                 builder: (context, state) => const MFAPage(),
+              ),
+              GoRoute(
+                path: 'spaces',
+                builder: (context, state) => const AccordHomeScreen(),
               ),
               ShellRoute(
                 builder: (context, state, child) =>

@@ -16,4 +16,6 @@ Future<void> setupHive() async {
   await Hive.openBox("last-location");
   await Hive.openBox("last-guild-channels");
   await Hive.openBox("added-accounts");
+  // Accord login: persisted server + token + user for session restore.
+  await Hive.openBox("accord-session");
 }

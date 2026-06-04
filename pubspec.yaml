@@ -22,6 +22,11 @@ dependencies:
   firebridge_extensions:
     path: packages/firebridge_extensions
 
+  # Accord protocol SDK — the networking layer that replaces firebridge.
+  accordkit:
+    git:
+      url: https://github.com/DaccordProject/accordkit-dart
+
   google_fonts: ^6.2.1
   flutter_riverpod: ^3.0.3
   riverpod_annotation: ^3.0.3
