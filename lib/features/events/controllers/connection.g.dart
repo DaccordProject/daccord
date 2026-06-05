@@ -45,7 +45,7 @@ final class ConnectionControllerProvider
 }
 
 String _$connectionControllerHash() =>
-    r'00000000000000000000000000000000connctn';
+    r'4bd9ec90f04afbb97228d8764103fbc92ff66033';
 
 /// Exposes the current [ConnectionStatus] to the UI (e.g. a connecting banner).
 

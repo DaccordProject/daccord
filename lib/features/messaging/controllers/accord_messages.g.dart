@@ -8,15 +8,24 @@ part of 'accord_messages.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// A channel's recent message history, keyed by channel ID.
+/// A channel's recent message history, keyed by channel ID, ordered
+/// oldest→newest for display. Self-loads via `messages.list` the first time
+/// it's watched (once logged in) and is kept in sync by message
+/// create/update/delete gateway events. `null` means "not loaded yet".
 
 @ProviderFor(AccordMessagesController)
 const accordMessagesControllerProvider = AccordMessagesControllerFamily._();
 
-/// A channel's recent message history, keyed by channel ID.
+/// A channel's recent message history, keyed by channel ID, ordered
+/// oldest→newest for display. Self-loads via `messages.list` the first time
+/// it's watched (once logged in) and is kept in sync by message
+/// create/update/delete gateway events. `null` means "not loaded yet".
 final class AccordMessagesControllerProvider
     extends $NotifierProvider<AccordMessagesController, List<AccordMessage>?> {
-  /// A channel's recent message history, keyed by channel ID.
+  /// A channel's recent message history, keyed by channel ID, ordered
+  /// oldest→newest for display. Self-loads via `messages.list` the first time
+  /// it's watched (once logged in) and is kept in sync by message
+  /// create/update/delete gateway events. `null` means "not loaded yet".
   const AccordMessagesControllerProvider._({
     required AccordMessagesControllerFamily super.from,
     required String super.argument,
@@ -63,9 +72,12 @@ final class AccordMessagesControllerProvider
 }
 
 String _$accordMessagesControllerHash() =>
-    r'00000000000000000000000000000accordmessages';
+    r'0aacfaecc10794cfb44e4eb776f4e1aeeadd9cb2';
 
-/// A channel's recent message history, keyed by channel ID.
+/// A channel's recent message history, keyed by channel ID, ordered
+/// oldest→newest for display. Self-loads via `messages.list` the first time
+/// it's watched (once logged in) and is kept in sync by message
+/// create/update/delete gateway events. `null` means "not loaded yet".
 
 final class AccordMessagesControllerFamily extends $Family
     with
@@ -85,7 +97,10 @@ final class AccordMessagesControllerFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// A channel's recent message history, keyed by channel ID.
+  /// A channel's recent message history, keyed by channel ID, ordered
+  /// oldest→newest for display. Self-loads via `messages.list` the first time
+  /// it's watched (once logged in) and is kept in sync by message
+  /// create/update/delete gateway events. `null` means "not loaded yet".
 
   AccordMessagesControllerProvider call(String channelId) =>
       AccordMessagesControllerProvider._(argument: channelId, from: this);
@@ -94,7 +109,10 @@ final class AccordMessagesControllerFamily extends $Family
   String toString() => r'accordMessagesControllerProvider';
 }
 
-/// A channel's recent message history, keyed by channel ID.
+/// A channel's recent message history, keyed by channel ID, ordered
+/// oldest→newest for display. Self-loads via `messages.list` the first time
+/// it's watched (once logged in) and is kept in sync by message
+/// create/update/delete gateway events. `null` means "not loaded yet".
 
 abstract class _$AccordMessagesController
     extends $Notifier<List<AccordMessage>?> {
@@ -106,8 +124,7 @@ abstract class _$AccordMessagesController
   @override
   void runBuild() {
     final created = build(_$args);
-    final ref =
-        this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
+    final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element
             as $ClassProviderElement<

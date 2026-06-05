@@ -8,15 +8,24 @@ part of 'spaces.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Holds the current user's space list — the left rail.
+/// Holds the current user's space list — the left rail. Populated on gateway
+/// ready (via `users.listSpaces()`) and kept in sync by space
+/// create/update/delete gateway events. The Accord analogue of Bonfire's
+/// `GuildsController`.
 
 @ProviderFor(SpacesController)
 const spacesControllerProvider = SpacesControllerProvider._();
 
-/// Holds the current user's space list — the left rail.
+/// Holds the current user's space list — the left rail. Populated on gateway
+/// ready (via `users.listSpaces()`) and kept in sync by space
+/// create/update/delete gateway events. The Accord analogue of Bonfire's
+/// `GuildsController`.
 final class SpacesControllerProvider
     extends $NotifierProvider<SpacesController, List<AccordSpace>?> {
-  /// Holds the current user's space list — the left rail.
+  /// Holds the current user's space list — the left rail. Populated on gateway
+  /// ready (via `users.listSpaces()`) and kept in sync by space
+  /// create/update/delete gateway events. The Accord analogue of Bonfire's
+  /// `GuildsController`.
   const SpacesControllerProvider._()
     : super(
         from: null,
@@ -44,9 +53,12 @@ final class SpacesControllerProvider
   }
 }
 
-String _$spacesControllerHash() => r'00000000000000000000000000000000spaceslst';
+String _$spacesControllerHash() => r'8919ce457730fd3af21890ce8db2cf3aa6f1e495';
 
-/// Holds the current user's space list — the left rail.
+/// Holds the current user's space list — the left rail. Populated on gateway
+/// ready (via `users.listSpaces()`) and kept in sync by space
+/// create/update/delete gateway events. The Accord analogue of Bonfire's
+/// `GuildsController`.
 
 abstract class _$SpacesController extends $Notifier<List<AccordSpace>?> {
   List<AccordSpace>? build();

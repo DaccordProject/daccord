@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
+import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:flutter/foundation.dart';
@@ -98,6 +102,90 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
     ref
         .read(accordMessagesControllerProvider(channelId).notifier)
         .removeMessage(messageId);
+  }));
+
+  // ── Reactions (per channel) ──────────────────────────────────────────────
+  // Like messages, only mutate channels the UI has opened.
+  String emojiName(Map<String, dynamic> data) {
+    final raw = data['emoji'];
+    if (raw is Map) return raw['name']?.toString() ?? '';
+    if (raw is String) return raw;
+    return '';
+  }
+
+  String? currentUserId() => ref.read(
+        accordAuthProvider.select(
+            (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+      );
+
+  void applyReactionEvent(Map<String, dynamic> data, {required bool added}) {
+    final channelId = data['channel_id']?.toString();
+    final messageId = data['message_id']?.toString();
+    final name = emojiName(data);
+    if (channelId == null || messageId == null || name.isEmpty) return;
+    if (!activeMessageChannels.contains(channelId)) return;
+    final isOwn = data['user_id']?.toString() == currentUserId();
+    ref
+        .read(accordMessagesControllerProvider(channelId).notifier)
+        .applyReaction(messageId, name, added: added, isOwn: isOwn);
+  }
+
+  subs.add(client.onReactionAdd.listen((d) => applyReactionEvent(d, added: true)));
+  subs.add(
+      client.onReactionRemove.listen((d) => applyReactionEvent(d, added: false)));
+  subs.add(client.onReactionClear.listen((data) {
+    final channelId = data['channel_id']?.toString();
+    final messageId = data['message_id']?.toString();
+    if (channelId == null || messageId == null) return;
+    if (!activeMessageChannels.contains(channelId)) return;
+    ref
+        .read(accordMessagesControllerProvider(channelId).notifier)
+        .clearReactions(messageId);
+  }));
+  subs.add(client.onReactionClearEmoji.listen((data) {
+    final channelId = data['channel_id']?.toString();
+    final messageId = data['message_id']?.toString();
+    final name = emojiName(data);
+    if (channelId == null || messageId == null || name.isEmpty) return;
+    if (!activeMessageChannels.contains(channelId)) return;
+    ref
+        .read(accordMessagesControllerProvider(channelId).notifier)
+        .clearReactionEmoji(messageId, name);
+  }));
+
+  // ── Typing indicators (per channel) ──────────────────────────────────────
+  subs.add(client.onTypingStart.listen((data) {
+    final channelId = data['channel_id']?.toString();
+    final userId = data['user_id']?.toString();
+    if (channelId == null || userId == null) return;
+    if (!activeMessageChannels.contains(channelId)) return;
+    if (userId == currentUserId()) return; // don't show our own typing
+    ref.read(typingControllerProvider(channelId).notifier).userTyping(userId);
+  }));
+
+  // ── Member cache (per space) ─────────────────────────────────────────────
+  // Only touch spaces the UI has actually opened (see [activeMemberSpaces]) so
+  // a single join event doesn't history-load every space's full member list.
+  void cacheMember(AccordMember member) {
+    if (!activeMemberSpaces.contains(member.spaceId)) return;
+    ref
+        .read(accordMembersControllerProvider(member.spaceId).notifier)
+        .upsertMember(member);
+  }
+
+  subs.add(client.onMemberJoin.listen(cacheMember));
+  subs.add(client.onMemberUpdate.listen(cacheMember));
+  subs.add(client.onMemberLeave.listen((data) {
+    final spaceId = data['space_id']?.toString() ?? data['guild_id']?.toString();
+    final userId =
+        data['user_id']?.toString() ?? (data['user'] is Map
+            ? (data['user'] as Map)['id']?.toString()
+            : null);
+    if (spaceId == null || userId == null) return;
+    if (!activeMemberSpaces.contains(spaceId)) return;
+    ref
+        .read(accordMembersControllerProvider(spaceId).notifier)
+        .removeMember(userId);
   }));
 
   return () {

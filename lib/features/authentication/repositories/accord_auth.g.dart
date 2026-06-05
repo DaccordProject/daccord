@@ -8,15 +8,24 @@ part of 'accord_auth.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Authentication + connection lifecycle against an Accord server.
+/// Authentication + connection lifecycle against an Accord server. The Accord
+/// replacement for the Discord-specific `Auth` provider: it owns the live
+/// [AccordClient], drives login (credentials → optional MFA → token), persists
+/// the session for restore-on-launch, and tears everything down on logout.
 
 @ProviderFor(AccordAuth)
 const accordAuthProvider = AccordAuthProvider._();
 
-/// Authentication + connection lifecycle against an Accord server.
+/// Authentication + connection lifecycle against an Accord server. The Accord
+/// replacement for the Discord-specific `Auth` provider: it owns the live
+/// [AccordClient], drives login (credentials → optional MFA → token), persists
+/// the session for restore-on-launch, and tears everything down on logout.
 final class AccordAuthProvider
     extends $NotifierProvider<AccordAuth, AccordAuthState> {
-  /// Authentication + connection lifecycle against an Accord server.
+  /// Authentication + connection lifecycle against an Accord server. The Accord
+  /// replacement for the Discord-specific `Auth` provider: it owns the live
+  /// [AccordClient], drives login (credentials → optional MFA → token), persists
+  /// the session for restore-on-launch, and tears everything down on logout.
   const AccordAuthProvider._()
     : super(
         from: null,
@@ -44,9 +53,12 @@ final class AccordAuthProvider
   }
 }
 
-String _$accordAuthHash() => r'0000000000000000000000000000000accordauth';
+String _$accordAuthHash() => r'da9e9ad484b1f6670e9c2642b0036bd93fe6d3b9';
 
-/// Authentication + connection lifecycle against an Accord server.
+/// Authentication + connection lifecycle against an Accord server. The Accord
+/// replacement for the Discord-specific `Auth` provider: it owns the live
+/// [AccordClient], drives login (credentials → optional MFA → token), persists
+/// the session for restore-on-launch, and tears everything down on logout.
 
 abstract class _$AccordAuth extends $Notifier<AccordAuthState> {
   AccordAuthState build();

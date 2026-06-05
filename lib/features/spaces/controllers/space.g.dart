@@ -8,15 +8,21 @@ part of 'space.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Per-space cache, keyed by space ID.
+/// Per-space cache, keyed by space ID. The Accord analogue of Bonfire's
+/// `GuildController`. Populated alongside [SpacesController] and updated by
+/// space update gateway events.
 
 @ProviderFor(SpaceController)
 const spaceControllerProvider = SpaceControllerFamily._();
 
-/// Per-space cache, keyed by space ID.
+/// Per-space cache, keyed by space ID. The Accord analogue of Bonfire's
+/// `GuildController`. Populated alongside [SpacesController] and updated by
+/// space update gateway events.
 final class SpaceControllerProvider
     extends $NotifierProvider<SpaceController, AccordSpace?> {
-  /// Per-space cache, keyed by space ID.
+  /// Per-space cache, keyed by space ID. The Accord analogue of Bonfire's
+  /// `GuildController`. Populated alongside [SpacesController] and updated by
+  /// space update gateway events.
   const SpaceControllerProvider._({
     required SpaceControllerFamily super.from,
     required String super.argument,
@@ -61,9 +67,11 @@ final class SpaceControllerProvider
   }
 }
 
-String _$spaceControllerHash() => r'00000000000000000000000000000000spacesngl';
+String _$spaceControllerHash() => r'e1b19ab09e1dd143bbbf8dc7586bb0a9a5fac00c';
 
-/// Per-space cache, keyed by space ID.
+/// Per-space cache, keyed by space ID. The Accord analogue of Bonfire's
+/// `GuildController`. Populated alongside [SpacesController] and updated by
+/// space update gateway events.
 
 final class SpaceControllerFamily extends $Family
     with
@@ -83,7 +91,9 @@ final class SpaceControllerFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// Per-space cache, keyed by space ID.
+  /// Per-space cache, keyed by space ID. The Accord analogue of Bonfire's
+  /// `GuildController`. Populated alongside [SpacesController] and updated by
+  /// space update gateway events.
 
   SpaceControllerProvider call(String spaceId) =>
       SpaceControllerProvider._(argument: spaceId, from: this);
@@ -92,7 +102,9 @@ final class SpaceControllerFamily extends $Family
   String toString() => r'spaceControllerProvider';
 }
 
-/// Per-space cache, keyed by space ID.
+/// Per-space cache, keyed by space ID. The Accord analogue of Bonfire's
+/// `GuildController`. Populated alongside [SpacesController] and updated by
+/// space update gateway events.
 
 abstract class _$SpaceController extends $Notifier<AccordSpace?> {
   late final _$args = ref.$arg as String;
