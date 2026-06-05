@@ -1,98 +1,67 @@
-*What if the Discord client was blazingly fast?*
+# Daccord
 
-You can find us on Discord: https://discord.gg/QafRarw25u
+A fast, cross-platform **Flutter client for [Daccord](https://github.com/DaccordProject)** — a free,
+open-source chat platform for communities.
 
-# Usage
-The fastest way to give it a go is at https://app.openbonfire.dev/! Note that at the time it will most likely require a token to login! This is because everything in the web version is proxied, so Discord requires captcha (which isn't implemented in Bonfire quite yet).
+This project is a fork of [Bonfire](https://github.com/OpenBonfire/bonfire) (a Flutter
+Discord client). We reuse Bonfire's mature Flutter UI, state management, routing, and
+theming, and **replace its Discord networking layer with the Accord protocol** via
+[`accordkit-dart`](https://github.com/DaccordProject/accordkit-dart). The goal is feature
+parity with the Godot-based reference client, [`daccord`](https://github.com/DaccordProject/daccord).
 
-We now offer nightly builds! Please check out the [github actions](https://github.com/OpenBonfire/bonfire/actions) for the latest builds. _You must be logged into to GitHub to view these builds_.
+> **Status:** early development. The Accord networking foundation, auth, read path, and a
+> first write path are in place. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for the
+> migration status and [`docs/technical-spec.md`](docs/technical-spec.md) for the plan.
 
-**NOTE**: Bonfire is in it's very early stages of development. It is absolutely NOT ready for regular usage.
+## Talks only to Accord
 
-# Bonfire
-![bonfire graphic frame](https://github.com/user-attachments/assets/75d9de58-3bd3-4605-a409-798fd4ba3643)
+This client connects **only** to Daccord/Accord servers — there is no Discord integration.
+You enter your Accord server URL at login; gateway and CDN URLs are derived from it.
 
+## Platform support
 
-## About
-A modern alternative to the Discord client. Use Discord without ever having to touch the mobile Discord client.
+All platform targets are present (Android, iOS, Windows, macOS, Linux, Web). As the port is
+in progress, parity varies by platform and feature; voice/video is **deferred and out of scope**
+for now.
 
-## Platform Support
-| Platform   | Support Level | Notes                                                                 |
-|------------|---------------|-----------------------------------------------------------------------|
-| Android    | 🟩 Supported  | Fully functional                                                     |
-| iOS        | 🟩 Supported  | Functional but needs testing                                         |
-| Windows    | 🟩 Supported  | Fully functional                                                     |
-| MacOS      | 🟩 Supported     | Hypothetically close to working but needs fixes                      |
-| Linux      | 🟩 Supported  | Fully functional                                                     |
-| WearOS     | 🟨 Partial    | Works but requires manual token input                                |
-| Web        | 🟩 Supported  | Functional but requires token login                                  |
+## Developing
 
+Requires the Flutter SDK.
 
-## General Goals / Ethic
-To start, lets outline a few things.
-- This is not a seperate platform. You login with Discord, you are using all of Discord's features, but through the interface we've made instead of through Discord's.
+```bash
+flutter pub get
+dart run build_runner watch -d   # keep running during dev (Riverpod/Freezed codegen)
+flutter run                       # run on a connected device/emulator
+flutter analyze                   # lint
+flutter test                      # tests
+```
 
-- **This is against TOS**. Don't do use this unless you have some risk tolerance. *I have never gotten banned in the development of Bonfire, but that isn't to say it can't happen*.
+`accordkit` is consumed as a git dependency (`DaccordProject/accordkit-dart`). When working on
+both, a sibling checkout at `../accordkit-dart` is handy.
 
-- Bonfire is for all platforms. The goal motivation for the project is mobile, as that's where current modding is far worse, however it works great on Web, Windows and Linux as well!
+### Build issues (mostly Linux)
 
-# Developing
-## General Info
-There's a few projects that OpenBonfire uses and maintains, which can be found in our org. Let's just talk about the big ones.
-- [firebridge](https://github.com/OpenBonfire/bonfire/tree/main/firebridge): A fork of nyxx (a bot API for Dart) that allows the usage of user tokens. This is where most of the networking logic happens.
-- [fireview](https://github.com/OpenBonfire/fireview): A cross-platform webview API that combines multiple webview frameworks. We recently switched away from this because of conflicts on Windows and Linux. Ideally this is what we use in the future.
+Media playback uses `media_kit` / libmpv. On Linux you may need:
 
-## Progress
+1. **libmpv cannot be found** — install `libmpv` / `libmpv-devel` (package name varies per
+   distro). On Fedora, if it's installed but not found:
+   `sudo ln -s /usr/lib64/libmpv.so.2 /usr/lib64/libmpv.so.1`.
+2. **media_kit build errors** — install `mpv` / `mpv-devel`.
+3. **`undefined symbol: vkCreateXlibSurfaceKHR`** — run
+   `export LD_LIBRARY_PATH=/lib64:$LD_LIBRARY_PATH` (point this at wherever libmpv lives)
+   in the terminal you launch from.
 
-| Feature Category       | Sub-feature                | Status      | Notes                                                                 |
-|------------------------|----------------------------|-------------|-----------------------------------------------------------------------|
-| **Login**              | WebView-based login        | 🟩 Complete |                                                                       |
-|                        | Web Login                  | 🟨 Partial  | Requires manual token input                                          |
-|                        | WearOS login support       | 🟥 Missing  | Requires compiling with hard-coded token                              |
-| **Messaging**          | Sending Messages           | 🟩 Complete |                                                                       |
-|                        | Cache Messages             | 🟩 Complete |                                                                       |
-|                        | Message View               | 🟨 Partial  | Missing bidirectional requests                                       |
-|                        | Context Actions            | 🟨 Partial  | Edit, delete, etc. partially implemented                             |
-|                        | Event Actions              | 🟨 Partial  | Edit, delete, etc. partially implemented                             |
-|                        | Embeds                     | 🟩 Complete |                                                                       |
-|                        | → YouTube embeds           | 🟩 Complete |                                                                       |
-|                        | → Tenor videos             | 🟩 Complete |                                                                       |
-|                        | → Attachments              | 🟩 Complete |                                                                       |
-|                        | →→ Image Attachments       | 🟩 Complete |                                                                       |
-|                        | →→ Video Attachments       | 🟩 Complete |                                                                       |
-|                        | →→ Audio Attachments       | 🟩 Complete | With mobile playback support                                         |
-|                        | Notifications              | 🟩 Complete |                                                                       |
-|                        | Unreads                    | 🟨 Partial  | Somewhat buggy                                                       |
-|                        | Threads                    | 🟥 Missing  |                                                                       |
-|                        | Member List                | 🟨 Partial  |                                                                       |
-|                        | → Base View                | 🟩 Complete |                                                                       |
-|                        | → Networking               | 🟩 Complete | Handled in firebridge                                                |
-|                        | → Member Search            | 🟥 Missing  |                                                                       |
-| **Friends**            |                            | 🟨 Partial  |                                                                       |
-| **Guilds**             | Guild List                 | 🟩 Complete |                                                                       |
-|                        | Guild Networking           | 🟩 Complete |                                                                       |
-|                        | Guild Organization         | 🟩 Complete |                                                                       |
-|                        | → Guild Order              | 🟩 Complete |                                                                       |
-|                        | → Guild Names              | 🟩 Complete |                                                                       |
-|                        | → Guild Folders            | 🟩 Complete |                                                                       |
-| **Voice/Video**        | Voice Chat                 | 🟥 Missing  | Planned but difficult to implement                                   |
-|                        | Camera Chat                | 🟥 Missing  | Planned but difficult to implement                                   |
-|                        | Screen Sharing             | 🟥 Missing  | Planned but difficult to implement                                   |
+## Architecture
 
-*Not exhaustive - there's a lot of stuff to do*
-## Building
-- Clone Bonfire
-- Run `flutter pub run`
-- Run `dart run build_runner watch -d` in a seperate terminal
-- You are on your way!
+- **State:** Riverpod 3 (codegen) · **Models:** Freezed + `dart_mappable` · **Routing:** `go_router`
+- **Storage:** `hive_ce` · **Media:** `media_kit` / `cached_network_image` / `file_picker`
+- **Networking:** `accordkit` (`AccordClient`: REST + gateway WebSocket) — replacing the
+  legacy `packages/firebridge` (Discord) layer, which is being retired feature by feature.
 
-## Build issues (mostly linux)
-You may encounter issues on Linux (usually with packaging)
-1. **libmpv cannot be found**: Download `libmpv` / `libmpv-devel` (package name varies per distro). If you get an issue in adjacent to `libmpv cannot be found` and it is installed (particuarly on Fedora), run `sudo ln -s /usr/lib64/libmpv.so.2 /usr/lib64/libmpv.so.1`. This issue also appears when running the release varient from GitHub. I will eventually bundle the depend or apply this fix in the library itself. This issue is tracked at https://github.com/OpenBonfire/bonfire/issues/3.
-2. **various media kit build errors**: You need `mpv` / `mpv-devel`. Fedora will require you to follow the fix for build issue 1.
-3. **symbol lookup error: /lib64/libmpv.so.2: undefined symbol: vkCreateXlibSurfaceKHR** You need to run `export LD_LIBRARY_PATH=/lib64:$LD_LIBRARY_PATH` in the same terminal you run bonfire from. This path should correspond to the location that libmpv is stored. I am looking to implement a proper fix for this.
+See [`CLAUDE.md`](CLAUDE.md) for the domain mapping (Discord → Accord) and contributor
+guidance.
 
-Don't forget to run `dart run build_runner watch -d` before developing! This is required when using freezed and riverpod.
+## License
 
-## A quick note for contributors.
-We are looking for contributors! I would absolutely love to get this project completed, but it's pretty difficult time-wise. The pacing when I have time to work on it goes pretty fast though, so more people pitching in would be fantastic!
+GPL-3.0 (inherited from Bonfire). See [`LICENSE`](LICENSE). `accordkit` and the reference
+`daccord` client are MIT, which GPLv3 may incorporate.

@@ -1,11 +1,11 @@
 {
-    "name": "Bonfire",
-    "short_name": "Bonfire",
+    "name": "Daccord",
+    "short_name": "Daccord",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Full re-implementation of the Discord mobile app in Flutter for all platforms.",
+    "background_color": "#14161A",
+    "theme_color": "#14161A",
+    "description": "A fast, cross-platform Flutter client for Daccord.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

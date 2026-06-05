@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Set up Flutter
@@ -19,20 +19,19 @@ jobs:
           channel: stable
       - name: Install dependencies
         run: flutter pub get
-      - name: Create CNAME file
-        run: echo "app.openbonfire.dev" > web/CNAME
-      - name: Build and deploy
-        uses: OpenBonfire/flutter-gh-pages@main
+      - name: Build Web
+        run: flutter build web --no-tree-shake-icons --release
+      - name: Upload Web bundle
+        uses: actions/upload-artifact@v4
         with:
-          baseHref: /
-          compileToWasm: true
-          customArgs: --no-tree-shake-icons
+          name: daccord-web
+          path: build/web/
 
   build-android:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -56,7 +55,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: bonfire-android
+          name: daccord-android
           path: build/app/outputs/flutter-apk/*.apk
 
 
@@ -67,14 +66,14 @@ jobs:
 #      - name: Upload App Bundle
 #        uses: actions/upload-artifact@v4
 #        with:
-#          name: bonfire-android-bundle
-#          path: bonfire/build/app/outputs/bundle/release/app-release.aab
+#          name: daccord-android-bundle
+#          path: build/app/outputs/bundle/release/app-release.aab
 
   build-windows:
     runs-on: windows-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -105,14 +104,14 @@ jobs:
       - name: Upload Windows Executable
         uses: actions/upload-artifact@v4
         with:
-          name: bonfire-windows
+          name: daccord-windows
           path: build/windows/x64/runner/Release/
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -170,13 +169,13 @@ jobs:
       - name: Upload Linux Executable
         uses: actions/upload-artifact@v4
         with:
-          name: bonfire-linux
+          name: daccord-linux
           path: build/linux/x64/release/bundle/
 #  build-ios:
 #      runs-on: macos-latest
 #      steps:
 #        - name: Clone repository
-#          uses: actions/checkout@v2
+#          uses: actions/checkout@v4
 #          with:
 #            submodules: recursive
 #            
@@ -206,7 +205,7 @@ jobs:
 #            
 #        - name: Archive iOS build artifacts
 #          run: |
-#            cd bonfire/ios
+#            cd ios
 #            xcodebuild -workspace Runner.xcworkspace \
 #                      -scheme Runner \
 #                      -configuration Release \
@@ -227,11 +226,11 @@ jobs:
 #        - name: Upload IPA
 #          uses: actions/upload-artifact@v4
 #          with:
-#            name: bonfire-ios
-#            path: bonfire/ios/app.ipa
+#            name: daccord-ios
+#            path: ios/app.ipa
 #            
 #        - name: Upload Archive
 #          uses: actions/upload-artifact@v4
 #          with:
-#            name: bonfire-ios-archive
-#            path: bonfire/ios/build/Runner.xcarchive
+#            name: daccord-ios-archive
+#            path: ios/build/Runner.xcarchive

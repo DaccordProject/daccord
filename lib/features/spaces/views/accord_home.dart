@@ -2,15 +2,34 @@ import 'package:accordkit/accordkit.dart';
 import 'package:collection/collection.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/channels/components/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
+import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/messaging/components/box/accord_embed_box.dart';
-import 'package:bonfire/features/messaging/components/box/accord_markdown_box.dart';
+import 'package:bonfire/features/messaging/components/emoji_picker.dart';
+import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/components/forum_view.dart';
+import 'package:bonfire/features/messaging/components/thread_view.dart';
+import 'package:bonfire/features/messaging/components/image_lightbox.dart';
+import 'package:bonfire/features/messaging/components/inline_audio_player.dart';
+import 'package:bonfire/features/messaging/components/inline_video_player.dart';
+import 'package:bonfire/features/messaging/components/pinned_messages.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/views/accord_discovery.dart';
+import 'package:bonfire/features/spaces/views/accord_gates.dart';
+import 'package:bonfire/features/spaces/views/accord_invites.dart';
+import 'package:bonfire/features/spaces/views/accord_reports.dart';
+import 'package:bonfire/features/spaces/views/accord_search.dart';
+import 'package:bonfire/features/user/components/self_status_button.dart';
+import 'package:bonfire/features/user/views/accord_direct_messages.dart';
+import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
@@ -32,6 +51,8 @@ class AccordHomeScreen extends ConsumerStatefulWidget {
 class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   String? _selectedSpaceId;
   String? _selectedChannelId;
+  // The space we've already run the rules interstitial check for this session.
+  String? _rulesCheckedSpaceId;
 
   void _selectSpace(String spaceId) {
     setState(() {
@@ -40,8 +61,33 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     });
   }
 
-  void _selectChannel(String channelId) {
+  Future<void> _selectChannel(String channelId) async {
+    final spaceId = _selectedSpaceId;
+    final channel = spaceId == null
+        ? null
+        : ref
+            .read(accordChannelsControllerProvider(spaceId))
+            ?.firstWhereOrNull((c) => c.id == channelId);
+    if (channel != null && channel.nsfw && spaceId != null) {
+      final ok = await confirmNsfwGate(
+        context,
+        channelId: channelId,
+        channelName: channel.name ?? 'channel',
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() => _selectedChannelId = channelId);
+  }
+
+  /// Shows the rules interstitial once when a space with a rules channel is
+  /// first opened this session.
+  void _maybeCheckRules(AccordSpace? space) {
+    if (space == null || space.id == _rulesCheckedSpaceId) return;
+    _rulesCheckedSpaceId = space.id;
+    if (space.rulesChannelId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowRulesInterstitial(context, ref, space: space);
+    });
   }
 
   @override
@@ -63,6 +109,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     final selectedSpaceId = _selectedSpaceId ??
         ((spaces != null && spaces.isNotEmpty) ? spaces.first.id : null);
 
+    _maybeCheckRules(
+        spaces?.firstWhereOrNull((s) => s.id == selectedSpaceId));
+
     final channels = selectedSpaceId == null
         ? null
         : ref.watch(accordChannelsControllerProvider(selectedSpaceId));
@@ -74,6 +123,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         listableChannels?.where((c) => c.type == 'text').firstOrNull;
     final selectedChannelId = _selectedChannelId ?? firstText?.id;
 
+    // Let the notification layer skip the channel that's on screen.
+    accordVisibleChannelId = selectedChannelId;
+
     return Row(
       children: [
         _SpaceRail(
@@ -81,14 +133,17 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
           selectedSpaceId: selectedSpaceId,
           cdnUrl: cdnUrl,
           onSelect: _selectSpace,
+          onSwitchAccount: () => context.go('/switcher'),
+          onOpenSettings: () => context.push('/settings'),
           onLogout: () => ref.read(accordAuthProvider.notifier).logout(),
         ),
         _ChannelList(
+          spaceId: selectedSpaceId,
           spaceName: spaces
               ?.where((s) => s.id == selectedSpaceId)
               .firstOrNull
               ?.name,
-          channels: listableChannels,
+          channels: channels,
           selectedChannelId: selectedChannelId,
           onSelect: _selectChannel,
         ),
@@ -111,6 +166,8 @@ class _SpaceRail extends StatelessWidget {
     required this.selectedSpaceId,
     required this.cdnUrl,
     required this.onSelect,
+    required this.onSwitchAccount,
+    required this.onOpenSettings,
     required this.onLogout,
   });
 
@@ -118,6 +175,8 @@ class _SpaceRail extends StatelessWidget {
   final String? selectedSpaceId;
   final String? cdnUrl;
   final ValueChanged<String> onSelect;
+  final VoidCallback onSwitchAccount;
+  final VoidCallback onOpenSettings;
   final VoidCallback onLogout;
 
   @override
@@ -144,6 +203,28 @@ class _SpaceRail extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Direct messages',
+            onPressed: () => showAccordDirectMessages(context),
+            icon: Icon(Icons.chat_bubble_outline,
+                size: 20, color: colors.dirtyWhite),
+          ),
+          IconButton(
+            tooltip: 'Explore public spaces',
+            onPressed: () => showAccordDiscovery(context),
+            icon: Icon(Icons.explore, size: 22, color: colors.dirtyWhite),
+          ),
+          const SelfStatusButton(),
+          IconButton(
+            tooltip: 'Switch account',
+            onPressed: onSwitchAccount,
+            icon: Icon(Icons.switch_account, color: colors.dirtyWhite, size: 20),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: onOpenSettings,
+            icon: Icon(Icons.settings, color: colors.dirtyWhite, size: 20),
           ),
           IconButton(
             tooltip: 'Log out',
@@ -221,22 +302,69 @@ class _SpaceIcon extends StatelessWidget {
   }
 }
 
-class _ChannelList extends StatelessWidget {
+class _ChannelList extends ConsumerWidget {
   const _ChannelList({
+    required this.spaceId,
     required this.spaceName,
     required this.channels,
     required this.selectedChannelId,
     required this.onSelect,
   });
 
+  final String? spaceId;
   final String? spaceName;
   final List<AccordChannel>? channels;
   final String? selectedChannelId;
   final ValueChanged<String> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
+    final id = spaceId;
+    final space = id == null
+        ? null
+        : ref.watch(
+            spacesControllerProvider
+                .select((s) => s?.firstWhereOrNull((sp) => sp.id == id)),
+          );
+    final cdnUrl = ref.watch(
+      accordAuthProvider.select(
+          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
+    );
+    final bannerUrl =
+        space == null ? null : accordSpaceBannerUrl(space, cdnUrl);
+
+    // Show the settings gear only to members who can manage the space or roles,
+    // and the channel-management affordances to those with manage_channels.
+    var canManage = false;
+    var canManageChannels = false;
+    var canInvite = false;
+    if (id != null) {
+      final currentUserId = ref.watch(
+        accordAuthProvider.select(
+            (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+      );
+      final isAdmin = ref.watch(
+        accordAuthProvider.select(
+            (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
+      );
+      final members = ref.watch(accordMembersControllerProvider(id));
+      final perms = accordEffectivePermissions(
+        space: space,
+        selfMember: currentUserId == null ? null : members?[currentUserId],
+        roles: space?.roles ?? const <AccordRole>[],
+        currentUserId: currentUserId ?? '',
+        currentUserIsAdmin: isAdmin,
+      );
+      canManage = accordHasPermission(perms, AccordPermission.manageSpace) ||
+          accordHasPermission(perms, AccordPermission.manageRoles) ||
+          accordHasPermission(perms, AccordPermission.viewAuditLog);
+      canManageChannels =
+          accordHasPermission(perms, AccordPermission.manageChannels);
+      canInvite =
+          accordHasPermission(perms, AccordPermission.createInvites);
+    }
+
     return Container(
       width: 220,
       decoration: BoxDecoration(
@@ -248,19 +376,66 @@ class _ChannelList extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (bannerUrl != null)
+            CachedNetworkImage(
+              imageUrl: bannerUrl,
+              height: 100,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => const SizedBox.shrink(),
+            ),
           Container(
             height: 48,
             alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.only(left: 16, right: 4),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: colors.background, width: 1),
               ),
             ),
-            child: Text(
-              spaceName ?? 'Select a space',
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleSmall,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    spaceName ?? 'Select a space',
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                if (id != null)
+                  IconButton(
+                    tooltip: 'Search',
+                    onPressed: () async {
+                      final selection =
+                          await showAccordSearch(context, spaceId: id);
+                      if (selection != null) onSelect(selection.channelId);
+                    },
+                    icon: Icon(Icons.search,
+                        size: 18, color: colors.dirtyWhite),
+                  ),
+                if (canInvite && id != null)
+                  IconButton(
+                    tooltip: 'Invite people',
+                    onPressed: () => showAccordInvites(context, spaceId: id),
+                    icon: Icon(Icons.person_add,
+                        size: 18, color: colors.dirtyWhite),
+                  ),
+                if (canManageChannels && id != null)
+                  IconButton(
+                    tooltip: 'Create channel',
+                    onPressed: () =>
+                        showCreateChannelDialog(context, spaceId: id),
+                    icon: Icon(Icons.add,
+                        size: 18, color: colors.dirtyWhite),
+                  ),
+                if (canManage && id != null)
+                  IconButton(
+                    tooltip: 'Space settings',
+                    onPressed: () =>
+                        showAccordSpaceSettings(context, spaceId: id),
+                    icon: Icon(Icons.settings,
+                        size: 18, color: colors.dirtyWhite),
+                  ),
+              ],
             ),
           ),
           Expanded(
@@ -268,14 +443,14 @@ class _ChannelList extends StatelessWidget {
                 ? const Center(child: CircularProgressIndicator())
                 : ListView(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: [
-                      for (final channel in channels!)
-                        _ChannelTile(
-                          channel: channel,
-                          selected: channel.id == selectedChannelId,
-                          onTap: () => onSelect(channel.id),
-                        ),
-                    ],
+                    children: _buildChannelEntries(
+                      context,
+                      spaceId: id,
+                      channels: channels!,
+                      selectedChannelId: selectedChannelId,
+                      onSelect: onSelect,
+                      canManageChannels: canManageChannels,
+                    ),
                   ),
           ),
         ],
@@ -284,23 +459,132 @@ class _ChannelList extends StatelessWidget {
   }
 }
 
-class _ChannelTile extends StatelessWidget {
+/// Groups [channels] into uncategorized channels (rendered first) followed by
+/// each category with its child channels. When [canManageChannels] is true,
+/// categories show an inline "add channel" button and channels an edit button.
+List<Widget> _buildChannelEntries(
+  BuildContext context, {
+  required String? spaceId,
+  required List<AccordChannel> channels,
+  required String? selectedChannelId,
+  required ValueChanged<String> onSelect,
+  required bool canManageChannels,
+}) {
+  final categories = channels.where((c) => c.type == 'category').toList();
+  final leaves = channels.where((c) => c.type != 'category').toList();
+  final byParent = <String?, List<AccordChannel>>{};
+  for (final c in leaves) {
+    byParent.putIfAbsent(c.parentId, () => []).add(c);
+  }
+
+  Widget tile(AccordChannel channel) => _ChannelTile(
+        channel: channel,
+        selected: channel.id == selectedChannelId,
+        onTap: () => onSelect(channel.id),
+        onEdit: canManageChannels && spaceId != null
+            ? () => showEditChannelDialog(context,
+                spaceId: spaceId, channel: channel)
+            : null,
+      );
+
+  final entries = <Widget>[];
+  for (final channel in byParent[null] ?? const <AccordChannel>[]) {
+    entries.add(tile(channel));
+  }
+  for (final category in categories) {
+    entries.add(_CategoryHeader(
+      category: category,
+      onAdd: canManageChannels && spaceId != null
+          ? () => showCreateChannelDialog(context,
+              spaceId: spaceId, parentId: category.id)
+          : null,
+      onEdit: canManageChannels && spaceId != null
+          ? () => showEditChannelDialog(context,
+              spaceId: spaceId, channel: category)
+          : null,
+    ));
+    for (final channel in byParent[category.id] ?? const <AccordChannel>[]) {
+      entries.add(tile(channel));
+    }
+  }
+  return entries;
+}
+
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader({
+    required this.category,
+    this.onAdd,
+    this.onEdit,
+  });
+
+  final AccordChannel category;
+  final VoidCallback? onAdd;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              (category.name ?? '').toUpperCase(),
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                    color: colors.gray,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+            ),
+          ),
+          if (onEdit != null)
+            InkWell(
+              onTap: onEdit,
+              child: Icon(Icons.settings, size: 14, color: colors.gray),
+            ),
+          if (onAdd != null) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: onAdd,
+              child: Icon(Icons.add, size: 16, color: colors.gray),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelTile extends StatefulWidget {
   const _ChannelTile({
     required this.channel,
     required this.selected,
     required this.onTap,
+    this.onEdit,
   });
 
   final AccordChannel channel;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
+
+  @override
+  State<_ChannelTile> createState() => _ChannelTileState();
+}
+
+class _ChannelTileState extends State<_ChannelTile> {
+  bool _hovered = false;
 
   IconData get _glyph {
-    switch (channel.type) {
+    switch (widget.channel.type) {
       case 'voice':
         return Icons.volume_up;
       case 'forum':
         return Icons.forum;
+      case 'announcement':
+        return Icons.campaign;
       default:
         return Icons.tag;
     }
@@ -309,33 +593,46 @@ class _ChannelTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final enabled = channel.type == 'text' || channel.type == 'forum';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      child: Material(
-        color: selected ? colors.darkGray : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
+    final channel = widget.channel;
+    final enabled = channel.type == 'text' ||
+        channel.type == 'forum' ||
+        channel.type == 'announcement';
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+        child: Material(
+          color: widget.selected ? colors.darkGray : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          onTap: enabled ? onTap : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              children: [
-                Icon(_glyph,
-                    size: 18,
-                    color: enabled ? colors.dirtyWhite : colors.gray),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    channel.name ?? channel.id,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          color: enabled ? colors.dirtyWhite : colors.gray,
-                        ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: enabled ? widget.onTap : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(_glyph,
+                      size: 18,
+                      color: enabled ? colors.dirtyWhite : colors.gray),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      channel.name ?? channel.id,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                            color: enabled ? colors.dirtyWhite : colors.gray,
+                          ),
+                    ),
                   ),
-                ),
-              ],
+                  if (widget.onEdit != null && _hovered)
+                    InkWell(
+                      onTap: widget.onEdit,
+                      child: Icon(Icons.settings,
+                          size: 14, color: colors.gray),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -344,7 +641,7 @@ class _ChannelTile extends StatelessWidget {
   }
 }
 
-class _MessagePane extends ConsumerWidget {
+class _MessagePane extends ConsumerStatefulWidget {
   const _MessagePane({
     required this.channel,
     required this.channelId,
@@ -356,8 +653,27 @@ class _MessagePane extends ConsumerWidget {
   final String? spaceId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MessagePane> createState() => _MessagePaneState();
+}
+
+class _MessagePaneState extends ConsumerState<_MessagePane> {
+  AccordMessage? _replyTo;
+
+  @override
+  void didUpdateWidget(_MessagePane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Clear any pending reply when switching channels.
+    if (oldWidget.channelId != widget.channelId && _replyTo != null) {
+      _replyTo = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    final channel = widget.channel;
+    final channelId = widget.channelId;
+    final spaceId = widget.spaceId;
 
     if (channelId == null) {
       return Container(
@@ -368,23 +684,76 @@ class _MessagePane extends ConsumerWidget {
       );
     }
 
-    final messages = ref.watch(accordMessagesControllerProvider(channelId!));
+    final messages = ref.watch(accordMessagesControllerProvider(channelId));
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!));
-    final roles = spaceId == null
-        ? const <AccordRole>[]
-        : ref.watch(
-            spacesControllerProvider.select(
-              (spaces) =>
-                  spaces?.firstWhereOrNull((s) => s.id == spaceId)?.roles ??
-                  const <AccordRole>[],
-            ),
-          );
+        : ref.watch(accordMembersControllerProvider(spaceId));
+    final userCache = ref.watch(accordUsersControllerProvider);
+    final space = spaceId == null
+        ? null
+        : ref.watch(spacesControllerProvider
+            .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)));
+    final roles = space?.roles ?? const <AccordRole>[];
     final currentUserId = ref.watch(
       accordAuthProvider.select(
           (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
     );
+    final isAdmin = ref.watch(
+      accordAuthProvider.select(
+          (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
+    );
+    final myRoles = (currentUserId == null ? null : members?[currentUserId])
+            ?.roles ??
+        const <String>[];
+
+    final perms = accordEffectivePermissions(
+      space: space,
+      selfMember: currentUserId == null ? null : members?[currentUserId],
+      roles: roles,
+      currentUserId: currentUserId ?? '',
+      currentUserIsAdmin: isAdmin,
+    );
+    final canManageMessages =
+        accordHasPermission(perms, AccordPermission.manageMessages);
+    final canSend = accordHasPermission(perms, AccordPermission.sendMessages);
+
+    if (channel?.type == 'forum') {
+      return Container(
+        color: colors.background,
+        child: Column(
+          children: [
+            Container(
+              height: 48,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 16, right: 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: colors.foreground, width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.forum, size: 18, color: colors.dirtyWhite),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(channel?.name ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ForumChannelView(
+                channelId: channelId,
+                spaceId: spaceId,
+                canPost: canSend || canManageMessages,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       color: colors.background,
@@ -393,7 +762,7 @@ class _MessagePane extends ConsumerWidget {
           Container(
             height: 48,
             alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.only(left: 16, right: 8),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: colors.foreground, width: 1),
@@ -401,10 +770,28 @@ class _MessagePane extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.tag, size: 18, color: colors.dirtyWhite),
+                Icon(channel?.type == 'announcement'
+                        ? Icons.campaign
+                        : Icons.tag,
+                    size: 18, color: colors.dirtyWhite),
                 const SizedBox(width: 6),
-                Text(channel?.name ?? '',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Expanded(
+                  child: Text(channel?.name ?? '',
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+                IconButton(
+                  tooltip: 'Pinned messages',
+                  onPressed: () => showPinnedMessages(
+                    context,
+                    channelId: channelId,
+                    spaceId: spaceId,
+                    canManage: canManageMessages,
+                  ),
+                  icon: Icon(Icons.push_pin_outlined,
+                      size: 18, color: colors.dirtyWhite),
+                ),
+                _MuteButton(channelId: channelId),
               ],
             ),
           ),
@@ -424,24 +811,58 @@ class _MessagePane extends ConsumerWidget {
                         itemBuilder: (context, index) {
                           final message = messages[messages.length - 1 - index];
                           final author = members?[message.authorId];
+                          // Members only loads the first page; backfill authors
+                          // outside it from the on-demand user cache.
+                          AccordUser? authorUser;
+                          if (author == null && members != null) {
+                            authorUser = userCache[message.authorId];
+                            if (authorUser == null) {
+                              ref
+                                  .read(accordUsersControllerProvider.notifier)
+                                  .ensure(message.authorId);
+                            }
+                          }
                           final colorRole = author == null
                               ? null
                               : memberColorRole(author, roles);
+                          final isOwn = currentUserId != null &&
+                              message.authorId == currentUserId;
+                          final mentionsMe = !isOwn &&
+                              currentUserId != null &&
+                              (message.mentionEveryone ||
+                                  message.mentions.contains(currentUserId) ||
+                                  message.mentionRoles
+                                      .any(myRoles.contains));
                           return _MessageRow(
                             message: message,
                             author: author,
+                            authorUser: authorUser,
                             nameColor: colorRole == null
                                 ? null
                                 : accordRoleColor(colorRole.color),
-                            channelId: channelId!,
-                            isOwn: currentUserId != null &&
-                                message.authorId == currentUserId,
+                            channelId: channelId,
+                            spaceId: spaceId,
+                            isOwn: isOwn,
+                            mentionsMe: mentionsMe,
+                            canManageMessages: canManageMessages,
+                            onReply: () =>
+                                setState(() => _replyTo = message),
                           );
                         },
                       ),
           ),
-          _TypingIndicator(channelId: channelId!, spaceId: spaceId),
-          _Composer(channelId: channelId!, channelName: channel?.name),
+          _TypingIndicator(channelId: channelId, spaceId: spaceId),
+          _Composer(
+            channelId: channelId,
+            channelName: channel?.name,
+            spaceId: spaceId,
+            replyingTo: _replyTo,
+            replyName: _replyTo == null
+                ? null
+                : accordMemberName(members?[_replyTo!.authorId],
+                    fallback: _replyTo!.authorId),
+            onCancelReply: () => setState(() => _replyTo = null),
+          ),
         ],
       ),
     );
@@ -463,9 +884,18 @@ class _TypingIndicator extends ConsumerWidget {
     final members = spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(spaceId!));
+    final userCache = ref.watch(accordUsersControllerProvider);
 
-    String nameFor(String userId) =>
-        accordMemberName(members?[userId], fallback: 'Someone');
+    String nameFor(String userId) {
+      final member = members?[userId];
+      if (member != null) return accordMemberName(member, fallback: 'Someone');
+      final user = userCache[userId];
+      if (user != null) return accordUserName(user, fallback: 'Someone');
+      if (members != null) {
+        ref.read(accordUsersControllerProvider.notifier).ensure(userId);
+      }
+      return 'Someone';
+    }
 
     String? label;
     if (typing.length == 1) {
@@ -501,20 +931,42 @@ class _MessageRow extends ConsumerStatefulWidget {
   const _MessageRow({
     required this.message,
     required this.channelId,
+    required this.spaceId,
     required this.isOwn,
+    required this.mentionsMe,
+    required this.canManageMessages,
+    required this.onReply,
     this.author,
+    this.authorUser,
     this.nameColor,
   });
 
   final AccordMessage message;
   final String channelId;
 
+  /// Whether the current user can pin/unpin in this channel.
+  final bool canManageMessages;
+
+  /// Starts a reply to this message (sets the composer's reply target).
+  final VoidCallback onReply;
+
+  /// The space this message belongs to, for opening the author's profile
+  /// popout. `null` in contexts without a space (e.g. DMs, not yet supported).
+  final String? spaceId;
+
   /// Whether this message belongs to the current user (gates edit/delete).
   final bool isOwn;
 
+  /// Whether the current user is mentioned by this message (drives highlight).
+  final bool mentionsMe;
+
   /// The resolved member for [AccordMessage.authorId], if the space's member
-  /// cache has loaded. `null` falls back to the raw author ID.
+  /// cache has loaded. `null` falls back to [authorUser], then the raw ID.
   final AccordMember? author;
+
+  /// The author resolved from the on-demand user cache, used when the author
+  /// isn't in the space's loaded member page. `null` falls back to the raw ID.
+  final AccordUser? authorUser;
 
   /// The author's highest colored-role color, or null for the default color.
   final Color? nameColor;
@@ -546,9 +998,17 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return '$hh:$mm';
   }
 
-  /// Nickname → user display name → username → raw ID.
-  String get _authorName =>
-      accordMemberName(widget.author, fallback: _message.authorId);
+  /// Nickname → user display name → username → raw ID. Falls back to the
+  /// on-demand user cache when the author isn't in the loaded member page.
+  String get _authorName {
+    if (widget.author != null) {
+      return accordMemberName(widget.author, fallback: _message.authorId);
+    }
+    if (widget.authorUser != null) {
+      return accordUserName(widget.authorUser, fallback: _message.authorId);
+    }
+    return _message.authorId;
+  }
 
   String get _initial {
     final name = _authorName.trim();
@@ -589,12 +1049,40 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (ok) _cancelEdit();
   }
 
-  void _toggleReaction(String emojiName) {
+  void _openPopout() {
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return;
+    showAccordMemberPopout(
+      context,
+      spaceId: spaceId,
+      userId: _message.authorId,
+    );
+  }
+
+  void _toggleReaction(String emojiName, {String? emojiId}) {
     final client = _client;
     if (client == null) return;
     ref
         .read(accordMessagesControllerProvider(widget.channelId).notifier)
-        .toggleReaction(client, _message.id, emojiName);
+        .toggleReaction(client, _message.id, emojiName, emojiId: emojiId);
+  }
+
+  Future<void> _openReactionPicker() async {
+    final pick = await showAccordEmojiPicker(context, spaceId: widget.spaceId);
+    if (pick == null || !mounted) return;
+    _toggleReaction(pick.name, emojiId: pick.id);
+  }
+
+  Future<void> _togglePin() async {
+    final client = _client;
+    if (client == null) return;
+    final controller =
+        ref.read(accordMessagesControllerProvider(widget.channelId).notifier);
+    if (_message.pinned) {
+      await controller.unpin(client, _message.id);
+    } else {
+      await controller.pin(client, _message.id);
+    }
   }
 
   Future<void> _delete() async {
@@ -634,23 +1122,42 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       accordAuthProvider.select(
           (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
     );
-    final avatarUrl = accordAvatarUrl(widget.author?.user, cdnUrl);
+    final avatarUrl = widget.author != null
+        ? accordMemberAvatarUrl(widget.author, cdnUrl)
+        : accordAvatarUrl(widget.authorUser, cdnUrl);
+    final tappable = widget.spaceId != null;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Container(
+        padding: widget.mentionsMe
+            ? const EdgeInsets.fromLTRB(13, 6, 6, 6)
+            : const EdgeInsets.symmetric(vertical: 6),
+        decoration: widget.mentionsMe
+            ? BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.08),
+                border: Border(
+                  left: BorderSide(color: colors.primary, width: 3),
+                ),
+              )
+            : null,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: colors.darkGray,
-              foregroundImage:
-                  avatarUrl == null ? null : CachedNetworkImageProvider(avatarUrl),
-              child: Text(
-                _initial,
-                style: theme.textTheme.titleSmall!.copyWith(color: Colors.white),
+            _MaybeTappable(
+              enabled: tappable,
+              onTap: _openPopout,
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: colors.darkGray,
+                foregroundImage: avatarUrl == null
+                    ? null
+                    : CachedNetworkImageProvider(avatarUrl),
+                child: Text(
+                  _initial,
+                  style:
+                      theme.textTheme.titleSmall!.copyWith(color: Colors.white),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -658,11 +1165,21 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_message.replyTo != null) _buildReplyPreview(colors),
                   Row(
                     children: [
-                      Text(_authorName,
-                          style: theme.textTheme.titleSmall!
-                              .copyWith(color: widget.nameColor)),
+                      if (_message.pinned) ...[
+                        Icon(Icons.push_pin,
+                            size: 12, color: colors.gray),
+                        const SizedBox(width: 4),
+                      ],
+                      _MaybeTappable(
+                        enabled: tappable,
+                        onTap: _openPopout,
+                        child: Text(_authorName,
+                            style: theme.textTheme.titleSmall!
+                                .copyWith(color: widget.nameColor)),
+                      ),
                       const SizedBox(width: 8),
                       Text(_time,
                           style: theme.textTheme.labelMedium!
@@ -680,24 +1197,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   else if (_message.content.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: AccordMarkdownBox(content: _message.content),
+                      child: AccordMessageContent(content: _message.content),
                     ),
                   for (final attachment in _message.attachments)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: _isImageAttachment(attachment)
-                          ? _ImageAttachment(
-                              url: _attachmentUrl(attachment, cdnUrl),
-                              width: _asDouble(attachment.width),
-                              height: _asDouble(attachment.height),
-                            )
-                          : Text('📎 ${attachment.filename}',
-                              style: theme.textTheme.bodyMedium),
+                      child: _buildAttachment(attachment, cdnUrl, theme),
                     ),
                   for (final embed in _message.embeds)
                     AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
                   if ((_message.reactions ?? const []).isNotEmpty)
-                    _buildReactions(theme, colors),
+                    _buildReactions(theme, colors, cdnUrl),
+                  if (_message.replyCount > 0) _buildThreadChip(theme, colors),
                 ],
               ),
             ),
@@ -706,9 +1217,32 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 opacity: _hovered ? 1 : 0,
                 child: Row(
                   children: [
-                    _ReactButton(onPick: _toggleReaction),
-                    if (widget.isOwn)
-                      _MessageActions(onEdit: _startEdit, onDelete: _delete),
+                    _ReactButton(onPressed: _openReactionPicker),
+                    IconButton(
+                      tooltip: 'Reply',
+                      onPressed: widget.onReply,
+                      icon: Icon(Icons.reply, size: 18, color: colors.gray),
+                    ),
+                    IconButton(
+                      tooltip: 'Thread',
+                      onPressed: _openThread,
+                      icon: Icon(Icons.forum_outlined,
+                          size: 18, color: colors.gray),
+                    ),
+                    if (widget.isOwn ||
+                        widget.canManageMessages ||
+                        (!widget.isOwn && widget.spaceId != null))
+                      _MessageActions(
+                        canEdit: widget.isOwn,
+                        canDelete: widget.isOwn || widget.canManageMessages,
+                        canPin: widget.canManageMessages,
+                        canReport: !widget.isOwn && widget.spaceId != null,
+                        pinned: _message.pinned,
+                        onEdit: _startEdit,
+                        onDelete: _delete,
+                        onTogglePin: _togglePin,
+                        onReport: _report,
+                      ),
                   ],
                 ),
               ),
@@ -718,7 +1252,51 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
   }
 
-  Widget _buildReactions(ThemeData theme, BonfireThemeExtension colors) {
+  void _openThread() => showAccordThread(
+        context,
+        channelId: widget.channelId,
+        spaceId: widget.spaceId,
+        root: _message,
+      );
+
+  void _report() {
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return;
+    showReportDialog(
+      context,
+      spaceId: spaceId,
+      targetType: 'message',
+      targetId: _message.id,
+      channelId: widget.channelId,
+    );
+  }
+
+  Widget _buildThreadChip(ThemeData theme, BonfireThemeExtension colors) {
+    final count = _message.replyCount;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: _openThread,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.forum_outlined, size: 14, color: colors.primary),
+              const SizedBox(width: 6),
+              Text('$count ${count == 1 ? 'reply' : 'replies'}',
+                  style: theme.textTheme.labelMedium!
+                      .copyWith(color: colors.primary)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReactions(
+      ThemeData theme, BonfireThemeExtension colors, String? cdnUrl) {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Wrap(
@@ -728,12 +1306,86 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
           for (final reaction in _message.reactions!)
             _ReactionPill(
               reaction: reaction,
-              onTap: () =>
-                  _toggleReaction(reaction.emoji['name']?.toString() ?? ''),
+              cdnUrl: cdnUrl,
+              onTap: () => _toggleReaction(
+                reaction.emoji['name']?.toString() ?? '',
+                emojiId: reaction.emoji['id']?.toString(),
+              ),
             ),
         ],
       ),
     );
+  }
+
+  /// A compact "↩ Name preview" line above a reply message, resolving the
+  /// referenced message from the loaded channel cache when available.
+  Widget _buildReplyPreview(BonfireThemeExtension colors) {
+    final theme = Theme.of(context);
+    final messages =
+        ref.read(accordMessagesControllerProvider(widget.channelId));
+    final referenced =
+        messages?.firstWhereOrNull((m) => m.id == _message.replyTo);
+    String name = 'Unknown';
+    String preview = '';
+    if (referenced != null) {
+      final members = widget.spaceId == null
+          ? null
+          : ref.read(accordMembersControllerProvider(widget.spaceId!));
+      name = accordMemberName(members?[referenced.authorId],
+          fallback: referenced.authorId);
+      preview =
+          referenced.content.isEmpty ? '(attachment)' : referenced.content;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2, left: 2),
+      child: Row(
+        children: [
+          Icon(Icons.reply, size: 12, color: colors.gray),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              preview.isEmpty ? name : '$name  $preview',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium!.copyWith(color: colors.gray),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Renders one attachment inline: tappable image (→ lightbox), video player,
+  /// audio player, or a filename chip for other types.
+  Widget _buildAttachment(
+      AccordAttachment attachment, String? cdnUrl, ThemeData theme) {
+    final url = _attachmentUrl(attachment, cdnUrl);
+    if (_isImageAttachment(attachment)) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => showImageLightbox(context, url),
+          child: _ImageAttachment(
+            url: url,
+            width: _asDouble(attachment.width),
+            height: _asDouble(attachment.height),
+          ),
+        ),
+      );
+    }
+    if (_isVideoAttachment(attachment)) {
+      return InlineVideoPlayer(
+        url: url,
+        filename: attachment.filename,
+        width: _asDouble(attachment.width),
+        height: _asDouble(attachment.height),
+      );
+    }
+    if (_isAudioAttachment(attachment)) {
+      return InlineAudioPlayer(url: url, filename: attachment.filename);
+    }
+    return Text('📎 ${attachment.filename}',
+        style: theme.textTheme.bodyMedium);
   }
 
   Widget _buildEditor(ThemeData theme, BonfireThemeExtension colors) {
@@ -779,11 +1431,52 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 }
 
-class _MessageActions extends StatelessWidget {
-  const _MessageActions({required this.onEdit, required this.onDelete});
+/// Wraps [child] in a click-to-open gesture (with a pointer cursor) when
+/// [enabled]; otherwise renders the child untouched. Used so message authors are
+/// only tappable inside a space (where a profile popout makes sense).
+class _MaybeTappable extends StatelessWidget {
+  const _MaybeTappable({
+    required this.enabled,
+    required this.onTap,
+    required this.child,
+  });
 
+  final bool enabled;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(onTap: onTap, child: child),
+    );
+  }
+}
+
+class _MessageActions extends StatelessWidget {
+  const _MessageActions({
+    required this.canEdit,
+    required this.canDelete,
+    required this.canPin,
+    required this.canReport,
+    required this.pinned,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTogglePin,
+    required this.onReport,
+  });
+
+  final bool canEdit;
+  final bool canDelete;
+  final bool canPin;
+  final bool canReport;
+  final bool pinned;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onTogglePin;
+  final VoidCallback onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -797,53 +1490,137 @@ class _MessageActions extends StatelessWidget {
             onEdit();
           case 'delete':
             onDelete();
+          case 'pin':
+            onTogglePin();
+          case 'report':
+            onReport();
         }
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: 'edit', child: Text('Edit')),
-        PopupMenuItem(value: 'delete', child: Text('Delete')),
+      itemBuilder: (context) => [
+        if (canPin)
+          PopupMenuItem(
+              value: 'pin', child: Text(pinned ? 'Unpin' : 'Pin')),
+        if (canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+        if (canDelete)
+          const PopupMenuItem(value: 'delete', child: Text('Delete')),
+        if (canReport)
+          const PopupMenuItem(value: 'report', child: Text('Report')),
       ],
     );
   }
 }
 
-/// A small quick-reaction picker offering a handful of common unicode emoji.
-class _ReactButton extends StatelessWidget {
-  const _ReactButton({required this.onPick});
+/// Opens the full emoji picker to add a reaction to the message.
+/// A bell toggle in the channel header that mutes/unmutes notifications for the
+/// channel. Loads the user's muted-channel list once per channel and flips it
+/// optimistically on tap.
+class _MuteButton extends ConsumerStatefulWidget {
+  const _MuteButton({required this.channelId});
 
-  final ValueChanged<String> onPick;
+  final String channelId;
 
-  static const _common = ['👍', '❤️', '😂', '🎉', '😮', '😢', '🔥'];
+  @override
+  ConsumerState<_MuteButton> createState() => _MuteButtonState();
+}
+
+class _MuteButtonState extends ConsumerState<_MuteButton> {
+  bool? _muted;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_MuteButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.channelId != widget.channelId) {
+      _muted = null;
+      _load();
+    }
+  }
+
+  AccordClient? get _client => ref.read(accordAuthProvider
+      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+
+  Future<void> _load() async {
+    final client = _client;
+    if (client == null) return;
+    final result = await client.users.listMutes();
+    if (!mounted) return;
+    final data = result.data;
+    final ids = data is List
+        ? data.map((e) => e.toString()).toSet()
+        : const <String>{};
+    setState(() => _muted = ids.contains(widget.channelId));
+  }
+
+  Future<void> _toggle() async {
+    final client = _client;
+    if (client == null || _busy || _muted == null) return;
+    final next = !_muted!;
+    setState(() {
+      _busy = true;
+      _muted = next;
+    });
+    final result = next
+        ? await client.channels.mute(widget.channelId)
+        : await client.channels.unmute(widget.channelId);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (!result.ok) _muted = !next;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    return PopupMenuButton<String>(
+    final muted = _muted ?? false;
+    return IconButton(
+      tooltip: muted ? 'Unmute channel' : 'Mute channel',
+      onPressed: _muted == null ? null : _toggle,
+      icon: Icon(muted ? Icons.notifications_off : Icons.notifications_none,
+          size: 18, color: colors.dirtyWhite),
+    );
+  }
+}
+
+class _ReactButton extends StatelessWidget {
+  const _ReactButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return IconButton(
       tooltip: 'Add reaction',
+      onPressed: onPressed,
       icon: Icon(Icons.add_reaction_outlined, size: 18, color: colors.gray),
-      onSelected: onPick,
-      itemBuilder: (context) => [
-        for (final emoji in _common)
-          PopupMenuItem(
-            value: emoji,
-            child: Text(emoji, style: const TextStyle(fontSize: 20)),
-          ),
-      ],
     );
   }
 }
 
 class _ReactionPill extends StatelessWidget {
-  const _ReactionPill({required this.reaction, required this.onTap});
+  const _ReactionPill({
+    required this.reaction,
+    required this.onTap,
+    this.cdnUrl,
+  });
 
   final AccordReaction reaction;
   final VoidCallback onTap;
+  final String? cdnUrl;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final name = reaction.emoji['name']?.toString() ?? '';
+    final id = reaction.emoji['id']?.toString();
     final mine = reaction.includesMe;
     return Material(
       color: mine ? colors.primary.withValues(alpha: 0.25) : colors.darkGray,
@@ -863,7 +1640,17 @@ class _ReactionPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(name, style: const TextStyle(fontSize: 14)),
+              if (id != null)
+                CachedNetworkImage(
+                  imageUrl: AccordCDN.emoji(id, cdnUrl: cdnUrl ?? ''),
+                  width: 16,
+                  height: 16,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, _, _) =>
+                      Text(name, style: const TextStyle(fontSize: 14)),
+                )
+              else
+                Text(name, style: const TextStyle(fontSize: 14)),
               const SizedBox(width: 4),
               Text('${reaction.count}',
                   style: theme.textTheme.labelMedium!
@@ -877,10 +1664,21 @@ class _ReactionPill extends StatelessWidget {
 }
 
 class _Composer extends ConsumerStatefulWidget {
-  const _Composer({required this.channelId, this.channelName});
+  const _Composer({
+    required this.channelId,
+    this.channelName,
+    this.spaceId,
+    this.replyingTo,
+    this.replyName,
+    this.onCancelReply,
+  });
 
   final String channelId;
   final String? channelName;
+  final String? spaceId;
+  final AccordMessage? replyingTo;
+  final String? replyName;
+  final VoidCallback? onCancelReply;
 
   @override
   ConsumerState<_Composer> createState() => _ComposerState();
@@ -936,6 +1734,28 @@ class _ComposerState extends ConsumerState<_Composer> {
     setState(() => _attachments.remove(file));
   }
 
+  Future<void> _pickEmoji() async {
+    final pick = await showAccordEmojiPicker(context, spaceId: widget.spaceId);
+    if (pick == null || !mounted) return;
+    _insertAtCursor(pick.composerText);
+  }
+
+  /// Inserts [text] at the current cursor position (replacing any selection),
+  /// keeping focus and placing the caret after the inserted text.
+  void _insertAtCursor(String text) {
+    final value = _controller.value;
+    final selection = value.selection;
+    final base = selection.isValid ? selection : null;
+    final start = base?.start ?? value.text.length;
+    final end = base?.end ?? value.text.length;
+    final next = value.text.replaceRange(start, end, text);
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+    _focusNode.requestFocus();
+  }
+
   Future<void> _send() async {
     final text = _controller.text;
     if ((text.trim().isEmpty && _attachments.isEmpty) || _sending) return;
@@ -949,9 +1769,10 @@ class _ComposerState extends ConsumerState<_Composer> {
     setState(() => _sending = true);
     final controller =
         ref.read(accordMessagesControllerProvider(widget.channelId).notifier);
+    final replyTo = widget.replyingTo?.id;
     final bool ok;
     if (_attachments.isEmpty) {
-      ok = await controller.send(client, text);
+      ok = await controller.send(client, text, replyTo: replyTo);
     } else {
       final files = [
         for (final file in _attachments)
@@ -961,7 +1782,8 @@ class _ComposerState extends ConsumerState<_Composer> {
             'content_type': _mimeType(file.extension),
           },
       ];
-      ok = await controller.sendWithAttachments(client, text, files);
+      ok = await controller.sendWithAttachments(client, text, files,
+          replyTo: replyTo);
     }
     if (!mounted) return;
     setState(() {
@@ -971,6 +1793,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (ok) {
       _controller.clear();
       _lastTypingSent = null;
+      widget.onCancelReply?.call();
       _focusNode.requestFocus();
     }
   }
@@ -992,6 +1815,33 @@ class _ComposerState extends ConsumerState<_Composer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.replyingTo != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 4, 0),
+                child: Row(
+                  children: [
+                    Icon(Icons.reply, size: 14, color: colors.gray),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Replying to ${widget.replyName ?? 'message'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium!
+                            .copyWith(color: colors.gray),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cancel reply',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.onCancelReply,
+                      icon: Icon(Icons.close, size: 14, color: colors.gray),
+                    ),
+                  ],
+                ),
+              ),
             if (_attachments.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
@@ -1039,6 +1889,12 @@ class _ComposerState extends ConsumerState<_Composer> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Emoji',
+                  onPressed: _sending ? null : _pickEmoji,
+                  icon: Icon(Icons.emoji_emotions_outlined,
+                      size: 20, color: colors.dirtyWhite),
+                ),
+                IconButton(
                   tooltip: 'Send',
                   onPressed: _sending ? null : _send,
                   icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
@@ -1081,6 +1937,29 @@ bool _isImageAttachment(AccordAttachment attachment) {
       name.endsWith('.jpeg') ||
       name.endsWith('.gif') ||
       name.endsWith('.webp');
+}
+
+/// Whether an attachment should render with the inline video player.
+bool _isVideoAttachment(AccordAttachment attachment) {
+  final type = attachment.contentType;
+  if (type != null && type.startsWith('video/')) return true;
+  final name = attachment.filename.toLowerCase();
+  return name.endsWith('.mp4') ||
+      name.endsWith('.webm') ||
+      name.endsWith('.mov') ||
+      name.endsWith('.mkv');
+}
+
+/// Whether an attachment should render with the inline audio player.
+bool _isAudioAttachment(AccordAttachment attachment) {
+  final type = attachment.contentType;
+  if (type != null && type.startsWith('audio/')) return true;
+  final name = attachment.filename.toLowerCase();
+  return name.endsWith('.mp3') ||
+      name.endsWith('.ogg') ||
+      name.endsWith('.wav') ||
+      name.endsWith('.m4a') ||
+      name.endsWith('.flac');
 }
 
 /// Best-effort conversion of an attachment's loosely-typed width/height to a

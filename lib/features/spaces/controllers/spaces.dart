@@ -31,4 +31,39 @@ class SpacesController extends _$SpacesController {
     if (current == null) return;
     state = current.where((s) => s.id != spaceId).toList();
   }
+
+  /// Inserts or replaces a role within [spaceId]'s role list. Assigns a fresh
+  /// `roles` list to the space so `select((s) => space.roles)` watchers rebuild.
+  void upsertRole(String spaceId, AccordRole role) =>
+      _mutateRoles(spaceId, (roles) {
+        final index = roles.indexWhere((r) => r.id == role.id);
+        if (index >= 0) {
+          roles[index] = role;
+        } else {
+          roles.add(role);
+        }
+      });
+
+  void removeRole(String spaceId, String roleId) =>
+      _mutateRoles(spaceId, (roles) => roles.removeWhere((r) => r.id == roleId));
+
+  /// Replaces [spaceId]'s entire role list (e.g. after a reorder).
+  void setRoles(String spaceId, List<AccordRole> roles) =>
+      _mutateRoles(spaceId, (current) {
+        current
+          ..clear()
+          ..addAll(roles);
+      });
+
+  void _mutateRoles(String spaceId, void Function(List<AccordRole>) mutate) {
+    final current = state;
+    if (current == null) return;
+    final index = current.indexWhere((s) => s.id == spaceId);
+    if (index < 0) return;
+    final space = current[index];
+    final roles = [...space.roles];
+    mutate(roles);
+    space.roles = roles;
+    state = [...current];
+  }
 }

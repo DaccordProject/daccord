@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "bonfire" "\0"
+            VALUE "CompanyName", "The Daccord Project" "\0"
+            VALUE "FileDescription", "Daccord" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "bonfire" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "bonfire.exe" "\0"
-            VALUE "ProductName", "bonfire" "\0"
+            VALUE "InternalName", "daccord" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 The Daccord Project. All rights reserved." "\0"
+            VALUE "OriginalFilename", "daccord.exe" "\0"
+            VALUE "ProductName", "Daccord" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

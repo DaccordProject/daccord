@@ -58,6 +58,47 @@ class AccordChannelsController extends _$AccordChannelsController {
     state = current.where((c) => c.id != channelId).toList();
   }
 
+  /// Creates a channel in this space. Returns the created channel on success,
+  /// optimistically inserting it (the gateway create event is deduped by id).
+  Future<AccordChannel?> createChannel(
+      AccordClient client, Map<String, dynamic> data) async {
+    final result = await client.spaces.createChannel(spaceId, data);
+    if (!result.ok) {
+      debugPrint('Failed to create channel in $spaceId: ${result.error}');
+      return null;
+    }
+    final channel = result.data;
+    if (channel is AccordChannel) {
+      upsertChannel(channel);
+      return channel;
+    }
+    return null;
+  }
+
+  /// Patches a channel's settings, replacing it in place on success.
+  Future<bool> updateChannel(
+      AccordClient client, String channelId, Map<String, dynamic> data) async {
+    final result = await client.channels.update(channelId, data);
+    if (!result.ok) {
+      debugPrint('Failed to update channel $channelId: ${result.error}');
+      return false;
+    }
+    final channel = result.data;
+    if (channel is AccordChannel) upsertChannel(channel);
+    return true;
+  }
+
+  /// Deletes a channel, removing it from the list on success.
+  Future<bool> deleteChannel(AccordClient client, String channelId) async {
+    final result = await client.channels.delete(channelId);
+    if (!result.ok) {
+      debugPrint('Failed to delete channel $channelId: ${result.error}');
+      return false;
+    }
+    removeChannel(channelId);
+    return true;
+  }
+
   /// Orders channels by `position` (categories carry their children via
   /// `parentId`, which the UI groups separately), falling back to ID.
   List<AccordChannel> _sorted(List<AccordChannel> channels) {

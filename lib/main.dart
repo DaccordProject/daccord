@@ -1,20 +1,15 @@
 import 'package:bonfire/features/authentication/utils/hive.dart';
-import 'package:bonfire/features/notifications/controllers/firebase.dart';
 import 'package:bonfire/features/notifications/controllers/notification.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/router/controller.dart';
-import 'package:bonfire/theme/color_theme.dart';
-import 'package:bonfire/theme/theme.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:bonfire/theme/app_theme.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_keyboard_size/flutter_keyboard_size.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:universal_platform/universal_platform.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:bonfire/shared/utils/web_utils/web_utils.dart'
     if (dart.library.io) 'package:bonfire/shared/utils/web_utils/non_web_utils.dart';
 
@@ -40,34 +35,7 @@ void main() async {
   );
 
   await setupHive();
-
-  // TODO: Add iOS support
-  // Notifications for other platforms like Windows will be added,
-  // but I don't believe any of that is handled via firebase
-  // Because desktop is way less locked down, it probably has
-  // some other notifer endpoint that doesn't rely on the system
-  if (UniversalPlatform.isAndroid) {
-    await Firebase.initializeApp(
-      name: 'bonfire',
-      options: firebaseOptions,
-    );
-    await initializeNotifications();
-    await setupFirebaseMessaging();
-
-    final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-
-    registerBackgroundHandler();
-    debugPrint('Notification permissions: ${settings.authorizationStatus}');
-  }
+  await initializeNotifications();
 
   runApp(const ProviderScope(
     child: MaterialApp(
@@ -94,101 +62,13 @@ class _MainWindowState extends ConsumerState<MainWindow> {
       systemNavigationBarContrastEnforced: false,
     ));
 
-    // final theme = ref.watch(themeDataProvider).copyWith(
-    //       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    //     );
-
-    String family = GoogleFonts.publicSans().fontFamily!;
-
-    final textTheme = TextTheme(
-      displayLarge: TextStyle(
-        fontSize: 36,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-      ),
-      displayMedium: TextStyle(
-        fontSize: 20,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-      ),
-      displaySmall: TextStyle(
-        fontSize: 15,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-      ),
-      titleLarge: TextStyle(
-        fontSize: 36,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: Colors.white,
-      ),
-      titleMedium: TextStyle(
-        fontSize: 20,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: Colors.white,
-      ),
-      titleSmall: TextStyle(
-        fontSize: 15,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: Colors.white,
-      ),
-      headlineLarge: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w500,
-        fontFamily: family,
-      ),
-      labelLarge: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-          fontFamily: family,
-          color: const Color(0xFFBDBDBD)),
-      labelMedium: TextStyle(
-        fontSize: 12,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: const Color(0xFFBDBDBD),
-      ),
-      bodyLarge: TextStyle(
-        fontSize: 15,
-        fontFamily: family,
-        color: const Color.fromARGB(255, 255, 255, 255),
-        fontWeight: FontWeight.w500,
-      ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        fontFamily: family,
-        color: const Color(0xFFBDBDBD),
-        fontWeight: FontWeight.w500,
-      ),
+    final settings = ref.watch(settingsControllerProvider);
+    final theme = buildAppTheme(
+      settings.themePreset,
+      accent: settings.accentColor == null
+          ? null
+          : Color(settings.accentColor!),
     );
-
-    final theme = ThemeData.dark().copyWith(textTheme: textTheme, extensions: [
-      UniversalPlatform.isMobile
-          ? const BonfireThemeExtension(
-              foreground: AppColorsAmoled.foreground,
-              background: AppColorsAmoled.background,
-              dirtyWhite: AppColorsAmoled.dirtyWhite,
-              gray: AppColorsAmoled.gray,
-              darkGray: AppColorsAmoled.darkGray,
-              primary: AppColorsAmoled.primary,
-              red: AppColorsAmoled.red,
-              green: AppColorsAmoled.green,
-              yellow: AppColorsAmoled.yellow,
-            )
-          : const BonfireThemeExtension(
-              foreground: AppColorsDark.foreground,
-              background: AppColorsDark.background,
-              dirtyWhite: AppColorsDark.dirtyWhite,
-              gray: AppColorsDark.gray,
-              darkGray: AppColorsDark.darkGray,
-              primary: AppColorsDark.primary,
-              red: AppColorsDark.red,
-              green: AppColorsDark.green,
-              yellow: AppColorsDark.yellow,
-            )
-    ]);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -199,7 +79,7 @@ class _MainWindowState extends ConsumerState<MainWindow> {
               Flexible(
                 child: KeyboardSizeProvider(
                   child: MaterialApp.router(
-                    title: 'Bonfire',
+                    title: 'Daccord',
                     theme: theme,
                     darkTheme: theme,
                     routerConfig: routerController,

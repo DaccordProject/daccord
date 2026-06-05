@@ -18,4 +18,6 @@ Future<void> setupHive() async {
   await Hive.openBox("added-accounts");
   // Accord login: persisted server + token + user for session restore.
   await Hive.openBox("accord-session");
+  // Accord client preferences (theme, notifications, recent emoji).
+  await Hive.openBox("accord-settings");
 }

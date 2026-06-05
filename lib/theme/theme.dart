@@ -28,15 +28,44 @@ class BonfireThemeExtension extends ThemeExtension<BonfireThemeExtension> {
   final Color yellow;
 
   @override
-  ThemeExtension<BonfireThemeExtension> copyWith() {
-    // TODO: implement copyWith
-    throw UnimplementedError();
+  BonfireThemeExtension copyWith({
+    Color? foreground,
+    Color? background,
+    Color? dirtyWhite,
+    Color? gray,
+    Color? darkGray,
+    Color? primary,
+    Color? red,
+    Color? green,
+    Color? yellow,
+  }) {
+    return BonfireThemeExtension(
+      foreground: foreground ?? this.foreground,
+      background: background ?? this.background,
+      dirtyWhite: dirtyWhite ?? this.dirtyWhite,
+      gray: gray ?? this.gray,
+      darkGray: darkGray ?? this.darkGray,
+      primary: primary ?? this.primary,
+      red: red ?? this.red,
+      green: green ?? this.green,
+      yellow: yellow ?? this.yellow,
+    );
   }
 
   @override
-  ThemeExtension<BonfireThemeExtension> lerp(
-      covariant ThemeExtension<BonfireThemeExtension>? other, double t) {
-    // TODO: implement lerp
-    throw UnimplementedError();
+  BonfireThemeExtension lerp(
+      covariant BonfireThemeExtension? other, double t) {
+    if (other == null) return this;
+    return BonfireThemeExtension(
+      foreground: Color.lerp(foreground, other.foreground, t)!,
+      background: Color.lerp(background, other.background, t)!,
+      dirtyWhite: Color.lerp(dirtyWhite, other.dirtyWhite, t)!,
+      gray: Color.lerp(gray, other.gray, t)!,
+      darkGray: Color.lerp(darkGray, other.darkGray, t)!,
+      primary: Color.lerp(primary, other.primary, t)!,
+      red: Color.lerp(red, other.red, t)!,
+      green: Color.lerp(green, other.green, t)!,
+      yellow: Color.lerp(yellow, other.yellow, t)!,
+    );
   }
 }

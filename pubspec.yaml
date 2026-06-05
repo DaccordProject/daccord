@@ -1,5 +1,5 @@
 name: bonfire
-description: "A modern take on the Discord Client"
+description: "A fast, cross-platform Flutter client for Daccord."
 publish_to: "none"
 
 version: 1.0.0+1
@@ -85,8 +85,6 @@ dependencies:
   crypto: ^3.0.6
   shimmer: ^3.0.0
   rubber: ^1.1.0
-  firebase_messaging: ^16.0.4
-  firebase_core: ^4.2.1
   flutter_local_notifications: ^19.5.0
   flutter_webrtc: ^1.2.0
   sdp_transform: ^0.3.2

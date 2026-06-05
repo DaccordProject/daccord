@@ -5,10 +5,15 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
+import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/notifications/controllers/notification.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,9 +44,15 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
   }));
 
   // ── Initial sync ─────────────────────────────────────────────────────────
-  subs.add(client.onReady.listen((_) async {
+  subs.add(client.onReady.listen((data) async {
     setConnection(ConnectionStatus.ready);
+    _seedPresences(ref, data);
     await _loadSpaces(ref, client);
+  }));
+
+  // ── Presence (global, per-user) ──────────────────────────────────────────
+  subs.add(client.onPresenceUpdate.listen((presence) {
+    ref.read(presenceControllerProvider.notifier).upsert(presence);
   }));
 
   // ── Space cache ──────────────────────────────────────────────────────────
@@ -104,6 +115,34 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
         .removeMessage(messageId);
   }));
 
+  // ── Mention notifications ────────────────────────────────────────────────
+  // Independent of the channel cache: fire for *any* mentioning message, even
+  // in channels the UI hasn't opened. Skips our own messages, the channel
+  // that's currently on screen, and respects the user's notification prefs.
+  subs.add(client.onMessageCreate.listen((message) {
+    final settings = ref.read(settingsControllerProvider);
+    if (!settings.notificationsEnabled) return;
+
+    final me = ref.read(
+      accordAuthProvider.select(
+          (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+    );
+    if (me == null || message.authorId == me) return;
+    if (message.channelId == accordVisibleChannelId) return;
+
+    final mentionsMe = message.mentions.contains(me);
+    final everyone = message.mentionEveryone && !settings.suppressEveryone;
+    if (!mentionsMe && !everyone) return;
+
+    final author = ref.read(accordUsersControllerProvider)[message.authorId];
+    final name = accordUserName(author, fallback: 'New mention');
+    final body = message.content.trim();
+    showMentionNotification(
+      title: name,
+      body: body.isEmpty ? 'mentioned you' : body,
+    );
+  }));
+
   // ── Reactions (per channel) ──────────────────────────────────────────────
   // Like messages, only mutate channels the UI has opened.
   String emojiName(Map<String, dynamic> data) {
@@ -111,6 +150,12 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
     if (raw is Map) return raw['name']?.toString() ?? '';
     if (raw is String) return raw;
     return '';
+  }
+
+  String? emojiId(Map<String, dynamic> data) {
+    final raw = data['emoji'];
+    if (raw is Map) return raw['id']?.toString();
+    return null;
   }
 
   String? currentUserId() => ref.read(
@@ -127,7 +172,8 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
     final isOwn = data['user_id']?.toString() == currentUserId();
     ref
         .read(accordMessagesControllerProvider(channelId).notifier)
-        .applyReaction(messageId, name, added: added, isOwn: isOwn);
+        .applyReaction(messageId, name,
+            added: added, isOwn: isOwn, emojiId: emojiId(data));
   }
 
   subs.add(client.onReactionAdd.listen((d) => applyReactionEvent(d, added: true)));
@@ -173,6 +219,30 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
         .upsertMember(member);
   }
 
+  // ── Role cache (per space) ───────────────────────────────────────────────
+  // Roles live on the AccordSpace; keep its `roles` list current so the roster,
+  // name colors, and permission checks reflect server-side changes live.
+  String? roleSpaceId(Map<String, dynamic> data) =>
+      data['space_id']?.toString() ?? data['guild_id']?.toString();
+
+  void cacheRole(Map<String, dynamic> data) {
+    final spaceId = roleSpaceId(data);
+    final raw = data['role'];
+    if (spaceId == null || raw is! Map) return;
+    final role = AccordRole.fromJson(Map<String, dynamic>.from(raw));
+    ref.read(spacesControllerProvider.notifier).upsertRole(spaceId, role);
+  }
+
+  subs.add(client.onRoleCreate.listen(cacheRole));
+  subs.add(client.onRoleUpdate.listen(cacheRole));
+  subs.add(client.onRoleDelete.listen((data) {
+    final spaceId = roleSpaceId(data);
+    final roleId = data['role_id']?.toString() ??
+        (data['role'] is Map ? (data['role'] as Map)['id']?.toString() : null);
+    if (spaceId == null || roleId == null) return;
+    ref.read(spacesControllerProvider.notifier).removeRole(spaceId, roleId);
+  }));
+
   subs.add(client.onMemberJoin.listen(cacheMember));
   subs.add(client.onMemberUpdate.listen(cacheMember));
   subs.add(client.onMemberLeave.listen((data) {
@@ -193,6 +263,19 @@ VoidCallback handleAccordEvents(Ref ref, AccordClient client) {
       sub.cancel();
     }
   };
+}
+
+/// Seeds the global presence cache from the gateway READY payload's
+/// `presences` array (matches the reference client's `_apply_presences`).
+void _seedPresences(Ref ref, Map<String, dynamic> ready) {
+  final raw = ready['presences'];
+  if (raw is! List) return;
+  final presences = [
+    for (final entry in raw)
+      if (entry is Map<String, dynamic>) AccordPresence.fromJson(entry),
+  ];
+  if (presences.isEmpty) return;
+  ref.read(presenceControllerProvider.notifier).seed(presences);
 }
 
 /// Fetches the user's spaces over REST and seeds the rail + per-space caches.

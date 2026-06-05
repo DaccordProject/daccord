@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bonfire/features/authentication/views/accord_login.dart';
 import 'package:bonfire/features/authentication/views/mfa.dart';
+import 'package:bonfire/features/settings/views/accord_settings_screen.dart';
 import 'package:bonfire/features/spaces/views/accord_home.dart';
 import 'package:bonfire/features/overview/views/navigation_frame.dart';
 import 'package:bonfire/features/overview/views/home.dart';
@@ -30,10 +31,6 @@ final routerController = GoRouter(
                 builder: (context, state) => const AccountSwitcherScreen(),
               ),
               GoRoute(
-                path: 'switcher/model',
-                builder: (context, state) => const AccountSwitcherModel(),
-              ),
-              GoRoute(
                 path: 'register',
                 builder: (context, state) => const AccordLoginScreen(),
               ),
@@ -44,6 +41,10 @@ final routerController = GoRouter(
               GoRoute(
                 path: 'spaces',
                 builder: (context, state) => const AccordHomeScreen(),
+              ),
+              GoRoute(
+                path: 'settings',
+                builder: (context, state) => const AccordSettingsScreen(),
               ),
               ShellRoute(
                 builder: (context, state, child) =>

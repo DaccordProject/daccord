@@ -47,11 +47,11 @@ static void my_application_activate(GApplication *application)
   {
     gtk_window_set_decorated(window, TRUE);
     gtk_window_set_titlebar(window, NULL); // disables CSD
-    gtk_window_set_title(window, "Bonfire");
+    gtk_window_set_title(window, "Daccord");
   }
   else
   {
-    gtk_window_set_title(window, "Bonfire");
+    gtk_window_set_title(window, "Daccord");
   }
 
   // auto bdw = bitsdojo_window_from(window); // <--- add this line

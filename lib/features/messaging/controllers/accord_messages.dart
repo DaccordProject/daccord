@@ -14,6 +14,11 @@ part 'accord_messages.g.dart';
 /// that happens to receive a message.
 final Set<String> activeMessageChannels = <String>{};
 
+/// The channel the user is currently viewing, if any. The notification layer
+/// consults this to avoid raising a notification for a message in the channel
+/// that's already on screen. Set by the home screen as the selection changes.
+String? accordVisibleChannelId;
+
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
 /// it's watched (once logged in) and is kept in sync by message
@@ -49,13 +54,15 @@ class AccordMessagesController extends _$AccordMessagesController {
   }
 
   /// Sends [content] to this channel. Optimistically appends the created
-  /// message (the gateway echo is then deduped by `addMessage`). Returns true
-  /// on success.
-  Future<bool> send(AccordClient client, String content) async {
+  /// message (the gateway echo is then deduped by `addMessage`). Pass [replyTo]
+  /// to send the message as a reply to that message ID. Returns true on success.
+  Future<bool> send(AccordClient client, String content,
+      {String? replyTo}) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return false;
-    final result =
-        await client.messages.create(channelId, {'content': trimmed});
+    final data = <String, dynamic>{'content': trimmed};
+    if (replyTo != null) data['reply_to'] = replyTo;
+    final result = await client.messages.create(channelId, data);
     if (!result.ok) {
       debugPrint('Failed to send message to $channelId: ${result.error}');
       return false;
@@ -63,6 +70,41 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
     return true;
+  }
+
+  /// Pins [messageId] in this channel, optimistically flipping its `pinned`
+  /// flag (reverted on failure). Returns true on success.
+  Future<bool> pin(AccordClient client, String messageId) async {
+    _setPinned(messageId, true);
+    final result = await client.messages.pin(channelId, messageId);
+    if (!result.ok) {
+      debugPrint('Failed to pin $messageId: ${result.error}');
+      _setPinned(messageId, false);
+      return false;
+    }
+    return true;
+  }
+
+  /// Unpins [messageId] in this channel, optimistically clearing its `pinned`
+  /// flag (reverted on failure). Returns true on success.
+  Future<bool> unpin(AccordClient client, String messageId) async {
+    _setPinned(messageId, false);
+    final result = await client.messages.unpin(channelId, messageId);
+    if (!result.ok) {
+      debugPrint('Failed to unpin $messageId: ${result.error}');
+      _setPinned(messageId, true);
+      return false;
+    }
+    return true;
+  }
+
+  void _setPinned(String messageId, bool pinned) {
+    final current = state;
+    if (current == null) return;
+    final message = current.firstWhereOrNull((m) => m.id == messageId);
+    if (message == null || message.pinned == pinned) return;
+    message.pinned = pinned;
+    state = [...current];
   }
 
   /// Edits [messageId] to [content] via `messages.edit`, optimistically
@@ -102,12 +144,14 @@ class AccordMessagesController extends _$AccordMessagesController {
   Future<bool> sendWithAttachments(
     AccordClient client,
     String content,
-    List<Map<String, dynamic>> files,
-  ) async {
-    if (files.isEmpty) return send(client, content);
+    List<Map<String, dynamic>> files, {
+    String? replyTo,
+  }) async {
+    if (files.isEmpty) return send(client, content, replyTo: replyTo);
     final data = <String, dynamic>{};
     final trimmed = content.trim();
     if (trimmed.isNotEmpty) data['content'] = trimmed;
+    if (replyTo != null) data['reply_to'] = replyTo;
 
     final result =
         await client.messages.createWithAttachments(channelId, data, files);
@@ -152,23 +196,32 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// flipping based on whether it currently includes us. Optimistically updates
   /// the cache, then reverts if the REST call fails (the gateway echo is then a
   /// no-op).
+  ///
+  /// [emojiName] is the bare name (unicode char, or the custom emoji's name);
+  /// [emojiId] is set for custom emoji. The REST API expects the token
+  /// `name:id` for custom emoji, but aggregates are matched/stored by name
+  /// (the form the gateway echoes back).
   Future<void> toggleReaction(
-      AccordClient client, String messageId, String emojiName) async {
+      AccordClient client, String messageId, String emojiName,
+      {String? emojiId}) async {
     final message = state?.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
     final existing = message.reactions
         ?.firstWhereOrNull((r) => _emojiName(r) == emojiName);
     final adding = !(existing?.includesMe ?? false);
+    final token = emojiId == null ? emojiName : '$emojiName:$emojiId';
 
-    applyReaction(messageId, emojiName, added: adding, isOwn: true);
+    applyReaction(messageId, emojiName,
+        added: adding, isOwn: true, emojiId: emojiId);
 
     final result = adding
-        ? await client.reactions.add(channelId, messageId, emojiName)
-        : await client.reactions.removeOwn(channelId, messageId, emojiName);
+        ? await client.reactions.add(channelId, messageId, token)
+        : await client.reactions.removeOwn(channelId, messageId, token);
     if (!result.ok) {
       debugPrint('Failed to toggle reaction on $messageId: ${result.error}');
       // Revert the optimistic change.
-      applyReaction(messageId, emojiName, added: !adding, isOwn: true);
+      applyReaction(messageId, emojiName,
+          added: !adding, isOwn: true, emojiId: emojiId);
     }
   }
 
@@ -176,7 +229,7 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// for optimistic local toggles ([isOwn] true) and for gateway echoes of
   /// other users' reactions ([isOwn] reflects whether the actor is us).
   void applyReaction(String messageId, String emojiName,
-      {required bool added, required bool isOwn}) {
+      {required bool added, required bool isOwn, String? emojiId}) {
     final current = state;
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
@@ -193,7 +246,7 @@ class AccordMessagesController extends _$AccordMessagesController {
         if (isOwn) r.includesMe = true;
       } else {
         reactions.add(AccordReaction(
-          emoji: {'id': null, 'name': emojiName},
+          emoji: {'id': emojiId, 'name': emojiName},
           count: 1,
           includesMe: isOwn,
         ));

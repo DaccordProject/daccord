@@ -26,6 +26,17 @@ class AccordAuthMfaRequired extends AccordAuthState {
   const AccordAuthMfaRequired({required this.ticket, required this.server});
 }
 
+/// Credentials (and any MFA) were accepted, but the server set the
+/// `force_password_reset` flag: the user must change their password before the
+/// session can connect. [pending] carries the server + temporary token + user
+/// so [AccordAuth.submitPasswordChange] can finish the login afterwards.
+/// [error] holds a message from a failed change attempt, if any.
+class AccordAuthPasswordResetRequired extends AccordAuthState {
+  final AccordSession pending;
+  final String? error;
+  const AccordAuthPasswordResetRequired(this.pending, {this.error});
+}
+
 /// A fully authenticated session backed by a live [AccordClient].
 class AccordAuthLoggedIn extends AccordAuthState {
   final AccordClient client;

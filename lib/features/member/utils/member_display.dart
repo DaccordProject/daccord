@@ -14,6 +14,17 @@ String accordMemberName(AccordMember? member, {String fallback = 'Unknown'}) {
   return fallback;
 }
 
+/// Resolves a bare user's preferred display name: display name → username →
+/// [fallback]. Used for authors/typers resolved via the on-demand user cache
+/// (outside a space's loaded member page), where no [AccordMember] exists.
+String accordUserName(AccordUser? user, {String fallback = 'Unknown'}) {
+  final display = user?.displayName;
+  if (display != null && display.isNotEmpty) return display;
+  final username = user?.username;
+  if (username != null && username.isNotEmpty) return username;
+  return fallback;
+}
+
 /// Resolves a user's `avatar` reference to an absolute CDN URL, or null when
 /// unset (callers fall back to an initial). The field is either a bare asset
 /// hash or a server-relative/absolute path; both are handled.
@@ -28,10 +39,42 @@ String? accordAvatarUrl(AccordUser? user, String? cdnUrl) {
       format: AccordCDN.autoFormat(avatar), cdnUrl: cdn);
 }
 
+/// Resolves a member's avatar, preferring a per-space avatar override
+/// ([AccordMember.avatar]) over the user's global avatar. Mirrors the reference
+/// client: an override starting with `/` is a CDN path; otherwise it's a bare
+/// hash served from `/cdn/avatars/<hash>`. Falls back to the user avatar, then
+/// null (callers render an initial).
+String? accordMemberAvatarUrl(AccordMember? member, String? cdnUrl) {
+  final override = member?.avatar;
+  if (override is String && override.isNotEmpty) {
+    final cdn = cdnUrl ?? '';
+    if (override.startsWith('/') || override.startsWith('http')) {
+      return AccordCDN.resolvePath(override, cdnUrl: cdn);
+    }
+    return AccordCDN.resolvePath('/cdn/avatars/$override', cdnUrl: cdn);
+  }
+  return accordAvatarUrl(member?.user, cdnUrl);
+}
+
 /// An Accord role color (RGB integer) as a [Color], or null when unset
 /// (`0` is "no color" — the name renders in the default text color).
 Color? accordRoleColor(int color) =>
     color == 0 ? null : Color(0xFF000000 | (color & 0xFFFFFF));
+
+/// The dot color for a presence status, or null for offline/unknown (callers
+/// hide the dot or render it muted).
+Color? accordPresenceColor(String status) {
+  switch (status) {
+    case 'online':
+      return const Color(0xFF3BA55D);
+    case 'idle':
+      return const Color(0xFFFAA81A);
+    case 'dnd':
+      return const Color(0xFFED4245);
+    default:
+      return null;
+  }
+}
 
 /// The highest-positioned role assigned to [member] (looked up in [spaceRoles])
 /// that matches [test], or null when the member has no such role.
