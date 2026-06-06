@@ -11,6 +11,7 @@ void main() {
     bool isVisibleChannel = false,
     bool mentionsMe = false,
     bool mentionEveryone = false,
+    String? channelLevel,
   }) =>
       MessageNotificationGate.shouldNotify(
         notificationsEnabled: notificationsEnabled,
@@ -19,6 +20,7 @@ void main() {
         isVisibleChannel: isVisibleChannel,
         mentionsMe: mentionsMe,
         mentionEveryone: mentionEveryone,
+        channelLevel: channelLevel,
       );
 
   group('MessageNotificationGate.shouldNotify', () {
@@ -44,6 +46,29 @@ void main() {
           notify(mentionsMe: true, mentionEveryone: true, suppressEveryone: true),
           isTrue,
         );
+      });
+    });
+
+    group('per-channel level', () {
+      test('"all" notifies on any non-mention message', () {
+        expect(notify(channelLevel: 'all'), isTrue);
+      });
+
+      test('"nothing" suppresses even direct mentions', () {
+        expect(notify(channelLevel: 'nothing', mentionsMe: true), isFalse);
+        expect(notify(channelLevel: 'nothing', mentionEveryone: true), isFalse);
+      });
+
+      test('"mentions" matches the default mention-only behaviour', () {
+        expect(notify(channelLevel: 'mentions'), isFalse);
+        expect(notify(channelLevel: 'mentions', mentionsMe: true), isTrue);
+      });
+
+      test('"all" still respects own/visible/disabled gates', () {
+        expect(notify(channelLevel: 'all', isOwnMessage: true), isFalse);
+        expect(notify(channelLevel: 'all', isVisibleChannel: true), isFalse);
+        expect(
+            notify(channelLevel: 'all', notificationsEnabled: false), isFalse);
       });
     });
 

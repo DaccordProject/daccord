@@ -60,6 +60,22 @@ class SettingsController extends _$SettingsController {
             : trimmed));
   }
 
+  /// Sets the per-channel notification level for [channelId] — `'all'`,
+  /// `'mentions'`, or `'nothing'`. Pass `null` to clear the override and fall
+  /// back to the global default (mention-only). Mirrors the reference
+  /// `Config.set_channel_notification_level`.
+  void setChannelNotificationLevel(String channelId, String? level) {
+    final next = Map<String, String>.from(state.channelNotifications);
+    if (level == null || level.isEmpty) {
+      if (!next.containsKey(channelId)) return;
+      next.remove(channelId);
+    } else {
+      if (next[channelId] == level) return;
+      next[channelId] = level;
+    }
+    _update(state.copyWith(channelNotifications: next));
+  }
+
   /// Records [token] (a unicode char or `name:id` custom ref) as most-recently
   /// used, de-duplicating and capping the list.
   void addRecentEmoji(String token) {

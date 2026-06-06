@@ -33,6 +33,8 @@ import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/features/spaces/views/accord_search.dart';
 import 'package:bonfire/features/user/components/self_status_button.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -1890,13 +1892,100 @@ class _MuteButtonState extends ConsumerState<_MuteButton> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final muted = _muted ?? false;
-    return IconButton(
-      tooltip: muted ? 'Unmute channel' : 'Mute channel',
-      onPressed: _muted == null ? null : _toggle,
-      icon: Icon(muted ? Icons.notifications_off : Icons.notifications_none,
-          size: 18, color: colors.dirtyWhite),
+    // Per-channel notification level lives client-side (mirrors the reference
+    // client). Mute is server-side and a separate axis — "Mute" silences the
+    // gateway-level mute flag, while All / Mentions / Nothing tunes our local
+    // notification gating.
+    final level = ref.watch(settingsControllerProvider
+        .select((s) => s.channelNotificationLevel(widget.channelId)));
+    final levelLabel = level == null
+        ? 'Mentions (default)'
+        : level == AccordSettings.channelNotifAll
+            ? 'All messages'
+            : level == AccordSettings.channelNotifMentions
+                ? 'Mentions only'
+                : 'Nothing';
+    return PopupMenuButton<_NotifAction>(
+      tooltip: 'Notification settings — $levelLabel',
+      icon: Icon(
+        muted
+            ? Icons.notifications_off
+            : (level == AccordSettings.channelNotifNothing
+                ? Icons.notifications_paused
+                : (level == AccordSettings.channelNotifAll
+                    ? Icons.notifications_active
+                    : Icons.notifications_none)),
+        size: 18,
+        color: colors.dirtyWhite,
+      ),
+      onSelected: (action) {
+        switch (action) {
+          case _NotifAction.levelDefault:
+            ref
+                .read(settingsControllerProvider.notifier)
+                .setChannelNotificationLevel(widget.channelId, null);
+            break;
+          case _NotifAction.levelAll:
+            ref
+                .read(settingsControllerProvider.notifier)
+                .setChannelNotificationLevel(
+                    widget.channelId, AccordSettings.channelNotifAll);
+            break;
+          case _NotifAction.levelMentions:
+            ref
+                .read(settingsControllerProvider.notifier)
+                .setChannelNotificationLevel(
+                    widget.channelId, AccordSettings.channelNotifMentions);
+            break;
+          case _NotifAction.levelNothing:
+            ref
+                .read(settingsControllerProvider.notifier)
+                .setChannelNotificationLevel(
+                    widget.channelId, AccordSettings.channelNotifNothing);
+            break;
+          case _NotifAction.toggleMute:
+            _toggle();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        CheckedPopupMenuItem(
+          value: _NotifAction.levelDefault,
+          checked: level == null,
+          child: const Text('Use default'),
+        ),
+        CheckedPopupMenuItem(
+          value: _NotifAction.levelAll,
+          checked: level == AccordSettings.channelNotifAll,
+          child: const Text('All messages'),
+        ),
+        CheckedPopupMenuItem(
+          value: _NotifAction.levelMentions,
+          checked: level == AccordSettings.channelNotifMentions,
+          child: const Text('Only @mentions'),
+        ),
+        CheckedPopupMenuItem(
+          value: _NotifAction.levelNothing,
+          checked: level == AccordSettings.channelNotifNothing,
+          child: const Text('Nothing'),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _NotifAction.toggleMute,
+          enabled: _muted != null,
+          child: Text(muted ? 'Unmute channel' : 'Mute channel'),
+        ),
+      ],
     );
   }
+}
+
+enum _NotifAction {
+  levelDefault,
+  levelAll,
+  levelMentions,
+  levelNothing,
+  toggleMute,
 }
 
 class _ReactButton extends StatelessWidget {

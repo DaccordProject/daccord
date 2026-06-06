@@ -174,6 +174,7 @@ VoidCallback handleAccordEvents(
       isVisibleChannel: message.channelId == accordVisibleChannelId,
       mentionsMe: me != null && message.mentions.contains(me),
       mentionEveryone: message.mentionEveryone,
+      channelLevel: settings.channelNotificationLevel(message.channelId),
     );
     if (!notify) return;
 

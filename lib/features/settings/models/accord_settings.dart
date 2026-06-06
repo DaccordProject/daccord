@@ -6,6 +6,13 @@ class AccordSettings {
   /// Default master-server directory URL (matches the reference client).
   static const String defaultMasterServerUrl = 'https://master.daccord.gg';
 
+  /// Per-channel notification levels — `channel_id → 'all' | 'mentions' |
+  /// 'nothing'`. Missing entries fall back to the global default ("mentions").
+  /// Mirrors the reference client's `Config.set_channel_notification_level`.
+  static const String channelNotifAll = 'all';
+  static const String channelNotifMentions = 'mentions';
+  static const String channelNotifNothing = 'nothing';
+
   const AccordSettings({
     this.themePreset = AppThemePreset.dark,
     this.accentColor,
@@ -15,6 +22,7 @@ class AccordSettings {
     this.sfxVolume = 1.0,
     this.recentEmoji = const [],
     this.masterServerUrl = defaultMasterServerUrl,
+    this.channelNotifications = const <String, String>{},
   });
 
   /// Selected colour theme.
@@ -42,6 +50,10 @@ class AccordSettings {
   /// Master-server directory URL used to browse public spaces (unauthenticated).
   final String masterServerUrl;
 
+  /// Per-channel notification overrides keyed by channel ID. A missing entry
+  /// means "use the global default" (mention-only).
+  final Map<String, String> channelNotifications;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -52,6 +64,7 @@ class AccordSettings {
     double? sfxVolume,
     List<String>? recentEmoji,
     String? masterServerUrl,
+    Map<String, String>? channelNotifications,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -63,8 +76,14 @@ class AccordSettings {
       sfxVolume: sfxVolume ?? this.sfxVolume,
       recentEmoji: recentEmoji ?? this.recentEmoji,
       masterServerUrl: masterServerUrl ?? this.masterServerUrl,
+      channelNotifications: channelNotifications ?? this.channelNotifications,
     );
   }
+
+  /// Returns the level set for [channelId], or null when the user hasn't
+  /// overridden it (callers fall back to the default mention-only behaviour).
+  String? channelNotificationLevel(String channelId) =>
+      channelNotifications[channelId];
 
   Map<String, dynamic> toJson() => {
         'themePreset': themePreset.name,
@@ -75,6 +94,7 @@ class AccordSettings {
         'sfxVolume': sfxVolume,
         'recentEmoji': recentEmoji,
         'masterServerUrl': masterServerUrl,
+        'channelNotifications': channelNotifications,
       };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -92,6 +112,11 @@ class AccordSettings {
       ],
       masterServerUrl:
           (master == null || master.isEmpty) ? defaultMasterServerUrl : master,
+      channelNotifications: {
+        for (final entry
+            in (json['channelNotifications'] as Map? ?? const {}).entries)
+          entry.key.toString(): entry.value.toString(),
+      },
     );
   }
 }
