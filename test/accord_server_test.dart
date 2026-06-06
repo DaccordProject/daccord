@@ -46,14 +46,17 @@ void main() {
       expect(restored.server, session.server);
     });
 
-    test('defaults tokenType to User when absent', () {
+    test('defaults tokenType to Bearer when absent', () {
+      // Older Hive blobs predate the Bearer migration and omit the field
+      // entirely; we must restore them with the modern default so the gateway
+      // IDENTIFY uses the right scheme.
       final json = {
         'server': AccordServer.fromBaseUrl('https://x.test').toJson(),
         'token': 't',
         'userId': '1',
         'username': 'u',
       };
-      expect(AccordSession.fromJson(json).tokenType, 'User');
+      expect(AccordSession.fromJson(json).tokenType, 'Bearer');
     });
   });
 }
