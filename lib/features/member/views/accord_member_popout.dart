@@ -137,6 +137,56 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
   }
 
+  /// Sets or clears [member]'s nickname. An empty value resets to the display
+  /// name. Optimistically mirrors the result into the member cache.
+  Future<void> _editNickname(AccordMember member) async {
+    final controller = TextEditingController(text: member.nickname ?? '');
+    final next = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Change nickname'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nickname',
+            hintText: 'Leave empty to reset to their display name',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          if ((member.nickname ?? '').isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('Reset'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (next == null || !mounted) return;
+    _run(
+      (c) => c.members.update(
+        widget.spaceId,
+        widget.userId,
+        {'nickname': next.isEmpty ? null : next},
+      ),
+      failure: 'Failed to update nickname',
+      onSuccess: () {
+        member.nickname = next.isEmpty ? null : next;
+        ref
+            .read(accordMembersControllerProvider(widget.spaceId).notifier)
+            .upsertMember(member);
+      },
+    );
+  }
+
   void _toggleRole(AccordMember member, AccordRole role, bool add) {
     _run(
       (c) => add
@@ -240,6 +290,9 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         !isSelf && accordHasPermission(perms, AccordPermission.moderateMembers);
     final canManageRoles =
         accordHasPermission(perms, AccordPermission.manageRoles);
+    final canEditNickname = isSelf
+        ? accordHasPermission(perms, AccordPermission.changeNickname)
+        : accordHasPermission(perms, AccordPermission.manageNicknames);
     final timedOut = member?.timedOutUntil != null &&
         member!.timedOutUntil.toString().isNotEmpty;
 
@@ -346,6 +399,17 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                   enabled: !_busy,
                   onToggle: (role, add) => _toggleRole(member, role, add),
                 ),
+              if (canEditNickname && member != null) ...[
+                const SizedBox(height: 8),
+                _ActionTile(
+                  icon: Icons.badge_outlined,
+                  label: (member.nickname ?? '').isEmpty
+                      ? 'Set nickname'
+                      : 'Edit nickname',
+                  color: colors.dirtyWhite,
+                  onTap: _busy ? null : () => _editNickname(member),
+                ),
+              ],
               if (canKick || canBan || canTimeout) ...[
                 const SizedBox(height: 16),
                 Divider(color: colors.background, height: 1),

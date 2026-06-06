@@ -32,6 +32,20 @@ class _BanListState extends ConsumerState<_BanList> {
   List<_Ban>? _bans;
   String? _error;
   bool _busy = false;
+  String _query = '';
+  final Set<String> _selected = {};
+
+  /// Bans matching the current search query (by name or reason).
+  List<_Ban> get _filtered {
+    final all = _bans ?? const <_Ban>[];
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return all;
+    return all
+        .where((b) =>
+            b.name.toLowerCase().contains(q) ||
+            b.reason.toLowerCase().contains(q))
+        .toList();
+  }
 
   AccordClient? get _client => ref.read(
         accordAuthProvider
@@ -106,7 +120,50 @@ class _BanListState extends ConsumerState<_BanList> {
     }
     setState(() {
       _bans?.removeWhere((b) => b.userId == ban.userId);
+      _selected.remove(ban.userId);
       _busy = false;
+    });
+  }
+
+  Future<void> _bulkUnban() async {
+    final client = _client;
+    if (client == null || _selected.isEmpty) return;
+    final ids = _selected.toList();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unban members?'),
+        content: Text('Allow ${ids.length} member(s) back into the space?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Unban'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    final failed = <String>[];
+    for (final id in ids) {
+      final result = await client.bans.remove(widget.spaceId, id);
+      if (result.ok) {
+        _bans?.removeWhere((b) => b.userId == id);
+      } else {
+        failed.add(id);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _selected
+        ..clear()
+        ..addAll(failed);
+      _error = failed.isEmpty ? null : 'Failed to unban ${failed.length}';
     });
   }
 
@@ -162,6 +219,36 @@ class _BanListState extends ConsumerState<_BanList> {
                 ],
               ),
               const SizedBox(height: 8),
+              if (bans != null && bans.isNotEmpty)
+                TextField(
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    prefixIcon: Icon(Icons.search, size: 18),
+                    hintText: 'Search banned members',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (v) => setState(() => _query = v),
+                ),
+              if (_selected.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text('${_selected.length} selected',
+                        style: theme.textTheme.bodySmall),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: _busy ? null : () => setState(_selected.clear),
+                      child: const Text('Clear'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _bulkUnban,
+                      icon: const Icon(Icons.lock_open, size: 16),
+                      label: const Text('Unban selected'),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 8),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -184,35 +271,67 @@ class _BanListState extends ConsumerState<_BanList> {
                               ),
                             ),
                           )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: bans.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final ban = bans[index];
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  radius: 16,
-                                  child: Text(ban.initial),
-                                ),
-                                title: Text(ban.name,
-                                    style: theme.textTheme.titleSmall),
-                                subtitle: Text(
-                                  ban.reason.isEmpty
-                                      ? 'No reason given'
-                                      : ban.reason,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: TextButton.icon(
-                                  onPressed: _busy ? null : () => _unban(ban),
-                                  icon: const Icon(Icons.lock_open, size: 16),
-                                  label: const Text('Unban'),
+                        : Builder(builder: (context) {
+                            final filtered = _filtered;
+                            if (filtered.isEmpty) {
+                              return Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Center(
+                                  child: Text('No matching bans.',
+                                      style: theme.textTheme.bodyMedium),
                                 ),
                               );
-                            },
-                          ),
+                            }
+                            return ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final ban = filtered[index];
+                                final selected = _selected.contains(ban.userId);
+                                return ListTile(
+                                  leading: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Checkbox(
+                                        value: selected,
+                                        onChanged: _busy
+                                            ? null
+                                            : (v) => setState(() {
+                                                  if (v == true) {
+                                                    _selected.add(ban.userId);
+                                                  } else {
+                                                    _selected
+                                                        .remove(ban.userId);
+                                                  }
+                                                }),
+                                      ),
+                                      CircleAvatar(
+                                        radius: 16,
+                                        child: Text(ban.initial),
+                                      ),
+                                    ],
+                                  ),
+                                  title: Text(ban.name,
+                                      style: theme.textTheme.titleSmall),
+                                  subtitle: Text(
+                                    ban.reason.isEmpty
+                                        ? 'No reason given'
+                                        : ban.reason,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: TextButton.icon(
+                                    onPressed:
+                                        _busy ? null : () => _unban(ban),
+                                    icon: const Icon(Icons.lock_open, size: 16),
+                                    label: const Text('Unban'),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
               ),
             ],
           ),

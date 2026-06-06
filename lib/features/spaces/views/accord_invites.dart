@@ -27,6 +27,17 @@ const _expiryPresets = <({String label, int seconds})>[
   (label: 'Never', seconds: 0),
 ];
 
+/// Preset max-use limits, mapped to the `max_uses` count (0 = unlimited).
+const _maxUsesPresets = <({String label, int uses})>[
+  (label: 'No limit', uses: 0),
+  (label: '1 use', uses: 1),
+  (label: '5 uses', uses: 5),
+  (label: '10 uses', uses: 10),
+  (label: '25 uses', uses: 25),
+  (label: '50 uses', uses: 50),
+  (label: '100 uses', uses: 100),
+];
+
 class _InvitesDialog extends ConsumerStatefulWidget {
   const _InvitesDialog({required this.spaceId});
 
@@ -41,6 +52,8 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
   bool _creating = false;
   String? _error;
   int _expirySeconds = 86400;
+  int _maxUses = 0;
+  bool _temporary = false;
 
   @override
   void initState() {
@@ -77,7 +90,11 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     });
     final result = await client.invites.createSpace(
       widget.spaceId,
-      data: {'max_age': _expirySeconds},
+      data: {
+        'max_age': _expirySeconds,
+        'max_uses': _maxUses,
+        'temporary': _temporary,
+      },
     );
     if (!mounted) return;
     if (result.ok) {
@@ -155,7 +172,7 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
             ),
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Row(
                 children: [
                   Expanded(
@@ -178,6 +195,45 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                     ),
                   ),
                   const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: _maxUses,
+                      decoration: const InputDecoration(
+                        labelText: 'Max uses',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        for (final p in _maxUsesPresets)
+                          DropdownMenuItem(value: p.uses, child: Text(p.label)),
+                      ],
+                      onChanged: _creating
+                          ? null
+                          : (v) => setState(() => _maxUses = v ?? 0),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: CheckboxListTile(
+                      value: _temporary,
+                      onChanged: _creating
+                          ? null
+                          : (v) => setState(() => _temporary = v ?? false),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                      title: const Text('Temporary membership'),
+                      subtitle: Text('Kicked on disconnect unless given a role',
+                          style: theme.textTheme.bodySmall),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   FilledButton.icon(
                     onPressed: _creating ? null : _create,
                     icon: const Icon(Icons.add, size: 18),
