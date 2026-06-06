@@ -2,6 +2,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/views/connections_settings_page.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
@@ -18,15 +19,15 @@ import 'package:go_router/go_router.dart';
 class AccordSettingsScreen extends ConsumerWidget {
   const AccordSettingsScreen({super.key});
 
-  static const _accentSwatches = <int>[
-    0xFF2448BE, // blue (default)
-    0xFF5865F2, // blurple
-    0xFF57F287, // green
-    0xFFEB459E, // pink
-    0xFFFEE75C, // yellow
-    0xFFED4245, // red
-    0xFF88C0D0, // nord cyan
-    0xFFFF7A45, // orange
+  static const _accentSwatches = <(int, String)>[
+    (0xFF2448BE, 'Blue'),
+    (0xFF5865F2, 'Blurple'),
+    (0xFF57F287, 'Green'),
+    (0xFFEB459E, 'Pink'),
+    (0xFFFEE75C, 'Yellow'),
+    (0xFFED4245, 'Red'),
+    (0xFF88C0D0, 'Cyan'),
+    (0xFFFF7A45, 'Orange'),
   ];
 
   @override
@@ -89,10 +90,11 @@ class AccordSettingsScreen extends ConsumerWidget {
                   label: 'Default',
                   onTap: () => controller.setAccentColor(null),
                 ),
-                for (final argb in _accentSwatches)
+                for (final (argb, name) in _accentSwatches)
                   _AccentSwatch(
                     color: Color(argb),
                     selected: settings.accentColor == argb,
+                    label: name,
                     onTap: () => controller.setAccentColor(argb),
                   ),
               ],
@@ -123,7 +125,13 @@ class AccordSettingsScreen extends ConsumerWidget {
             onChanged: controller.setSoundsEnabled,
           ),
           ListTile(
-            title: const Text('Volume'),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Volume'),
+                Text('${(settings.sfxVolume * 100).round()}%'),
+              ],
+            ),
             subtitle: Slider(
               value: settings.sfxVolume,
               onChanged: settings.soundsEnabled
@@ -161,12 +169,21 @@ class AccordSettingsScreen extends ConsumerWidget {
             leading: Icon(Icons.edit_outlined, color: colors.dirtyWhite),
             title: const Text('Edit profile'),
             subtitle: const Text('Display name, bio, avatar'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => showAccordProfileEdit(context),
           ),
           ListTile(
             leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
             title: const Text('Switch account'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/switcher'),
+          ),
+          ListTile(
+            leading: Icon(Icons.link, color: colors.dirtyWhite),
+            title: const Text('Connections'),
+            subtitle: const Text('Linked third-party (OAuth) accounts'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showConnectionsSettings(context),
           ),
           ListTile(
             leading: Icon(Icons.privacy_tip_outlined, color: colors.dirtyWhite),
@@ -342,26 +359,28 @@ class _AccentSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    return Tooltip(
-      message: label ?? '',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: selected ? colors.dirtyWhite : Colors.transparent,
-              width: 3,
-            ),
+    final checkColor =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.light
+        ? Colors.black
+        : Colors.white;
+    final swatch = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? colors.dirtyWhite : Colors.transparent,
+            width: 3,
           ),
-          child: selected
-              ? const Icon(Icons.check, size: 18, color: Colors.white)
-              : null,
         ),
+        child: selected ? Icon(Icons.check, size: 18, color: checkColor) : null,
       ),
     );
+    final label = this.label;
+    if (label == null || label.isEmpty) return swatch;
+    return Tooltip(message: label, child: swatch);
   }
 }
