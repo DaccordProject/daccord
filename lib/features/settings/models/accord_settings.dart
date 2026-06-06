@@ -23,6 +23,10 @@ class AccordSettings {
     this.recentEmoji = const [],
     this.masterServerUrl = defaultMasterServerUrl,
     this.channelNotifications = const <String, String>{},
+    this.acceptedRuleSpaces = const <String>[],
+    this.acknowledgedNsfwChannels = const <String>[],
+    this.collapsedCategories = const <String, List<String>>{},
+    this.drafts = const <String, String>{},
   });
 
   /// Selected colour theme.
@@ -54,6 +58,23 @@ class AccordSettings {
   /// means "use the global default" (mention-only).
   final Map<String, String> channelNotifications;
 
+  /// Space IDs whose rules interstitial the user has accepted. Persisted so the
+  /// dialog isn't reshown on every join/restart. Mirrors the reference client's
+  /// `Config.set_rules_accepted` / `has_rules_accepted`.
+  final List<String> acceptedRuleSpaces;
+
+  /// Channel IDs whose age-restricted (NSFW) gate the user has confirmed.
+  /// Mirrors the reference client's persisted `nsfw_ack`.
+  final List<String> acknowledgedNsfwChannels;
+
+  /// Collapsed channel categories per space — `space_id → [category_id, ...]`.
+  /// Mirrors the reference client's `Config.set_category_collapsed`.
+  final Map<String, List<String>> collapsedCategories;
+
+  /// Unsent message drafts keyed by channel ID. Mirrors the reference client's
+  /// `Config.set_draft_text` / `get_draft_text`.
+  final Map<String, String> drafts;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -65,6 +86,10 @@ class AccordSettings {
     List<String>? recentEmoji,
     String? masterServerUrl,
     Map<String, String>? channelNotifications,
+    List<String>? acceptedRuleSpaces,
+    List<String>? acknowledgedNsfwChannels,
+    Map<String, List<String>>? collapsedCategories,
+    Map<String, String>? drafts,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -77,8 +102,27 @@ class AccordSettings {
       recentEmoji: recentEmoji ?? this.recentEmoji,
       masterServerUrl: masterServerUrl ?? this.masterServerUrl,
       channelNotifications: channelNotifications ?? this.channelNotifications,
+      acceptedRuleSpaces: acceptedRuleSpaces ?? this.acceptedRuleSpaces,
+      acknowledgedNsfwChannels:
+          acknowledgedNsfwChannels ?? this.acknowledgedNsfwChannels,
+      collapsedCategories: collapsedCategories ?? this.collapsedCategories,
+      drafts: drafts ?? this.drafts,
     );
   }
+
+  /// Whether the rules interstitial for [spaceId] has been accepted.
+  bool isRulesAccepted(String spaceId) => acceptedRuleSpaces.contains(spaceId);
+
+  /// Whether the NSFW gate for [channelId] has been acknowledged.
+  bool isNsfwAcknowledged(String channelId) =>
+      acknowledgedNsfwChannels.contains(channelId);
+
+  /// Whether [categoryId] is collapsed in [spaceId]'s channel list.
+  bool isCategoryCollapsed(String spaceId, String categoryId) =>
+      collapsedCategories[spaceId]?.contains(categoryId) ?? false;
+
+  /// The saved draft for [channelId], or empty string when none.
+  String draftFor(String channelId) => drafts[channelId] ?? '';
 
   /// Returns the level set for [channelId], or null when the user hasn't
   /// overridden it (callers fall back to the default mention-only behaviour).
@@ -95,6 +139,10 @@ class AccordSettings {
         'recentEmoji': recentEmoji,
         'masterServerUrl': masterServerUrl,
         'channelNotifications': channelNotifications,
+        'acceptedRuleSpaces': acceptedRuleSpaces,
+        'acknowledgedNsfwChannels': acknowledgedNsfwChannels,
+        'collapsedCategories': collapsedCategories,
+        'drafts': drafts,
       };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -115,6 +163,25 @@ class AccordSettings {
       channelNotifications: {
         for (final entry
             in (json['channelNotifications'] as Map? ?? const {}).entries)
+          entry.key.toString(): entry.value.toString(),
+      },
+      acceptedRuleSpaces: [
+        for (final e in (json['acceptedRuleSpaces'] as List? ?? const []))
+          e.toString(),
+      ],
+      acknowledgedNsfwChannels: [
+        for (final e in (json['acknowledgedNsfwChannels'] as List? ?? const []))
+          e.toString(),
+      ],
+      collapsedCategories: {
+        for (final entry
+            in (json['collapsedCategories'] as Map? ?? const {}).entries)
+          entry.key.toString(): [
+            for (final c in (entry.value as List? ?? const [])) c.toString(),
+          ],
+      },
+      drafts: {
+        for (final entry in (json['drafts'] as Map? ?? const {}).entries)
           entry.key.toString(): entry.value.toString(),
       },
     );
