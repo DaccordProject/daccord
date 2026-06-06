@@ -22,8 +22,9 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _search() async {
     final client = _client;
@@ -38,8 +39,9 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
     final data = result.data;
     setState(() {
       _busy = false;
-      _results =
-          data is List ? data.whereType<AccordUser>().toList() : <AccordUser>[];
+      _results = data is List
+          ? data.whereType<AccordUser>().toList()
+          : <AccordUser>[];
     });
   }
 
@@ -73,7 +75,7 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
     final results = _results;
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 600),
+        constraints: dialogConstraints(context, maxWidth: 460, maxHeight: 600),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -131,50 +133,54 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
               const SizedBox(height: 8),
               Flexible(
                 child: results == null
                     ? const SizedBox.shrink()
                     : results.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text('No users found',
-                                style: theme.textTheme.bodySmall),
-                          )
-                        : ListView(
-                            shrinkWrap: true,
-                            children: [
-                              for (final user in results)
-                                CheckboxListTile(
-                                  dense: true,
-                                  value: _selected.containsKey(user.id),
-                                  onChanged: _busy
-                                      ? null
-                                      : (checked) => setState(() {
-                                            if (checked == true) {
-                                              _selected[user.id] = user;
-                                            } else {
-                                              _selected.remove(user.id);
-                                            }
-                                          }),
-                                  title: Text(_userName(user),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
-                                ),
-                            ],
-                          ),
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No users found',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      )
+                    : ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final user in results)
+                            CheckboxListTile(
+                              dense: true,
+                              value: _selected.containsKey(user.id),
+                              onChanged: _busy
+                                  ? null
+                                  : (checked) => setState(() {
+                                      if (checked == true) {
+                                        _selected[user.id] = user;
+                                      } else {
+                                        _selected.remove(user.id);
+                                      }
+                                    }),
+                              title: Text(
+                                _userName(user),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                      ),
               ),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _busy ? null : () => Navigator.of(context).pop(),
+                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
@@ -215,8 +221,9 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _search() async {
     final client = _client;
@@ -230,9 +237,9 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
       _busy = false;
       _results = data is List
           ? data
-              .whereType<AccordUser>()
-              .where((u) => !widget.excludeIds.contains(u.id))
-              .toList()
+                .whereType<AccordUser>()
+                .where((u) => !widget.excludeIds.contains(u.id))
+                .toList()
           : <AccordUser>[];
     });
   }
@@ -244,7 +251,7 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
     final results = _results;
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 520),
+        constraints: dialogConstraints(context, maxWidth: 440, maxHeight: 520),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -279,31 +286,33 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
                 child: results == null
                     ? const SizedBox.shrink()
                     : results.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text('No users found',
-                                style: theme.textTheme.bodySmall),
-                          )
-                        : ListView(
-                            shrinkWrap: true,
-                            children: [
-                              for (final user in results)
-                                ListTile(
-                                  dense: true,
-                                  leading: CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: colors.darkGray,
-                                    child:
-                                        Text(_userName(user)[0].toUpperCase()),
-                                  ),
-                                  title: Text(_userName(user),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
-                                  onTap: () =>
-                                      Navigator.of(context).pop(user),
-                                ),
-                            ],
-                          ),
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No users found',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      )
+                    : ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final user in results)
+                            ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: colors.darkGray,
+                                child: Text(_userName(user)[0].toUpperCase()),
+                              ),
+                              title: Text(
+                                _userName(user),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () => Navigator.of(context).pop(user),
+                            ),
+                        ],
+                      ),
               ),
               const SizedBox(height: 12),
               Align(
@@ -332,8 +341,9 @@ class _RenameGroupDialog extends StatefulWidget {
 }
 
 class _RenameGroupDialogState extends State<_RenameGroupDialog> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initial);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
 
   @override
   void dispose() {
@@ -353,8 +363,7 @@ class _RenameGroupDialogState extends State<_RenameGroupDialog> {
           labelText: 'Group name',
           border: OutlineInputBorder(),
         ),
-        onSubmitted: (_) =>
-            Navigator.of(context).pop(_controller.text.trim()),
+        onSubmitted: (_) => Navigator.of(context).pop(_controller.text.trim()),
       ),
       actions: [
         TextButton(
@@ -388,22 +397,26 @@ class _GroupMembersDialog extends StatelessWidget {
     final theme = Theme.of(context);
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+        constraints: dialogConstraints(context, maxWidth: 420, maxHeight: 520),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Members (${members.length})',
-                  style: theme.textTheme.titleMedium),
+              Text(
+                'Members (${members.length})',
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: 12),
               Flexible(
                 child: members.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text('No other members',
-                            style: theme.textTheme.bodySmall),
+                        child: Text(
+                          'No other members',
+                          style: theme.textTheme.bodySmall,
+                        ),
                       )
                     : ListView(
                         shrinkWrap: true,
@@ -416,15 +429,20 @@ class _GroupMembersDialog extends StatelessWidget {
                                 backgroundColor: colors.darkGray,
                                 child: Text(_userName(user)[0].toUpperCase()),
                               ),
-                              title: Text(_userName(user),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
+                              title: Text(
+                                _userName(user),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               trailing: canRemove
                                   ? IconButton(
                                       tooltip: 'Remove',
                                       onPressed: () => onRemove(user),
-                                      icon: Icon(Icons.person_remove,
-                                          size: 20, color: colors.red),
+                                      icon: Icon(
+                                        Icons.person_remove,
+                                        size: 20,
+                                        color: colors.red,
+                                      ),
                                     )
                                   : null,
                             ),

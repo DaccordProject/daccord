@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -67,8 +68,11 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   }
 
   Future<void> _submit() async {
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
     if (client == null) return;
     setState(() {
       _busy = true;
@@ -99,7 +103,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     final colors = BonfireThemeExtension.of(context);
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
+        constraints: dialogConstraints(context, maxWidth: 440),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: _done
@@ -108,12 +112,17 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                   children: [
                     Icon(Icons.check_circle, color: colors.green, size: 40),
                     const SizedBox(height: 12),
-                    Text('Report submitted',
-                        style: theme.textTheme.titleMedium),
+                    Text(
+                      'Report submitted',
+                      style: theme.textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
-                    Text('Moderators will review it shortly.',
-                        style: theme.textTheme.bodySmall!
-                            .copyWith(color: colors.gray)),
+                    Text(
+                      'Moderators will review it shortly.',
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: colors.gray,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Align(
                       alignment: Alignment.centerRight,
@@ -128,8 +137,10 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Report ${widget.targetType}',
-                        style: theme.textTheme.titleMedium),
+                    Text(
+                      'Report ${widget.targetType}',
+                      style: theme.textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _category,
@@ -140,12 +151,14 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                       ),
                       items: [
                         for (final c in _reportCategories)
-                          DropdownMenuItem(value: c.value, child: Text(c.label)),
+                          DropdownMenuItem(
+                            value: c.value,
+                            child: Text(c.label),
+                          ),
                       ],
                       onChanged: _busy
                           ? null
-                          : (v) => setState(
-                              () => _category = v ?? _category),
+                          : (v) => setState(() => _category = v ?? _category),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -161,9 +174,12 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
-                      Text(_error!,
-                          style: theme.textTheme.bodySmall!
-                              .copyWith(color: colors.red)),
+                      Text(
+                        _error!,
+                        style: theme.textTheme.bodySmall!.copyWith(
+                          color: colors.red,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 20),
                     Row(
@@ -192,10 +208,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
 
 /// Opens the moderation reports panel for [spaceId]: lists open reports and lets
 /// a moderator resolve them. Gated by the caller (e.g. on `ban_members`).
-Future<void> showReportsPanel(
-  BuildContext context, {
-  required String spaceId,
-}) {
+Future<void> showReportsPanel(BuildContext context, {required String spaceId}) {
   return showDialog<void>(
     context: context,
     builder: (_) => _ReportsPanel(spaceId: spaceId),
@@ -236,15 +249,16 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   List<Map<String, dynamic>> _parse(Object? data) {
     final raw = data is List
         ? data
         : (data is Map && data['reports'] is List
-            ? data['reports'] as List
-            : const []);
+              ? data['reports'] as List
+              : const []);
     return [for (final e in raw) _asMap(e)];
   }
 
@@ -255,10 +269,10 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
       _loading = true;
       _error = null;
     });
-    final result = await client.reports.list(widget.spaceId, query: {
-      if (_status != null) 'status': _status,
-      'limit': _reportPageSize,
-    });
+    final result = await client.reports.list(
+      widget.spaceId,
+      query: {if (_status != null) 'status': _status, 'limit': _reportPageSize},
+    );
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
@@ -283,11 +297,14 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final lastId = _reports.last['id']?.toString();
     if (lastId == null) return;
     setState(() => _loadingMore = true);
-    final result = await client.reports.list(widget.spaceId, query: {
-      if (_status != null) 'status': _status,
-      'limit': _reportPageSize,
-      'before': lastId,
-    });
+    final result = await client.reports.list(
+      widget.spaceId,
+      query: {
+        if (_status != null) 'status': _status,
+        'limit': _reportPageSize,
+        'before': lastId,
+      },
+    );
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
@@ -298,8 +315,9 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     }
     final parsed = _parse(result.data);
     final existing = _reports.map((r) => r['id']?.toString()).toSet();
-    final fresh =
-        parsed.where((r) => !existing.contains(r['id']?.toString())).toList();
+    final fresh = parsed
+        .where((r) => !existing.contains(r['id']?.toString()))
+        .toList();
     setState(() {
       _loadingMore = false;
       _reports.addAll(fresh);
@@ -327,8 +345,11 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     return null;
   }
 
-  Future<void> _resolve(String reportId, String status,
-      {String? actionTaken}) async {
+  Future<void> _resolve(
+    String reportId,
+    String status, {
+    String? actionTaken,
+  }) async {
     final client = _client;
     if (client == null) return;
     final result = await client.reports.resolve(widget.spaceId, reportId, {
@@ -340,7 +361,9 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
       setState(() => _error = result.error?.toString() ?? 'Failed to resolve');
       return;
     }
-    setState(() => _reports.removeWhere((r) => r['id']?.toString() == reportId));
+    setState(
+      () => _reports.removeWhere((r) => r['id']?.toString() == reportId),
+    );
   }
 
   Future<bool> _confirm(String title, String message, String action) async {
@@ -370,8 +393,11 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final messageId = r['target_id']?.toString();
     final id = r['id']?.toString() ?? '';
     if (client == null || channelId == null || messageId == null) return;
-    if (!await _confirm('Delete message',
-        'Delete the reported message and action this report?', 'Delete')) {
+    if (!await _confirm(
+      'Delete message',
+      'Delete the reported message and action this report?',
+      'Delete',
+    )) {
       return;
     }
     setState(() => _busy = true);
@@ -379,8 +405,9 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.error?.toString() ?? 'Failed to delete message');
+      setState(
+        () => _error = result.error?.toString() ?? 'Failed to delete message',
+      );
       return;
     }
     await _resolve(id, 'actioned', actionTaken: 'delete_message');
@@ -391,8 +418,11 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final userId = _reportedUserId(r);
     final id = r['id']?.toString() ?? '';
     if (client == null || userId == null) return;
-    if (!await _confirm('Kick member',
-        'Kick the reported member and action this report?', 'Kick')) {
+    if (!await _confirm(
+      'Kick member',
+      'Kick the reported member and action this report?',
+      'Kick',
+    )) {
       return;
     }
     setState(() => _busy = true);
@@ -411,8 +441,11 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final userId = _reportedUserId(r);
     final id = r['id']?.toString() ?? '';
     if (client == null || userId == null) return;
-    if (!await _confirm('Ban member',
-        'Ban the reported member and action this report?', 'Ban')) {
+    if (!await _confirm(
+      'Ban member',
+      'Ban the reported member and action this report?',
+      'Ban',
+    )) {
       return;
     }
     setState(() => _busy = true);
@@ -434,7 +467,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540, maxHeight: 600),
+        constraints: dialogConstraints(context, maxWidth: 540, maxHeight: 600),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -442,7 +475,8 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
               decoration: BoxDecoration(
                 border: Border(
-                    bottom: BorderSide(color: colors.background, width: 1)),
+                  bottom: BorderSide(color: colors.background, width: 1),
+                ),
               ),
               child: Row(
                 children: [
@@ -480,53 +514,58 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _reports.isEmpty
-                      ? Center(
-                          child: Text('No reports',
-                              style: theme.textTheme.bodyMedium))
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: _reports.length + (_hasMore ? 1 : 0),
-                          separatorBuilder: (_, _) =>
-                              Divider(height: 12, color: colors.background),
-                          itemBuilder: (context, index) {
-                            if (index >= _reports.length) {
-                              return Center(
-                                child: _loadingMore
-                                    ? const Padding(
-                                        padding: EdgeInsets.all(8),
-                                        child: SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        ),
-                                      )
-                                    : TextButton(
-                                        onPressed: _loadMore,
-                                        child: const Text('Load more'),
+                  ? Center(
+                      child: Text(
+                        'No reports',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _reports.length + (_hasMore ? 1 : 0),
+                      separatorBuilder: (_, _) =>
+                          Divider(height: 12, color: colors.background),
+                      itemBuilder: (context, index) {
+                        if (index >= _reports.length) {
+                          return Center(
+                            child: _loadingMore
+                                ? const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                       ),
-                              );
-                            }
-                            return _ReportRow(
-                              report: _reports[index],
-                              busy: _busy,
-                              reportedUserId: _reportedUserId(_reports[index]),
-                              onDismiss: (id) => _resolve(id, 'dismissed'),
-                              onResolve: (id) =>
-                                  _resolve(id, 'resolved', actionTaken: 'none'),
-                              onDeleteMessage: _deleteMessage,
-                              onKick: _kick,
-                              onBan: _ban,
-                            );
-                          },
-                        ),
+                                    ),
+                                  )
+                                : TextButton(
+                                    onPressed: _loadMore,
+                                    child: const Text('Load more'),
+                                  ),
+                          );
+                        }
+                        return _ReportRow(
+                          report: _reports[index],
+                          busy: _busy,
+                          reportedUserId: _reportedUserId(_reports[index]),
+                          onDismiss: (id) => _resolve(id, 'dismissed'),
+                          onResolve: (id) =>
+                              _resolve(id, 'resolved', actionTaken: 'none'),
+                          onDeleteMessage: _deleteMessage,
+                          onKick: _kick,
+                          onBan: _ban,
+                        );
+                      },
+                    ),
             ),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                child: Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ),
           ],
         ),
@@ -577,8 +616,10 @@ class _ReportRow extends StatelessWidget {
             const SizedBox(width: 6),
             Text(category, style: theme.textTheme.titleSmall),
             const SizedBox(width: 6),
-            Text('· $targetType',
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+            Text(
+              '· $targetType',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
           ],
         ),
         if (description.isNotEmpty) ...[

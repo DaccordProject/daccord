@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -61,11 +62,15 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
-  String? get _baseUrl => ref.read(accordAuthProvider.select(
-      (s) => s is AccordAuthLoggedIn ? s.session.server.baseUrl : null));
+  String? get _baseUrl => ref.read(
+    accordAuthProvider.select(
+      (s) => s is AccordAuthLoggedIn ? s.session.server.baseUrl : null,
+    ),
+  );
 
   Future<void> _load() async {
     final client = _client;
@@ -115,8 +120,9 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     final result = await client.invites.delete(invite.code);
     if (!mounted) return;
     if (result.ok) {
-      setState(() => _invites =
-          _invites?.where((i) => i.code != invite.code).toList());
+      setState(
+        () => _invites = _invites?.where((i) => i.code != invite.code).toList(),
+      );
     } else {
       setState(() => _error = 'Failed to revoke invite');
     }
@@ -131,9 +137,9 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
   Future<void> _copy(AccordInvite invite) async {
     await Clipboard.setData(ClipboardData(text: _inviteLink(invite)));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invite link copied')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Invite link copied')));
   }
 
   String _usesLabel(AccordInvite invite) {
@@ -150,7 +156,7 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     final invites = _invites;
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 600),
+        constraints: dialogConstraints(context, maxWidth: 480, maxHeight: 600),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -186,12 +192,13 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                       items: [
                         for (final p in _expiryPresets)
                           DropdownMenuItem(
-                              value: p.seconds, child: Text(p.label)),
+                            value: p.seconds,
+                            child: Text(p.label),
+                          ),
                       ],
                       onChanged: _creating
                           ? null
-                          : (v) =>
-                              setState(() => _expirySeconds = v ?? 86400),
+                          : (v) => setState(() => _expirySeconds = v ?? 86400),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -229,8 +236,10 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                       title: const Text('Temporary membership'),
-                      subtitle: Text('Kicked on disconnect unless given a role',
-                          style: theme.textTheme.bodySmall),
+                      subtitle: Text(
+                        'Kicked on disconnect unless given a role',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -245,9 +254,12 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: theme.colorScheme.error)),
+                child: Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
               ),
             const Divider(height: 1),
             Flexible(
@@ -257,45 +269,53 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : invites.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Center(
-                            child: Text('No active invites',
-                                style: theme.textTheme.bodyMedium),
-                          ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.all(8),
-                          itemCount: invites.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final invite = invites[index];
-                            return ListTile(
-                              title: Text(invite.code,
-                                  style: theme.textTheme.titleSmall),
-                              subtitle: Text(_usesLabel(invite),
-                                  style: theme.textTheme.bodySmall),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Copy link',
-                                    onPressed: () => _copy(invite),
-                                    icon: const Icon(Icons.copy, size: 18),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Revoke',
-                                    onPressed: () => _revoke(invite),
-                                    icon: Icon(Icons.delete_outline,
-                                        size: 18,
-                                        color: theme.colorScheme.error),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                  ? Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Text(
+                          'No active invites',
+                          style: theme.textTheme.bodyMedium,
                         ),
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(8),
+                      itemCount: invites.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final invite = invites[index];
+                        return ListTile(
+                          title: Text(
+                            invite.code,
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          subtitle: Text(
+                            _usesLabel(invite),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Copy link',
+                                onPressed: () => _copy(invite),
+                                icon: const Icon(Icons.copy, size: 18),
+                              ),
+                              IconButton(
+                                tooltip: 'Revoke',
+                                onPressed: () => _revoke(invite),
+                                icon: Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

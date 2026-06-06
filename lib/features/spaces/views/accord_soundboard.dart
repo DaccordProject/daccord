@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -42,8 +43,9 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _load() async {
     final client = _client;
@@ -82,8 +84,10 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
       _busy = true;
       _error = null;
     });
-    final result = await client.soundboard
-        .create(widget.spaceId, {'name': name, 'audio': dataUri});
+    final result = await client.soundboard.create(widget.spaceId, {
+      'name': name,
+      'audio': dataUri,
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (result.ok) {
@@ -105,8 +109,9 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (result.ok) {
-      setState(() => _sounds =
-          (_sounds ?? const []).where((s) => s.id != id).toList());
+      setState(
+        () => _sounds = (_sounds ?? const []).where((s) => s.id != id).toList(),
+      );
     } else {
       setState(() => _error = 'Failed to remove sound');
     }
@@ -121,7 +126,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
+        constraints: dialogConstraints(context, maxWidth: 480, maxHeight: 520),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -133,8 +138,10 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
                   Icon(Icons.graphic_eq, size: 20, color: colors.dirtyWhite),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('Soundboard',
-                        style: theme.textTheme.titleMedium),
+                    child: Text(
+                      'Soundboard',
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                   if (widget.canManage)
                     IconButton(
@@ -154,31 +161,35 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
                 child: sounds == null
                     ? const Center(child: CircularProgressIndicator())
                     : sounds.isEmpty
-                        ? Center(
-                            child: Text('No sounds yet',
-                                style: theme.textTheme.bodyMedium))
-                        : GridView.count(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: 1.1,
-                            shrinkWrap: true,
-                            children: [
-                              for (final sound in sounds)
-                                _SoundTile(
-                                  sound: sound,
-                                  canManage: widget.canManage,
-                                  onPlay: () => _play(sound),
-                                  onDelete: () => _delete(sound),
-                                ),
-                            ],
-                          ),
+                    ? Center(
+                        child: Text(
+                          'No sounds yet',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      )
+                    : GridView.count(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 1.1,
+                        shrinkWrap: true,
+                        children: [
+                          for (final sound in sounds)
+                            _SoundTile(
+                              sound: sound,
+                              canManage: widget.canManage,
+                              onPlay: () => _play(sound),
+                              onDelete: () => _delete(sound),
+                            ),
+                        ],
+                      ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
             ],
           ),
@@ -217,16 +228,17 @@ class _SoundTile extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.play_circle_fill,
-                      size: 32, color: colors.primary),
+                  Icon(Icons.play_circle_fill, size: 32, color: colors.primary),
                   const SizedBox(height: 6),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(sound.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall),
+                    child: Text(
+                      sound.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ),
                 ],
               ),

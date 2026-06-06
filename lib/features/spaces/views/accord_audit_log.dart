@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -56,8 +57,9 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   void _subscribeLive() {
     final client = _client;
@@ -80,8 +82,10 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
       _loading = true;
       _error = null;
     });
-    final result =
-        await client.auditLogs.list(widget.spaceId, query: {'limit': _pageSize});
+    final result = await client.auditLogs.list(
+      widget.spaceId,
+      query: {'limit': _pageSize},
+    );
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
@@ -104,8 +108,10 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
     final client = _client;
     if (client == null || _loadingMore || !_hasMore || _entries.isEmpty) return;
     setState(() => _loadingMore = true);
-    final result = await client.auditLogs.list(widget.spaceId,
-        query: {'limit': _pageSize, 'before': _entries.last.id});
+    final result = await client.auditLogs.list(
+      widget.spaceId,
+      query: {'limit': _pageSize, 'before': _entries.last.id},
+    );
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
@@ -155,23 +161,24 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
     final theme = Theme.of(context);
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
     final users = ref.watch(accordUsersControllerProvider);
-    final ensureUser =
-        ref.read(accordUsersControllerProvider.notifier).ensure;
+    final ensureUser = ref.read(accordUsersControllerProvider.notifier).ensure;
 
     // Distinct action types present, for the filter dropdown.
     final actionTypes = <String>{
       for (final e in _entries)
-        if (e.actionType.isNotEmpty) e.actionType
-    }.toList()
-      ..sort();
+        if (e.actionType.isNotEmpty) e.actionType,
+    }.toList()..sort();
 
     final query = _userQuery.trim().toLowerCase();
     final visible = _entries.where((e) {
       if (_actionFilter != null && e.actionType != _actionFilter) return false;
       if (query.isNotEmpty) {
-        final actor = accordAuthorName(e.userId,
-                members: members, users: users, ensure: ensureUser)
-            .toLowerCase();
+        final actor = accordAuthorName(
+          e.userId,
+          members: members,
+          users: users,
+          ensure: ensureUser,
+        ).toLowerCase();
         if (!actor.contains(query)) return false;
       }
       return true;
@@ -179,7 +186,7 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
 
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 640),
+        constraints: dialogConstraints(context, maxWidth: 520, maxHeight: 640),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -219,10 +226,14 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
                       ),
                       items: [
                         const DropdownMenuItem(
-                            value: null, child: Text('All actions')),
+                          value: null,
+                          child: Text('All actions'),
+                        ),
                         for (final a in actionTypes)
                           DropdownMenuItem(
-                              value: a, child: Text(_actionLabel(a))),
+                            value: a,
+                            child: Text(_actionLabel(a)),
+                          ),
                       ],
                       onChanged: (v) => setState(() => _actionFilter = v),
                     ),
@@ -248,65 +259,75 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
                   ? Padding(
                       padding: const EdgeInsets.all(32),
                       child: Center(
-                          child: Text(_error!,
-                              style: theme.textTheme.bodyMedium)),
+                        child: Text(_error!, style: theme.textTheme.bodyMedium),
+                      ),
                     )
                   : _loading
-                      ? const Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      : visible.isEmpty
-                          ? Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Center(
-                                  child: Text('No matching entries',
-                                      style: theme.textTheme.bodyMedium)),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.all(8),
-                              itemCount: visible.length + (_hasMore ? 1 : 0),
-                              separatorBuilder: (_, _) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                if (index >= visible.length) {
-                                  return Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Center(
-                                      child: _loadingMore
-                                          ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                            )
-                                          : TextButton(
-                                              onPressed: _loadMore,
-                                              child: const Text('Load more'),
-                                            ),
+                  ? const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : visible.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Text(
+                          'No matching entries',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: visible.length + (_hasMore ? 1 : 0),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        if (index >= visible.length) {
+                          return Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Center(
+                              child: _loadingMore
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : TextButton(
+                                      onPressed: _loadMore,
+                                      child: const Text('Load more'),
                                     ),
-                                  );
-                                }
-                                final entry = visible[index];
-                                final actorName = accordAuthorName(entry.userId,
-                                    members: members,
-                                    users: users,
-                                    ensure: ensureUser);
-                                return ListTile(
-                                  leading: Icon(Icons.bolt,
-                                      size: 18, color: colors.gray),
-                                  title: Text(_actionLabel(entry.actionType),
-                                      style: theme.textTheme.titleSmall),
-                                  subtitle: Text(
-                                    entry.reason.isEmpty
-                                        ? 'by $actorName'
-                                        : 'by $actorName — ${entry.reason}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                );
-                              },
                             ),
+                          );
+                        }
+                        final entry = visible[index];
+                        final actorName = accordAuthorName(
+                          entry.userId,
+                          members: members,
+                          users: users,
+                          ensure: ensureUser,
+                        );
+                        return ListTile(
+                          leading: Icon(
+                            Icons.bolt,
+                            size: 18,
+                            color: colors.gray,
+                          ),
+                          title: Text(
+                            _actionLabel(entry.actionType),
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          subtitle: Text(
+                            entry.reason.isEmpty
+                                ? 'by $actorName'
+                                : 'by $actorName — ${entry.reason}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

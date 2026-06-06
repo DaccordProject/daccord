@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -64,9 +65,8 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
   String? _error;
 
   AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   List<AccordRole> get _roles {
     final space = ref
@@ -80,12 +80,14 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
         .read(spacesControllerProvider)
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
     final currentUserId = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
     );
     final isAdmin = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false,
+      ),
     );
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
     return accordMyHighestRolePosition(
@@ -100,7 +102,8 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
   /// A role is editable when it sits strictly below the user's highest role and
   /// isn't integration-managed. `@everyone` (position 0) is editable for its
   /// permissions but can't be deleted or reordered.
-  bool _canEdit(AccordRole role) => !role.managed && role.position < _myHighest();
+  bool _canEdit(AccordRole role) =>
+      !role.managed && role.position < _myHighest();
 
   Future<T?> _run<T>(
     Future<RestResult> Function(AccordClient client) action, {
@@ -159,7 +162,9 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
   /// Enters "preview as role" for [role] and closes this dialog so the user
   /// sees the app gated as that role would (with the exit banner up top).
   void _previewRole(AccordRole role) {
-    ref.read(rolePreviewControllerProvider.notifier).enter(
+    ref
+        .read(rolePreviewControllerProvider.notifier)
+        .enter(
           RolePreview(
             spaceId: widget.spaceId,
             roleId: role.id,
@@ -220,7 +225,9 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
     if (updated != null) {
       final roles = updated.whereType<AccordRole>().toList();
       if (roles.isNotEmpty) {
-        ref.read(spacesControllerProvider.notifier).setRoles(widget.spaceId, roles);
+        ref
+            .read(spacesControllerProvider.notifier)
+            .setRoles(widget.spaceId, roles);
         return;
       }
     }
@@ -229,9 +236,9 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
       final role = _roles.firstWhereOrNull((r) => r.id == entry['id']);
       if (role != null) role.position = entry['position'] as int;
     }
-    ref
-        .read(spacesControllerProvider.notifier)
-        .setRoles(widget.spaceId, [..._roles]);
+    ref.read(spacesControllerProvider.notifier).setRoles(widget.spaceId, [
+      ..._roles,
+    ]);
   }
 
   @override
@@ -251,7 +258,7 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
+        constraints: dialogConstraints(context, maxWidth: 720, maxHeight: 560),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -276,8 +283,10 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
                   Expanded(
                     child: selected == null
                         ? Center(
-                            child: Text('Select a role to edit',
-                                style: Theme.of(context).textTheme.bodyMedium),
+                            child: Text(
+                              'Select a role to edit',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
                           )
                         : _RoleEditorPane(
                             key: ValueKey(selected.id),
@@ -297,11 +306,12 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Text(_error!,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall!
-                        .copyWith(color: colors.red)),
+                child: Text(
+                  _error!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ),
           ],
         ),
@@ -410,8 +420,7 @@ class _RoleListPane extends StatelessWidget {
               onTap: () => onSelect(everyone.id),
             ),
           ),
-        if (everyone != null)
-          Divider(height: 1, color: colors.background),
+        if (everyone != null) Divider(height: 1, color: colors.background),
       ],
     );
   }
@@ -454,9 +463,11 @@ class _RoleListTile extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(role.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium),
+                child: Text(
+                  role.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ),
               if (draggable && index != null)
                 ReorderableDragStartListener(
@@ -556,9 +567,13 @@ class _RoleEditorPaneState extends State<_RoleEditorPane> {
                 style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
             ),
-          Text('ROLE NAME',
-              style: theme.textTheme.labelSmall!
-                  .copyWith(color: colors.gray, fontWeight: FontWeight.bold)),
+          Text(
+            'ROLE NAME',
+            style: theme.textTheme.labelSmall!.copyWith(
+              color: colors.gray,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 6),
           TextField(
             controller: _name,
@@ -574,9 +589,13 @@ class _RoleEditorPaneState extends State<_RoleEditorPane> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('COLOR',
-              style: theme.textTheme.labelSmall!
-                  .copyWith(color: colors.gray, fontWeight: FontWeight.bold)),
+          Text(
+            'COLOR',
+            style: theme.textTheme.labelSmall!.copyWith(
+              color: colors.gray,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
@@ -594,25 +613,31 @@ class _RoleEditorPaneState extends State<_RoleEditorPane> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _hoist,
-            onChanged:
-                enabled ? (v) => setState(() => _hoist = v) : null,
+            onChanged: enabled ? (v) => setState(() => _hoist = v) : null,
             title: const Text('Display separately'),
-            subtitle: Text('Show members with this role in their own section',
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+            subtitle: Text(
+              'Show members with this role in their own section',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _mentionable,
-            onChanged:
-                enabled ? (v) => setState(() => _mentionable = v) : null,
+            onChanged: enabled ? (v) => setState(() => _mentionable = v) : null,
             title: const Text('Allow @mention'),
-            subtitle: Text('Anyone can @mention this role',
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+            subtitle: Text(
+              'Anyone can @mention this role',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
           ),
           const SizedBox(height: 8),
-          Text('PERMISSIONS',
-              style: theme.textTheme.labelSmall!
-                  .copyWith(color: colors.gray, fontWeight: FontWeight.bold)),
+          Text(
+            'PERMISSIONS',
+            style: theme.textTheme.labelSmall!.copyWith(
+              color: colors.gray,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 6),
           for (final perm in AccordPermission.all())
             _PermissionTile(
@@ -687,8 +712,8 @@ class _ColorSwatch extends StatelessWidget {
         child: color == null
             ? Icon(Icons.format_color_reset, size: 16, color: colors.gray)
             : (selected
-                ? const Icon(Icons.check, size: 16, color: Colors.white)
-                : null),
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                  : null),
       ),
     );
   }
@@ -725,8 +750,10 @@ class _PermissionTile extends StatelessWidget {
       title: Text(_label, style: theme.textTheme.bodyMedium),
       subtitle: description.isEmpty
           ? null
-          : Text(description,
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+          : Text(
+              description,
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
     );
   }
 }

@@ -321,7 +321,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
     final results = _results;
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 520),
+        constraints: dialogConstraints(context, maxWidth: 440, maxHeight: 520),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(

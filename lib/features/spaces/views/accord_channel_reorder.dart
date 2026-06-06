@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
@@ -44,9 +45,8 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
   final Set<String> _selected = {};
 
   AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   @override
   void initState() {
@@ -140,10 +140,14 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
         final parentChanged = channel.parentId != entry.parentId;
         final positionChanged = _pos(channel) != pos;
         if (parentChanged || positionChanged) {
-          updates.add(_Update(channel.id,
+          updates.add(
+            _Update(
+              channel.id,
               position: pos,
               parentId: parentChanged ? entry.parentId : null,
-              includeParent: parentChanged));
+              includeParent: parentChanged,
+            ),
+          );
         }
       }
     }
@@ -166,8 +170,9 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
 
     // Mirror successful updates into the channel cache. The gateway echo will
     // typically arrive too, but updating optimistically keeps the UI snappy.
-    final notifier =
-        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+    final notifier = ref.read(
+      accordChannelsControllerProvider(widget.spaceId).notifier,
+    );
     for (final channel in updated) {
       notifier.upsertChannel(channel);
     }
@@ -183,7 +188,8 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete channels'),
         content: Text(
-            'Delete ${ids.length} channel(s)? This cannot be undone.'),
+          'Delete ${ids.length} channel(s)? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -191,7 +197,8 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Delete'),
           ),
@@ -203,8 +210,9 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
       _busy = true;
       _error = null;
     });
-    final notifier =
-        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+    final notifier = ref.read(
+      accordChannelsControllerProvider(widget.spaceId).notifier,
+    );
     final failed = <String>[];
     for (final id in ids) {
       final result = await client.channels.delete(id);
@@ -232,7 +240,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     final colors = BonfireThemeExtension.of(context);
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 620),
+        constraints: dialogConstraints(context, maxWidth: 460, maxHeight: 620),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -241,22 +249,29 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
             children: [
               Row(
                 children: [
-                  Icon(_selecting ? Icons.checklist : Icons.reorder,
-                      size: 18, color: colors.dirtyWhite),
+                  Icon(
+                    _selecting ? Icons.checklist : Icons.reorder,
+                    size: 18,
+                    color: colors.dirtyWhite,
+                  ),
                   const SizedBox(width: 8),
-                  Text(_selecting ? 'Delete channels' : 'Reorder channels',
-                      style: theme.textTheme.titleMedium),
+                  Text(
+                    _selecting ? 'Delete channels' : 'Reorder channels',
+                    style: theme.textTheme.titleMedium,
+                  ),
                   const Spacer(),
                   IconButton(
                     tooltip: _selecting ? 'Done selecting' : 'Select to delete',
                     onPressed: _busy
                         ? null
                         : () => setState(() {
-                              _selecting = !_selecting;
-                              if (!_selecting) _selected.clear();
-                            }),
-                    icon: Icon(_selecting ? Icons.check : Icons.delete_outline,
-                        size: 18),
+                            _selecting = !_selecting;
+                            if (!_selecting) _selected.clear();
+                          }),
+                    icon: Icon(
+                      _selecting ? Icons.check : Icons.delete_outline,
+                      size: 18,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Close',
@@ -272,15 +287,16 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                 _selecting
                     ? 'Select channels to delete. This cannot be undone.'
                     : 'Drag categories and channels into your preferred order. '
-                        'Drop a channel onto a category to move it into that '
-                        'category.',
+                          'Drop a channel onto a category to move it into that '
+                          'category.',
                 style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
               const SizedBox(height: 8),
               Flexible(
@@ -296,12 +312,12 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                             onChanged: _busy
                                 ? null
                                 : (v) => setState(() {
-                                      if (v == true) {
-                                        _selected.add(entry.channel.id);
-                                      } else {
-                                        _selected.remove(entry.channel.id);
-                                      }
-                                    }),
+                                    if (v == true) {
+                                      _selected.add(entry.channel.id);
+                                    } else {
+                                      _selected.remove(entry.channel.id);
+                                    }
+                                  }),
                             controlAffinity: ListTileControlAffinity.leading,
                             contentPadding: EdgeInsets.only(
                               left: entry.isCategory ? 4 : 24,
@@ -311,10 +327,10 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                               entry.isCategory
                                   ? Icons.folder_outlined
                                   : (entry.channel.type == 'voice'
-                                      ? Icons.volume_up
-                                      : (entry.channel.type == 'forum'
-                                          ? Icons.forum
-                                          : Icons.tag)),
+                                        ? Icons.volume_up
+                                        : (entry.channel.type == 'forum'
+                                              ? Icons.forum
+                                              : Icons.tag)),
                               size: 16,
                               color: colors.dirtyWhite,
                             ),
@@ -347,10 +363,10 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                               entry.isCategory
                                   ? Icons.folder_outlined
                                   : (entry.channel.type == 'voice'
-                                      ? Icons.volume_up
-                                      : (entry.channel.type == 'forum'
-                                          ? Icons.forum
-                                          : Icons.tag)),
+                                        ? Icons.volume_up
+                                        : (entry.channel.type == 'forum'
+                                              ? Icons.forum
+                                              : Icons.tag)),
                               size: 16,
                               color: colors.dirtyWhite,
                             ),
@@ -383,8 +399,11 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                   if (_selecting)
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
-                          backgroundColor: theme.colorScheme.error),
-                      onPressed: _busy || _selected.isEmpty ? null : _bulkDelete,
+                        backgroundColor: theme.colorScheme.error,
+                      ),
+                      onPressed: _busy || _selected.isEmpty
+                          ? null
+                          : _bulkDelete,
                       icon: _busy
                           ? const SizedBox(
                               width: 16,
@@ -416,9 +435,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
 }
 
 class _Entry {
-  _Entry.category(this.channel)
-      : isCategory = true,
-        parentId = null;
+  _Entry.category(this.channel) : isCategory = true, parentId = null;
   _Entry.channel(this.channel, {required this.parentId}) : isCategory = false;
 
   final AccordChannel channel;

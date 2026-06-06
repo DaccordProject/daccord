@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -45,16 +46,20 @@ class _TransferOwnershipDialogState
   }
 
   Future<void> _submit() async {
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
     final target = _selectedId;
     if (client == null || target == null) return;
     setState(() {
       _busy = true;
       _error = null;
     });
-    final result =
-        await client.spaces.update(widget.spaceId, {'owner_id': target});
+    final result = await client.spaces.update(widget.spaceId, {
+      'owner_id': target,
+    });
     if (!mounted) return;
     final space = result.data;
     if (result.ok && space is AccordSpace) {
@@ -73,22 +78,31 @@ class _TransferOwnershipDialogState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final currentUserId = ref.watch(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
+    final currentUserId = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
+    );
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
-    final candidates = (members?.values ?? const <AccordMember>[])
-        .where((m) => m.userId != currentUserId)
-        .toList()
-      ..sort((a, b) => accordMemberName(a, fallback: 'Unknown')
-          .toLowerCase()
-          .compareTo(accordMemberName(b, fallback: 'Unknown').toLowerCase()));
-    final canSubmit = _selectedId != null &&
+    final candidates =
+        (members?.values ?? const <AccordMember>[])
+            .where((m) => m.userId != currentUserId)
+            .toList()
+          ..sort(
+            (a, b) => accordMemberName(a, fallback: 'Unknown')
+                .toLowerCase()
+                .compareTo(
+                  accordMemberName(b, fallback: 'Unknown').toLowerCase(),
+                ),
+          );
+    final canSubmit =
+        _selectedId != null &&
         _confirm.text.trim().toUpperCase() == 'TRANSFER' &&
         !_busy;
 
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 560),
+        constraints: dialogConstraints(context, maxWidth: 440, maxHeight: 560),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -106,8 +120,10 @@ class _TransferOwnershipDialogState
                 child: candidates.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text('No other members to transfer to.',
-                            style: theme.textTheme.bodyMedium),
+                        child: Text(
+                          'No other members to transfer to.',
+                          style: theme.textTheme.bodyMedium,
+                        ),
                       )
                     : ListView(
                         shrinkWrap: true,
@@ -126,12 +142,13 @@ class _TransferOwnershipDialogState
                                     : colors.gray,
                               ),
                               title: Text(
-                                  accordMemberName(m, fallback: 'Unknown'),
-                                  overflow: TextOverflow.ellipsis),
+                                accordMemberName(m, fallback: 'Unknown'),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               onTap: _busy
                                   ? null
                                   : () =>
-                                      setState(() => _selectedId = m.userId),
+                                        setState(() => _selectedId = m.userId),
                             ),
                         ],
                       ),
@@ -149,17 +166,19 @@ class _TransferOwnershipDialogState
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _busy ? null : () => Navigator.of(context).maybePop(),
+                    onPressed: _busy
+                        ? null
+                        : () => Navigator.of(context).maybePop(),
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),

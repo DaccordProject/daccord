@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
@@ -44,8 +45,12 @@ String? accordSpaceBannerUrl(AccordSpace space, String? cdnUrl) {
   if (banner.contains('/') || banner.startsWith('http')) {
     return AccordCDN.resolvePath(banner, cdnUrl: cdn);
   }
-  return AccordCDN.spaceBanner(space.id, banner,
-      format: AccordCDN.autoFormat(banner), cdnUrl: cdn);
+  return AccordCDN.spaceBanner(
+    space.id,
+    banner,
+    format: AccordCDN.autoFormat(banner),
+    cdnUrl: cdn,
+  );
 }
 
 /// Resolves a space's `icon` reference to an absolute CDN URL, or null when
@@ -57,8 +62,12 @@ String? accordSpaceIconUrl(AccordSpace space, String? cdnUrl) {
   if (icon.contains('/') || icon.startsWith('http')) {
     return AccordCDN.resolvePath(icon, cdnUrl: cdn);
   }
-  return AccordCDN.spaceIcon(space.id, icon,
-      format: AccordCDN.autoFormat(icon), cdnUrl: cdn);
+  return AccordCDN.spaceIcon(
+    space.id,
+    icon,
+    format: AccordCDN.autoFormat(icon),
+    cdnUrl: cdn,
+  );
 }
 
 /// Space-level option presets, matching the reference client's space-settings
@@ -140,21 +149,22 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   }
 
   AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Set<String> _perms() {
     final space = ref
         .read(spacesControllerProvider)
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
     final currentUserId = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
     );
     final isAdmin = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false,
+      ),
     );
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
     final preview = ref.read(rolePreviewControllerProvider);
@@ -164,8 +174,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       roles: space?.roles ?? const <AccordRole>[],
       currentUserId: currentUserId ?? '',
       currentUserIsAdmin: isAdmin,
-      previewRoleId:
-          preview?.spaceId == widget.spaceId ? preview?.roleId : null,
+      previewRoleId: preview?.spaceId == widget.spaceId
+          ? preview?.roleId
+          : null,
     );
   }
 
@@ -267,16 +278,17 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
-          final canDelete =
-              confirmController.text.trim() == spaceName.trim();
+          final canDelete = confirmController.text.trim() == spaceName.trim();
           return AlertDialog(
             title: const Text('Delete space'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('This permanently deletes "$spaceName" and all of its '
-                    'channels and messages. This cannot be undone.'),
+                Text(
+                  'This permanently deletes "$spaceName" and all of its '
+                  'channels and messages. This cannot be undone.',
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: confirmController,
@@ -298,9 +310,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(ctx).colorScheme.error),
-                onPressed:
-                    canDelete ? () => Navigator.of(ctx).pop(true) : null,
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                ),
+                onPressed: canDelete ? () => Navigator.of(ctx).pop(true) : null,
                 child: const Text('Delete'),
               ),
             ],
@@ -333,8 +345,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   Future<void> _editOwnNickname() async {
     final client = _client;
     final currentUserId = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
     );
     if (client == null || currentUserId == null) return;
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
@@ -375,16 +388,15 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       _busy = true;
       _error = null;
     });
-    final result = await client.members.update(
-      widget.spaceId,
-      currentUserId,
-      {'nickname': next.isEmpty ? null : next},
-    );
+    final result = await client.members.update(widget.spaceId, currentUserId, {
+      'nickname': next.isEmpty ? null : next,
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.error?.toString() ?? 'Failed to update nickname');
+      setState(
+        () => _error = result.error?.toString() ?? 'Failed to update nickname',
+      );
       return;
     }
     final updated = result.data;
@@ -419,54 +431,75 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final space = ref.watch(
-      spacesControllerProvider
-          .select((s) => s?.firstWhereOrNull((sp) => sp.id == widget.spaceId)),
+      spacesControllerProvider.select(
+        (s) => s?.firstWhereOrNull((sp) => sp.id == widget.spaceId),
+      ),
     );
     final cdnUrl = ref.watch(
       accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
     );
     final perms = _perms();
-    final canManageSpace =
-        accordHasPermission(perms, AccordPermission.manageSpace);
-    final canManageRoles =
-        accordHasPermission(perms, AccordPermission.manageRoles);
-    final canViewAuditLog =
-        accordHasPermission(perms, AccordPermission.viewAuditLog);
-    final currentUserId = ref.watch(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
-    final isOwner = space != null &&
+    final canManageSpace = accordHasPermission(
+      perms,
+      AccordPermission.manageSpace,
+    );
+    final canManageRoles = accordHasPermission(
+      perms,
+      AccordPermission.manageRoles,
+    );
+    final canViewAuditLog = accordHasPermission(
+      perms,
+      AccordPermission.viewAuditLog,
+    );
+    final currentUserId = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
+    );
+    final isOwner =
+        space != null &&
         currentUserId != null &&
         space.ownerId == currentUserId;
-    final canModerate =
-        accordHasPermission(perms, AccordPermission.banMembers);
-    final canManageEmojis =
-        accordHasPermission(perms, AccordPermission.manageEmojis);
-    final canUseSoundboard =
-        accordHasPermission(perms, AccordPermission.useSoundboard);
-    final canManageSoundboard =
-        accordHasPermission(perms, AccordPermission.manageSoundboard);
-    final bannerUrl = space == null ? null : accordSpaceBannerUrl(space, cdnUrl);
+    final canModerate = accordHasPermission(perms, AccordPermission.banMembers);
+    final canManageEmojis = accordHasPermission(
+      perms,
+      AccordPermission.manageEmojis,
+    );
+    final canUseSoundboard = accordHasPermission(
+      perms,
+      AccordPermission.useSoundboard,
+    );
+    final canManageSoundboard = accordHasPermission(
+      perms,
+      AccordPermission.manageSoundboard,
+    );
+    final bannerUrl = space == null
+        ? null
+        : accordSpaceBannerUrl(space, cdnUrl);
     if (space != null) _ensureInitialized(space);
     final iconUrl = space == null ? null : accordSpaceIconUrl(space, cdnUrl);
     // Text channels usable as rules/system targets. Reconcile the drafted ids
     // against the live list so a stale id falls back to "None".
-    final textChannels = (ref.watch(
-                accordChannelsControllerProvider(widget.spaceId)) ??
-            const <AccordChannel>[])
-        .where((c) => c.type == 'text')
-        .toList();
+    final textChannels =
+        (ref.watch(accordChannelsControllerProvider(widget.spaceId)) ??
+                const <AccordChannel>[])
+            .where((c) => c.type == 'text')
+            .toList();
     final channelIds = textChannels.map((c) => c.id).toSet();
-    final rulesValue =
-        channelIds.contains(_rulesChannelId) ? _rulesChannelId : null;
-    final systemValue =
-        channelIds.contains(_systemChannelId) ? _systemChannelId : null;
+    final rulesValue = channelIds.contains(_rulesChannelId)
+        ? _rulesChannelId
+        : null;
+    final systemValue = channelIds.contains(_systemChannelId)
+        ? _systemChannelId
+        : null;
 
     return Dialog(
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
+        constraints: dialogConstraints(context, maxWidth: 640),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -476,9 +509,11 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(space?.name ?? 'Space settings',
-                        style: theme.textTheme.titleMedium,
-                        overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      space?.name ?? 'Space settings',
+                      style: theme.textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Close',
@@ -488,9 +523,13 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text('BANNER',
-                  style: theme.textTheme.labelSmall!.copyWith(
-                      color: colors.gray, fontWeight: FontWeight.bold)),
+              Text(
+                'BANNER',
+                style: theme.textTheme.labelSmall!.copyWith(
+                  color: colors.gray,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
@@ -500,15 +539,20 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   color: colors.darkGray,
                   child: bannerUrl == null
                       ? Center(
-                          child: Icon(Icons.image_outlined,
-                              color: colors.gray, size: 32),
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: colors.gray,
+                            size: 32,
+                          ),
                         )
                       : CachedNetworkImage(
                           imageUrl: bannerUrl,
                           fit: BoxFit.cover,
                           errorWidget: (_, _, _) => Center(
-                            child: Icon(Icons.broken_image_outlined,
-                                color: colors.gray),
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: colors.gray,
+                            ),
                           ),
                         ),
                 ),
@@ -526,8 +570,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                     if (bannerUrl != null)
                       TextButton(
                         onPressed: _busy ? null : _removeBanner,
-                        style:
-                            TextButton.styleFrom(foregroundColor: colors.red),
+                        style: TextButton.styleFrom(
+                          foregroundColor: colors.red,
+                        ),
                         child: const Text('Remove'),
                       ),
                   ],
@@ -535,17 +580,24 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               ] else
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text('You need Manage Space to edit the banner.',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  child: Text(
+                    'You need Manage Space to edit the banner.',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                 ),
               if (canManageSpace) ...[
                 const SizedBox(height: 16),
                 Divider(height: 1, color: colors.background),
                 const SizedBox(height: 12),
-                Text('OVERVIEW',
-                    style: theme.textTheme.labelSmall!.copyWith(
-                        color: colors.gray, fontWeight: FontWeight.bold)),
+                Text(
+                  'OVERVIEW',
+                  style: theme.textTheme.labelSmall!.copyWith(
+                    color: colors.gray,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,9 +610,10 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                           backgroundImage: _pendingIconDataUri != null
                               ? null
                               : (_iconRemoved || iconUrl == null
-                                  ? null
-                                  : CachedNetworkImageProvider(iconUrl)),
-                          child: (_pendingIconDataUri != null ||
+                                    ? null
+                                    : CachedNetworkImageProvider(iconUrl)),
+                          child:
+                              (_pendingIconDataUri != null ||
                                   (!_iconRemoved && iconUrl != null))
                               ? null
                               : Icon(Icons.image_outlined, color: colors.gray),
@@ -574,7 +627,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                           TextButton(
                             onPressed: _busy ? null : _markIconRemoved,
                             style: TextButton.styleFrom(
-                                foregroundColor: colors.red),
+                              foregroundColor: colors.red,
+                            ),
                             child: const Text('Remove'),
                           ),
                       ],
@@ -611,9 +665,13 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('MODERATION',
-                    style: theme.textTheme.labelSmall!.copyWith(
-                        color: colors.gray, fontWeight: FontWeight.bold)),
+                Text(
+                  'MODERATION',
+                  style: theme.textTheme.labelSmall!.copyWith(
+                    color: colors.gray,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 _dropdown<String>(
                   label: 'Verification level',
@@ -622,8 +680,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                     for (final v in _verificationLevels)
                       DropdownMenuItem(value: v.value, child: Text(v.label)),
                   ],
-                  onChanged: (v) =>
-                      setState(() => _verification = v ?? 'none'),
+                  onChanged: (v) => setState(() => _verification = v ?? 'none'),
                 ),
                 const SizedBox(height: 8),
                 _dropdown<String>(
@@ -633,8 +690,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                     for (final v in _notificationLevels)
                       DropdownMenuItem(value: v.value, child: Text(v.label)),
                   ],
-                  onChanged: (v) =>
-                      setState(() => _notifications = v ?? 'all'),
+                  onChanged: (v) => setState(() => _notifications = v ?? 'all'),
                 ),
                 const SizedBox(height: 8),
                 _dropdown<String>(
@@ -664,25 +720,36 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   title: const Text('Public space'),
-                  subtitle: Text('Discoverable and joinable by anyone',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Discoverable and joinable by anyone',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                 ),
                 SwitchListTile(
                   value: _guestAccess,
-                  onChanged:
-                      _busy ? null : (v) => setState(() => _guestAccess = v),
+                  onChanged: _busy
+                      ? null
+                      : (v) => setState(() => _guestAccess = v),
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   title: const Text('Allow guest access'),
-                  subtitle: Text('Let unauthenticated users browse',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Let unauthenticated users browse',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Text('CHANNELS',
-                    style: theme.textTheme.labelSmall!.copyWith(
-                        color: colors.gray, fontWeight: FontWeight.bold)),
+                Text(
+                  'CHANNELS',
+                  style: theme.textTheme.labelSmall!.copyWith(
+                    color: colors.gray,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 _dropdown<String?>(
                   label: 'Rules channel',
@@ -691,7 +758,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                     const DropdownMenuItem(value: null, child: Text('None')),
                     for (final c in textChannels)
                       DropdownMenuItem(
-                          value: c.id, child: Text('# ${c.name ?? c.id}')),
+                        value: c.id,
+                        child: Text('# ${c.name ?? c.id}'),
+                      ),
                   ],
                   onChanged: (v) => setState(() => _rulesChannelId = v),
                 ),
@@ -703,7 +772,9 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                     const DropdownMenuItem(value: null, child: Text('None')),
                     for (final c in textChannels)
                       DropdownMenuItem(
-                          value: c.id, child: Text('# ${c.name ?? c.id}')),
+                        value: c.id,
+                        child: Text('# ${c.name ?? c.id}'),
+                      ),
                   ],
                   onChanged: (v) => setState(() => _systemChannelId = v),
                 ),
@@ -730,9 +801,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.badge_outlined, color: colors.dirtyWhite),
                 title: const Text('Change your nickname'),
-                subtitle: Text('How you appear in this space',
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.gray)),
+                subtitle: Text(
+                  'How you appear in this space',
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.gray,
+                  ),
+                ),
                 trailing: Icon(Icons.chevron_right, color: colors.gray),
                 onTap: () => _editOwnNickname(),
               ),
@@ -740,13 +814,18 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.shield_outlined, color: colors.dirtyWhite),
+                  leading: Icon(
+                    Icons.shield_outlined,
+                    color: colors.dirtyWhite,
+                  ),
                   title: const Text('Roles'),
-                  subtitle: Text('Create, edit, and order roles',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
-                  trailing:
-                      Icon(Icons.chevron_right, color: colors.gray),
+                  subtitle: Text(
+                    'Create, edit, and order roles',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
+                  trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
                     showAccordRoleManagement(context, spaceId: widget.spaceId);
@@ -759,9 +838,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.history, color: colors.dirtyWhite),
                   title: const Text('Audit log'),
-                  subtitle: Text('Recent moderation and admin actions',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Recent moderation and admin actions',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -775,9 +857,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.gavel, color: colors.dirtyWhite),
                   title: const Text('Banned members'),
-                  subtitle: Text('Review and unban members',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Review and unban members',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -789,9 +874,12 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.flag_outlined, color: colors.dirtyWhite),
                   title: const Text('Reports'),
-                  subtitle: Text('Review and resolve member reports',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Review and resolve member reports',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -803,12 +891,14 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading:
-                      Icon(Icons.swap_horiz, color: colors.dirtyWhite),
+                  leading: Icon(Icons.swap_horiz, color: colors.dirtyWhite),
                   title: const Text('Transfer ownership'),
-                  subtitle: Text('Hand this space to another member',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Hand this space to another member',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -819,26 +909,34 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.delete_forever, color: colors.red),
-                  title: Text('Delete space',
-                      style: TextStyle(color: colors.red)),
-                  subtitle: Text('Permanently remove this space',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
-                  onTap: _busy
-                      ? null
-                      : () => _deleteSpace(space.name),
+                  title: Text(
+                    'Delete space',
+                    style: TextStyle(color: colors.red),
+                  ),
+                  subtitle: Text(
+                    'Permanently remove this space',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
+                  onTap: _busy ? null : () => _deleteSpace(space.name),
                 ),
               ],
               if (canManageEmojis) ...[
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.emoji_emotions_outlined,
-                      color: colors.dirtyWhite),
+                  leading: Icon(
+                    Icons.emoji_emotions_outlined,
+                    color: colors.dirtyWhite,
+                  ),
                   title: const Text('Custom emoji'),
-                  subtitle: Text('Upload, rename, and delete emoji',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Upload, rename, and delete emoji',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -852,23 +950,29 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.graphic_eq, color: colors.dirtyWhite),
                   title: const Text('Soundboard'),
-                  subtitle: Text('Play and manage soundboard clips',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.gray)),
+                  subtitle: Text(
+                    'Play and manage soundboard clips',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   trailing: Icon(Icons.chevron_right, color: colors.gray),
                   onTap: () {
                     Navigator.of(context).pop();
-                    showAccordSoundboard(context,
-                        spaceId: widget.spaceId,
-                        canManage: canManageSoundboard);
+                    showAccordSoundboard(
+                      context,
+                      spaceId: widget.spaceId,
+                      canManage: canManageSoundboard,
+                    );
                   },
                 ),
               ],
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
             ],
           ),

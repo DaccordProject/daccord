@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -56,7 +57,7 @@ class _AccountSettingsDialogState
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 600),
+        constraints: dialogConstraints(context, maxWidth: 460, maxHeight: 600),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(

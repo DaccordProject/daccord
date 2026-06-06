@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
@@ -28,7 +29,7 @@ Future<bool> confirmNsfwGate(
       final theme = Theme.of(context);
       return Dialog(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
+          constraints: dialogConstraints(context, maxWidth: 420),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -36,15 +37,18 @@ Future<bool> confirmNsfwGate(
               children: [
                 Icon(Icons.warning_amber_rounded, size: 44, color: colors.red),
                 const SizedBox(height: 12),
-                Text('Age-restricted channel',
-                    style: theme.textTheme.titleMedium),
+                Text(
+                  'Age-restricted channel',
+                  style: theme.textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   '#$channelName is marked for content that may not be suitable '
                   'for everyone. Are you over 18 and willing to view it?',
                   textAlign: TextAlign.center,
-                  style:
-                      theme.textTheme.bodyMedium!.copyWith(color: colors.gray),
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    color: colors.gray,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -90,13 +94,19 @@ Future<void> maybeShowRulesInterstitial(
       ref.read(settingsControllerProvider).isRulesAccepted(space.id)) {
     return;
   }
-  final client = ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  final client = ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
   if (client == null) return;
-  final result = await client.messages.list(rulesChannelId, query: {'limit': 1});
+  final result = await client.messages.list(
+    rulesChannelId,
+    query: {'limit': 1},
+  );
   if (!context.mounted) return;
   final data = result.data;
-  final messages = data is List ? data.whereType<AccordMessage>().toList() : null;
+  final messages = data is List
+      ? data.whereType<AccordMessage>().toList()
+      : null;
   final rulesText = (messages != null && messages.isNotEmpty)
       ? messages.first.content
       : 'Please follow this community\'s rules.';
@@ -108,18 +118,26 @@ Future<void> maybeShowRulesInterstitial(
       final theme = Theme.of(context);
       return Dialog(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
+          constraints: dialogConstraints(
+            context,
+            maxWidth: 480,
+            maxHeight: 560,
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Welcome to ${space.name}',
-                    style: theme.textTheme.titleMedium),
+                Text(
+                  'Welcome to ${space.name}',
+                  style: theme.textTheme.titleMedium,
+                ),
                 const SizedBox(height: 4),
-                Text('Please review the rules before participating.',
-                    style: theme.textTheme.bodySmall),
+                Text(
+                  'Please review the rules before participating.',
+                  style: theme.textTheme.bodySmall,
+                ),
                 const SizedBox(height: 16),
                 Flexible(
                   child: SingleChildScrollView(

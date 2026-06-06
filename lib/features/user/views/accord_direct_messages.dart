@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
@@ -94,7 +95,7 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 620),
+        constraints: dialogConstraints(context, maxWidth: 560, maxHeight: 620),
         child: openChannel != null
             ? _DmConversation(
                 channel: openChannel,

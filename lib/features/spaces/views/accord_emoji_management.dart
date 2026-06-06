@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
@@ -36,9 +37,8 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
   String? _error;
 
   AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _pickAndUpload() async {
     final picked = await FilePicker.platform.pickFiles(
@@ -63,8 +63,9 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.error?.toString() ?? 'Failed to upload emoji');
+      setState(
+        () => _error = result.error?.toString() ?? 'Failed to upload emoji',
+      );
       return;
     }
     final emoji = result.data;
@@ -86,13 +87,15 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
       _busy = true;
       _error = null;
     });
-    final result = await client.emojis
-        .update(widget.spaceId, id, {'name': _sanitizeName(next)});
+    final result = await client.emojis.update(widget.spaceId, id, {
+      'name': _sanitizeName(next),
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.error?.toString() ?? 'Failed to rename emoji');
+      setState(
+        () => _error = result.error?.toString() ?? 'Failed to rename emoji',
+      );
       return;
     }
     final updated = result.data;
@@ -135,8 +138,9 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.error?.toString() ?? 'Failed to delete emoji');
+      setState(
+        () => _error = result.error?.toString() ?? 'Failed to delete emoji',
+      );
       return;
     }
     ref
@@ -164,8 +168,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
             child: const Text('Save'),
           ),
         ],
@@ -189,14 +192,16 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final emojis =
-        ref.watch(accordEmojisControllerProvider(widget.spaceId));
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
+    final emojis = ref.watch(accordEmojisControllerProvider(widget.spaceId));
+    final cdnUrl = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
+    );
 
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 600),
+        constraints: dialogConstraints(context, maxWidth: 480, maxHeight: 600),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -205,11 +210,13 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.emoji_emotions_outlined,
-                      size: 18, color: colors.dirtyWhite),
+                  Icon(
+                    Icons.emoji_emotions_outlined,
+                    size: 18,
+                    color: colors.dirtyWhite,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Custom emoji',
-                      style: theme.textTheme.titleMedium),
+                  Text('Custom emoji', style: theme.textTheme.titleMedium),
                   const Spacer(),
                   IconButton(
                     tooltip: 'Close',
@@ -226,63 +233,72 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
               const SizedBox(height: 12),
               Flexible(
                 child: emojis == null
                     ? const Center(child: CircularProgressIndicator())
                     : emojis.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Center(
-                              child: Text('No custom emoji yet.',
-                                  style: theme.textTheme.bodyMedium),
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: emojis.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final emoji = emojis[index];
-                              final url = _emojiUrl(emoji, cdnUrl);
-                              return ListTile(
-                                leading: url == null
-                                    ? const Icon(Icons.image_outlined)
-                                    : CachedNetworkImage(
-                                        imageUrl: url,
-                                        width: 28,
-                                        height: 28,
-                                        errorWidget: (_, _, _) =>
-                                            const Icon(Icons.broken_image),
-                                      ),
-                                title: Text(':${emoji.name}:',
-                                    style: theme.textTheme.titleSmall),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Rename',
-                                      onPressed:
-                                          _busy ? null : () => _rename(emoji),
-                                      icon: const Icon(Icons.edit, size: 18),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Delete',
-                                      onPressed:
-                                          _busy ? null : () => _delete(emoji),
-                                      icon: Icon(Icons.delete_outline,
-                                          size: 18, color: colors.red),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                    ? Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Center(
+                          child: Text(
+                            'No custom emoji yet.',
+                            style: theme.textTheme.bodyMedium,
                           ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: emojis.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final emoji = emojis[index];
+                          final url = _emojiUrl(emoji, cdnUrl);
+                          return ListTile(
+                            leading: url == null
+                                ? const Icon(Icons.image_outlined)
+                                : CachedNetworkImage(
+                                    imageUrl: url,
+                                    width: 28,
+                                    height: 28,
+                                    errorWidget: (_, _, _) =>
+                                        const Icon(Icons.broken_image),
+                                  ),
+                            title: Text(
+                              ':${emoji.name}:',
+                              style: theme.textTheme.titleSmall,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Rename',
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _rename(emoji),
+                                  icon: const Icon(Icons.edit, size: 18),
+                                ),
+                                IconButton(
+                                  tooltip: 'Delete',
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _delete(emoji),
+                                  icon: Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                    color: colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),

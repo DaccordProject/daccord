@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -58,8 +59,9 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   void _onChanged(String value) {
     _debounce?.cancel();
@@ -105,7 +107,7 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
     final theme = Theme.of(context);
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 640),
+        constraints: dialogConstraints(context, maxWidth: 520, maxHeight: 640),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -171,16 +173,19 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
     }
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
     final users = ref.watch(accordUsersControllerProvider);
-    final ensureUser =
-        ref.read(accordUsersControllerProvider.notifier).ensure;
+    final ensureUser = ref.read(accordUsersControllerProvider.notifier).ensure;
     return ListView.separated(
       padding: const EdgeInsets.all(8),
       itemCount: messages.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final message = messages[index];
-        final name = accordAuthorName(message.authorId,
-            members: members, users: users, ensure: ensureUser);
+        final name = accordAuthorName(
+          message.authorId,
+          members: members,
+          users: users,
+          ensure: ensureUser,
+        );
         return ListTile(
           title: Text(name, style: theme.textTheme.titleSmall),
           subtitle: Text(
@@ -190,7 +195,9 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
           ),
           onTap: () => Navigator.of(context).pop(
             AccordSearchSelection(
-                channelId: message.channelId, messageId: message.id),
+              channelId: message.channelId,
+              messageId: message.id,
+            ),
           ),
         );
       },
@@ -213,16 +220,17 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
         final member = members[index];
         return ListTile(
           leading: const Icon(Icons.person_outline, size: 20),
-          title: Text(accordMemberName(member),
-              style: theme.textTheme.titleSmall),
+          title: Text(
+            accordMemberName(member),
+            style: theme.textTheme.titleSmall,
+          ),
         );
       },
     );
   }
 
   Widget _hint(String text, ThemeData theme) => Padding(
-        padding: const EdgeInsets.all(32),
-        child: Center(
-            child: Text(text, style: theme.textTheme.bodyMedium)),
-      );
+    padding: const EdgeInsets.all(32),
+    child: Center(child: Text(text, style: theme.textTheme.bodyMedium)),
+  );
 }

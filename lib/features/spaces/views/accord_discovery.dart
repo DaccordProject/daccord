@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -33,7 +34,7 @@ class _DiscoveryPanel extends StatelessWidget {
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 600),
+        constraints: dialogConstraints(context, maxWidth: 560, maxHeight: 600),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -44,8 +45,10 @@ class _DiscoveryPanel extends StatelessWidget {
                   Icon(Icons.explore, size: 20, color: colors.dirtyWhite),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('Discover Servers',
-                        style: theme.textTheme.titleMedium),
+                    child: Text(
+                      'Discover Servers',
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Close',
@@ -62,8 +65,11 @@ class _DiscoveryPanel extends StatelessWidget {
                 // pre-targeted at the listing's instance + space.
                 onJoinRequiresAuth: (serverUrl, spaceId) {
                   Navigator.of(context).pop();
-                  showAddServerDialog(context,
-                      initialUrl: serverUrl, joinSpaceId: spaceId);
+                  showAddServerDialog(
+                    context,
+                    initialUrl: serverUrl,
+                    joinSpaceId: spaceId,
+                  );
                 },
               ),
             ),
@@ -119,8 +125,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
     super.dispose();
   }
 
-  String get _masterUrl =>
-      ref.read(settingsControllerProvider).masterServerUrl;
+  String get _masterUrl => ref.read(settingsControllerProvider).masterServerUrl;
 
   void _onChanged(String _) {
     _debounce?.cancel();
@@ -141,10 +146,9 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
     final rest = AccordRest(AccordServer.normalizeBaseUrl(_masterUrl));
     RestResult result;
     try {
-      result = await DirectoryApi(rest).browse(
-        query: _query.text.trim(),
-        tag: _activeTag ?? '',
-      );
+      result = await DirectoryApi(
+        rest,
+      ).browse(query: _query.text.trim(), tag: _activeTag ?? '');
     } finally {
       rest.close();
     }
@@ -155,8 +159,9 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
     if (data is List) {
       raw = data;
     } else if (data is Map) {
-      raw = (data['spaces'] ?? data['results'] ?? data['data'] ?? const [])
-          as List;
+      raw =
+          (data['spaces'] ?? data['results'] ?? data['data'] ?? const [])
+              as List;
     }
 
     setState(() {
@@ -166,8 +171,9 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
         return;
       }
       _listings = raw
-          .map<Map<String, dynamic>>((e) =>
-              e is Map ? e.cast<String, dynamic>() : <String, dynamic>{})
+          .map<Map<String, dynamic>>(
+            (e) => e is Map ? e.cast<String, dynamic>() : <String, dynamic>{},
+          )
           .toList();
       // Only refresh the tag bar from an unfiltered result, so filtering by a
       // tag doesn't collapse the bar to that single tag.
@@ -207,8 +213,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
       if (handler != null) {
         handler(baseUrl, spaceId);
       } else {
-        showAddServerDialog(context,
-            initialUrl: baseUrl, joinSpaceId: spaceId);
+        showAddServerDialog(context, initialUrl: baseUrl, joinSpaceId: spaceId);
       }
       return;
     }
@@ -278,28 +283,31 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
           child: listings == null
               ? const Center(child: CircularProgressIndicator())
               : listings.isEmpty
-                  ? Center(
-                      child: Text(_error ?? 'No servers found',
-                          style: theme.textTheme.bodyMedium),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: listings.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final listing = listings[index];
-                        final id = listing['space_id']?.toString() ??
-                            listing['id']?.toString() ??
-                            '';
-                        return _DiscoveryCard(
-                          listing: listing,
-                          colors: colors,
-                          theme: theme,
-                          joining: _joining.contains(id),
-                          onJoin: () => _join(listing),
-                        );
-                      },
-                    ),
+              ? Center(
+                  child: Text(
+                    _error ?? 'No servers found',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: listings.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final listing = listings[index];
+                    final id =
+                        listing['space_id']?.toString() ??
+                        listing['id']?.toString() ??
+                        '';
+                    return _DiscoveryCard(
+                      listing: listing,
+                      colors: colors,
+                      theme: theme,
+                      joining: _joining.contains(id),
+                      onJoin: () => _join(listing),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -391,20 +399,27 @@ class _DiscoveryCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 2),
-                  Text(memberLine.toString(),
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colors.gray)),
+                  Text(
+                    memberLine.toString(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.gray,
+                    ),
+                  ),
                   if (description.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text(description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ],
                   if (tags.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -415,14 +430,19 @@ class _DiscoveryCard extends StatelessWidget {
                         for (final tag in tags.take(4))
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: colors.darkGray,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Text(tag,
-                                style: theme.textTheme.labelSmall
-                                    ?.copyWith(color: colors.gray)),
+                            child: Text(
+                              tag,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.gray,
+                              ),
+                            ),
                           ),
                       ],
                     ),
