@@ -47,12 +47,109 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// `SettingsController` is `keepAlive`, so this notifier outlives the widget.
   late final SettingsController _settings;
 
+  /// Text pastes longer than this prompt to send as a `.txt` attachment.
+  static const _largePasteThreshold = 2000;
+
   @override
   void initState() {
     super.initState();
     _settings = ref.read(settingsControllerProvider.notifier);
-    _controller.text =
-        ref.read(settingsControllerProvider).draftFor(widget.channelId);
+    _controller.text = ref
+        .read(settingsControllerProvider)
+        .draftFor(widget.channelId);
+    // Intercept Ctrl/Cmd+V to support pasting images and large text (the
+    // EditableText's own paste only handles inline text).
+    _focusNode.onKeyEvent = _onComposerKey;
+  }
+
+  KeyEventResult _onComposerKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final mods = HardwareKeyboard.instance;
+    final isPaste =
+        (mods.isControlPressed || mods.isMetaPressed) &&
+        event.logicalKey == LogicalKeyboardKey.keyV;
+    if (!isPaste) return KeyEventResult.ignored;
+    // Consume and handle the paste ourselves (image / large-text aware).
+    _handlePaste();
+    return KeyEventResult.handled;
+  }
+
+  /// Handles a clipboard paste: an image becomes a pending attachment; very
+  /// large text prompts to attach it as a `.txt` file; otherwise the text is
+  /// inserted inline. Ports the reference composer's paste handling.
+  Future<void> _handlePaste() async {
+    Uint8List? image;
+    try {
+      image = await Pasteboard.image;
+    } catch (_) {
+      image = null;
+    }
+    if (!mounted) return;
+    if (image != null && image.isNotEmpty) {
+      final bytes = image;
+      setState(
+        () => _attachments.add(
+          PlatformFile(
+            name: 'pasted-${DateTime.now().millisecondsSinceEpoch}.png',
+            size: bytes.length,
+            bytes: bytes,
+          ),
+        ),
+      );
+      return;
+    }
+
+    String text = '';
+    try {
+      text = await Pasteboard.text ?? '';
+    } catch (_) {
+      text = '';
+    }
+    if (!mounted || text.isEmpty) return;
+
+    if (text.length > _largePasteThreshold) {
+      final asFile = await _confirmLargePaste(text.length);
+      if (!mounted || asFile == null) return;
+      if (asFile) {
+        final bytes = Uint8List.fromList(utf8.encode(text));
+        setState(
+          () => _attachments.add(
+            PlatformFile(name: 'message.txt', size: bytes.length, bytes: bytes),
+          ),
+        );
+        return;
+      }
+    }
+    _insertAtCursor(text);
+  }
+
+  /// Asks whether a large paste should become a `.txt` attachment. Returns true
+  /// (file), false (inline), or null (cancelled).
+  Future<bool?> _confirmLargePaste(int length) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Paste large text'),
+        content: Text(
+          "That's a lot of text ($length characters). Attach it as a .txt "
+          'file instead of pasting inline?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Paste inline'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Attach as file'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -62,8 +159,9 @@ class _ComposerState extends ConsumerState<_Composer> {
       // Channel switched within the same composer instance: persist the
       // outgoing channel's draft and restore the incoming channel's.
       _saveDraft(oldWidget.channelId, _controller.text);
-      _controller.text =
-          ref.read(settingsControllerProvider).draftFor(widget.channelId);
+      _controller.text = ref
+          .read(settingsControllerProvider)
+          .draftFor(widget.channelId);
       _lastTypingSent = null;
     }
   }
@@ -92,8 +190,9 @@ class _ComposerState extends ConsumerState<_Composer> {
     }
     _lastTypingSent = now;
     final client = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
     );
     client?.messages.typing(widget.channelId);
   }
@@ -107,7 +206,9 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// is non-null AND there are candidates to show.
   void _updateMentionState(String text) {
     final selection = _controller.value.selection;
-    if (!selection.isValid || !selection.isCollapsed || widget.spaceId == null) {
+    if (!selection.isValid ||
+        !selection.isCollapsed ||
+        widget.spaceId == null) {
       _clearMentionState();
       return;
     }
@@ -166,16 +267,17 @@ class _ComposerState extends ConsumerState<_Composer> {
     final next = text.replaceRange(_mentionStart, _mentionEnd, insert);
     _controller.value = TextEditingValue(
       text: next,
-      selection:
-          TextSelection.collapsed(offset: _mentionStart + insert.length),
+      selection: TextSelection.collapsed(offset: _mentionStart + insert.length),
     );
     _clearMentionState();
     _focusNode.requestFocus();
   }
 
   Future<void> _pickFiles() async {
-    final result =
-        await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+    );
     if (result == null || !mounted) return;
     setState(() {
       for (final file in result.files) {
@@ -215,14 +317,16 @@ class _ComposerState extends ConsumerState<_Composer> {
     if ((text.trim().isEmpty && _attachments.isEmpty) || _sending) return;
 
     final client = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
     );
     if (client == null) return;
 
     setState(() => _sending = true);
-    final controller =
-        ref.read(accordMessagesControllerProvider(widget.channelId).notifier);
+    final controller = ref.read(
+      accordMessagesControllerProvider(widget.channelId).notifier,
+    );
     final replyTo = widget.replyingTo?.id;
     final bool ok;
     if (_attachments.isEmpty) {
@@ -236,8 +340,12 @@ class _ComposerState extends ConsumerState<_Composer> {
             'content_type': _mimeType(file.extension),
           },
       ];
-      ok = await controller.sendWithAttachments(client, text, files,
-          replyTo: replyTo);
+      ok = await controller.sendWithAttachments(
+        client,
+        text,
+        files,
+        replyTo: replyTo,
+      );
     }
     if (!mounted) return;
     setState(() {
@@ -283,10 +391,9 @@ class _ComposerState extends ConsumerState<_Composer> {
                         'Replying to ${widget.replyName ?? 'message'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelMedium!
-                            .copyWith(color: colors.gray),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelMedium!.copyWith(color: colors.gray),
                       ),
                     ),
                     IconButton(
@@ -308,8 +415,9 @@ class _ComposerState extends ConsumerState<_Composer> {
                     for (final file in _attachments)
                       _AttachmentChip(
                         file: file,
-                        onRemove:
-                            _sending ? null : () => _removeAttachment(file),
+                        onRemove: _sending
+                            ? null
+                            : () => _removeAttachment(file),
                       ),
                   ],
                 ),
@@ -325,8 +433,11 @@ class _ComposerState extends ConsumerState<_Composer> {
                 IconButton(
                   tooltip: 'Attach files',
                   onPressed: _sending ? null : _pickFiles,
-                  icon: Icon(Icons.add_circle_outline,
-                      size: 20, color: colors.dirtyWhite),
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    size: 20,
+                    color: colors.dirtyWhite,
+                  ),
                 ),
                 Expanded(
                   child: TextField(
@@ -343,18 +454,20 @@ class _ComposerState extends ConsumerState<_Composer> {
                       isDense: true,
                       border: InputBorder.none,
                       hintText: hint,
-                      hintStyle: Theme.of(context)
-                          .textTheme
-                          .bodyLarge!
-                          .copyWith(color: colors.gray),
+                      hintStyle: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge!.copyWith(color: colors.gray),
                     ),
                   ),
                 ),
                 IconButton(
                   tooltip: 'Emoji',
                   onPressed: _sending ? null : _pickEmoji,
-                  icon: Icon(Icons.emoji_emotions_outlined,
-                      size: 20, color: colors.dirtyWhite),
+                  icon: Icon(
+                    Icons.emoji_emotions_outlined,
+                    size: 20,
+                    color: colors.dirtyWhite,
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Send',
@@ -390,8 +503,11 @@ class _MentionPopup extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final members = ref.watch(accordMembersControllerProvider(spaceId));
-    final space = ref.watch(spacesControllerProvider
-        .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)));
+    final space = ref.watch(
+      spacesControllerProvider.select(
+        (s) => s?.firstWhereOrNull((sp) => sp.id == spaceId),
+      ),
+    );
     final roles = space?.roles ?? const <AccordRole>[];
     final entries = _filter(members, roles, query);
     if (entries.isEmpty) return const SizedBox.shrink();
@@ -410,12 +526,17 @@ class _MentionPopup extends ConsumerWidget {
             InkWell(
               onTap: () => onPick(entry.handle),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 child: Row(
                   children: [
-                    Icon(entry.isRole ? Icons.label_outline : Icons.person,
-                        size: 14, color: colors.gray),
+                    Icon(
+                      entry.isRole ? Icons.label_outline : Icons.person,
+                      size: 14,
+                      color: colors.gray,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -427,10 +548,9 @@ class _MentionPopup extends ConsumerWidget {
                     ),
                     Text(
                       "@${entry.handle}",
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall!
-                          .copyWith(color: colors.gray),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall!.copyWith(color: colors.gray),
                     ),
                   ],
                 ),
@@ -467,20 +587,18 @@ class _MentionPopup extends ConsumerWidget {
         final user = m.user;
         final username = user?.username;
         if (username == null || username.isEmpty) continue;
-        consider(_MentionEntry(
-          handle: username,
-          label: accordMemberName(m, fallback: username),
-          isRole: false,
-        ));
+        consider(
+          _MentionEntry(
+            handle: username,
+            label: accordMemberName(m, fallback: username),
+            isRole: false,
+          ),
+        );
       }
     }
     for (final r in roles) {
       if (!r.mentionable) continue;
-      consider(_MentionEntry(
-        handle: r.name,
-        label: r.name,
-        isRole: true,
-      ));
+      consider(_MentionEntry(handle: r.name, label: r.name, isRole: true));
     }
     final out = [...prefix, ...contains];
     if (out.length > _maxResults) return out.sublist(0, _maxResults);
