@@ -1951,6 +1951,14 @@ class _ComposerState extends ConsumerState<_Composer> {
   DateTime? _lastTypingSent;
   static const _typingInterval = Duration(seconds: 8);
 
+  /// Mention-popup state. `_mentionQuery == null` means the popup is hidden;
+  /// otherwise it's the lowercase text after the active `@`, and
+  /// `[_mentionStart, _mentionEnd)` is the range in `_controller.text` that
+  /// the picked handle replaces (covers the `@` and the query).
+  String? _mentionQuery;
+  int _mentionStart = -1;
+  int _mentionEnd = -1;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -1959,6 +1967,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   }
 
   void _onChanged(String value) {
+    _updateMentionState(value);
     if (value.trim().isEmpty) return;
     final now = DateTime.now();
     if (_lastTypingSent != null &&
@@ -1971,6 +1980,81 @@ class _ComposerState extends ConsumerState<_Composer> {
           .select((s) => s is AccordAuthLoggedIn ? s.client : null),
     );
     client?.messages.typing(widget.channelId);
+  }
+
+  /// Decides whether an `@` autocomplete is in progress and updates the
+  /// popup state accordingly. Mirrors the reference composer's
+  /// `_find_mention_trigger`: scan backwards from the cursor to the nearest
+  /// `@` that's at line start or follows a non-word char; everything between
+  /// it and the cursor is the query. A space (or no `@` before whitespace)
+  /// dismisses the popup. The popup itself is only built when `_mentionQuery`
+  /// is non-null AND there are candidates to show.
+  void _updateMentionState(String text) {
+    final selection = _controller.value.selection;
+    if (!selection.isValid || !selection.isCollapsed || widget.spaceId == null) {
+      _clearMentionState();
+      return;
+    }
+    final caret = selection.baseOffset;
+    var i = caret - 1;
+    while (i >= 0) {
+      final ch = text[i];
+      if (ch == '@') {
+        if (i > 0 && _isMentionWordChar(text[i - 1])) {
+          _clearMentionState();
+          return;
+        }
+        final query = text.substring(i + 1, caret).toLowerCase();
+        setState(() {
+          _mentionQuery = query;
+          _mentionStart = i;
+          _mentionEnd = caret;
+        });
+        return;
+      }
+      if (ch == ' ' || ch == '\t' || ch == '\n') {
+        _clearMentionState();
+        return;
+      }
+      i--;
+    }
+    _clearMentionState();
+  }
+
+  void _clearMentionState() {
+    if (_mentionQuery == null) return;
+    setState(() {
+      _mentionQuery = null;
+      _mentionStart = -1;
+      _mentionEnd = -1;
+    });
+  }
+
+  static bool _isMentionWordChar(String ch) {
+    if (ch.isEmpty) return false;
+    final code = ch.codeUnitAt(0);
+    if (code >= 0x30 && code <= 0x39) return true; // 0-9
+    if (code >= 0x41 && code <= 0x5A) return true; // A-Z
+    if (code >= 0x61 && code <= 0x7A) return true; // a-z
+    if (code == 0x5F) return true; // _
+    return code > 0x7F; // non-ASCII letter-likes
+  }
+
+  /// Replaces the active `@query` range with `@handle ` and dismisses the
+  /// popup. Mirrors the reference's `_on_mention_picked`.
+  void _pickMention(String handle) {
+    if (_mentionStart < 0 || _mentionEnd < 0) return;
+    final text = _controller.text;
+    if (_mentionEnd > text.length) return;
+    final insert = '@$handle ';
+    final next = text.replaceRange(_mentionStart, _mentionEnd, insert);
+    _controller.value = TextEditingValue(
+      text: next,
+      selection:
+          TextSelection.collapsed(offset: _mentionStart + insert.length),
+    );
+    _clearMentionState();
+    _focusNode.requestFocus();
   }
 
   Future<void> _pickFiles() async {
@@ -2112,6 +2196,12 @@ class _ComposerState extends ConsumerState<_Composer> {
                       ),
                   ],
                 ),
+              ),
+            if (_mentionQuery != null && widget.spaceId != null)
+              _MentionPopup(
+                spaceId: widget.spaceId!,
+                query: _mentionQuery!,
+                onPick: _pickMention,
               ),
             Row(
               children: [
@@ -2405,4 +2495,135 @@ class _OlderHistoryHeader extends ConsumerWidget {
     }
     return const SizedBox(height: 12);
   }
+}
+
+/// Compact "@" autocomplete popup rendered above the composer. Lists
+/// members of [spaceId] (and mentionable roles) whose name starts with —
+/// or contains — [query]; tapping inserts the handle into the composer via
+/// [onPick]. Hidden automatically by the composer when [query] becomes
+/// empty of matches.
+class _MentionPopup extends ConsumerWidget {
+  const _MentionPopup({
+    required this.spaceId,
+    required this.query,
+    required this.onPick,
+  });
+
+  final String spaceId;
+  final String query;
+  final ValueChanged<String> onPick;
+
+  static const int _maxResults = 6;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = BonfireThemeExtension.of(context);
+    final members = ref.watch(accordMembersControllerProvider(spaceId));
+    final space = ref.watch(spacesControllerProvider
+        .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)));
+    final roles = space?.roles ?? const <AccordRole>[];
+    final entries = _filter(members, roles, query);
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.foreground, width: 1),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final entry in entries)
+            InkWell(
+              onTap: () => onPick(entry.handle),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(entry.isRole ? Icons.label_outline : Icons.person,
+                        size: 14, color: colors.gray),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        entry.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    Text(
+                      "@${entry.handle}",
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall!
+                          .copyWith(color: colors.gray),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Picks up to [_maxResults] candidates from members and mentionable roles
+  /// whose handle/label matches [query] (case-insensitive). Prefix matches rank
+  /// before substring matches; members rank before roles within each tier.
+  List<_MentionEntry> _filter(
+    Map<String, AccordMember>? members,
+    List<AccordRole> roles,
+    String query,
+  ) {
+    final q = query.toLowerCase();
+    final prefix = <_MentionEntry>[];
+    final contains = <_MentionEntry>[];
+    void consider(_MentionEntry e) {
+      final h = e.handle.toLowerCase();
+      final l = e.label.toLowerCase();
+      if (q.isEmpty || h.startsWith(q) || l.startsWith(q)) {
+        prefix.add(e);
+      } else if (h.contains(q) || l.contains(q)) {
+        contains.add(e);
+      }
+    }
+
+    if (members != null) {
+      for (final m in members.values) {
+        final user = m.user;
+        final username = user?.username;
+        if (username == null || username.isEmpty) continue;
+        consider(_MentionEntry(
+          handle: username,
+          label: accordMemberName(m, fallback: username),
+          isRole: false,
+        ));
+      }
+    }
+    for (final r in roles) {
+      if (!r.mentionable) continue;
+      consider(_MentionEntry(
+        handle: r.name,
+        label: r.name,
+        isRole: true,
+      ));
+    }
+    final out = [...prefix, ...contains];
+    if (out.length > _maxResults) return out.sublist(0, _maxResults);
+    return out;
+  }
+}
+
+class _MentionEntry {
+  const _MentionEntry({
+    required this.handle,
+    required this.label,
+    required this.isRole,
+  });
+  final String handle;
+  final String label;
+  final bool isRole;
 }
