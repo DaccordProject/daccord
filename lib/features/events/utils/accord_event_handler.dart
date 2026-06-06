@@ -481,10 +481,38 @@ Future<void> _loadSpaces(
   if (data is! List) return;
 
   final spaces = data.whereType<AccordSpace>().toList();
+  // `GET /users/@me/spaces` returns summary spaces without their role list, so
+  // hydrate roles via the dedicated endpoint before seeding any cache — the
+  // reference client does the same on every (re)connect (`_refetch_data` →
+  // `fetch_roles`). Without this `AccordSpace.roles` stays empty and the roster
+  // grouping, name colors, role chips, and role-based permission grants all
+  // silently no-op. Done for background connections too so their snapshot is
+  // complete the moment they become active.
+  await _hydrateRoles(client, spaces);
   ref.read(connectionsControllerProvider.notifier).setSpaces(serverKey, spaces);
   if (!isActive()) return;
   ref.read(spacesControllerProvider.notifier).setSpaces(spaces);
   for (final space in spaces) {
     ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
   }
+}
+
+/// Fetches each space's roles over REST (`GET /spaces/{id}/roles`) and populates
+/// the space's `roles` list in place. Role lists are small, so fetching all
+/// spaces concurrently on (re)connect is cheap. A failed fetch for one space
+/// leaves it with no roles rather than aborting the others — the gateway
+/// `role.*` events still keep it current once something changes.
+Future<void> _hydrateRoles(AccordClient client, List<AccordSpace> spaces) async {
+  await Future.wait(spaces.map((space) async {
+    final result = await client.roles.list(space.id);
+    if (!result.ok) {
+      debugPrint('Failed to load roles for ${space.id}: ${result.error}');
+      return;
+    }
+    final roles = result.data;
+    if (roles is! List) return;
+    space.roles
+      ..clear()
+      ..addAll(roles.whereType<AccordRole>());
+  }));
 }
