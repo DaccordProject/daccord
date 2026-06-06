@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
+import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
@@ -216,6 +217,9 @@ class AccordSettingsScreen extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => showDeveloperSettings(context),
             ),
+          const Divider(height: 24),
+          _SectionHeader('Backup'),
+          const SettingsBackupSection(),
           const Divider(height: 24),
           _SectionHeader('Updates'),
           ListTile(

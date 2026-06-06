@@ -249,6 +249,30 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(lastSpaceId: spaceId, lastChannelId: channelId));
   }
 
+  /// A sanitised snapshot of the current settings for export to a file. Strips
+  /// the local MCP bearer [AccordSettings.mcpToken] — the only secret that lives
+  /// in settings — mirroring the reference exporter's token/password stripping.
+  Map<String, dynamic> exportJson() {
+    final json = state.toJson();
+    json.remove('mcpToken');
+    return json;
+  }
+
+  /// Replaces the current settings with those decoded from an exported file,
+  /// preserving the local MCP token (never imported, like the reference's
+  /// blocked keys). Returns false when [json] isn't a usable settings map.
+  bool importJson(Map<dynamic, dynamic> json) {
+    if (json.isEmpty) return false;
+    // Keep the current device's MCP token rather than importing one.
+    final merged = <dynamic, dynamic>{...json, 'mcpToken': state.mcpToken};
+    try {
+      _update(AccordSettings.fromJson(merged));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Saves (or clears, when [text] is blank) the unsent draft for [channelId].
   void setDraft(String channelId, String text) {
     final trimmed = text;
