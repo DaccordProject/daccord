@@ -11,11 +11,11 @@ part 'accord_direct_messages_conversations.dart';
 part 'accord_direct_messages_friends.dart';
 part 'accord_direct_messages_groups.dart';
 
-
 /// Relationship type enum mirrored from the server: 1 = friend, 2 = blocked,
 /// 3 = pending incoming, 4 = pending outgoing.
 class _Rel {
   static const friend = 1;
+  static const blocked = 2;
   static const pendingIn = 3;
   static const pendingOut = 4;
 }
@@ -79,8 +79,11 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
     super.dispose();
   }
 
-  String? get _selfId => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
+  String? get _selfId => ref.read(
+    accordAuthProvider.select(
+      (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -106,8 +109,10 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text('Direct messages',
-                              style: theme.textTheme.titleMedium),
+                          child: Text(
+                            'Direct messages',
+                            style: theme.textTheme.titleMedium,
+                          ),
                         ),
                         IconButton(
                           tooltip: 'Close',

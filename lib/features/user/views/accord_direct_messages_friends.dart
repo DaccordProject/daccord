@@ -18,8 +18,9 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _load() async {
     final client = _client;
@@ -38,7 +39,9 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     final client = _client;
     if (client == null) return;
     setState(() => _busy = true);
-    final result = await client.users.putRelationship(userId, {'type': _Rel.friend});
+    final result = await client.users.putRelationship(userId, {
+      'type': _Rel.friend,
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (result.ok) await _load();
@@ -49,6 +52,18 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     if (client == null) return;
     setState(() => _busy = true);
     final result = await client.users.deleteRelationship(userId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (result.ok) await _load();
+  }
+
+  Future<void> _block(String userId) async {
+    final client = _client;
+    if (client == null) return;
+    setState(() => _busy = true);
+    final result = await client.users.putRelationship(userId, {
+      'type': _Rel.blocked,
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (result.ok) await _load();
@@ -73,6 +88,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     final incoming = all.where((r) => r.type == _Rel.pendingIn).toList();
     final outgoing = all.where((r) => r.type == _Rel.pendingOut).toList();
     final friends = all.where((r) => r.type == _Rel.friend).toList();
+    final blocked = all.where((r) => r.type == _Rel.blocked).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -129,26 +145,57 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
                     child: const Text('Cancel'),
                   ),
                 ),
-              if (friends.isNotEmpty)
-                _SectionLabel('Friends', colors: colors),
+              if (friends.isNotEmpty) _SectionLabel('Friends', colors: colors),
               for (final r in friends)
                 _FriendRow(
                   name: _userName(r.user),
-                  trailing: IconButton(
-                    tooltip: 'Remove friend',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Block',
+                        onPressed: _busy || r.user == null
+                            ? null
+                            : () => _block(r.user!.id),
+                        icon: Icon(Icons.block, color: colors.gray, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove friend',
+                        onPressed: _busy || r.user == null
+                            ? null
+                            : () => _remove(r.user!.id),
+                        icon: Icon(
+                          Icons.person_remove,
+                          color: colors.gray,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (blocked.isNotEmpty) _SectionLabel('Blocked', colors: colors),
+              for (final r in blocked)
+                _FriendRow(
+                  name: _userName(r.user),
+                  trailing: TextButton(
                     onPressed: _busy || r.user == null
                         ? null
                         : () => _remove(r.user!.id),
-                    icon: Icon(Icons.person_remove,
-                        color: colors.gray, size: 20),
+                    child: const Text('Unblock'),
                   ),
                 ),
-              if (incoming.isEmpty && outgoing.isEmpty && friends.isEmpty)
+              if (incoming.isEmpty &&
+                  outgoing.isEmpty &&
+                  friends.isEmpty &&
+                  blocked.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
                   child: Center(
-                      child: Text('No friends yet',
-                          style: theme.textTheme.bodyMedium)),
+                    child: Text(
+                      'No friends yet',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -156,9 +203,10 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(8),
-            child: Text(_error!,
-                style:
-                    theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            child: Text(
+              _error!,
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+            ),
           ),
       ],
     );
@@ -175,9 +223,13 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-      child: Text(label.toUpperCase(),
-          style: Theme.of(context).textTheme.labelSmall!.copyWith(
-              color: colors.gray, fontWeight: FontWeight.bold)),
+      child: Text(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall!.copyWith(
+          color: colors.gray,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -223,8 +275,9 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _search() async {
     final client = _client;
@@ -239,8 +292,9 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
     final data = result.data;
     setState(() {
       _busy = false;
-      _results =
-          data is List ? data.whereType<AccordUser>().toList() : <AccordUser>[];
+      _results = data is List
+          ? data.whereType<AccordUser>().toList()
+          : <AccordUser>[];
     });
   }
 
@@ -248,7 +302,9 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
     final client = _client;
     if (client == null) return;
     setState(() => _busy = true);
-    final result = await client.users.putRelationship(user.id, {'type': _Rel.friend});
+    final result = await client.users.putRelationship(user.id, {
+      'type': _Rel.friend,
+    });
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -297,44 +353,53 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
               ),
               if (_message != null) ...[
                 const SizedBox(height: 8),
-                Text(_message!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.green)),
+                Text(
+                  _message!,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.green,
+                  ),
+                ),
               ],
               const SizedBox(height: 8),
               Flexible(
                 child: results == null
                     ? const SizedBox.shrink()
                     : results.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text('No users found',
-                                style: theme.textTheme.bodySmall),
-                          )
-                        : ListView(
-                            shrinkWrap: true,
-                            children: [
-                              for (final user in results)
-                                ListTile(
-                                  dense: true,
-                                  leading: CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: colors.darkGray,
-                                    child: Text(_userName(user)[0].toUpperCase()),
-                                  ),
-                                  title: Text(_userName(user),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
-                                  trailing: IconButton(
-                                    tooltip: 'Send request',
-                                    onPressed:
-                                        _busy ? null : () => _request(user),
-                                    icon: Icon(Icons.person_add,
-                                        size: 18, color: colors.primary),
-                                  ),
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No users found',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      )
+                    : ListView(
+                        shrinkWrap: true,
+                        children: [
+                          for (final user in results)
+                            ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: colors.darkGray,
+                                child: Text(_userName(user)[0].toUpperCase()),
+                              ),
+                              title: Text(
+                                _userName(user),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'Send request',
+                                onPressed: _busy ? null : () => _request(user),
+                                icon: Icon(
+                                  Icons.person_add,
+                                  size: 18,
+                                  color: colors.primary,
                                 ),
-                            ],
-                          ),
+                              ),
+                            ),
+                        ],
+                      ),
               ),
               const SizedBox(height: 12),
               Align(

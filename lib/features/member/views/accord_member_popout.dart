@@ -95,6 +95,24 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
   }
 
+  /// Blocks this user (relationship type 2). Account-level, not space-scoped —
+  /// uses `users.putRelationship`. Unblocking lives in the Friends → Blocked
+  /// list.
+  Future<void> _block() async {
+    final confirmed = await _confirm(
+      title: 'Block user',
+      message:
+          'Blocked users can\'t DM you and their messages are hidden. Continue?',
+      action: 'Block',
+    );
+    if (confirmed != true) return;
+    _run(
+      (c) => c.users.putRelationship(widget.userId, {'type': 2}),
+      failure: 'Failed to block user',
+      closeOnSuccess: true,
+    );
+  }
+
   Future<void> _ban() async {
     final confirmed = await _confirm(
       title: 'Ban member',
@@ -470,6 +488,18 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                   onBan: _ban,
                   onTimeout: _timeout,
                   onRemoveTimeout: _removeTimeout,
+                ),
+              ],
+              if (!isSelf) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _busy ? null : _block,
+                    style: TextButton.styleFrom(foregroundColor: colors.red),
+                    icon: const Icon(Icons.block, size: 18),
+                    label: const Text('Block user'),
+                  ),
                 ),
               ],
               if (_error != null) ...[
