@@ -149,6 +149,14 @@ class AccordSettingsScreen extends ConsumerWidget {
             title: const Text('Switch account'),
             onTap: () => context.go('/switcher'),
           ),
+          if (session?.isAdmin ?? false)
+            ListTile(
+              leading:
+                  Icon(Icons.admin_panel_settings, color: colors.dirtyWhite),
+              title: const Text('Server administration'),
+              subtitle: const Text('Spaces, users, reports, settings'),
+              onTap: () => context.go('/admin'),
+            ),
           ListTile(
             leading: Icon(Icons.logout, color: colors.red),
             title: Text('Log out', style: TextStyle(color: colors.red)),

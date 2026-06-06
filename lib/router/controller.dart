@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bonfire/features/authentication/views/accord_login.dart';
 import 'package:bonfire/features/authentication/views/mfa.dart';
+import 'package:bonfire/features/admin/views/accord_admin_panel.dart';
 import 'package:bonfire/features/settings/views/accord_settings_screen.dart';
 import 'package:bonfire/features/spaces/views/accord_home.dart';
 import 'package:bonfire/features/overview/views/navigation_frame.dart';
@@ -50,6 +51,10 @@ final routerController = GoRouter(
               GoRoute(
                 path: 'settings',
                 builder: (context, state) => const AccordSettingsScreen(),
+              ),
+              GoRoute(
+                path: 'admin',
+                builder: (context, state) => const AccordAdminPanel(),
               ),
               ShellRoute(
                 builder: (context, state, child) =>
