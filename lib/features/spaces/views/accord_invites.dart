@@ -55,6 +55,8 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
   int _expirySeconds = 86400;
   int _maxUses = 0;
   bool _temporary = false;
+  String _query = '';
+  final Set<String> _selected = {};
 
   @override
   void initState() {
@@ -126,6 +128,21 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     } else {
       setState(() => _error = 'Failed to revoke invite');
     }
+  }
+
+  /// Revokes every selected invite, then clears the selection.
+  Future<void> _revokeSelected() async {
+    final client = _client;
+    if (client == null || _selected.isEmpty) return;
+    final codes = _selected.toList();
+    for (final code in codes) {
+      final result = await client.invites.delete(code);
+      if (result.ok) {
+        _invites = _invites?.where((i) => i.code != code).toList();
+      }
+    }
+    if (!mounted) return;
+    setState(() => _selected.clear());
   }
 
   String _inviteLink(AccordInvite invite) {
@@ -262,6 +279,45 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                 ),
               ),
             const Divider(height: 1),
+            if (invites != null && invites.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        onChanged: (v) =>
+                            setState(() => _query = v.trim().toLowerCase()),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 18,
+                            color: colors.gray,
+                          ),
+                          hintText: 'Search invites',
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    if (_selected.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: _revokeSelected,
+                        icon: Icon(
+                          Icons.delete_sweep_outlined,
+                          size: 18,
+                          color: theme.colorScheme.error,
+                        ),
+                        label: Text(
+                          'Revoke ${_selected.length}',
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             Flexible(
               child: invites == null
                   ? const Padding(
@@ -278,41 +334,75 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                         ),
                       ),
                     )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.all(8),
-                      itemCount: invites.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final invite = invites[index];
-                        return ListTile(
-                          title: Text(
-                            invite.code,
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          subtitle: Text(
-                            _usesLabel(invite),
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Copy link',
-                                onPressed: () => _copy(invite),
-                                icon: const Icon(Icons.copy, size: 18),
+                  : Builder(
+                      builder: (context) {
+                        final filtered = _query.isEmpty
+                            ? invites
+                            : invites
+                                  .where(
+                                    (i) =>
+                                        i.code.toLowerCase().contains(_query),
+                                  )
+                                  .toList();
+                        if (filtered.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Center(
+                              child: Text(
+                                'No matches',
+                                style: theme.textTheme.bodyMedium,
                               ),
-                              IconButton(
-                                tooltip: 'Revoke',
-                                onPressed: () => _revoke(invite),
-                                icon: Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
-                                  color: theme.colorScheme.error,
-                                ),
+                            ),
+                          );
+                        }
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.all(8),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final invite = filtered[index];
+                            final selected = _selected.contains(invite.code);
+                            return ListTile(
+                              leading: Checkbox(
+                                value: selected,
+                                onChanged: (v) => setState(() {
+                                  if (v ?? false) {
+                                    _selected.add(invite.code);
+                                  } else {
+                                    _selected.remove(invite.code);
+                                  }
+                                }),
                               ),
-                            ],
-                          ),
+                              title: Text(
+                                invite.code,
+                                style: theme.textTheme.titleSmall,
+                              ),
+                              subtitle: Text(
+                                _usesLabel(invite),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Copy link',
+                                    onPressed: () => _copy(invite),
+                                    icon: const Icon(Icons.copy, size: 18),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Revoke',
+                                    onPressed: () => _revoke(invite),
+                                    icon: Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                      color: theme.colorScheme.error,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         );
                       },
                     ),

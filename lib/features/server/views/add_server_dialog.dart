@@ -63,11 +63,18 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   /// listing). Set at construction or by the embedded Browse tab.
   String? _pendingJoinSpaceId;
 
+  /// Invite code to redeem once connected (from an `invite/` deep link or a
+  /// `?invite=` URL). Redeemed via `invites.accept` in [_finishAfterConnect].
+  String? _pendingInviteCode;
+
   @override
   void initState() {
     super.initState();
     final initial = widget.initialUrl;
-    if (initial != null && initial.isNotEmpty) _urlCtrl.text = initial;
+    if (initial != null && initial.isNotEmpty) {
+      _urlCtrl.text = initial;
+      _pendingInviteCode = ServerUri.parseServerUrl(initial)?.invite;
+    }
     _pendingJoinSpaceId = widget.joinSpaceId;
   }
 
@@ -84,22 +91,30 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   AccordAuth get _auth => ref.read(accordAuthProvider.notifier);
 
   void _fail(String message) => setState(() {
-        _busy = false;
-        _error = message;
-      });
+    _busy = false;
+    _error = message;
+  });
 
   /// Connection succeeded (and is now the active one). Joins a pending discovery
   /// space if any, then closes the dialog.
   Future<void> _finishAfterConnect() async {
+    final client = _auth.client;
     final spaceId = _pendingJoinSpaceId;
-    if (spaceId != null && spaceId.isNotEmpty) {
-      final client = _auth.client;
-      if (client != null) {
-        final result = await client.spaces.join(spaceId);
-        final space = result.data;
-        if (space is AccordSpace) {
-          ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-        }
+    if (client != null && spaceId != null && spaceId.isNotEmpty) {
+      final result = await client.spaces.join(spaceId);
+      final space = result.data;
+      if (space is AccordSpace) {
+        ref.read(spacesControllerProvider.notifier).upsertSpace(space);
+      }
+    }
+    // Redeem an invite code (deep link / ?invite=) against the now-active
+    // connection. The accept response carries the joined space.
+    final invite = _pendingInviteCode;
+    if (client != null && invite != null && invite.isNotEmpty) {
+      final result = await client.invites.accept(invite);
+      final space = result.data;
+      if (space is AccordSpace) {
+        ref.read(spacesControllerProvider.notifier).upsertSpace(space);
       }
     }
     if (mounted) Navigator.of(context).pop();
@@ -111,6 +126,10 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     if (parsed == null || server == null) {
       _fail('Enter a valid server URL');
       return;
+    }
+    // A pasted invite URL carries its code here too.
+    if (parsed.invite != null && parsed.invite!.isNotEmpty) {
+      _pendingInviteCode = parsed.invite;
     }
 
     // Already connected to this server: switch to it (and join a pending space).
@@ -130,7 +149,10 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     // A link that carries a token can authenticate directly.
     final token = parsed.token;
     if (token != null && token.isNotEmpty) {
-      final error = await _auth.addServerWithToken(server: server, token: token);
+      final error = await _auth.addServerWithToken(
+        server: server,
+        token: token,
+      );
       if (!mounted) return;
       if (error == null) {
         await _finishAfterConnect();
@@ -181,8 +203,11 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       _busy = true;
       _error = null;
     });
-    final outcome =
-        await _auth.addServerSubmitMfa(server, ticket, _mfaCtrl.text.trim());
+    final outcome = await _auth.addServerSubmitMfa(
+      server,
+      ticket,
+      _mfaCtrl.text.trim(),
+    );
     if (!mounted) return;
     if (outcome.ok) {
       await _finishAfterConnect();
@@ -211,8 +236,10 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                   Icon(Icons.dns_outlined, size: 20, color: colors.dirtyWhite),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('Add a Server',
-                        style: theme.textTheme.titleMedium),
+                    child: Text(
+                      'Add a Server',
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Close',
@@ -325,9 +352,12 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
           ],
           if (_error != null) ...[
             const SizedBox(height: 12),
-            Text(_error!,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.error)),
+            Text(
+              _error!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
           ],
           const SizedBox(height: 16),
           Row(
