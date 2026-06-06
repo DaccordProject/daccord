@@ -94,6 +94,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   // Member-list visibility, toggled by the user and by the MCP `navigate` group.
   bool _memberListVisible = true;
 
+  /// Scaffold for the narrow (mobile) layout, so the channel-list drawer and
+  /// member-list end-drawer can be opened/closed programmatically.
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  /// Below this width the three panes can't sit side-by-side, so the channel
+  /// list and member list move into drawers (see [build]).
+  static const double _wideLayoutBreakpoint = 720;
+
   @override
   void initState() {
     super.initState();
@@ -437,64 +445,149 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       ..memberListVisible = _memberListVisible;
 
     final shownSpaceId = effectiveSpaceId;
+    final colors = BonfireThemeExtension.of(context);
+
+    final rail = _SpaceRail(
+      selectedSpaceId: effectiveSpaceId,
+      onSelect: _selectSpace,
+      onAddServer: () => showAddServerDialog(context),
+      onSwitchAccount: () => context.go('/switcher'),
+      onOpenSettings: () => context.push('/settings'),
+      onLogout: () => ref.read(accordAuthProvider.notifier).logout(),
+    );
+
+    Widget channelList({required bool inDrawer}) => _ChannelList(
+      spaceId: effectiveSpaceId,
+      spaceName: spaces
+          ?.firstWhereOrNull((s) => s.id == effectiveSpaceId)
+          ?.name,
+      channels: channels,
+      selectedChannelId: shownChannelId,
+      onSelect: shownSpaceId == null
+          ? (_) {}
+          : (channelId) {
+              _openChannel(channelId, spaceId: shownSpaceId);
+              // On narrow layouts the list is a drawer — close it so the
+              // freshly-opened channel is visible.
+              if (inDrawer) _scaffoldKey.currentState?.closeDrawer();
+            },
+    );
+
+    final messageArea = Column(
+      children: [
+        _TabStrip(onSelect: _selectTab),
+        Expanded(
+          child: _MessagePane(
+            channel: channels?.firstWhereOrNull((c) => c.id == shownChannelId),
+            channelId: shownChannelId,
+            spaceId: effectiveSpaceId,
+          ),
+        ),
+      ],
+    );
+
+    final pip = VoicePipOverlay(
+      shownChannelId: shownChannelId,
+      onOpen: (channelId, spaceId) => _openChannel(channelId, spaceId: spaceId),
+    );
+
+    final hasMembers = effectiveSpaceId != null;
+
+    final body = LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= _wideLayoutBreakpoint;
+        if (wide) {
+          return Stack(
+            children: [
+              Row(
+                children: [
+                  rail,
+                  channelList(inDrawer: false),
+                  Expanded(child: messageArea),
+                  if (hasMembers && _memberListVisible)
+                    AccordMemberList(spaceId: effectiveSpaceId),
+                ],
+              ),
+              pip,
+            ],
+          );
+        }
+        // Narrow: rail + channel list move into a drawer, members into an
+        // end-drawer, so the message pane keeps full width instead of
+        // overflowing.
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: colors.background,
+          drawerEdgeDragWidth: 48,
+          drawer: Drawer(
+            width: 292,
+            backgroundColor: colors.background,
+            child: SafeArea(
+              child: Row(
+                children: [
+                  rail,
+                  Expanded(child: channelList(inDrawer: true)),
+                ],
+              ),
+            ),
+          ),
+          endDrawer: hasMembers
+              ? Drawer(
+                  width: 260,
+                  backgroundColor: colors.background,
+                  child: SafeArea(
+                    child: AccordMemberList(spaceId: effectiveSpaceId),
+                  ),
+                )
+              : null,
+          body: Stack(
+            children: [
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Channels',
+                        icon: Icon(Icons.menu, color: colors.dirtyWhite),
+                        onPressed: () =>
+                            _scaffoldKey.currentState?.openDrawer(),
+                      ),
+                      Expanded(child: _TabStrip(onSelect: _selectTab)),
+                      if (hasMembers)
+                        IconButton(
+                          tooltip: 'Members',
+                          icon: Icon(
+                            Icons.people_alt_outlined,
+                            color: colors.dirtyWhite,
+                          ),
+                          onPressed: () =>
+                              _scaffoldKey.currentState?.openEndDrawer(),
+                        ),
+                    ],
+                  ),
+                  Expanded(
+                    child: _MessagePane(
+                      channel: channels?.firstWhereOrNull(
+                        (c) => c.id == shownChannelId,
+                      ),
+                      channelId: shownChannelId,
+                      spaceId: effectiveSpaceId,
+                    ),
+                  ),
+                ],
+              ),
+              pip,
+            ],
+          ),
+        );
+      },
+    );
+
     return Column(
       children: [
         const UpdateBanner(),
         const RolePreviewBanner(),
-        Expanded(
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  _SpaceRail(
-                    selectedSpaceId: effectiveSpaceId,
-                    onSelect: _selectSpace,
-                    onAddServer: () => showAddServerDialog(context),
-                    onSwitchAccount: () => context.go('/switcher'),
-                    onOpenSettings: () => context.push('/settings'),
-                    onLogout: () =>
-                        ref.read(accordAuthProvider.notifier).logout(),
-                  ),
-                  _ChannelList(
-                    spaceId: effectiveSpaceId,
-                    spaceName: spaces
-                        ?.firstWhereOrNull((s) => s.id == effectiveSpaceId)
-                        ?.name,
-                    channels: channels,
-                    selectedChannelId: shownChannelId,
-                    onSelect: shownSpaceId == null
-                        ? (_) {}
-                        : (channelId) =>
-                              _openChannel(channelId, spaceId: shownSpaceId),
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        _TabStrip(onSelect: _selectTab),
-                        Expanded(
-                          child: _MessagePane(
-                            channel: channels?.firstWhereOrNull(
-                              (c) => c.id == shownChannelId,
-                            ),
-                            channelId: shownChannelId,
-                            spaceId: effectiveSpaceId,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (effectiveSpaceId != null && _memberListVisible)
-                    AccordMemberList(spaceId: effectiveSpaceId),
-                ],
-              ),
-              VoicePipOverlay(
-                shownChannelId: shownChannelId,
-                onOpen: (channelId, spaceId) =>
-                    _openChannel(channelId, spaceId: spaceId),
-              ),
-            ],
-          ),
-        ),
+        Expanded(child: body),
       ],
     );
   }
