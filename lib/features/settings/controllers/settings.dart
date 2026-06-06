@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -139,6 +140,82 @@ class SettingsController extends _$SettingsController {
       ),
     ),
   );
+
+  // ── Rail ordering & folders ───────────────────────────────────────────────
+
+  /// Persists the manual rail space ordering (a flat list of space ids).
+  void setSpaceOrder(List<String> order) =>
+      _update(state.copyWith(spaceOrder: order));
+
+  /// Creates a folder containing [spaceIds] and returns its id.
+  String createFolder({String name = '', List<String> spaceIds = const []}) {
+    final id = 'folder-${_generateToken().substring(0, 12)}';
+    // A space lives in at most one folder — strip these ids from any others.
+    final cleaned = [
+      for (final f in state.spaceFolders)
+        f.copyWith(
+          spaceIds: [
+            for (final s in f.spaceIds)
+              if (!spaceIds.contains(s)) s,
+          ],
+        ),
+      SpaceFolder(id: id, name: name, spaceIds: spaceIds),
+    ];
+    _update(state.copyWith(spaceFolders: cleaned));
+    return id;
+  }
+
+  void renameFolder(String id, String name) =>
+      _mutateFolder(id, (f) => f.copyWith(name: name.trim()));
+
+  void setFolderColor(String id, int? color) => _mutateFolder(
+    id,
+    (f) =>
+        color == null ? f.copyWith(clearColor: true) : f.copyWith(color: color),
+  );
+
+  void setFolderCollapsed(String id, bool collapsed) =>
+      _mutateFolder(id, (f) => f.copyWith(collapsed: collapsed));
+
+  /// Removes [id], dissolving it (its spaces become ungrouped).
+  void deleteFolder(String id) => _update(
+    state.copyWith(
+      spaceFolders: [
+        for (final f in state.spaceFolders)
+          if (f.id != id) f,
+      ],
+    ),
+  );
+
+  /// Moves [spaceId] into [folderId] (appended), or out of all folders when
+  /// [folderId] is null. Empty folders left behind are pruned.
+  void moveSpaceToFolder(String spaceId, String? folderId) {
+    final next = <SpaceFolder>[];
+    for (final f in state.spaceFolders) {
+      final without = [
+        for (final s in f.spaceIds)
+          if (s != spaceId) s,
+      ];
+      final updated = f.id == folderId
+          ? f.copyWith(spaceIds: [...without, spaceId])
+          : f.copyWith(spaceIds: without);
+      // Drop folders emptied by this move (but keep the target).
+      if (updated.spaceIds.isNotEmpty || updated.id == folderId) {
+        next.add(updated);
+      }
+    }
+    _update(state.copyWith(spaceFolders: next));
+  }
+
+  void _mutateFolder(String id, SpaceFolder Function(SpaceFolder) fn) =>
+      _update(
+        state.copyWith(
+          spaceFolders: [
+            for (final f in state.spaceFolders)
+              if (f.id == id) fn(f) else f,
+          ],
+        ),
+      );
 
   /// Records [token] (a unicode char or `name:id` custom ref) as most-recently
   /// used, de-duplicating and capping the list.

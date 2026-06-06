@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
 /// User-facing client preferences, persisted in the `accord-settings` Hive box.
@@ -74,6 +75,8 @@ class AccordSettings {
     this.compactMode = false,
     this.reducedMotion = false,
     this.uiScale = 1.0,
+    this.spaceOrder = const <String>[],
+    this.spaceFolders = const <SpaceFolder>[],
   });
 
   /// Minimum / maximum UI text scale, matching the reference's `ui_scale` range.
@@ -209,6 +212,14 @@ class AccordSettings {
   /// `accessibility.ui_scale`.
   final double uiScale;
 
+  /// Manual ordering of space icons in the rail, as an ordered list of space
+  /// ids (across all servers). Spaces not listed render after, in server order.
+  /// Mirrors the reference's `space_order`.
+  final List<String> spaceOrder;
+
+  /// User-defined rail folders. Mirrors the reference's `folders`.
+  final List<SpaceFolder> spaceFolders;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -245,6 +256,8 @@ class AccordSettings {
     bool? compactMode,
     bool? reducedMotion,
     double? uiScale,
+    List<String>? spaceOrder,
+    List<SpaceFolder>? spaceFolders,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -283,6 +296,8 @@ class AccordSettings {
       compactMode: compactMode ?? this.compactMode,
       reducedMotion: reducedMotion ?? this.reducedMotion,
       uiScale: uiScale ?? this.uiScale,
+      spaceOrder: spaceOrder ?? this.spaceOrder,
+      spaceFolders: spaceFolders ?? this.spaceFolders,
     );
   }
 
@@ -372,6 +387,8 @@ class AccordSettings {
     'compactMode': compactMode,
     'reducedMotion': reducedMotion,
     'uiScale': uiScale,
+    'spaceOrder': spaceOrder,
+    'spaceFolders': [for (final f in spaceFolders) f.toJson()],
   };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -442,6 +459,13 @@ class AccordSettings {
       uiScale:
           (json['uiScale'] as num?)?.toDouble().clamp(minUiScale, maxUiScale) ??
           1.0,
+      spaceOrder: [
+        for (final s in (json['spaceOrder'] as List? ?? const [])) s.toString(),
+      ],
+      spaceFolders: [
+        for (final f in (json['spaceFolders'] as List? ?? const []))
+          if (f is Map) SpaceFolder.fromJson(f),
+      ],
     );
   }
 }
