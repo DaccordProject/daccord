@@ -20,15 +20,15 @@ class _ChannelList extends ConsumerStatefulWidget {
 }
 
 class _ChannelListState extends ConsumerState<_ChannelList> {
-  /// Categories the user has collapsed in this session. Per-instance (not
-  /// persisted) — matches the reference client's behavior of resetting on app
-  /// restart.
-  final Set<String> _collapsed = <String>{};
-
   void _toggleCollapsed(String categoryId) {
-    setState(() {
-      if (!_collapsed.add(categoryId)) _collapsed.remove(categoryId);
-    });
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return;
+    final settings = ref.read(settingsControllerProvider);
+    ref.read(settingsControllerProvider.notifier).setCategoryCollapsed(
+          spaceId,
+          categoryId,
+          !settings.isCategoryCollapsed(spaceId, categoryId),
+        );
   }
 
   @override
@@ -53,6 +53,13 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     );
     final bannerUrl =
         space == null ? null : accordSpaceBannerUrl(space, cdnUrl);
+
+    // Collapsed categories are persisted per-space via SettingsController
+    // (mirrors the reference client's Config.set_category_collapsed).
+    final collapsed = id == null
+        ? const <String>{}
+        : ref.watch(settingsControllerProvider
+            .select((s) => s.collapsedCategories[id]?.toSet() ?? const <String>{}));
 
     // Show the settings gear only to members who can manage the space or roles,
     // and the channel-management affordances to those with manage_channels.
@@ -178,7 +185,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                       selectedChannelId: selectedChannelId,
                       onSelect: onSelect,
                       canManageChannels: canManageChannels,
-                      collapsed: _collapsed,
+                      collapsed: collapsed,
                       onToggleCollapsed: _toggleCollapsed,
                     ),
                   ),

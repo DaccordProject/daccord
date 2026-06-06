@@ -92,6 +92,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     if (channel != null && channel.nsfw && spaceId != null) {
       final ok = await confirmNsfwGate(
         context,
+        ref,
         channelId: channelId,
         channelName: channel.name ?? 'channel',
       );
