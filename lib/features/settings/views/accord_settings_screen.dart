@@ -2,6 +2,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
@@ -160,6 +161,13 @@ class AccordSettingsScreen extends ConsumerWidget {
             leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
             title: const Text('Switch account'),
             onTap: () => context.go('/switcher'),
+          ),
+          ListTile(
+            leading: Icon(Icons.privacy_tip_outlined, color: colors.dirtyWhite),
+            title: const Text('Privacy & Data'),
+            subtitle: const Text('Data export, leave & delete data, retention'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showPrivacySettings(context),
           ),
           if (session?.isAdmin ?? false)
             ListTile(
