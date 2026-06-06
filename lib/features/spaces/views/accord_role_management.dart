@@ -4,6 +4,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
@@ -155,6 +156,19 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
         .upsertRole(widget.spaceId, role);
   }
 
+  /// Enters "preview as role" for [role] and closes this dialog so the user
+  /// sees the app gated as that role would (with the exit banner up top).
+  void _previewRole(AccordRole role) {
+    ref.read(rolePreviewControllerProvider.notifier).enter(
+          RolePreview(
+            spaceId: widget.spaceId,
+            roleId: role.id,
+            roleName: role.name,
+          ),
+        );
+    Navigator.of(context).maybePop();
+  }
+
   Future<void> _deleteRole(AccordRole role) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -274,6 +288,7 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
                             onDelete: selected.position == 0
                                 ? null
                                 : () => _deleteRole(selected),
+                            onPreview: () => _previewRole(selected),
                           ),
                   ),
                 ],
@@ -468,6 +483,7 @@ class _RoleEditorPane extends StatefulWidget {
     required this.busy,
     required this.onSave,
     required this.onDelete,
+    required this.onPreview,
   });
 
   final AccordRole role;
@@ -475,6 +491,7 @@ class _RoleEditorPane extends StatefulWidget {
   final bool busy;
   final ValueChanged<AccordRole> onSave;
   final VoidCallback? onDelete;
+  final VoidCallback? onPreview;
 
   @override
   State<_RoleEditorPane> createState() => _RoleEditorPaneState();
@@ -618,6 +635,12 @@ class _RoleEditorPaneState extends State<_RoleEditorPane> {
                   onPressed: enabled ? widget.onDelete : null,
                   style: TextButton.styleFrom(foregroundColor: colors.red),
                   child: const Text('Delete role'),
+                ),
+              if (widget.onPreview != null)
+                TextButton.icon(
+                  onPressed: widget.busy ? null : widget.onPreview,
+                  icon: const Icon(Icons.visibility, size: 16),
+                  label: const Text('Preview as role'),
                 ),
               const Spacer(),
               FilledButton(

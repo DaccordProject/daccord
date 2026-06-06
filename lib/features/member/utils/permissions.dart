@@ -10,21 +10,30 @@ import 'package:accordkit/accordkit.dart';
 ///
 /// Channel-level permission overwrites are not modeled here (space-level checks
 /// are all the moderation UI needs).
+/// When [previewRoleId] is set, permissions are computed as a plain member who
+/// holds only that role (plus `@everyone`), ignoring the admin/owner bypass —
+/// this drives the "preview as role" (imposter) mode.
 Set<String> accordEffectivePermissions({
   required AccordSpace? space,
   required AccordMember? selfMember,
   required List<AccordRole> roles,
   required String currentUserId,
   bool currentUserIsAdmin = false,
+  String? previewRoleId,
 }) {
-  if (currentUserIsAdmin) return {AccordPermission.administrator};
-  if (space != null &&
-      currentUserId.isNotEmpty &&
-      space.ownerId == currentUserId) {
-    return {AccordPermission.administrator};
+  final previewing = previewRoleId != null;
+  if (!previewing) {
+    if (currentUserIsAdmin) return {AccordPermission.administrator};
+    if (space != null &&
+        currentUserId.isNotEmpty &&
+        space.ownerId == currentUserId) {
+      return {AccordPermission.administrator};
+    }
   }
 
-  final myRoleIds = selfMember?.roles ?? const <String>[];
+  final myRoleIds = previewing
+      ? <String>[previewRoleId]
+      : (selfMember?.roles ?? const []);
   final perms = <String>{};
   for (final role in roles) {
     final isEveryone = role.position == 0;
@@ -55,14 +64,20 @@ int accordMyHighestRolePosition({
   required List<AccordRole> roles,
   required String currentUserId,
   bool currentUserIsAdmin = false,
+  String? previewRoleId,
 }) {
-  if (currentUserIsAdmin) return kAccordMaxRolePosition;
-  if (space != null &&
-      currentUserId.isNotEmpty &&
-      space.ownerId == currentUserId) {
-    return kAccordMaxRolePosition;
+  final previewing = previewRoleId != null;
+  if (!previewing) {
+    if (currentUserIsAdmin) return kAccordMaxRolePosition;
+    if (space != null &&
+        currentUserId.isNotEmpty &&
+        space.ownerId == currentUserId) {
+      return kAccordMaxRolePosition;
+    }
   }
-  final myRoleIds = selfMember?.roles ?? const <String>[];
+  final myRoleIds = previewing
+      ? <String>[previewRoleId]
+      : (selfMember?.roles ?? const []);
   var highest = 0;
   var hasAdmin = false;
   for (final role in roles) {

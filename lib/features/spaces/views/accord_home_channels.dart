@@ -76,12 +76,14 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
             (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
       );
       final members = ref.watch(accordMembersControllerProvider(id));
+      final preview = ref.watch(rolePreviewControllerProvider);
       final perms = accordEffectivePermissions(
         space: space,
         selfMember: currentUserId == null ? null : members?[currentUserId],
         roles: space?.roles ?? const <AccordRole>[],
         currentUserId: currentUserId ?? '',
         currentUserIsAdmin: isAdmin,
+        previewRoleId: preview?.spaceId == id ? preview?.roleId : null,
       );
       canManage = accordHasPermission(perms, AccordPermission.manageSpace) ||
           accordHasPermission(perms, AccordPermission.manageRoles) ||

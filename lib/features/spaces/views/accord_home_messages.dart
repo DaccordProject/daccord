@@ -185,12 +185,16 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
             ?.roles ??
         const <String>[];
 
+    final preview = ref.watch(rolePreviewControllerProvider);
+    final previewRoleId =
+        preview?.spaceId == spaceId ? preview?.roleId : null;
     final perms = accordEffectivePermissions(
       space: space,
       selfMember: currentUserId == null ? null : members?[currentUserId],
       roles: roles,
       currentUserId: currentUserId ?? '',
       currentUserIsAdmin: isAdmin,
+      previewRoleId: previewRoleId,
     );
     final canManageMessages =
         accordHasPermission(perms, AccordPermission.manageMessages);

@@ -30,6 +30,8 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
+import 'package:bonfire/features/spaces/views/role_preview_banner.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/features/spaces/views/accord_gates.dart';
 import 'package:bonfire/features/spaces/views/accord_channel_reorder.dart';
@@ -433,6 +435,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     return Column(
       children: [
         const UpdateBanner(),
+        const RolePreviewBanner(),
         Expanded(
           child: Stack(
             children: [

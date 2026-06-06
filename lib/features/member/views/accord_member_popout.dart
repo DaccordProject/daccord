@@ -6,6 +6,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -275,11 +276,14 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     final colorRole = member == null ? null : memberColorRole(member, roles);
     final nameColor = colorRole == null ? null : accordRoleColor(colorRole.color);
 
+    final preview = ref.watch(rolePreviewControllerProvider);
     final perms = accordEffectivePermissions(
       space: space,
       selfMember: currentUserId == null ? null : members?[currentUserId],
       roles: roles,
       currentUserId: currentUserId ?? '',
+      previewRoleId:
+          preview?.spaceId == widget.spaceId ? preview?.roleId : null,
     );
     final isSelf = currentUserId != null && currentUserId == widget.userId;
     final canKick =

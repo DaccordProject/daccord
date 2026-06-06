@@ -4,6 +4,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
@@ -156,12 +157,15 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
           .select((s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
     );
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
+    final preview = ref.read(rolePreviewControllerProvider);
     return accordEffectivePermissions(
       space: space,
       selfMember: currentUserId == null ? null : members?[currentUserId],
       roles: space?.roles ?? const <AccordRole>[],
       currentUserId: currentUserId ?? '',
       currentUserIsAdmin: isAdmin,
+      previewRoleId:
+          preview?.spaceId == widget.spaceId ? preview?.roleId : null,
     );
   }
 
