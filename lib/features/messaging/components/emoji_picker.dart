@@ -14,12 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// custom space emoji [id] is set, [char] is empty, and [imageUrl] points at
 /// the rendered glyph.
 class EmojiPick {
-  const EmojiPick({
-    required this.name,
-    this.char = '',
-    this.id,
-    this.imageUrl,
-  });
+  const EmojiPick({required this.name, this.char = '', this.id, this.imageUrl});
 
   final String name;
   final String char;
@@ -84,9 +79,10 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
   }
 
   String? get _cdnUrl => ref.read(
-        accordAuthProvider.select(
-            (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
-      );
+    accordAuthProvider.select(
+      (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+    ),
+  );
 
   List<AccordEmoji> get _customEmoji {
     final spaceId = widget.spaceId;
@@ -135,8 +131,11 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
     }
     final id = emoji.id;
     if (id == null) return null;
-    return AccordCDN.emoji(id,
-        format: emoji.animated ? 'gif' : 'png', cdnUrl: _cdnUrl ?? '');
+    return AccordCDN.emoji(
+      id,
+      format: emoji.animated ? 'gif' : 'png',
+      cdnUrl: _cdnUrl ?? '',
+    );
   }
 
   @override
@@ -144,7 +143,8 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
     final colors = BonfireThemeExtension.of(context);
     final custom = _customEmoji;
     final recents = ref.watch(
-        settingsControllerProvider.select((s) => s.recentEmoji));
+      settingsControllerProvider.select((s) => s.recentEmoji),
+    );
 
     return Padding(
       padding: EdgeInsets.only(
@@ -173,7 +173,8 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
                 controller: _searchController,
                 autofocus: false,
                 style: Theme.of(context).textTheme.bodyLarge,
-                onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                onChanged: (v) =>
+                    setState(() => _query = v.trim().toLowerCase()),
                 decoration: InputDecoration(
                   isDense: true,
                   filled: true,
@@ -205,7 +206,10 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
     );
   }
 
-  Widget _buildSearchGrid(BonfireThemeExtension colors, List<AccordEmoji> custom) {
+  Widget _buildSearchGrid(
+    BonfireThemeExtension colors,
+    List<AccordEmoji> custom,
+  ) {
     final unicodeHits = [
       for (final e in kEmojiCatalog)
         if (e.matches(_query)) e,
@@ -251,10 +255,19 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
   }
 
   Widget _grid(List<Widget> cells) {
-    return GridView.count(
-      crossAxisCount: 8,
+    // Fixed ~36px tiles so cell height tracks the glyph size (not the column
+    // width) — keeps the grid dense regardless of panel width, instead of the
+    // sparse square cells `GridView.count(crossAxisCount: 8)` produced.
+    return GridView.builder(
       padding: const EdgeInsets.all(8),
-      children: cells,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 40,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
+        childAspectRatio: 1,
+      ),
+      itemCount: cells.length,
+      itemBuilder: (context, i) => cells[i],
     );
   }
 
@@ -276,11 +289,8 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
     final url = _emojiImageUrl(emoji);
     return _cell(
       tooltip: emoji.name,
-      onTap: () => _pick(EmojiPick(
-        name: emoji.name,
-        id: emoji.id,
-        imageUrl: url,
-      )),
+      onTap: () =>
+          _pick(EmojiPick(name: emoji.name, id: emoji.id, imageUrl: url)),
       child: url == null
           ? Text(':${emoji.name}:', style: const TextStyle(fontSize: 9))
           : CachedNetworkImage(
@@ -298,13 +308,13 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
       onTap: () => _pick(pick),
       child: pick.isCustom
           ? (pick.imageUrl == null
-              ? Text(':${pick.name}:', style: const TextStyle(fontSize: 9))
-              : CachedNetworkImage(
-                  imageUrl: pick.imageUrl!,
-                  width: 26,
-                  height: 26,
-                  fit: BoxFit.contain,
-                ))
+                ? Text(':${pick.name}:', style: const TextStyle(fontSize: 9))
+                : CachedNetworkImage(
+                    imageUrl: pick.imageUrl!,
+                    width: 26,
+                    height: 26,
+                    fit: BoxFit.contain,
+                  ))
           : Text(pick.char, style: const TextStyle(fontSize: 26)),
     );
   }
@@ -350,26 +360,37 @@ class _TabBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         children: [
-          if (hasRecent)
-            _tab(colors, _Tab.recent, Icons.history, 'Recent'),
+          if (hasRecent) _tab(colors, _Tab.recent, Icons.history, 'Recent'),
           if (hasCustom)
-            _tab(colors, _Tab.custom, Icons.workspace_premium_outlined,
-                'Custom'),
-          for (final c in EmojiCategory.values) _tab(colors, c, c.icon, c.label),
+            _tab(
+              colors,
+              _Tab.custom,
+              Icons.workspace_premium_outlined,
+              'Custom',
+            ),
+          for (final c in EmojiCategory.values)
+            _tab(colors, c, c.icon, c.label),
         ],
       ),
     );
   }
 
-  Widget _tab(BonfireThemeExtension colors, Object value, IconData icon,
-      String label) {
+  Widget _tab(
+    BonfireThemeExtension colors,
+    Object value,
+    IconData icon,
+    String label,
+  ) {
     final active = selected == value;
     return Tooltip(
       message: label,
       child: IconButton(
         onPressed: () => onSelect(value),
-        icon: Icon(icon,
-            size: 20, color: active ? colors.primary : colors.gray),
+        icon: Icon(
+          icon,
+          size: 20,
+          color: active ? colors.primary : colors.gray,
+        ),
       ),
     );
   }
