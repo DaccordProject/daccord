@@ -64,26 +64,48 @@ class SoundManager {
     await player.play(AssetSource(asset));
   }
 
-  /// Decides which SFX (if any) to play for an incoming message, mirroring the
-  /// reference's `play_for_message`. [isMention] folds together direct,
-  /// role, and `@everyone` mentions; [isVisibleChannel] is true when the
-  /// message lands in the channel the user is currently looking at.
+  /// Pure decision half of [playForMessage]: returns the SFX name to play, or
+  /// null for silence — without touching audio. Extracted so the chime policy
+  /// (mirroring the reference's `play_for_message`) can be unit-tested.
+  ///
+  /// [isMention] folds together direct, role, and `@everyone` mentions;
+  /// [isVisibleChannel] is true when the message lands in the channel the user
+  /// is currently looking at. [enabled]/[volume]/[focused] mirror the
+  /// instance fields so the decision can be exercised with explicit state.
+  static String? soundForMessage({
+    required bool isMention,
+    required bool isVisibleChannel,
+    required bool focused,
+    required bool enabled,
+    required double volume,
+    bool isMemberJoin = false,
+  }) {
+    // Disabled or muted: never chime, regardless of the message.
+    if (!enabled || volume <= 0.0) return null;
+    if (isMemberJoin) return 'member_join';
+    // The currently-open channel never chimes (you can see the message).
+    if (isVisibleChannel) return null;
+    if (isMention) return 'mention_received';
+    if (!focused) return 'message_received';
+    return null;
+  }
+
+  /// Decides which SFX (if any) to play for an incoming message, then performs
+  /// playback. The decision is delegated to the pure [soundForMessage].
   void playForMessage({
     required bool isMention,
     required bool isVisibleChannel,
     bool isMemberJoin = false,
   }) {
-    if (isMemberJoin) {
-      play('member_join');
-      return;
-    }
-    // The currently-open channel never chimes (you can see the message).
-    if (isVisibleChannel) return;
-    if (isMention) {
-      play('mention_received');
-    } else if (!focused) {
-      play('message_received');
-    }
+    final name = soundForMessage(
+      isMention: isMention,
+      isVisibleChannel: isVisibleChannel,
+      focused: focused,
+      enabled: enabled,
+      volume: volume,
+      isMemberJoin: isMemberJoin,
+    );
+    if (name != null) play(name);
   }
 
   void dispose() {
