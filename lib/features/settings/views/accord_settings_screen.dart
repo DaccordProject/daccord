@@ -2,6 +2,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/user/views/accord_profile_edit.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -137,6 +138,12 @@ class AccordSettingsScreen extends ConsumerWidget {
               title: Text(session.username),
               subtitle: Text(session.server.baseUrl),
             ),
+          ListTile(
+            leading: Icon(Icons.edit_outlined, color: colors.dirtyWhite),
+            title: const Text('Edit profile'),
+            subtitle: const Text('Display name, bio, avatar'),
+            onTap: () => showAccordProfileEdit(context),
+          ),
           ListTile(
             leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
             title: const Text('Switch account'),

@@ -48,4 +48,11 @@ class AccordUsersController extends _$AccordUsersController {
       }
     });
   }
+
+  /// Inserts or replaces [user] in the cache. Used after `users.updateMe` so
+  /// the self profile changes are visible everywhere it's rendered without
+  /// waiting for an `ensure` round-trip.
+  void upsert(AccordUser user) {
+    state = {...state, user.id: user};
+  }
 }
