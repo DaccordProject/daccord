@@ -12,6 +12,7 @@ import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/notifications/controllers/notification.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
+import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
@@ -160,18 +161,21 @@ VoidCallback handleAccordEvents(
   subs.add(client.onMessageCreate.listen((message) {
     if (!isActive()) return;
     final settings = ref.read(settingsControllerProvider);
-    if (!settings.notificationsEnabled) return;
 
     final me = ref.read(
       accordAuthProvider.select(
           (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
     );
-    if (me == null || message.authorId == me) return;
-    if (message.channelId == accordVisibleChannelId) return;
 
-    final mentionsMe = message.mentions.contains(me);
-    final everyone = message.mentionEveryone && !settings.suppressEveryone;
-    if (!mentionsMe && !everyone) return;
+    final notify = MessageNotificationGate.shouldNotify(
+      notificationsEnabled: settings.notificationsEnabled,
+      suppressEveryone: settings.suppressEveryone,
+      isOwnMessage: me == null || message.authorId == me,
+      isVisibleChannel: message.channelId == accordVisibleChannelId,
+      mentionsMe: me != null && message.mentions.contains(me),
+      mentionEveryone: message.mentionEveryone,
+    );
+    if (!notify) return;
 
     final author = ref.read(accordUsersControllerProvider)[message.authorId];
     final name = accordUserName(author, fallback: 'New mention');
