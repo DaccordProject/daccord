@@ -84,4 +84,49 @@ class SettingsController extends _$SettingsController {
     if (next.length > _maxRecentEmoji) next.removeRange(_maxRecentEmoji, next.length);
     _update(state.copyWith(recentEmoji: next));
   }
+
+  /// Marks [spaceId]'s rules interstitial as accepted so it isn't reshown.
+  void acceptRules(String spaceId) {
+    if (state.acceptedRuleSpaces.contains(spaceId)) return;
+    _update(state.copyWith(
+        acceptedRuleSpaces: [...state.acceptedRuleSpaces, spaceId]));
+  }
+
+  /// Marks [channelId]'s NSFW gate as acknowledged.
+  void acknowledgeNsfw(String channelId) {
+    if (state.acknowledgedNsfwChannels.contains(channelId)) return;
+    _update(state.copyWith(
+        acknowledgedNsfwChannels: [...state.acknowledgedNsfwChannels, channelId]));
+  }
+
+  /// Sets whether [categoryId] is collapsed in [spaceId]'s channel list.
+  void setCategoryCollapsed(String spaceId, String categoryId, bool collapsed) {
+    final current = state.collapsedCategories[spaceId] ?? const <String>[];
+    final isCollapsed = current.contains(categoryId);
+    if (collapsed == isCollapsed) return;
+    final nextList = collapsed
+        ? [...current, categoryId]
+        : [for (final c in current) if (c != categoryId) c];
+    final next = Map<String, List<String>>.from(state.collapsedCategories);
+    if (nextList.isEmpty) {
+      next.remove(spaceId);
+    } else {
+      next[spaceId] = nextList;
+    }
+    _update(state.copyWith(collapsedCategories: next));
+  }
+
+  /// Saves (or clears, when [text] is blank) the unsent draft for [channelId].
+  void setDraft(String channelId, String text) {
+    final trimmed = text;
+    final current = state.drafts[channelId] ?? '';
+    if (current == trimmed) return;
+    final next = Map<String, String>.from(state.drafts);
+    if (trimmed.isEmpty) {
+      next.remove(channelId);
+    } else {
+      next[channelId] = trimmed;
+    }
+    _update(state.copyWith(drafts: next));
+  }
 }
