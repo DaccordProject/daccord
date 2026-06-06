@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/components/box/accord_markdown_box.dart';
+import 'package:bonfire/features/messaging/components/inline_video_player.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,8 @@ class AccordEmbedBox extends StatelessWidget {
     final imageUrl = _resolve(_imageUrl(embed.image));
     final thumbUrl = _resolve(_imageUrl(embed.thumbnail));
     final footer = _footerText(embed.footer);
+    final timestamp = _formatTimestamp(embed.timestamp);
+    final isVideo = _str(embed.type)?.toLowerCase() == 'video';
     final borderColor = _color(embed.color) ?? colors.primary;
 
     final body = Column(
@@ -93,25 +96,47 @@ class AccordEmbedBox extends StatelessWidget {
         ],
         if (imageUrl != null) ...[
           const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: _maxImageWidth,
-                maxHeight: _maxImageHeight,
-              ),
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.contain,
-                errorWidget: (_, _, _) => const SizedBox.shrink(),
+          // For video-type embeds we play the linked URL inline via media_kit
+          // when present; otherwise we fall back to a tap-to-launch poster
+          // (no inline playback, but a clear play affordance vs. the previous
+          // static image). For non-video embeds the image renders as before.
+          if (isVideo && embedUrl != null)
+            InlineVideoPlayer(
+              url: embedUrl,
+              filename: title ?? 'video',
+              width: _maxImageWidth,
+              height: _maxImageHeight,
+            )
+          else if (isVideo)
+            _VideoPoster(
+              imageUrl: imageUrl,
+              onTap: embedUrl == null
+                  ? null
+                  : () => launchUrl(Uri.parse(embedUrl),
+                      mode: LaunchMode.externalApplication),
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: _maxImageWidth,
+                  maxHeight: _maxImageHeight,
+                ),
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
+                ),
               ),
             ),
-          ),
         ],
-        if (footer != null) ...[
+        if (footer != null || timestamp != null) ...[
           const SizedBox(height: 6),
-          Text(footer,
-              style: theme.textTheme.labelSmall!.copyWith(color: colors.gray)),
+          Text(
+            _joinFooter(footer, timestamp),
+            style: theme.textTheme.labelSmall!.copyWith(color: colors.gray),
+          ),
         ],
       ],
     );
@@ -271,4 +296,75 @@ Color? _color(Object? value) {
     if (parsed != null) return Color(0xFF000000 | (parsed & 0xFFFFFF));
   }
   return null;
+}
+
+/// Joins an embed footer text with its timestamp using a bullet separator,
+/// matching the reference client. Either may be null.
+String _joinFooter(String? footer, String? timestamp) {
+  if (footer != null && timestamp != null) return "$footer \u2022 $timestamp";
+  return footer ?? timestamp ?? "";
+}
+
+/// Parses an embed `timestamp` ISO-8601 string into a human-readable
+/// "YYYY-MM-DD HH:MM" in the local time zone. Returns null when missing or
+/// unparseable so the footer collapses gracefully.
+String? _formatTimestamp(Object? value) {
+  final s = _str(value);
+  if (s == null) return null;
+  final dt = DateTime.tryParse(s);
+  if (dt == null) return null;
+  final local = dt.toLocal();
+  String pad(int n) => n.toString().padLeft(2, "0");
+  return "${local.year}-${pad(local.month)}-${pad(local.day)} "
+      "${pad(local.hour)}:${pad(local.minute)}";
+}
+
+/// A video-embed poster: the thumbnail with a large play-button overlay. Used
+/// when an inline media_kit player is not appropriate (e.g. the embed only
+/// carries an image + an external video URL).
+class _VideoPoster extends StatelessWidget {
+  const _VideoPoster({required this.imageUrl, this.onTap});
+
+  final String imageUrl;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: onTap == null
+            ? MouseCursor.defer
+            : SystemMouseCursors.click,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: 400,
+              maxHeight: 300,
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    color: Color(0x99000000),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.play_arrow,
+                      color: Colors.white, size: 32),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
