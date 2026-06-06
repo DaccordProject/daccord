@@ -33,5 +33,21 @@ class PresenceController extends _$PresenceController {
 
 /// The status string ('online' / 'idle' / 'dnd' / 'offline') for [userId],
 /// defaulting to 'offline' when no presence has been received.
-String accordPresenceStatus(Map<String, AccordPresence> presences, String userId) =>
-    presences[userId]?.status ?? 'offline';
+String accordPresenceStatus(
+  Map<String, AccordPresence> presences,
+  String userId,
+) => presences[userId]?.status ?? 'offline';
+
+/// The user's custom status text (the first activity's name), or null when
+/// none is set. Custom statuses are sent as a presence `activity` whose `name`
+/// carries the (optionally emoji-prefixed) text.
+String? accordCustomStatus(
+  Map<String, AccordPresence> presences,
+  String userId,
+) {
+  final activities = presences[userId]?.activities ?? const [];
+  for (final a in activities) {
+    if (a.name.trim().isNotEmpty) return a.name.trim();
+  }
+  return null;
+}

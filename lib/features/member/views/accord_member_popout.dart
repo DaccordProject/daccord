@@ -52,9 +52,8 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   String? _error;
 
   AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _run(
     Future<RestResult> Function(AccordClient client) action, {
@@ -118,22 +117,18 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     final until = DateTime.now().toUtc().add(Duration(seconds: seconds));
     final iso = '${until.toIso8601String().split('.').first}Z';
     _run(
-      (c) => c.members.update(
-        widget.spaceId,
-        widget.userId,
-        {'communication_disabled_until': iso},
-      ),
+      (c) => c.members.update(widget.spaceId, widget.userId, {
+        'communication_disabled_until': iso,
+      }),
       failure: 'Failed to time out member',
     );
   }
 
   void _removeTimeout() {
     _run(
-      (c) => c.members.update(
-        widget.spaceId,
-        widget.userId,
-        {'communication_disabled_until': null},
-      ),
+      (c) => c.members.update(widget.spaceId, widget.userId, {
+        'communication_disabled_until': null,
+      }),
       failure: 'Failed to remove timeout',
     );
   }
@@ -173,11 +168,9 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
     if (next == null || !mounted) return;
     _run(
-      (c) => c.members.update(
-        widget.spaceId,
-        widget.userId,
-        {'nickname': next.isEmpty ? null : next},
-      ),
+      (c) => c.members.update(widget.spaceId, widget.userId, {
+        'nickname': next.isEmpty ? null : next,
+      }),
       failure: 'Failed to update nickname',
       onSuccess: () {
         member.nickname = next.isEmpty ? null : next;
@@ -249,21 +242,30 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     }
 
     final space = ref.watch(
-      spacesControllerProvider
-          .select((s) => s?.firstWhereOrNull((sp) => sp.id == widget.spaceId)),
+      spacesControllerProvider.select(
+        (s) => s?.firstWhereOrNull((sp) => sp.id == widget.spaceId),
+      ),
     );
     final roles = space?.roles ?? const <AccordRole>[];
     final status = ref.watch(
-      presenceControllerProvider
-          .select((p) => accordPresenceStatus(p, widget.userId)),
+      presenceControllerProvider.select(
+        (p) => accordPresenceStatus(p, widget.userId),
+      ),
+    );
+    final customStatus = ref.watch(
+      presenceControllerProvider.select(
+        (p) => accordCustomStatus(p, widget.userId),
+      ),
     );
     final cdnUrl = ref.watch(
       accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
     );
     final currentUserId = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
     );
 
     final name = member != null
@@ -274,7 +276,9 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         ? accordMemberAvatarUrl(member, cdnUrl)
         : accordAvatarUrl(cachedUser, cdnUrl);
     final colorRole = member == null ? null : memberColorRole(member, roles);
-    final nameColor = colorRole == null ? null : accordRoleColor(colorRole.color);
+    final nameColor = colorRole == null
+        ? null
+        : accordRoleColor(colorRole.color);
 
     final preview = ref.watch(rolePreviewControllerProvider);
     final perms = accordEffectivePermissions(
@@ -282,8 +286,9 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       selfMember: currentUserId == null ? null : members?[currentUserId],
       roles: roles,
       currentUserId: currentUserId ?? '',
-      previewRoleId:
-          preview?.spaceId == widget.spaceId ? preview?.roleId : null,
+      previewRoleId: preview?.spaceId == widget.spaceId
+          ? preview?.roleId
+          : null,
     );
     final isSelf = currentUserId != null && currentUserId == widget.userId;
     final canKick =
@@ -292,12 +297,15 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         !isSelf && accordHasPermission(perms, AccordPermission.banMembers);
     final canTimeout =
         !isSelf && accordHasPermission(perms, AccordPermission.moderateMembers);
-    final canManageRoles =
-        accordHasPermission(perms, AccordPermission.manageRoles);
+    final canManageRoles = accordHasPermission(
+      perms,
+      AccordPermission.manageRoles,
+    );
     final canEditNickname = isSelf
         ? accordHasPermission(perms, AccordPermission.changeNickname)
         : accordHasPermission(perms, AccordPermission.manageNicknames);
-    final timedOut = member?.timedOutUntil != null &&
+    final timedOut =
+        member?.timedOutUntil != null &&
         member!.timedOutUntil.toString().isNotEmpty;
 
     // Roles assignable in the popout: skip @everyone (position 0) and managed.
@@ -324,8 +332,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                     initial: name.isEmpty ? '?' : name[0].toUpperCase(),
                     status: status,
                     radius: 28,
-                    backgroundColor:
-                        accordAvatarColor(member?.user, widget.userId),
+                    backgroundColor: accordAvatarColor(
+                      member?.user,
+                      widget.userId,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -334,19 +344,33 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                       children: [
                         Text(
                           name,
-                          style: theme.textTheme.titleMedium!
-                              .copyWith(color: nameColor),
+                          style: theme.textTheme.titleMedium!.copyWith(
+                            color: nameColor,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (username != null)
-                          Text('@$username',
-                              style: theme.textTheme.bodySmall!
-                                  .copyWith(color: colors.gray)),
+                          Text(
+                            '@$username',
+                            style: theme.textTheme.bodySmall!.copyWith(
+                              color: colors.gray,
+                            ),
+                          ),
                         Text(
                           _statusLabel(status),
-                          style: theme.textTheme.bodySmall!
-                              .copyWith(color: colors.gray),
+                          style: theme.textTheme.bodySmall!.copyWith(
+                            color: colors.gray,
+                          ),
                         ),
+                        if (customStatus != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            customStatus,
+                            style: theme.textTheme.bodyMedium!.copyWith(
+                              color: colors.dirtyWhite,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -355,8 +379,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
               if (timedOut) ...[
                 const SizedBox(height: 12),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFAA81A).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
@@ -364,12 +390,17 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.timer_outlined,
-                          size: 16, color: Color(0xFFFAA81A)),
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 16,
+                        color: Color(0xFFFAA81A),
+                      ),
                       const SizedBox(width: 6),
                       Flexible(
-                        child: Text('Timed out until ${member.timedOutUntil}',
-                            style: theme.textTheme.bodySmall),
+                        child: Text(
+                          'Timed out until ${member.timedOutUntil}',
+                          style: theme.textTheme.bodySmall,
+                        ),
                       ),
                     ],
                   ),
@@ -377,15 +408,22 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
               ],
               if (member != null && member.joinedAt.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Text('Member since ${_date(member.joinedAt)}',
-                    style:
-                        theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+                Text(
+                  'Member since ${_date(member.joinedAt)}',
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.gray,
+                  ),
+                ),
               ],
               if (member != null && memberRoleIds.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                Text('ROLES',
-                    style: theme.textTheme.labelSmall!.copyWith(
-                        color: colors.gray, fontWeight: FontWeight.bold)),
+                Text(
+                  'ROLES',
+                  style: theme.textTheme.labelSmall!.copyWith(
+                    color: colors.gray,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -398,7 +436,9 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                   ],
                 ),
               ],
-              if (canManageRoles && member != null && assignableRoles.isNotEmpty)
+              if (canManageRoles &&
+                  member != null &&
+                  assignableRoles.isNotEmpty)
                 _RoleEditor(
                   roles: assignableRoles,
                   memberRoleIds: memberRoleIds,
@@ -434,9 +474,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: colors.red)),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
               ],
             ],
           ),
@@ -491,11 +532,12 @@ class _RoleChip extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text(role.name,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall!
-                  .copyWith(color: colors.dirtyWhite)),
+          Text(
+            role.name,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall!.copyWith(color: colors.dirtyWhite),
+          ),
         ],
       ),
     );
@@ -523,9 +565,13 @@ class _RoleEditor extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 14),
-        Text('ASSIGN ROLES',
-            style: theme.textTheme.labelSmall!.copyWith(
-                color: colors.gray, fontWeight: FontWeight.bold)),
+        Text(
+          'ASSIGN ROLES',
+          style: theme.textTheme.labelSmall!.copyWith(
+            color: colors.gray,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 6),
         Wrap(
           spacing: 6,
@@ -535,8 +581,7 @@ class _RoleEditor extends StatelessWidget {
               FilterChip(
                 label: Text(role.name),
                 selected: memberRoleIds.contains(role.id),
-                onSelected:
-                    enabled ? (value) => onToggle(role, value) : null,
+                onSelected: enabled ? (value) => onToggle(role, value) : null,
                 showCheckmark: true,
               ),
           ],
@@ -658,9 +703,12 @@ class _ActionRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
-          Text(label,
-              style:
-                  Theme.of(context).textTheme.bodyMedium!.copyWith(color: color)),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium!.copyWith(color: color),
+          ),
         ],
       ),
     );
