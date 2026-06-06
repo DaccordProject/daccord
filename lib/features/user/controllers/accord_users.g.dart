@@ -63,7 +63,7 @@ final class AccordUsersControllerProvider
 }
 
 String _$accordUsersControllerHash() =>
-    r'1252997e023396789b1bc691eb19b7e5aa54a98a';
+    r'fb11990c942256ac0268ea8454446d0fabd57b7a';
 
 /// Global per-user cache for users not covered by a space's loaded member page.
 ///

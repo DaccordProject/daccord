@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -150,6 +151,26 @@ VoidCallback handleAccordEvents(
     ref
         .read(accordMessagesControllerProvider(channelId).notifier)
         .removeMessage(messageId);
+  }));
+
+  // ── Read state (unread + mention badges) ─────────────────────────────────
+  // Independent of the channel cache: every message that arrives in a channel
+  // other than the visible one marks that channel unread (with a bumped
+  // mention count when the user is mentioned). Mirrors the reference client's
+  // `client_unread.gd`.
+  subs.add(client.onMessageCreate.listen((message) {
+    if (!isActive()) return;
+    final me = ref.read(
+      accordAuthProvider.select(
+          (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+    );
+    if (me == null || message.authorId == me) return;
+    if (message.channelId == accordVisibleChannelId) return;
+    final mentionsMe = message.mentionEveryone ||
+        message.mentions.contains(me);
+    ref
+        .read(readStateControllerProvider.notifier)
+        .markUnread(message.channelId, isMention: mentionsMe);
   }));
 
   // ── Mention notifications ────────────────────────────────────────────────

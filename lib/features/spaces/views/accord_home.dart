@@ -4,6 +4,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/components/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
@@ -91,6 +92,22 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       if (!ok || !mounted) return;
     }
     setState(() => _selectedChannelId = channelId);
+    _markChannelRead(channelId);
+  }
+
+  /// Marks [channelId] read locally and POSTs `channels.ack` with the latest
+  /// known message ID so the server's read position catches up too. Safe to
+  /// call when the channel has no cached messages (no last ID → ack is a
+  /// no-op; the local clear still happens).
+  void _markChannelRead(String channelId) {
+    ref.read(readStateControllerProvider.notifier).markRead(channelId);
+    final messages =
+        ref.read(accordMessagesControllerProvider(channelId));
+    final lastId = messages?.isNotEmpty == true ? messages!.last.id : null;
+    if (lastId == null) return;
+    final client = ref.read(accordAuthProvider
+        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    client?.channels.ack(channelId, lastId);
   }
 
   /// Shows the rules interstitial once when a space with a rules channel is
@@ -289,7 +306,7 @@ class _SpaceRail extends ConsumerWidget {
   }
 }
 
-class _SpaceIcon extends StatelessWidget {
+class _SpaceIcon extends ConsumerWidget {
   const _SpaceIcon({
     required this.space,
     required this.selected,
@@ -312,9 +329,18 @@ class _SpaceIcon extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final iconUrl = _spaceIconUrl(space, cdnUrl);
+    // Roll up per-channel read state into a single rail-level indicator. We
+    // only consider channels we've already loaded — the rail doesn't force a
+    // fetch for every server just to compute a badge.
+    final readState = ref.watch(readStateControllerProvider);
+    final channels = ref.watch(accordChannelsControllerProvider(space.id)) ??
+        const <AccordChannel>[];
+    final channelIds = channels.map((c) => c.id);
+    final hasUnread = !selected && readState.anyUnread(channelIds);
+    final mentions = readState.mentionsAcross(channelIds);
     final radius = BorderRadius.circular(selected ? 16 : 24);
     final fallback = Text(
       _initials,
@@ -326,26 +352,52 @@ class _SpaceIcon extends StatelessWidget {
         message: space.name,
         child: GestureDetector(
           onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 48,
-            height: 48,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: selected ? colors.primary : colors.darkGray,
-              borderRadius: radius,
-            ),
-            alignment: Alignment.center,
-            child: iconUrl == null
-                ? fallback
-                : CachedNetworkImage(
-                    imageUrl: iconUrl,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    placeholder: (_, _) => fallback,
-                    errorWidget: (_, _, _) => fallback,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: 48,
+                height: 48,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: selected ? colors.primary : colors.darkGray,
+                  borderRadius: radius,
+                ),
+                alignment: Alignment.center,
+                child: iconUrl == null
+                    ? fallback
+                    : CachedNetworkImage(
+                        imageUrl: iconUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) => fallback,
+                        errorWidget: (_, _, _) => fallback,
+                      ),
+              ),
+              if (mentions > 0)
+                Positioned(
+                  right: -4,
+                  top: -2,
+                  child: _MentionBadge(count: mentions),
+                )
+              else if (hasUnread)
+                Positioned(
+                  left: -4,
+                  top: 18,
+                  child: Container(
+                    width: 8,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.horizontal(
+                        right: Radius.circular(4),
+                      ),
+                    ),
                   ),
+                ),
+            ],
           ),
         ),
       ),
@@ -772,7 +824,7 @@ class _CategoryHeader extends StatelessWidget {
   }
 }
 
-class _ChannelTile extends StatefulWidget {
+class _ChannelTile extends ConsumerStatefulWidget {
   const _ChannelTile({
     required this.channel,
     required this.selected,
@@ -786,10 +838,10 @@ class _ChannelTile extends StatefulWidget {
   final VoidCallback? onEdit;
 
   @override
-  State<_ChannelTile> createState() => _ChannelTileState();
+  ConsumerState<_ChannelTile> createState() => _ChannelTileState();
 }
 
-class _ChannelTileState extends State<_ChannelTile> {
+class _ChannelTileState extends ConsumerState<_ChannelTile> {
   bool _hovered = false;
 
   IconData get _glyph {
@@ -812,6 +864,9 @@ class _ChannelTileState extends State<_ChannelTile> {
     final enabled = channel.type == 'text' ||
         channel.type == 'forum' ||
         channel.type == 'announcement';
+    final readState = ref.watch(readStateControllerProvider);
+    final unread = readState.isUnread(channel.id) && !widget.selected;
+    final mentions = readState.mentionCount(channel.id);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -836,20 +891,65 @@ class _ChannelTileState extends State<_ChannelTile> {
                       channel.name ?? channel.id,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                            color: enabled ? colors.dirtyWhite : colors.gray,
+                            color: enabled
+                                ? (unread ? Colors.white : colors.dirtyWhite)
+                                : colors.gray,
+                            fontWeight:
+                                unread ? FontWeight.w600 : FontWeight.normal,
                           ),
                     ),
                   ),
-                  if (widget.onEdit != null && _hovered)
+                  if (mentions > 0)
+                    _MentionBadge(count: mentions)
+                  else if (unread)
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  if (widget.onEdit != null && _hovered) ...[
+                    const SizedBox(width: 4),
                     InkWell(
                       onTap: widget.onEdit,
                       child: Icon(Icons.settings,
                           size: 14, color: colors.gray),
                     ),
+                  ],
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Red pill rendering the mention count for a channel (or rolled up across a
+/// space's channels in the rail). Caps at "99+".
+class _MentionBadge extends StatelessWidget {
+  const _MentionBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = count > 99 ? '99+' : count.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFED4245),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
