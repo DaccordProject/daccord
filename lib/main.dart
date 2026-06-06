@@ -8,6 +8,7 @@ import 'package:bonfire/features/notifications/controllers/notification.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
+import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/theme/app_theme.dart';
@@ -134,6 +135,9 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     ));
 
     final settings = ref.watch(settingsControllerProvider);
+    // Keep the local MCP server controller alive so it starts/stops with the
+    // Developer Mode + MCP settings (desktop-only; a no-op on web).
+    ref.watch(mcpServerControllerProvider);
     soundManager.enabled = settings.soundsEnabled;
     soundManager.volume = settings.sfxVolume;
     final theme = buildAppTheme(

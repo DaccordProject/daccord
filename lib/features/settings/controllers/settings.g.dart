@@ -51,7 +51,7 @@ final class SettingsControllerProvider
 }
 
 String _$settingsControllerHash() =>
-    r'b8e31746cc4ddb232d6a5f3c5c9cb0c32bcf6b7c';
+    r'1909dbe52e992cd79441a0e5a50df0c8e4c75ca3';
 
 /// Local client preferences (theme, notifications, recent emoji), persisted to
 /// the `accord-settings` Hive box (opened in `setupHive`). Watched by `main`

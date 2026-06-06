@@ -1,5 +1,6 @@
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
@@ -182,6 +183,23 @@ class AccordSettingsScreen extends ConsumerWidget {
             padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: _MasterServerField(),
           ),
+          const Divider(height: 24),
+          _SectionHeader('Developer'),
+          SwitchListTile(
+            title: const Text('Developer Mode'),
+            subtitle: const Text(
+                'Unlock the local Client MCP server for AI agents'),
+            value: settings.developerMode,
+            onChanged: controller.setDeveloperMode,
+          ),
+          if (settings.developerMode)
+            ListTile(
+              leading: Icon(Icons.terminal, color: colors.dirtyWhite),
+              title: const Text('Client MCP server'),
+              subtitle: const Text('Token, port, tool groups, activity'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showDeveloperSettings(context),
+            ),
           const Divider(height: 24),
           _SectionHeader('About'),
           const ListTile(

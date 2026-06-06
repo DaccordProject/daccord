@@ -22,6 +22,23 @@ class AccordSettings {
   /// Selectable camera frame rates, matching `config_voice.gd` `FPS_OPTIONS`.
   static const List<int> videoFpsOptions = [15, 30, 60];
 
+  /// Default port for the local Client MCP server. Mirrors the reference
+  /// client's `config_developer.gd` `mcp_port` (39101).
+  static const int defaultMcpPort = 39101;
+
+  /// Tool groups the local MCP server may expose. Mirrors the reference
+  /// client's groups, minus the Godot-specific `screenshot` group.
+  static const List<String> mcpToolGroups = [
+    'read',
+    'navigate',
+    'message',
+    'moderate',
+    'voice',
+  ];
+
+  /// Tool groups enabled by default when MCP is first turned on.
+  static const List<String> defaultMcpAllowedGroups = ['read', 'navigate'];
+
   const AccordSettings({
     this.themePreset = AppThemePreset.dark,
     this.accentColor,
@@ -44,6 +61,11 @@ class AccordSettings {
     this.acknowledgedNsfwChannels = const <String>[],
     this.collapsedCategories = const <String, List<String>>{},
     this.drafts = const <String, String>{},
+    this.developerMode = false,
+    this.mcpEnabled = false,
+    this.mcpPort = defaultMcpPort,
+    this.mcpToken = '',
+    this.mcpAllowedGroups = defaultMcpAllowedGroups,
   });
 
   /// Selected colour theme.
@@ -123,6 +145,25 @@ class AccordSettings {
   /// `Config.set_draft_text` / `get_draft_text`.
   final Map<String, String> drafts;
 
+  /// Whether Developer Mode is enabled (gates the local MCP server UI). Mirrors
+  /// the reference client's `config_developer.gd` `developer/enabled`.
+  final bool developerMode;
+
+  /// Whether the local Client MCP server is enabled. Requires [developerMode].
+  /// Mirrors `config_developer.gd` `mcp_enabled`.
+  final bool mcpEnabled;
+
+  /// TCP port the local MCP server binds on loopback. Mirrors `mcp_port`.
+  final int mcpPort;
+
+  /// Bearer token required by MCP clients. Generated locally, never sent to the
+  /// Accord server. Mirrors `mcp_token`.
+  final String mcpToken;
+
+  /// Tool groups the MCP server exposes (subset of [mcpToolGroups]). Mirrors
+  /// `mcp_allowed_groups`.
+  final List<String> mcpAllowedGroups;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -146,6 +187,11 @@ class AccordSettings {
     List<String>? acknowledgedNsfwChannels,
     Map<String, List<String>>? collapsedCategories,
     Map<String, String>? drafts,
+    bool? developerMode,
+    bool? mcpEnabled,
+    int? mcpPort,
+    String? mcpToken,
+    List<String>? mcpAllowedGroups,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -171,6 +217,11 @@ class AccordSettings {
           acknowledgedNsfwChannels ?? this.acknowledgedNsfwChannels,
       collapsedCategories: collapsedCategories ?? this.collapsedCategories,
       drafts: drafts ?? this.drafts,
+      developerMode: developerMode ?? this.developerMode,
+      mcpEnabled: mcpEnabled ?? this.mcpEnabled,
+      mcpPort: mcpPort ?? this.mcpPort,
+      mcpToken: mcpToken ?? this.mcpToken,
+      mcpAllowedGroups: mcpAllowedGroups ?? this.mcpAllowedGroups,
     );
   }
 
@@ -247,6 +298,11 @@ class AccordSettings {
         'acknowledgedNsfwChannels': acknowledgedNsfwChannels,
         'collapsedCategories': collapsedCategories,
         'drafts': drafts,
+        'developerMode': developerMode,
+        'mcpEnabled': mcpEnabled,
+        'mcpPort': mcpPort,
+        'mcpToken': mcpToken,
+        'mcpAllowedGroups': mcpAllowedGroups,
       };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -296,6 +352,16 @@ class AccordSettings {
         for (final entry in (json['drafts'] as Map? ?? const {}).entries)
           entry.key.toString(): entry.value.toString(),
       },
+      developerMode: json['developerMode'] as bool? ?? false,
+      mcpEnabled: json['mcpEnabled'] as bool? ?? false,
+      mcpPort: (json['mcpPort'] as num?)?.toInt() ?? defaultMcpPort,
+      mcpToken: (json['mcpToken'] as String?) ?? '',
+      mcpAllowedGroups: json.containsKey('mcpAllowedGroups')
+          ? [
+              for (final g in (json['mcpAllowedGroups'] as List? ?? const []))
+                g.toString(),
+            ]
+          : defaultMcpAllowedGroups,
     );
   }
 }

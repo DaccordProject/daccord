@@ -7,6 +7,7 @@ import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/models/open_tab.dart';
+import 'package:bonfire/features/developer/services/mcp_home_bridge.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
@@ -81,6 +82,89 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   String? _autoOpenInFlight;
   // The space we've already run the rules interstitial check for this session.
   String? _rulesCheckedSpaceId;
+  // Member-list visibility, toggled by the user and by the MCP `navigate` group.
+  bool _memberListVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    mcpHomeBridge.registerAll(_mcpNavHandlers());
+  }
+
+  @override
+  void dispose() {
+    mcpHomeBridge.clear();
+    super.dispose();
+  }
+
+  /// Navigation handlers the local MCP server's `navigate` tools delegate to.
+  /// Each receives the argument map already resolved by the tools layer and
+  /// returns an MCP result map.
+  Map<String, McpNavHandler> _mcpNavHandlers() => {
+        'select_space': (args) async {
+          _selectSpace(args['server_key'] as String, args['space_id'] as String);
+          return {'ok': true};
+        },
+        'select_channel': (args) async {
+          await _openChannel(args['channel_id'] as String,
+              spaceId: args['space_id'] as String);
+          return {'ok': true};
+        },
+        'open_dm': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          showAccordDirectMessages(context);
+          return {'ok': true};
+        },
+        'open_settings': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          context.push('/settings');
+          return {'ok': true};
+        },
+        'open_discovery': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          showAccordDiscovery(context);
+          return {'ok': true};
+        },
+        'open_thread': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          final channelId = args['channel_id'] as String;
+          final messageId = args['message_id'] as String;
+          final root = ref
+              .read(accordMessagesControllerProvider(channelId))
+              ?.firstWhereOrNull((m) => m.id == messageId);
+          if (root == null) return {'error': 'Message not loaded'};
+          showAccordThread(context, channelId: channelId, root: root);
+          return {'ok': true};
+        },
+        'open_voice_view': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          final voice = ref.read(voiceControllerProvider);
+          if (!voice.isConnected) {
+            return {'error': 'Not connected to a voice channel'};
+          }
+          await _openChannel(voice.channelId!, spaceId: voice.spaceId!);
+          return {'ok': true};
+        },
+        'toggle_member_list': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          setState(() => _memberListVisible = !_memberListVisible);
+          mcpHomeBridge.memberListVisible = _memberListVisible;
+          return {'ok': true, 'visible': _memberListVisible};
+        },
+        'toggle_search': (args) async {
+          if (!mounted) return _mcpUnmounted;
+          final spaceId = mcpHomeBridge.currentSpaceId;
+          if (spaceId == null || spaceId.isEmpty) {
+            return {'error': 'No space selected'};
+          }
+          await showAccordSearch(context, spaceId: spaceId);
+          return {'ok': true};
+        },
+      };
+
+  static const Map<String, dynamic> _mcpUnmounted = {
+    'error': 'Home screen not mounted'
+  };
 
   /// Selects [spaceId] on connection [serverKey] from the rail. Flips the active
   /// connection when it differs, then either re-activates the most recent open
@@ -281,6 +365,13 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     // Let the notification layer skip the channel that's on screen.
     accordVisibleChannelId = shownChannelId;
 
+    // Keep the MCP bridge's snapshot current for the `read` group's
+    // get_current_state and for navigate handlers that need the active space.
+    mcpHomeBridge
+      ..currentSpaceId = effectiveSpaceId
+      ..currentChannelId = shownChannelId
+      ..memberListVisible = _memberListVisible;
+
     final shownSpaceId = effectiveSpaceId;
     return Row(
       children: [
@@ -317,7 +408,8 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
             ],
           ),
         ),
-        if (effectiveSpaceId != null) AccordMemberList(spaceId: effectiveSpaceId),
+        if (effectiveSpaceId != null && _memberListVisible)
+          AccordMemberList(spaceId: effectiveSpaceId),
       ],
     );
   }

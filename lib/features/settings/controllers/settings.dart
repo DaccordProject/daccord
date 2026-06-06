@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:hive_ce/hive.dart';
@@ -150,6 +152,51 @@ class SettingsController extends _$SettingsController {
       next[spaceId] = nextList;
     }
     _update(state.copyWith(collapsedCategories: next));
+  }
+
+  /// Enables/disables Developer Mode. Turning it off also disables the MCP
+  /// server (mirrors the reference client's two-step opt-in).
+  void setDeveloperMode(bool enabled) => _update(enabled
+      ? state.copyWith(developerMode: true)
+      : state.copyWith(developerMode: false, mcpEnabled: false));
+
+  /// Enables/disables the local Client MCP server. Generates a token on first
+  /// enable if one isn't set yet.
+  void setMcpEnabled(bool enabled) {
+    if (enabled && state.mcpToken.isEmpty) {
+      _update(state.copyWith(mcpEnabled: true, mcpToken: _generateToken()));
+    } else {
+      _update(state.copyWith(mcpEnabled: enabled));
+    }
+  }
+
+  /// Sets the MCP server port, clamped to the valid TCP range.
+  void setMcpPort(int port) =>
+      _update(state.copyWith(mcpPort: port.clamp(1, 65535)));
+
+  /// Regenerates the MCP bearer token.
+  void regenerateMcpToken() =>
+      _update(state.copyWith(mcpToken: _generateToken()));
+
+  /// Sets whether [group] is exposed by the MCP server. Ignores unknown groups.
+  void setMcpGroupAllowed(String group, bool allowed) {
+    if (!AccordSettings.mcpToolGroups.contains(group)) return;
+    final current = state.mcpAllowedGroups;
+    final isAllowed = current.contains(group);
+    if (allowed == isAllowed) return;
+    final next = allowed
+        ? [for (final g in AccordSettings.mcpToolGroups)
+            if (current.contains(g) || g == group) g]
+        : [for (final g in current) if (g != group) g];
+    _update(state.copyWith(mcpAllowedGroups: next));
+  }
+
+  /// 32-byte random hex token, matching the reference client's
+  /// `Crypto.generate_random_bytes(32)` hex encoding.
+  String _generateToken() {
+    final rng = Random.secure();
+    final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   /// Saves (or clears, when [text] is blank) the unsent draft for [channelId].
