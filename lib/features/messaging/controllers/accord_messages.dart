@@ -196,6 +196,25 @@ class AccordMessagesController extends _$AccordMessagesController {
     return true;
   }
 
+  /// Bulk-deletes [messageIds] via `messages.bulkDelete`, optimistically
+  /// removing them. The endpoint requires 2–100 ids; a single id falls back to
+  /// [delete]. Returns true on success.
+  Future<bool> bulkDelete(AccordClient client, List<String> messageIds) async {
+    if (messageIds.isEmpty) return false;
+    if (messageIds.length == 1) return delete(client, messageIds.first);
+    final result = await client.messages.bulkDelete(channelId, messageIds);
+    if (!result.ok) {
+      debugPrint('Failed to bulk-delete in $channelId: ${result.error}');
+      return false;
+    }
+    final current = state;
+    if (current != null) {
+      final ids = messageIds.toSet();
+      state = current.where((m) => !ids.contains(m.id)).toList();
+    }
+    return true;
+  }
+
   /// Sends [content] plus file [files] to this channel via
   /// `messages.createWithAttachments`. Each file is a map with `filename`,
   /// `content` (bytes) and optional `content_type`. Falls back to a plain

@@ -975,6 +975,13 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
   AccordMessage? _replyTo;
   final ScrollController _scroll = ScrollController();
 
+  /// Multi-select state for bulk message deletion (gated on `manage_messages`).
+  /// Entered via long-press on a message; while active, tapping a row toggles
+  /// its membership in [_selectedMessageIds] instead of running row actions.
+  bool _selecting = false;
+  final Set<String> _selectedMessageIds = {};
+  bool _bulkDeleting = false;
+
   @override
   void initState() {
     super.initState();
@@ -984,10 +991,83 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
   @override
   void didUpdateWidget(_MessagePane oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Clear any pending reply when switching channels.
-    if (oldWidget.channelId != widget.channelId && _replyTo != null) {
-      _replyTo = null;
+    // Clear any pending reply or selection when switching channels.
+    if (oldWidget.channelId != widget.channelId) {
+      if (_replyTo != null) _replyTo = null;
+      if (_selecting || _selectedMessageIds.isNotEmpty) {
+        _selecting = false;
+        _selectedMessageIds.clear();
+      }
     }
+  }
+
+  void _enterSelection(String messageId) {
+    setState(() {
+      _selecting = true;
+      _selectedMessageIds
+        ..clear()
+        ..add(messageId);
+    });
+  }
+
+  void _toggleSelected(String messageId) {
+    setState(() {
+      if (!_selectedMessageIds.add(messageId)) {
+        _selectedMessageIds.remove(messageId);
+      }
+      if (_selectedMessageIds.isEmpty) _selecting = false;
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selecting = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  Future<void> _bulkDeleteSelected() async {
+    final channelId = widget.channelId;
+    if (channelId == null || _selectedMessageIds.isEmpty || _bulkDeleting) {
+      return;
+    }
+    final client = ref.read(accordAuthProvider
+        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    if (client == null) return;
+    final count = _selectedMessageIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete messages'),
+        content: Text('Delete $count message(s)? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _bulkDeleting = true);
+    final ids = _selectedMessageIds.toList();
+    final ok = await ref
+        .read(accordMessagesControllerProvider(channelId).notifier)
+        .bulkDelete(client, ids);
+    if (!mounted) return;
+    setState(() {
+      _bulkDeleting = false;
+      if (ok) {
+        _selecting = false;
+        _selectedMessageIds.clear();
+      }
+    });
   }
 
   @override
@@ -1115,32 +1195,69 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                 bottom: BorderSide(color: colors.foreground, width: 1),
               ),
             ),
-            child: Row(
-              children: [
-                Icon(channel?.type == 'announcement'
-                        ? Icons.campaign
-                        : Icons.tag,
-                    size: 18, color: colors.dirtyWhite),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(channel?.name ?? '',
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall),
-                ),
-                IconButton(
-                  tooltip: 'Pinned messages',
-                  onPressed: () => showPinnedMessages(
-                    context,
-                    channelId: channelId,
-                    spaceId: spaceId,
-                    canManage: canManageMessages,
+            child: _selecting
+                ? Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Cancel',
+                        onPressed: _bulkDeleting ? null : _exitSelection,
+                        icon: Icon(Icons.close,
+                            size: 18, color: colors.dirtyWhite),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '${_selectedMessageIds.length} selected',
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _bulkDeleting || _selectedMessageIds.isEmpty
+                            ? null
+                            : _bulkDeleteSelected,
+                        icon: _bulkDeleting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(Icons.delete_outline,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.error),
+                        label: Text('Delete',
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.error)),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Icon(channel?.type == 'announcement'
+                              ? Icons.campaign
+                              : Icons.tag,
+                          size: 18, color: colors.dirtyWhite),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(channel?.name ?? '',
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall),
+                      ),
+                      IconButton(
+                        tooltip: 'Pinned messages',
+                        onPressed: () => showPinnedMessages(
+                          context,
+                          channelId: channelId,
+                          spaceId: spaceId,
+                          canManage: canManageMessages,
+                        ),
+                        icon: Icon(Icons.push_pin_outlined,
+                            size: 18, color: colors.dirtyWhite),
+                      ),
+                      _MuteButton(channelId: channelId),
+                    ],
                   ),
-                  icon: Icon(Icons.push_pin_outlined,
-                      size: 18, color: colors.dirtyWhite),
-                ),
-                _MuteButton(channelId: channelId),
-              ],
-            ),
           ),
           Expanded(
             child: messages == null
@@ -1211,6 +1328,14 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                             isOwn: isOwn,
                             mentionsMe: mentionsMe,
                             canManageMessages: canManageMessages,
+                            selecting: _selecting,
+                            selected:
+                                _selectedMessageIds.contains(message.id),
+                            onLongPressSelect: canManageMessages
+                                ? () => _enterSelection(message.id)
+                                : null,
+                            onToggleSelected: () =>
+                                _toggleSelected(message.id),
                             onReply: () =>
                                 setState(() => _replyTo = message),
                           );
@@ -1322,6 +1447,10 @@ class _MessageRow extends ConsumerStatefulWidget {
     required this.mentionsMe,
     required this.canManageMessages,
     required this.onReply,
+    required this.selecting,
+    required this.selected,
+    required this.onToggleSelected,
+    this.onLongPressSelect,
     this.grouped = false,
     this.author,
     this.authorUser,
@@ -1351,6 +1480,20 @@ class _MessageRow extends ConsumerStatefulWidget {
 
   /// Whether the current user is mentioned by this message (drives highlight).
   final bool mentionsMe;
+
+  /// Whether the pane is in bulk-select mode. While true the row hides its
+  /// hover actions, shows a selection checkbox, and a tap toggles selection.
+  final bool selecting;
+
+  /// Whether this message is currently selected for bulk deletion.
+  final bool selected;
+
+  /// Toggles this message's selection (used while [selecting]).
+  final VoidCallback onToggleSelected;
+
+  /// Enters bulk-select mode with this message selected. Null when the current
+  /// user lacks `manage_messages` (long-press then does nothing).
+  final VoidCallback? onLongPressSelect;
 
   /// The resolved member for [AccordMessage.authorId], if the space's member
   /// cache has loaded. `null` falls back to [authorUser], then the raw ID.
@@ -1523,22 +1666,34 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Container(
-        padding: widget.mentionsMe
-            ? EdgeInsets.fromLTRB(13, widget.grouped ? 1 : 6, 6, 6)
-            : EdgeInsets.only(top: widget.grouped ? 1 : 6, bottom: 6),
-        decoration: widget.mentionsMe
-            ? BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.08),
-                border: Border(
-                  left: BorderSide(color: colors.primary, width: 3),
+      child: GestureDetector(
+        onLongPress: widget.selecting ? null : widget.onLongPressSelect,
+        onTap: widget.selecting ? widget.onToggleSelected : null,
+        child: Container(
+          padding: widget.mentionsMe
+              ? EdgeInsets.fromLTRB(13, widget.grouped ? 1 : 6, 6, 6)
+              : EdgeInsets.only(top: widget.grouped ? 1 : 6, bottom: 6),
+          decoration: widget.selected
+              ? BoxDecoration(color: colors.primary.withValues(alpha: 0.14))
+              : widget.mentionsMe
+                  ? BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.08),
+                      border: Border(
+                        left: BorderSide(color: colors.primary, width: 3),
+                      ),
+                    )
+                  : null,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.selecting) ...[
+                Checkbox(
+                  value: widget.selected,
+                  onChanged: (_) => widget.onToggleSelected(),
                 ),
-              )
-            : null,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.grouped)
+                const SizedBox(width: 4),
+              ],
+              if (widget.grouped)
               SizedBox(
                 width: 36,
                 child: Opacity(
@@ -1625,7 +1780,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 ],
               ),
             ),
-            if (!_editing)
+            if (!_editing && !widget.selecting)
               Opacity(
                 opacity: _hovered ? 1 : 0,
                 child: Row(
@@ -1660,6 +1815,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 ),
               ),
           ],
+          ),
         ),
       ),
     );
