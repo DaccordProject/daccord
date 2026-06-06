@@ -17,6 +17,20 @@ const _channelTypes = <({String value, String label, IconData icon})>[
   (value: 'category', label: 'Category', icon: Icons.folder),
 ];
 
+/// Slowmode (rate-limit per user) presets in seconds (0 = off). Mirrors the
+/// reference client's channel edit dialog.
+const _slowmodePresets = <({String label, int seconds})>[
+  (label: 'Off', seconds: 0),
+  (label: '5s', seconds: 5),
+  (label: '10s', seconds: 10),
+  (label: '30s', seconds: 30),
+  (label: '1m', seconds: 60),
+  (label: '5m', seconds: 300),
+  (label: '15m', seconds: 900),
+  (label: '1h', seconds: 3600),
+  (label: '6h', seconds: 21600),
+];
+
 /// Opens the "create channel" dialog for [spaceId]. When [parentId] is set the
 /// new channel is nested under that category by default.
 Future<void> showCreateChannelDialog(
@@ -67,10 +81,20 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
       TextEditingController(text: widget.channel?.topic ?? '');
   late String _type = widget.channel?.type ?? 'text';
   late String? _parentId = widget.channel?.parentId ?? widget.parentId;
+  late bool _nsfw = widget.channel?.nsfw ?? false;
+  late int _rateLimit = _rateLimitOf(widget.channel);
   bool _busy = false;
   String? _error;
 
   bool get _isEdit => widget.channel != null;
+
+  static int _rateLimitOf(AccordChannel? c) {
+    final raw = c?.rateLimit;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw) ?? 0;
+    return 0;
+  }
 
   @override
   void dispose() {
@@ -98,10 +122,13 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
         ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
     final topic = _topic.text.trim();
     final bool ok;
+    final supportsModeration = _type != 'category';
     if (_isEdit) {
       final data = <String, dynamic>{
         'name': name,
         'topic': topic.isEmpty ? null : topic,
+        if (supportsModeration) 'nsfw': _nsfw,
+        if (supportsModeration) 'rate_limit': _rateLimit,
       };
       ok = await controller.updateChannel(client, widget.channel!.id, data);
     } else {
@@ -110,6 +137,8 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
         'type': _type,
         if (topic.isNotEmpty) 'topic': topic,
         if (_parentId != null && _type != 'category') 'parent_id': _parentId,
+        if (supportsModeration && _nsfw) 'nsfw': true,
+        if (supportsModeration && _rateLimit > 0) 'rate_limit': _rateLimit,
       };
       ok = await controller.createChannel(client, data) != null;
     }
@@ -257,6 +286,37 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+              if (_type != 'category') ...[
+                const SizedBox(height: 4),
+                SwitchListTile(
+                  value: _nsfw,
+                  onChanged:
+                      _busy ? null : (v) => setState(() => _nsfw = v),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Age-restricted (NSFW)'),
+                  subtitle: Text('Users must confirm before viewing',
+                      style: theme.textTheme.bodySmall),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  initialValue: _slowmodePresets.any((p) => p.seconds == _rateLimit)
+                      ? _rateLimit
+                      : 0,
+                  decoration: const InputDecoration(
+                    labelText: 'Slowmode',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final p in _slowmodePresets)
+                      DropdownMenuItem(value: p.seconds, child: Text(p.label)),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (v) => setState(() => _rateLimit = v ?? 0),
+                ),
+              ],
               if (_isEdit && _type != 'category') ...[
                 const SizedBox(height: 12),
                 Align(

@@ -40,6 +40,8 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
   late List<_Entry> _items;
   bool _busy = false;
   String? _error;
+  bool _selecting = false;
+  final Set<String> _selected = {};
 
   AccordClient? get _client => ref.read(
         accordAuthProvider
@@ -172,6 +174,58 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     if (mounted) Navigator.of(context).maybePop();
   }
 
+  Future<void> _bulkDelete() async {
+    final client = _client;
+    if (client == null || _selected.isEmpty) return;
+    final ids = _selected.toList();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete channels'),
+        content: Text(
+            'Delete ${ids.length} channel(s)? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final notifier =
+        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+    final failed = <String>[];
+    for (final id in ids) {
+      final result = await client.channels.delete(id);
+      if (result.ok) {
+        notifier.removeChannel(id);
+        _items.removeWhere((e) => e.channel.id == id);
+      } else {
+        failed.add(id);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _selected
+        ..clear()
+        ..addAll(failed);
+      _selecting = _selected.isNotEmpty;
+      _error = failed.isEmpty ? null : 'Failed to delete ${failed.length}';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -187,11 +241,23 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.reorder, size: 18, color: colors.dirtyWhite),
+                  Icon(_selecting ? Icons.checklist : Icons.reorder,
+                      size: 18, color: colors.dirtyWhite),
                   const SizedBox(width: 8),
-                  Text('Reorder channels',
+                  Text(_selecting ? 'Delete channels' : 'Reorder channels',
                       style: theme.textTheme.titleMedium),
                   const Spacer(),
+                  IconButton(
+                    tooltip: _selecting ? 'Done selecting' : 'Select to delete',
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                              _selecting = !_selecting;
+                              if (!_selecting) _selected.clear();
+                            }),
+                    icon: Icon(_selecting ? Icons.check : Icons.delete_outline,
+                        size: 18),
+                  ),
                   IconButton(
                     tooltip: 'Close',
                     onPressed: _busy
@@ -203,8 +269,11 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Drag categories and channels into your preferred order. '
-                'Drop a channel onto a category to move it into that category.',
+                _selecting
+                    ? 'Select channels to delete. This cannot be undone.'
+                    : 'Drag categories and channels into your preferred order. '
+                        'Drop a channel onto a category to move it into that '
+                        'category.',
                 style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
               if (_error != null) ...[
@@ -215,43 +284,90 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
               ],
               const SizedBox(height: 8),
               Flexible(
-                child: ReorderableListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _items.length,
-                  onReorder: _onReorder,
-                  itemBuilder: (context, index) {
-                    final entry = _items[index];
-                    return ListTile(
-                      key: ValueKey(entry.channel.id),
-                      contentPadding: EdgeInsets.only(
-                        left: entry.isCategory ? 4 : 24,
-                        right: 12,
+                child: _selecting
+                    ? ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _items.length,
+                        itemBuilder: (context, index) {
+                          final entry = _items[index];
+                          final selected = _selected.contains(entry.channel.id);
+                          return CheckboxListTile(
+                            value: selected,
+                            onChanged: _busy
+                                ? null
+                                : (v) => setState(() {
+                                      if (v == true) {
+                                        _selected.add(entry.channel.id);
+                                      } else {
+                                        _selected.remove(entry.channel.id);
+                                      }
+                                    }),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.only(
+                              left: entry.isCategory ? 4 : 24,
+                              right: 12,
+                            ),
+                            secondary: Icon(
+                              entry.isCategory
+                                  ? Icons.folder_outlined
+                                  : (entry.channel.type == 'voice'
+                                      ? Icons.volume_up
+                                      : (entry.channel.type == 'forum'
+                                          ? Icons.forum
+                                          : Icons.tag)),
+                              size: 16,
+                              color: colors.dirtyWhite,
+                            ),
+                            title: Text(
+                              entry.channel.name ?? '(unnamed)',
+                              style: entry.isCategory
+                                  ? theme.textTheme.labelSmall!.copyWith(
+                                      color: colors.gray,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    )
+                                  : theme.textTheme.bodyMedium,
+                            ),
+                          );
+                        },
+                      )
+                    : ReorderableListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _items.length,
+                        onReorder: _onReorder,
+                        itemBuilder: (context, index) {
+                          final entry = _items[index];
+                          return ListTile(
+                            key: ValueKey(entry.channel.id),
+                            contentPadding: EdgeInsets.only(
+                              left: entry.isCategory ? 4 : 24,
+                              right: 12,
+                            ),
+                            leading: Icon(
+                              entry.isCategory
+                                  ? Icons.folder_outlined
+                                  : (entry.channel.type == 'voice'
+                                      ? Icons.volume_up
+                                      : (entry.channel.type == 'forum'
+                                          ? Icons.forum
+                                          : Icons.tag)),
+                              size: 16,
+                              color: colors.dirtyWhite,
+                            ),
+                            title: Text(
+                              entry.channel.name ?? '(unnamed)',
+                              style: entry.isCategory
+                                  ? theme.textTheme.labelSmall!.copyWith(
+                                      color: colors.gray,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    )
+                                  : theme.textTheme.bodyMedium,
+                            ),
+                            trailing: const Icon(Icons.drag_handle, size: 18),
+                          );
+                        },
                       ),
-                      leading: Icon(
-                        entry.isCategory
-                            ? Icons.folder_outlined
-                            : (entry.channel.type == 'voice'
-                                ? Icons.volume_up
-                                : (entry.channel.type == 'forum'
-                                    ? Icons.forum
-                                    : Icons.tag)),
-                        size: 16,
-                        color: colors.dirtyWhite,
-                      ),
-                      title: Text(
-                        entry.channel.name ?? '(unnamed)',
-                        style: entry.isCategory
-                            ? theme.textTheme.labelSmall!.copyWith(
-                                color: colors.gray,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              )
-                            : theme.textTheme.bodyMedium,
-                      ),
-                      trailing: const Icon(Icons.drag_handle, size: 18),
-                    );
-                  },
-                ),
               ),
               const SizedBox(height: 12),
               Row(
@@ -264,16 +380,31 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _busy ? null : _save,
-                    child: _busy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save'),
-                  ),
+                  if (_selecting)
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error),
+                      onPressed: _busy || _selected.isEmpty ? null : _bulkDelete,
+                      icon: _busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_outline, size: 16),
+                      label: Text('Delete selected (${_selected.length})'),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: _busy ? null : _save,
+                      child: _busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Save'),
+                    ),
                 ],
               ),
             ],
