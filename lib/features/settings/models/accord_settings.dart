@@ -71,7 +71,14 @@ class AccordSettings {
     this.lastUpdateCheckMs = 0,
     this.lastSpaceId = '',
     this.lastChannelId = '',
+    this.compactMode = false,
+    this.reducedMotion = false,
+    this.uiScale = 1.0,
   });
+
+  /// Minimum / maximum UI text scale, matching the reference's `ui_scale` range.
+  static const double minUiScale = 0.8;
+  static const double maxUiScale = 1.4;
 
   /// Selected colour theme.
   final AppThemePreset themePreset;
@@ -190,6 +197,18 @@ class AccordSettings {
   /// [lastSpaceId]). Mirrors the reference's `last_channel_id`.
   final String lastChannelId;
 
+  /// Compact message layout (tighter spacing, smaller avatars) vs the default
+  /// cozy density. Mirrors the reference's layout-density setting.
+  final bool compactMode;
+
+  /// Reduces/disables UI animations (route transitions etc.). Mirrors
+  /// `accessibility.reduced_motion`.
+  final bool reducedMotion;
+
+  /// App-wide text scale factor, clamped to [minUiScale]–[maxUiScale]. Mirrors
+  /// `accessibility.ui_scale`.
+  final double uiScale;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -223,6 +242,9 @@ class AccordSettings {
     int? lastUpdateCheckMs,
     String? lastSpaceId,
     String? lastChannelId,
+    bool? compactMode,
+    bool? reducedMotion,
+    double? uiScale,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -258,6 +280,9 @@ class AccordSettings {
       lastUpdateCheckMs: lastUpdateCheckMs ?? this.lastUpdateCheckMs,
       lastSpaceId: lastSpaceId ?? this.lastSpaceId,
       lastChannelId: lastChannelId ?? this.lastChannelId,
+      compactMode: compactMode ?? this.compactMode,
+      reducedMotion: reducedMotion ?? this.reducedMotion,
+      uiScale: uiScale ?? this.uiScale,
     );
   }
 
@@ -344,6 +369,9 @@ class AccordSettings {
     'lastUpdateCheckMs': lastUpdateCheckMs,
     'lastSpaceId': lastSpaceId,
     'lastChannelId': lastChannelId,
+    'compactMode': compactMode,
+    'reducedMotion': reducedMotion,
+    'uiScale': uiScale,
   };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -409,6 +437,11 @@ class AccordSettings {
       lastUpdateCheckMs: (json['lastUpdateCheckMs'] as num?)?.toInt() ?? 0,
       lastSpaceId: (json['lastSpaceId'] as String?) ?? '',
       lastChannelId: (json['lastChannelId'] as String?) ?? '',
+      compactMode: json['compactMode'] as bool? ?? false,
+      reducedMotion: json['reducedMotion'] as bool? ?? false,
+      uiScale:
+          (json['uiScale'] as num?)?.toDouble().clamp(minUiScale, maxUiScale) ??
+          1.0,
     );
   }
 }

@@ -166,6 +166,16 @@ class _MainWindowState extends ConsumerState<MainWindow> {
                     theme: theme,
                     darkTheme: theme,
                     routerConfig: routerController,
+                    // Apply accessibility prefs app-wide: scale all text by the
+                    // UI scale and honour reduced-motion. Done in the router
+                    // app's builder so the override sits above every route.
+                    builder: (context, child) => MediaQuery(
+                      data: MediaQuery.of(context).copyWith(
+                        textScaler: TextScaler.linear(settings.uiScale),
+                        disableAnimations: settings.reducedMotion,
+                      ),
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),

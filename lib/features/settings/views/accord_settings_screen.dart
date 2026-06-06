@@ -101,6 +101,41 @@ class AccordSettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          SwitchListTile(
+            title: const Text('Compact mode'),
+            subtitle: const Text('Denser message layout (smaller spacing)'),
+            value: settings.compactMode,
+            onChanged: controller.setCompactMode,
+          ),
+          SwitchListTile(
+            title: const Text('Reduced motion'),
+            subtitle: const Text('Minimise UI animations'),
+            value: settings.reducedMotion,
+            onChanged: controller.setReducedMotion,
+          ),
+          ListTile(
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('UI scale'),
+                Text('${(settings.uiScale * 100).round()}%'),
+              ],
+            ),
+            subtitle: Slider(
+              value: settings.uiScale.clamp(
+                AccordSettings.minUiScale,
+                AccordSettings.maxUiScale,
+              ),
+              min: AccordSettings.minUiScale,
+              max: AccordSettings.maxUiScale,
+              divisions:
+                  ((AccordSettings.maxUiScale - AccordSettings.minUiScale) /
+                          0.1)
+                      .round(),
+              label: '${(settings.uiScale * 100).round()}%',
+              onChanged: controller.setUiScale,
+            ),
+          ),
           const Divider(height: 24),
           _SectionHeader('Notifications'),
           SwitchListTile(

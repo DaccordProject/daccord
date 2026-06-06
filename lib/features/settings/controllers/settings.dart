@@ -122,6 +122,24 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(channelNotifications: next));
   }
 
+  /// Sets compact (vs cozy) message density.
+  void setCompactMode(bool enabled) =>
+      _update(state.copyWith(compactMode: enabled));
+
+  /// Enables/disables reduced motion (fewer UI animations).
+  void setReducedMotion(bool enabled) =>
+      _update(state.copyWith(reducedMotion: enabled));
+
+  /// Sets the app-wide UI text scale, clamped to the supported range.
+  void setUiScale(double scale) => _update(
+    state.copyWith(
+      uiScale: scale.clamp(
+        AccordSettings.minUiScale,
+        AccordSettings.maxUiScale,
+      ),
+    ),
+  );
+
   /// Records [token] (a unicode char or `name:id` custom ref) as most-recently
   /// used, de-duplicating and capping the list.
   void addRecentEmoji(String token) {

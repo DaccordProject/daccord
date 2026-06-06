@@ -116,9 +116,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 
   AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   void _startEdit() {
     setState(() {
@@ -175,8 +174,9 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   Future<void> _togglePin() async {
     final client = _client;
     if (client == null) return;
-    final controller =
-        ref.read(accordMessagesControllerProvider(widget.channelId).notifier);
+    final controller = ref.read(
+      accordMessagesControllerProvider(widget.channelId).notifier,
+    );
     if (_message.pinned) {
       await controller.unpin(client, _message.id);
     } else {
@@ -217,15 +217,28 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
+    // Compact density tightens vertical spacing and shrinks the avatar gutter.
+    final compact = ref.watch(
+      settingsControllerProvider.select((s) => s.compactMode),
+    );
+    final topGap = widget.grouped
+        ? (compact ? 0.0 : 1.0)
+        : (compact ? 3.0 : 6.0);
+    final bottomGap = compact ? 3.0 : 6.0;
+    final avatarRadius = compact ? 14.0 : 18.0;
+    final gutter = compact ? 8.0 : 12.0;
     final cdnUrl = ref.watch(
       accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
     );
     final avatarUrl = widget.author != null
         ? accordMemberAvatarUrl(widget.author, cdnUrl)
         : accordAvatarUrl(widget.authorUser, cdnUrl);
     final avatarBg = accordAvatarColor(
-        widget.author?.user ?? widget.authorUser, _message.authorId);
+      widget.author?.user ?? widget.authorUser,
+      _message.authorId,
+    );
     final tappable = widget.spaceId != null;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -235,18 +248,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         onTap: widget.selecting ? widget.onToggleSelected : null,
         child: Container(
           padding: widget.mentionsMe
-              ? EdgeInsets.fromLTRB(13, widget.grouped ? 1 : 6, 6, 6)
-              : EdgeInsets.only(top: widget.grouped ? 1 : 6, bottom: 6),
+              ? EdgeInsets.fromLTRB(13, topGap, 6, bottomGap)
+              : EdgeInsets.only(top: topGap, bottom: bottomGap),
           decoration: widget.selected
               ? BoxDecoration(color: colors.primary.withValues(alpha: 0.14))
               : widget.mentionsMe
-                  ? BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.08),
-                      border: Border(
-                        left: BorderSide(color: colors.primary, width: 3),
-                      ),
-                    )
-                  : null,
+              ? BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.08),
+                  border: Border(
+                    left: BorderSide(color: colors.primary, width: 3),
+                  ),
+                )
+              : null,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -258,127 +271,143 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 const SizedBox(width: 4),
               ],
               if (widget.grouped)
-              SizedBox(
-                width: 36,
-                child: Opacity(
-                  opacity: _hovered ? 1 : 0,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      _time,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.labelSmall!
-                          .copyWith(color: colors.gray),
-                    ),
-                  ),
-                ),
-              )
-            else
-              _MaybeTappable(
-                enabled: tappable,
-                onTap: _openPopout,
-                child: CircleAvatar(
-                  radius: 18,
-                  backgroundColor: avatarBg,
-                  foregroundImage: avatarUrl == null
-                      ? null
-                      : CachedNetworkImageProvider(avatarUrl),
-                  child: Text(
-                    _initial,
-                    style: theme.textTheme.titleSmall!
-                        .copyWith(color: accordOnColor(avatarBg)),
-                  ),
-                ),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_message.replyTo != null) _buildReplyPreview(colors),
-                  if (!widget.grouped)
-                    Row(
-                      children: [
-                        if (_message.pinned) ...[
-                          Icon(Icons.push_pin, size: 12, color: colors.gray),
-                          const SizedBox(width: 4),
-                        ],
-                        _MaybeTappable(
-                          enabled: tappable,
-                          onTap: _openPopout,
-                          child: Text(_authorName,
-                              style: theme.textTheme.titleSmall!
-                                  .copyWith(color: widget.nameColor)),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_time,
-                            style: theme.textTheme.labelMedium!
-                                .copyWith(color: colors.gray)),
-                        if (_message.editedAt != null) ...[
-                          const SizedBox(width: 6),
-                          Text('(edited)',
-                              style: theme.textTheme.labelSmall!
-                                  .copyWith(color: colors.gray)),
-                        ],
-                      ],
-                    ),
-                  if (_editing)
-                    _buildEditor(theme, colors)
-                  else if (_message.content.isNotEmpty)
-                    Padding(
+                SizedBox(
+                  width: avatarRadius * 2,
+                  child: Opacity(
+                    opacity: _hovered ? 1 : 0,
+                    child: Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: AccordMessageContent(
-                          content: _message.content,
-                          spaceId: widget.spaceId),
-                    ),
-                  for (final attachment in _message.attachments)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: _buildAttachment(attachment, cdnUrl, theme),
-                    ),
-                  for (final embed in _message.embeds)
-                    AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
-                  if ((_message.reactions ?? const []).isNotEmpty)
-                    _buildReactions(theme, colors, cdnUrl),
-                  if (_message.replyCount > 0) _buildThreadChip(theme, colors),
-                ],
-              ),
-            ),
-            if (!_editing && !widget.selecting)
-              Opacity(
-                opacity: _hovered ? 1 : 0,
-                child: Row(
-                  children: [
-                    _ReactButton(onPressed: _openReactionPicker),
-                    IconButton(
-                      tooltip: 'Reply',
-                      onPressed: widget.onReply,
-                      icon: Icon(Icons.reply, size: 18, color: colors.gray),
-                    ),
-                    IconButton(
-                      tooltip: 'Thread',
-                      onPressed: _openThread,
-                      icon: Icon(Icons.forum_outlined,
-                          size: 18, color: colors.gray),
-                    ),
-                    if (widget.isOwn ||
-                        widget.canManageMessages ||
-                        (!widget.isOwn && widget.spaceId != null))
-                      _MessageActions(
-                        canEdit: widget.isOwn,
-                        canDelete: widget.isOwn || widget.canManageMessages,
-                        canPin: widget.canManageMessages,
-                        canReport: !widget.isOwn && widget.spaceId != null,
-                        pinned: _message.pinned,
-                        onEdit: _startEdit,
-                        onDelete: _delete,
-                        onTogglePin: _togglePin,
-                        onReport: _report,
+                      child: Text(
+                        _time,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.labelSmall!.copyWith(
+                          color: colors.gray,
+                        ),
                       ),
+                    ),
+                  ),
+                )
+              else
+                _MaybeTappable(
+                  enabled: tappable,
+                  onTap: _openPopout,
+                  child: CircleAvatar(
+                    radius: avatarRadius,
+                    backgroundColor: avatarBg,
+                    foregroundImage: avatarUrl == null
+                        ? null
+                        : CachedNetworkImageProvider(avatarUrl),
+                    child: Text(
+                      _initial,
+                      style: theme.textTheme.titleSmall!.copyWith(
+                        color: accordOnColor(avatarBg),
+                      ),
+                    ),
+                  ),
+                ),
+              SizedBox(width: gutter),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_message.replyTo != null) _buildReplyPreview(colors),
+                    if (!widget.grouped)
+                      Row(
+                        children: [
+                          if (_message.pinned) ...[
+                            Icon(Icons.push_pin, size: 12, color: colors.gray),
+                            const SizedBox(width: 4),
+                          ],
+                          _MaybeTappable(
+                            enabled: tappable,
+                            onTap: _openPopout,
+                            child: Text(
+                              _authorName,
+                              style: theme.textTheme.titleSmall!.copyWith(
+                                color: widget.nameColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _time,
+                            style: theme.textTheme.labelMedium!.copyWith(
+                              color: colors.gray,
+                            ),
+                          ),
+                          if (_message.editedAt != null) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '(edited)',
+                              style: theme.textTheme.labelSmall!.copyWith(
+                                color: colors.gray,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    if (_editing)
+                      _buildEditor(theme, colors)
+                    else if (_message.content.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: AccordMessageContent(
+                          content: _message.content,
+                          spaceId: widget.spaceId,
+                        ),
+                      ),
+                    for (final attachment in _message.attachments)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: _buildAttachment(attachment, cdnUrl, theme),
+                      ),
+                    for (final embed in _message.embeds)
+                      AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
+                    if ((_message.reactions ?? const []).isNotEmpty)
+                      _buildReactions(theme, colors, cdnUrl),
+                    if (_message.replyCount > 0)
+                      _buildThreadChip(theme, colors),
                   ],
                 ),
               ),
-          ],
+              if (!_editing && !widget.selecting)
+                Opacity(
+                  opacity: _hovered ? 1 : 0,
+                  child: Row(
+                    children: [
+                      _ReactButton(onPressed: _openReactionPicker),
+                      IconButton(
+                        tooltip: 'Reply',
+                        onPressed: widget.onReply,
+                        icon: Icon(Icons.reply, size: 18, color: colors.gray),
+                      ),
+                      IconButton(
+                        tooltip: 'Thread',
+                        onPressed: _openThread,
+                        icon: Icon(
+                          Icons.forum_outlined,
+                          size: 18,
+                          color: colors.gray,
+                        ),
+                      ),
+                      if (widget.isOwn ||
+                          widget.canManageMessages ||
+                          (!widget.isOwn && widget.spaceId != null))
+                        _MessageActions(
+                          canEdit: widget.isOwn,
+                          canDelete: widget.isOwn || widget.canManageMessages,
+                          canPin: widget.canManageMessages,
+                          canReport: !widget.isOwn && widget.spaceId != null,
+                          pinned: _message.pinned,
+                          onEdit: _startEdit,
+                          onDelete: _delete,
+                          onTogglePin: _togglePin,
+                          onReport: _report,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -386,11 +415,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 
   void _openThread() => showAccordThread(
-        context,
-        channelId: widget.channelId,
-        spaceId: widget.spaceId,
-        root: _message,
-      );
+    context,
+    channelId: widget.channelId,
+    spaceId: widget.spaceId,
+    root: _message,
+  );
 
   void _report() {
     final spaceId = widget.spaceId;
@@ -418,9 +447,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             children: [
               Icon(Icons.forum_outlined, size: 14, color: colors.primary),
               const SizedBox(width: 6),
-              Text('$count ${count == 1 ? 'reply' : 'replies'}',
-                  style: theme.textTheme.labelMedium!
-                      .copyWith(color: colors.primary)),
+              Text(
+                '$count ${count == 1 ? 'reply' : 'replies'}',
+                style: theme.textTheme.labelMedium!.copyWith(
+                  color: colors.primary,
+                ),
+              ),
             ],
           ),
         ),
@@ -429,7 +461,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 
   Widget _buildReactions(
-      ThemeData theme, BonfireThemeExtension colors, String? cdnUrl) {
+    ThemeData theme,
+    BonfireThemeExtension colors,
+    String? cdnUrl,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Wrap(
@@ -454,20 +489,25 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   /// referenced message from the loaded channel cache when available.
   Widget _buildReplyPreview(BonfireThemeExtension colors) {
     final theme = Theme.of(context);
-    final messages =
-        ref.read(accordMessagesControllerProvider(widget.channelId));
-    final referenced =
-        messages?.firstWhereOrNull((m) => m.id == _message.replyTo);
+    final messages = ref.read(
+      accordMessagesControllerProvider(widget.channelId),
+    );
+    final referenced = messages?.firstWhereOrNull(
+      (m) => m.id == _message.replyTo,
+    );
     String name = 'Unknown';
     String preview = '';
     if (referenced != null) {
       final members = widget.spaceId == null
           ? null
           : ref.read(accordMembersControllerProvider(widget.spaceId!));
-      name = accordMemberName(members?[referenced.authorId],
-          fallback: referenced.authorId);
-      preview =
-          referenced.content.isEmpty ? '(attachment)' : referenced.content;
+      name = accordMemberName(
+        members?[referenced.authorId],
+        fallback: referenced.authorId,
+      );
+      preview = referenced.content.isEmpty
+          ? '(attachment)'
+          : referenced.content;
     }
     return Padding(
       padding: const EdgeInsets.only(bottom: 2, left: 2),
@@ -491,7 +531,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   /// Renders one attachment inline: tappable image (→ lightbox), video player,
   /// audio player, or a filename chip for other types.
   Widget _buildAttachment(
-      AccordAttachment attachment, String? cdnUrl, ThemeData theme) {
+    AccordAttachment attachment,
+    String? cdnUrl,
+    ThemeData theme,
+  ) {
     final url = _attachmentUrl(attachment, cdnUrl);
     if (_isImageAttachment(attachment)) {
       return MouseRegion(
@@ -517,8 +560,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (_isAudioAttachment(attachment)) {
       return InlineAudioPlayer(url: url, filename: attachment.filename);
     }
-    return Text('📎 ${attachment.filename}',
-        style: theme.textTheme.bodyMedium);
+    return Text('📎 ${attachment.filename}', style: theme.textTheme.bodyMedium);
   }
 
   Widget _buildEditor(ThemeData theme, BonfireThemeExtension colors) {
@@ -631,8 +673,7 @@ class _MessageActions extends StatelessWidget {
       },
       itemBuilder: (context) => [
         if (canPin)
-          PopupMenuItem(
-              value: 'pin', child: Text(pinned ? 'Unpin' : 'Pin')),
+          PopupMenuItem(value: 'pin', child: Text(pinned ? 'Unpin' : 'Pin')),
         if (canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canDelete)
           const PopupMenuItem(value: 'delete', child: Text('Delete')),
@@ -675,8 +716,9 @@ class _MuteButtonState extends ConsumerState<_MuteButton> {
     }
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _load() async {
     final client = _client;
@@ -716,25 +758,28 @@ class _MuteButtonState extends ConsumerState<_MuteButton> {
     // client). Mute is server-side and a separate axis — "Mute" silences the
     // gateway-level mute flag, while All / Mentions / Nothing tunes our local
     // notification gating.
-    final level = ref.watch(settingsControllerProvider
-        .select((s) => s.channelNotificationLevel(widget.channelId)));
+    final level = ref.watch(
+      settingsControllerProvider.select(
+        (s) => s.channelNotificationLevel(widget.channelId),
+      ),
+    );
     final levelLabel = level == null
         ? 'Mentions (default)'
         : level == AccordSettings.channelNotifAll
-            ? 'All messages'
-            : level == AccordSettings.channelNotifMentions
-                ? 'Mentions only'
-                : 'Nothing';
+        ? 'All messages'
+        : level == AccordSettings.channelNotifMentions
+        ? 'Mentions only'
+        : 'Nothing';
     return PopupMenuButton<_NotifAction>(
       tooltip: 'Notification settings — $levelLabel',
       icon: Icon(
         muted
             ? Icons.notifications_off
             : (level == AccordSettings.channelNotifNothing
-                ? Icons.notifications_paused
-                : (level == AccordSettings.channelNotifAll
-                    ? Icons.notifications_active
-                    : Icons.notifications_none)),
+                  ? Icons.notifications_paused
+                  : (level == AccordSettings.channelNotifAll
+                        ? Icons.notifications_active
+                        : Icons.notifications_none)),
         size: 18,
         color: colors.dirtyWhite,
       ),
@@ -749,19 +794,25 @@ class _MuteButtonState extends ConsumerState<_MuteButton> {
             ref
                 .read(settingsControllerProvider.notifier)
                 .setChannelNotificationLevel(
-                    widget.channelId, AccordSettings.channelNotifAll);
+                  widget.channelId,
+                  AccordSettings.channelNotifAll,
+                );
             break;
           case _NotifAction.levelMentions:
             ref
                 .read(settingsControllerProvider.notifier)
                 .setChannelNotificationLevel(
-                    widget.channelId, AccordSettings.channelNotifMentions);
+                  widget.channelId,
+                  AccordSettings.channelNotifMentions,
+                );
             break;
           case _NotifAction.levelNothing:
             ref
                 .read(settingsControllerProvider.notifier)
                 .setChannelNotificationLevel(
-                    widget.channelId, AccordSettings.channelNotifNothing);
+                  widget.channelId,
+                  AccordSettings.channelNotifNothing,
+                );
             break;
           case _NotifAction.toggleMute:
             _toggle();
@@ -872,9 +923,12 @@ class _ReactionPill extends StatelessWidget {
               else
                 Text(name, style: const TextStyle(fontSize: 14)),
               const SizedBox(width: 4),
-              Text('${reaction.count}',
-                  style: theme.textTheme.labelMedium!
-                      .copyWith(color: colors.dirtyWhite)),
+              Text(
+                '${reaction.count}',
+                style: theme.textTheme.labelMedium!.copyWith(
+                  color: colors.dirtyWhite,
+                ),
+              ),
             ],
           ),
         ),
