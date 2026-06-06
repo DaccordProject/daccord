@@ -27,6 +27,7 @@ import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/features/spaces/views/accord_gates.dart';
+import 'package:bonfire/features/spaces/views/accord_channel_reorder.dart';
 import 'package:bonfire/features/spaces/views/accord_invites.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/features/spaces/views/accord_search.dart';
@@ -460,7 +461,7 @@ class _AddServerButton extends StatelessWidget {
   }
 }
 
-class _ChannelList extends ConsumerWidget {
+class _ChannelList extends ConsumerStatefulWidget {
   const _ChannelList({
     required this.spaceId,
     required this.spaceName,
@@ -476,7 +477,29 @@ class _ChannelList extends ConsumerWidget {
   final ValueChanged<String> onSelect;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ChannelList> createState() => _ChannelListState();
+}
+
+class _ChannelListState extends ConsumerState<_ChannelList> {
+  /// Categories the user has collapsed in this session. Per-instance (not
+  /// persisted) — matches the reference client's behavior of resetting on app
+  /// restart.
+  final Set<String> _collapsed = <String>{};
+
+  void _toggleCollapsed(String categoryId) {
+    setState(() {
+      if (!_collapsed.add(categoryId)) _collapsed.remove(categoryId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
+    final spaceId = widget.spaceId;
+    final spaceName = widget.spaceName;
+    final channels = widget.channels;
+    final selectedChannelId = widget.selectedChannelId;
+    final onSelect = widget.onSelect;
     final colors = BonfireThemeExtension.of(context);
     final id = spaceId;
     final space = id == null
@@ -585,6 +608,14 @@ class _ChannelList extends ConsumerWidget {
                     icon: Icon(Icons.add,
                         size: 18, color: colors.dirtyWhite),
                   ),
+                if (canManageChannels && id != null && channels != null)
+                  IconButton(
+                    tooltip: 'Reorder channels',
+                    onPressed: () => showAccordChannelReorder(context,
+                        spaceId: id, channels: channels),
+                    icon: Icon(Icons.reorder,
+                        size: 18, color: colors.dirtyWhite),
+                  ),
                 if (canManage && id != null)
                   IconButton(
                     tooltip: 'Space settings',
@@ -604,10 +635,12 @@ class _ChannelList extends ConsumerWidget {
                     children: _buildChannelEntries(
                       context,
                       spaceId: id,
-                      channels: channels!,
+                      channels: channels,
                       selectedChannelId: selectedChannelId,
                       onSelect: onSelect,
                       canManageChannels: canManageChannels,
+                      collapsed: _collapsed,
+                      onToggleCollapsed: _toggleCollapsed,
                     ),
                   ),
           ),
@@ -620,6 +653,8 @@ class _ChannelList extends ConsumerWidget {
 /// Groups [channels] into uncategorized channels (rendered first) followed by
 /// each category with its child channels. When [canManageChannels] is true,
 /// categories show an inline "add channel" button and channels an edit button.
+/// [collapsed] lists category IDs whose children should be hidden; tapping a
+/// category header calls [onToggleCollapsed] to flip its state.
 List<Widget> _buildChannelEntries(
   BuildContext context, {
   required String? spaceId,
@@ -627,6 +662,8 @@ List<Widget> _buildChannelEntries(
   required String? selectedChannelId,
   required ValueChanged<String> onSelect,
   required bool canManageChannels,
+  required Set<String> collapsed,
+  required ValueChanged<String> onToggleCollapsed,
 }) {
   final categories = channels.where((c) => c.type == 'category').toList();
   final leaves = channels.where((c) => c.type != 'category').toList();
@@ -650,8 +687,11 @@ List<Widget> _buildChannelEntries(
     entries.add(tile(channel));
   }
   for (final category in categories) {
+    final isCollapsed = collapsed.contains(category.id);
     entries.add(_CategoryHeader(
       category: category,
+      collapsed: isCollapsed,
+      onToggle: () => onToggleCollapsed(category.id),
       onAdd: canManageChannels && spaceId != null
           ? () => showCreateChannelDialog(context,
               spaceId: spaceId, parentId: category.id)
@@ -661,8 +701,10 @@ List<Widget> _buildChannelEntries(
               spaceId: spaceId, channel: category)
           : null,
     ));
-    for (final channel in byParent[category.id] ?? const <AccordChannel>[]) {
-      entries.add(tile(channel));
+    if (!isCollapsed) {
+      for (final channel in byParent[category.id] ?? const <AccordChannel>[]) {
+        entries.add(tile(channel));
+      }
     }
   }
   return entries;
@@ -671,45 +713,58 @@ List<Widget> _buildChannelEntries(
 class _CategoryHeader extends StatelessWidget {
   const _CategoryHeader({
     required this.category,
+    required this.collapsed,
+    required this.onToggle,
     this.onAdd,
     this.onEdit,
   });
 
   final AccordChannel category;
+  final bool collapsed;
+  final VoidCallback onToggle;
   final VoidCallback? onAdd;
   final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 2),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              (category.name ?? '').toUpperCase(),
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                    color: colors.gray,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
+    return InkWell(
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 2),
+        child: Row(
+          children: [
+            Icon(
+              collapsed ? Icons.chevron_right : Icons.expand_more,
+              size: 14,
+              color: colors.gray,
             ),
-          ),
-          if (onEdit != null)
-            InkWell(
-              onTap: onEdit,
-              child: Icon(Icons.settings, size: 14, color: colors.gray),
+            const SizedBox(width: 2),
+            Expanded(
+              child: Text(
+                (category.name ?? '').toUpperCase(),
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                      color: colors.gray,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+              ),
             ),
-          if (onAdd != null) ...[
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: onAdd,
-              child: Icon(Icons.add, size: 16, color: colors.gray),
-            ),
+            if (onEdit != null)
+              InkWell(
+                onTap: onEdit,
+                child: Icon(Icons.settings, size: 14, color: colors.gray),
+              ),
+            if (onAdd != null) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: onAdd,
+                child: Icon(Icons.add, size: 16, color: colors.gray),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
