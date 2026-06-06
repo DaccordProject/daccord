@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
+import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -122,6 +123,16 @@ class AccordSettingsScreen extends ConsumerWidget {
                   ? controller.setSfxVolume
                   : null,
             ),
+          ),
+          const Divider(height: 24),
+          _SectionHeader('Voice & Video'),
+          ListTile(
+            leading: Icon(Icons.mic_none, color: colors.dirtyWhite),
+            title: const Text('Voice & video settings'),
+            subtitle: const Text(
+                'Microphone, speaker, sensitivity, camera, mic test'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showVoiceSettings(context),
           ),
           const Divider(height: 24),
           _SectionHeader('Account'),

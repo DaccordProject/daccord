@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -19,6 +17,8 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,6 +41,7 @@ VoidCallback handleAccordEvents(
   Ref ref,
   AccordClient client, {
   required String serverKey,
+  required String currentUserId,
   required bool Function() isActive,
 }) {
   final subs = <StreamSubscription<dynamic>>[];
@@ -71,7 +72,10 @@ VoidCallback handleAccordEvents(
   // ── Initial sync ─────────────────────────────────────────────────────────
   subs.add(client.onReady.listen((data) async {
     setConnection(ConnectionStatus.ready);
-    if (isActive()) _seedPresences(ref, data);
+    if (isActive()) {
+      _seedPresences(ref, data);
+      _seedVoiceStates(ref, data);
+    }
     await _loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
   }));
 
@@ -79,6 +83,37 @@ VoidCallback handleAccordEvents(
   subs.add(client.onPresenceUpdate.listen((presence) {
     if (!isActive()) return;
     ref.read(presenceControllerProvider.notifier).upsert(presence);
+  }));
+
+  // ── Voice state cache (active server only) ───────────────────────────────
+  // Tracks who is in each voice channel. A peer entering/leaving also chimes
+  // (mirrors the reference `play_for_voice_state`), and our own state vanishing
+  // signals a force-disconnect that the VoiceController must react to.
+  subs.add(client.onVoiceStateUpdate.listen((vs) {
+    if (!isActive()) return;
+    final cache = ref.read(voiceStatesControllerProvider);
+    final me = currentUserId;
+    final myVoiceChannel = ref.read(voiceControllerProvider).channelId;
+    final previousChannel = _channelOf(cache, vs.userId);
+    ref.read(voiceStatesControllerProvider.notifier).upsert(vs);
+    soundManager.playForVoiceState(
+      isSelf: vs.userId == me,
+      joinedChannel: vs.channelId,
+      leftChannel: previousChannel,
+      myVoiceChannel: myVoiceChannel,
+    );
+    // Our own channel becoming null while we believed we were connected means
+    // the server kicked us out of voice — tear the session down locally.
+    if (vs.userId == me && vs.channelId == null && myVoiceChannel != null) {
+      ref.read(voiceControllerProvider.notifier).handleForcedDisconnect();
+    }
+  }));
+
+  // ── Voice server update (active server only) ─────────────────────────────
+  // Fresh LiveKit credentials for the channel we're (re)connecting to.
+  subs.add(client.onVoiceServerUpdate.listen((info) {
+    if (!isActive()) return;
+    ref.read(voiceControllerProvider.notifier).handleServerUpdate(info);
   }));
 
   // ── Space cache ──────────────────────────────────────────────────────────
@@ -171,11 +206,8 @@ VoidCallback handleAccordEvents(
   // `client_unread.gd`.
   subs.add(client.onMessageCreate.listen((message) {
     if (!isActive()) return;
-    final me = ref.read(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
-    );
-    if (me == null || message.authorId == me) return;
+    final me = currentUserId;
+    if (message.authorId == me) return;
     if (message.channelId == accordVisibleChannelId) return;
     final mentionsMe = message.mentionEveryone ||
         message.mentions.contains(me);
@@ -194,17 +226,14 @@ VoidCallback handleAccordEvents(
     if (!isActive()) return;
     final settings = ref.read(settingsControllerProvider);
 
-    final me = ref.read(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
-    );
+    final me = currentUserId;
 
     final notify = MessageNotificationGate.shouldNotify(
       notificationsEnabled: settings.notificationsEnabled,
       suppressEveryone: settings.suppressEveryone,
-      isOwnMessage: me == null || message.authorId == me,
+      isOwnMessage: message.authorId == me,
       isVisibleChannel: message.channelId == accordVisibleChannelId,
-      mentionsMe: me != null && message.mentions.contains(me),
+      mentionsMe: message.mentions.contains(me),
       mentionEveryone: message.mentionEveryone,
       channelLevel: settings.channelNotificationLevel(message.channelId),
     );
@@ -228,11 +257,8 @@ VoidCallback handleAccordEvents(
     final settings = ref.read(settingsControllerProvider);
     if (!settings.soundsEnabled) return;
 
-    final me = ref.read(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
-    );
-    if (me == null || message.authorId == me) return;
+    final me = currentUserId;
+    if (message.authorId == me) return;
 
     final everyone = message.mentionEveryone && !settings.suppressEveryone;
     final isMention = message.mentions.contains(me) || everyone;
@@ -258,11 +284,6 @@ VoidCallback handleAccordEvents(
     return null;
   }
 
-  String? currentUserId() => ref.read(
-        accordAuthProvider.select(
-            (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
-      );
-
   void applyReactionEvent(Map<String, dynamic> data, {required bool added}) {
     if (!isActive()) return;
     final channelId = data['channel_id']?.toString();
@@ -270,7 +291,7 @@ VoidCallback handleAccordEvents(
     final name = emojiName(data);
     if (channelId == null || messageId == null || name.isEmpty) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    final isOwn = data['user_id']?.toString() == currentUserId();
+    final isOwn = data['user_id']?.toString() == currentUserId;
     ref
         .read(accordMessagesControllerProvider(channelId).notifier)
         .applyReaction(messageId, name,
@@ -309,7 +330,7 @@ VoidCallback handleAccordEvents(
     final userId = data['user_id']?.toString();
     if (channelId == null || userId == null) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    if (userId == currentUserId()) return; // don't show our own typing
+    if (userId == currentUserId) return; // don't show our own typing
     ref.read(typingControllerProvider(channelId).notifier).userTyping(userId);
   }));
 
@@ -371,6 +392,37 @@ VoidCallback handleAccordEvents(
       sub.cancel();
     }
   };
+}
+
+/// The channel ID [userId] currently appears in within [cache], or null.
+String? _channelOf(
+  Map<String, Map<String, AccordVoiceState>> cache,
+  String userId,
+) {
+  for (final entry in cache.entries) {
+    if (entry.value.containsKey(userId)) return entry.key;
+  }
+  return null;
+}
+
+/// Seeds the voice-state cache from the gateway READY payload's `voice_states`
+/// array (matches the reference client's `_apply_voice_states`). The payload is
+/// flat — entries carry their own `channel_id` — so we bucket by channel.
+void _seedVoiceStates(Ref ref, Map<String, dynamic> ready) {
+  final raw = ready['voice_states'];
+  if (raw is! List) return;
+  final byChannel = <String, List<AccordVoiceState>>{};
+  for (final entry in raw) {
+    if (entry is! Map<String, dynamic>) continue;
+    final vs = AccordVoiceState.fromJson(entry);
+    final channelId = vs.channelId;
+    if (channelId == null || channelId.isEmpty) continue;
+    (byChannel[channelId] ??= []).add(vs);
+  }
+  final notifier = ref.read(voiceStatesControllerProvider.notifier);
+  for (final entry in byChannel.entries) {
+    notifier.seedChannel(entry.key, entry.value);
+  }
 }
 
 /// Seeds the global presence cache from the gateway READY payload's

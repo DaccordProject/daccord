@@ -94,6 +94,75 @@ void main() {
     });
   });
 
+  group('acceptRules', () {
+    test('records acceptance and survives a controller rebuild', () {
+      final c1 = makeContainer();
+      controllerOf(c1).acceptRules('space-1');
+      expect(stateOf(c1).isRulesAccepted('space-1'), isTrue);
+      expect(stateOf(c1).isRulesAccepted('space-2'), isFalse);
+
+      // The reported bug: the rules popup reappeared every join because
+      // acceptance was in-memory. It must now survive a fresh controller.
+      final c2 = makeContainer();
+      expect(stateOf(c2).isRulesAccepted('space-1'), isTrue);
+    });
+
+    test('re-accepting the same space is a no-op (no duplicates)', () {
+      final c = makeContainer();
+      controllerOf(c)
+        ..acceptRules('s')
+        ..acceptRules('s');
+      expect(stateOf(c).acceptedRuleSpaces, ['s']);
+    });
+  });
+
+  group('acknowledgeNsfw', () {
+    test('records and persists per-channel acknowledgement', () {
+      final c1 = makeContainer();
+      controllerOf(c1).acknowledgeNsfw('chan-1');
+      final c2 = makeContainer();
+      expect(stateOf(c2).isNsfwAcknowledged('chan-1'), isTrue);
+      expect(stateOf(c2).isNsfwAcknowledged('chan-2'), isFalse);
+    });
+  });
+
+  group('setCategoryCollapsed', () {
+    test('toggles per-space and persists', () {
+      final c1 = makeContainer();
+      controllerOf(c1).setCategoryCollapsed('space', 'cat', true);
+      expect(stateOf(c1).isCategoryCollapsed('space', 'cat'), isTrue);
+
+      final c2 = makeContainer();
+      expect(stateOf(c2).isCategoryCollapsed('space', 'cat'), isTrue);
+
+      controllerOf(c2).setCategoryCollapsed('space', 'cat', false);
+      expect(stateOf(c2).isCategoryCollapsed('space', 'cat'), isFalse);
+      // Cleared spaces drop out of the map entirely.
+      expect(stateOf(c2).collapsedCategories.containsKey('space'), isFalse);
+    });
+
+    test('collapse state is scoped to its space', () {
+      final c = makeContainer();
+      controllerOf(c).setCategoryCollapsed('space-a', 'cat', true);
+      expect(stateOf(c).isCategoryCollapsed('space-b', 'cat'), isFalse);
+    });
+  });
+
+  group('setDraft', () {
+    test('saves, restores across rebuild, and clears on blank', () {
+      final c1 = makeContainer();
+      controllerOf(c1).setDraft('chan', 'half-typed message');
+      expect(stateOf(c1).draftFor('chan'), 'half-typed message');
+
+      final c2 = makeContainer();
+      expect(stateOf(c2).draftFor('chan'), 'half-typed message');
+
+      controllerOf(c2).setDraft('chan', '');
+      expect(stateOf(c2).draftFor('chan'), '');
+      expect(stateOf(c2).drafts.containsKey('chan'), isFalse);
+    });
+  });
+
   group('persistence', () {
     test('a setter survives a controller rebuild (re-reading the box)', () {
       final c1 = makeContainer();
@@ -116,6 +185,54 @@ void main() {
 
       final c2 = makeContainer();
       expect(stateOf(c2).sfxVolume, 1.0);
+    });
+  });
+
+  group('voice settings', () {
+    test('input/output volume clamps to 0–200', () {
+      final c = makeContainer();
+      controllerOf(c)
+        ..setInputVolume(500)
+        ..setOutputVolume(-50);
+      expect(stateOf(c).inputVolume, 200);
+      expect(stateOf(c).outputVolume, 0);
+    });
+
+    test('input sensitivity clamps to 0–100', () {
+      final c = makeContainer();
+      controllerOf(c).setInputSensitivity(250);
+      expect(stateOf(c).inputSensitivity, 100);
+    });
+
+    test('speakingThreshold maps sensitivity logarithmically', () {
+      const s0 = AccordSettings(inputSensitivity: 0);
+      const s50 = AccordSettings(inputSensitivity: 50);
+      const s100 = AccordSettings(inputSensitivity: 100);
+      expect(s0.speakingThreshold, closeTo(0.1, 1e-6));
+      expect(s50.speakingThreshold, closeTo(0.00316, 1e-4));
+      expect(s100.speakingThreshold, closeTo(0.0001, 1e-6));
+      // Higher sensitivity → lower threshold.
+      expect(s100.speakingThreshold, lessThan(s0.speakingThreshold));
+    });
+
+    test('device + volume selections survive a controller rebuild', () {
+      final c1 = makeContainer();
+      controllerOf(c1)
+        ..setAudioInputDevice('mic-1')
+        ..setAudioOutputDevice('spk-2')
+        ..setVideoInputDevice('cam-3')
+        ..setInputVolume(150)
+        ..setOutputVolume(80)
+        ..setInputSensitivity(70);
+
+      final c2 = makeContainer();
+      final s = stateOf(c2);
+      expect(s.audioInputDeviceId, 'mic-1');
+      expect(s.audioOutputDeviceId, 'spk-2');
+      expect(s.videoInputDeviceId, 'cam-3');
+      expect(s.inputVolume, 150);
+      expect(s.outputVolume, 80);
+      expect(s.inputSensitivity, 70);
     });
   });
 }

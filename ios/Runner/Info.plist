@@ -45,6 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Daccord needs microphone access for voice channels.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Daccord needs camera access for video in voice channels.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

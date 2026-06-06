@@ -42,8 +42,41 @@ class _ComposerState extends ConsumerState<_Composer> {
   int _mentionStart = -1;
   int _mentionEnd = -1;
 
+  /// Captured once so `dispose()` can persist the draft without touching `ref`,
+  /// which Riverpod tears down before `dispose()` runs. Safe because
+  /// `SettingsController` is `keepAlive`, so this notifier outlives the widget.
+  late final SettingsController _settings;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings = ref.read(settingsControllerProvider.notifier);
+    _controller.text =
+        ref.read(settingsControllerProvider).draftFor(widget.channelId);
+  }
+
+  @override
+  void didUpdateWidget(_Composer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.channelId != widget.channelId) {
+      // Channel switched within the same composer instance: persist the
+      // outgoing channel's draft and restore the incoming channel's.
+      _saveDraft(oldWidget.channelId, _controller.text);
+      _controller.text =
+          ref.read(settingsControllerProvider).draftFor(widget.channelId);
+      _lastTypingSent = null;
+    }
+  }
+
+  /// Persists [text] as the draft for [channelId] (mirrors the reference
+  /// client's `Config.set_draft_text`).
+  void _saveDraft(String channelId, String text) {
+    _settings.setDraft(channelId, text);
+  }
+
   @override
   void dispose() {
+    _saveDraft(widget.channelId, _controller.text);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -214,6 +247,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (ok) {
       soundManager.play('message_sent');
       _controller.clear();
+      _saveDraft(widget.channelId, '');
       _lastTypingSent = null;
       widget.onCancelReply?.call();
       _focusNode.requestFocus();

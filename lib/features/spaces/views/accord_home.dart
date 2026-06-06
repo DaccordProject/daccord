@@ -4,7 +4,9 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/components/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/channels/models/open_tab.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
@@ -24,6 +26,7 @@ import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
@@ -38,14 +41,21 @@ import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/controllers/voice_states.dart';
+import 'package:bonfire/features/voice/views/voice_bar.dart';
+import 'package:bonfire/features/voice/views/voice_participants.dart';
+import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 part 'accord_home_rail.dart';
+part 'accord_home_tabs.dart';
 part 'accord_home_channels.dart';
 part 'accord_home_messages.dart';
 part 'accord_home_message_row.dart';
@@ -63,33 +73,57 @@ class AccordHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
-  String? _selectedSpaceId;
-  String? _selectedChannelId;
+  // A space navigated to from the rail whose default channel should auto-open as
+  // a tab once its channels load. Cleared as soon as a tab is opened/activated.
+  String? _pendingOpenSpaceId;
+  // The channel id currently being auto-opened in a post-frame callback, used to
+  // avoid scheduling the same open twice while the gateway round-trips.
+  String? _autoOpenInFlight;
   // The space we've already run the rules interstitial check for this session.
   String? _rulesCheckedSpaceId;
 
-  /// Selects [spaceId] on connection [serverKey]. When the server differs from
-  /// the active connection it flips the active connection first, which reseeds
-  /// the shared space/channel/member controllers from that server.
+  /// Selects [spaceId] on connection [serverKey] from the rail. Flips the active
+  /// connection when it differs, then either re-activates the most recent open
+  /// tab for that space or, when none exists, auto-opens its default channel
+  /// (mirrors the reference client jumping to a server's last/first channel).
   void _selectSpace(String serverKey, String spaceId) {
-    final activeKey = ref.read(connectionsControllerProvider).activeKey;
-    if (serverKey != activeKey) {
+    final connections = ref.read(connectionsControllerProvider);
+    if (serverKey != connections.activeKey) {
       ref.read(accordAuthProvider.notifier).setActiveServer(serverKey);
     }
-    setState(() {
-      _selectedSpaceId = spaceId;
-      _selectedChannelId = null;
-    });
+    final existing = ref.read(openTabsControllerProvider).tabs.lastWhereOrNull(
+        (t) => t.serverKey == serverKey && t.spaceId == spaceId);
+    if (existing != null) {
+      ref.read(openTabsControllerProvider.notifier).activate(existing.key);
+      setState(() => _pendingOpenSpaceId = null);
+      _markChannelRead(existing.channelId);
+    } else {
+      setState(() => _pendingOpenSpaceId = spaceId);
+    }
   }
 
-  Future<void> _selectChannel(String channelId) async {
-    final spaceId = _selectedSpaceId;
-    final channel = spaceId == null
-        ? null
-        : ref
-            .read(accordChannelsControllerProvider(spaceId))
-            ?.firstWhereOrNull((c) => c.id == channelId);
-    if (channel != null && channel.nsfw && spaceId != null) {
+  /// Activates an already-open [tab] (from the tab strip), flipping the active
+  /// server when the tab lives on a different connection.
+  void _selectTab(OpenTab tab) {
+    final connections = ref.read(connectionsControllerProvider);
+    if (tab.serverKey != connections.activeKey) {
+      ref.read(accordAuthProvider.notifier).setActiveServer(tab.serverKey);
+    }
+    ref.read(openTabsControllerProvider.notifier).activate(tab.key);
+    setState(() => _pendingOpenSpaceId = null);
+    _markChannelRead(tab.channelId);
+  }
+
+  /// Opens (or switches to) a tab for [channelId] in [spaceId] on the active
+  /// server. Preserves the NSFW gate and voice-join behaviour the single
+  /// selection used to carry.
+  Future<void> _openChannel(String channelId, {required String spaceId}) async {
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    if (activeKey == null) return;
+    final channel = ref
+        .read(accordChannelsControllerProvider(spaceId))
+        ?.firstWhereOrNull((c) => c.id == channelId);
+    if (channel != null && channel.nsfw) {
       final ok = await confirmNsfwGate(
         context,
         ref,
@@ -98,8 +132,45 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       );
       if (!ok || !mounted) return;
     }
-    setState(() => _selectedChannelId = channelId);
-    _markChannelRead(channelId);
+    // Tapping a voice channel joins it (unless already connected); the message
+    // pane renders the voice view for the opened tab.
+    if (channel?.type == 'voice') {
+      final connected =
+          ref.read(voiceControllerProvider).channelId == channelId;
+      if (!connected) {
+        ref.read(voiceControllerProvider.notifier).join(channelId, spaceId);
+      }
+    }
+    ref.read(openTabsControllerProvider.notifier).open(OpenTab(
+          channelId: channelId,
+          spaceId: spaceId,
+          serverKey: activeKey,
+          name: channel?.name ?? channelId,
+        ));
+    if (channel?.type != 'voice') _markChannelRead(channelId);
+    setState(() => _pendingOpenSpaceId = null);
+  }
+
+  /// Auto-opens [channel] as a tab once its space's channels have loaded (used
+  /// for the fresh-login default and rail navigation to a space with no tab).
+  void _scheduleAutoOpen(AccordChannel channel, String spaceId) {
+    if (_autoOpenInFlight == channel.id) return;
+    _autoOpenInFlight = channel.id;
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoOpenInFlight = null;
+      if (!mounted || activeKey == null) return;
+      ref.read(openTabsControllerProvider.notifier).open(OpenTab(
+            channelId: channel.id,
+            spaceId: spaceId,
+            serverKey: activeKey,
+            name: channel.name ?? channel.id,
+          ));
+      _markChannelRead(channel.id);
+      if (_pendingOpenSpaceId != null) {
+        setState(() => _pendingOpenSpaceId = null);
+      }
+    });
   }
 
   /// Marks [channelId] read locally and POSTs `channels.ack` with the latest
@@ -138,37 +209,83 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       }
     });
 
-    final spaces = ref.watch(spacesControllerProvider);
+    // Keep the active connection in step with the active tab — closing a tab can
+    // hand focus to one on a different server, which must become active for its
+    // panes to load.
+    ref.listen(openTabsControllerProvider.select((s) => s.activeTab),
+        (previous, next) {
+      if (next == null) return;
+      final activeKey = ref.read(connectionsControllerProvider).activeKey;
+      if (next.serverKey != activeKey) {
+        ref.read(accordAuthProvider.notifier).setActiveServer(next.serverKey);
+      }
+    });
 
-    // After an active-server switch the remembered selection may belong to a
-    // now-background server; fall back to the active server's first space.
-    final hasSelected = _selectedSpaceId != null &&
-        (spaces?.any((s) => s.id == _selectedSpaceId) ?? false);
-    final selectedSpaceId = hasSelected
-        ? _selectedSpaceId
-        : ((spaces != null && spaces.isNotEmpty) ? spaces.first.id : null);
+    // Prune tabs belonging to a server that was logged out / removed.
+    ref.listen(
+        connectionsControllerProvider
+            .select((s) => s.connections.map((c) => c.key).toSet()),
+        (previous, next) {
+      if (previous == null) return;
+      final removed = previous.difference(next);
+      if (removed.isEmpty) return;
+      final notifier = ref.read(openTabsControllerProvider.notifier);
+      for (final key in removed) {
+        notifier.removeForServer(key);
+      }
+    });
+
+    final spaces = ref.watch(spacesControllerProvider);
+    final activeKey =
+        ref.watch(connectionsControllerProvider.select((s) => s.activeKey));
+    final activeTab =
+        ref.watch(openTabsControllerProvider.select((s) => s.activeTab));
+
+    // Resolve which space drives the channel list / member pane.
+    String? effectiveSpaceId;
+    if (_pendingOpenSpaceId != null &&
+        (spaces?.any((s) => s.id == _pendingOpenSpaceId) ?? false)) {
+      effectiveSpaceId = _pendingOpenSpaceId;
+    } else if (activeTab != null &&
+        activeTab.serverKey == activeKey &&
+        (spaces?.any((s) => s.id == activeTab.spaceId) ?? false)) {
+      effectiveSpaceId = activeTab.spaceId;
+    } else if (spaces != null && spaces.isNotEmpty) {
+      effectiveSpaceId = spaces.first.id;
+    }
 
     _maybeCheckRules(
-        spaces?.firstWhereOrNull((s) => s.id == selectedSpaceId));
+        spaces?.firstWhereOrNull((s) => s.id == effectiveSpaceId));
 
-    final channels = selectedSpaceId == null
+    final channels = effectiveSpaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(selectedSpaceId));
+        : ref.watch(accordChannelsControllerProvider(effectiveSpaceId));
 
-    final listableChannels =
-        channels?.where((c) => c.type != 'category').toList();
+    final firstText = channels
+        ?.where((c) => c.type == 'text')
+        .firstOrNull;
 
-    final firstText =
-        listableChannels?.where((c) => c.type == 'text').firstOrNull;
-    final selectedChannelId = _selectedChannelId ?? firstText?.id;
+    // The channel shown in the message pane: the active tab when it lives in the
+    // shown space, otherwise the space's default channel (auto-opened as a tab).
+    String? shownChannelId;
+    final activeTabHere = activeTab != null &&
+        activeTab.serverKey == activeKey &&
+        (channels?.any((c) => c.id == activeTab.channelId) ?? false);
+    if (activeTabHere) {
+      shownChannelId = activeTab.channelId;
+    } else if (effectiveSpaceId != null && firstText != null) {
+      shownChannelId = firstText.id;
+      _scheduleAutoOpen(firstText, effectiveSpaceId);
+    }
 
     // Let the notification layer skip the channel that's on screen.
-    accordVisibleChannelId = selectedChannelId;
+    accordVisibleChannelId = shownChannelId;
 
+    final shownSpaceId = effectiveSpaceId;
     return Row(
       children: [
         _SpaceRail(
-          selectedSpaceId: selectedSpaceId,
+          selectedSpaceId: effectiveSpaceId,
           onSelect: _selectSpace,
           onAddServer: () => showAddServerDialog(context),
           onSwitchAccount: () => context.go('/switcher'),
@@ -176,23 +293,31 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
           onLogout: () => ref.read(accordAuthProvider.notifier).logout(),
         ),
         _ChannelList(
-          spaceId: selectedSpaceId,
-          spaceName: spaces
-              ?.where((s) => s.id == selectedSpaceId)
-              .firstOrNull
-              ?.name,
+          spaceId: effectiveSpaceId,
+          spaceName:
+              spaces?.firstWhereOrNull((s) => s.id == effectiveSpaceId)?.name,
           channels: channels,
-          selectedChannelId: selectedChannelId,
-          onSelect: _selectChannel,
+          selectedChannelId: shownChannelId,
+          onSelect: shownSpaceId == null
+              ? (_) {}
+              : (channelId) => _openChannel(channelId, spaceId: shownSpaceId),
         ),
         Expanded(
-          child: _MessagePane(
-            channel: channels?.where((c) => c.id == selectedChannelId).firstOrNull,
-            channelId: selectedChannelId,
-            spaceId: selectedSpaceId,
+          child: Column(
+            children: [
+              _TabStrip(onSelect: _selectTab),
+              Expanded(
+                child: _MessagePane(
+                  channel: channels
+                      ?.firstWhereOrNull((c) => c.id == shownChannelId),
+                  channelId: shownChannelId,
+                  spaceId: effectiveSpaceId,
+                ),
+              ),
+            ],
           ),
         ),
-        if (selectedSpaceId != null) AccordMemberList(spaceId: selectedSpaceId),
+        if (effectiveSpaceId != null) AccordMemberList(spaceId: effectiveSpaceId),
       ],
     );
   }

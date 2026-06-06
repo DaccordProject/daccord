@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:bonfire/theme/app_theme.dart';
 
 /// User-facing client preferences, persisted in the `accord-settings` Hive box.
@@ -13,6 +15,13 @@ class AccordSettings {
   static const String channelNotifMentions = 'mentions';
   static const String channelNotifNothing = 'nothing';
 
+  /// Camera capture resolution labels, indexed by [videoResolution]. Mirrors the
+  /// reference client's `config_voice.gd` `RESOLUTION_LABELS`.
+  static const List<String> videoResolutionLabels = ['480p', '720p', '1080p'];
+
+  /// Selectable camera frame rates, matching `config_voice.gd` `FPS_OPTIONS`.
+  static const List<int> videoFpsOptions = [15, 30, 60];
+
   const AccordSettings({
     this.themePreset = AppThemePreset.dark,
     this.accentColor,
@@ -20,6 +29,14 @@ class AccordSettings {
     this.suppressEveryone = false,
     this.soundsEnabled = true,
     this.sfxVolume = 1.0,
+    this.videoResolution = 1,
+    this.videoFps = 30,
+    this.audioInputDeviceId = '',
+    this.audioOutputDeviceId = '',
+    this.videoInputDeviceId = '',
+    this.inputVolume = 100,
+    this.outputVolume = 100,
+    this.inputSensitivity = 50,
     this.recentEmoji = const [],
     this.masterServerUrl = defaultMasterServerUrl,
     this.channelNotifications = const <String, String>{},
@@ -46,6 +63,37 @@ class AccordSettings {
 
   /// SFX playback volume, 0.0–1.0.
   final double sfxVolume;
+
+  /// Camera capture resolution index into [videoResolutionLabels]
+  /// (0 = 480p, 1 = 720p, 2 = 1080p).
+  final int videoResolution;
+
+  /// Camera capture frame rate (one of [videoFpsOptions]).
+  final int videoFps;
+
+  /// Selected microphone device ID (empty = system default). Applied to the
+  /// LiveKit audio capture options. Mirrors `config_voice.gd` `input_device`.
+  final String audioInputDeviceId;
+
+  /// Selected speaker/output device ID (empty = system default; desktop only).
+  /// Mirrors `config_voice.gd` `output_device`.
+  final String audioOutputDeviceId;
+
+  /// Selected camera device ID (empty = system default). Mirrors
+  /// `config_voice.gd` `video_device`.
+  final String videoInputDeviceId;
+
+  /// Microphone input volume as a percentage, 0–200 (100 = unity). Mirrors
+  /// `config_voice.gd` `input_volume`.
+  final int inputVolume;
+
+  /// Remote-audio output volume as a percentage, 0–200 (100 = unity). Mirrors
+  /// `config_voice.gd` `output_volume`.
+  final int outputVolume;
+
+  /// Voice-activity sensitivity, 0–100. Higher = more sensitive (lower
+  /// threshold). Mirrors `config_voice.gd` `input_sensitivity`.
+  final int inputSensitivity;
 
   /// Most-recently-used emoji tokens (unicode chars or `name:id` custom refs),
   /// most-recent first.
@@ -83,6 +131,14 @@ class AccordSettings {
     bool? suppressEveryone,
     bool? soundsEnabled,
     double? sfxVolume,
+    int? videoResolution,
+    int? videoFps,
+    String? audioInputDeviceId,
+    String? audioOutputDeviceId,
+    String? videoInputDeviceId,
+    int? inputVolume,
+    int? outputVolume,
+    int? inputSensitivity,
     List<String>? recentEmoji,
     String? masterServerUrl,
     Map<String, String>? channelNotifications,
@@ -99,6 +155,14 @@ class AccordSettings {
       suppressEveryone: suppressEveryone ?? this.suppressEveryone,
       soundsEnabled: soundsEnabled ?? this.soundsEnabled,
       sfxVolume: sfxVolume ?? this.sfxVolume,
+      videoResolution: videoResolution ?? this.videoResolution,
+      videoFps: videoFps ?? this.videoFps,
+      audioInputDeviceId: audioInputDeviceId ?? this.audioInputDeviceId,
+      audioOutputDeviceId: audioOutputDeviceId ?? this.audioOutputDeviceId,
+      videoInputDeviceId: videoInputDeviceId ?? this.videoInputDeviceId,
+      inputVolume: inputVolume ?? this.inputVolume,
+      outputVolume: outputVolume ?? this.outputVolume,
+      inputSensitivity: inputSensitivity ?? this.inputSensitivity,
       recentEmoji: recentEmoji ?? this.recentEmoji,
       masterServerUrl: masterServerUrl ?? this.masterServerUrl,
       channelNotifications: channelNotifications ?? this.channelNotifications,
@@ -124,6 +188,38 @@ class AccordSettings {
   /// The saved draft for [channelId], or empty string when none.
   String draftFor(String channelId) => drafts[channelId] ?? '';
 
+  /// Camera capture dimensions (width, height) for the selected
+  /// [videoResolution].
+  (int, int) get videoDimensions {
+    switch (videoResolution) {
+      case 0:
+        return (854, 480);
+      case 2:
+        return (1920, 1080);
+      default:
+        return (1280, 720);
+    }
+  }
+
+  /// Voice-activity speaking threshold (0–1, compared against the LiveKit
+  /// audio level) derived from [inputSensitivity]. Logarithmic mapping matching
+  /// `config_voice.gd`: 0% → 0.1, 50% → ~0.003, 100% → 0.0001.
+  double get speakingThreshold =>
+      math.pow(10.0, -1.0 - 3.0 * inputSensitivity / 100.0).toDouble();
+
+  /// Suggested max bitrate (bits/sec) for the selected [videoResolution],
+  /// matching LiveKit's 16:9 capture presets.
+  int get videoBitrate {
+    switch (videoResolution) {
+      case 0:
+        return 500000;
+      case 2:
+        return 3000000;
+      default:
+        return 1700000;
+    }
+  }
+
   /// Returns the level set for [channelId], or null when the user hasn't
   /// overridden it (callers fall back to the default mention-only behaviour).
   String? channelNotificationLevel(String channelId) =>
@@ -136,6 +232,14 @@ class AccordSettings {
         'suppressEveryone': suppressEveryone,
         'soundsEnabled': soundsEnabled,
         'sfxVolume': sfxVolume,
+        'videoResolution': videoResolution,
+        'videoFps': videoFps,
+        'audioInputDeviceId': audioInputDeviceId,
+        'audioOutputDeviceId': audioOutputDeviceId,
+        'videoInputDeviceId': videoInputDeviceId,
+        'inputVolume': inputVolume,
+        'outputVolume': outputVolume,
+        'inputSensitivity': inputSensitivity,
         'recentEmoji': recentEmoji,
         'masterServerUrl': masterServerUrl,
         'channelNotifications': channelNotifications,
@@ -154,6 +258,14 @@ class AccordSettings {
       suppressEveryone: json['suppressEveryone'] as bool? ?? false,
       soundsEnabled: json['soundsEnabled'] as bool? ?? true,
       sfxVolume: (json['sfxVolume'] as num?)?.toDouble() ?? 1.0,
+      videoResolution: (json['videoResolution'] as num?)?.toInt() ?? 1,
+      videoFps: (json['videoFps'] as num?)?.toInt() ?? 30,
+      audioInputDeviceId: (json['audioInputDeviceId'] as String?) ?? '',
+      audioOutputDeviceId: (json['audioOutputDeviceId'] as String?) ?? '',
+      videoInputDeviceId: (json['videoInputDeviceId'] as String?) ?? '',
+      inputVolume: (json['inputVolume'] as num?)?.toInt() ?? 100,
+      outputVolume: (json['outputVolume'] as num?)?.toInt() ?? 100,
+      inputSensitivity: (json['inputSensitivity'] as num?)?.toInt() ?? 50,
       recentEmoji: [
         for (final e in (json['recentEmoji'] as List? ?? const []))
           e.toString(),

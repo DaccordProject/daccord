@@ -672,6 +672,7 @@ class AccordAuth extends _$AccordAuth {
       ref,
       client,
       serverKey: key,
+      currentUserId: session.userId,
       isActive: () => _activeKey == key,
     );
     _connections[key] =

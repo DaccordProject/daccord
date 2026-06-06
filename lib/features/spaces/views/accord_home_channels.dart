@@ -190,6 +190,12 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                     ),
                   ),
           ),
+          VoiceBar(
+            onTapStatus: () {
+              final channelId = ref.read(voiceControllerProvider).channelId;
+              if (channelId != null) onSelect(channelId);
+            },
+          ),
         ],
       ),
     );
@@ -249,6 +255,7 @@ List<Widget> _buildChannelEntries(
 
   Widget tile(AccordChannel channel) => _ChannelTile(
         channel: channel,
+        spaceId: spaceId,
         selected: channel.id == selectedChannelId,
         onTap: () => onSelect(channel.id),
         onEdit: canManageChannels && spaceId != null
@@ -348,12 +355,14 @@ class _CategoryHeader extends StatelessWidget {
 class _ChannelTile extends ConsumerStatefulWidget {
   const _ChannelTile({
     required this.channel,
+    required this.spaceId,
     required this.selected,
     required this.onTap,
     this.onEdit,
   });
 
   final AccordChannel channel;
+  final String? spaceId;
   final bool selected;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
@@ -382,13 +391,28 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final channel = widget.channel;
-    final enabled = channel.type == 'text' ||
+    final isVoice = channel.type == 'voice';
+    final enabled = isVoice ||
+        channel.type == 'text' ||
         channel.type == 'forum' ||
         channel.type == 'announcement';
     final readState = ref.watch(readStateControllerProvider);
     final unread = readState.isUnread(channel.id) && !widget.selected;
     final mentions = readState.mentionCount(channel.id);
-    return MouseRegion(
+
+    // Voice extras: green tint + count when anyone is present / we're connected.
+    final connectedHere = isVoice &&
+        ref.watch(voiceControllerProvider
+            .select((v) => v.channelId == channel.id));
+    final voiceCount = isVoice
+        ? ref.watch(voiceStatesControllerProvider
+            .select((cache) => voiceUserCount(cache, channel.id)))
+        : 0;
+    final iconColor = connectedHere
+        ? colors.green
+        : (enabled ? colors.dirtyWhite : colors.gray);
+
+    final tileRow = MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Padding(
@@ -403,9 +427,7 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(
                 children: [
-                  Icon(_glyph,
-                      size: 18,
-                      color: enabled ? colors.dirtyWhite : colors.gray),
+                  Icon(_glyph, size: 18, color: iconColor),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -420,7 +442,13 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
                           ),
                     ),
                   ),
-                  if (mentions > 0)
+                  if (isVoice && voiceCount > 0)
+                    Text('$voiceCount',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall!
+                            .copyWith(color: colors.gray))
+                  else if (mentions > 0)
                     _MentionBadge(count: mentions)
                   else if (unread)
                     Container(
@@ -445,6 +473,15 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
           ),
         ),
       ),
+    );
+
+    if (!isVoice) return tileRow;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        tileRow,
+        VoiceParticipantList(channelId: channel.id, spaceId: widget.spaceId),
+      ],
     );
   }
 }

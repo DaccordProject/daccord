@@ -155,6 +155,14 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
       );
     }
 
+    if (channel?.type == 'voice') {
+      return VoiceChannelView(
+        channelId: channelId,
+        spaceId: spaceId,
+        channelName: channel?.name,
+      );
+    }
+
     final messages = ref.watch(accordMessagesControllerProvider(channelId));
     final members = spaceId == null
         ? null

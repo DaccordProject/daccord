@@ -19,6 +19,16 @@ class SoundManager {
     'mention_received': 'sfx/mention_received.wav',
     'message_sent': 'sfx/message_sent.wav',
     'member_join': 'sfx/message_received.wav',
+    'voice_join': 'sfx/voice_join.wav',
+    'voice_leave': 'sfx/voice_leave.wav',
+    // Peers entering/leaving our channel reuse the join/leave chimes, matching
+    // the reference SoundManager's `peer_join`/`peer_leave` aliases.
+    'peer_join': 'sfx/voice_join.wav',
+    'peer_leave': 'sfx/voice_leave.wav',
+    'mute': 'sfx/mute.wav',
+    'unmute': 'sfx/unmute.wav',
+    'deafen': 'sfx/deafen.wav',
+    'undeafen': 'sfx/undeafen.wav',
   };
 
   static const _poolSize = 4;
@@ -106,6 +116,25 @@ class SoundManager {
       isMemberJoin: isMemberJoin,
     );
     if (name != null) play(name);
+  }
+
+  /// Chimes when a *peer* enters or leaves the voice channel we're sitting in.
+  /// Mirrors the reference `play_for_voice_state`: silent for our own state
+  /// changes and whenever we aren't connected to voice. [joinedChannel] is the
+  /// peer's new channel, [leftChannel] their previous one, [myVoiceChannel] the
+  /// channel we're currently in (null when not in voice).
+  void playForVoiceState({
+    required bool isSelf,
+    required String? joinedChannel,
+    required String? leftChannel,
+    required String? myVoiceChannel,
+  }) {
+    if (isSelf || myVoiceChannel == null) return;
+    if (joinedChannel == myVoiceChannel) {
+      play('peer_join');
+    } else if (leftChannel == myVoiceChannel) {
+      play('peer_leave');
+    }
   }
 
   void dispose() {
