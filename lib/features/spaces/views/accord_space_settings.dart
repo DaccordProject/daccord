@@ -120,6 +120,74 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   Future<void> _removeBanner() =>
       _update({'banner': null}, 'Failed to remove banner');
 
+  /// Lets the user set or clear their own nickname in this space. Calls
+  /// `members.update` with `{nickname: ...}` and mirrors the result into the
+  /// member cache so every roster/message row picks it up immediately.
+  Future<void> _editOwnNickname() async {
+    final client = _client;
+    final currentUserId = ref.read(
+      accordAuthProvider
+          .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null),
+    );
+    if (client == null || currentUserId == null) return;
+    final members = ref.read(accordMembersControllerProvider(widget.spaceId));
+    final me = members?[currentUserId];
+    final initial = me?.nickname ?? '';
+    final controller = TextEditingController(text: initial);
+    final next = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Change nickname'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nickname',
+            hintText: 'Leave empty to reset to your display name',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          if (initial.isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('Reset'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (next == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final result = await client.members.update(
+      widget.spaceId,
+      currentUserId,
+      {'nickname': next.isEmpty ? null : next},
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (!result.ok) {
+      setState(() =>
+          _error = result.error?.toString() ?? 'Failed to update nickname');
+      return;
+    }
+    final updated = result.data;
+    if (updated is AccordMember) {
+      ref
+          .read(accordMembersControllerProvider(widget.spaceId).notifier)
+          .upsertMember(updated);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -231,9 +299,20 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                       style: theme.textTheme.bodySmall!
                           .copyWith(color: colors.gray)),
                 ),
+              const SizedBox(height: 16),
+              Divider(height: 1, color: colors.background),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.badge_outlined, color: colors.dirtyWhite),
+                title: const Text('Change your nickname'),
+                subtitle: Text('How you appear in this space',
+                    style: theme.textTheme.bodySmall!
+                        .copyWith(color: colors.gray)),
+                trailing: Icon(Icons.chevron_right, color: colors.gray),
+                onTap: () => _editOwnNickname(),
+              ),
               if (canManageRoles) ...[
-                const SizedBox(height: 16),
-                Divider(height: 1, color: colors.background),
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
