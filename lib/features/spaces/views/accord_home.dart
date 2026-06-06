@@ -1451,7 +1451,9 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   else if (_message.content.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: AccordMessageContent(content: _message.content),
+                      child: AccordMessageContent(
+                          content: _message.content,
+                          spaceId: widget.spaceId),
                     ),
                   for (final attachment in _message.attachments)
                     Padding(

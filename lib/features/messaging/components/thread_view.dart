@@ -146,7 +146,8 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
                       message: widget.root,
                       members: members,
                       users: users,
-                      ensure: ensureUser),
+                      ensure: ensureUser,
+                      spaceId: widget.spaceId),
                   const Divider(height: 16),
                   if (replies == null)
                     const Padding(
@@ -166,7 +167,8 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
                           message: reply,
                           members: members,
                           users: users,
-                          ensure: ensureUser),
+                          ensure: ensureUser,
+                          spaceId: widget.spaceId),
                 ],
               ),
             ),
@@ -210,12 +212,14 @@ class _MessageLine extends StatelessWidget {
     required this.members,
     required this.users,
     required this.ensure,
+    required this.spaceId,
   });
 
   final AccordMessage message;
   final Map<String, AccordMember>? members;
   final Map<String, AccordUser> users;
   final void Function(String userId) ensure;
+  final String? spaceId;
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +233,7 @@ class _MessageLine extends StatelessWidget {
         children: [
           Text(name, style: theme.textTheme.titleSmall),
           const SizedBox(height: 2),
-          AccordMessageContent(content: message.content),
+          AccordMessageContent(content: message.content, spaceId: spaceId),
         ],
       ),
     );
