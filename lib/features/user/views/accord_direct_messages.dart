@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -148,8 +149,6 @@ class _DmListTab extends ConsumerStatefulWidget {
 }
 
 class _DmListTabState extends ConsumerState<_DmListTab> {
-  List<AccordChannel>? _channels;
-
   @override
   void initState() {
     super.initState();
@@ -165,11 +164,9 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     final result = await client.users.listChannels();
     if (!mounted) return;
     final data = result.data;
-    setState(() {
-      _channels = data is List
-          ? data.whereType<AccordChannel>().toList()
-          : <AccordChannel>[];
-    });
+    ref.read(dmChannelsControllerProvider.notifier).setChannels(
+          data is List ? data.whereType<AccordChannel>().toList() : const [],
+        );
   }
 
   Future<void> _createGroup() async {
@@ -178,15 +175,17 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
       builder: (_) => const _CreateGroupDialog(),
     );
     if (channel == null || !mounted) return;
-    await _load();
-    if (mounted) widget.onOpen(channel);
+    // Surface the new group immediately; the gateway channel.create echo (and
+    // the next _load) keep the cache authoritative.
+    ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
+    widget.onOpen(channel);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final channels = _channels;
+    final channels = ref.watch(dmChannelsControllerProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -297,6 +296,13 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     });
   }
 
+  /// Updates the local channel and mirrors it into the shared DM cache so the
+  /// list behind this conversation reflects the change too.
+  void _setChannel(AccordChannel channel) {
+    setState(() => _channel = channel);
+    ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
+  }
+
   /// Refetches the channel so the recipient list reflects add/remove changes.
   Future<void> _refreshChannel() async {
     final client = _client;
@@ -305,7 +311,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (!mounted) return;
     final data = result.data;
     if (result.ok && data is AccordChannel) {
-      setState(() => _channel = data);
+      _setChannel(data);
     }
   }
 
@@ -378,7 +384,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (!mounted) return;
     final data = result.data;
     if (result.ok && data is AccordChannel) {
-      setState(() => _channel = data);
+      _setChannel(data);
     } else if (result.ok) {
       await _refreshChannel();
     } else {
@@ -396,6 +402,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final result = await client.channels.removeRecipient(_channel.id, selfId);
     if (!mounted) return;
     if (result.ok) {
+      ref.read(dmChannelsControllerProvider.notifier).remove(_channel.id);
       widget.onBack();
     } else {
       _snack('Failed to leave group');
@@ -445,6 +452,22 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
+    // Keep the open conversation in sync with gateway-driven channel updates
+    // (remote rename / recipient add/remove) the DM cache receives.
+    ref.listen<List<AccordChannel>?>(dmChannelsControllerProvider,
+        (previous, next) {
+      if (next == null) return;
+      AccordChannel? updated;
+      for (final c in next) {
+        if (c.id == _channel.id) {
+          updated = c;
+          break;
+        }
+      }
+      if (updated != null && !identical(updated, _channel)) {
+        setState(() => _channel = updated!);
+      }
+    });
     final messages = _messages;
     final group = _isGroupChannel;
     return Column(

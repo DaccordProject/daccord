@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
@@ -103,11 +104,18 @@ VoidCallback handleAccordEvents(
     }
   }));
 
-  // ── Channel cache (per space) ────────────────────────────────────────────
+  // ── Channel cache (per space, plus DM/group-DM channels) ─────────────────
+  // Space channels feed the per-space channel controller; channels with no
+  // space are DMs/group DMs and feed the global DM-channel cache so the
+  // direct-messages dialog stays in sync (recipient add/remove arrive here as
+  // channel.update).
   void cacheChannel(AccordChannel channel) {
     if (!isActive()) return;
     final spaceId = channel.spaceId;
-    if (spaceId == null) return;
+    if (spaceId == null) {
+      ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
+      return;
+    }
     ref
         .read(accordChannelsControllerProvider(spaceId).notifier)
         .upsertChannel(channel);
@@ -118,7 +126,10 @@ VoidCallback handleAccordEvents(
   subs.add(client.onChannelDelete.listen((channel) {
     if (!isActive()) return;
     final spaceId = channel.spaceId;
-    if (spaceId == null) return;
+    if (spaceId == null) {
+      ref.read(dmChannelsControllerProvider.notifier).remove(channel.id);
+      return;
+    }
     ref
         .read(accordChannelsControllerProvider(spaceId).notifier)
         .removeChannel(channel.id);
