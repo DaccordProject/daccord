@@ -60,6 +60,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     String failure = 'Action failed',
     bool closeOnSuccess = false,
     VoidCallback? onSuccess,
+    bool missingIsSuccess = false,
   }) async {
     final client = _client;
     if (client == null || _busy) return;
@@ -69,7 +70,12 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     });
     final result = await action(client);
     if (!mounted) return;
-    if (result.ok) {
+    // For removal actions (kick/ban), a "resource does not exist" / not-found
+    // error means the member is already gone server-side — the desired end
+    // state. Treat it as success so a stale roster row still gets cleared
+    // instead of leaving the member stuck with a confusing error.
+    final ok = result.ok || (missingIsSuccess && _isMissingResource(result));
+    if (ok) {
       onSuccess?.call();
       if (closeOnSuccess) {
         Navigator.of(context).pop();
@@ -84,11 +90,21 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     }
   }
 
+  /// Whether [result] is a "the target no longer exists" error (HTTP 404 or the
+  /// server's foreign-key / not-found message), meaning the member is already
+  /// absent.
+  bool _isMissingResource(RestResult result) {
+    if (result.statusCode == 404) return true;
+    final msg = result.error?.toString().toLowerCase() ?? '';
+    return msg.contains('does not exist') || msg.contains('not found');
+  }
+
   void _kick() {
     _run(
       (c) => c.members.kick(widget.spaceId, widget.userId),
       failure: 'Failed to kick member',
       closeOnSuccess: true,
+      missingIsSuccess: true,
       onSuccess: () => ref
           .read(accordMembersControllerProvider(widget.spaceId).notifier)
           .removeMember(widget.userId),
@@ -125,6 +141,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       (c) => c.bans.create(widget.spaceId, widget.userId),
       failure: 'Failed to ban member',
       closeOnSuccess: true,
+      missingIsSuccess: true,
       onSuccess: () => ref
           .read(accordMembersControllerProvider(widget.spaceId).notifier)
           .removeMember(widget.userId),
