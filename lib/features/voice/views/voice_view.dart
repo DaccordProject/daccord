@@ -7,6 +7,7 @@ import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
+import 'package:bonfire/features/voice/views/voice_text_panel.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -15,22 +16,57 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 import 'package:livekit_client/livekit_client.dart' as lk;
 
+/// Presents the voice channel full-screen as its own route. The reference's
+/// voice view can expand to take over the window (`main_window_voice_view.gd`'s
+/// `set_full_area`); on a single-pane client a pushed full-screen page is the
+/// natural equivalent. The pushed view renders [VoiceChannelView] in
+/// [VoiceChannelView.fullScreen] mode so its header shows a "minimize" button
+/// that pops back instead of a maximize button.
+Future<void> showFullScreenVoice(
+  BuildContext context, {
+  required String channelId,
+  required String? spaceId,
+  required String? channelName,
+}) {
+  return Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        body: SafeArea(
+          child: VoiceChannelView(
+            channelId: channelId,
+            spaceId: spaceId,
+            channelName: channelName,
+            fullScreen: true,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// The voice channel screen shown in the message pane: a header, the video
 /// grid (one tile per participant, camera/screen tracks or an initials
-/// placeholder), and a control bar. Ports the reference client's voice view
-/// (`main_window_voice_view.gd` + `video_grid.gd` + `video_tile.gd`), minus the
-/// activity/plugin and PiP subsystems which this client doesn't have.
+/// placeholder), an optional side text-chat panel, and a control bar. Ports the
+/// reference client's voice view (`main_window_voice_view.gd` + `video_grid.gd`
+/// + `video_tile.gd` + `voice_text_panel.gd`), minus the activity/plugin
+/// subsystem which this client doesn't have.
 class VoiceChannelView extends ConsumerStatefulWidget {
   const VoiceChannelView({
     super.key,
     required this.channelId,
     required this.spaceId,
     required this.channelName,
+    this.fullScreen = false,
   });
 
   final String channelId;
   final String? spaceId;
   final String? channelName;
+
+  /// Whether this is the pushed full-screen presentation (see
+  /// [showFullScreenVoice]). Swaps the header's maximize button for a minimize
+  /// button that pops the route.
+  final bool fullScreen;
 
   @override
   ConsumerState<VoiceChannelView> createState() => _VoiceChannelViewState();
@@ -38,6 +74,16 @@ class VoiceChannelView extends ConsumerStatefulWidget {
 
 class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
   String? _spotlightUserId;
+
+  /// Whether the voice text-chat panel is open. The reference auto-opens it on a
+  /// non-compact layout; we default it open in full-screen (wide) presentation
+  /// and closed in the narrower message-pane presentation, then let the user
+  /// toggle it from the header.
+  late bool _chatOpen = widget.fullScreen;
+
+  /// Below this width the chat panel takes over the body instead of sitting
+  /// beside the video grid.
+  static const double _sidePanelBreakpoint = 720;
 
   @override
   Widget build(BuildContext context) {
@@ -50,21 +96,7 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
       child: Column(
         children: [
           _header(context, colors),
-          Expanded(
-            child: connectedHere
-                ? _ConnectedBody(
-                    channelId: widget.channelId,
-                    spaceId: widget.spaceId,
-                    spotlightUserId: _spotlightUserId,
-                    onToggleSpotlight: (userId) => setState(() =>
-                        _spotlightUserId =
-                            _spotlightUserId == userId ? null : userId),
-                  )
-                : _LobbyBody(
-                    channelId: widget.channelId,
-                    spaceId: widget.spaceId,
-                  ),
-          ),
+          Expanded(child: _body(connectedHere)),
           if (connectedHere)
             _ControlBar(channelId: widget.channelId, spaceId: widget.spaceId),
         ],
@@ -72,11 +104,47 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
     );
   }
 
+  Widget _body(bool connectedHere) {
+    final primary = connectedHere
+        ? _ConnectedBody(
+            channelId: widget.channelId,
+            spaceId: widget.spaceId,
+            spotlightUserId: _spotlightUserId,
+            onToggleSpotlight: (userId) => setState(() => _spotlightUserId =
+                _spotlightUserId == userId ? null : userId),
+          )
+        : _LobbyBody(channelId: widget.channelId, spaceId: widget.spaceId);
+
+    if (!_chatOpen) return primary;
+
+    final chat = VoiceTextPanel(
+      channelId: widget.channelId,
+      spaceId: widget.spaceId,
+      channelName: widget.channelName,
+      onClose: () => setState(() => _chatOpen = false),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide: chat sits beside the video grid. Narrow: chat replaces it.
+        if (constraints.maxWidth >= _sidePanelBreakpoint) {
+          return Row(
+            children: [
+              Expanded(child: primary),
+              SizedBox(width: 300, child: chat),
+            ],
+          );
+        }
+        return chat;
+      },
+    );
+  }
+
   Widget _header(BuildContext context, BonfireThemeExtension colors) {
     return Container(
       height: 48,
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.only(left: 16, right: 8),
+      padding: const EdgeInsets.only(left: 16, right: 4),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.foreground, width: 1)),
       ),
@@ -88,6 +156,35 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
             child: Text(widget.channelName ?? '',
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall),
+          ),
+          IconButton(
+            tooltip: _chatOpen ? 'Hide chat' : 'Show chat',
+            onPressed: () => setState(() => _chatOpen = !_chatOpen),
+            icon: Icon(
+                _chatOpen ? Icons.chat_bubble : Icons.chat_bubble_outline,
+                size: 18,
+                color: _chatOpen ? colors.primary : colors.dirtyWhite),
+          ),
+          IconButton(
+            tooltip: widget.fullScreen ? 'Exit full screen' : 'Full screen',
+            onPressed: () {
+              if (widget.fullScreen) {
+                Navigator.of(context).maybePop();
+              } else {
+                showFullScreenVoice(
+                  context,
+                  channelId: widget.channelId,
+                  spaceId: widget.spaceId,
+                  channelName: widget.channelName,
+                );
+              }
+            },
+            icon: Icon(
+                widget.fullScreen
+                    ? Icons.fullscreen_exit
+                    : Icons.fullscreen,
+                size: 20,
+                color: colors.dirtyWhite),
           ),
         ],
       ),

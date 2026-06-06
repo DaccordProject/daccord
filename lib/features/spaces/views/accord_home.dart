@@ -46,6 +46,7 @@ import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_bar.dart';
 import 'package:bonfire/features/voice/views/voice_participants.dart';
+import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -373,8 +374,10 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       ..memberListVisible = _memberListVisible;
 
     final shownSpaceId = effectiveSpaceId;
-    return Row(
+    return Stack(
       children: [
+        Row(
+          children: [
         _SpaceRail(
           selectedSpaceId: effectiveSpaceId,
           onSelect: _selectSpace,
@@ -410,6 +413,13 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         ),
         if (effectiveSpaceId != null && _memberListVisible)
           AccordMemberList(spaceId: effectiveSpaceId),
+          ],
+        ),
+        VoicePipOverlay(
+          shownChannelId: shownChannelId,
+          onOpen: (channelId, spaceId) =>
+              _openChannel(channelId, spaceId: spaceId),
+        ),
       ],
     );
   }
