@@ -32,9 +32,25 @@ class VoiceSession {
   /// platform honours setting volume on a capture track.
   double _inputGain = 1;
 
-  /// Fires whenever the room's membership, tracks, speakers, or connection
-  /// state change — the controller recomputes its Riverpod state in response.
+  /// Continuously-polled local mic level (0–1), read from the local audio
+  /// track's WebRTC `media-source` stats. Unlike [Participant.audioLevel] —
+  /// which LiveKit only updates from throttled server active-speaker reports —
+  /// this is computed locally and updates every poll, so the meter reacts
+  /// immediately to quiet input.
+  double _localInputLevel = 0;
+  Timer? _levelTimer;
+  bool _pollingLevel = false;
+
+  /// Fires on high-frequency room churn (active-speaker / audio-level reports).
+  /// The controller uses this only to refresh the speaking set, so it must stay
+  /// cheap — it can fire many times per second while anyone is talking.
   VoidCallback? onChanged;
+
+  /// Fires only when the renderable track/participant set actually changes
+  /// (track sub/unsub, local publish/unpublish, participant join/leave). The
+  /// controller bumps its grid-rebuild `tick` from here, so the expensive video
+  /// grid rebuilds on structural changes rather than on every speaker report.
+  VoidCallback? onTracksChanged;
 
   /// Fires when the session transitions to a new lifecycle [state].
   void Function(VoiceSessionState state)? onStateChanged;
@@ -101,16 +117,25 @@ class VoiceSession {
     };
   }
 
-  /// Our local microphone audio level (0–1), updated from LiveKit's active-
-  /// speaker reports. Drives the mic-activity meter so the user can see their
-  /// own input being picked up. Zero while silent/muted.
-  double get localAudioLevel => _room?.localParticipant?.audioLevel ?? 0;
+  /// Our local microphone audio level (0–1), polled continuously from the local
+  /// track's WebRTC stats. Drives the mic-activity meter so the user can see
+  /// their own input being picked up. Zero while silent/muted.
+  double get localAudioLevel => _localInputLevel;
 
-  /// Whether the local mic is currently over the speaking threshold.
+  /// Whether the local mic is currently over LiveKit's own speaking threshold
+  /// (server active-speaker report). The meter prefers a locally-computed
+  /// threshold comparison for responsiveness; this is the fallback.
   bool get localIsSpeaking => _room?.localParticipant?.isSpeaking ?? false;
 
-  /// Connects to [url] with [token]. Tears down any existing room first. The
-  /// initial mute/deafen are applied once connected.
+  /// Connects to [url] with [token], reusing the single long-lived [Room].
+  ///
+  /// Crucially this does **not** recreate the [Room] per call: a fresh `Room`
+  /// each connect (then disposing the old one) leaves the previous native
+  /// WebRTC `PeerConnection` + mic capture half-released, so the next publish
+  /// throws `TrackPublishException` / `No active stream to cancel` — exactly the
+  /// channel-swap breakage. Instead we keep one `Room` for the session's life,
+  /// soft-disconnect it before reconnecting, and only fully dispose in
+  /// [dispose]. The initial mute/deafen are applied once connected.
   Future<void> connect(
     String url,
     String token, {
@@ -121,46 +146,107 @@ class VoiceSession {
     int outputVolume = 100,
     int inputVolume = 100,
   }) async {
-    await _teardownRoom(intentional: true);
     _deafened = selfDeaf;
     _outputGain = (outputVolume / 100).clamp(0, 2).toDouble();
     _inputGain = (inputVolume / 100).clamp(0, 2).toDouble();
-    _setState(VoiceSessionState.connecting);
 
     final captureDeviceId =
         (audioInputDeviceId != null && audioInputDeviceId.isNotEmpty)
             ? audioInputDeviceId
             : null;
-    final room = Room(
-      roomOptions: RoomOptions(
-        defaultAudioCaptureOptions:
-            AudioCaptureOptions(deviceId: captureDeviceId),
-      ),
-    );
+    final room = _ensureRoom();
+
+    // Channel swap / reconnect: release the prior connection's media and drop
+    // the socket first, but keep the *same* Room object. `_intentionalDisconnect`
+    // stays set across the reconnect so the RoomDisconnectedEvent this triggers
+    // is treated as intentional (no auto-reconnect) — it's reset only once the
+    // new connection is up.
+    _intentionalDisconnect = true;
+    if (room.connectionState != ConnectionState.disconnected) {
+      _stopLevelPolling();
+      await _stopLocalMedia();
+      try {
+        await room.disconnect();
+      } catch (e) {
+        debugPrint('LiveKit pre-connect disconnect error: $e');
+      }
+    }
+
+    _setState(VoiceSessionState.connecting);
+    try {
+      await room.connect(url, token);
+      // The new connection is live — genuine drops from here are unintentional.
+      _intentionalDisconnect = false;
+      // The SDK publishes the mic for us; honour the initial mute state and the
+      // chosen capture device (we no longer bake it into RoomOptions, since the
+      // Room outlives any single device selection).
+      await _guardMedia(
+        'mic',
+        () => room.localParticipant?.setMicrophoneEnabled(
+          !selfMute,
+          audioCaptureOptions: AudioCaptureOptions(deviceId: captureDeviceId),
+        ),
+      );
+      if (selfDeaf) await _applyDeafen(true);
+      await _applyOutputDevice(audioOutputDeviceId);
+      await _applyOutputGain();
+      await _applyInputGain();
+      _startLevelPolling();
+      _setState(VoiceSessionState.connected);
+    } catch (e) {
+      debugPrint('LiveKit connect failed: $e');
+      _setState(VoiceSessionState.failed);
+      // Soft cleanup — keep the Room so the next attempt can reuse it.
+      await _softDisconnect();
+    }
+  }
+
+  /// Lazily creates the one [Room] this session uses for its entire lifetime,
+  /// wiring the change/event listeners exactly once. Subsequent connects reuse
+  /// it; it's only torn down in [dispose].
+  Room _ensureRoom() {
+    var room = _room;
+    if (room != null) return room;
+    room = Room();
     _room = room;
     room.addListener(_onRoomChanged);
     final listener = room.createListener();
     _listener = listener;
     _wireListener(listener);
+    return room;
+  }
 
+  /// Stops any local capture (screen-share, camera, mic) so the native devices
+  /// are released before we drop the socket. Each toggle is guarded — stopping
+  /// an already-gone track throws "No active stream to cancel" on some
+  /// platforms, which must not abort the disconnect.
+  Future<void> _stopLocalMedia() async {
+    final participant = _room?.localParticipant;
+    if (participant == null) return;
+    await _guardMedia('stop screen share',
+        () => participant.setScreenShareEnabled(false));
+    await _guardMedia(
+        'stop camera', () => participant.setCameraEnabled(false));
+    await _guardMedia('stop mic', () => participant.setMicrophoneEnabled(false));
+  }
+
+  /// Drops the live connection but keeps the [Room] object alive for reuse.
+  Future<void> _softDisconnect() async {
+    final room = _room;
+    if (room == null) return;
+    _intentionalDisconnect = true;
+    _stopLevelPolling();
+    await _stopLocalMedia();
     try {
-      await room.connect(url, token);
-      // The SDK publishes the mic for us; honour the initial mute state.
-      await room.localParticipant?.setMicrophoneEnabled(!selfMute);
-      if (selfDeaf) await _applyDeafen(true);
-      await _applyOutputDevice(audioOutputDeviceId);
-      await _applyOutputGain();
-      await _applyInputGain();
-      _setState(VoiceSessionState.connected);
+      await room.disconnect();
     } catch (e) {
-      debugPrint('LiveKit connect failed: $e');
-      _setState(VoiceSessionState.failed);
-      await _teardownRoom(intentional: true);
+      debugPrint('LiveKit disconnect error: $e');
     }
   }
 
-  /// Leaves and tears down the room (local intent — no auto-reconnect).
-  Future<void> disconnect() => _teardownRoom(intentional: true);
+  /// Leaves the channel but keeps the reusable [Room] (local intent — no
+  /// auto-reconnect). The Room is only fully released in [dispose].
+  Future<void> disconnect() => _softDisconnect();
 
   Future<void> setMicEnabled(bool enabled) async {
     await _guardMedia('mic',
@@ -206,9 +292,40 @@ class VoiceSession {
     );
   }
 
-  Future<void> setScreenShareEnabled(bool enabled) async {
-    await _guardMedia('screen share',
-        () => _room?.localParticipant?.setScreenShareEnabled(enabled));
+  /// Enables (or disables) screen sharing. When enabling, [sourceId] selects a
+  /// specific screen or window (from the desktop source picker); a null/empty
+  /// id falls back to the platform's own capture prompt (web `getDisplayMedia`,
+  /// mobile system capture). [width]/[height]/[fps]/[bitrate] shape the capture
+  /// via [ScreenShareCaptureOptions] so the configured video-quality settings
+  /// apply, mirroring [setCameraEnabled].
+  Future<void> setScreenShareEnabled(
+    bool enabled, {
+    String? sourceId,
+    int? width,
+    int? height,
+    int? fps,
+    int? bitrate,
+  }) async {
+    ScreenShareCaptureOptions? options;
+    if (enabled) {
+      options = ScreenShareCaptureOptions(
+        sourceId: (sourceId != null && sourceId.isNotEmpty) ? sourceId : null,
+        params: (width != null && height != null)
+            ? VideoParameters(
+                dimensions: VideoDimensions(width, height),
+                encoding: VideoEncoding(
+                  maxBitrate: bitrate ?? 8000000,
+                  maxFramerate: fps ?? 30,
+                ),
+              )
+            : VideoParametersPresets.screenShareH1080FPS15,
+      );
+    }
+    await _guardMedia(
+      'screen share',
+      () => _room?.localParticipant
+          ?.setScreenShareEnabled(enabled, screenShareCaptureOptions: options),
+    );
   }
 
   /// Switches the active microphone to [deviceId] (empty = system default).
@@ -269,6 +386,39 @@ class VoiceSession {
     if (track != null) await _setTrackVolume(track.mediaStreamTrack, _inputGain);
   }
 
+  /// Polls the local mic track's WebRTC stats so [localAudioLevel] tracks input
+  /// continuously, independent of the throttled server speaker reports.
+  void _startLevelPolling() {
+    _levelTimer?.cancel();
+    _levelTimer = Timer.periodic(
+        const Duration(milliseconds: 100), (_) => _pollInputLevel());
+  }
+
+  void _stopLevelPolling() {
+    _levelTimer?.cancel();
+    _levelTimer = null;
+    _localInputLevel = 0;
+  }
+
+  Future<void> _pollInputLevel() async {
+    if (_pollingLevel) return; // a previous getStats call is still in flight
+    _pollingLevel = true;
+    try {
+      final track = _localMicTrack;
+      if (track is LocalAudioTrack) {
+        final stats = await track.getSenderStats();
+        _localInputLevel =
+            (stats?.audioSourceStats?.audioLevel ?? 0).toDouble();
+      } else {
+        _localInputLevel = 0; // muted/unpublished — nothing to measure
+      }
+    } catch (_) {
+      // Transient stats failures shouldn't disturb the meter.
+    } finally {
+      _pollingLevel = false;
+    }
+  }
+
   AudioTrack? get _localMicTrack {
     final participant = _room?.localParticipant;
     if (participant == null) return null;
@@ -326,9 +476,13 @@ class VoiceSession {
             }
           }
         }
-        _onRoomChanged();
+        _onTracksChanged();
       })
-      ..on<TrackUnsubscribedEvent>((_) => _onRoomChanged())
+      ..on<TrackUnsubscribedEvent>((_) => _onTracksChanged())
+      ..on<LocalTrackPublishedEvent>((_) => _onTracksChanged())
+      ..on<LocalTrackUnpublishedEvent>((_) => _onTracksChanged())
+      ..on<ParticipantConnectedEvent>((_) => _onTracksChanged())
+      ..on<ParticipantDisconnectedEvent>((_) => _onTracksChanged())
       ..on<RoomDisconnectedEvent>((e) {
         final intentional = _intentionalDisconnect ||
             e.reason == DisconnectReason.clientInitiated;
@@ -345,16 +499,22 @@ class VoiceSession {
 
   void _onRoomChanged() => onChanged?.call();
 
+  void _onTracksChanged() => onTracksChanged?.call();
+
   void _setState(VoiceSessionState next) {
     if (_state == next) return;
     _state = next;
     onStateChanged?.call(next);
   }
 
-  Future<void> _teardownRoom({required bool intentional}) async {
+  /// Fully releases the room and listeners. Called only from [dispose] — a
+  /// channel swap goes through [_softDisconnect] instead, which keeps the Room.
+  Future<void> _teardownRoom() async {
     final room = _room;
     if (room == null) return;
-    _intentionalDisconnect = intentional;
+    _intentionalDisconnect = true;
+    _stopLevelPolling();
+    await _stopLocalMedia();
     room.removeListener(_onRoomChanged);
     await _listener?.dispose();
     _listener = null;
@@ -365,9 +525,8 @@ class VoiceSession {
     } catch (e) {
       debugPrint('LiveKit teardown error: $e');
     }
-    _intentionalDisconnect = false;
   }
 
-  /// Releases the room and listeners.
-  Future<void> dispose() => _teardownRoom(intentional: true);
+  /// Releases the room and listeners for good.
+  Future<void> dispose() => _teardownRoom();
 }

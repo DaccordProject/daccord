@@ -54,9 +54,14 @@ class _MicLevelMeterState extends ConsumerState<MicLevelMeter> {
   void _poll() {
     if (!mounted) return;
     final notifier = ref.read(voiceControllerProvider.notifier);
-    final display = _displayOf(notifier.localAudioLevel);
-    final speaking = notifier.localIsSpeaking;
-    if ((display - _level).abs() < 0.01 && speaking == _speaking) return;
+    final raw = notifier.localAudioLevel;
+    final display = _displayOf(raw);
+    // Prefer a local threshold comparison (immediate) over LiveKit's throttled
+    // server-driven isSpeaking; fall back to it when no threshold is supplied.
+    final speaking = widget.threshold != null
+        ? raw >= widget.threshold!
+        : notifier.localIsSpeaking;
+    if ((display - _level).abs() < 0.005 && speaking == _speaking) return;
     setState(() {
       _level = display;
       _speaking = speaking;

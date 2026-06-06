@@ -5,6 +5,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
+import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -508,7 +509,7 @@ class _ControlBar extends ConsumerWidget {
               tooltip: voice.selfStream ? 'Stop sharing' : 'Screen share',
               active: voice.selfStream,
               activeColor: colors.green,
-              onPressed: notifier.toggleScreenShare,
+              onPressed: () => toggleScreenShareWithPicker(context, ref),
             ),
           _ControlButton(
             icon: Icons.settings,

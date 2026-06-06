@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/services/voice_session.dart';
 import 'package:bonfire/features/voice/views/mic_level_meter.dart';
+import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
@@ -133,9 +135,7 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
                     tooltip: voice.selfStream ? 'Stop sharing' : 'Screen share',
                     active: voice.selfStream,
                     activeColor: colors.green,
-                    onPressed: () => ref
-                        .read(voiceControllerProvider.notifier)
-                        .toggleScreenShare(),
+                    onPressed: () => toggleScreenShareWithPicker(context, ref),
                   ),
                 const Spacer(),
                 _VoiceButton(
@@ -159,9 +159,13 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
             // Live mic-activity meter — shows the user their input is picked up.
             if (!voice.selfMute) ...[
               const SizedBox(height: 6),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 2),
-                child: MicLevelMeter(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: MicLevelMeter(
+                  height: 4,
+                  threshold: ref.watch(settingsControllerProvider
+                      .select((s) => s.speakingThreshold)),
+                ),
               ),
             ],
           ],

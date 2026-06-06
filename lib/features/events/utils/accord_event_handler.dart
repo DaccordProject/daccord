@@ -85,34 +85,60 @@ VoidCallback handleAccordEvents(
     ref.read(presenceControllerProvider.notifier).upsert(presence);
   }));
 
-  // ── Voice state cache (active server only) ───────────────────────────────
-  // Tracks who is in each voice channel. A peer entering/leaving also chimes
-  // (mirrors the reference `play_for_voice_state`), and our own state vanishing
-  // signals a force-disconnect that the VoiceController must react to.
+  // ── Voice state cache ────────────────────────────────────────────────────
+  // The who-is-in-which-channel cache is maintained for the active server only
+  // (snowflake IDs are per-server and can collide). But a *forced disconnect* on
+  // the server our call is pinned to must be honored even while we're browsing
+  // another server — voice is one global session, not bound to the active pane.
   subs.add(client.onVoiceStateUpdate.listen((vs) {
-    if (!isActive()) return;
-    final cache = ref.read(voiceStatesControllerProvider);
     final me = currentUserId;
-    final myVoiceChannel = ref.read(voiceControllerProvider).channelId;
-    final previousChannel = _channelOf(cache, vs.userId);
-    ref.read(voiceStatesControllerProvider.notifier).upsert(vs);
-    soundManager.playForVoiceState(
-      isSelf: vs.userId == me,
-      joinedChannel: vs.channelId,
-      leftChannel: previousChannel,
-      myVoiceChannel: myVoiceChannel,
-    );
-    // Our own channel becoming null while we believed we were connected means
-    // the server kicked us out of voice — tear the session down locally.
-    if (vs.userId == me && vs.channelId == null && myVoiceChannel != null) {
+    final voice = ref.read(voiceControllerProvider);
+    final isVoiceServer = serverKey == voice.serverKey;
+
+    if (isActive()) {
+      final cache = ref.read(voiceStatesControllerProvider);
+      final previousChannel = _channelOf(cache, vs.userId);
+      ref.read(voiceStatesControllerProvider.notifier).upsert(vs);
+      soundManager.playForVoiceState(
+        isSelf: vs.userId == me,
+        joinedChannel: vs.channelId,
+        leftChannel: previousChannel,
+        myVoiceChannel: voice.channelId,
+      );
+      // Our own channel becoming null means the server removed us from voice —
+      // tear the session down locally. Only react when the channel we *left* is
+      // the one we currently believe we're in; otherwise this is the stale
+      // "left old channel" echo from a channel switch, and acting on it would
+      // kill the channel we just joined.
+      if (vs.userId == me &&
+          vs.channelId == null &&
+          voice.channelId != null &&
+          previousChannel == voice.channelId) {
+        ref.read(voiceControllerProvider.notifier).handleForcedDisconnect();
+      }
+      return;
+    }
+
+    // Not the active server, so there's no cache to echo-guard against — but the
+    // join echoes were already drained while this server was active, so a self
+    // null-channel event here is a genuine kick from our pinned voice channel.
+    if (isVoiceServer &&
+        vs.userId == me &&
+        vs.channelId == null &&
+        voice.channelId != null) {
       ref.read(voiceControllerProvider.notifier).handleForcedDisconnect();
     }
   }));
 
-  // ── Voice server update (active server only) ─────────────────────────────
-  // Fresh LiveKit credentials for the channel we're (re)connecting to.
+  // ── Voice server update ──────────────────────────────────────────────────
+  // Fresh LiveKit credentials (token refresh / SFU migration) for the channel
+  // we're (re)connecting to. Honored for the active server and for the server
+  // our pinned voice session lives on, so a mid-call server switch doesn't drop
+  // the reconnect signal.
   subs.add(client.onVoiceServerUpdate.listen((info) {
-    if (!isActive()) return;
+    final isVoiceServer =
+        serverKey == ref.read(voiceControllerProvider).serverKey;
+    if (!isActive() && !isVoiceServer) return;
     ref.read(voiceControllerProvider.notifier).handleServerUpdate(info);
   }));
 
