@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
+import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
@@ -33,8 +34,9 @@ class AccordSettingsScreen extends ConsumerWidget {
     final settings = ref.watch(settingsControllerProvider);
     final controller = ref.read(settingsControllerProvider.notifier);
     final session = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.session : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session : null,
+      ),
     );
 
     return Scaffold(
@@ -69,8 +71,10 @@ class AccordSettingsScreen extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: Text('Accent colour',
-                style: Theme.of(context).textTheme.labelLarge),
+            child: Text(
+              'Accent colour',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -132,7 +136,8 @@ class AccordSettingsScreen extends ConsumerWidget {
             leading: Icon(Icons.mic_none, color: colors.dirtyWhite),
             title: const Text('Voice & video settings'),
             subtitle: const Text(
-                'Microphone, speaker, sensitivity, camera, mic test'),
+              'Microphone, speaker, sensitivity, camera, mic test',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showVoiceSettings(context),
           ),
@@ -171,8 +176,10 @@ class AccordSettingsScreen extends ConsumerWidget {
           ),
           if (session?.isAdmin ?? false)
             ListTile(
-              leading:
-                  Icon(Icons.admin_panel_settings, color: colors.dirtyWhite),
+              leading: Icon(
+                Icons.admin_panel_settings,
+                color: colors.dirtyWhite,
+              ),
               title: const Text('Server administration'),
               subtitle: const Text('Spaces, users, reports, settings'),
               onTap: () => context.go('/admin'),
@@ -196,7 +203,8 @@ class AccordSettingsScreen extends ConsumerWidget {
           SwitchListTile(
             title: const Text('Developer Mode'),
             subtitle: const Text(
-                'Unlock the local Client MCP server for AI agents'),
+              'Unlock the local Client MCP server for AI agents',
+            ),
             value: settings.developerMode,
             onChanged: controller.setDeveloperMode,
           ),
@@ -208,6 +216,15 @@ class AccordSettingsScreen extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => showDeveloperSettings(context),
             ),
+          const Divider(height: 24),
+          _SectionHeader('Updates'),
+          ListTile(
+            leading: Icon(Icons.system_update, color: colors.dirtyWhite),
+            title: const Text('Updates'),
+            subtitle: const Text('Current version, check for new releases'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showUpdatesSettings(context),
+          ),
           const Divider(height: 24),
           _SectionHeader('About'),
           const ListTile(
@@ -232,10 +249,10 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Text(
         title.toUpperCase(),
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium!
-            .copyWith(color: colors.gray, letterSpacing: 0.6),
+        style: Theme.of(context).textTheme.labelMedium!.copyWith(
+          color: colors.gray,
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }
@@ -274,9 +291,9 @@ class _MasterServerFieldState extends ConsumerState<_MasterServerField> {
     final applied = ref.read(settingsControllerProvider).masterServerUrl;
     _controller.text = applied;
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text('Master server URL saved')),
-    );
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(const SnackBar(content: Text('Master server URL saved')));
   }
 
   @override

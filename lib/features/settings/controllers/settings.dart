@@ -35,10 +35,10 @@ class SettingsController extends _$SettingsController {
   /// Sets the accent override, or clears it (revert to the preset default) when
   /// [argb] is null.
   void setAccentColor(int? argb) => _update(
-        argb == null
-            ? state.copyWith(clearAccentColor: true)
-            : state.copyWith(accentColor: argb),
-      );
+    argb == null
+        ? state.copyWith(clearAccentColor: true)
+        : state.copyWith(accentColor: argb),
+  );
 
   void setNotificationsEnabled(bool enabled) =>
       _update(state.copyWith(notificationsEnabled: enabled));
@@ -53,9 +53,14 @@ class SettingsController extends _$SettingsController {
       _update(state.copyWith(sfxVolume: volume.clamp(0.0, 1.0).toDouble()));
 
   /// Sets the camera capture resolution index (0 = 480p, 1 = 720p, 2 = 1080p).
-  void setVideoResolution(int index) => _update(state.copyWith(
-        videoResolution:
-            index.clamp(0, AccordSettings.videoResolutionLabels.length - 1)));
+  void setVideoResolution(int index) => _update(
+    state.copyWith(
+      videoResolution: index.clamp(
+        0,
+        AccordSettings.videoResolutionLabels.length - 1,
+      ),
+    ),
+  );
 
   /// Sets the camera capture frame rate; ignored when not one of
   /// [AccordSettings.videoFpsOptions].
@@ -92,10 +97,13 @@ class SettingsController extends _$SettingsController {
   /// cleared/blank.
   void setMasterServerUrl(String url) {
     final trimmed = url.trim();
-    _update(state.copyWith(
+    _update(
+      state.copyWith(
         masterServerUrl: trimmed.isEmpty
             ? AccordSettings.defaultMasterServerUrl
-            : trimmed));
+            : trimmed,
+      ),
+    );
   }
 
   /// Sets the per-channel notification level for [channelId] — `'all'`,
@@ -119,22 +127,32 @@ class SettingsController extends _$SettingsController {
   void addRecentEmoji(String token) {
     if (token.isEmpty) return;
     final next = [token, ...state.recentEmoji.where((e) => e != token)];
-    if (next.length > _maxRecentEmoji) next.removeRange(_maxRecentEmoji, next.length);
+    if (next.length > _maxRecentEmoji)
+      next.removeRange(_maxRecentEmoji, next.length);
     _update(state.copyWith(recentEmoji: next));
   }
 
   /// Marks [spaceId]'s rules interstitial as accepted so it isn't reshown.
   void acceptRules(String spaceId) {
     if (state.acceptedRuleSpaces.contains(spaceId)) return;
-    _update(state.copyWith(
-        acceptedRuleSpaces: [...state.acceptedRuleSpaces, spaceId]));
+    _update(
+      state.copyWith(
+        acceptedRuleSpaces: [...state.acceptedRuleSpaces, spaceId],
+      ),
+    );
   }
 
   /// Marks [channelId]'s NSFW gate as acknowledged.
   void acknowledgeNsfw(String channelId) {
     if (state.acknowledgedNsfwChannels.contains(channelId)) return;
-    _update(state.copyWith(
-        acknowledgedNsfwChannels: [...state.acknowledgedNsfwChannels, channelId]));
+    _update(
+      state.copyWith(
+        acknowledgedNsfwChannels: [
+          ...state.acknowledgedNsfwChannels,
+          channelId,
+        ],
+      ),
+    );
   }
 
   /// Sets whether [categoryId] is collapsed in [spaceId]'s channel list.
@@ -144,7 +162,10 @@ class SettingsController extends _$SettingsController {
     if (collapsed == isCollapsed) return;
     final nextList = collapsed
         ? [...current, categoryId]
-        : [for (final c in current) if (c != categoryId) c];
+        : [
+            for (final c in current)
+              if (c != categoryId) c,
+          ];
     final next = Map<String, List<String>>.from(state.collapsedCategories);
     if (nextList.isEmpty) {
       next.remove(spaceId);
@@ -156,9 +177,11 @@ class SettingsController extends _$SettingsController {
 
   /// Enables/disables Developer Mode. Turning it off also disables the MCP
   /// server (mirrors the reference client's two-step opt-in).
-  void setDeveloperMode(bool enabled) => _update(enabled
-      ? state.copyWith(developerMode: true)
-      : state.copyWith(developerMode: false, mcpEnabled: false));
+  void setDeveloperMode(bool enabled) => _update(
+    enabled
+        ? state.copyWith(developerMode: true)
+        : state.copyWith(developerMode: false, mcpEnabled: false),
+  );
 
   /// Enables/disables the local Client MCP server. Generates a token on first
   /// enable if one isn't set yet.
@@ -185,9 +208,14 @@ class SettingsController extends _$SettingsController {
     final isAllowed = current.contains(group);
     if (allowed == isAllowed) return;
     final next = allowed
-        ? [for (final g in AccordSettings.mcpToolGroups)
-            if (current.contains(g) || g == group) g]
-        : [for (final g in current) if (g != group) g];
+        ? [
+            for (final g in AccordSettings.mcpToolGroups)
+              if (current.contains(g) || g == group) g,
+          ]
+        : [
+            for (final g in current)
+              if (g != group) g,
+          ];
     _update(state.copyWith(mcpAllowedGroups: next));
   }
 
@@ -198,6 +226,18 @@ class SettingsController extends _$SettingsController {
     final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
+
+  /// Enables/disables the startup update check.
+  void setAutoUpdateCheck(bool enabled) =>
+      _update(state.copyWith(autoUpdateCheck: enabled));
+
+  /// Records the release [version] the user dismissed from the update banner.
+  void setDismissedUpdateVersion(String version) =>
+      _update(state.copyWith(dismissedUpdateVersion: version));
+
+  /// Stamps the time (unix millis) of the last successful update check.
+  void setLastUpdateCheckMs(int millis) =>
+      _update(state.copyWith(lastUpdateCheckMs: millis));
 
   /// Saves (or clears, when [text] is blank) the unsent draft for [channelId].
   void setDraft(String channelId, String text) {

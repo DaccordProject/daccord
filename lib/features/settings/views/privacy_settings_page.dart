@@ -14,9 +14,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// leave-and-delete, and deletion/retention information). Ports the reference
 /// client's `server_settings.gd` `_build_privacy_page`.
 Future<void> showPrivacySettings(BuildContext context) {
-  return Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
-  );
+  return Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()));
 }
 
 class PrivacySettingsScreen extends ConsumerStatefulWidget {
@@ -36,8 +36,9 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   /// independently.
   final Set<String> _leaving = {};
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _requestExport() async {
     final client = _client;
@@ -109,7 +110,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Leave & Delete'),
           ),
@@ -139,8 +141,11 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final spaces = ref.watch(spacesControllerProvider) ?? const <AccordSpace>[];
-    final userId = ref.watch(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
+    final userId = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -171,9 +176,12 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.download),
-                  label: Text(_exporting ? 'Exporting…' : 'Request Data Export'),
+                  label: Text(
+                    _exporting ? 'Exporting…' : 'Request Data Export',
+                  ),
                 ),
               ],
             ),
@@ -184,7 +192,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
               child: Text(
                 _exportStatus!,
                 style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                    color: _exportFailed ? colors.red : colors.green),
+                  color: _exportFailed ? colors.red : colors.green,
+                ),
               ),
             ),
           const Divider(height: 24),
@@ -197,9 +206,12 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
           if (spaces.isEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text('You are not in any spaces.',
-                  style: Theme.of(context).textTheme.bodySmall!
-                      .copyWith(color: colors.gray)),
+              child: Text(
+                'You are not in any spaces.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall!.copyWith(color: colors.gray),
+              ),
             )
           else
             for (final space in spaces)
@@ -250,27 +262,29 @@ class _SpaceLeaveTile extends StatelessWidget {
     return ListTile(
       title: Text(name, overflow: TextOverflow.ellipsis),
       subtitle: isOwner
-          ? Text('You are the owner — transfer ownership before leaving.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall!
-                  .copyWith(color: colors.gray))
+          ? Text(
+              'You are the owner — transfer ownership before leaving.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall!.copyWith(color: colors.gray),
+            )
           : null,
       trailing: isOwner
           ? null
           : busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.red,
-                    side: BorderSide(color: colors.red),
-                  ),
-                  onPressed: onLeave,
-                  child: const Text('Leave & Delete'),
-                ),
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colors.red,
+                side: BorderSide(color: colors.red),
+              ),
+              onPressed: onLeave,
+              child: const Text('Leave & Delete'),
+            ),
     );
   }
 }
@@ -287,10 +301,10 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Text(
         title.toUpperCase(),
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium!
-            .copyWith(color: colors.gray, letterSpacing: 0.6),
+        style: Theme.of(context).textTheme.labelMedium!.copyWith(
+          color: colors.gray,
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }
@@ -306,11 +320,12 @@ class _Body extends StatelessWidget {
     final colors = BonfireThemeExtension.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      child: Text(text,
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall!
-              .copyWith(color: colors.gray)),
+      child: Text(
+        text,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall!.copyWith(color: colors.gray),
+      ),
     );
   }
 }

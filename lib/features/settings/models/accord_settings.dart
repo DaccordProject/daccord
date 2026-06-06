@@ -66,6 +66,9 @@ class AccordSettings {
     this.mcpPort = defaultMcpPort,
     this.mcpToken = '',
     this.mcpAllowedGroups = defaultMcpAllowedGroups,
+    this.autoUpdateCheck = true,
+    this.dismissedUpdateVersion = '',
+    this.lastUpdateCheckMs = 0,
   });
 
   /// Selected colour theme.
@@ -164,6 +167,19 @@ class AccordSettings {
   /// `mcp_allowed_groups`.
   final List<String> mcpAllowedGroups;
 
+  /// Whether the app checks for new releases on startup. Mirrors the reference
+  /// client's `Config.get_auto_update_check`.
+  final bool autoUpdateCheck;
+
+  /// The release version the user dismissed from the update banner, so it isn't
+  /// shown again until a newer one ships. Mirrors the reference's dismissed
+  /// version tracking.
+  final String dismissedUpdateVersion;
+
+  /// Unix-millis of the last successful update check, used to throttle passive
+  /// checks. Mirrors `Config.get_last_update_check` (which stores seconds).
+  final int lastUpdateCheckMs;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -192,11 +208,13 @@ class AccordSettings {
     int? mcpPort,
     String? mcpToken,
     List<String>? mcpAllowedGroups,
+    bool? autoUpdateCheck,
+    String? dismissedUpdateVersion,
+    int? lastUpdateCheckMs,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
-      accentColor:
-          clearAccentColor ? null : (accentColor ?? this.accentColor),
+      accentColor: clearAccentColor ? null : (accentColor ?? this.accentColor),
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       suppressEveryone: suppressEveryone ?? this.suppressEveryone,
       soundsEnabled: soundsEnabled ?? this.soundsEnabled,
@@ -222,6 +240,10 @@ class AccordSettings {
       mcpPort: mcpPort ?? this.mcpPort,
       mcpToken: mcpToken ?? this.mcpToken,
       mcpAllowedGroups: mcpAllowedGroups ?? this.mcpAllowedGroups,
+      autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
+      dismissedUpdateVersion:
+          dismissedUpdateVersion ?? this.dismissedUpdateVersion,
+      lastUpdateCheckMs: lastUpdateCheckMs ?? this.lastUpdateCheckMs,
     );
   }
 
@@ -277,33 +299,36 @@ class AccordSettings {
       channelNotifications[channelId];
 
   Map<String, dynamic> toJson() => {
-        'themePreset': themePreset.name,
-        'accentColor': accentColor,
-        'notificationsEnabled': notificationsEnabled,
-        'suppressEveryone': suppressEveryone,
-        'soundsEnabled': soundsEnabled,
-        'sfxVolume': sfxVolume,
-        'videoResolution': videoResolution,
-        'videoFps': videoFps,
-        'audioInputDeviceId': audioInputDeviceId,
-        'audioOutputDeviceId': audioOutputDeviceId,
-        'videoInputDeviceId': videoInputDeviceId,
-        'inputVolume': inputVolume,
-        'outputVolume': outputVolume,
-        'inputSensitivity': inputSensitivity,
-        'recentEmoji': recentEmoji,
-        'masterServerUrl': masterServerUrl,
-        'channelNotifications': channelNotifications,
-        'acceptedRuleSpaces': acceptedRuleSpaces,
-        'acknowledgedNsfwChannels': acknowledgedNsfwChannels,
-        'collapsedCategories': collapsedCategories,
-        'drafts': drafts,
-        'developerMode': developerMode,
-        'mcpEnabled': mcpEnabled,
-        'mcpPort': mcpPort,
-        'mcpToken': mcpToken,
-        'mcpAllowedGroups': mcpAllowedGroups,
-      };
+    'themePreset': themePreset.name,
+    'accentColor': accentColor,
+    'notificationsEnabled': notificationsEnabled,
+    'suppressEveryone': suppressEveryone,
+    'soundsEnabled': soundsEnabled,
+    'sfxVolume': sfxVolume,
+    'videoResolution': videoResolution,
+    'videoFps': videoFps,
+    'audioInputDeviceId': audioInputDeviceId,
+    'audioOutputDeviceId': audioOutputDeviceId,
+    'videoInputDeviceId': videoInputDeviceId,
+    'inputVolume': inputVolume,
+    'outputVolume': outputVolume,
+    'inputSensitivity': inputSensitivity,
+    'recentEmoji': recentEmoji,
+    'masterServerUrl': masterServerUrl,
+    'channelNotifications': channelNotifications,
+    'acceptedRuleSpaces': acceptedRuleSpaces,
+    'acknowledgedNsfwChannels': acknowledgedNsfwChannels,
+    'collapsedCategories': collapsedCategories,
+    'drafts': drafts,
+    'developerMode': developerMode,
+    'mcpEnabled': mcpEnabled,
+    'mcpPort': mcpPort,
+    'mcpToken': mcpToken,
+    'mcpAllowedGroups': mcpAllowedGroups,
+    'autoUpdateCheck': autoUpdateCheck,
+    'dismissedUpdateVersion': dismissedUpdateVersion,
+    'lastUpdateCheckMs': lastUpdateCheckMs,
+  };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
     final master = (json['masterServerUrl'] as String?)?.trim();
@@ -326,8 +351,9 @@ class AccordSettings {
         for (final e in (json['recentEmoji'] as List? ?? const []))
           e.toString(),
       ],
-      masterServerUrl:
-          (master == null || master.isEmpty) ? defaultMasterServerUrl : master,
+      masterServerUrl: (master == null || master.isEmpty)
+          ? defaultMasterServerUrl
+          : master,
       channelNotifications: {
         for (final entry
             in (json['channelNotifications'] as Map? ?? const {}).entries)
@@ -362,6 +388,9 @@ class AccordSettings {
                 g.toString(),
             ]
           : defaultMcpAllowedGroups,
+      autoUpdateCheck: json['autoUpdateCheck'] as bool? ?? true,
+      dismissedUpdateVersion: (json['dismissedUpdateVersion'] as String?) ?? '',
+      lastUpdateCheckMs: (json['lastUpdateCheckMs'] as num?)?.toInt() ?? 0,
     );
   }
 }

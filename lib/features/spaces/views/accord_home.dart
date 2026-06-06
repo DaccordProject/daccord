@@ -41,6 +41,8 @@ import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
+import 'package:bonfire/features/updates/controllers/update_controller.dart';
+import 'package:bonfire/features/updates/views/update_banner.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
@@ -63,7 +65,6 @@ part 'accord_home_messages.dart';
 part 'accord_home_message_row.dart';
 part 'accord_home_composer.dart';
 part 'accord_home_attachments.dart';
-
 
 /// The primary Accord screen: a three-pane view (space rail → channel list →
 /// message history) wired to the Accord controllers.
@@ -90,6 +91,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   void initState() {
     super.initState();
     mcpHomeBridge.registerAll(_mcpNavHandlers());
+    // Passive, throttled startup update check (gated on the setting).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(updateControllerProvider.notifier).maybeCheckOnStartup();
+      }
+    });
   }
 
   @override
@@ -102,69 +109,71 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   /// Each receives the argument map already resolved by the tools layer and
   /// returns an MCP result map.
   Map<String, McpNavHandler> _mcpNavHandlers() => {
-        'select_space': (args) async {
-          _selectSpace(args['server_key'] as String, args['space_id'] as String);
-          return {'ok': true};
-        },
-        'select_channel': (args) async {
-          await _openChannel(args['channel_id'] as String,
-              spaceId: args['space_id'] as String);
-          return {'ok': true};
-        },
-        'open_dm': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          showAccordDirectMessages(context);
-          return {'ok': true};
-        },
-        'open_settings': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          context.push('/settings');
-          return {'ok': true};
-        },
-        'open_discovery': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          showAccordDiscovery(context);
-          return {'ok': true};
-        },
-        'open_thread': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          final channelId = args['channel_id'] as String;
-          final messageId = args['message_id'] as String;
-          final root = ref
-              .read(accordMessagesControllerProvider(channelId))
-              ?.firstWhereOrNull((m) => m.id == messageId);
-          if (root == null) return {'error': 'Message not loaded'};
-          showAccordThread(context, channelId: channelId, root: root);
-          return {'ok': true};
-        },
-        'open_voice_view': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          final voice = ref.read(voiceControllerProvider);
-          if (!voice.isConnected) {
-            return {'error': 'Not connected to a voice channel'};
-          }
-          await _openChannel(voice.channelId!, spaceId: voice.spaceId!);
-          return {'ok': true};
-        },
-        'toggle_member_list': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          setState(() => _memberListVisible = !_memberListVisible);
-          mcpHomeBridge.memberListVisible = _memberListVisible;
-          return {'ok': true, 'visible': _memberListVisible};
-        },
-        'toggle_search': (args) async {
-          if (!mounted) return _mcpUnmounted;
-          final spaceId = mcpHomeBridge.currentSpaceId;
-          if (spaceId == null || spaceId.isEmpty) {
-            return {'error': 'No space selected'};
-          }
-          await showAccordSearch(context, spaceId: spaceId);
-          return {'ok': true};
-        },
-      };
+    'select_space': (args) async {
+      _selectSpace(args['server_key'] as String, args['space_id'] as String);
+      return {'ok': true};
+    },
+    'select_channel': (args) async {
+      await _openChannel(
+        args['channel_id'] as String,
+        spaceId: args['space_id'] as String,
+      );
+      return {'ok': true};
+    },
+    'open_dm': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      showAccordDirectMessages(context);
+      return {'ok': true};
+    },
+    'open_settings': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      context.push('/settings');
+      return {'ok': true};
+    },
+    'open_discovery': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      showAccordDiscovery(context);
+      return {'ok': true};
+    },
+    'open_thread': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      final channelId = args['channel_id'] as String;
+      final messageId = args['message_id'] as String;
+      final root = ref
+          .read(accordMessagesControllerProvider(channelId))
+          ?.firstWhereOrNull((m) => m.id == messageId);
+      if (root == null) return {'error': 'Message not loaded'};
+      showAccordThread(context, channelId: channelId, root: root);
+      return {'ok': true};
+    },
+    'open_voice_view': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      final voice = ref.read(voiceControllerProvider);
+      if (!voice.isConnected) {
+        return {'error': 'Not connected to a voice channel'};
+      }
+      await _openChannel(voice.channelId!, spaceId: voice.spaceId!);
+      return {'ok': true};
+    },
+    'toggle_member_list': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      setState(() => _memberListVisible = !_memberListVisible);
+      mcpHomeBridge.memberListVisible = _memberListVisible;
+      return {'ok': true, 'visible': _memberListVisible};
+    },
+    'toggle_search': (args) async {
+      if (!mounted) return _mcpUnmounted;
+      final spaceId = mcpHomeBridge.currentSpaceId;
+      if (spaceId == null || spaceId.isEmpty) {
+        return {'error': 'No space selected'};
+      }
+      await showAccordSearch(context, spaceId: spaceId);
+      return {'ok': true};
+    },
+  };
 
   static const Map<String, dynamic> _mcpUnmounted = {
-    'error': 'Home screen not mounted'
+    'error': 'Home screen not mounted',
   };
 
   /// Selects [spaceId] on connection [serverKey] from the rail. Flips the active
@@ -176,8 +185,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     if (serverKey != connections.activeKey) {
       ref.read(accordAuthProvider.notifier).setActiveServer(serverKey);
     }
-    final existing = ref.read(openTabsControllerProvider).tabs.lastWhereOrNull(
-        (t) => t.serverKey == serverKey && t.spaceId == spaceId);
+    final existing = ref
+        .read(openTabsControllerProvider)
+        .tabs
+        .lastWhereOrNull(
+          (t) => t.serverKey == serverKey && t.spaceId == spaceId,
+        );
     if (existing != null) {
       ref.read(openTabsControllerProvider.notifier).activate(existing.key);
       setState(() => _pendingOpenSpaceId = null);
@@ -226,12 +239,16 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         ref.read(voiceControllerProvider.notifier).join(channelId, spaceId);
       }
     }
-    ref.read(openTabsControllerProvider.notifier).open(OpenTab(
-          channelId: channelId,
-          spaceId: spaceId,
-          serverKey: activeKey,
-          name: channel?.name ?? channelId,
-        ));
+    ref
+        .read(openTabsControllerProvider.notifier)
+        .open(
+          OpenTab(
+            channelId: channelId,
+            spaceId: spaceId,
+            serverKey: activeKey,
+            name: channel?.name ?? channelId,
+          ),
+        );
     if (channel?.type != 'voice') _markChannelRead(channelId);
     setState(() => _pendingOpenSpaceId = null);
   }
@@ -245,12 +262,16 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoOpenInFlight = null;
       if (!mounted || activeKey == null) return;
-      ref.read(openTabsControllerProvider.notifier).open(OpenTab(
-            channelId: channel.id,
-            spaceId: spaceId,
-            serverKey: activeKey,
-            name: channel.name ?? channel.id,
-          ));
+      ref
+          .read(openTabsControllerProvider.notifier)
+          .open(
+            OpenTab(
+              channelId: channel.id,
+              spaceId: spaceId,
+              serverKey: activeKey,
+              name: channel.name ?? channel.id,
+            ),
+          );
       _markChannelRead(channel.id);
       if (_pendingOpenSpaceId != null) {
         setState(() => _pendingOpenSpaceId = null);
@@ -264,12 +285,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   /// no-op; the local clear still happens).
   void _markChannelRead(String channelId) {
     ref.read(readStateControllerProvider.notifier).markRead(channelId);
-    final messages =
-        ref.read(accordMessagesControllerProvider(channelId));
+    final messages = ref.read(accordMessagesControllerProvider(channelId));
     final lastId = messages?.isNotEmpty == true ? messages!.last.id : null;
     if (lastId == null) return;
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
     client?.channels.ack(channelId, lastId);
   }
 
@@ -297,8 +320,10 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     // Keep the active connection in step with the active tab — closing a tab can
     // hand focus to one on a different server, which must become active for its
     // panes to load.
-    ref.listen(openTabsControllerProvider.select((s) => s.activeTab),
-        (previous, next) {
+    ref.listen(openTabsControllerProvider.select((s) => s.activeTab), (
+      previous,
+      next,
+    ) {
       if (next == null) return;
       final activeKey = ref.read(connectionsControllerProvider).activeKey;
       if (next.serverKey != activeKey) {
@@ -308,23 +333,27 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
 
     // Prune tabs belonging to a server that was logged out / removed.
     ref.listen(
-        connectionsControllerProvider
-            .select((s) => s.connections.map((c) => c.key).toSet()),
-        (previous, next) {
-      if (previous == null) return;
-      final removed = previous.difference(next);
-      if (removed.isEmpty) return;
-      final notifier = ref.read(openTabsControllerProvider.notifier);
-      for (final key in removed) {
-        notifier.removeForServer(key);
-      }
-    });
+      connectionsControllerProvider.select(
+        (s) => s.connections.map((c) => c.key).toSet(),
+      ),
+      (previous, next) {
+        if (previous == null) return;
+        final removed = previous.difference(next);
+        if (removed.isEmpty) return;
+        final notifier = ref.read(openTabsControllerProvider.notifier);
+        for (final key in removed) {
+          notifier.removeForServer(key);
+        }
+      },
+    );
 
     final spaces = ref.watch(spacesControllerProvider);
-    final activeKey =
-        ref.watch(connectionsControllerProvider.select((s) => s.activeKey));
-    final activeTab =
-        ref.watch(openTabsControllerProvider.select((s) => s.activeTab));
+    final activeKey = ref.watch(
+      connectionsControllerProvider.select((s) => s.activeKey),
+    );
+    final activeTab = ref.watch(
+      openTabsControllerProvider.select((s) => s.activeTab),
+    );
 
     // Resolve which space drives the channel list / member pane.
     String? effectiveSpaceId;
@@ -339,21 +368,19 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       effectiveSpaceId = spaces.first.id;
     }
 
-    _maybeCheckRules(
-        spaces?.firstWhereOrNull((s) => s.id == effectiveSpaceId));
+    _maybeCheckRules(spaces?.firstWhereOrNull((s) => s.id == effectiveSpaceId));
 
     final channels = effectiveSpaceId == null
         ? null
         : ref.watch(accordChannelsControllerProvider(effectiveSpaceId));
 
-    final firstText = channels
-        ?.where((c) => c.type == 'text')
-        .firstOrNull;
+    final firstText = channels?.where((c) => c.type == 'text').firstOrNull;
 
     // The channel shown in the message pane: the active tab when it lives in the
     // shown space, otherwise the space's default channel (auto-opened as a tab).
     String? shownChannelId;
-    final activeTabHere = activeTab != null &&
+    final activeTabHere =
+        activeTab != null &&
         activeTab.serverKey == activeKey &&
         (channels?.any((c) => c.id == activeTab.channelId) ?? false);
     if (activeTabHere) {
@@ -374,51 +401,62 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       ..memberListVisible = _memberListVisible;
 
     final shownSpaceId = effectiveSpaceId;
-    return Stack(
+    return Column(
       children: [
-        Row(
-          children: [
-        _SpaceRail(
-          selectedSpaceId: effectiveSpaceId,
-          onSelect: _selectSpace,
-          onAddServer: () => showAddServerDialog(context),
-          onSwitchAccount: () => context.go('/switcher'),
-          onOpenSettings: () => context.push('/settings'),
-          onLogout: () => ref.read(accordAuthProvider.notifier).logout(),
-        ),
-        _ChannelList(
-          spaceId: effectiveSpaceId,
-          spaceName:
-              spaces?.firstWhereOrNull((s) => s.id == effectiveSpaceId)?.name,
-          channels: channels,
-          selectedChannelId: shownChannelId,
-          onSelect: shownSpaceId == null
-              ? (_) {}
-              : (channelId) => _openChannel(channelId, spaceId: shownSpaceId),
-        ),
+        const UpdateBanner(),
         Expanded(
-          child: Column(
+          child: Stack(
             children: [
-              _TabStrip(onSelect: _selectTab),
-              Expanded(
-                child: _MessagePane(
-                  channel: channels
-                      ?.firstWhereOrNull((c) => c.id == shownChannelId),
-                  channelId: shownChannelId,
-                  spaceId: effectiveSpaceId,
-                ),
+              Row(
+                children: [
+                  _SpaceRail(
+                    selectedSpaceId: effectiveSpaceId,
+                    onSelect: _selectSpace,
+                    onAddServer: () => showAddServerDialog(context),
+                    onSwitchAccount: () => context.go('/switcher'),
+                    onOpenSettings: () => context.push('/settings'),
+                    onLogout: () =>
+                        ref.read(accordAuthProvider.notifier).logout(),
+                  ),
+                  _ChannelList(
+                    spaceId: effectiveSpaceId,
+                    spaceName: spaces
+                        ?.firstWhereOrNull((s) => s.id == effectiveSpaceId)
+                        ?.name,
+                    channels: channels,
+                    selectedChannelId: shownChannelId,
+                    onSelect: shownSpaceId == null
+                        ? (_) {}
+                        : (channelId) =>
+                              _openChannel(channelId, spaceId: shownSpaceId),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _TabStrip(onSelect: _selectTab),
+                        Expanded(
+                          child: _MessagePane(
+                            channel: channels?.firstWhereOrNull(
+                              (c) => c.id == shownChannelId,
+                            ),
+                            channelId: shownChannelId,
+                            spaceId: effectiveSpaceId,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (effectiveSpaceId != null && _memberListVisible)
+                    AccordMemberList(spaceId: effectiveSpaceId),
+                ],
+              ),
+              VoicePipOverlay(
+                shownChannelId: shownChannelId,
+                onOpen: (channelId, spaceId) =>
+                    _openChannel(channelId, spaceId: spaceId),
               ),
             ],
           ),
-        ),
-        if (effectiveSpaceId != null && _memberListVisible)
-          AccordMemberList(spaceId: effectiveSpaceId),
-          ],
-        ),
-        VoicePipOverlay(
-          shownChannelId: shownChannelId,
-          onOpen: (channelId, spaceId) =>
-              _openChannel(channelId, spaceId: spaceId),
         ),
       ],
     );
