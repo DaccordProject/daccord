@@ -816,6 +816,13 @@ class _MessagePane extends ConsumerStatefulWidget {
 
 class _MessagePaneState extends ConsumerState<_MessagePane> {
   AccordMessage? _replyTo;
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
 
   @override
   void didUpdateWidget(_MessagePane oldWidget) {
@@ -824,6 +831,31 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
     if (oldWidget.channelId != widget.channelId && _replyTo != null) {
       _replyTo = null;
     }
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Watches for the user scrolling near the top of the history (with
+  /// `reverse: true`, that means approaching [maxScrollExtent]) and pages in
+  /// older messages. The controller dedupes concurrent calls so we can fire
+  /// this aggressively on every scroll tick.
+  void _onScroll() {
+    final channelId = widget.channelId;
+    if (channelId == null || !_scroll.hasClients) return;
+    final position = _scroll.position;
+    if (position.maxScrollExtent - position.pixels > 240) return;
+    final notifier =
+        ref.read(accordMessagesControllerProvider(channelId).notifier);
+    if (notifier.isLoadingOlder || !notifier.hasMoreOlder) return;
+    final client = ref.read(accordAuthProvider
+        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    if (client == null) return;
+    notifier.loadOlder(client);
   }
 
   @override
@@ -962,11 +994,19 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                             style: Theme.of(context).textTheme.bodyMedium),
                       )
                     : ListView.builder(
+                        controller: _scroll,
                         reverse: true,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 12),
-                        itemCount: messages.length,
+                        // One extra slot at the top of history (rendered last
+                        // under `reverse: true`) shows a spinner while older
+                        // pages load and a "Beginning of channel" hint once we
+                        // hit the start of history.
+                        itemCount: messages.length + 1,
                         itemBuilder: (context, index) {
+                          if (index == messages.length) {
+                            return _OlderHistoryHeader(channelId: channelId);
+                          }
                           final messageIndex = messages.length - 1 - index;
                           final message = messages[messageIndex];
                           // Group with the previous (older) message when it's
@@ -2321,5 +2361,48 @@ class _ImageAttachment extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A "loading older" / "beginning of channel" header rendered above the
+/// message list. Watches the messages controller so the spinner and end-of-
+/// history hint reflect [AccordMessagesController.isLoadingOlder]/
+/// [hasMoreOlder] as they change.
+class _OlderHistoryHeader extends ConsumerWidget {
+  const _OlderHistoryHeader({required this.channelId});
+
+  final String channelId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Rebuild whenever the message list mutates (which also covers the
+    // controller bumping state at the start/end of loadOlder).
+    ref.watch(accordMessagesControllerProvider(channelId));
+    final notifier =
+        ref.read(accordMessagesControllerProvider(channelId).notifier);
+    if (notifier.isLoadingOlder) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (!notifier.hasMoreOlder) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            "Beginning of channel",
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ),
+      );
+    }
+    return const SizedBox(height: 12);
   }
 }

@@ -40,16 +40,75 @@ class AccordMessagesController extends _$AccordMessagesController {
     return null;
   }
 
+  /// How many messages to request per page. Used by both the initial load and
+  /// the older-page cursor fetch; if a page comes back smaller than this we've
+  /// reached the start of history.
+  static const _pageSize = 50;
+
+  /// True while [loadOlder] has an in-flight REST call. UI uses this to show a
+  /// "loading older messages" indicator and to suppress duplicate fetches when
+  /// the user keeps scrolling.
+  bool isLoadingOlder = false;
+
+  /// False once a page returned fewer than [_pageSize] messages — there's no
+  /// older history to fetch. UI hides its "load older" affordance when set.
+  bool hasMoreOlder = true;
+
   Future<void> _load(AccordClient client, String channelId) async {
-    final result = await client.messages.list(channelId, query: {'limit': 50});
+    final result = await client.messages.list(channelId,
+        query: {'limit': _pageSize});
     if (!result.ok) {
       debugPrint('Failed to load messages for $channelId: ${result.error}');
       return;
     }
     final data = result.data;
     if (data is List) {
+      final list = data.whereType<AccordMessage>().toList();
       // The REST list returns newest-first; store oldest-first for display.
-      state = data.whereType<AccordMessage>().toList().reversed.toList();
+      state = list.reversed.toList();
+      if (list.length < _pageSize) hasMoreOlder = false;
+    }
+  }
+
+  /// Loads the previous page of messages (older than the currently-oldest one
+  /// in cache) and prepends them to [state]. Idempotent under concurrent calls
+  /// and a no-op once [hasMoreOlder] is false. Returns the number of new
+  /// messages loaded (0 means "no more"). Mirrors the reference client's
+  /// scroll-up pagination via the `before` cursor.
+  Future<int> loadOlder(AccordClient client) async {
+    if (isLoadingOlder || !hasMoreOlder) return 0;
+    final current = state;
+    if (current == null || current.isEmpty) return 0;
+    isLoadingOlder = true;
+    // Bump state so widgets watching the list rebuild and can show a spinner.
+    state = [...current];
+    try {
+      final oldestId = current.first.id;
+      final result = await client.messages.list(channelId,
+          query: {'limit': _pageSize, 'before': oldestId});
+      if (!result.ok) {
+        debugPrint(
+            'Failed to load older messages for $channelId: ${result.error}');
+        return 0;
+      }
+      final data = result.data;
+      if (data is! List) return 0;
+      final page = data.whereType<AccordMessage>().toList();
+      if (page.length < _pageSize) hasMoreOlder = false;
+      if (page.isEmpty) return 0;
+      // REST returns newest-first within the page; prepend oldest-first.
+      final older = page.reversed.toList();
+      final newest = state ?? current;
+      // Dedupe in case an overlapping message snuck in (e.g. live insert).
+      final knownIds = newest.map((m) => m.id).toSet();
+      final fresh = older.where((m) => !knownIds.contains(m.id)).toList();
+      state = [...fresh, ...newest];
+      return fresh.length;
+    } finally {
+      isLoadingOlder = false;
+      // Bump state again so the spinner-watching widget rebuilds.
+      final s = state;
+      if (s != null) state = [...s];
     }
   }
 
