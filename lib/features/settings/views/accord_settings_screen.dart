@@ -2,6 +2,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/profiles/views/profiles_page.dart';
 import 'package:bonfire/features/settings/views/connections_settings_page.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
@@ -177,6 +178,13 @@ class AccordSettingsScreen extends ConsumerWidget {
             title: const Text('Switch account'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/switcher'),
+          ),
+          ListTile(
+            leading: Icon(Icons.devices, color: colors.dirtyWhite),
+            title: const Text('Device profiles'),
+            subtitle: const Text('Isolated, PIN-lockable local profiles'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showProfilesSettings(context),
           ),
           ListTile(
             leading: Icon(Icons.link, color: colors.dirtyWhite),

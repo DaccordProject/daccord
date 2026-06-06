@@ -6,6 +6,8 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/hive.dart';
 import 'package:bonfire/features/notifications/controllers/notification.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
+import 'package:bonfire/features/profiles/views/app_restart.dart';
+import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
@@ -48,11 +50,13 @@ void main() async {
   await initializeNotifications();
   soundManager.init();
 
-  runApp(const ProviderScope(
-    child: MaterialApp(
-      home: MainWindow(),
+  runApp(
+    const AppRestart(
+      child: ProviderScope(
+        child: MaterialApp(home: ProfileGate(child: MainWindow())),
+      ),
     ),
-  ));
+  );
 }
 
 class MainWindow extends ConsumerStatefulWidget {
@@ -126,13 +130,15 @@ class _MainWindowState extends ConsumerState<MainWindow> {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.light,
-      statusBarColor: Colors.transparent,
-      systemStatusBarContrastEnforced: false,
-      systemNavigationBarContrastEnforced: false,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+        systemStatusBarContrastEnforced: false,
+        systemNavigationBarContrastEnforced: false,
+      ),
+    );
 
     final settings = ref.watch(settingsControllerProvider);
     // Keep the local MCP server controller alive so it starts/stops with the
