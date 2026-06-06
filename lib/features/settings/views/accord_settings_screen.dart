@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/profiles/views/profiles_page.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/views/connections_settings_page.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
@@ -208,6 +209,14 @@ class AccordSettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showAccordProfileEdit(context),
           ),
+          if (ref.watch(connectionsControllerProvider).hasMultiple)
+            ListTile(
+              leading: Icon(Icons.dns_outlined, color: colors.dirtyWhite),
+              title: const Text('Per-server profile'),
+              subtitle: const Text("Override name/bio/avatar on one server"),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _pickServerProfile(context, ref),
+            ),
           ListTile(
             leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
             title: const Text('Switch account'),
@@ -299,6 +308,34 @@ class AccordSettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Lets the user pick which connected server's profile to edit, then opens the
+/// per-server profile editor for it.
+Future<void> _pickServerProfile(BuildContext context, WidgetRef ref) async {
+  final connections = ref.read(connectionsControllerProvider).connections;
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final conn in connections)
+            ListTile(
+              leading: const Icon(Icons.dns_outlined),
+              title: Text(
+                conn.session.server.name ?? conn.session.server.baseUrl,
+              ),
+              subtitle: Text(conn.session.username),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                showAccordProfileEdit(context, serverKey: conn.key);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _SectionHeader extends StatelessWidget {

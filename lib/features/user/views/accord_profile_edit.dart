@@ -5,6 +5,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -16,15 +17,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// reference client's editable profile card. Calls `users.updateMe` and
 /// updates the global user cache so the change is visible everywhere the
 /// current user is rendered.
-Future<void> showAccordProfileEdit(BuildContext context) {
+///
+/// [serverKey] targets a specific server connection's account — its own
+/// display name / bio / avatar on that instance (a *per-server* profile). When
+/// null the active connection is used.
+Future<void> showAccordProfileEdit(BuildContext context, {String? serverKey}) {
   return showDialog<void>(
     context: context,
-    builder: (_) => const _ProfileEdit(),
+    builder: (_) => _ProfileEdit(serverKey: serverKey),
   );
 }
 
 class _ProfileEdit extends ConsumerStatefulWidget {
-  const _ProfileEdit();
+  const _ProfileEdit({this.serverKey});
+
+  /// The server connection to edit, or null for the active connection.
+  final String? serverKey;
 
   @override
   ConsumerState<_ProfileEdit> createState() => _ProfileEditState();
@@ -59,10 +67,29 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     0xFFFF7A45, // orange
   ];
 
-  AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+  /// The profile loaded from the targeted server (drives the avatar preview).
+  AccordUser? _loadedUser;
+
+  /// The targeted connection (the named server, or the active one).
+  AccordConnection? get _conn {
+    final connections = ref.read(connectionsControllerProvider);
+    return connections.connectionFor(widget.serverKey ?? connections.activeKey);
+  }
+
+  /// Whether the edited connection is the active one (gates cache propagation,
+  /// which is keyed to the active server's user/member caches).
+  bool get _isActiveServer {
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    return widget.serverKey == null || widget.serverKey == activeKey;
+  }
+
+  AccordClient? get _client => widget.serverKey == null
+      ? ref.read(
+          accordAuthProvider.select(
+            (s) => s is AccordAuthLoggedIn ? s.client : null,
+          ),
+        )
+      : ref.read(accordAuthProvider.notifier).clientForKey(widget.serverKey!);
 
   @override
   void initState() {
@@ -82,11 +109,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
   Future<void> _loadInitial() async {
     final client = _client;
     if (client == null) return;
-    final me = ref.read(accordAuthProvider).runtimeType == AccordAuthLoggedIn
-        ? (ref.read(accordAuthProvider) as AccordAuthLoggedIn).session
-        : null;
-    if (me != null) {
-      _displayName.text = me.username;
+    final session = _conn?.session;
+    if (session != null) {
+      _displayName.text = session.username;
     }
     final result = await client.users.getMe();
     if (!mounted) return;
@@ -95,8 +120,15 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       _displayName.text = data.displayName ?? data.username;
       _bio.text = data.bio ?? '';
       final accent = data.accentColor;
-      if (accent is int && accent > 0) _accentColor = 0xFF000000 | (accent & 0xFFFFFF);
-      ref.read(accordUsersControllerProvider.notifier).upsert(data);
+      if (accent is int && accent > 0) {
+        _accentColor = 0xFF000000 | (accent & 0xFFFFFF);
+      }
+      _loadedUser = data;
+      // Only seed the shared user cache when editing the active server (the
+      // cache belongs to it); a background server's user shouldn't leak in.
+      if (_isActiveServer) {
+        ref.read(accordUsersControllerProvider.notifier).upsert(data);
+      }
     }
     setState(() => _loaded = true);
   }
@@ -132,18 +164,24 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     };
     if (_newAvatarBytes != null) {
       body['avatar'] = AccordCDN.buildDataUri(
-          _toUint8(_newAvatarBytes!), _newAvatarFilename ?? 'avatar.png');
+        _toUint8(_newAvatarBytes!),
+        _newAvatarFilename ?? 'avatar.png',
+      );
     }
     final result = await client.users.updateMe(body);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.error?.toString() ?? 'Failed to save profile');
+      setState(
+        () => _error = result.error?.toString() ?? 'Failed to save profile',
+      );
       return;
     }
     final updated = result.data;
-    if (updated is AccordUser) {
+    // Only propagate to the shared user/member caches when editing the active
+    // server — those caches belong to it. A per-server edit of a background
+    // connection just persists server-side and takes effect when it's active.
+    if (updated is AccordUser && _isActiveServer) {
       ref.read(accordUsersControllerProvider.notifier).upsert(updated);
       // The member caches hold their own AccordUser per member; propagate the
       // change so message authors and the roster update, not just surfaces that
@@ -161,18 +199,27 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final session = ref.watch(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.session : null));
-    final me = session == null
-        ? null
-        : ref.watch(accordUsersControllerProvider
-            .select((m) => m[session.userId]));
+    // Rebuild on connection changes so the resolved session stays current.
+    ref.watch(connectionsControllerProvider);
+    final session = _conn?.session;
+    // Prefer the profile loaded from the targeted server; fall back to the
+    // active user cache when editing the active server.
+    final me =
+        _loadedUser ??
+        (_isActiveServer && session != null
+            ? ref.watch(
+                accordUsersControllerProvider.select((m) => m[session.userId]),
+              )
+            : null);
     final avatarUrl = me == null
         ? null
         : accordAvatarUrl(me, session?.server.cdnUrl);
     final previewBg = _accentColor != null
         ? Color(_accentColor!)
         : accordIdColor(session?.userId ?? '');
+    final serverName = widget.serverKey == null
+        ? null
+        : (session?.server.name ?? session?.server.baseUrl);
 
     return Dialog(
       child: ConstrainedBox(
@@ -185,11 +232,21 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.person_outline,
-                      size: 18, color: colors.dirtyWhite),
+                  Icon(
+                    Icons.person_outline,
+                    size: 18,
+                    color: colors.dirtyWhite,
+                  ),
                   const SizedBox(width: 8),
-                  Text('Edit profile', style: theme.textTheme.titleMedium),
-                  const Spacer(),
+                  Expanded(
+                    child: Text(
+                      serverName == null
+                          ? 'Edit profile'
+                          : 'Edit profile · $serverName',
+                      style: theme.textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).maybePop(),
@@ -213,8 +270,8 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                         backgroundImage: _newAvatarBytes != null
                             ? MemoryImage(_toUint8(_newAvatarBytes!))
                             : (avatarUrl != null
-                                ? CachedNetworkImageProvider(avatarUrl)
-                                : null),
+                                  ? CachedNetworkImageProvider(avatarUrl)
+                                  : null),
                         child: (_newAvatarBytes == null && avatarUrl == null)
                             ? Text(
                                 (session?.username.isNotEmpty == true
@@ -222,8 +279,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                                         : '?')
                                     .toUpperCase(),
                                 style: TextStyle(
-                                    fontSize: 24,
-                                    color: accordOnColor(previewBg)),
+                                  fontSize: 24,
+                                  color: accordOnColor(previewBg),
+                                ),
                               )
                             : null,
                       ),
@@ -262,9 +320,12 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                 const SizedBox(height: 16),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Avatar background',
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.dirtyWhite)),
+                  child: Text(
+                    'Avatar background',
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.dirtyWhite,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -293,17 +354,21 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
-                  Text(_error!,
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.red)),
+                  Text(
+                    _error!,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: colors.red,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed:
-                          _busy ? null : () => Navigator.of(context).maybePop(),
+                      onPressed: _busy
+                          ? null
+                          : () => Navigator.of(context).maybePop(),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 8),
@@ -313,8 +378,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Save'),
                     ),
