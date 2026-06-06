@@ -1,6 +1,7 @@
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -105,6 +106,23 @@ class AccordSettingsScreen extends ConsumerWidget {
                 : null,
           ),
           const Divider(height: 24),
+          _SectionHeader('Sounds'),
+          SwitchListTile(
+            title: const Text('Enable sounds'),
+            subtitle: const Text('Play SFX for messages and mentions'),
+            value: settings.soundsEnabled,
+            onChanged: controller.setSoundsEnabled,
+          ),
+          ListTile(
+            title: const Text('Volume'),
+            subtitle: Slider(
+              value: settings.sfxVolume,
+              onChanged: settings.soundsEnabled
+                  ? controller.setSfxVolume
+                  : null,
+            ),
+          ),
+          const Divider(height: 24),
           _SectionHeader('Account'),
           if (session != null)
             ListTile(
@@ -131,6 +149,12 @@ class AccordSettingsScreen extends ConsumerWidget {
               ref.read(accordAuthProvider.notifier).logout();
               if (context.mounted) context.go('/');
             },
+          ),
+          const Divider(height: 24),
+          _SectionHeader('Server Directory'),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: _MasterServerField(),
           ),
           const Divider(height: 24),
           _SectionHeader('About'),
@@ -161,6 +185,70 @@ class _SectionHeader extends StatelessWidget {
             .labelMedium!
             .copyWith(color: colors.gray, letterSpacing: 0.6),
       ),
+    );
+  }
+}
+
+/// Editable master-server directory URL (default https://master.daccord.gg),
+/// used to browse public spaces without an account.
+class _MasterServerField extends ConsumerStatefulWidget {
+  const _MasterServerField();
+
+  @override
+  ConsumerState<_MasterServerField> createState() => _MasterServerFieldState();
+}
+
+class _MasterServerFieldState extends ConsumerState<_MasterServerField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: ref.read(settingsControllerProvider).masterServerUrl,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    ref
+        .read(settingsControllerProvider.notifier)
+        .setMasterServerUrl(_controller.text);
+    final applied = ref.read(settingsControllerProvider).masterServerUrl;
+    _controller.text = applied;
+    FocusScope.of(context).unfocus();
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text('Master server URL saved')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _controller,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: 'Master server URL',
+              hintText: AccordSettings.defaultMasterServerUrl,
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => _save(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

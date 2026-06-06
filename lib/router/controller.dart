@@ -11,7 +11,12 @@ import 'package:bonfire/features/overview/views/navigation_frame.dart';
 import 'package:bonfire/features/overview/views/home.dart';
 import 'package:hive_ce/hive.dart';
 
+/// The root navigator, so deep-link handling (in `main.dart`) can show the
+/// Add-a-Server dialog and route over whatever screen is current.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final routerController = GoRouter(
+  navigatorKey: rootNavigatorKey,
   routes: [
     ShellRoute(
         builder: (context, state, child) => Scaffold(

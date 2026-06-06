@@ -31,6 +31,10 @@ class AccordSession {
     this.isAdmin = false,
   });
 
+  /// Stable identity: user + server. Matches `AccordConnection.key` so the auth
+  /// layer and the rail registry agree on how to address a connection.
+  String get key => '$userId@${server.baseUrl}';
+
   Map<String, dynamic> toJson() => {
         'server': server.toJson(),
         'token': token,

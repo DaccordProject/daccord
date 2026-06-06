@@ -1,0 +1,138 @@
+name: CI
+
+# Continuous integration for the Daccord Flutter client.
+#
+# - `analyze`  : code generation + static analysis + unit tests (the gate).
+# - `build`    : release builds for web / Android / Linux / Windows, uploaded
+#                as artifacts so any commit can be smoke-tested by hand.
+#
+# This workflow is also `workflow_call`-able so the Release workflow can reuse
+# it as a pre-release gate (see release.yml).
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The repo pins the Flutter channel in .fvmrc; keep this in sync with it.
+  FLUTTER_CHANNEL: beta
+
+jobs:
+  analyze:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze
+        # --no-fatal-infos keeps inherited Bonfire style lints from blocking the
+        # gate while still failing on real errors and warnings. Tighten once the
+        # port settles.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: analyze
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Web
+            platform: web
+            os: ubuntu-latest
+            artifact: daccord-web
+            path: build/web/
+          - name: Android
+            platform: android
+            os: ubuntu-latest
+            artifact: daccord-android
+            path: build/app/outputs/flutter-apk/*.apk
+          - name: Linux
+            platform: linux
+            os: ubuntu-latest
+            artifact: daccord-linux
+            path: build/linux/x64/release/bundle/
+          - name: Windows
+            platform: windows
+            os: windows-latest
+            artifact: daccord-windows
+            path: build/windows/x64/runner/Release/
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Android)
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv
+
+      - name: Install NASM (Windows)
+        if: matrix.platform == 'windows'
+        run: choco install nasm -y
+        shell: powershell
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build ${{ matrix.name }}
+        run: |
+          case "${{ matrix.platform }}" in
+            web)     flutter build web     --no-tree-shake-icons --release ;;
+            android) flutter build apk     --no-tree-shake-icons -v ;;
+            linux)   flutter build linux   -v ;;
+            windows) flutter build windows -v ;;
+          esac
+        shell: bash
+
+      - name: Upload ${{ matrix.name }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error

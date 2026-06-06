@@ -18,8 +18,12 @@ import 'package:bonfire/features/messaging/components/inline_audio_player.dart';
 import 'package:bonfire/features/messaging/components/inline_video_player.dart';
 import 'package:bonfire/features/messaging/components/pinned_messages.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
+import 'package:bonfire/features/events/controllers/connection.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/features/spaces/views/accord_gates.dart';
@@ -54,7 +58,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   // The space we've already run the rules interstitial check for this session.
   String? _rulesCheckedSpaceId;
 
-  void _selectSpace(String spaceId) {
+  /// Selects [spaceId] on connection [serverKey]. When the server differs from
+  /// the active connection it flips the active connection first, which reseeds
+  /// the shared space/channel/member controllers from that server.
+  void _selectSpace(String serverKey, String spaceId) {
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    if (serverKey != activeKey) {
+      ref.read(accordAuthProvider.notifier).setActiveServer(serverKey);
+    }
     setState(() {
       _selectedSpaceId = spaceId;
       _selectedChannelId = null;
@@ -101,13 +112,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     });
 
     final spaces = ref.watch(spacesControllerProvider);
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
-    );
 
-    final selectedSpaceId = _selectedSpaceId ??
-        ((spaces != null && spaces.isNotEmpty) ? spaces.first.id : null);
+    // After an active-server switch the remembered selection may belong to a
+    // now-background server; fall back to the active server's first space.
+    final hasSelected = _selectedSpaceId != null &&
+        (spaces?.any((s) => s.id == _selectedSpaceId) ?? false);
+    final selectedSpaceId = hasSelected
+        ? _selectedSpaceId
+        : ((spaces != null && spaces.isNotEmpty) ? spaces.first.id : null);
 
     _maybeCheckRules(
         spaces?.firstWhereOrNull((s) => s.id == selectedSpaceId));
@@ -129,10 +141,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     return Row(
       children: [
         _SpaceRail(
-          spaces: spaces,
           selectedSpaceId: selectedSpaceId,
-          cdnUrl: cdnUrl,
           onSelect: _selectSpace,
+          onAddServer: () => showAddServerDialog(context),
           onSwitchAccount: () => context.go('/switcher'),
           onOpenSettings: () => context.push('/settings'),
           onLogout: () => ref.read(accordAuthProvider.notifier).logout(),
@@ -160,28 +171,76 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   }
 }
 
-class _SpaceRail extends StatelessWidget {
+class _SpaceRail extends ConsumerWidget {
   const _SpaceRail({
-    required this.spaces,
     required this.selectedSpaceId,
-    required this.cdnUrl,
     required this.onSelect,
+    required this.onAddServer,
     required this.onSwitchAccount,
     required this.onOpenSettings,
     required this.onLogout,
   });
 
-  final List<AccordSpace>? spaces;
   final String? selectedSpaceId;
-  final String? cdnUrl;
-  final ValueChanged<String> onSelect;
+
+  /// Called with the owning server's connection key and the selected space id.
+  final void Function(String serverKey, String spaceId) onSelect;
+  final VoidCallback onAddServer;
   final VoidCallback onSwitchAccount;
   final VoidCallback onOpenSettings;
   final VoidCallback onLogout;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
+    final connections = ref.watch(connectionsControllerProvider);
+    final activeKey = connections.activeKey;
+    // The active connection's authoritative, live space list (includes spaces
+    // just joined via discovery before a gateway event arrives).
+    final liveActiveSpaces = ref.watch(spacesControllerProvider);
+    final multi = connections.hasMultiple;
+
+    final railItems = <Widget>[];
+    for (final conn in connections.connections) {
+      final isActive = conn.key == activeKey;
+      final spaces = isActive ? (liveActiveSpaces ?? conn.spaces) : conn.spaces;
+      final cdnUrl = conn.session.server.cdnUrl;
+
+      if (multi) {
+        railItems.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 6, 0, 2),
+            child: _ServerGroupHeader(
+              name: conn.session.server.name ?? conn.session.server.baseUrl,
+              status: conn.status,
+              active: isActive,
+            ),
+          ),
+        );
+      }
+
+      for (final space in spaces) {
+        railItems.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: _SpaceIcon(
+              space: space,
+              selected: isActive && space.id == selectedSpaceId,
+              cdnUrl: cdnUrl,
+              onTap: () => onSelect(conn.key, space.id),
+            ),
+          ),
+        );
+      }
+    }
+
+    railItems.add(
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: _AddServerButton(onTap: onAddServer),
+      ),
+    );
+
     return Container(
       width: 72,
       color: colors.background,
@@ -190,18 +249,7 @@ class _SpaceRail extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                for (final space in spaces ?? const <AccordSpace>[])
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: _SpaceIcon(
-                      space: space,
-                      selected: space.id == selectedSpaceId,
-                      cdnUrl: cdnUrl,
-                      onTap: () => onSelect(space.id),
-                    ),
-                  ),
-              ],
+              children: railItems,
             ),
           ),
           IconButton(
@@ -295,6 +343,116 @@ class _SpaceIcon extends StatelessWidget {
                     placeholder: (_, _) => fallback,
                     errorWidget: (_, _, _) => fallback,
                   ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A slim per-server separator shown in the rail only when more than one server
+/// is connected: the server's initial, its name as a tooltip, and a status dot.
+class _ServerGroupHeader extends StatelessWidget {
+  const _ServerGroupHeader({
+    required this.name,
+    required this.status,
+    required this.active,
+  });
+
+  final String name;
+  final ConnectionStatus status;
+  final bool active;
+
+  Color get _statusColor {
+    switch (status) {
+      case ConnectionStatus.ready:
+      case ConnectionStatus.connected:
+        return const Color(0xFF43B581);
+      case ConnectionStatus.connecting:
+      case ConnectionStatus.reconnecting:
+        return const Color(0xFFFAA61A);
+      case ConnectionStatus.disconnected:
+        return const Color(0xFFF04747);
+    }
+  }
+
+  String get _initial {
+    final trimmed = name.trim();
+    return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Center(
+      child: Tooltip(
+        message: name,
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: colors.darkGray,
+            shape: BoxShape.circle,
+            border: active
+                ? Border.all(color: colors.primary, width: 2)
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Text(
+                _initial,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: colors.dirtyWhite),
+              ),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: _statusColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colors.background, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The "Add a Server" (+) affordance at the foot of the rail's space list.
+class _AddServerButton extends StatelessWidget {
+  const _AddServerButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Center(
+      child: Tooltip(
+        message: 'Add a server',
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colors.darkGray,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.add, color: Color(0xFF43B581)),
           ),
         ),
       ),
@@ -1791,6 +1949,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       if (ok) _attachments.clear();
     });
     if (ok) {
+      soundManager.play('message_sent');
       _controller.clear();
       _lastTypingSent = null;
       widget.onCancelReply?.call();

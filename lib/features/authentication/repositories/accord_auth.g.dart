@@ -8,24 +8,45 @@ part of 'accord_auth.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Authentication + connection lifecycle against an Accord server. The Accord
-/// replacement for the Discord-specific `Auth` provider: it owns the live
-/// [AccordClient], drives login (credentials → optional MFA → token), persists
-/// the session for restore-on-launch, and tears everything down on logout.
+/// Authentication + connection lifecycle against Accord servers. The Accord
+/// replacement for the Discord-specific `Auth` provider.
+///
+/// In the multi-server model this holds N live [AccordClient]s at once (one per
+/// connected server, keyed by `userId@baseUrl`) and tracks which one is
+/// *active*. `state` (an [AccordAuthLoggedIn]) and [client] always refer to the
+/// active connection, so every existing pane/controller keeps reading the active
+/// server unchanged. Background connections stay logged in (gateways open,
+/// spaces cached in `ConnectionsController`) so the rail can show every server's
+/// spaces at once; selecting a space on another server flips the active
+/// connection without re-authenticating.
 
 @ProviderFor(AccordAuth)
 const accordAuthProvider = AccordAuthProvider._();
 
-/// Authentication + connection lifecycle against an Accord server. The Accord
-/// replacement for the Discord-specific `Auth` provider: it owns the live
-/// [AccordClient], drives login (credentials → optional MFA → token), persists
-/// the session for restore-on-launch, and tears everything down on logout.
+/// Authentication + connection lifecycle against Accord servers. The Accord
+/// replacement for the Discord-specific `Auth` provider.
+///
+/// In the multi-server model this holds N live [AccordClient]s at once (one per
+/// connected server, keyed by `userId@baseUrl`) and tracks which one is
+/// *active*. `state` (an [AccordAuthLoggedIn]) and [client] always refer to the
+/// active connection, so every existing pane/controller keeps reading the active
+/// server unchanged. Background connections stay logged in (gateways open,
+/// spaces cached in `ConnectionsController`) so the rail can show every server's
+/// spaces at once; selecting a space on another server flips the active
+/// connection without re-authenticating.
 final class AccordAuthProvider
     extends $NotifierProvider<AccordAuth, AccordAuthState> {
-  /// Authentication + connection lifecycle against an Accord server. The Accord
-  /// replacement for the Discord-specific `Auth` provider: it owns the live
-  /// [AccordClient], drives login (credentials → optional MFA → token), persists
-  /// the session for restore-on-launch, and tears everything down on logout.
+  /// Authentication + connection lifecycle against Accord servers. The Accord
+  /// replacement for the Discord-specific `Auth` provider.
+  ///
+  /// In the multi-server model this holds N live [AccordClient]s at once (one per
+  /// connected server, keyed by `userId@baseUrl`) and tracks which one is
+  /// *active*. `state` (an [AccordAuthLoggedIn]) and [client] always refer to the
+  /// active connection, so every existing pane/controller keeps reading the active
+  /// server unchanged. Background connections stay logged in (gateways open,
+  /// spaces cached in `ConnectionsController`) so the rail can show every server's
+  /// spaces at once; selecting a space on another server flips the active
+  /// connection without re-authenticating.
   const AccordAuthProvider._()
     : super(
         from: null,
@@ -53,12 +74,19 @@ final class AccordAuthProvider
   }
 }
 
-String _$accordAuthHash() => r'604bde085143e4c74a3c777eb1e0a266c3496ffc';
+String _$accordAuthHash() => r'45a4f28c770858ec52f2443ece002d6e1258d2b3';
 
-/// Authentication + connection lifecycle against an Accord server. The Accord
-/// replacement for the Discord-specific `Auth` provider: it owns the live
-/// [AccordClient], drives login (credentials → optional MFA → token), persists
-/// the session for restore-on-launch, and tears everything down on logout.
+/// Authentication + connection lifecycle against Accord servers. The Accord
+/// replacement for the Discord-specific `Auth` provider.
+///
+/// In the multi-server model this holds N live [AccordClient]s at once (one per
+/// connected server, keyed by `userId@baseUrl`) and tracks which one is
+/// *active*. `state` (an [AccordAuthLoggedIn]) and [client] always refer to the
+/// active connection, so every existing pane/controller keeps reading the active
+/// server unchanged. Background connections stay logged in (gateways open,
+/// spaces cached in `ConnectionsController`) so the rail can show every server's
+/// spaces at once; selecting a space on another server flips the active
+/// connection without re-authenticating.
 
 abstract class _$AccordAuth extends $Notifier<AccordAuthState> {
   AccordAuthState build();

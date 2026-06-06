@@ -61,6 +61,7 @@ dependencies:
       path: video_player_media_kit
 
   url_launcher: ^6.2.6
+  app_links: ^6.3.0
   sticky_headers: ^0.3.0+2
   flutter_svg: ^2.0.10+1
   collection: ^1.18.0
@@ -152,3 +153,4 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/sdps/
+    - assets/sfx/

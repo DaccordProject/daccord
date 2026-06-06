@@ -44,6 +44,22 @@ class SettingsController extends _$SettingsController {
   void setSuppressEveryone(bool suppress) =>
       _update(state.copyWith(suppressEveryone: suppress));
 
+  void setSoundsEnabled(bool enabled) =>
+      _update(state.copyWith(soundsEnabled: enabled));
+
+  void setSfxVolume(double volume) =>
+      _update(state.copyWith(sfxVolume: volume.clamp(0.0, 1.0).toDouble()));
+
+  /// Sets the master-server directory URL, falling back to the default when
+  /// cleared/blank.
+  void setMasterServerUrl(String url) {
+    final trimmed = url.trim();
+    _update(state.copyWith(
+        masterServerUrl: trimmed.isEmpty
+            ? AccordSettings.defaultMasterServerUrl
+            : trimmed));
+  }
+
   /// Records [token] (a unicode char or `name:id` custom ref) as most-recently
   /// used, de-duplicating and capping the list.
   void addRecentEmoji(String token) {

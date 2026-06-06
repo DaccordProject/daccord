@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -299,6 +300,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         onTosChanged: (v) => setState(() => _tosAccepted = v),
         onTosLinkTap: _openTos,
         onGuest: _submitGuest,
+        onDiscover: () => showAccordDiscovery(context),
         onSubmit: _submit,
         error: _authLocalError ??
             (state is AccordAuthFailed ? state.message : null),
@@ -357,6 +359,7 @@ class _AuthForm extends StatelessWidget {
     required this.onTosChanged,
     required this.onTosLinkTap,
     required this.onGuest,
+    required this.onDiscover,
     required this.onSubmit,
     this.error,
   });
@@ -378,6 +381,7 @@ class _AuthForm extends StatelessWidget {
   final ValueChanged<bool> onTosChanged;
   final VoidCallback onTosLinkTap;
   final VoidCallback onGuest;
+  final VoidCallback onDiscover;
   final VoidCallback onSubmit;
   final String? error;
 
@@ -479,6 +483,12 @@ class _AuthForm extends StatelessWidget {
               ? 'Log In with Token'
               : (isRegister ? 'Register' : 'Log In'),
           onPressed: onSubmit,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: onDiscover,
+          icon: const Icon(Icons.explore_outlined, size: 18),
+          label: const Text('Discover public servers'),
         ),
         const SizedBox(height: 8),
         TextButton(

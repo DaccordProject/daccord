@@ -1,8 +1,16 @@
 # Daccord Port — Progress
 
-> Status tracker for the Bonfire → Daccord migration. Companion to
-> [`technical-spec.md`](./technical-spec.md) (the plan) and the root
-> [`CLAUDE.md`](../CLAUDE.md). Last updated: 2026-06-05 (stub inventory).
+> **⚠️ Deprecated — remaining work now lives in GitHub issues.**
+> As of 2026-06-06 the forward-looking backlog has been migrated to
+> [DaccordProject/daccord-app issues](https://github.com/DaccordProject/daccord-app/issues).
+> That issue tracker is the source of truth for **what's left**. This file is
+> retained only as a historical record of **what's done** (the migration
+> narrative below); it is no longer updated for new work. The 2026-06-06 UI
+> parity audit that seeded the issue backlog is preserved in
+> [Parity audit](#parity-audit-2026-06-06) for reference.
+>
+> Companion docs: [`technical-spec.md`](./technical-spec.md) (the plan) and the
+> root [`CLAUDE.md`](../CLAUDE.md).
 
 ## Strategy recap
 
@@ -29,23 +37,69 @@ in detail below so it isn't under-counted.
 | 3 | Connection / event layer | 🟢 Done (spaces + channels + messages + members + reactions + typing + presence) |
 | 4 | Read path (spaces → channels → messages) | 🟢 Done (read UI `/spaces`: resolved authors incl. on-demand `users.fetch`, CDN icons/avatars/images, markdown + embeds, mention highlight) |
 | 5 | Write path (send/edit/delete, attachments, reactions, typing) | 🟢 Done |
-| 6 | Members & roles, moderation | 🟢 Roster + presence sectioning/dots, tappable profile popout, per-member avatar overrides, moderation (kick/ban/timeout), role assignment, full role CRUD + permission grid + reorder, and space banners — all permission-gated |
-| 7 | **Feature parity passes** — the remaining reference-client surface (see breakdown below) | 🟢 Done — all sub-areas 7a–7j implemented (pending device verification) |
-| 7a | · Messaging extras — replies, threads, pinned messages, spoiler markup, media players, image lightbox | 🟢 Done — replies, pinned messages, spoiler markup, inline audio/video players, image lightbox, and threads (reply chip + thread view) all done |
-| 7b | · DMs & friends — 1:1 DMs, group DMs, friend requests/list | 🟢 Done — tabbed DM panel (DM list + conversation send/receive) and friends tab (incoming/outgoing/friends, accept/decline/remove, add-friend search) in the space rail |
+| 6 | Members & roles, moderation | 🟡 Roster + presence sectioning/dots, tappable profile popout, per-member avatar overrides, moderation (kick/ban/timeout), role assignment, full role CRUD + permission grid + reorder, and space banners — all permission-gated. **Gap: no ban-list view / unban UI** (see audit) |
+| 7 | **Feature parity passes** — the remaining reference-client surface (see breakdown below) | 🟡 Most sub-areas implemented; a tail of verified parity gaps remains (see [Parity audit](#parity-audit-2026-06-06)) |
+| 7a | · Messaging extras — replies, threads, pinned messages, spoiler markup, media players, image lightbox | 🟡 Replies, pinned messages, spoiler markup, inline audio/video players, image lightbox, and threads done. **Gaps: no message pagination / "load older", no @mention autocomplete, no consecutive-message grouping** |
+| 7b | · DMs & friends — 1:1 DMs, group DMs, friend requests/list | 🟡 1:1 DM panel (list + conversation) and friends tab (incoming/outgoing/friends, accept/decline/remove, add-friend search) done. **Gap: no group DMs** (create / add-recipient / group titles) |
 | 7c | · Forum & announcement channels — forum post list/compose/view; announcement channels | 🟢 Done — forum post list/compose/view and announcement channel rendering |
 | 7d | · Channel management — create/edit/delete channels, categories, per-channel permission overwrites | 🟢 Done — create/edit/delete + category grouping (manage_channels-gated) and per-channel permission overwrites (tri-state role editor) |
 | 7e | · Invites — create + manage space/channel invites | 🟢 Done — space invites: create (with expiry presets), list, revoke, copy link (create_invites-gated) |
 | 7f | · Admin & discovery — audit logs, user reports, transfer ownership, NSFW gate, rules interstitial, discovery panel | 🟢 Done — audit log viewer, user reports (report dialog + moderator panel), transfer ownership, NSFW gate, rules interstitial, and discovery panel all done |
 | 7g | · Search — message search, user search | 🟢 Done — space-scoped message + member search dialog (debounced, tabbed); tapping a message result jumps to its channel |
-| 7h | · Emoji & soundboard — full emoji picker + custom space emoji; soundboard | 🟢 Done — full picker (search, categories, recents) + custom space emoji and soundboard (grid play/add/delete) |
-| 7i | · Settings — app settings, per-space settings, 2FA setup, self presence/status, per-channel/thread notification levels | 🟢 Done — app settings, self presence/status picker, account settings (password change + 2FA enable/verify/disable), and per-channel notification mute toggle |
+| 7h | · Emoji & soundboard — full emoji picker + custom space emoji; soundboard | 🟡 Full picker (search, categories, recents), custom space emoji in reactions, and soundboard (grid play/add/delete) done. **Gap: no custom-emoji management** (admin upload / rename / delete) |
+| 7i | · Settings — app settings, per-space settings, 2FA setup, self presence/status, per-channel/thread notification levels | 🟡 App settings, self presence/status picker, account settings (password change + 2FA enable/verify/disable), and per-channel mute done. **Gaps: no own-profile editing** (avatar/bio/display name), **no per-space notification levels** (all/mentions/none) |
 | 7j | · Notifications — local/in-app notifications | 🟢 Done — local mention notifications via `flutter_local_notifications` |
 | 8 | Retire firebridge | ⚪ Not started |
 | – | Plugins / Lua activities (reference client feature) | ❓ Scope undecided — defer like voice, or in-scope? Needs a decision |
 | 9 | Voice / video / GDExtension | ⛔ Deferred (out of scope) |
 
 Legend: ✅ done · 🟢 complete step · 🟡 in progress · ⚪ not started · ❓ scope TBD · ⛔ deferred
+
+---
+
+## Parity audit (2026-06-06)
+
+A side-by-side UI comparison of the Flutter app against the Godot reference
+client (`../daccord`, `scenes/`). The core spine and most of step 7 hold up — the
+items previously flagged as suspect (2FA, `||spoiler||` reveal, the self-status
+presence picker) **are** actually implemented in code, so those stay 🟢. But the
+audit surfaced a tail of reference-client features with **no Accord equivalent**.
+Verified against the source (not just the tracker):
+
+**Real gaps — present in the reference client, absent in the Accord UI:**
+
+1. **Message pagination / "load older messages"** (7a) — highest impact.
+   `accord_messages.dart` loads only the latest 50 (`messages.list … limit: 50`)
+   with no scroll-up-to-load-more; long channels are silently truncated. The
+   reference client has an older-messages loader with skeleton placeholders.
+2. **@mention autocomplete** (7a) — no suggestion popup when typing `@` in the
+   composer. The reference has a searchable user/role autocomplete.
+3. **Consecutive-message grouping** (7a) — the reference collapses consecutive
+   same-author messages (cozy/compact); the Accord `_MessageRow` renders each
+   message with a full header. (Confirm before building.)
+4. **Ban list view + unban** (step 6) — you can ban a member, but there's no UI
+   to list existing bans or unban (`bans.list` / unban unused).
+5. **Group DMs** (7b) — 1:1 DMs + friends are done; group create / add-recipient
+   / group titles are not. (Already noted as deferred in 7b; re-confirmed.)
+6. **Custom-emoji management** (7h) — the picker can *use* space emoji, but there
+   is no admin upload / rename / delete UI (`emojis.create` / `delete` unused).
+7. **Own-profile editing** (7i) — no avatar / bio / display-name editing for the
+   logged-in user (`users.updateMe` unused). The reference has an editable
+   profile card.
+8. **Per-space notification levels** (7i) — only a per-channel mute toggle
+   exists; the reference also offers space-level all/mentions/none modes.
+
+**Reference-only admin extras (low priority, not yet triaged):** impersonation
+("imposter") banner + picker, admin-driven password reset (generate reset link),
+compact-vs-cozy layout toggle, guild folders, channel notification-level submenu.
+
+**Confirmed deferred (not gaps to close now):** voice/video (step 9 ⛔, voice
+channels render greyed-out + inert) and plugins / Lua activities (❓ scope still
+undecided).
+
+Suggested priority to close real gaps: (1) message pagination, (2) @mention
+autocomplete, (3) ban list / unban, (4) custom-emoji management, (5) own-profile
+editing. Pagination is the one users hit immediately.
 
 ---
 
@@ -203,8 +257,9 @@ render. Both remaining items are now done:
   arrays, body text renders verbatim. See the mentions note under Markdown
   rendering.)
 
-### Step 6 — Members & roles (write side) 🟢
-Done:
+### Step 6 — Members & roles (write side) 🟡
+Gap (see [Parity audit](#parity-audit-2026-06-06)): banning a member works, but
+there is **no ban-list view / unban UI** (`bans.list` / unban unused). Done:
 - **Presence sectioning** — roster groups online members by hoisted role and
   collapses all offline members into a trailing "Offline" section; online status
   dots overlay avatars (shared `AccordMemberAvatar`).
@@ -236,17 +291,24 @@ Done:
 - **Instance-admin override** — `AccordSession.isAdmin` is now persisted (set
   from `AccordUser.isAdmin` at login) and feeds the permission bypass.
 
-### Step 7 — Feature parity passes 🟢
+### Step 7 — Feature parity passes 🟡
 
 The remaining surface needed to match the Godot reference client
-(`../daccord`). All sub-areas 7a–7j are now implemented (additively, alongside
-firebridge). Code is written against the accordkit SDK but **pending device
-verification** — flutter is not on PATH in this environment, so build_runner /
-analyze / app-run have not been executed against these changes. Broken out
-below by area, each annotated with its reference-client analogue.
+(`../daccord`). Most sub-areas 7a–7j are implemented (additively, alongside
+firebridge), but a 2026-06-06 UI audit found a tail of verified parity gaps —
+see [Parity audit](#parity-audit-2026-06-06) (notably message pagination,
+@mention autocomplete, ban-list/unban, custom-emoji management, own-profile
+editing, per-space notification levels). Code is written against the accordkit
+SDK but is also **pending device verification** — flutter is not on PATH in this
+environment, so build_runner / analyze / app-run have not been executed against
+these changes. Broken out below by area, each annotated with its reference-client
+analogue.
 
-#### 7a — Messaging extras 🟢
-The core write path plus per-message features are all done:
+#### 7a — Messaging extras 🟡
+The core write path plus per-message features are done, but three reference-client
+behaviours are still missing — see [Parity audit](#parity-audit-2026-06-06):
+**message pagination / "load older"**, **@mention autocomplete**, and
+**consecutive-message grouping**. Implemented:
 - **Replies** — ✅ reply composer + quoted-reply rendering.
 - **Threads** — ✅ reply-count chip on messages + thread IconButton in the hover
   toolbar open `showAccordThread` (`messaging/components/thread_view.dart`).
@@ -303,17 +365,24 @@ from a chat-bubble button in the space rail. Tabbed dialog:
 - ✅ Space-scoped message + member search (debounced, tabbed); message results
   jump to channel.
 
-#### 7h — Emoji & soundboard 🟢
+#### 7h — Emoji & soundboard 🟡
 - **Full emoji picker** — ✅ `showAccordEmojiPicker` (search, Recent + Custom + 9
   categories, 8-col grid; recents persisted).
 - **Custom space emoji** — ✅ react path via `AccordEmojisController`; reactions
   thread the `name:id` REST token and render custom emoji images.
+- **Custom-emoji management** — ❌ no admin upload / rename / delete UI
+  (`emojis.create` / `delete` unused). See
+  [Parity audit](#parity-audit-2026-06-06).
 - **Soundboard** — ✅ `showAccordSoundboard`
   (`spaces/views/accord_soundboard.dart`): grid of clips, play
   (`soundboard.play`), and add/delete (FilePicker → `soundboard.create` /
   `delete`) gated on manage_soundboard. Reached from space settings.
 
-#### 7i — Settings 🟢
+#### 7i — Settings 🟡
+Gaps (see [Parity audit](#parity-audit-2026-06-06)): **own-profile editing**
+(avatar/bio/display name, `users.updateMe` unused) and **per-space notification
+levels** (all/mentions/none) are missing; only a per-channel mute exists.
+Implemented:
 - **App settings** — ✅ `AccordSettingsScreen` (Appearance, Notifications,
   Account, About; Hive-persisted).
 - **2FA setup** — ✅ `showAccordAccountSettings`

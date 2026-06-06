@@ -1,0 +1,181 @@
+name: Release
+
+# Tag-driven release pipeline for the Daccord Flutter client.
+#
+# Push a tag like `v1.2.3` (must match the version in pubspec.yaml) to:
+#   1. run the full CI workflow as a gate,
+#   2. build + package release artifacts for every platform,
+#   3. publish a GitHub Release with those artifacts attached.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_CHANNEL: beta
+
+jobs:
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate tag matches pubspec version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//' | cut -d'+' -f1)
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag v$TAG does not match pubspec.yaml version $VERSION"
+            exit 1
+          fi
+          echo "Tag v$TAG matches pubspec version $VERSION"
+
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [verify, ci]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Web
+            platform: web
+            os: ubuntu-latest
+            artifact: daccord-web
+          - name: Android
+            platform: android
+            os: ubuntu-latest
+            artifact: daccord-android
+          - name: Linux
+            platform: linux
+            os: ubuntu-latest
+            artifact: daccord-linux-x86_64
+          - name: Windows
+            platform: windows
+            os: windows-latest
+            artifact: daccord-windows-x86_64
+          - name: macOS
+            platform: macos
+            os: macos-latest
+            artifact: daccord-macos
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Android)
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv
+
+      - name: Install NASM (Windows)
+        if: matrix.platform == 'windows'
+        run: choco install nasm -y
+        shell: powershell
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build ${{ matrix.name }}
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            web)     flutter build web     --no-tree-shake-icons --release ;;
+            android) flutter build apk     --no-tree-shake-icons -v ;;
+            linux)   flutter build linux   -v ;;
+            windows) flutter build windows -v ;;
+            macos)   flutter build macos   -v ;;
+          esac
+
+      - name: Package (Web)
+        if: matrix.platform == 'web'
+        run: |
+          cd build/web
+          zip -r "$GITHUB_WORKSPACE/${{ matrix.artifact }}.zip" .
+
+      - name: Package (Android)
+        if: matrix.platform == 'android'
+        run: cp build/app/outputs/flutter-apk/app-release.apk "${{ matrix.artifact }}.apk"
+
+      - name: Package (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          cd build/linux/x64/release/bundle
+          tar czf "$GITHUB_WORKSPACE/${{ matrix.artifact }}.tar.gz" .
+
+      - name: Package (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r "$GITHUB_WORKSPACE/${{ matrix.artifact }}.zip" *.app
+
+      - name: Package (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/windows/x64/runner/Release/* `
+            -DestinationPath "${{ matrix.artifact }}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.apk
+          if-no-files-found: ignore
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: daccord-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: artifacts/*

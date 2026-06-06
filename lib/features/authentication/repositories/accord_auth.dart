@@ -1,38 +1,81 @@
+import 'dart:async';
+
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/controllers/ready.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/utils/accord_event_handler.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/spaces/controllers/space.dart';
+import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_auth.g.dart';
 
-/// Authentication + connection lifecycle against an Accord server. The Accord
-/// replacement for the Discord-specific `Auth` provider: it owns the live
-/// [AccordClient], drives login (credentials → optional MFA → token), persists
-/// the session for restore-on-launch, and tears everything down on logout.
+/// One live server connection: its [AccordClient], the gateway-event disposer,
+/// and the [AccordSession] that opened it.
+class _Conn {
+  final AccordClient client;
+  final VoidCallback disposeEvents;
+  final AccordSession session;
+
+  _Conn({
+    required this.client,
+    required this.disposeEvents,
+    required this.session,
+  });
+}
+
+/// Authentication + connection lifecycle against Accord servers. The Accord
+/// replacement for the Discord-specific `Auth` provider.
+///
+/// In the multi-server model this holds N live [AccordClient]s at once (one per
+/// connected server, keyed by `userId@baseUrl`) and tracks which one is
+/// *active*. `state` (an [AccordAuthLoggedIn]) and [client] always refer to the
+/// active connection, so every existing pane/controller keeps reading the active
+/// server unchanged. Background connections stay logged in (gateways open,
+/// spaces cached in `ConnectionsController`) so the rail can show every server's
+/// spaces at once; selecting a space on another server flips the active
+/// connection without re-authenticating.
 @Riverpod(keepAlive: true)
 class AccordAuth extends _$AccordAuth {
   static const _sessionBoxName = 'accord-session';
   static const _sessionKey = 'session';
   static const _accountsKey = 'accounts';
 
-  AccordClient? _client;
-  VoidCallback? _disposeEvents;
+  final Map<String, _Conn> _connections = {};
+  String? _activeKey;
 
-  /// The live client, or null when signed out. Repositories should obtain this
-  /// via the logged-in [AccordAuthLoggedIn] state rather than reaching in here.
-  AccordClient? get client => _client;
+  /// The active connection's client, or null when signed out. Repositories
+  /// should obtain this via the logged-in [AccordAuthLoggedIn] state rather than
+  /// reaching in here.
+  AccordClient? get client =>
+      _activeKey == null ? null : _connections[_activeKey]?.client;
+
+  /// The active connection's client for [key], if connected.
+  AccordClient? clientForKey(String key) => _connections[key]?.client;
+
+  /// The connection key (`userId@baseUrl`) currently connected to [baseUrl], if
+  /// any — used by the deep-link/add-server flow to detect "already connected".
+  String? keyForBaseUrl(String baseUrl) {
+    for (final conn in _connections.values) {
+      if (conn.session.server.baseUrl == baseUrl) return conn.session.key;
+    }
+    return null;
+  }
 
   @override
   AccordAuthState build() {
     ref.onDispose(() {
-      _disposeEvents?.call();
-      _client?.dispose();
+      for (final conn in _connections.values) {
+        conn.disposeEvents();
+        conn.client.dispose();
+      }
+      _connections.clear();
     });
     return const AccordAuthLoggedOut();
   }
@@ -146,7 +189,7 @@ class AccordAuth extends _$AccordAuth {
           isAdmin: user.isAdmin,
         );
         // Intentionally not persisted: guest sessions are transient.
-        return await _connect(session);
+        return await _addConnection(session, makeActive: true);
       } finally {
         await probe.dispose();
       }
@@ -232,7 +275,7 @@ class AccordAuth extends _$AccordAuth {
         );
       }
       await _persist(pending);
-      return await _connect(pending);
+      return await _addConnection(pending, makeActive: true);
     } catch (e) {
       return _resetRequired(pending, error: e.toString());
     } finally {
@@ -248,32 +291,20 @@ class AccordAuth extends _$AccordAuth {
     String tokenType = 'Bearer',
   }) async {
     state = const AccordAuthInProgress();
-    final probe = _restClientFor(server, token: token, tokenType: tokenType);
     try {
-      final me = await probe.users.getMe();
-      if (!me.ok || me.data is! AccordUser) {
-        return _fail(me.error?.message ?? 'Token rejected');
-      }
-      final user = me.data as AccordUser;
-      final session = AccordSession(
-        server: server,
-        token: token,
-        tokenType: tokenType,
-        userId: user.id,
-        username: user.displayName ?? user.username,
-        avatar: user.avatar,
-        isAdmin: user.isAdmin,
-      );
+      final session = await _sessionFromToken(server, token, tokenType);
+      if (session == null) return _fail('Token rejected');
       await _persist(session);
-      return await _connect(session);
+      return await _addConnection(session, makeActive: true);
     } catch (e) {
       return _fail(e.toString());
-    } finally {
-      await probe.dispose();
     }
   }
 
-  /// Restores a persisted session and reconnects the gateway. Returns
+  /// Restores the persisted active session (and any other saved accounts) and
+  /// reconnects their gateways. The active account is connected first and its
+  /// logged-in state returned for navigation; the rest connect in the
+  /// background so the rail can show every server's spaces. Returns
   /// [AccordAuthLoggedOut] when nothing is stored.
   Future<AccordAuthState> restoreSession() async {
     final box = await Hive.openBox(_sessionBoxName);
@@ -281,32 +312,151 @@ class AccordAuth extends _$AccordAuth {
     if (raw == null) {
       return const AccordAuthLoggedOut();
     }
+
+    AccordSession? active;
     try {
-      final session =
-          AccordSession.fromJson(Map<String, dynamic>.from(raw as Map));
-      return await _connect(session);
+      active = AccordSession.fromJson(Map<String, dynamic>.from(raw as Map));
     } catch (e) {
       debugPrint('Failed to restore Accord session: $e');
       await box.delete(_sessionKey);
       return _fail(e.toString());
     }
+
+    final result = await _addConnection(active, makeActive: true);
+
+    // Reconnect every other saved account in the background.
+    final activeKey = active.key;
+    for (final session in await listAccounts()) {
+      if (session.key == activeKey) continue;
+      unawaited(_addConnection(session, makeActive: false));
+    }
+    return result;
   }
 
-  /// Tears down the live client and clears the stored session.
+  /// Tears down every live connection and clears the active session pointer.
   Future<void> logout() async {
-    _disposeEvents?.call();
-    _disposeEvents = null;
-    await _client?.dispose();
-    _client = null;
+    for (final conn in _connections.values) {
+      conn.disposeEvents();
+      await conn.client.dispose();
+    }
+    _connections.clear();
+    _activeKey = null;
 
     final box = await Hive.openBox(_sessionBoxName);
     await box.delete(_sessionKey);
 
+    ref.read(connectionsControllerProvider.notifier).clear();
+    ref.read(spacesControllerProvider.notifier).setSpaces(const []);
     ref
         .read(connectionControllerProvider.notifier)
         .set(ConnectionStatus.disconnected);
     ref.read(readyControllerProvider.notifier).setReady(false);
     state = const AccordAuthLoggedOut();
+  }
+
+  // ── Add-a-server (multi-connection) ────────────────────────────────────────
+  // These connect an *additional* server while staying logged in. Unlike the
+  // primary login flow they must NOT publish a global [AccordAuthInProgress]
+  // state (that would bounce the home screen to /login); they keep the current
+  // active connection until the new one succeeds.
+
+  /// Connects an additional [server] with an existing [token], persists it, and
+  /// makes it active. Returns null on success or an error message on failure.
+  Future<String?> addServerWithToken({
+    required AccordServer server,
+    required String token,
+    String tokenType = 'Bearer',
+  }) async {
+    try {
+      final session = await _sessionFromToken(server, token, tokenType);
+      if (session == null) return 'Token rejected';
+      await _persist(session);
+      await _addConnection(session, makeActive: true);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Connects an additional [server] with [username]/[password], persists it,
+  /// and makes it active. Reports MFA challenges via [AddServerOutcome.mfa].
+  Future<AddServerOutcome> addServerWithCredentials({
+    required AccordServer server,
+    required String username,
+    required String password,
+  }) async {
+    final authClient = _restClientFor(server);
+    try {
+      final result = await authClient.auth.login({
+        'username': username,
+        'password': password,
+      });
+      if (!result.ok) {
+        return AddServerOutcome.error(result.error?.message ?? 'Login failed');
+      }
+      final data = result.data;
+      if (data is Map && data['mfa_required'] == true) {
+        return AddServerOutcome.mfa(data['ticket']?.toString() ?? '');
+      }
+      return await _completeAddServer(server, data);
+    } catch (e) {
+      return AddServerOutcome.error(e.toString());
+    } finally {
+      await authClient.dispose();
+    }
+  }
+
+  /// Completes an MFA challenge raised by [addServerWithCredentials].
+  Future<AddServerOutcome> addServerSubmitMfa(
+    AccordServer server,
+    String ticket,
+    String code,
+  ) async {
+    final authClient = _restClientFor(server);
+    try {
+      final result = await authClient.auth.loginMfa({
+        'ticket': ticket,
+        'code': code,
+      });
+      if (!result.ok) {
+        return AddServerOutcome.error(
+            result.error?.message ?? 'Invalid two-factor code');
+      }
+      return await _completeAddServer(server, result.data);
+    } catch (e) {
+      return AddServerOutcome.error(e.toString());
+    } finally {
+      await authClient.dispose();
+    }
+  }
+
+  Future<AddServerOutcome> _completeAddServer(
+      AccordServer server, Object? data) async {
+    if (data is! Map) return AddServerOutcome.error('Malformed auth response');
+    final token = data['token']?.toString();
+    final user = data['user'];
+    if (token == null || user is! AccordUser) {
+      return AddServerOutcome.error('Auth response missing token or user');
+    }
+    final session = AccordSession(
+      server: server,
+      token: token,
+      tokenType: 'Bearer',
+      userId: user.id,
+      username: user.displayName ?? user.username,
+      avatar: user.avatar,
+      isAdmin: user.isAdmin,
+    );
+    await _persist(session);
+    await _addConnection(session, makeActive: true);
+    return AddServerOutcome.ok();
+  }
+
+  /// Flips the active connection to [key] (a server already connected). No-op if
+  /// [key] is not connected.
+  void setActiveServer(String key) {
+    if (!_connections.containsKey(key)) return;
+    _makeActive(key);
   }
 
   // ── internals ─────────────────────────────────────────────────────────────
@@ -323,6 +473,32 @@ class AccordAuth extends _$AccordAuth {
         gatewayUrl: server.gatewayUrl,
         cdnUrl: server.cdnUrl,
       );
+
+  /// Verifies [token] against [server] and mints a session, or null if the
+  /// token is rejected.
+  Future<AccordSession?> _sessionFromToken(
+    AccordServer server,
+    String token,
+    String tokenType,
+  ) async {
+    final probe = _restClientFor(server, token: token, tokenType: tokenType);
+    try {
+      final me = await probe.users.getMe();
+      if (!me.ok || me.data is! AccordUser) return null;
+      final user = me.data as AccordUser;
+      return AccordSession(
+        server: server,
+        token: token,
+        tokenType: tokenType,
+        userId: user.id,
+        username: user.displayName ?? user.username,
+        avatar: user.avatar,
+        isAdmin: user.isAdmin,
+      );
+    } finally {
+      await probe.dispose();
+    }
+  }
 
   /// Parses an `{ user, token }` auth response and connects.
   Future<AccordAuthState> _completeLogin(
@@ -348,7 +524,7 @@ class AccordAuth extends _$AccordAuth {
       return _resetRequired(session);
     }
     await _persist(session);
-    return await _connect(session);
+    return await _addConnection(session, makeActive: true);
   }
 
   AccordAuthState _resetRequired(AccordSession pending, {String? error}) {
@@ -367,8 +543,14 @@ class AccordAuth extends _$AccordAuth {
     await box.put(_accountsKey, accounts);
   }
 
-  String _accountKey(AccordSession session) =>
-      '${session.userId}@${session.server.baseUrl}';
+  /// Records [session] as the persisted *active* pointer without touching the
+  /// saved-accounts list (already persisted when first added).
+  Future<void> _persistActive(AccordSession session) async {
+    final box = await Hive.openBox(_sessionBoxName);
+    await box.put(_sessionKey, session.toJson());
+  }
+
+  String _accountKey(AccordSession session) => session.key;
 
   Map<String, dynamic> _readAccounts(Box box) {
     final raw = box.get(_accountsKey);
@@ -392,38 +574,59 @@ class AccordAuth extends _$AccordAuth {
     return result;
   }
 
-  /// Switches the active session to a previously saved [session] and connects.
+  /// Switches the active session to a previously saved [session]. If it is
+  /// already connected this just flips active; otherwise it connects it.
   Future<AccordAuthState> switchTo(AccordSession session) async {
+    final key = _accountKey(session);
+    if (_connections.containsKey(key)) {
+      await _persistActive(session);
+      return _makeActive(key);
+    }
     state = const AccordAuthInProgress();
     try {
       await _persist(session);
-      return await _connect(session);
+      return await _addConnection(session, makeActive: true);
     } catch (e) {
       return _fail(e.toString());
     }
   }
 
-  /// Removes [session] from the saved account list. If it is the active
-  /// session, also signs out.
+  /// Removes [session] from the saved account list and disconnects it if live.
+  /// If it was the active connection, switches to another connected server or
+  /// signs out when none remain.
   Future<void> removeAccount(AccordSession session) async {
+    final key = _accountKey(session);
     final box = await Hive.openBox(_sessionBoxName);
     final accounts = _readAccounts(box);
-    accounts.remove(_accountKey(session));
+    accounts.remove(key);
     await box.put(_accountsKey, accounts);
 
-    final active = state;
-    if (active is AccordAuthLoggedIn &&
-        _accountKey(active.session) == _accountKey(session)) {
-      await logout();
+    final conn = _connections.remove(key);
+    if (conn != null) {
+      conn.disposeEvents();
+      await conn.client.dispose();
+      ref.read(connectionsControllerProvider.notifier).remove(key);
+    }
+
+    if (_activeKey == key) {
+      _activeKey = null;
+      final next = _connections.keys.isNotEmpty ? _connections.keys.first : null;
+      if (next != null) {
+        await _persistActive(_connections[next]!.session);
+        _makeActive(next);
+      } else {
+        await logout();
+      }
       return;
     }
+
     // Clear a stale active pointer left behind by a logged-out removal.
     final rawActive = box.get(_sessionKey);
     if (rawActive is Map) {
       try {
         final stored =
             AccordSession.fromJson(Map<String, dynamic>.from(rawActive));
-        if (_accountKey(stored) == _accountKey(session)) {
+        if (_accountKey(stored) == key) {
           await box.delete(_sessionKey);
         }
       } catch (_) {
@@ -432,14 +635,21 @@ class AccordAuth extends _$AccordAuth {
     }
   }
 
-  /// Builds the live [AccordClient], wires gateway events, and connects.
-  Future<AccordAuthState> _connect(AccordSession session) async {
-    _disposeEvents?.call();
-    await _client?.dispose();
+  /// Connects [session] as a live server (or, if already connected, optionally
+  /// makes it active). Background connections (makeActive: false) keep the
+  /// current `state` untouched.
+  Future<AccordAuthState> _addConnection(
+    AccordSession session, {
+    required bool makeActive,
+  }) async {
+    final key = _accountKey(session);
+    if (_connections.containsKey(key)) {
+      return makeActive ? _makeActive(key) : state;
+    }
 
     ref
-        .read(connectionControllerProvider.notifier)
-        .set(ConnectionStatus.connecting);
+        .read(connectionsControllerProvider.notifier)
+        .register(session, status: ConnectionStatus.connecting);
 
     final client = AccordClient(
       token: session.token,
@@ -458,14 +668,61 @@ class AccordAuth extends _$AccordAuth {
         GatewayIntents.voiceStates,
       ],
     );
-    _client = client;
-    _disposeEvents = handleAccordEvents(ref, client);
+    final disposeEvents = handleAccordEvents(
+      ref,
+      client,
+      serverKey: key,
+      isActive: () => _activeKey == key,
+    );
+    _connections[key] =
+        _Conn(client: client, disposeEvents: disposeEvents, session: session);
     client.login();
 
+    if (makeActive) return _makeActive(key);
+    return state;
+  }
+
+  /// Promotes the connection [key] to active: snapshots the outgoing server's
+  /// live spaces into its rail cache, seeds the shared rail from [key]'s cache,
+  /// mirrors its gateway status onto the global banner, and publishes the
+  /// logged-in state. Existing panes/controllers then transparently read the
+  /// new active client.
+  AccordAuthState _makeActive(String key) {
+    final conn = _connections[key];
+    if (conn == null) return state;
+
+    final connections = ref.read(connectionsControllerProvider.notifier);
+
+    // Capture the outgoing active server's live spaces (incl. roles, which only
+    // the shared controller has) so they persist while it's backgrounded.
+    final prevKey = _activeKey;
+    if (prevKey != null && prevKey != key) {
+      final liveSpaces = ref.read(spacesControllerProvider);
+      if (liveSpaces != null) connections.setSpaces(prevKey, liveSpaces);
+    }
+
+    _activeKey = key;
+    connections.setActive(key);
+
+    // Seed the shared rail/space controllers from this connection's cache so
+    // panes have data immediately; the gateway READY refreshes it.
+    final cached = connections.spacesFor(key);
+    ref.read(spacesControllerProvider.notifier).setSpaces(cached);
+    for (final space in cached) {
+      ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
+    }
+
+    final status = ref
+            .read(connectionsControllerProvider)
+            .connectionFor(key)
+            ?.status ??
+        ConnectionStatus.connecting;
+    ref.read(connectionControllerProvider.notifier).set(status);
     ref.read(readyControllerProvider.notifier).setReady(true);
 
-    final next = AccordAuthLoggedIn(client: client, session: session);
+    final next = AccordAuthLoggedIn(client: conn.client, session: conn.session);
     state = next;
+    unawaited(_persistActive(conn.session));
     return next;
   }
 
@@ -474,4 +731,23 @@ class AccordAuth extends _$AccordAuth {
     state = next;
     return next;
   }
+}
+
+/// Result of an add-a-server attempt while already logged in. Distinct from the
+/// global [AccordAuthState] so the dialog can surface its own MFA/error flow
+/// without disturbing the active connection.
+class AddServerOutcome {
+  final bool ok;
+  final String? error;
+  final String? mfaTicket;
+
+  const AddServerOutcome._({this.ok = false, this.error, this.mfaTicket});
+
+  factory AddServerOutcome.ok() => const AddServerOutcome._(ok: true);
+  factory AddServerOutcome.error(String message) =>
+      AddServerOutcome._(error: message);
+  factory AddServerOutcome.mfa(String ticket) =>
+      AddServerOutcome._(mfaTicket: ticket);
+
+  bool get needsMfa => mfaTicket != null;
 }
