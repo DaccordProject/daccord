@@ -33,8 +33,9 @@ class _AccountSettingsDialogState
     _loadMfaState();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _loadMfaState() async {
     final client = _client;
@@ -65,8 +66,10 @@ class _AccountSettingsDialogState
               Row(
                 children: [
                   Expanded(
-                    child: Text('Account settings',
-                        style: theme.textTheme.titleMedium),
+                    child: Text(
+                      'Account settings',
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Close',
@@ -76,17 +79,25 @@ class _AccountSettingsDialogState
                 ],
               ),
               const SizedBox(height: 12),
-              Text('PASSWORD',
-                  style: theme.textTheme.labelSmall!.copyWith(
-                      color: colors.gray, fontWeight: FontWeight.bold)),
+              Text(
+                'PASSWORD',
+                style: theme.textTheme.labelSmall!.copyWith(
+                  color: colors.gray,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
               const _PasswordSection(),
               const SizedBox(height: 20),
               Divider(height: 1, color: colors.background),
               const SizedBox(height: 16),
-              Text('TWO-FACTOR AUTHENTICATION',
-                  style: theme.textTheme.labelSmall!.copyWith(
-                      color: colors.gray, fontWeight: FontWeight.bold)),
+              Text(
+                'TWO-FACTOR AUTHENTICATION',
+                style: theme.textTheme.labelSmall!.copyWith(
+                  color: colors.gray,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
               if (_mfaEnabled == null)
                 const Padding(
@@ -98,10 +109,144 @@ class _AccountSettingsDialogState
                   enabled: _mfaEnabled!,
                   onChanged: (v) => setState(() => _mfaEnabled = v),
                 ),
+              const SizedBox(height: 20),
+              Divider(height: 1, color: colors.background),
+              const SizedBox(height: 16),
+              Text(
+                'DANGER ZONE',
+                style: theme.textTheme.labelSmall!.copyWith(
+                  color: colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const _DangerZoneSection(),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Account-deletion section: password + type-to-confirm "DELETE", calling
+/// `users.deleteMe` then removing the account locally. Ports the reference's
+/// `user_settings_danger.gd`.
+class _DangerZoneSection extends ConsumerStatefulWidget {
+  const _DangerZoneSection();
+
+  @override
+  ConsumerState<_DangerZoneSection> createState() => _DangerZoneSectionState();
+}
+
+class _DangerZoneSectionState extends ConsumerState<_DangerZoneSection> {
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
+
+  Future<void> _delete() async {
+    final client = _client;
+    if (client == null || _busy) return;
+    if (_password.text.isEmpty) {
+      setState(() => _error = 'Password is required');
+      return;
+    }
+    if (_confirm.text.trim() != 'DELETE') {
+      setState(() => _error = "Type DELETE to confirm");
+      return;
+    }
+    final session = ref.read(accordAuthProvider);
+    if (session is! AccordAuthLoggedIn) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final result = await client.users.deleteMe({'password': _password.text});
+    if (!mounted) return;
+    if (!result.ok) {
+      setState(() {
+        _busy = false;
+        _error = result.error?.toString() ?? 'Failed to delete account';
+      });
+      return;
+    }
+    // Account gone server-side — drop it locally (switches to another server
+    // or signs out when none remain).
+    await ref.read(accordAuthProvider.notifier).removeAccount(session.session);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Permanently deletes your account on this server, including your '
+          'profile, messages, and memberships. This cannot be undone.',
+          style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _password,
+          enabled: !_busy,
+          obscureText: true,
+          decoration: const InputDecoration(
+            isDense: true,
+            labelText: 'Password',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _confirm,
+          enabled: !_busy,
+          decoration: const InputDecoration(
+            isDense: true,
+            labelText: "Type DELETE to confirm",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _error!,
+            style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: _busy ? null : _delete,
+            icon: _busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_forever, size: 18),
+            label: const Text('Delete my account'),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -128,8 +273,11 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
   }
 
   Future<void> _submit() async {
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
     if (client == null) return;
     final oldPw = _old.text;
     final newPw = _new.text;
@@ -144,8 +292,10 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
       _busy = true;
       _message = null;
     });
-    final result = await client.auth
-        .changePassword({'old_password': oldPw, 'new_password': newPw});
+    final result = await client.auth.changePassword({
+      'old_password': oldPw,
+      'new_password': newPw,
+    });
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -190,9 +340,12 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
         ),
         if (_message != null) ...[
           const SizedBox(height: 8),
-          Text(_message!,
-              style: theme.textTheme.bodySmall!.copyWith(
-                  color: _success ? colors.green : colors.red)),
+          Text(
+            _message!,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: _success ? colors.green : colors.red,
+            ),
+          ),
         ],
         const SizedBox(height: 10),
         Align(
@@ -236,8 +389,9 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
 
   Future<void> _enable() async {
     final client = _client;
@@ -329,8 +483,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('2FA is now enabled. Save these backup codes:',
-              style: theme.textTheme.bodyMedium),
+          Text(
+            '2FA is now enabled. Save these backup codes:',
+            style: theme.textTheme.bodyMedium,
+          ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(12),
@@ -338,16 +494,20 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               color: colors.darkGray,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: SelectableText(_backupCodes!.join('\n'),
-                style: theme.textTheme.bodyMedium!
-                    .copyWith(fontFeatures: const [])),
+            child: SelectableText(
+              _backupCodes!.join('\n'),
+              style: theme.textTheme.bodyMedium!.copyWith(
+                fontFeatures: const [],
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: () => Clipboard.setData(
-                  ClipboardData(text: _backupCodes!.join('\n'))),
+                ClipboardData(text: _backupCodes!.join('\n')),
+              ),
               icon: const Icon(Icons.copy, size: 16),
               label: const Text('Copy codes'),
             ),
@@ -380,8 +540,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!,
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            Text(
+              _error!,
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+            ),
           ],
           const SizedBox(height: 10),
           Align(
@@ -403,9 +565,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!setupStarted) ...[
-          Text('Protect your account with an authenticator app.',
-              style:
-                  theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+          Text(
+            'Protect your account with an authenticator app.',
+            style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+          ),
           const SizedBox(height: 10),
           TextField(
             controller: _password,
@@ -419,8 +582,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!,
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            Text(
+              _error!,
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+            ),
           ],
           const SizedBox(height: 10),
           Align(
@@ -431,9 +596,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
             ),
           ),
         ] else ...[
-          Text('Add this secret to your authenticator app, then enter the code:',
-              style:
-                  theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+          Text(
+            'Add this secret to your authenticator app, then enter the code:',
+            style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+          ),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -442,8 +608,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               color: colors.darkGray,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: SelectableText(_secret ?? _otpauth ?? '',
-                style: theme.textTheme.bodyMedium),
+            child: SelectableText(
+              _secret ?? _otpauth ?? '',
+              style: theme.textTheme.bodyMedium,
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -458,8 +626,10 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!,
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            Text(
+              _error!,
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
+            ),
           ],
           const SizedBox(height: 10),
           Align(
