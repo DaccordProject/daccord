@@ -79,9 +79,9 @@ class _TransferOwnershipDialogState
     final candidates = (members?.values ?? const <AccordMember>[])
         .where((m) => m.userId != currentUserId)
         .toList()
-      ..sort((a, b) => accordMemberName(a, fallback: a.userId)
+      ..sort((a, b) => accordMemberName(a, fallback: 'Unknown')
           .toLowerCase()
-          .compareTo(accordMemberName(b, fallback: b.userId).toLowerCase()));
+          .compareTo(accordMemberName(b, fallback: 'Unknown').toLowerCase()));
     final canSubmit = _selectedId != null &&
         _confirm.text.trim().toUpperCase() == 'TRANSFER' &&
         !_busy;
@@ -126,7 +126,7 @@ class _TransferOwnershipDialogState
                                     : colors.gray,
                               ),
                               title: Text(
-                                  accordMemberName(m, fallback: m.userId),
+                                  accordMemberName(m, fallback: 'Unknown'),
                                   overflow: TextOverflow.ellipsis),
                               onTap: _busy
                                   ? null

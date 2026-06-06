@@ -5,6 +5,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -169,14 +170,17 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
       return _hint('No messages found', theme);
     }
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
+    final users = ref.watch(accordUsersControllerProvider);
+    final ensureUser =
+        ref.read(accordUsersControllerProvider.notifier).ensure;
     return ListView.separated(
       padding: const EdgeInsets.all(8),
       itemCount: messages.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final message = messages[index];
-        final author = members?[message.authorId];
-        final name = accordMemberName(author, fallback: message.authorId);
+        final name = accordAuthorName(message.authorId,
+            members: members, users: users, ensure: ensureUser);
         return ListTile(
           title: Text(name, style: theme.textTheme.titleSmall),
           subtitle: Text(

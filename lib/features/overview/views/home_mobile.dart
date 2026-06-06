@@ -1,6 +1,5 @@
 import 'package:bonfire/features/friends/views/friends.dart';
 import 'package:bonfire/features/me/components/private_messages.dart';
-import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bonfire/features/channels/views/channels.dart';

@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_ce/hive.dart';
 
 class LocalAccountSwitcherScreen extends ConsumerStatefulWidget {
   final GoRouter router;
@@ -48,13 +47,6 @@ class _LocalAccountSwitcherScreenState
       }
     });
     super.initState();
-  }
-
-  void _navigateToLastLocation() {
-    var lastLocation = Hive.box("last-location");
-    String? guildId = lastLocation.get("guildId");
-    String? channelId = lastLocation.get("channelId");
-    context.go('/channels/${guildId ?? '0'}/${channelId ?? '0'}');
   }
 
   @override

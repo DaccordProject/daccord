@@ -1,5 +1,4 @@
 import 'package:bonfire/features/user/components/user_avatar.dart';
-import 'package:bonfire/features/user/controllers/user.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:firebridge/firebridge.dart';
 import 'package:flutter/material.dart';

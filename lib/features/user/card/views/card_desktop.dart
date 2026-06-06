@@ -1,7 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:bonfire/features/authentication/components/local_account_switcher.dart';
-import 'package:bonfire/features/authentication/components/platform_login.dart';
 import 'package:bonfire/features/authentication/utils/switcher.dart';
 import 'package:bonfire/features/me/controllers/settings.dart';
 import 'package:bonfire/features/user/card/repositories/self_user.dart';

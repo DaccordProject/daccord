@@ -3,7 +3,6 @@ import 'package:bonfire/features/channels/controllers/channel.dart';
 import 'package:bonfire/features/overview/controllers/member_list.dart';
 import 'package:bonfire/shared/utils/channel_name.dart';
 import 'package:bonfire/shared/utils/platform.dart';
-import 'package:bonfire/theme/theme.dart';
 import 'package:firebridge/firebridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

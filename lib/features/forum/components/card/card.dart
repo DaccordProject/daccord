@@ -33,8 +33,6 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
 
     Message? previewMessage = ref.watch(firstMessageProvider(widget.threadId));
 
-    final bonfireTheme = BonfireThemeExtension.of(context);
-
     return Container(
       decoration: BoxDecoration(
         color: BonfireThemeExtension.of(context).foreground,

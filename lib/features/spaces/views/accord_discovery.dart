@@ -132,17 +132,21 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
       _listings = null;
       _error = null;
     });
-    // Unauthenticated client pointed at the master server; only its directory
-    // API is used (no gateway / login).
-    final client = AccordClient(baseUrl: _masterUrl);
+    // Mirror the reference client exactly (`discovery_panel.gd`): a BARE
+    // AccordRest pointed at the master server + DirectoryApi, no auth. Note we
+    // must NOT use AccordClient here — it sets the rest base URL to
+    // `<master>/api/v1`, and DirectoryApi prepends `/api/v1/directory` again,
+    // producing `<master>/api/v1/api/v1/directory` (404). A bare AccordRest
+    // keeps the single `/api/v1/directory` prefix.
+    final rest = AccordRest(AccordServer.normalizeBaseUrl(_masterUrl));
     RestResult result;
     try {
-      result = await client.directory.browse(
+      result = await DirectoryApi(rest).browse(
         query: _query.text.trim(),
         tag: _activeTag ?? '',
       );
     } finally {
-      client.rest.close();
+      rest.close();
     }
     if (!mounted) return;
 

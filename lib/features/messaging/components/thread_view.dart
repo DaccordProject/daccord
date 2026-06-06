@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -107,6 +108,9 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
     final members = widget.spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(widget.spaceId!));
+    final users = ref.watch(accordUsersControllerProvider);
+    final ensureUser =
+        ref.read(accordUsersControllerProvider.notifier).ensure;
     final replies = _replies;
     return Dialog(
       child: ConstrainedBox(
@@ -138,7 +142,11 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
               child: ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
-                  _MessageLine(message: widget.root, members: members),
+                  _MessageLine(
+                      message: widget.root,
+                      members: members,
+                      users: users,
+                      ensure: ensureUser),
                   const Divider(height: 16),
                   if (replies == null)
                     const Padding(
@@ -154,7 +162,11 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
                     )
                   else
                     for (final reply in replies)
-                      _MessageLine(message: reply, members: members),
+                      _MessageLine(
+                          message: reply,
+                          members: members,
+                          users: users,
+                          ensure: ensureUser),
                 ],
               ),
             ),
@@ -193,16 +205,23 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
 
 /// A compact author + content row used inside the thread view.
 class _MessageLine extends StatelessWidget {
-  const _MessageLine({required this.message, required this.members});
+  const _MessageLine({
+    required this.message,
+    required this.members,
+    required this.users,
+    required this.ensure,
+  });
 
   final AccordMessage message;
   final Map<String, AccordMember>? members;
+  final Map<String, AccordUser> users;
+  final void Function(String userId) ensure;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name =
-        accordMemberName(members?[message.authorId], fallback: message.authorId);
+    final name = accordAuthorName(message.authorId,
+        members: members, users: users, ensure: ensure);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(

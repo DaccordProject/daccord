@@ -1,7 +1,6 @@
 import 'package:bonfire/features/authentication/repositories/auth.dart';
 import 'package:bonfire/features/authentication/models/auth.dart';
 import 'package:bonfire/shared/components/confirm_button.dart';
-import 'package:bonfire/theme/text_theme.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

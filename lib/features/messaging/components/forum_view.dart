@@ -3,8 +3,8 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/components/thread_view.dart';
-import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -77,6 +77,9 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     final members = widget.spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(widget.spaceId!));
+    final users = ref.watch(accordUsersControllerProvider);
+    final ensureUser =
+        ref.read(accordUsersControllerProvider.notifier).ensure;
     return Stack(
       children: [
         if (posts == null)
@@ -94,8 +97,8 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
               final title = post.title;
               final titleText =
                   title is String && title.isNotEmpty ? title : '(untitled)';
-              final author = accordMemberName(members?[post.authorId],
-                  fallback: post.authorId);
+              final author = accordAuthorName(post.authorId,
+                  members: members, users: users, ensure: ensureUser);
               return Card(
                 child: ListTile(
                   leading: const Icon(Icons.article_outlined),

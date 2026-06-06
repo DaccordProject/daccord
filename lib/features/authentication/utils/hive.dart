@@ -6,7 +6,7 @@ import 'package:universal_platform/universal_platform.dart';
 Future<void> setupHive() async {
   if (!UniversalPlatform.isWeb) {
     final appDocumentDir = await getApplicationDocumentsDirectory();
-    final dataDir = Directory('${appDocumentDir.path}/bonfire/data');
+    final dataDir = Directory('${appDocumentDir.path}/daccord/data');
     if (!dataDir.existsSync()) {
       dataDir.createSync(recursive: true);
     }

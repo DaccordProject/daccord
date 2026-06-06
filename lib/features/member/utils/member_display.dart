@@ -56,6 +56,42 @@ String? accordMemberAvatarUrl(AccordMember? member, String? cdnUrl) {
   return accordAvatarUrl(member?.user, cdnUrl);
 }
 
+/// Resolves a message/post author's display name by `author_id`, consulting the
+/// space member cache first, then the on-demand global user cache, then
+/// [fallback]. When neither cache has the author yet it schedules a fetch via
+/// [ensure] (safe to call during build — the user controller dedupes and only
+/// mutates post-request). Mirrors the reference client, which shows "Unknown"
+/// until the user resolves rather than the raw snowflake ID. Use this anywhere a
+/// surface renders `authorId` so identity is consistent and never a raw ID.
+String accordAuthorName(
+  String authorId, {
+  Map<String, AccordMember>? members,
+  Map<String, AccordUser>? users,
+  void Function(String userId)? ensure,
+  String fallback = 'Unknown',
+}) {
+  final member = members?[authorId];
+  if (member != null) return accordMemberName(member, fallback: fallback);
+  final user = users?[authorId];
+  if (user != null) return accordUserName(user, fallback: fallback);
+  ensure?.call(authorId);
+  return fallback;
+}
+
+/// Resolves a message/post author's avatar URL by `author_id`: member avatar
+/// (with per-space override) first, then the global user avatar, else null
+/// (callers render an initial). Companion to [accordAuthorName].
+String? accordAuthorAvatarUrl(
+  String authorId, {
+  Map<String, AccordMember>? members,
+  Map<String, AccordUser>? users,
+  String? cdnUrl,
+}) {
+  final member = members?[authorId];
+  if (member != null) return accordMemberAvatarUrl(member, cdnUrl);
+  return accordAvatarUrl(users?[authorId], cdnUrl);
+}
+
 /// An Accord role color (RGB integer) as a [Color], or null when unset
 /// (`0` is "no color" — the name renders in the default text color).
 Color? accordRoleColor(int color) =>

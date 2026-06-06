@@ -967,7 +967,17 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                             horizontal: 16, vertical: 12),
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
-                          final message = messages[messages.length - 1 - index];
+                          final messageIndex = messages.length - 1 - index;
+                          final message = messages[messageIndex];
+                          // Group with the previous (older) message when it's
+                          // from the same author, this message isn't a reply,
+                          // and the two are close together in time. Grouped
+                          // rows drop the repeated avatar/name/timestamp header.
+                          final prev = messageIndex > 0
+                              ? messages[messageIndex - 1]
+                              : null;
+                          final grouped =
+                              _isGrouped(previous: prev, current: message);
                           final author = members?[message.authorId];
                           // Members only loads the first page; backfill authors
                           // outside it from the on-demand user cache.
@@ -993,6 +1003,7 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                                       .any(myRoles.contains));
                           return _MessageRow(
                             message: message,
+                            grouped: grouped,
                             author: author,
                             authorUser: authorUser,
                             nameColor: colorRole == null
@@ -1025,6 +1036,26 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
       ),
     );
   }
+}
+
+/// How close in time two consecutive same-author messages must be to collapse
+/// into a single group (matching the reference client's denser layout).
+const Duration _messageGroupWindow = Duration(minutes: 7);
+
+/// Whether [current] should render as a continuation of [previous] — same
+/// author, not a reply, and within [_messageGroupWindow]. Grouped rows hide the
+/// repeated avatar/name/timestamp header.
+bool _isGrouped({
+  required AccordMessage? previous,
+  required AccordMessage current,
+}) {
+  if (previous == null) return false;
+  if (previous.authorId != current.authorId) return false;
+  if (current.replyTo != null) return false;
+  final t0 = DateTime.tryParse(previous.timestamp);
+  final t1 = DateTime.tryParse(current.timestamp);
+  if (t0 == null || t1 == null) return false;
+  return t1.difference(t0).abs() < _messageGroupWindow;
 }
 
 /// A thin "X is typing…" line above the composer, resolving typing user IDs to
@@ -1094,6 +1125,7 @@ class _MessageRow extends ConsumerStatefulWidget {
     required this.mentionsMe,
     required this.canManageMessages,
     required this.onReply,
+    this.grouped = false,
     this.author,
     this.authorUser,
     this.nameColor,
@@ -1101,6 +1133,11 @@ class _MessageRow extends ConsumerStatefulWidget {
 
   final AccordMessage message;
   final String channelId;
+
+  /// Whether this message continues a group from the same author (see
+  /// [_isGrouped]). Grouped rows hide the avatar/name/timestamp header and show
+  /// the timestamp in the avatar gutter on hover instead.
+  final bool grouped;
 
   /// Whether the current user can pin/unpin in this channel.
   final bool canManageMessages;
@@ -1156,16 +1193,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return '$hh:$mm';
   }
 
-  /// Nickname → user display name → username → raw ID. Falls back to the
-  /// on-demand user cache when the author isn't in the loaded member page.
+  /// Nickname → user display name → username → "Unknown". Falls back to the
+  /// on-demand user cache when the author isn't in the loaded member page, and
+  /// never shows the raw snowflake ID (the user controller fetches asynchronously
+  /// — by the next rebuild a real name resolves; "Unknown" is the brief gap).
   String get _authorName {
     if (widget.author != null) {
-      return accordMemberName(widget.author, fallback: _message.authorId);
+      return accordMemberName(widget.author, fallback: 'Unknown');
     }
     if (widget.authorUser != null) {
-      return accordUserName(widget.authorUser, fallback: _message.authorId);
+      return accordUserName(widget.authorUser, fallback: 'Unknown');
     }
-    return _message.authorId;
+    return 'Unknown';
   }
 
   String get _initial {
@@ -1289,8 +1328,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
         padding: widget.mentionsMe
-            ? const EdgeInsets.fromLTRB(13, 6, 6, 6)
-            : const EdgeInsets.symmetric(vertical: 6),
+            ? EdgeInsets.fromLTRB(13, widget.grouped ? 1 : 6, 6, 6)
+            : EdgeInsets.only(top: widget.grouped ? 1 : 6, bottom: 6),
         decoration: widget.mentionsMe
             ? BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.08),
@@ -1302,54 +1341,71 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _MaybeTappable(
-              enabled: tappable,
-              onTap: _openPopout,
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: colors.darkGray,
-                foregroundImage: avatarUrl == null
-                    ? null
-                    : CachedNetworkImageProvider(avatarUrl),
-                child: Text(
-                  _initial,
-                  style:
-                      theme.textTheme.titleSmall!.copyWith(color: Colors.white),
+            if (widget.grouped)
+              SizedBox(
+                width: 36,
+                child: Opacity(
+                  opacity: _hovered ? 1 : 0,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      _time,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelSmall!
+                          .copyWith(color: colors.gray),
+                    ),
+                  ),
+                ),
+              )
+            else
+              _MaybeTappable(
+                enabled: tappable,
+                onTap: _openPopout,
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: colors.darkGray,
+                  foregroundImage: avatarUrl == null
+                      ? null
+                      : CachedNetworkImageProvider(avatarUrl),
+                  child: Text(
+                    _initial,
+                    style: theme.textTheme.titleSmall!
+                        .copyWith(color: Colors.white),
+                  ),
                 ),
               ),
-            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_message.replyTo != null) _buildReplyPreview(colors),
-                  Row(
-                    children: [
-                      if (_message.pinned) ...[
-                        Icon(Icons.push_pin,
-                            size: 12, color: colors.gray),
-                        const SizedBox(width: 4),
-                      ],
-                      _MaybeTappable(
-                        enabled: tappable,
-                        onTap: _openPopout,
-                        child: Text(_authorName,
-                            style: theme.textTheme.titleSmall!
-                                .copyWith(color: widget.nameColor)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(_time,
-                          style: theme.textTheme.labelMedium!
-                              .copyWith(color: colors.gray)),
-                      if (_message.editedAt != null) ...[
-                        const SizedBox(width: 6),
-                        Text('(edited)',
-                            style: theme.textTheme.labelSmall!
+                  if (!widget.grouped)
+                    Row(
+                      children: [
+                        if (_message.pinned) ...[
+                          Icon(Icons.push_pin, size: 12, color: colors.gray),
+                          const SizedBox(width: 4),
+                        ],
+                        _MaybeTappable(
+                          enabled: tappable,
+                          onTap: _openPopout,
+                          child: Text(_authorName,
+                              style: theme.textTheme.titleSmall!
+                                  .copyWith(color: widget.nameColor)),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(_time,
+                            style: theme.textTheme.labelMedium!
                                 .copyWith(color: colors.gray)),
+                        if (_message.editedAt != null) ...[
+                          const SizedBox(width: 6),
+                          Text('(edited)',
+                              style: theme.textTheme.labelSmall!
+                                  .copyWith(color: colors.gray)),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
                   if (_editing)
                     _buildEditor(theme, colors)
                   else if (_message.content.isNotEmpty)

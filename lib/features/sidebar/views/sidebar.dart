@@ -1,5 +1,4 @@
 import 'package:bonfire/features/guild/controllers/guilds.dart';
-import 'package:bonfire/features/guild/repositories/guilds.dart';
 import 'package:bonfire/features/me/controllers/settings.dart';
 import 'package:bonfire/features/sidebar/components/dm_icon.dart';
 import 'package:bonfire/features/sidebar/components/guild_folder.dart';

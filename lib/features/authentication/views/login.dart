@@ -1,7 +1,6 @@
 import 'package:bonfire/features/authentication/repositories/auth.dart';
 import 'package:bonfire/features/authentication/repositories/discord_auth.dart';
 import 'package:bonfire/features/authentication/components/platform_login.dart';
-import 'package:bonfire/theme/theme.dart';
 import 'package:firebridge/firebridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,13 +57,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     if (authMissing == null) {
-      // TODO: Make sick bonfire loading screen
+      // TODO: Make sick daccord loading screen
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text("Loading Bonfire...",
+            Text("Loading Daccord...",
                 style: Theme.of(context).textTheme.titleMedium!.copyWith(
                       color: Theme.of(context).textTheme.bodyMedium!.color!,
                     )),

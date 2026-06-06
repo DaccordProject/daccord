@@ -56,7 +56,7 @@
 //             children: [
 //               const SizedBox(width: 12),
 //               Text(
-//                 "BONFIRE",
+//                 "DACCORD",
 //                 style: GoogleFonts.openSans(
 //                   color: Colors.white,
 //                   fontSize: 12,

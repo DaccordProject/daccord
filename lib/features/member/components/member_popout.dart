@@ -33,7 +33,6 @@ class _UserPopoutCardState extends ConsumerState<UserPopoutCard> {
   Widget build(BuildContext context) {
     final profileEffects = ref.watch(profileEffectsProvider).value;
 
-    final theme = Theme.of(context);
     final bonfireTheme = BonfireThemeExtension.of(context);
 
     final profile = ref

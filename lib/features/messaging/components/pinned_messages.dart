@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -77,6 +78,9 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
     final members = widget.spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(widget.spaceId!));
+    final users = ref.watch(accordUsersControllerProvider);
+    final ensureUser =
+        ref.read(accordUsersControllerProvider.notifier).ensure;
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
@@ -128,11 +132,10 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final message = pins[index];
-                      final author = members?[message.authorId];
-                      final name = author != null
-                          ? accordMemberName(author,
-                              fallback: message.authorId)
-                          : message.authorId;
+                      final name = accordAuthorName(message.authorId,
+                          members: members,
+                          users: users,
+                          ensure: ensureUser);
                       return ListTile(
                         title: Text(name,
                             style: Theme.of(context).textTheme.titleSmall),

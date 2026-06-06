@@ -60,7 +60,6 @@ class ReactionWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final bonfireTheme = BonfireThemeExtension.of(context);
 
     return Container(

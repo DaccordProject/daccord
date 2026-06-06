@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:bonfire/features/guild/controllers/guild.dart';
-import 'package:bonfire/theme/text_theme.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:firebridge/firebridge.dart';
 import 'package:flutter/material.dart';

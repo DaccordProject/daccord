@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,6 +84,9 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
     final theme = Theme.of(context);
     final entries = _entries;
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
+    final users = ref.watch(accordUsersControllerProvider);
+    final ensureUser =
+        ref.read(accordUsersControllerProvider.notifier).ensure;
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
@@ -133,9 +137,11 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
                                   const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final entry = entries[index];
-                                final actor = members?[entry.userId];
-                                final actorName = accordMemberName(actor,
-                                    fallback: entry.userId);
+                                final actorName = accordAuthorName(
+                                    entry.userId,
+                                    members: members,
+                                    users: users,
+                                    ensure: ensureUser);
                                 return ListTile(
                                   leading: Icon(Icons.bolt,
                                       size: 18, color: colors.gray),
