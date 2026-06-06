@@ -269,6 +269,16 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       }
     });
 
+    // Handle landing on the login route while *already* logged in (e.g. tapping
+    // "back" out of /admin or /settings, whose router parent is this screen).
+    // `ref.listen` only fires on a state *change*, so without this the screen
+    // would sit on the "Signing in…" loader forever. Redirect straight home.
+    if (state is AccordAuthLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _navigateToHome();
+      });
+    }
+
     final Widget body;
     if (_restoring ||
         state is AccordAuthInProgress ||
