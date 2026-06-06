@@ -15,13 +15,14 @@ class UpdateBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final update = ref.watch(updateControllerProvider);
-    final dismissed = ref.watch(
-      settingsControllerProvider.select((s) => s.dismissedUpdateVersion),
+    final skipped = ref.watch(
+      settingsControllerProvider.select((s) => s.skippedUpdateVersion),
     );
     final release = update.latest;
     if (!update.updateAvailable ||
         release == null ||
-        release.version == dismissed) {
+        release.version == skipped ||
+        release.version == update.dismissedVersion) {
       return const SizedBox.shrink();
     }
 

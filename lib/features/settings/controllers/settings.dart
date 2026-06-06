@@ -330,6 +330,10 @@ class SettingsController extends _$SettingsController {
   void setDismissedUpdateVersion(String version) =>
       _update(state.copyWith(dismissedUpdateVersion: version));
 
+  /// Records the release [version] the user permanently skipped.
+  void setSkippedUpdateVersion(String version) =>
+      _update(state.copyWith(skippedUpdateVersion: version));
+
   /// Stamps the time (unix millis) of the last successful update check.
   void setLastUpdateCheckMs(int millis) =>
       _update(state.copyWith(lastUpdateCheckMs: millis));

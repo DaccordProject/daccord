@@ -69,6 +69,7 @@ class AccordSettings {
     this.mcpAllowedGroups = defaultMcpAllowedGroups,
     this.autoUpdateCheck = true,
     this.dismissedUpdateVersion = '',
+    this.skippedUpdateVersion = '',
     this.lastUpdateCheckMs = 0,
     this.lastSpaceId = '',
     this.lastChannelId = '',
@@ -188,6 +189,9 @@ class AccordSettings {
   /// version tracking.
   final String dismissedUpdateVersion;
 
+  /// The release version the user permanently skipped (Skip this version).
+  final String skippedUpdateVersion;
+
   /// Unix-millis of the last successful update check, used to throttle passive
   /// checks. Mirrors `Config.get_last_update_check` (which stores seconds).
   final int lastUpdateCheckMs;
@@ -250,6 +254,7 @@ class AccordSettings {
     List<String>? mcpAllowedGroups,
     bool? autoUpdateCheck,
     String? dismissedUpdateVersion,
+    String? skippedUpdateVersion,
     int? lastUpdateCheckMs,
     String? lastSpaceId,
     String? lastChannelId,
@@ -290,6 +295,7 @@ class AccordSettings {
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
       dismissedUpdateVersion:
           dismissedUpdateVersion ?? this.dismissedUpdateVersion,
+      skippedUpdateVersion: skippedUpdateVersion ?? this.skippedUpdateVersion,
       lastUpdateCheckMs: lastUpdateCheckMs ?? this.lastUpdateCheckMs,
       lastSpaceId: lastSpaceId ?? this.lastSpaceId,
       lastChannelId: lastChannelId ?? this.lastChannelId,
@@ -381,6 +387,7 @@ class AccordSettings {
     'mcpAllowedGroups': mcpAllowedGroups,
     'autoUpdateCheck': autoUpdateCheck,
     'dismissedUpdateVersion': dismissedUpdateVersion,
+    'skippedUpdateVersion': skippedUpdateVersion,
     'lastUpdateCheckMs': lastUpdateCheckMs,
     'lastSpaceId': lastSpaceId,
     'lastChannelId': lastChannelId,
@@ -451,6 +458,7 @@ class AccordSettings {
           : defaultMcpAllowedGroups,
       autoUpdateCheck: json['autoUpdateCheck'] as bool? ?? true,
       dismissedUpdateVersion: (json['dismissedUpdateVersion'] as String?) ?? '',
+      skippedUpdateVersion: (json['skippedUpdateVersion'] as String?) ?? '',
       lastUpdateCheckMs: (json['lastUpdateCheckMs'] as num?)?.toInt() ?? 0,
       lastSpaceId: (json['lastSpaceId'] as String?) ?? '',
       lastChannelId: (json['lastChannelId'] as String?) ?? '',

@@ -2,6 +2,7 @@ import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/theme.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -127,21 +128,51 @@ class UpdatesScreen extends ConsumerWidget {
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  FilledButton.icon(
-                    onPressed: release.url.isEmpty
-                        ? null
-                        : () => launchUrl(
-                            Uri.parse(release.url),
-                            mode: LaunchMode.externalApplication,
-                          ),
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Download'),
+                  Builder(
+                    builder: (context) {
+                      // Prefer the matching platform asset (one-click download
+                      // of the right file); fall back to the release page.
+                      final assetUrl = notifier.platformAssetUrl();
+                      final target = assetUrl ?? release.url;
+                      return FilledButton.icon(
+                        onPressed: target.isEmpty
+                            ? null
+                            : () => launchUrl(
+                                Uri.parse(target),
+                                mode: LaunchMode.externalApplication,
+                              ),
+                        icon: const Icon(Icons.download),
+                        label: Text(
+                          assetUrl != null ? 'Download' : 'View release',
+                        ),
+                      );
+                    },
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      notifier.skipCurrent();
+                      Navigator.of(context).maybePop();
+                    },
+                    child: const Text('Skip this version'),
                   ),
                 ],
               ),
             ),
+            if (kIsWeb)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'On the web, refresh the page to load the latest version.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall!.copyWith(color: colors.gray),
+                ),
+              ),
           ],
         ],
       ),

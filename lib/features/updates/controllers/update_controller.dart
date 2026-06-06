@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:bonfire/features/settings/controllers/settings.dart';
@@ -6,6 +7,7 @@ import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 part 'update_controller.g.dart';
 
@@ -17,6 +19,7 @@ class UpdateState {
     this.checking = false,
     this.error,
     this.checkedOnce = false,
+    this.dismissedVersion,
   });
 
   /// The latest release fetched, or null if none/unknown.
@@ -32,9 +35,20 @@ class UpdateState {
   /// "not checked yet" from "up to date").
   final bool checkedOnce;
 
-  /// Whether [latest] is newer than the running build.
-  bool get updateAvailable =>
-      latest != null && isNewerVersion(latest!.version, kAppVersion);
+  /// A version the user dismissed for *this session only* (cleared on restart).
+  /// Distinct from the persistent "skip this version" preference.
+  final String? dismissedVersion;
+
+  /// Whether [latest] is a newer build than the running one. Pre-releases are
+  /// ignored unless this build is itself a pre-release (matching the reference
+  /// updater); GitHub's `/releases/latest` already excludes pre-releases, so
+  /// this is belt-and-suspenders.
+  bool get updateAvailable {
+    final r = latest;
+    if (r == null || !isNewerVersion(r.version, kAppVersion)) return false;
+    if (r.prerelease && !isPrerelease(kAppVersion)) return false;
+    return true;
+  }
 
   UpdateState copyWith({
     AppRelease? latest,
@@ -42,41 +56,53 @@ class UpdateState {
     String? error,
     bool clearError = false,
     bool? checkedOnce,
+    String? dismissedVersion,
   }) => UpdateState(
     latest: latest ?? this.latest,
     checking: checking ?? this.checking,
     error: clearError ? null : (error ?? this.error),
     checkedOnce: checkedOnce ?? this.checkedOnce,
+    dismissedVersion: dismissedVersion ?? this.dismissedVersion,
   );
 }
 
 /// Checks the project's GitHub Releases for a newer build and exposes the
-/// result. Ports the reference client's `updater.gd`: a passive check throttled
-/// to once an hour (gated on the auto-update-check setting) plus a manual check
-/// from the Updates settings page. The client does not self-install — the UI
-/// links to the release page for manual download.
+/// result. Ports the reference client's `updater.gd`: a startup check plus an
+/// hourly periodic check (both gated on the auto-update-check setting and
+/// throttled), a manual check, session-dismiss + persistent skip, and
+/// platform-aware download links.
+///
+/// In-place self-replacement (binary swap + relaunch on desktop, APK install on
+/// Android) is intentionally deferred — it needs untestable per-platform native
+/// machinery. For now an available update links straight to the matching
+/// platform asset's download (or the release page), and web prompts a refresh.
 @Riverpod(keepAlive: true)
 class UpdateController extends _$UpdateController {
   static const _throttle = Duration(hours: 1);
+  Timer? _timer;
 
   @override
-  UpdateState build() => const UpdateState();
+  UpdateState build() {
+    ref.onDispose(() => _timer?.cancel());
+    return const UpdateState();
+  }
 
-  /// Runs a passive check at startup if enabled and not checked within the
-  /// throttle window. Safe to call repeatedly.
+  /// Runs a startup check (throttled, gated on the setting) and arms the hourly
+  /// periodic check. Safe to call repeatedly — the timer is armed only once.
   Future<void> maybeCheckOnStartup() async {
+    _timer ??= Timer.periodic(_throttle, (_) {
+      if (ref.read(settingsControllerProvider).autoUpdateCheck) check();
+    });
     final settings = ref.read(settingsControllerProvider);
     if (!settings.autoUpdateCheck) return;
     final last = DateTime.fromMillisecondsSinceEpoch(
       settings.lastUpdateCheckMs,
     );
-    final now = DateTime.now();
-    if (now.difference(last) < _throttle) return;
+    if (DateTime.now().difference(last) < _throttle) return;
     await check();
   }
 
-  /// Fetches the latest release. [manual] checks bypass nothing here (the
-  /// throttle lives in [maybeCheckOnStartup]); they just surface errors to the
+  /// Fetches the latest release. [manual] checks just surface errors to the
   /// user. Returns the resulting state.
   Future<UpdateState> check({bool manual = false}) async {
     if (state.checking) return state;
@@ -135,14 +161,53 @@ class UpdateController extends _$UpdateController {
     }
   }
 
-  /// Dismisses the currently-available release so the banner stays hidden until
-  /// a newer one ships.
+  /// Dismisses the current release for this session only (banner hides until
+  /// restart or a newer release).
   void dismissCurrent() {
+    final version = state.latest?.version;
+    if (version == null) return;
+    state = state.copyWith(dismissedVersion: version);
+  }
+
+  /// Permanently skips the current release (persisted; suppressed until a newer
+  /// one ships).
+  void skipCurrent() {
     final version = state.latest?.version;
     if (version == null) return;
     ref
         .read(settingsControllerProvider.notifier)
-        .setDismissedUpdateVersion(version);
+        .setSkippedUpdateVersion(version);
+  }
+
+  /// The download URL of the release asset matching the current platform, or
+  /// null when none is found (the caller then falls back to the release page).
+  /// Always null on web (no downloadable binary applies).
+  String? platformAssetUrl() {
+    final assets = state.latest?.assets ?? const [];
+    if (assets.isEmpty || UniversalPlatform.isWeb) return null;
+    bool hasExt(AppReleaseAsset a, List<String> exts) {
+      final n = a.name.toLowerCase();
+      return exts.any(n.endsWith);
+    }
+
+    List<String> exts;
+    if (UniversalPlatform.isAndroid) {
+      exts = const ['.apk'];
+    } else if (UniversalPlatform.isWindows) {
+      exts = const ['.exe', '.msi', '.zip'];
+    } else if (UniversalPlatform.isMacOS) {
+      exts = const ['.dmg', '.pkg', '.zip'];
+    } else if (UniversalPlatform.isLinux) {
+      exts = const ['.appimage', '.tar.gz', '.deb', '.rpm'];
+    } else if (UniversalPlatform.isIOS) {
+      return null; // iOS updates come from the App Store.
+    } else {
+      return null;
+    }
+    for (final a in assets) {
+      if (hasExt(a, exts)) return a.url;
+    }
+    return null;
   }
 
   void _stampChecked() {
