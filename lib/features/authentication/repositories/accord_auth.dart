@@ -128,6 +128,12 @@ class AccordAuth extends _$AccordAuth {
     required String password,
     String? displayName,
   }) async {
+    // Usernames are the public login identifier (login is by username, not
+    // email); reject email-like values before hitting the server. The server
+    // enforces this authoritatively as well.
+    if (username.contains('@')) {
+      return _fail("Username can't be an email address.");
+    }
     state = const AccordAuthInProgress();
 
     final authClient = _restClientFor(server);
@@ -420,7 +426,8 @@ class AccordAuth extends _$AccordAuth {
       });
       if (!result.ok) {
         return AddServerOutcome.error(
-            result.error?.message ?? 'Invalid two-factor code');
+          result.error?.message ?? 'Invalid two-factor code',
+        );
       }
       return await _completeAddServer(server, result.data);
     } catch (e) {
@@ -431,7 +438,9 @@ class AccordAuth extends _$AccordAuth {
   }
 
   Future<AddServerOutcome> _completeAddServer(
-      AccordServer server, Object? data) async {
+    AccordServer server,
+    Object? data,
+  ) async {
     if (data is! Map) return AddServerOutcome.error('Malformed auth response');
     final token = data['token']?.toString();
     final user = data['user'];
@@ -465,14 +474,13 @@ class AccordAuth extends _$AccordAuth {
     AccordServer server, {
     String token = '',
     String tokenType = 'Bearer',
-  }) =>
-      AccordClient(
-        token: token,
-        tokenType: tokenType,
-        baseUrl: server.baseUrl,
-        gatewayUrl: server.gatewayUrl,
-        cdnUrl: server.cdnUrl,
-      );
+  }) => AccordClient(
+    token: token,
+    tokenType: tokenType,
+    baseUrl: server.baseUrl,
+    gatewayUrl: server.gatewayUrl,
+    cdnUrl: server.cdnUrl,
+  );
 
   /// Verifies [token] against [server] and mints a session, or null if the
   /// token is rejected.
@@ -502,7 +510,9 @@ class AccordAuth extends _$AccordAuth {
 
   /// Parses an `{ user, token }` auth response and connects.
   Future<AccordAuthState> _completeLogin(
-      AccordServer server, Object? data) async {
+    AccordServer server,
+    Object? data,
+  ) async {
     if (data is! Map) {
       return _fail('Malformed auth response');
     }
@@ -610,7 +620,9 @@ class AccordAuth extends _$AccordAuth {
 
     if (_activeKey == key) {
       _activeKey = null;
-      final next = _connections.keys.isNotEmpty ? _connections.keys.first : null;
+      final next = _connections.keys.isNotEmpty
+          ? _connections.keys.first
+          : null;
       if (next != null) {
         await _persistActive(_connections[next]!.session);
         _makeActive(next);
@@ -624,8 +636,9 @@ class AccordAuth extends _$AccordAuth {
     final rawActive = box.get(_sessionKey);
     if (rawActive is Map) {
       try {
-        final stored =
-            AccordSession.fromJson(Map<String, dynamic>.from(rawActive));
+        final stored = AccordSession.fromJson(
+          Map<String, dynamic>.from(rawActive),
+        );
         if (_accountKey(stored) == key) {
           await box.delete(_sessionKey);
         }
@@ -675,8 +688,11 @@ class AccordAuth extends _$AccordAuth {
       currentUserId: session.userId,
       isActive: () => _activeKey == key,
     );
-    _connections[key] =
-        _Conn(client: client, disposeEvents: disposeEvents, session: session);
+    _connections[key] = _Conn(
+      client: client,
+      disposeEvents: disposeEvents,
+      session: session,
+    );
     client.login();
 
     if (makeActive) return _makeActive(key);
@@ -713,10 +729,8 @@ class AccordAuth extends _$AccordAuth {
       ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
     }
 
-    final status = ref
-            .read(connectionsControllerProvider)
-            .connectionFor(key)
-            ?.status ??
+    final status =
+        ref.read(connectionsControllerProvider).connectionFor(key)?.status ??
         ConnectionStatus.connecting;
     ref.read(connectionControllerProvider.notifier).set(status);
     ref.read(readyControllerProvider.notifier).setReady(true);

@@ -109,8 +109,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (raw.isEmpty) return;
     final server = AccordServer.fromBaseUrl(raw);
     if (_tosFetchedServer == server.baseUrl) return;
-    final settings =
-        await ref.read(accordAuthProvider.notifier).fetchServerSettings(server);
+    final settings = await ref
+        .read(accordAuthProvider.notifier)
+        .fetchServerSettings(server);
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
@@ -178,14 +179,23 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (username.isEmpty || password.isEmpty) return;
 
     if (_mode == _AuthMode.register) {
+      // Usernames are the public login identifier (login looks up by username,
+      // not email), so reject email-like input rather than silently accepting
+      // a misleading account name. The server enforces this authoritatively too.
+      if (username.contains('@')) {
+        setState(() => _authLocalError = "Username can't be an email address.");
+        return;
+      }
       if (password.length < 8) {
-        setState(() =>
-            _authLocalError = 'Password must be at least 8 characters.');
+        setState(
+          () => _authLocalError = 'Password must be at least 8 characters.',
+        );
         return;
       }
       if (_tosEnabled && !_tosAccepted) {
-        setState(() =>
-            _authLocalError = 'You must accept the Terms of Service.');
+        setState(
+          () => _authLocalError = 'You must accept the Terms of Service.',
+        );
         return;
       }
       setState(() => _authLocalError = null);
@@ -230,8 +240,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     final confirm = _confirmPasswordController.text;
     if (oldPw.isEmpty || newPw.isEmpty) return;
     if (newPw.length < 8) {
-      setState(() =>
-          _resetLocalError = 'New password must be at least 8 characters.');
+      setState(
+        () => _resetLocalError = 'New password must be at least 8 characters.',
+      );
       return;
     }
     if (newPw != confirm) {
@@ -302,7 +313,8 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         onGuest: _submitGuest,
         onDiscover: () => showAccordDiscovery(context),
         onSubmit: _submit,
-        error: _authLocalError ??
+        error:
+            _authLocalError ??
             (state is AccordAuthFailed ? state.message : null),
       );
     }
@@ -410,8 +422,7 @@ class _AuthForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        if (!useToken)
-          _ModeToggle(mode: mode, onModeChanged: onModeChanged),
+        if (!useToken) _ModeToggle(mode: mode, onModeChanged: onModeChanged),
         const SizedBox(height: 16),
         _LoginField(
           controller: serverController,
@@ -431,7 +442,9 @@ class _AuthForm extends StatelessWidget {
         else ...[
           _LoginField(
             controller: usernameController,
-            label: 'Username or email',
+            // Registration creates a username (the public login id), so don't
+            // imply an email is accepted; sign-in keeps the broader label.
+            label: isRegister ? 'Username' : 'Username or email',
             autofillHints: const [AutofillHints.username],
           ),
           const SizedBox(height: 12),
@@ -460,8 +473,9 @@ class _AuthForm extends StatelessWidget {
                     onTap: onTosLinkTap,
                     child: Text(
                       'Terms of Service',
-                      style: theme.textTheme.bodyMedium!
-                          .copyWith(color: colors.primary),
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: colors.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -501,8 +515,10 @@ class _AuthForm extends StatelessWidget {
         if (!useToken)
           TextButton(
             onPressed: onGuest,
-            child: Text('Browse without account',
-                style: theme.textTheme.bodyMedium),
+            child: Text(
+              'Browse without account',
+              style: theme.textTheme.bodyMedium,
+            ),
           ),
         if (hasAccounts)
           TextButton(
@@ -556,8 +572,10 @@ class _PasswordFieldState extends State<_PasswordField> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         suffixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -611,8 +629,8 @@ class _ModeToggle extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                    color: selected ? Colors.white : colors.dirtyWhite,
-                  ),
+                color: selected ? Colors.white : colors.dirtyWhite,
+              ),
             ),
           ),
         ),
@@ -750,8 +768,9 @@ class _PasswordResetForm extends StatelessWidget {
           Text(
             error!,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium!
-                .copyWith(color: BonfireThemeExtension.of(context).red),
+            style: theme.textTheme.bodyMedium!.copyWith(
+              color: BonfireThemeExtension.of(context).red,
+            ),
           ),
         ],
         const SizedBox(height: 24),
@@ -805,8 +824,10 @@ class _LoginField extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -833,10 +854,9 @@ class _SubmitButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall!
-              .copyWith(color: Colors.white),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall!.copyWith(color: Colors.white),
         ),
       ),
     );
