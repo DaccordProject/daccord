@@ -921,7 +921,12 @@ class _ReactionPill extends StatelessWidget {
                       Text(name, style: const TextStyle(fontSize: 14)),
                 )
               else
-                Text(name, style: const TextStyle(fontSize: 14)),
+                // Unicode reaction: `name` is the shortcode (e.g. `hamburger`),
+                // not the glyph — resolve it to the actual emoji character.
+                Text(
+                  resolveEmojiGlyph(name),
+                  style: const TextStyle(fontSize: 16),
+                ),
               const SizedBox(width: 4),
               Text(
                 '${reaction.count}',

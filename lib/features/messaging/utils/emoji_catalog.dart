@@ -358,3 +358,20 @@ const List<EmojiEntry> kEmojiCatalog = [
   EmojiEntry('🇧🇷', 'flag_br', EmojiCategory.flags, 'brazil'),
   EmojiEntry('🇮🇳', 'flag_in', EmojiCategory.flags, 'india'),
 ];
+
+/// Shortcode-name → unicode-char lookup, built once from [kEmojiCatalog].
+final Map<String, String> _emojiByName = {
+  for (final e in kEmojiCatalog) e.name: e.char,
+};
+
+/// Resolves a unicode-emoji reference to its glyph. [value] may already be the
+/// glyph (returned as-is), a bare shortcode (`hamburger`), or a colon-wrapped
+/// shortcode (`:hamburger:`). Falls back to [value] when the shortcode isn't in
+/// the catalog. Custom (image) emoji are handled elsewhere, by id.
+String resolveEmojiGlyph(String value) {
+  if (value.isEmpty) return value;
+  // Any non-ASCII rune means it's already an emoji glyph, not a shortcode.
+  if (value.runes.any((r) => r > 0x7F)) return value;
+  final key = value.replaceAll(':', '');
+  return _emojiByName[key] ?? value;
+}

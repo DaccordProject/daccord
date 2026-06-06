@@ -25,6 +25,7 @@ import 'package:bonfire/features/messaging/components/inline_audio_player.dart';
 import 'package:bonfire/features/messaging/components/inline_video_player.dart';
 import 'package:bonfire/features/messaging/components/pinned_messages.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
