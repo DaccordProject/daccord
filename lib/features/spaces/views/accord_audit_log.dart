@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -20,6 +22,8 @@ Future<void> showAccordAuditLog(
   );
 }
 
+const _pageSize = 25;
+
 class _AuditLogDialog extends ConsumerStatefulWidget {
   const _AuditLogDialog({required this.spaceId});
 
@@ -30,27 +34,94 @@ class _AuditLogDialog extends ConsumerStatefulWidget {
 }
 
 class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
-  List<AccordAuditLogEntry>? _entries;
+  final List<AccordAuditLogEntry> _entries = [];
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
   String? _error;
+  String? _actionFilter; // null = all
+  String _userQuery = '';
+  StreamSubscription<Map<String, dynamic>>? _liveSub;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _subscribeLive();
+  }
+
+  @override
+  void dispose() {
+    _liveSub?.cancel();
+    super.dispose();
+  }
+
+  AccordClient? get _client => ref.read(accordAuthProvider
+      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+
+  void _subscribeLive() {
+    final client = _client;
+    if (client == null) return;
+    _liveSub = client.onAuditLogCreate.listen((data) {
+      // The gateway may scope the event with a space id; only prepend ours.
+      final spaceId = (data['space_id'] ?? data['guild_id'])?.toString();
+      if (spaceId != null && spaceId != widget.spaceId) return;
+      final entry = AccordAuditLogEntry.fromJson(data);
+      if (entry.id.isNotEmpty && _entries.any((e) => e.id == entry.id)) return;
+      if (!mounted) return;
+      setState(() => _entries.insert(0, entry));
+    });
   }
 
   Future<void> _load() async {
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = _client;
     if (client == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final result =
-        await client.auditLogs.list(widget.spaceId, query: {'limit': 50});
+        await client.auditLogs.list(widget.spaceId, query: {'limit': _pageSize});
     if (!mounted) return;
     if (!result.ok) {
-      setState(() => _error = 'Failed to load audit log');
+      setState(() {
+        _loading = false;
+        _error = 'Failed to load audit log';
+      });
       return;
     }
-    setState(() => _entries = _parse(result.data));
+    final parsed = _parse(result.data);
+    setState(() {
+      _loading = false;
+      _entries
+        ..clear()
+        ..addAll(parsed);
+      _hasMore = parsed.length >= _pageSize;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    final client = _client;
+    if (client == null || _loadingMore || !_hasMore || _entries.isEmpty) return;
+    setState(() => _loadingMore = true);
+    final result = await client.auditLogs.list(widget.spaceId,
+        query: {'limit': _pageSize, 'before': _entries.last.id});
+    if (!mounted) return;
+    if (!result.ok) {
+      setState(() {
+        _loadingMore = false;
+        _error = 'Failed to load more entries';
+      });
+      return;
+    }
+    final parsed = _parse(result.data);
+    final existing = _entries.map((e) => e.id).toSet();
+    final fresh = parsed.where((e) => !existing.contains(e.id)).toList();
+    setState(() {
+      _loadingMore = false;
+      _entries.addAll(fresh);
+      _hasMore = parsed.length >= _pageSize && fresh.isNotEmpty;
+    });
   }
 
   /// The endpoint returns raw JSON; entries may be a bare list or wrapped under
@@ -82,14 +153,33 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final entries = _entries;
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
     final users = ref.watch(accordUsersControllerProvider);
     final ensureUser =
         ref.read(accordUsersControllerProvider.notifier).ensure;
+
+    // Distinct action types present, for the filter dropdown.
+    final actionTypes = <String>{
+      for (final e in _entries)
+        if (e.actionType.isNotEmpty) e.actionType
+    }.toList()
+      ..sort();
+
+    final query = _userQuery.trim().toLowerCase();
+    final visible = _entries.where((e) {
+      if (_actionFilter != null && e.actionType != _actionFilter) return false;
+      if (query.isNotEmpty) {
+        final actor = accordAuthorName(e.userId,
+                members: members, users: users, ensure: ensureUser)
+            .toLowerCase();
+        if (!actor.contains(query)) return false;
+      }
+      return true;
+    }).toList();
+
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 640),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -103,6 +193,11 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
                   Text('Audit log', style: theme.textTheme.titleMedium),
                   const Spacer(),
                   IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: _loading ? null : _load,
+                    icon: const Icon(Icons.refresh, size: 18),
+                  ),
+                  IconButton(
                     onPressed: () => Navigator.of(context).maybePop(),
                     icon: const Icon(Icons.close, size: 18),
                   ),
@@ -110,35 +205,90 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
               ),
             ),
             const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String?>(
+                      initialValue: _actionFilter,
+                      decoration: const InputDecoration(
+                        labelText: 'Action',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                            value: null, child: Text('All actions')),
+                        for (final a in actionTypes)
+                          DropdownMenuItem(
+                              value: a, child: Text(_actionLabel(a))),
+                      ],
+                      onChanged: (v) => setState(() => _actionFilter = v),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'User',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.search, size: 18),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => setState(() => _userQuery = v),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
             Flexible(
-              child: _error != null
+              child: _error != null && _entries.isEmpty
                   ? Padding(
                       padding: const EdgeInsets.all(32),
                       child: Center(
                           child: Text(_error!,
                               style: theme.textTheme.bodyMedium)),
                     )
-                  : entries == null
+                  : _loading
                       ? const Padding(
                           padding: EdgeInsets.all(32),
                           child: Center(child: CircularProgressIndicator()),
                         )
-                      : entries.isEmpty
+                      : visible.isEmpty
                           ? Padding(
                               padding: const EdgeInsets.all(32),
                               child: Center(
-                                  child: Text('No audit log entries',
+                                  child: Text('No matching entries',
                                       style: theme.textTheme.bodyMedium)),
                             )
                           : ListView.separated(
                               padding: const EdgeInsets.all(8),
-                              itemCount: entries.length,
+                              itemCount: visible.length + (_hasMore ? 1 : 0),
                               separatorBuilder: (_, _) =>
                                   const Divider(height: 1),
                               itemBuilder: (context, index) {
-                                final entry = entries[index];
-                                final actorName = accordAuthorName(
-                                    entry.userId,
+                                if (index >= visible.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Center(
+                                      child: _loadingMore
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                  strokeWidth: 2),
+                                            )
+                                          : TextButton(
+                                              onPressed: _loadMore,
+                                              child: const Text('Load more'),
+                                            ),
+                                    ),
+                                  );
+                                }
+                                final entry = visible[index];
+                                final actorName = accordAuthorName(entry.userId,
                                     members: members,
                                     users: users,
                                     ensure: ensureUser);
