@@ -31,8 +31,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     ref.onDispose(() => activeMessageChannels.remove(channelId));
 
     final client = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
     );
     if (client != null) {
       _load(client, channelId);
@@ -55,8 +56,10 @@ class AccordMessagesController extends _$AccordMessagesController {
   bool hasMoreOlder = true;
 
   Future<void> _load(AccordClient client, String channelId) async {
-    final result = await client.messages.list(channelId,
-        query: {'limit': _pageSize});
+    final result = await client.messages.list(
+      channelId,
+      query: {'limit': _pageSize},
+    );
     if (!result.ok) {
       debugPrint('Failed to load messages for $channelId: ${result.error}');
       return;
@@ -84,11 +87,14 @@ class AccordMessagesController extends _$AccordMessagesController {
     state = [...current];
     try {
       final oldestId = current.first.id;
-      final result = await client.messages.list(channelId,
-          query: {'limit': _pageSize, 'before': oldestId});
+      final result = await client.messages.list(
+        channelId,
+        query: {'limit': _pageSize, 'before': oldestId},
+      );
       if (!result.ok) {
         debugPrint(
-            'Failed to load older messages for $channelId: ${result.error}');
+          'Failed to load older messages for $channelId: ${result.error}',
+        );
         return 0;
       }
       final data = result.data;
@@ -115,8 +121,11 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// Sends [content] to this channel. Optimistically appends the created
   /// message (the gateway echo is then deduped by `addMessage`). Pass [replyTo]
   /// to send the message as a reply to that message ID. Returns true on success.
-  Future<bool> send(AccordClient client, String content,
-      {String? replyTo}) async {
+  Future<bool> send(
+    AccordClient client,
+    String content, {
+    String? replyTo,
+  }) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return false;
     final data = <String, dynamic>{'content': trimmed};
@@ -170,11 +179,15 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// applying the result (the gateway echo is then a no-op). Returns true on
   /// success.
   Future<bool> edit(
-      AccordClient client, String messageId, String content) async {
+    AccordClient client,
+    String messageId,
+    String content,
+  ) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return false;
-    final result =
-        await client.messages.edit(channelId, messageId, {'content': trimmed});
+    final result = await client.messages.edit(channelId, messageId, {
+      'content': trimmed,
+    });
     if (!result.ok) {
       debugPrint('Failed to edit message $messageId: ${result.error}');
       return false;
@@ -231,11 +244,13 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (trimmed.isNotEmpty) data['content'] = trimmed;
     if (replyTo != null) data['reply_to'] = replyTo;
 
-    final result =
-        await client.messages.createWithAttachments(channelId, data, files);
+    final result = await client.messages.createWithAttachments(
+      channelId,
+      data,
+      files,
+    );
     if (!result.ok) {
-      debugPrint(
-          'Failed to send attachments to $channelId: ${result.error}');
+      debugPrint('Failed to send attachments to $channelId: ${result.error}');
       return false;
     }
     final message = result.data;
@@ -280,17 +295,26 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// `name:id` for custom emoji, but aggregates are matched/stored by name
   /// (the form the gateway echoes back).
   Future<void> toggleReaction(
-      AccordClient client, String messageId, String emojiName,
-      {String? emojiId}) async {
+    AccordClient client,
+    String messageId,
+    String emojiName, {
+    String? emojiId,
+  }) async {
     final message = state?.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
-    final existing = message.reactions
-        ?.firstWhereOrNull((r) => _emojiName(r) == emojiName);
+    final existing = message.reactions?.firstWhereOrNull(
+      (r) => _emojiName(r) == emojiName,
+    );
     final adding = !(existing?.includesMe ?? false);
     final token = emojiId == null ? emojiName : '$emojiName:$emojiId';
 
-    applyReaction(messageId, emojiName,
-        added: adding, isOwn: true, emojiId: emojiId);
+    applyReaction(
+      messageId,
+      emojiName,
+      added: adding,
+      isOwn: true,
+      emojiId: emojiId,
+    );
 
     final result = adding
         ? await client.reactions.add(channelId, messageId, token)
@@ -298,16 +322,51 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (!result.ok) {
       debugPrint('Failed to toggle reaction on $messageId: ${result.error}');
       // Revert the optimistic change.
-      applyReaction(messageId, emojiName,
-          added: !adding, isOwn: true, emojiId: emojiId);
+      applyReaction(
+        messageId,
+        emojiName,
+        added: !adding,
+        isOwn: true,
+        emojiId: emojiId,
+      );
     }
+  }
+
+  /// Lists the users who reacted to [messageId] with [emojiName] (custom emoji
+  /// pass [emojiId]). Lazy — called when the reactor popup opens. Returns an
+  /// empty list on failure.
+  Future<List<AccordUser>> reactionUsers(
+    AccordClient client,
+    String messageId,
+    String emojiName, {
+    String? emojiId,
+    int limit = 100,
+  }) async {
+    final token = emojiId == null ? emojiName : '$emojiName:$emojiId';
+    final result = await client.reactions.listUsers(
+      channelId,
+      messageId,
+      token,
+      query: {'limit': limit},
+    );
+    if (!result.ok) {
+      debugPrint('Failed to list reactors for $messageId: ${result.error}');
+      return const [];
+    }
+    final data = result.data;
+    return data is List ? data.whereType<AccordUser>().toList() : const [];
   }
 
   /// Applies a reaction add/remove to [messageId]'s aggregate counts. Used both
   /// for optimistic local toggles ([isOwn] true) and for gateway echoes of
   /// other users' reactions ([isOwn] reflects whether the actor is us).
-  void applyReaction(String messageId, String emojiName,
-      {required bool added, required bool isOwn, String? emojiId}) {
+  void applyReaction(
+    String messageId,
+    String emojiName, {
+    required bool added,
+    required bool isOwn,
+    String? emojiId,
+  }) {
     final current = state;
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
@@ -323,11 +382,13 @@ class AccordMessagesController extends _$AccordMessagesController {
         r.count += 1;
         if (isOwn) r.includesMe = true;
       } else {
-        reactions.add(AccordReaction(
-          emoji: {'id': emojiId, 'name': emojiName},
-          count: 1,
-          includesMe: isOwn,
-        ));
+        reactions.add(
+          AccordReaction(
+            emoji: {'id': emojiId, 'name': emojiName},
+            count: 1,
+            includesMe: isOwn,
+          ),
+        );
       }
     } else {
       if (index < 0) return;
@@ -349,8 +410,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (current == null) return;
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message?.reactions == null) return;
-    message!.reactions =
-        message.reactions!.where((r) => _emojiName(r) != emojiName).toList();
+    message!.reactions = message.reactions!
+        .where((r) => _emojiName(r) != emojiName)
+        .toList();
     state = [...current];
   }
 

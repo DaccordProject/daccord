@@ -157,6 +157,19 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
   }
 
+  /// Opens a popup listing the users who added [reaction], lazy-loaded.
+  void _showReactors(AccordReaction reaction) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _ReactorsDialog(
+        channelId: widget.channelId,
+        messageId: _message.id,
+        emojiName: reaction.emoji['name']?.toString() ?? '',
+        emojiId: reaction.emoji['id']?.toString(),
+      ),
+    );
+  }
+
   void _toggleReaction(String emojiName, {String? emojiId}) {
     final client = _client;
     if (client == null) return;
@@ -479,6 +492,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 reaction.emoji['name']?.toString() ?? '',
                 emojiId: reaction.emoji['id']?.toString(),
               ),
+              onShowReactors: () => _showReactors(reaction),
             ),
         ],
       ),
@@ -879,11 +893,15 @@ class _ReactionPill extends StatelessWidget {
   const _ReactionPill({
     required this.reaction,
     required this.onTap,
+    required this.onShowReactors,
     this.cdnUrl,
   });
 
   final AccordReaction reaction;
   final VoidCallback onTap;
+
+  /// Long-press / right-click: reveal who reacted.
+  final VoidCallback onShowReactors;
   final String? cdnUrl;
 
   @override
@@ -899,6 +917,8 @@ class _ReactionPill extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
+        onLongPress: onShowReactors,
+        onSecondaryTap: onShowReactors,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
@@ -938,6 +958,125 @@ class _ReactionPill extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A popup listing the users who reacted with a given emoji, lazy-loaded when
+/// opened (reactor lists aren't prefetched per message). Ports the reference
+/// client's reactor reveal.
+class _ReactorsDialog extends ConsumerStatefulWidget {
+  const _ReactorsDialog({
+    required this.channelId,
+    required this.messageId,
+    required this.emojiName,
+    required this.emojiId,
+  });
+
+  final String channelId;
+  final String messageId;
+  final String emojiName;
+  final String? emojiId;
+
+  @override
+  ConsumerState<_ReactorsDialog> createState() => _ReactorsDialogState();
+}
+
+class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
+  List<AccordUser>? _users;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
+    if (client == null) {
+      setState(() => _users = const []);
+      return;
+    }
+    final users = await ref
+        .read(accordMessagesControllerProvider(widget.channelId).notifier)
+        .reactionUsers(
+          client,
+          widget.messageId,
+          widget.emojiName,
+          emojiId: widget.emojiId,
+        );
+    if (mounted) setState(() => _users = users);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    final cdnUrl = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
+    );
+    final users = _users;
+    return AlertDialog(
+      title: Text('Reacted with :${widget.emojiName}:'),
+      content: SizedBox(
+        width: 300,
+        child: users == null
+            ? const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : users.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'No one yet.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(color: colors.gray),
+                ),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final user in users)
+                    ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: accordAvatarColor(user, user.id),
+                        foregroundImage: accordAvatarUrl(user, cdnUrl) == null
+                            ? null
+                            : CachedNetworkImageProvider(
+                                accordAvatarUrl(user, cdnUrl)!,
+                              ),
+                        child: Text(
+                          accordUserName(
+                            user,
+                            fallback: '?',
+                          ).characters.first.toUpperCase(),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
+                      title: Text(
+                        accordUserName(user, fallback: user.id),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }
