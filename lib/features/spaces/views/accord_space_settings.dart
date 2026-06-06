@@ -6,6 +6,7 @@ import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
+import 'package:bonfire/features/spaces/views/accord_ban_list.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/features/spaces/views/accord_role_management.dart';
 import 'package:bonfire/features/spaces/views/accord_soundboard.dart';
@@ -263,6 +264,20 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                 ),
               ],
               if (canModerate) ...[
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.gavel, color: colors.dirtyWhite),
+                  title: const Text('Banned members'),
+                  subtitle: Text('Review and unban members',
+                      style: theme.textTheme.bodySmall!
+                          .copyWith(color: colors.gray)),
+                  trailing: Icon(Icons.chevron_right, color: colors.gray),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    showAccordBanList(context, spaceId: widget.spaceId);
+                  },
+                ),
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
