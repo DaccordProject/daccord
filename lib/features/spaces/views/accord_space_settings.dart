@@ -7,6 +7,7 @@ import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
 import 'package:bonfire/features/spaces/views/accord_ban_list.dart';
+import 'package:bonfire/features/spaces/views/accord_emoji_management.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/features/spaces/views/accord_role_management.dart';
 import 'package:bonfire/features/spaces/views/accord_soundboard.dart';
@@ -145,6 +146,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
         space.ownerId == currentUserId;
     final canModerate =
         accordHasPermission(perms, AccordPermission.banMembers);
+    final canManageEmojis =
+        accordHasPermission(perms, AccordPermission.manageEmojis);
     final canUseSoundboard =
         accordHasPermission(perms, AccordPermission.useSoundboard);
     final canManageSoundboard =
@@ -307,6 +310,23 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
                   onTap: () {
                     Navigator.of(context).pop();
                     showTransferOwnership(context, spaceId: widget.spaceId);
+                  },
+                ),
+              ],
+              if (canManageEmojis) ...[
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.emoji_emotions_outlined,
+                      color: colors.dirtyWhite),
+                  title: const Text('Custom emoji'),
+                  subtitle: Text('Upload, rename, and delete emoji',
+                      style: theme.textTheme.bodySmall!
+                          .copyWith(color: colors.gray)),
+                  trailing: Icon(Icons.chevron_right, color: colors.gray),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    showAccordEmojiManagement(context, spaceId: widget.spaceId);
                   },
                 ),
               ],

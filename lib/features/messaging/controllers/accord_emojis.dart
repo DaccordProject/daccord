@@ -35,4 +35,25 @@ class AccordEmojisController extends _$AccordEmojisController {
       state = data.whereType<AccordEmoji>().toList();
     }
   }
+
+  /// Inserts [emoji] (when the id is new) or replaces an existing one in
+  /// place. Used by the emoji-management dialog to mirror create/rename
+  /// results into the cache without a full reload.
+  void upsert(AccordEmoji emoji) {
+    final current = [...(state ?? const <AccordEmoji>[])];
+    final index = current.indexWhere((e) => e.id == emoji.id);
+    if (index >= 0) {
+      current[index] = emoji;
+    } else {
+      current.add(emoji);
+    }
+    state = current;
+  }
+
+  /// Drops [emojiId] from the cache after a successful delete.
+  void remove(String emojiId) {
+    final current = state;
+    if (current == null) return;
+    state = current.where((e) => e.id != emojiId).toList();
+  }
 }
