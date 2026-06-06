@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -42,12 +43,60 @@ class AccordMembersController extends _$AccordMembersController {
       return;
     }
     final data = result.data;
-    if (data is List) {
-      state = {
-        for (final member in data.whereType<AccordMember>())
-          member.userId: member,
-      };
+    if (data is! List) return;
+    final members = {
+      for (final member in data.whereType<AccordMember>())
+        member.userId: member,
+    };
+    state = members;
+    await _resolveUsers(client, members);
+  }
+
+  /// The members endpoint returns only `user_id` per member — no embedded user
+  /// object — so names/avatars resolve to "Unknown" until the user is fetched.
+  /// Mirror the reference client: fill each member's [AccordMember.user] from
+  /// the global user cache, fetching any still-missing users, then refresh state
+  /// so the roster and message authors rebuild with real identities.
+  Future<void> _resolveUsers(
+      AccordClient client, Map<String, AccordMember> members) async {
+    final usersController = ref.read(accordUsersControllerProvider.notifier);
+    final cached = ref.read(accordUsersControllerProvider);
+    final missing = <String>[];
+    for (final member in members.values) {
+      if (member.user != null) continue;
+      final known = cached[member.userId];
+      if (known != null) {
+        member.user = known;
+      } else if (member.userId.isNotEmpty) {
+        missing.add(member.userId);
+      }
     }
+
+    await Future.wait(missing.map((userId) async {
+      final result = await client.users.fetch(userId);
+      final user = result.data;
+      if (result.ok && user is AccordUser) {
+        members[userId]?.user = user;
+        usersController.upsert(user);
+      } else if (!result.ok) {
+        debugPrint('Failed to fetch user $userId: ${result.error}');
+      }
+    }));
+
+    // Replace the map identity so watchers rebuild with enriched members.
+    if (state != null) state = {...members};
+  }
+
+  /// Refreshes the cached [AccordMember.user] for [user] when that user is a
+  /// member of this space, so the roster and message authors reflect a profile
+  /// change (e.g. the current user edits their own profile, or a USER_UPDATE
+  /// arrives) without reloading. No-op when the user isn't in the cache.
+  void applyUserUpdate(AccordUser user) {
+    final current = state;
+    final member = current?[user.id];
+    if (member == null) return;
+    member.user = user;
+    state = {...current!};
   }
 
   /// Inserts [member], or replaces it in place if already present.

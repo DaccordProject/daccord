@@ -1,0 +1,466 @@
+part of 'accord_home.dart';
+
+class _Composer extends ConsumerStatefulWidget {
+  const _Composer({
+    required this.channelId,
+    this.channelName,
+    this.spaceId,
+    this.replyingTo,
+    this.replyName,
+    this.onCancelReply,
+  });
+
+  final String channelId;
+  final String? channelName;
+  final String? spaceId;
+  final AccordMessage? replyingTo;
+  final String? replyName;
+  final VoidCallback? onCancelReply;
+
+  @override
+  ConsumerState<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends ConsumerState<_Composer> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _sending = false;
+
+  /// Files the user has attached but not yet sent.
+  final List<PlatformFile> _attachments = [];
+
+  /// The server's typing indicator lasts ~10s, so we re-trigger at most once
+  /// every 8s while the user keeps typing rather than on every keystroke.
+  DateTime? _lastTypingSent;
+  static const _typingInterval = Duration(seconds: 8);
+
+  /// Mention-popup state. `_mentionQuery == null` means the popup is hidden;
+  /// otherwise it's the lowercase text after the active `@`, and
+  /// `[_mentionStart, _mentionEnd)` is the range in `_controller.text` that
+  /// the picked handle replaces (covers the `@` and the query).
+  String? _mentionQuery;
+  int _mentionStart = -1;
+  int _mentionEnd = -1;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _updateMentionState(value);
+    if (value.trim().isEmpty) return;
+    final now = DateTime.now();
+    if (_lastTypingSent != null &&
+        now.difference(_lastTypingSent!) < _typingInterval) {
+      return;
+    }
+    _lastTypingSent = now;
+    final client = ref.read(
+      accordAuthProvider
+          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
+    );
+    client?.messages.typing(widget.channelId);
+  }
+
+  /// Decides whether an `@` autocomplete is in progress and updates the
+  /// popup state accordingly. Mirrors the reference composer's
+  /// `_find_mention_trigger`: scan backwards from the cursor to the nearest
+  /// `@` that's at line start or follows a non-word char; everything between
+  /// it and the cursor is the query. A space (or no `@` before whitespace)
+  /// dismisses the popup. The popup itself is only built when `_mentionQuery`
+  /// is non-null AND there are candidates to show.
+  void _updateMentionState(String text) {
+    final selection = _controller.value.selection;
+    if (!selection.isValid || !selection.isCollapsed || widget.spaceId == null) {
+      _clearMentionState();
+      return;
+    }
+    final caret = selection.baseOffset;
+    var i = caret - 1;
+    while (i >= 0) {
+      final ch = text[i];
+      if (ch == '@') {
+        if (i > 0 && _isMentionWordChar(text[i - 1])) {
+          _clearMentionState();
+          return;
+        }
+        final query = text.substring(i + 1, caret).toLowerCase();
+        setState(() {
+          _mentionQuery = query;
+          _mentionStart = i;
+          _mentionEnd = caret;
+        });
+        return;
+      }
+      if (ch == ' ' || ch == '\t' || ch == '\n') {
+        _clearMentionState();
+        return;
+      }
+      i--;
+    }
+    _clearMentionState();
+  }
+
+  void _clearMentionState() {
+    if (_mentionQuery == null) return;
+    setState(() {
+      _mentionQuery = null;
+      _mentionStart = -1;
+      _mentionEnd = -1;
+    });
+  }
+
+  static bool _isMentionWordChar(String ch) {
+    if (ch.isEmpty) return false;
+    final code = ch.codeUnitAt(0);
+    if (code >= 0x30 && code <= 0x39) return true; // 0-9
+    if (code >= 0x41 && code <= 0x5A) return true; // A-Z
+    if (code >= 0x61 && code <= 0x7A) return true; // a-z
+    if (code == 0x5F) return true; // _
+    return code > 0x7F; // non-ASCII letter-likes
+  }
+
+  /// Replaces the active `@query` range with `@handle ` and dismisses the
+  /// popup. Mirrors the reference's `_on_mention_picked`.
+  void _pickMention(String handle) {
+    if (_mentionStart < 0 || _mentionEnd < 0) return;
+    final text = _controller.text;
+    if (_mentionEnd > text.length) return;
+    final insert = '@$handle ';
+    final next = text.replaceRange(_mentionStart, _mentionEnd, insert);
+    _controller.value = TextEditingValue(
+      text: next,
+      selection:
+          TextSelection.collapsed(offset: _mentionStart + insert.length),
+    );
+    _clearMentionState();
+    _focusNode.requestFocus();
+  }
+
+  Future<void> _pickFiles() async {
+    final result =
+        await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+    if (result == null || !mounted) return;
+    setState(() {
+      for (final file in result.files) {
+        if (file.bytes != null) _attachments.add(file);
+      }
+    });
+  }
+
+  void _removeAttachment(PlatformFile file) {
+    setState(() => _attachments.remove(file));
+  }
+
+  Future<void> _pickEmoji() async {
+    final pick = await showAccordEmojiPicker(context, spaceId: widget.spaceId);
+    if (pick == null || !mounted) return;
+    _insertAtCursor(pick.composerText);
+  }
+
+  /// Inserts [text] at the current cursor position (replacing any selection),
+  /// keeping focus and placing the caret after the inserted text.
+  void _insertAtCursor(String text) {
+    final value = _controller.value;
+    final selection = value.selection;
+    final base = selection.isValid ? selection : null;
+    final start = base?.start ?? value.text.length;
+    final end = base?.end ?? value.text.length;
+    final next = value.text.replaceRange(start, end, text);
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+    _focusNode.requestFocus();
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text;
+    if ((text.trim().isEmpty && _attachments.isEmpty) || _sending) return;
+
+    final client = ref.read(
+      accordAuthProvider
+          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
+    );
+    if (client == null) return;
+
+    setState(() => _sending = true);
+    final controller =
+        ref.read(accordMessagesControllerProvider(widget.channelId).notifier);
+    final replyTo = widget.replyingTo?.id;
+    final bool ok;
+    if (_attachments.isEmpty) {
+      ok = await controller.send(client, text, replyTo: replyTo);
+    } else {
+      final files = [
+        for (final file in _attachments)
+          {
+            'filename': file.name,
+            'content': file.bytes!,
+            'content_type': _mimeType(file.extension),
+          },
+      ];
+      ok = await controller.sendWithAttachments(client, text, files,
+          replyTo: replyTo);
+    }
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      if (ok) _attachments.clear();
+    });
+    if (ok) {
+      soundManager.play('message_sent');
+      _controller.clear();
+      _lastTypingSent = null;
+      widget.onCancelReply?.call();
+      _focusNode.requestFocus();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    final hint = widget.channelName != null
+        ? 'Message #${widget.channelName}'
+        : 'Message';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: colors.darkGray,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.replyingTo != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 4, 0),
+                child: Row(
+                  children: [
+                    Icon(Icons.reply, size: 14, color: colors.gray),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Replying to ${widget.replyName ?? 'message'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium!
+                            .copyWith(color: colors.gray),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cancel reply',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.onCancelReply,
+                      icon: Icon(Icons.close, size: 14, color: colors.gray),
+                    ),
+                  ],
+                ),
+              ),
+            if (_attachments.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final file in _attachments)
+                      _AttachmentChip(
+                        file: file,
+                        onRemove:
+                            _sending ? null : () => _removeAttachment(file),
+                      ),
+                  ],
+                ),
+              ),
+            if (_mentionQuery != null && widget.spaceId != null)
+              _MentionPopup(
+                spaceId: widget.spaceId!,
+                query: _mentionQuery!,
+                onPick: _pickMention,
+              ),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Attach files',
+                  onPressed: _sending ? null : _pickFiles,
+                  icon: Icon(Icons.add_circle_outline,
+                      size: 20, color: colors.dirtyWhite),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    enabled: !_sending,
+                    minLines: 1,
+                    maxLines: 6,
+                    textInputAction: TextInputAction.send,
+                    onChanged: _onChanged,
+                    onSubmitted: (_) => _send(),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: hint,
+                      hintStyle: Theme.of(context)
+                          .textTheme
+                          .bodyLarge!
+                          .copyWith(color: colors.gray),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Emoji',
+                  onPressed: _sending ? null : _pickEmoji,
+                  icon: Icon(Icons.emoji_emotions_outlined,
+                      size: 20, color: colors.dirtyWhite),
+                ),
+                IconButton(
+                  tooltip: 'Send',
+                  onPressed: _sending ? null : _send,
+                  icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Resolves a space's `icon` reference to an absolute CDN URL, or null when the
+/// space has no icon. The field is either a bare asset hash or a
+/// server-relative/absolute path; both are handled.
+class _MentionPopup extends ConsumerWidget {
+  const _MentionPopup({
+    required this.spaceId,
+    required this.query,
+    required this.onPick,
+  });
+
+  final String spaceId;
+  final String query;
+  final ValueChanged<String> onPick;
+
+  static const int _maxResults = 6;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = BonfireThemeExtension.of(context);
+    final members = ref.watch(accordMembersControllerProvider(spaceId));
+    final space = ref.watch(spacesControllerProvider
+        .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)));
+    final roles = space?.roles ?? const <AccordRole>[];
+    final entries = _filter(members, roles, query);
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.foreground, width: 1),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final entry in entries)
+            InkWell(
+              onTap: () => onPick(entry.handle),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(entry.isRole ? Icons.label_outline : Icons.person,
+                        size: 14, color: colors.gray),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        entry.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    Text(
+                      "@${entry.handle}",
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall!
+                          .copyWith(color: colors.gray),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Picks up to [_maxResults] candidates from members and mentionable roles
+  /// whose handle/label matches [query] (case-insensitive). Prefix matches rank
+  /// before substring matches; members rank before roles within each tier.
+  List<_MentionEntry> _filter(
+    Map<String, AccordMember>? members,
+    List<AccordRole> roles,
+    String query,
+  ) {
+    final q = query.toLowerCase();
+    final prefix = <_MentionEntry>[];
+    final contains = <_MentionEntry>[];
+    void consider(_MentionEntry e) {
+      final h = e.handle.toLowerCase();
+      final l = e.label.toLowerCase();
+      if (q.isEmpty || h.startsWith(q) || l.startsWith(q)) {
+        prefix.add(e);
+      } else if (h.contains(q) || l.contains(q)) {
+        contains.add(e);
+      }
+    }
+
+    if (members != null) {
+      for (final m in members.values) {
+        final user = m.user;
+        final username = user?.username;
+        if (username == null || username.isEmpty) continue;
+        consider(_MentionEntry(
+          handle: username,
+          label: accordMemberName(m, fallback: username),
+          isRole: false,
+        ));
+      }
+    }
+    for (final r in roles) {
+      if (!r.mentionable) continue;
+      consider(_MentionEntry(
+        handle: r.name,
+        label: r.name,
+        isRole: true,
+      ));
+    }
+    final out = [...prefix, ...contains];
+    if (out.length > _maxResults) return out.sublist(0, _maxResults);
+    return out;
+  }
+}
+
+class _MentionEntry {
+  const _MentionEntry({
+    required this.handle,
+    required this.label,
+    required this.isRole,
+  });
+  final String handle;
+  final String label;
+  final bool isRole;
+}

@@ -7,10 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Renders Accord message content as markdown, reusing Bonfire's
 /// `markdown_viewer` stack (stylesheet + Prism code highlighting + external
-/// link launching). Unlike the firebridge `MessageMarkdownBox`, it takes a
-/// plain content string and omits the Discord-coupled mention extensions
-/// (`<@id>` / `<#id>` resolution against guild providers); Accord mention
-/// rendering is a separate follow-up.
+/// link launching). It takes a plain content string; Accord carries mentions as
+/// message metadata (`mentions` / `mentionRoles` / `mentionEveryone`) rather
+/// than inline markup, so there is no `<@id>` / `<#id>` substitution to do here.
 class AccordMarkdownBox extends StatelessWidget {
   const AccordMarkdownBox({super.key, required this.content});
 

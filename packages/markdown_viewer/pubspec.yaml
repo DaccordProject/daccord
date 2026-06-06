@@ -13,8 +13,6 @@ dependencies:
     sdk: flutter
 
   dart_markdown: ^3.1.7
-  firebridge:
-    path: ../firebridge
   flutter_riverpod: ^3.0.3
   riverpod_annotation: ^3.0.3
 

@@ -49,7 +49,7 @@ in detail below so it isn't under-counted.
 | 7h | · Emoji & soundboard — full emoji picker + custom space emoji; soundboard | 🟡 Full picker (search, categories, recents), custom space emoji in reactions, and soundboard (grid play/add/delete) done. **Gap: no custom-emoji management** (admin upload / rename / delete) |
 | 7i | · Settings — app settings, per-space settings, 2FA setup, self presence/status, per-channel/thread notification levels | 🟡 App settings, self presence/status picker, account settings (password change + 2FA enable/verify/disable), and per-channel mute done. **Gaps: no own-profile editing** (avatar/bio/display name), **no per-space notification levels** (all/mentions/none) |
 | 7j | · Notifications — local/in-app notifications | 🟢 Done — local mention notifications via `flutter_local_notifications` |
-| 8 | Retire firebridge | ⚪ Not started |
+| 8 | Retire firebridge | 🟢 Done (firebridge + firebridge_extensions deleted, legacy Discord auth/nav/voice tree removed, router stripped to Accord routes, no `discord.com`/CORS code remains) |
 | – | Plugins / Lua activities (reference client feature) | ❓ Scope undecided — defer like voice, or in-scope? Needs a decision |
 | 9 | Voice / video / GDExtension | ⛔ Deferred (out of scope) |
 
@@ -410,12 +410,22 @@ Flutter analogue yet. **Needs an explicit scope decision** — either deferred
 like voice (and stubbed/hidden), or planned as its own step. Currently neither
 built nor formally deferred.
 
-### Step 8 — Retire firebridge ⚪
-Once nothing imports it, delete `packages/firebridge` +
-`packages/firebridge_extensions`. Remove the now-unused Discord
-`login.dart` / `credentials.dart` / `mfa.dart` and the firebridge
-`NavigationFrame` / `Sidebar`. Strip remaining `discord.com` hosts, CORS proxy,
-and Firebase push.
+### Step 8 — Retire firebridge 🟢
+Done (gh issue #11). The router was stripped to Accord-only routes (`/`, `/login`,
+`/switcher`, `/register`, `/spaces`, `/settings`, `/admin`) — removing the legacy
+`NavigationFrame` / `GuildMessagingOverview` shell and the `/mfa` route — which
+orphaned the entire Discord component tree. With nothing live importing it, the
+unreachable set (205 Dart files: the firebridge-backed `features/{voice,guild,
+sidebar,me,friends,forum,overview,window}`, the Discord auth widgets
+`login.dart` / `credentials.dart` / `mfa.dart` / `captcha.dart` / qr-login, and
+all their `.g.dart` / `.mapper.dart` companions) was deleted, along with
+`packages/firebridge` + `packages/firebridge_extensions` and their `pubspec`
+entries (also dropped a stale `firebridge` dep from `packages/markdown_viewer`).
+No `discord.com` hosts or CORS proxy remain (they lived inside firebridge);
+Firebase push was already removed in step 1. `flutter analyze lib/` is clean
+(only 2 pre-existing `onReorder` deprecation infos) and all 83 tests pass.
+The optional internal package rename (`bonfire` → `daccord`) was **not** done —
+it stays carried-forward (high-churn, never user-visible; see step 1).
 
 ### Deferred — Voice / GDExtension ⛔
 Voice/video and GDExtension transport (`client.voiceManager`) — intentionally
@@ -657,7 +667,8 @@ current user are visually highlighted.
 - **Dependency resolution:** watch for a possible `web_socket_channel` / `http`
   version clash between `accordkit` and `firebridge` during `pub get`; resolve
   with a `dependency_overrides` entry if it surfaces.
-- **Discord coupling still present:** `discord.com` hosts and the CORS proxy
-  remain in the tree (inside `packages/firebridge` + the unused Discord auth
-  widgets) until firebridge retirement (step 8). Firebase push has been removed
-  (step 1).
+- **Discord coupling removed (step 8 🟢):** `packages/firebridge` +
+  `firebridge_extensions` and the unused Discord auth/nav/voice widgets are
+  deleted, so the `discord.com` hosts and CORS proxy that lived inside them are
+  gone. Firebase push was removed in step 1. No runtime dependency on Discord
+  remains.

@@ -320,6 +320,8 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                     initial: name.isEmpty ? '?' : name[0].toUpperCase(),
                     status: status,
                     radius: 28,
+                    backgroundColor:
+                        accordAvatarColor(member?.user, widget.userId),
                   ),
                   const SizedBox(width: 14),
                   Expanded(

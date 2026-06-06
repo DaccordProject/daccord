@@ -55,8 +55,8 @@ Media playback uses `media_kit` / libmpv. On Linux you may need:
 
 - **State:** Riverpod 3 (codegen) · **Models:** Freezed + `dart_mappable` · **Routing:** `go_router`
 - **Storage:** `hive_ce` · **Media:** `media_kit` / `cached_network_image` / `file_picker`
-- **Networking:** `accordkit` (`AccordClient`: REST + gateway WebSocket) — replacing the
-  legacy `packages/firebridge` (Discord) layer, which is being retired feature by feature.
+- **Networking:** `accordkit` (`AccordClient`: REST + gateway WebSocket). The legacy
+  `packages/firebridge` (Discord) layer has been fully retired.
 
 See [`CLAUDE.md`](CLAUDE.md) for the domain mapping (Discord → Accord) and contributor
 guidance.

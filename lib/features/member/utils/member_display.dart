@@ -97,6 +97,44 @@ String? accordAuthorAvatarUrl(
 Color? accordRoleColor(int color) =>
     color == 0 ? null : Color(0xFF000000 | (color & 0xFFFFFF));
 
+/// The reference client's fallback-avatar palette: 10 HSV hues at S 0.7, V 0.9
+/// (see `client_models.gd _color_from_id`).
+const List<double> _avatarPaletteHues = [
+  0.0, 0.08, 0.16, 0.28, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95,
+];
+
+/// A deterministic background color for an avatar with no image, derived from a
+/// user/space ID so each identity gets a stable color. Mirrors the reference
+/// client, which tints initial-only avatars instead of using a flat grey. The
+/// hash differs from Godot's `String.hash`, so colors won't match the Godot
+/// client exactly — only the per-id stability matters.
+Color accordIdColor(String id) {
+  if (id.isEmpty) return const Color(0xFF4F545C);
+  var hash = 0;
+  for (final unit in id.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7FFFFFFF;
+  }
+  final hue = _avatarPaletteHues[hash % _avatarPaletteHues.length];
+  return HSVColor.fromAHSV(1, hue * 360, 0.7, 0.9).toColor();
+}
+
+/// Black or white, whichever reads better on [background] — for the initial
+/// letter drawn over an [accordIdColor] avatar.
+Color accordOnColor(Color background) =>
+    background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
+/// The background color for an imageless avatar: the user's chosen
+/// `accent_color` when set, otherwise the deterministic [accordIdColor] derived
+/// from [fallbackId]. "Transparent" in the picker means no `accent_color`, which
+/// falls through to the auto color — never a blank swatch.
+Color accordAvatarColor(AccordUser? user, String fallbackId) {
+  final accent = user?.accentColor;
+  if (accent is int && accent > 0) {
+    return Color(0xFF000000 | (accent & 0xFFFFFF));
+  }
+  return accordIdColor(fallbackId);
+}
+
 /// The dot color for a presence status, or null for offline/unknown (callers
 /// hide the dot or render it muted).
 Color? accordPresenceColor(String status) {

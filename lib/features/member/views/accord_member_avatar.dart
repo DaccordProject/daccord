@@ -14,6 +14,7 @@ class AccordMemberAvatar extends StatelessWidget {
     required this.status,
     this.radius = 16,
     this.ringColor,
+    this.backgroundColor,
   });
 
   final String? avatarUrl;
@@ -25,6 +26,11 @@ class AccordMemberAvatar extends StatelessWidget {
   /// Defaults to the theme foreground.
   final Color? ringColor;
 
+  /// Background tint shown behind the initial when there's no avatar image.
+  /// Pass [accordIdColor] of the user/space ID for a stable per-identity color;
+  /// defaults to a flat grey.
+  final Color? backgroundColor;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -32,6 +38,7 @@ class AccordMemberAvatar extends StatelessWidget {
     final dotColor = accordPresenceColor(status);
     final dotSize = radius * 0.6;
     final url = avatarUrl;
+    final bg = backgroundColor ?? colors.darkGray;
     return SizedBox(
       width: radius * 2,
       height: radius * 2,
@@ -39,12 +46,13 @@ class AccordMemberAvatar extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: radius,
-            backgroundColor: colors.darkGray,
+            backgroundColor: bg,
             foregroundImage:
                 url == null ? null : CachedNetworkImageProvider(url),
             child: Text(
               initial,
-              style: theme.textTheme.labelLarge!.copyWith(color: Colors.white),
+              style: theme.textTheme.labelLarge!
+                  .copyWith(color: accordOnColor(bg)),
             ),
           ),
           if (dotColor != null)

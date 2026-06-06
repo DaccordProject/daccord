@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -41,6 +42,23 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
   List<int>? _newAvatarBytes;
   String? _newAvatarFilename;
 
+  /// The chosen imageless-avatar background color (stored as the user's
+  /// `accent_color`). `null` means "transparent" — the avatar falls back to the
+  /// deterministic [accordAvatarColor] derived from the user ID.
+  int? _accentColor;
+
+  /// Preset background swatches for the imageless avatar.
+  static const _avatarSwatches = <int>[
+    0xFF2448BE, // blue
+    0xFF5865F2, // blurple
+    0xFF57F287, // green
+    0xFFEB459E, // pink
+    0xFFFEE75C, // yellow
+    0xFFED4245, // red
+    0xFF88C0D0, // cyan
+    0xFFFF7A45, // orange
+  ];
+
   AccordClient? get _client => ref.read(
         accordAuthProvider
             .select((s) => s is AccordAuthLoggedIn ? s.client : null),
@@ -76,6 +94,8 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     if (result.ok && data is AccordUser) {
       _displayName.text = data.displayName ?? data.username;
       _bio.text = data.bio ?? '';
+      final accent = data.accentColor;
+      if (accent is int && accent > 0) _accentColor = 0xFF000000 | (accent & 0xFFFFFF);
       ref.read(accordUsersControllerProvider.notifier).upsert(data);
     }
     setState(() => _loaded = true);
@@ -91,6 +111,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     setState(() {
       _newAvatarBytes = file!.bytes!;
       _newAvatarFilename = file.name;
+      // An uploaded image hides the colored fallback, so reset the picker to
+      // transparent — the chosen color only applies to imageless avatars.
+      _accentColor = null;
     });
   }
 
@@ -104,6 +127,8 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     final body = <String, dynamic>{
       'display_name': _displayName.text.trim(),
       'bio': _bio.text.trim(),
+      // null clears the accent server-side, falling back to the auto color.
+      'accent_color': _accentColor == null ? null : (_accentColor! & 0xFFFFFF),
     };
     if (_newAvatarBytes != null) {
       body['avatar'] = AccordCDN.buildDataUri(
@@ -120,6 +145,14 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     final updated = result.data;
     if (updated is AccordUser) {
       ref.read(accordUsersControllerProvider.notifier).upsert(updated);
+      // The member caches hold their own AccordUser per member; propagate the
+      // change so message authors and the roster update, not just surfaces that
+      // read the global user cache.
+      for (final spaceId in activeMemberSpaces) {
+        ref
+            .read(accordMembersControllerProvider(spaceId).notifier)
+            .applyUserUpdate(updated);
+      }
     }
     if (mounted) Navigator.of(context).maybePop();
   }
@@ -137,6 +170,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     final avatarUrl = me == null
         ? null
         : accordAvatarUrl(me, session?.server.cdnUrl);
+    final previewBg = _accentColor != null
+        ? Color(_accentColor!)
+        : accordIdColor(session?.userId ?? '');
 
     return Dialog(
       child: ConstrainedBox(
@@ -173,6 +209,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                     children: [
                       CircleAvatar(
                         radius: 40,
+                        backgroundColor: previewBg,
                         backgroundImage: _newAvatarBytes != null
                             ? MemoryImage(_toUint8(_newAvatarBytes!))
                             : (avatarUrl != null
@@ -184,7 +221,9 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                                         ? session!.username[0]
                                         : '?')
                                     .toUpperCase(),
-                                style: const TextStyle(fontSize: 24),
+                                style: TextStyle(
+                                    fontSize: 24,
+                                    color: accordOnColor(previewBg)),
                               )
                             : null,
                       ),
@@ -219,6 +258,38 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                     labelText: 'Bio',
                     hintText: 'A short bio shown on your profile',
                   ),
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Avatar background',
+                      style: theme.textTheme.bodySmall!
+                          .copyWith(color: colors.dirtyWhite)),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ColorSwatch(
+                      color: accordIdColor(session?.userId ?? ''),
+                      selected: _accentColor == null,
+                      transparent: true,
+                      label: 'Transparent (auto)',
+                      onTap: _busy
+                          ? null
+                          : () => setState(() => _accentColor = null),
+                    ),
+                    for (final argb in _avatarSwatches)
+                      _ColorSwatch(
+                        color: Color(argb),
+                        selected: _accentColor == argb,
+                        label: null,
+                        onTap: _busy
+                            ? null
+                            : () => setState(() => _accentColor = argb),
+                      ),
+                  ],
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
@@ -262,3 +333,52 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
 // typed as List<int> through accordkit helpers — cast/copy on the boundary.
 Uint8List _toUint8(List<int> bytes) =>
     bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
+
+/// A selectable avatar-background swatch. The [transparent] variant marks the
+/// "no chosen color" option (the avatar falls back to its auto color), drawn
+/// with a slash over the preview tint.
+class _ColorSwatch extends StatelessWidget {
+  const _ColorSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+    this.label,
+    this.transparent = false,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback? onTap;
+  final String? label;
+  final bool transparent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Tooltip(
+      message: label ?? '',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? colors.dirtyWhite : Colors.transparent,
+              width: 3,
+            ),
+          ),
+          child: Icon(
+            transparent
+                ? Icons.format_color_reset_outlined
+                : (selected ? Icons.check : null),
+            size: 18,
+            color: accordOnColor(color),
+          ),
+        ),
+      ),
+    );
+  }
+}

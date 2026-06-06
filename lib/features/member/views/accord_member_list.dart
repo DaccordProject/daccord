@@ -223,6 +223,8 @@ class _MemberRow extends StatelessWidget {
                     initial: initial,
                     status: status,
                     radius: 16,
+                    backgroundColor:
+                        accordAvatarColor(member.user, member.userId),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
