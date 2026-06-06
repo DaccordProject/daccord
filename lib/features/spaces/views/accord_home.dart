@@ -210,6 +210,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     ref.read(openTabsControllerProvider.notifier).activate(tab.key);
     setState(() => _pendingOpenSpaceId = null);
     _markChannelRead(tab.channelId);
+    ref
+        .read(settingsControllerProvider.notifier)
+        .setLastSelection(tab.spaceId, tab.channelId);
   }
 
   /// Opens (or switches to) a tab for [channelId] in [spaceId] on the active
@@ -251,6 +254,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         );
     if (channel?.type != 'voice') _markChannelRead(channelId);
     setState(() => _pendingOpenSpaceId = null);
+    ref
+        .read(settingsControllerProvider.notifier)
+        .setLastSelection(spaceId, channelId);
   }
 
   /// Auto-opens [channel] as a tab once its space's channels have loaded (used
@@ -273,6 +279,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
             ),
           );
       _markChannelRead(channel.id);
+      ref
+          .read(settingsControllerProvider.notifier)
+          .setLastSelection(spaceId, channel.id);
       if (_pendingOpenSpaceId != null) {
         setState(() => _pendingOpenSpaceId = null);
       }
@@ -365,7 +374,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         (spaces?.any((s) => s.id == activeTab.spaceId) ?? false)) {
       effectiveSpaceId = activeTab.spaceId;
     } else if (spaces != null && spaces.isNotEmpty) {
-      effectiveSpaceId = spaces.first.id;
+      // No pending/active selection (e.g. a fresh launch with no open tabs):
+      // restore the last selected space when it still exists, else default to
+      // the first. Mirrors the reference's `last_space_id` restore.
+      final lastSpaceId = ref.read(settingsControllerProvider).lastSpaceId;
+      effectiveSpaceId =
+          lastSpaceId.isNotEmpty && spaces.any((s) => s.id == lastSpaceId)
+          ? lastSpaceId
+          : spaces.first.id;
     }
 
     _maybeCheckRules(spaces?.firstWhereOrNull((s) => s.id == effectiveSpaceId));
@@ -385,9 +401,22 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         (channels?.any((c) => c.id == activeTab.channelId) ?? false);
     if (activeTabHere) {
       shownChannelId = activeTab.channelId;
-    } else if (effectiveSpaceId != null && firstText != null) {
-      shownChannelId = firstText.id;
-      _scheduleAutoOpen(firstText, effectiveSpaceId);
+    } else if (effectiveSpaceId != null && channels != null) {
+      // Restore the last selected channel within the restored space when it
+      // still exists; otherwise fall back to the space's first text channel.
+      // Routed through [_scheduleAutoOpen] (not [_openChannel]) so restoring a
+      // voice channel shows its lobby instead of auto-rejoining the call.
+      final settings = ref.read(settingsControllerProvider);
+      final lastChannel =
+          settings.lastSpaceId == effectiveSpaceId &&
+              settings.lastChannelId.isNotEmpty
+          ? channels.firstWhereOrNull((c) => c.id == settings.lastChannelId)
+          : null;
+      final restore = lastChannel ?? firstText;
+      if (restore != null) {
+        shownChannelId = restore.id;
+        _scheduleAutoOpen(restore, effectiveSpaceId);
+      }
     }
 
     // Let the notification layer skip the channel that's on screen.

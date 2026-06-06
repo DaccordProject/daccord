@@ -69,6 +69,8 @@ class AccordSettings {
     this.autoUpdateCheck = true,
     this.dismissedUpdateVersion = '',
     this.lastUpdateCheckMs = 0,
+    this.lastSpaceId = '',
+    this.lastChannelId = '',
   });
 
   /// Selected colour theme.
@@ -180,6 +182,14 @@ class AccordSettings {
   /// checks. Mirrors `Config.get_last_update_check` (which stores seconds).
   final int lastUpdateCheckMs;
 
+  /// The space the user last had selected, restored on launch. Empty until a
+  /// selection is made. Mirrors the reference's `Config` `last_space_id`.
+  final String lastSpaceId;
+
+  /// The channel the user last had selected, restored on launch (within
+  /// [lastSpaceId]). Mirrors the reference's `last_channel_id`.
+  final String lastChannelId;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -211,6 +221,8 @@ class AccordSettings {
     bool? autoUpdateCheck,
     String? dismissedUpdateVersion,
     int? lastUpdateCheckMs,
+    String? lastSpaceId,
+    String? lastChannelId,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -244,6 +256,8 @@ class AccordSettings {
       dismissedUpdateVersion:
           dismissedUpdateVersion ?? this.dismissedUpdateVersion,
       lastUpdateCheckMs: lastUpdateCheckMs ?? this.lastUpdateCheckMs,
+      lastSpaceId: lastSpaceId ?? this.lastSpaceId,
+      lastChannelId: lastChannelId ?? this.lastChannelId,
     );
   }
 
@@ -328,6 +342,8 @@ class AccordSettings {
     'autoUpdateCheck': autoUpdateCheck,
     'dismissedUpdateVersion': dismissedUpdateVersion,
     'lastUpdateCheckMs': lastUpdateCheckMs,
+    'lastSpaceId': lastSpaceId,
+    'lastChannelId': lastChannelId,
   };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -391,6 +407,8 @@ class AccordSettings {
       autoUpdateCheck: json['autoUpdateCheck'] as bool? ?? true,
       dismissedUpdateVersion: (json['dismissedUpdateVersion'] as String?) ?? '',
       lastUpdateCheckMs: (json['lastUpdateCheckMs'] as num?)?.toInt() ?? 0,
+      lastSpaceId: (json['lastSpaceId'] as String?) ?? '',
+      lastChannelId: (json['lastChannelId'] as String?) ?? '',
     );
   }
 }

@@ -239,6 +239,16 @@ class SettingsController extends _$SettingsController {
   void setLastUpdateCheckMs(int millis) =>
       _update(state.copyWith(lastUpdateCheckMs: millis));
 
+  /// Persists the last selected [spaceId]/[channelId] so the next launch can
+  /// restore it. No-op when unchanged. Mirrors the reference's
+  /// `Config.set_last_space_id` / `set_last_channel_id`.
+  void setLastSelection(String spaceId, String channelId) {
+    if (state.lastSpaceId == spaceId && state.lastChannelId == channelId) {
+      return;
+    }
+    _update(state.copyWith(lastSpaceId: spaceId, lastChannelId: channelId));
+  }
+
   /// Saves (or clears, when [text] is blank) the unsent draft for [channelId].
   void setDraft(String channelId, String text) {
     final trimmed = text;
