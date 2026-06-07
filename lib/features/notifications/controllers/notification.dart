@@ -23,6 +23,11 @@ Future<void> initializeNotifications() async {
     iOS: DarwinInitializationSettings(),
     macOS: DarwinInitializationSettings(),
     linux: LinuxInitializationSettings(defaultActionName: 'Open'),
+    windows: WindowsInitializationSettings(
+      appName: 'Daccord',
+      appUserModelId: 'com.daccord.app',
+      guid: 'd74fd681-d4f2-4320-9820-4395f4226dce',
+    ),
   );
 
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
