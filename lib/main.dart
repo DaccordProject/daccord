@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -15,10 +16,12 @@ import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_keyboard_size/flutter_keyboard_size.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:livekit_client/livekit_client.dart' as lk;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
@@ -27,6 +30,20 @@ import 'package:bonfire/shared/utils/web_utils/web_utils.dart'
 
 void main() async {
   debugPrint("Starting app...");
+
+  // #68: on Linux, make livekit_client *leak* native WebRTC resources instead of
+  // freeing them on disconnect. Freeing the native MediaStreamTrack / audio
+  // source / PeerConnection tears down state inside the prebuilt libwebrtc.so
+  // that heap-corrupts on Linux (use-after-free in the PulseAudio capture thread;
+  // "corrupted size vs. prev_size" on PeerConnection dispose), crashing the app
+  // on every voice channel leave/switch. The leak is bounded per session and
+  // reclaimed by the OS at process exit — a far better trade than a hard crash.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+    lk.kLiveKitSkipNativeRelease = true;
+  }
+
+  _silenceFlutterWebrtcStreamCancelNoise();
+  _silenceLiveKitAsyncErrors();
 
   initializePlatform();
 
@@ -57,6 +74,44 @@ void main() async {
       ),
     ),
   );
+}
+
+/// flutter_webrtc throws an uncaught `PlatformException("No active stream to
+/// cancel")` from inside its own EventChannel teardown when a PeerConnection's
+/// event stream is cancelled after the native sink is already gone — a known
+/// upstream bug that's harmless (the stream is being disposed anyway). It fires
+/// on every voice disconnect / LiveKit room dispose and otherwise dumps a full
+/// stack to the console each time. Swallow exactly that error and forward
+/// everything else to the default handler.
+void _silenceFlutterWebrtcStreamCancelNoise() {
+  final previous = FlutterError.onError;
+  FlutterError.onError = (details) {
+    final exception = details.exception;
+    if (exception is PlatformException &&
+        exception.message == 'No active stream to cancel') {
+      return;
+    }
+    previous?.call(details);
+  };
+}
+
+/// The LiveKit SDK fires internal timeouts as uncaught async errors when the
+/// SFU accepts the socket but never completes the join handshake — e.g.
+/// `Room._onParticipantUpdateEvent` waits up to 10s for a `RoomConnectedEvent`
+/// and a stalled publish raises a `TrackPublishException`. These escape to the
+/// root zone (not [FlutterError.onError]) and would otherwise dump a full stack
+/// on every flaky connect. We've already degraded the voice flow to stay
+/// responsive (bounded connect, non-blocking media setup), so swallow exactly
+/// the SDK's own [lk.LiveKitException]s here and forward everything else.
+void _silenceLiveKitAsyncErrors() {
+  final previous = PlatformDispatcher.instance.onError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (error is lk.LiveKitException) {
+      debugPrint('Swallowed LiveKit async error: $error');
+      return true;
+    }
+    return previous?.call(error, stack) ?? false;
+  };
 }
 
 class MainWindow extends ConsumerStatefulWidget {

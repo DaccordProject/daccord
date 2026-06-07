@@ -84,6 +84,7 @@ dependencies:
   flutter_webrtc: ^1.2.0
   sdp_transform: ^0.3.2
   livekit_client: ^2.8.0
+  logging: ^1.3.0 # TEMP (#68 ICE probe) — used by the livekit log tap in voice.dart
   webcrypto:
     git:
       url: https://github.com/OpenBonfire/webcrypto.dart
@@ -96,6 +97,28 @@ dependencies:
 
 dependency_overrides:
   http: ^1.2.1
+
+  # #68: local fork of livekit_client 2.8.0 that, when [kLiveKitSkipNativeRelease]
+  # is set (main.dart, Linux only), skips every native WebRTC resource free on
+  # disconnect (MediaStreamTrack.stop/dispose, MediaStream.dispose, the publisher
+  # PeerConnection removeTrack/close/dispose). Those frees crash on Linux because
+  # the prebuilt libwebrtc.so heap-corrupts during the (server-forced) teardown.
+  # We leak the native objects instead; the OS reclaims them at process exit.
+  livekit_client:
+    path: packages/livekit_client
+
+  # livekit_client 2.8.0 hard-pins flutter_webrtc 1.4.0 (to avoid iOS/macOS pod
+  # conflicts — irrelevant on Linux). We override past 1.4.1 for two Linux fixes
+  # needed by daccord-app #68 (voice channel-switch ~10s stall):
+  #   - #2021 "sanitize UTF-8 for device strings before platform messages" (fixes
+  #     `FormatException: Missing extension byte` on mic publish), and
+  #   - the libwebrtc bump to m144.7559.02 + desktop audio-options change, which
+  #     eliminate the ~10s setLocalDescription stall on the 2nd connect (#2070).
+  # Pinned to upstream commit 978849b (post-1.4.1) which contains both.
+  flutter_webrtc:
+    git:
+      url: https://github.com/flutter-webrtc/flutter-webrtc.git
+      ref: 978849b90adfaa6d52381c82cf1fbd74ccf5731b
 
   media_kit:
     git:
