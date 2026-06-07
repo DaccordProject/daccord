@@ -106,6 +106,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Update CocoaPods spec repo (macOS)
+        # media_kit's mpv pods need a fresh spec repo; the runner's cache is
+        # often too old, failing pod install with "specs repository is too
+        # out-of-date to satisfy dependencies".
+        if: matrix.platform == 'macos'
+        run: pod repo update
+
       - name: Code generation (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
