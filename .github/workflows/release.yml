@@ -71,12 +71,22 @@ jobs:
             artifact: daccord-windows-x86_64
           - name: macOS
             platform: macos
-            os: macos-latest
+            # macos-15 ships newer Xcodes than macos-latest's default (16.4);
+            # the voice stack (connectivity_plus) needs a recent SDK.
+            os: macos-15
             artifact: daccord-macos
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode (macOS)
+        # connectivity_plus (pulled in by livekit_client) uses NWPath APIs that
+        # only exist in a recent SDK; the runner's default Xcode 16.4 lacks them.
+        if: matrix.platform == 'macos'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Set up Java 17 (Android)
         if: matrix.platform == 'android'
