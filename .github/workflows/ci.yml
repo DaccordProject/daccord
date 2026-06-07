@@ -11,6 +11,10 @@ name: CI
 
 on:
   push:
+    # Tag pushes are handled by release.yml, which calls this workflow via
+    # workflow_call — without this, a release tag would trigger CI twice.
+    tags-ignore:
+      - "**"
   pull_request:
   workflow_call:
   workflow_dispatch:
