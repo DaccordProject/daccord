@@ -333,12 +333,20 @@ class VoiceController extends _$VoiceController {
   }
 
   /// The server removed us from voice (our gateway state's channel went null).
-  void handleForcedDisconnect() {
-    _serialize(_forcedDisconnectLocked);
+  /// [leftChannel] is the channel the null-echo reported leaving; the teardown
+  /// only fires if we're *still* in it when this runs.
+  void handleForcedDisconnect(String? leftChannel) {
+    _serialize(() => _forcedDisconnectLocked(leftChannel));
   }
 
-  Future<void> _forcedDisconnectLocked() async {
+  Future<void> _forcedDisconnectLocked(String? leftChannel) async {
     if (!state.isConnected) return;
+    // A channel switch leaves the old channel (server echoes our own
+    // channel→null), which queues a forced-disconnect *behind* the in-flight
+    // join to the new channel. By the time it runs we've already connected
+    // elsewhere — that stale echo must not tear the new session down. Only
+    // honour the kick if we're still in the channel it was for.
+    if (leftChannel != null && state.channelId != leftChannel) return;
     _reconnectAttempted = false;
     await _session?.disconnect();
     state = const VoiceConnection();

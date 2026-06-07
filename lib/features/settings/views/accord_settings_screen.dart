@@ -254,20 +254,24 @@ class AccordSettingsScreen extends ConsumerWidget {
               subtitle: const Text('Spaces, users, reports, settings'),
               onTap: () => context.go('/admin'),
             ),
-          ListTile(
-            leading: Icon(Icons.logout, color: colors.red),
-            title: Text('Log out', style: TextStyle(color: colors.red)),
-            onTap: () {
-              ref.read(accordAuthProvider.notifier).logout();
-              if (context.mounted) context.go('/');
-            },
-          ),
           const Divider(height: 24),
           _SectionHeader('Server Directory'),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: _MasterServerField(),
           ),
+          const Divider(height: 24),
+          _SectionHeader('Updates'),
+          ListTile(
+            leading: Icon(Icons.system_update, color: colors.dirtyWhite),
+            title: const Text('Updates'),
+            subtitle: const Text('Current version, check for new releases'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showUpdatesSettings(context),
+          ),
+          const Divider(height: 24),
+          _SectionHeader('Backup'),
+          const SettingsBackupSection(),
           const Divider(height: 24),
           _SectionHeader('Developer'),
           SwitchListTile(
@@ -287,22 +291,19 @@ class AccordSettingsScreen extends ConsumerWidget {
               onTap: () => showDeveloperSettings(context),
             ),
           const Divider(height: 24),
-          _SectionHeader('Backup'),
-          const SettingsBackupSection(),
-          const Divider(height: 24),
-          _SectionHeader('Updates'),
-          ListTile(
-            leading: Icon(Icons.system_update, color: colors.dirtyWhite),
-            title: const Text('Updates'),
-            subtitle: const Text('Current version, check for new releases'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showUpdatesSettings(context),
-          ),
-          const Divider(height: 24),
           _SectionHeader('About'),
           const ListTile(
             title: Text('Daccord'),
             subtitle: Text('A native multi-platform Daccord client (GPLv3).'),
+          ),
+          const Divider(height: 24),
+          ListTile(
+            leading: Icon(Icons.logout, color: colors.red),
+            title: Text('Log out', style: TextStyle(color: colors.red)),
+            onTap: () {
+              ref.read(accordAuthProvider.notifier).logout();
+              if (context.mounted) context.go('/');
+            },
           ),
         ],
       ),

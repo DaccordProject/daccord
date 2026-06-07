@@ -46,6 +46,15 @@ VoidCallback handleAccordEvents(
 }) {
   final subs = <StreamSubscription<dynamic>>[];
 
+  // This handler is a long-lived imperative event sink, not a provider build, so
+  // its cross-provider writes must not register against the auth provider's
+  // dependency graph. Read through the container: `ref.read` runs a debug-only
+  // circular-dependency assert that walks auth's dependents and (falsely) trips
+  // on any controller that `ref.watch(accordAuthProvider)` to get its client
+  // (messages/channels/members). `container.read` is what `ref.read` delegates
+  // to, minus that assert.
+  final container = ref.container;
+
   // Gateway lifecycle is mirrored per-connection (for the rail's status dots);
   // the global connection banner only follows the active connection.
   void setConnection(ConnectionStatus status) {
@@ -114,7 +123,9 @@ VoidCallback handleAccordEvents(
           vs.channelId == null &&
           voice.channelId != null &&
           previousChannel == voice.channelId) {
-        ref.read(voiceControllerProvider.notifier).handleForcedDisconnect();
+        ref
+            .read(voiceControllerProvider.notifier)
+            .handleForcedDisconnect(previousChannel);
       }
       return;
     }
@@ -126,7 +137,9 @@ VoidCallback handleAccordEvents(
         vs.userId == me &&
         vs.channelId == null &&
         voice.channelId != null) {
-      ref.read(voiceControllerProvider.notifier).handleForcedDisconnect();
+      ref
+          .read(voiceControllerProvider.notifier)
+          .handleForcedDisconnect(voice.channelId);
     }
   }));
 
@@ -177,7 +190,7 @@ VoidCallback handleAccordEvents(
       ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
       return;
     }
-    ref
+    container
         .read(accordChannelsControllerProvider(spaceId).notifier)
         .upsertChannel(channel);
   }
@@ -191,7 +204,7 @@ VoidCallback handleAccordEvents(
       ref.read(dmChannelsControllerProvider.notifier).remove(channel.id);
       return;
     }
-    ref
+    container
         .read(accordChannelsControllerProvider(spaceId).notifier)
         .removeChannel(channel.id);
   }));
@@ -202,14 +215,14 @@ VoidCallback handleAccordEvents(
   subs.add(client.onMessageCreate.listen((message) {
     if (!isActive()) return;
     if (!activeMessageChannels.contains(message.channelId)) return;
-    ref
+    container
         .read(accordMessagesControllerProvider(message.channelId).notifier)
         .addMessage(message);
   }));
   subs.add(client.onMessageUpdate.listen((message) {
     if (!isActive()) return;
     if (!activeMessageChannels.contains(message.channelId)) return;
-    ref
+    container
         .read(accordMessagesControllerProvider(message.channelId).notifier)
         .updateMessage(message);
   }));
@@ -220,7 +233,7 @@ VoidCallback handleAccordEvents(
         data['id']?.toString() ?? data['message_id']?.toString();
     if (channelId == null || messageId == null) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    ref
+    container
         .read(accordMessagesControllerProvider(channelId).notifier)
         .removeMessage(messageId);
   }));
@@ -318,7 +331,7 @@ VoidCallback handleAccordEvents(
     if (channelId == null || messageId == null || name.isEmpty) return;
     if (!activeMessageChannels.contains(channelId)) return;
     final isOwn = data['user_id']?.toString() == currentUserId;
-    ref
+    container
         .read(accordMessagesControllerProvider(channelId).notifier)
         .applyReaction(messageId, name,
             added: added, isOwn: isOwn, emojiId: emojiId(data));
@@ -333,7 +346,7 @@ VoidCallback handleAccordEvents(
     final messageId = data['message_id']?.toString();
     if (channelId == null || messageId == null) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    ref
+    container
         .read(accordMessagesControllerProvider(channelId).notifier)
         .clearReactions(messageId);
   }));
@@ -344,7 +357,7 @@ VoidCallback handleAccordEvents(
     final name = emojiName(data);
     if (channelId == null || messageId == null || name.isEmpty) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    ref
+    container
         .read(accordMessagesControllerProvider(channelId).notifier)
         .clearReactionEmoji(messageId, name);
   }));
@@ -366,7 +379,7 @@ VoidCallback handleAccordEvents(
   void cacheMember(AccordMember member) {
     if (!isActive()) return;
     if (!activeMemberSpaces.contains(member.spaceId)) return;
-    ref
+    container
         .read(accordMembersControllerProvider(member.spaceId).notifier)
         .upsertMember(member);
   }
@@ -408,7 +421,7 @@ VoidCallback handleAccordEvents(
             : null);
     if (spaceId == null || userId == null) return;
     if (!activeMemberSpaces.contains(spaceId)) return;
-    ref
+    container
         .read(accordMembersControllerProvider(spaceId).notifier)
         .removeMember(userId);
   }));
