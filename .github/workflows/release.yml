@@ -39,6 +39,10 @@ jobs:
   ci:
     name: CI
     uses: ./.github/workflows/ci.yml
+    # Test gate only — the build job below builds every platform, so running
+    # CI's build matrix here too would just compile everything twice.
+    with:
+      skip_build: true
     secrets: inherit
 
   build:

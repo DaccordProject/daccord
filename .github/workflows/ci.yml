@@ -17,6 +17,14 @@ on:
       - "**"
   pull_request:
   workflow_call:
+    inputs:
+      skip_build:
+        description: >-
+          Skip the per-platform build matrix and run only analyze/test.
+          release.yml sets this true because it builds every platform itself,
+          so there's no point building everything twice on the release path.
+        type: boolean
+        default: false
   workflow_dispatch:
 
 concurrency:
@@ -59,6 +67,9 @@ jobs:
   build:
     name: Build ${{ matrix.name }}
     needs: analyze
+    # On normal push/PR/dispatch, inputs.skip_build is null (falsy) so the
+    # matrix runs. release.yml passes skip_build: true to gate on tests only.
+    if: ${{ !inputs.skip_build }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
