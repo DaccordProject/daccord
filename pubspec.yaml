@@ -164,6 +164,13 @@ flutter_launcher_icons:
   ios: true
   android: true
   image_path: "assets/images/icon.png"
+  # Android adaptive icon (API 26+). Without these, only a legacy square icon is
+  # generated, so launchers and the Android 12+ system splash wrap the mascot on
+  # a white circle and shrink it ("small logo on white"). The foreground is a
+  # pre-padded copy of the mascot sized into the adaptive-icon safe zone.
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/icon_foreground.png"
 
 flutter:
   uses-material-design: true

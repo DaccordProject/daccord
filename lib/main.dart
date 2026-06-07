@@ -63,9 +63,16 @@ void main() async {
     overlays: [SystemUiOverlay.top],
   );
 
-  await setupHive();
-  await initializeNotifications();
-  soundManager.init();
+  // Local storage must be ready before the widget tree reads its boxes, so this
+  // stays awaited — but guard it. A throw here (e.g. a corrupt Hive box) would
+  // otherwise abort main() before runApp(), so the OS never gets a first frame
+  // and the launch splash hangs forever with nothing surfaced. Catching lets
+  // the UI render and report instead of silently sticking on the splash.
+  try {
+    await setupHive();
+  } catch (e, st) {
+    debugPrint('setupHive failed during startup: $e\n$st');
+  }
 
   runApp(
     const AppRestart(
@@ -74,6 +81,28 @@ void main() async {
       ),
     ),
   );
+
+  // Non-critical platform init runs *after* the first frame so a slow or
+  // throwing platform channel can never block startup. This is the failure mode
+  // that stuck Windows (#70) and Android on the launch splash: main() awaited
+  // initializeNotifications() before runApp(), so one plugin throw hung the app.
+  unawaited(_initBackgroundServices());
+}
+
+/// Best-effort init for services the UI doesn't need to render its first frame.
+/// Each step is isolated so one failing plugin can't take down the others — or
+/// startup. Both call sites already no-op until their service is initialized.
+Future<void> _initBackgroundServices() async {
+  try {
+    await initializeNotifications();
+  } catch (e, st) {
+    debugPrint('initializeNotifications failed: $e\n$st');
+  }
+  try {
+    soundManager.init();
+  } catch (e, st) {
+    debugPrint('soundManager.init failed: $e\n$st');
+  }
 }
 
 /// flutter_webrtc throws an uncaught `PlatformException("No active stream to
