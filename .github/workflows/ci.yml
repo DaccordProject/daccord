@@ -96,6 +96,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Cache Gradle (Android)
+        if: matrix.platform == 'android'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
         run: |
