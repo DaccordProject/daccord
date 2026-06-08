@@ -239,9 +239,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     String? replyTo,
   }) async {
     if (files.isEmpty) return send(client, content, replyTo: replyTo);
-    final data = <String, dynamic>{};
-    final trimmed = content.trim();
-    if (trimmed.isNotEmpty) data['content'] = trimmed;
+    final data = <String, dynamic>{'content': content.trim()};
     if (replyTo != null) data['reply_to'] = replyTo;
 
     final result = await client.messages.createWithAttachments(
