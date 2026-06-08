@@ -34,6 +34,9 @@ concurrency:
 env:
   # The repo pins the Flutter channel in .fvmrc; keep this in sync with it.
   FLUTTER_CHANNEL: beta
+  # Workspace-local pub cache so actions/cache can persist it (incl. the
+  # flutter_webrtc git checkout + its downloaded libwebrtc binary).
+  PUB_CACHE: ${{ github.workspace }}/.pub-cache
 
 jobs:
   analyze:
@@ -42,6 +45,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache codegen (build_runner)
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/build
+          key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            codegen-${{ runner.os }}-
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -100,6 +119,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache codegen (build_runner)
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/build
+          key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            codegen-${{ runner.os }}-
+
       - name: Set up Java 17 (Android)
         if: matrix.platform == 'android'
         uses: actions/setup-java@v4
@@ -147,14 +182,31 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build ${{ matrix.name }}
-        run: |
-          case "${{ matrix.platform }}" in
-            web)     flutter build web     --no-tree-shake-icons --release ;;
-            android) flutter build apk     --no-tree-shake-icons -v ;;
-            linux)   flutter build linux   -v ;;
-            windows) flutter build windows -v ;;
-          esac
         shell: bash
+        # Desktop builds fetch large prebuilt native archives (libwebrtc, mpv)
+        # at CMake-configure time; those fetches intermittently 504 or arrive
+        # corrupted. Retry with backoff so a transient fetch failure doesn't
+        # fail CI.
+        run: |
+          set -uo pipefail
+          build_once() {
+            case "${{ matrix.platform }}" in
+              web)     flutter build web     --no-tree-shake-icons --release ;;
+              android) flutter build apk     --no-tree-shake-icons -v ;;
+              linux)   flutter build linux   -v ;;
+              windows) flutter build windows -v ;;
+            esac
+          }
+          n=0; max=3
+          until build_once; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::build failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::build attempt $n failed; retrying in $((n * 30))s"
+            sleep $((n * 30))
+          done
 
       - name: Upload ${{ matrix.name }} artifact
         uses: actions/upload-artifact@v4

@@ -49,6 +49,12 @@ jobs:
     name: Build ${{ matrix.name }}
     needs: [verify, ci]
     runs-on: ${{ matrix.os }}
+    # Workspace-local pub cache so it can be persisted across runs (see the
+    # "Cache pub + native deps" step). flutter_webrtc downloads its prebuilt
+    # libwebrtc archive into its git checkout under here, so caching this dir
+    # also caches that ~hundreds-of-MB binary — the thing that 504'd before.
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
     strategy:
       fail-fast: false
       matrix:
@@ -79,6 +85,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache codegen (build_runner)
+        # build_runner keys its own incremental state on input hashes, so a
+        # coarse cache key is safe: stale entries are invalidated internally,
+        # but unchanged generators are skipped on a hit.
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool/build
+          key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            codegen-${{ runner.os }}-
 
       - name: Select latest stable Xcode (macOS)
         # connectivity_plus (pulled in by livekit_client) uses NWPath APIs that
@@ -154,14 +184,32 @@ jobs:
 
       - name: Build ${{ matrix.name }}
         shell: bash
+        # Desktop builds fetch large prebuilt native archives (libwebrtc, mpv)
+        # from third-party GitHub releases at CMake-configure time. Those fetches
+        # intermittently 504 or arrive corrupted and fail the whole release.
+        # Retry the build a few times with backoff so a transient fetch failure
+        # doesn't sink a tagged release; a cached archive also short-circuits it.
         run: |
-          case "${{ matrix.platform }}" in
-            web)     flutter build web     --no-tree-shake-icons --release ;;
-            android) flutter build apk     --no-tree-shake-icons -v ;;
-            linux)   flutter build linux   -v ;;
-            windows) flutter build windows -v ;;
-            macos)   flutter build macos   -v ;;
-          esac
+          set -uo pipefail
+          build_once() {
+            case "${{ matrix.platform }}" in
+              web)     flutter build web     --no-tree-shake-icons --release ;;
+              android) flutter build apk     --no-tree-shake-icons -v ;;
+              linux)   flutter build linux   -v ;;
+              windows) flutter build windows -v ;;
+              macos)   flutter build macos   -v ;;
+            esac
+          }
+          n=0; max=3
+          until build_once; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::build failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::build attempt $n failed; retrying in $((n * 30))s"
+            sleep $((n * 30))
+          done
 
       - name: Package (Web)
         if: matrix.platform == 'web'
@@ -179,11 +227,23 @@ jobs:
           cd build/linux/x64/release/bundle
           tar czf "$GITHUB_WORKSPACE/${{ matrix.artifact }}.tar.gz" .
 
-      - name: Package (macOS)
+      - name: Build .deb (Linux)
+        if: matrix.platform == 'linux'
+        run: dist/build-deb.sh "${{ steps.version.outputs.APP_VERSION }}" "${{ matrix.artifact }}.deb"
+
+      - name: Create DMG (macOS)
         if: matrix.platform == 'macos'
+        # Flutter ships a single universal (arm64 + x86_64) .app, so one image
+        # runs natively on both architectures — ship it as a single download.
         run: |
-          cd build/macos/Build/Products/Release
-          zip -r "$GITHUB_WORKSPACE/${{ matrix.artifact }}.zip" *.app
+          APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
+          TMP="$RUNNER_TEMP/dmg"
+          rm -rf "$TMP"; mkdir -p "$TMP"
+          cp -R "$APP" "$TMP/"
+          ln -s /Applications "$TMP/Applications"
+          hdiutil create -volname "Daccord" -srcfolder "$TMP" -ov -format UDZO \
+            "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
+          rm -rf "$TMP"
 
       - name: Package (Windows)
         if: matrix.platform == 'windows'
@@ -191,6 +251,20 @@ jobs:
         run: |
           Compress-Archive -Path build/windows/x64/runner/Release/* `
             -DestinationPath "${{ matrix.artifact }}.zip"
+
+      - name: Install Inno Setup (Windows)
+        if: matrix.platform == 'windows'
+        run: choco install innosetup -y --no-progress
+        shell: powershell
+
+      - name: Build installer (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        # OutputDir in installer.iss is `..`, so the .exe lands in the workspace
+        # root as daccord-windows-x86_64-setup.exe.
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ steps.version.outputs.APP_VERSION }}" dist\installer.iss
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -200,6 +274,9 @@ jobs:
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.apk
+            ${{ matrix.artifact }}.deb
+            daccord-windows-x86_64-setup.exe
+            daccord-macos-universal.dmg
           if-no-files-found: ignore
 
   release:

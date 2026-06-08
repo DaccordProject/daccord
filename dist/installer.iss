@@ -1,0 +1,61 @@
+; Inno Setup script for the Daccord Windows installer.
+; Built during CI — MyAppVersion is supplied by the release workflow via
+;   ISCC.exe /DMyAppVersion=<version>
+; Paths are relative to this .iss file (dist/), so the Flutter build output is
+; one level up at ..\build\windows\x64\runner\Release\.
+
+#define MyAppName "Daccord"
+#ifndef MyAppVersion
+  #define MyAppVersion GetEnv('APP_VERSION')
+  #if MyAppVersion == ""
+    #define MyAppVersion "0.0.0"
+  #endif
+#endif
+#define MyAppPublisher "daccord-projects"
+#define MyAppURL "https://github.com/DaccordProject/daccord-app"
+#define MyAppExeName "daccord.exe"
+
+[Setup]
+AppId={{B8F3A2D1-7C4E-4A9B-8D5F-1E6C3B2A0F47}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}/issues
+DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
+AllowNoIcons=yes
+OutputDir=..
+OutputBaseFilename=daccord-windows-x86_64-setup
+SetupIconFile=icons\daccord.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[Files]
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\daccord"; ValueType: string; ValueData: "URL:daccord Protocol"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\daccord"; ValueName: "URL Protocol"; ValueType: string; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\daccord\DefaultIcon"; ValueType: string; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKCU; Subkey: "Software\Classes\daccord\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" --uri ""%1"""
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
