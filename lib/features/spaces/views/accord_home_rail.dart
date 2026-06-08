@@ -99,7 +99,8 @@ class _SpaceRail extends ConsumerWidget {
                       movedId,
                       unit.space!.id,
                     ),
-                    onMenu: () => _spaceMenu(context, ref, unit.space!),
+                    onMenu: () =>
+                        _spaceMenu(context, ref, unit.space!, conn.key),
                   ),
           ),
         );
@@ -237,23 +238,29 @@ class _SpaceRail extends ConsumerWidget {
     ctl.setSpaceOrder(next);
   }
 
-  /// Long-press menu for a space: folder assignment + new-folder.
+  /// Context menu for a space (double-tap / right-click): server actions
+  /// (invite, settings, leave) above the folder-assignment actions. [serverKey]
+  /// is the owning connection's key, so actions hit the right server even when
+  /// it isn't the active one.
   Future<void> _spaceMenu(
     BuildContext context,
     WidgetRef ref,
     AccordSpace space,
+    String serverKey,
   ) async {
     final settings = ref.read(settingsControllerProvider);
     final ctl = ref.read(settingsControllerProvider.notifier);
     final inFolder = settings.spaceFolders.any(
       (f) => f.spaceIds.contains(space.id),
     );
+
     await showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ..._serverActionTiles(context, ctx, ref, space, serverKey),
             ListTile(
               leading: const Icon(Icons.create_new_folder_outlined),
               title: const Text('New folder with this space'),
@@ -288,6 +295,132 @@ class _SpaceRail extends ConsumerWidget {
       ),
     );
   }
+
+}
+
+/// The invite / settings / leave tiles shared by the standalone-space menu and
+/// the folder-member menu. [sheetContext] is the bottom sheet to pop on tap;
+/// [context] drives navigation after it closes. Gated on the space's own
+/// connection session, so actions hit the right server even when it isn't the
+/// active one.
+List<Widget> _serverActionTiles(
+  BuildContext context,
+  BuildContext sheetContext,
+  WidgetRef ref,
+  AccordSpace space,
+  String serverKey,
+) {
+  final conn = ref.read(connectionsControllerProvider).connectionFor(serverKey);
+  final session = conn?.session;
+  final userId = session?.userId;
+  final members = ref.read(accordMembersControllerProvider(space.id));
+  final preview = ref.read(rolePreviewControllerProvider);
+  final perms = accordEffectivePermissions(
+    space: space,
+    selfMember: userId == null ? null : members?[userId],
+    roles: space.roles,
+    currentUserId: userId ?? '',
+    currentUserIsAdmin: session?.isAdmin ?? false,
+    previewRoleId: preview?.spaceId == space.id ? preview?.roleId : null,
+  );
+  final canInvite = accordHasPermission(perms, AccordPermission.createInvites);
+  final canManage =
+      accordHasPermission(perms, AccordPermission.manageSpace) ||
+      accordHasPermission(perms, AccordPermission.manageRoles) ||
+      accordHasPermission(perms, AccordPermission.viewAuditLog);
+  final isOwner = userId != null && space.ownerId == userId;
+  final colors = BonfireThemeExtension.of(context);
+  return [
+    if (canInvite)
+      ListTile(
+        leading: const Icon(Icons.person_add_outlined),
+        title: const Text('Invite people'),
+        onTap: () {
+          Navigator.of(sheetContext).pop();
+          showAccordInvites(context, spaceId: space.id);
+        },
+      ),
+    if (canManage)
+      ListTile(
+        leading: const Icon(Icons.settings_outlined),
+        title: const Text('Space settings'),
+        onTap: () {
+          Navigator.of(sheetContext).pop();
+          showAccordSpaceSettings(context, spaceId: space.id);
+        },
+      ),
+    ListTile(
+      enabled: !isOwner,
+      leading: Icon(Icons.logout, color: isOwner ? null : colors.red),
+      title: Text(
+        'Leave server',
+        style: isOwner ? null : TextStyle(color: colors.red),
+      ),
+      subtitle: isOwner
+          ? const Text('Transfer ownership before leaving.')
+          : null,
+      onTap: isOwner
+          ? null
+          : () {
+              Navigator.of(sheetContext).pop();
+              _leaveSpace(context, ref, space, serverKey);
+            },
+    ),
+    const Divider(height: 1),
+  ];
+}
+
+/// Confirms then leaves [space] on its own connection, without deleting any
+/// data (the destructive leave-and-delete lives in Privacy & Data). Drops the
+/// space from both the connection cache and the active list on success.
+Future<void> _leaveSpace(
+  BuildContext context,
+  WidgetRef ref,
+  AccordSpace space,
+  String serverKey,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text("Leave '${space.name}'?"),
+      content: const Text(
+        'You will lose access to this server until you rejoin with an '
+        'invite. Your messages stay on the server.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Leave'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
+  if (client == null) return;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final result = await client.members.leaveMe(space.id);
+  if (!result.ok) {
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text('Failed to leave: ${result.error ?? 'unknown error'}'),
+      ),
+    );
+    return;
+  }
+  ref
+      .read(connectionsControllerProvider.notifier)
+      .removeSpace(serverKey, space.id);
+  ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
+  messenger?.showSnackBar(SnackBar(content: Text("Left '${space.name}'")));
 }
 
 /// A space icon that can be dragged (to reorder / into folders) and accepts a
@@ -416,8 +549,9 @@ class _FolderTile extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: GestureDetector(
-                    onLongPress: () => _memberMenu(context, ctl, space),
-                    onSecondaryTap: () => _memberMenu(context, ctl, space),
+                    onLongPress: () => _memberMenu(context, ref, ctl, space),
+                    onSecondaryTap: () =>
+                        _memberMenu(context, ref, ctl, space),
                     child: _SpaceIcon(
                       space: space,
                       selected: space.id == selectedSpaceId,
@@ -434,6 +568,7 @@ class _FolderTile extends ConsumerWidget {
 
   Future<void> _memberMenu(
     BuildContext context,
+    WidgetRef ref,
     SettingsController ctl,
     AccordSpace space,
   ) async {
@@ -443,6 +578,7 @@ class _FolderTile extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ..._serverActionTiles(context, ctx, ref, space, serverKey),
             ListTile(
               leading: const Icon(Icons.folder_off_outlined),
               title: Text('Remove "${space.name}" from folder'),
