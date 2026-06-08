@@ -383,7 +383,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   ],
                 ),
               ),
-              if (!_editing && !widget.selecting)
+              // Hover actions are mouse-driven (revealed by [_hovered]) and have
+              // no affordance on touch, where `Opacity` would still reserve their
+              // width and squeeze the message content into a narrow column. Omit
+              // them on mobile so the content uses the full row width.
+              if (!_editing &&
+                  !widget.selecting &&
+                  shouldUseDesktopLayout(context))
                 Opacity(
                   opacity: _hovered ? 1 : 0,
                   child: Row(

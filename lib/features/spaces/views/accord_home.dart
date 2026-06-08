@@ -51,6 +51,7 @@ import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/views/update_banner.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_bar.dart';
@@ -542,39 +543,43 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
               : null,
           body: Stack(
             children: [
-              Column(
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Channels',
-                        icon: Icon(Icons.menu, color: colors.dirtyWhite),
-                        onPressed: () =>
-                            _scaffoldKey.currentState?.openDrawer(),
-                      ),
-                      Expanded(child: _TabStrip(onSelect: _selectTab)),
-                      if (hasMembers)
+              // Inset the mobile chrome below the OS status bar / nav bar.
+              // The pip overlay stays outside so it can use the full screen.
+              SafeArea(
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
                         IconButton(
-                          tooltip: 'Members',
-                          icon: Icon(
-                            Icons.people_alt_outlined,
-                            color: colors.dirtyWhite,
-                          ),
+                          tooltip: 'Channels',
+                          icon: Icon(Icons.menu, color: colors.dirtyWhite),
                           onPressed: () =>
-                              _scaffoldKey.currentState?.openEndDrawer(),
+                              _scaffoldKey.currentState?.openDrawer(),
                         ),
-                    ],
-                  ),
-                  Expanded(
-                    child: _MessagePane(
-                      channel: channels?.firstWhereOrNull(
-                        (c) => c.id == shownChannelId,
-                      ),
-                      channelId: shownChannelId,
-                      spaceId: effectiveSpaceId,
+                        Expanded(child: _TabStrip(onSelect: _selectTab)),
+                        if (hasMembers)
+                          IconButton(
+                            tooltip: 'Members',
+                            icon: Icon(
+                              Icons.people_alt_outlined,
+                              color: colors.dirtyWhite,
+                            ),
+                            onPressed: () =>
+                                _scaffoldKey.currentState?.openEndDrawer(),
+                          ),
+                      ],
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: _MessagePane(
+                        channel: channels?.firstWhereOrNull(
+                          (c) => c.id == shownChannelId,
+                        ),
+                        channelId: shownChannelId,
+                        spaceId: effectiveSpaceId,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               pip,
             ],
