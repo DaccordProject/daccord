@@ -289,24 +289,6 @@ class AccordAuth extends _$AccordAuth {
     }
   }
 
-  /// Logs in directly with an existing [token] (e.g. a bot token or one pasted
-  /// by the user). Fetches the account, persists the session, and connects.
-  Future<AccordAuthState> loginWithToken({
-    required AccordServer server,
-    required String token,
-    String tokenType = 'Bearer',
-  }) async {
-    state = const AccordAuthInProgress();
-    try {
-      final session = await _sessionFromToken(server, token, tokenType);
-      if (session == null) return _fail('Token rejected');
-      await _persist(session);
-      return await _addConnection(session, makeActive: true);
-    } catch (e) {
-      return _fail(e.toString());
-    }
-  }
-
   /// Restores the persisted active session (and any other saved accounts) and
   /// reconnects their gateways. The active account is connected first and its
   /// logged-in state returned for navigation; the rest connect in the
@@ -405,6 +387,41 @@ class AccordAuth extends _$AccordAuth {
         return AddServerOutcome.mfa(data['ticket']?.toString() ?? '');
       }
       return await _completeAddServer(server, data);
+    } catch (e) {
+      return AddServerOutcome.error(e.toString());
+    } finally {
+      await authClient.dispose();
+    }
+  }
+
+  /// Registers a new account on [server] and connects it as an additional
+  /// server, persisting it and making it active. The add-a-server counterpart
+  /// to [registerWithCredentials] (which is for the primary login flow): it
+  /// returns an [AddServerOutcome] instead of publishing a global
+  /// [AccordAuthInProgress] state, so the home screen isn't bounced to login.
+  Future<AddServerOutcome> addServerWithRegister({
+    required AccordServer server,
+    required String username,
+    required String password,
+    String? displayName,
+  }) async {
+    if (username.contains('@')) {
+      return AddServerOutcome.error("Username can't be an email address.");
+    }
+    final authClient = _restClientFor(server);
+    try {
+      final dn = displayName?.trim();
+      final result = await authClient.auth.register({
+        'username': username,
+        'password': password,
+        'display_name': (dn == null || dn.isEmpty) ? username : dn,
+      });
+      if (!result.ok) {
+        return AddServerOutcome.error(
+          result.error?.message ?? 'Registration failed',
+        );
+      }
+      return await _completeAddServer(server, result.data);
     } catch (e) {
       return AddServerOutcome.error(e.toString());
     } finally {

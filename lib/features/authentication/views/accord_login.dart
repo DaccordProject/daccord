@@ -1,8 +1,9 @@
-import 'dart:math';
-
+import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -13,15 +14,18 @@ import 'package:hive_ce/hive.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-enum _AuthMode { signIn, register }
-
 /// Server-URL + credentials login against an Accord server. The Daccord
 /// replacement for the Discord `LoginScreen`: it drives [accordAuthProvider]
-/// (restore-on-launch → sign in / register / token → optional MFA or forced
-/// password change → connect) and, once a live session exists, hands off to the
+/// (restore-on-launch → sign in / register → optional MFA or forced password
+/// change → connect) and, once a live session exists, hands off to the
 /// messaging frame.
+///
+/// [initialMode] selects the Sign in / Register tab on entry; the `/register`
+/// route uses it to land directly on registration.
 class AccordLoginScreen extends ConsumerStatefulWidget {
-  const AccordLoginScreen({super.key});
+  const AccordLoginScreen({super.key, this.initialMode = AuthMode.signIn});
+
+  final AuthMode initialMode;
 
   @override
   ConsumerState<AccordLoginScreen> createState() => _AccordLoginScreenState();
@@ -32,14 +36,16 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _displayNameController = TextEditingController();
-  final _tokenController = TextEditingController();
   final _mfaController = TextEditingController();
   final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  _AuthMode _mode = _AuthMode.signIn;
-  bool _useToken = false;
+  late AuthMode _mode = widget.initialMode;
+
+  /// A space chosen from discovery while signed out: once the credentials in
+  /// this form authenticate, we join it before handing off to the frame.
+  String? _pendingJoinSpaceId;
 
   /// Client-side validation error for the password-change form.
   String? _resetLocalError;
@@ -79,6 +85,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         await notifier.restoreSession();
       }
       if (mounted) setState(() => _restoring = false);
+
+      // Landed straight on the Register tab (via /register): fetch the ToS gate.
+      if (_mode == AuthMode.register) _fetchTos();
     });
   }
 
@@ -88,7 +97,6 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _displayNameController.dispose();
-    _tokenController.dispose();
     _mfaController.dispose();
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
@@ -96,12 +104,12 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     super.dispose();
   }
 
-  void _onModeChanged(_AuthMode mode) {
+  void _onModeChanged(AuthMode mode) {
     setState(() {
       _mode = mode;
       _authLocalError = null;
     });
-    if (mode == _AuthMode.register) _fetchTos();
+    if (mode == AuthMode.register) _fetchTos();
   }
 
   Future<void> _fetchTos() async {
@@ -123,14 +131,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   }
 
   void _generatePassword() {
-    const chars =
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#\$%&*';
-    final rng = Random.secure();
-    final buffer = StringBuffer();
-    for (var i = 0; i < 16; i++) {
-      buffer.write(chars[rng.nextInt(chars.length)]);
-    }
-    _passwordController.text = buffer.toString();
+    _passwordController.text = generateAuthPassword();
   }
 
   Future<void> _openTos() async {
@@ -159,6 +160,28 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     );
   }
 
+  /// Discovery (opened from this screen while signed out) needs auth against
+  /// `serverUrl` before joining `spaceId`: pre-fill the form and remember the
+  /// space so the next successful login joins it automatically.
+  void _onDiscoveryJoinRequiresAuth(String serverUrl, String spaceId) {
+    Hive.box('accord-session').put('last-server', serverUrl);
+    setState(() {
+      _serverController.text = serverUrl;
+      _pendingJoinSpaceId = spaceId;
+      _mode = AuthMode.signIn;
+      _authLocalError = null;
+    });
+  }
+
+  Future<void> _joinPendingSpace(AccordClient client, String spaceId) async {
+    final result = await client.spaces.join(spaceId);
+    if (!mounted) return;
+    final space = result.data;
+    if ((result.ok || result.statusCode == 409) && space is AccordSpace) {
+      ref.read(spacesControllerProvider.notifier).upsertSpace(space);
+    }
+  }
+
   void _submit() {
     final rawServer = _serverController.text.trim();
     if (rawServer.isEmpty) return;
@@ -166,19 +189,11 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     final server = AccordServer.fromBaseUrl(rawServer);
     final notifier = ref.read(accordAuthProvider.notifier);
 
-    if (_useToken) {
-      final token = _tokenController.text.trim();
-      if (token.isEmpty) return;
-      setState(() => _authLocalError = null);
-      notifier.loginWithToken(server: server, token: token);
-      return;
-    }
-
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
     if (username.isEmpty || password.isEmpty) return;
 
-    if (_mode == _AuthMode.register) {
+    if (_mode == AuthMode.register) {
       // Usernames are the public login identifier (login looks up by username,
       // not email), so reject email-like input rather than silently accepting
       // a misleading account name. The server enforces this authoritatively too.
@@ -263,6 +278,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
 
     ref.listen(accordAuthProvider, (previous, next) {
       if (next is AccordAuthLoggedIn) {
+        final spaceId = _pendingJoinSpaceId;
+        _pendingJoinSpaceId = null;
+        if (spaceId != null) _joinPendingSpace(next.client, spaceId);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _navigateToHome();
         });
@@ -305,23 +323,20 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         usernameController: _usernameController,
         passwordController: _passwordController,
         displayNameController: _displayNameController,
-        tokenController: _tokenController,
         mode: _mode,
-        useToken: _useToken,
         hasAccounts: _hasAccounts,
         tosEnabled: _tosEnabled,
         tosAccepted: _tosAccepted,
         onModeChanged: _onModeChanged,
-        onToggleToken: () => setState(() {
-          _useToken = !_useToken;
-          _authLocalError = null;
-        }),
         onSwitchAccount: () => context.go('/switcher'),
         onGeneratePassword: _generatePassword,
         onTosChanged: (v) => setState(() => _tosAccepted = v),
         onTosLinkTap: _openTos,
         onGuest: _submitGuest,
-        onDiscover: () => showAccordDiscovery(context),
+        onDiscover: () => showAccordDiscovery(
+          context,
+          onJoinRequiresAuth: _onDiscoveryJoinRequiresAuth,
+        ),
         onSubmit: _submit,
         error:
             _authLocalError ??
@@ -368,14 +383,11 @@ class _AuthForm extends StatelessWidget {
     required this.usernameController,
     required this.passwordController,
     required this.displayNameController,
-    required this.tokenController,
     required this.mode,
-    required this.useToken,
     required this.hasAccounts,
     required this.tosEnabled,
     required this.tosAccepted,
     required this.onModeChanged,
-    required this.onToggleToken,
     required this.onSwitchAccount,
     required this.onGeneratePassword,
     required this.onTosChanged,
@@ -390,14 +402,11 @@ class _AuthForm extends StatelessWidget {
   final TextEditingController usernameController;
   final TextEditingController passwordController;
   final TextEditingController displayNameController;
-  final TextEditingController tokenController;
-  final _AuthMode mode;
-  final bool useToken;
+  final AuthMode mode;
   final bool hasAccounts;
   final bool tosEnabled;
   final bool tosAccepted;
-  final ValueChanged<_AuthMode> onModeChanged;
-  final VoidCallback onToggleToken;
+  final ValueChanged<AuthMode> onModeChanged;
   final VoidCallback onSwitchAccount;
   final VoidCallback onGeneratePassword;
   final ValueChanged<bool> onTosChanged;
@@ -411,7 +420,7 @@ class _AuthForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final isRegister = mode == _AuthMode.register;
+    final isRegister = mode == AuthMode.register;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -432,67 +441,20 @@ class _AuthForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        if (!useToken) _ModeToggle(mode: mode, onModeChanged: onModeChanged),
-        const SizedBox(height: 16),
-        _LoginField(
-          controller: serverController,
-          label: 'Server URL',
-          hint: 'https://your.accord.server',
-          keyboardType: TextInputType.url,
-          autofillHints: const [AutofillHints.url],
+        AuthCredentialsFields(
+          mode: mode,
+          onModeChanged: onModeChanged,
+          serverController: serverController,
+          usernameController: usernameController,
+          passwordController: passwordController,
+          displayNameController: displayNameController,
+          tosEnabled: tosEnabled,
+          tosAccepted: tosAccepted,
+          onTosChanged: onTosChanged,
+          onTosLinkTap: onTosLinkTap,
+          onGeneratePassword: onGeneratePassword,
+          onSubmit: onSubmit,
         ),
-        const SizedBox(height: 12),
-        if (useToken)
-          _LoginField(
-            controller: tokenController,
-            label: 'Token',
-            obscureText: true,
-            onSubmitted: (_) => onSubmit(),
-          )
-        else ...[
-          _LoginField(
-            controller: usernameController,
-            // Registration creates a username (the public login id), so don't
-            // imply an email is accepted; sign-in keeps the broader label.
-            label: isRegister ? 'Username' : 'Username or email',
-            autofillHints: const [AutofillHints.username],
-          ),
-          const SizedBox(height: 12),
-          _PasswordField(
-            controller: passwordController,
-            autofillHints: const [AutofillHints.password],
-            onGenerate: isRegister ? onGeneratePassword : null,
-            onSubmitted: (_) => onSubmit(),
-          ),
-          if (isRegister) ...[
-            const SizedBox(height: 12),
-            _LoginField(
-              controller: displayNameController,
-              label: 'Display name (optional)',
-            ),
-            if (tosEnabled) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: tosAccepted,
-                    onChanged: (v) => onTosChanged(v ?? false),
-                  ),
-                  Text('I agree to the ', style: theme.textTheme.bodyMedium),
-                  GestureDetector(
-                    onTap: onTosLinkTap,
-                    child: Text(
-                      'Terms of Service',
-                      style: theme.textTheme.bodyMedium!.copyWith(
-                        color: colors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ],
         if (error != null) ...[
           const SizedBox(height: 16),
           Text(
@@ -503,161 +465,50 @@ class _AuthForm extends StatelessWidget {
         ],
         const SizedBox(height: 24),
         _SubmitButton(
-          label: useToken
-              ? 'Log In with Token'
-              : (isRegister ? 'Register' : 'Log In'),
+          label: isRegister ? 'Register' : 'Log In',
           onPressed: onSubmit,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(child: Divider(color: colors.darkGray)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('or', style: theme.textTheme.bodySmall),
+            ),
+            Expanded(child: Divider(color: colors.darkGray)),
+          ],
+        ),
+        const SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: onDiscover,
           icon: const Icon(Icons.explore_outlined, size: 18),
           label: const Text('Discover public servers'),
         ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: onToggleToken,
-          child: Text(
-            useToken ? 'Use username & password' : 'Log in with a token',
-            style: theme.textTheme.bodyMedium,
-          ),
-        ),
-        if (!useToken)
-          TextButton(
-            onPressed: onGuest,
-            child: Text(
-              'Browse without account',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-        if (hasAccounts)
-          TextButton(
-            onPressed: onSwitchAccount,
-            child: Text('Switch account', style: theme.textTheme.bodyMedium),
-          ),
-      ],
-    );
-  }
-}
-
-/// A password input with a show/hide toggle and an optional password generator.
-class _PasswordField extends StatefulWidget {
-  const _PasswordField({
-    required this.controller,
-    this.onGenerate,
-    this.autofillHints,
-    this.onSubmitted,
-  });
-
-  final TextEditingController controller;
-
-  /// When non-null, a dice button is shown that fills a generated password and
-  /// reveals it.
-  final VoidCallback? onGenerate;
-  final Iterable<String>? autofillHints;
-  final ValueChanged<String>? onSubmitted;
-
-  @override
-  State<_PasswordField> createState() => _PasswordFieldState();
-}
-
-class _PasswordFieldState extends State<_PasswordField> {
-  bool _obscure = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return TextField(
-      controller: widget.controller,
-      obscureText: _obscure,
-      autofillHints: widget.autofillHints,
-      onSubmitted: widget.onSubmitted,
-      style: Theme.of(context).textTheme.bodyLarge,
-      decoration: InputDecoration(
-        labelText: 'Password',
-        filled: true,
-        fillColor: colors.darkGray,
-        labelStyle: Theme.of(context).textTheme.bodyMedium,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        suffixIcon: Row(
-          mainAxisSize: MainAxisSize.min,
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (widget.onGenerate != null)
-              IconButton(
-                tooltip: 'Generate password',
-                icon: Icon(Icons.casino, color: colors.dirtyWhite, size: 20),
-                onPressed: () {
-                  widget.onGenerate!();
-                  setState(() => _obscure = false);
-                },
+            TextButton(
+              onPressed: onGuest,
+              child: Text(
+                'Browse as guest',
+                style: theme.textTheme.bodyMedium,
               ),
-            IconButton(
-              tooltip: _obscure ? 'Show' : 'Hide',
-              icon: Icon(
-                _obscure ? Icons.visibility : Icons.visibility_off,
-                color: colors.dirtyWhite,
-                size: 20,
-              ),
-              onPressed: () => setState(() => _obscure = !_obscure),
             ),
+            if (hasAccounts) ...[
+              Text('·', style: theme.textTheme.bodyMedium),
+              TextButton(
+                onPressed: onSwitchAccount,
+                child: Text(
+                  'Switch account',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ModeToggle extends StatelessWidget {
-  const _ModeToggle({required this.mode, required this.onModeChanged});
-
-  final _AuthMode mode;
-  final ValueChanged<_AuthMode> onModeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    Widget tab(String label, _AuthMode value) {
-      final selected = mode == value;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => onModeChanged(value),
-          child: Container(
-            margin: const EdgeInsets.all(4),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: selected ? colors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                color: selected ? Colors.white : colors.dirtyWhite,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.darkGray,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          tab('Sign In', _AuthMode.signIn),
-          tab('Register', _AuthMode.register),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -696,7 +547,7 @@ class _MfaForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 32),
-        _LoginField(
+        AuthField(
           controller: controller,
           label: '6-digit code',
           keyboardType: TextInputType.number,
@@ -755,19 +606,19 @@ class _PasswordResetForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 32),
-        _LoginField(
+        AuthField(
           controller: oldController,
           label: 'Current password',
           obscureText: true,
         ),
         const SizedBox(height: 12),
-        _LoginField(
+        AuthField(
           controller: newController,
           label: 'New password',
           obscureText: true,
         ),
         const SizedBox(height: 12),
-        _LoginField(
+        AuthField(
           controller: confirmController,
           label: 'Confirm new password',
           obscureText: true,
@@ -791,54 +642,6 @@ class _PasswordResetForm extends StatelessWidget {
           child: Text('Cancel', style: theme.textTheme.bodyMedium),
         ),
       ],
-    );
-  }
-}
-
-class _LoginField extends StatelessWidget {
-  const _LoginField({
-    required this.controller,
-    required this.label,
-    this.hint,
-    this.obscureText = false,
-    this.keyboardType,
-    this.autofillHints,
-    this.onSubmitted,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String? hint;
-  final bool obscureText;
-  final TextInputType? keyboardType;
-  final Iterable<String>? autofillHints;
-  final ValueChanged<String>? onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      autofillHints: autofillHints,
-      onSubmitted: onSubmitted,
-      style: Theme.of(context).textTheme.bodyLarge,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        filled: true,
-        fillColor: colors.darkGray,
-        labelStyle: Theme.of(context).textTheme.bodyMedium,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-      ),
     );
   }
 }

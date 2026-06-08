@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -7,6 +8,7 @@ import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Opens the in-app "Add a Server" dialog. Mirrors the reference client's
 /// add-server flow: an **Enter URL** tab (paste a server URL or `daccord://`
@@ -51,13 +53,22 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   final _urlCtrl = TextEditingController();
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _displayCtrl = TextEditingController();
   final _mfaCtrl = TextEditingController();
 
   _UrlStep _step = _UrlStep.url;
+  AuthMode _credMode = AuthMode.signIn;
   AccordServer? _server;
   String? _mfaTicket;
   String? _error;
   bool _busy = false;
+
+  // Terms-of-Service config, fetched per server when the Register mode is shown.
+  bool _tosEnabled = false;
+  bool _tosAccepted = false;
+  String? _tosUrl;
+  String? _tosText;
+  String? _tosFetchedServer;
 
   /// Space to join on the new connection once auth succeeds (from a discovery
   /// listing). Set at construction or by the embedded Browse tab.
@@ -84,6 +95,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     _urlCtrl.dispose();
     _userCtrl.dispose();
     _passCtrl.dispose();
+    _displayCtrl.dispose();
     _mfaCtrl.dispose();
     super.dispose();
   }
@@ -169,18 +181,100 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     });
   }
 
+  void _setCredMode(AuthMode mode) {
+    setState(() {
+      _credMode = mode;
+      _error = null;
+    });
+    if (mode == AuthMode.register) _fetchTos();
+  }
+
+  void _generatePassword() {
+    _passCtrl.text = generateAuthPassword();
+  }
+
+  /// Fetches the target server's ToS config the first time Register is shown,
+  /// so registration can gate on acceptance like the main login screen.
+  Future<void> _fetchTos() async {
+    final server = _server;
+    if (server == null || _tosFetchedServer == server.baseUrl) return;
+    final settings = await _auth.fetchServerSettings(server);
+    if (!mounted) return;
+    setState(() {
+      _tosFetchedServer = server.baseUrl;
+      _tosEnabled = settings?['tos_enabled'] == true;
+      _tosUrl = settings?['tos_url'] as String?;
+      _tosText = settings?['tos_text'] as String?;
+      _tosAccepted = false;
+    });
+  }
+
+  Future<void> _openTos() async {
+    final url = _tosUrl?.trim();
+    if (url != null && url.isNotEmpty) {
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    final text = _tosText?.trim();
+    if (text == null || text.isEmpty || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Terms of Service'),
+        content: SingleChildScrollView(child: Text(text)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitCredentials() async {
     final server = _server;
     if (server == null) return;
+    final username = _userCtrl.text.trim();
+    final password = _passCtrl.text;
+    if (username.isEmpty || password.isEmpty) return;
+
+    final isRegister = _credMode == AuthMode.register;
+    if (isRegister) {
+      // Usernames are the public login identifier; reject email-like input.
+      if (username.contains('@')) {
+        _fail("Username can't be an email address.");
+        return;
+      }
+      if (password.length < 8) {
+        _fail('Password must be at least 8 characters.');
+        return;
+      }
+      if (_tosEnabled && !_tosAccepted) {
+        _fail('You must accept the Terms of Service.');
+        return;
+      }
+    }
+
     setState(() {
       _busy = true;
       _error = null;
     });
-    final outcome = await _auth.addServerWithCredentials(
-      server: server,
-      username: _userCtrl.text.trim(),
-      password: _passCtrl.text,
-    );
+    final outcome = isRegister
+        ? await _auth.addServerWithRegister(
+            server: server,
+            username: username,
+            password: password,
+            displayName: _displayCtrl.text.trim(),
+          )
+        : await _auth.addServerWithCredentials(
+            server: server,
+            username: username,
+            password: password,
+          );
     if (!mounted) return;
     if (outcome.ok) {
       await _finishAfterConnect();
@@ -191,7 +285,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
         _step = _UrlStep.mfa;
       });
     } else {
-      _fail(outcome.error ?? 'Login failed');
+      _fail(outcome.error ?? (isRegister ? 'Registration failed' : 'Login failed'));
     }
   }
 
@@ -308,32 +402,24 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
             ),
           ] else ...[
             Text(
-              'Sign in to ${_server?.name ?? _server?.baseUrl ?? 'server'}',
+              'Connect to ${_server?.name ?? _server?.baseUrl ?? 'server'}',
               style: theme.textTheme.labelLarge,
             ),
             const SizedBox(height: 12),
             if (_step == _UrlStep.credentials) ...[
-              TextField(
-                controller: _userCtrl,
+              AuthCredentialsFields(
+                mode: _credMode,
+                onModeChanged: _setCredMode,
+                usernameController: _userCtrl,
+                passwordController: _passCtrl,
+                displayNameController: _displayCtrl,
+                tosEnabled: _tosEnabled,
+                tosAccepted: _tosAccepted,
+                onTosChanged: (v) => setState(() => _tosAccepted = v),
+                onTosLinkTap: _openTos,
+                onGeneratePassword: _generatePassword,
+                onSubmit: _submitCredentials,
                 enabled: !_busy,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  labelText: 'Username',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _passCtrl,
-                enabled: !_busy,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => _busy ? null : _submitCredentials(),
               ),
             ] else ...[
               TextField(
@@ -394,7 +480,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       case _UrlStep.url:
         return 'Connect';
       case _UrlStep.credentials:
-        return 'Sign in';
+        return _credMode == AuthMode.register ? 'Register' : 'Sign in';
       case _UrlStep.mfa:
         return 'Verify';
     }

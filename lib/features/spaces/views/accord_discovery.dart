@@ -16,15 +16,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// can join. Backed by the **master-server** directory (unauthenticated), so it
 /// works before signing in to any instance. The Accord analogue of the
 /// reference client's `discovery_panel`.
-Future<void> showAccordDiscovery(BuildContext context) {
+///
+/// [onJoinRequiresAuth] lets a host (e.g. the login screen) intercept a join
+/// that needs authentication against an instance: the panel closes and the
+/// callback receives the listing's `serverUrl` + `spaceId` so the host can
+/// pre-fill its own credentials flow. When omitted, the panel falls back to
+/// opening the Add-Server dialog targeted at that instance.
+Future<void> showAccordDiscovery(
+  BuildContext context, {
+  void Function(String serverUrl, String spaceId)? onJoinRequiresAuth,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (_) => const _DiscoveryPanel(),
+    builder: (_) => _DiscoveryPanel(onJoinRequiresAuth: onJoinRequiresAuth),
   );
 }
 
 class _DiscoveryPanel extends StatelessWidget {
-  const _DiscoveryPanel();
+  const _DiscoveryPanel({this.onJoinRequiresAuth});
+
+  final void Function(String serverUrl, String spaceId)? onJoinRequiresAuth;
 
   @override
   Widget build(BuildContext context) {
@@ -60,16 +71,22 @@ class _DiscoveryPanel extends StatelessWidget {
             ),
             Expanded(
               child: AccordDiscoveryBody(
-                // Standalone discovery (no Add-Server dialog around it): when a
-                // listing needs auth, close this and open the Add-Server flow
-                // pre-targeted at the listing's instance + space.
+                // When a listing needs auth, close this panel and either defer
+                // to the host (e.g. the login screen pre-fills its form) or fall
+                // back to opening the Add-Server flow pre-targeted at the
+                // listing's instance + space.
                 onJoinRequiresAuth: (serverUrl, spaceId) {
                   Navigator.of(context).pop();
-                  showAddServerDialog(
-                    context,
-                    initialUrl: serverUrl,
-                    joinSpaceId: spaceId,
-                  );
+                  final external = onJoinRequiresAuth;
+                  if (external != null) {
+                    external(serverUrl, spaceId);
+                  } else {
+                    showAddServerDialog(
+                      context,
+                      initialUrl: serverUrl,
+                      joinSpaceId: spaceId,
+                    );
+                  }
                 },
               ),
             ),
