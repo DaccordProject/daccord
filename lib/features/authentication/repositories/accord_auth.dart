@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/controllers/ready.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
+import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/utils/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
@@ -314,10 +315,16 @@ class AccordAuth extends _$AccordAuth {
 
     // Reconnect every other saved account in the background.
     final activeKey = active.key;
-    for (final session in await listAccounts()) {
+    final accounts = await listAccounts();
+    for (final session in accounts) {
       if (session.key == activeKey) continue;
       unawaited(_addConnection(session, makeActive: false));
     }
+
+    // Prune tabs owned by accounts that no longer exist (e.g. logged out before
+    // this restore), so the strip doesn't show stale/duplicate tabs.
+    final knownServers = {activeKey, for (final s in accounts) s.key};
+    ref.read(openTabsControllerProvider.notifier).retainServers(knownServers);
     return result;
   }
 
@@ -334,6 +341,7 @@ class AccordAuth extends _$AccordAuth {
     await box.delete(_sessionKey);
 
     ref.read(connectionsControllerProvider.notifier).clear();
+    ref.read(openTabsControllerProvider.notifier).clear();
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);
     ref
         .read(connectionControllerProvider.notifier)
@@ -561,12 +569,25 @@ class AccordAuth extends _$AccordAuth {
   }
 
   /// Persists [session] as the active session and upserts it into the saved
-  /// account list (keyed by user + server) for the account switcher.
+  /// account list (keyed by user + server) for the account switcher. Enforces
+  /// one account per server: any other saved account on the same server is
+  /// dropped, so signing in as a new user replaces the old one rather than
+  /// leaving a stale duplicate.
   Future<void> _persist(AccordSession session) async {
     final box = await Hive.openBox(_sessionBoxName);
     await box.put(_sessionKey, session.toJson());
     final accounts = _readAccounts(box);
-    accounts[_accountKey(session)] = session.toJson();
+    final key = _accountKey(session);
+    accounts.removeWhere((k, v) {
+      if (k == key || v is! Map) return false;
+      try {
+        final other = AccordSession.fromJson(Map<String, dynamic>.from(v));
+        return other.server.baseUrl == session.server.baseUrl;
+      } catch (_) {
+        return false;
+      }
+    });
+    accounts[key] = session.toJson();
     await box.put(_accountsKey, accounts);
   }
 
@@ -634,6 +655,7 @@ class AccordAuth extends _$AccordAuth {
       await conn.client.dispose();
       ref.read(connectionsControllerProvider.notifier).remove(key);
     }
+    ref.read(openTabsControllerProvider.notifier).removeForServer(key);
 
     if (_activeKey == key) {
       _activeKey = null;
@@ -665,6 +687,21 @@ class AccordAuth extends _$AccordAuth {
     }
   }
 
+  /// Tears down the live connection [key] (gateway + event subscriptions) and
+  /// drops it from the rail registry. Used to replace an account when a new one
+  /// signs in to the same server. Does not touch the saved-account list — the
+  /// caller's [_persist] dedupes that.
+  Future<void> _evictConnection(String key) async {
+    final conn = _connections.remove(key);
+    if (conn != null) {
+      conn.disposeEvents();
+      await conn.client.dispose();
+    }
+    if (_activeKey == key) _activeKey = null;
+    ref.read(connectionsControllerProvider.notifier).remove(key);
+    ref.read(openTabsControllerProvider.notifier).removeForServer(key);
+  }
+
   /// Connects [session] as a live server (or, if already connected, optionally
   /// makes it active). Background connections (makeActive: false) keep the
   /// current `state` untouched.
@@ -675,6 +712,16 @@ class AccordAuth extends _$AccordAuth {
     final key = _accountKey(session);
     if (_connections.containsKey(key)) {
       return makeActive ? _makeActive(key) : state;
+    }
+
+    // One account per server: a server is owned by a single account at a time.
+    // If a *different* account is already live on this server, an explicit
+    // (active) login replaces it; a background restore must not stack a second
+    // connection onto the same server (which would duplicate its rail group).
+    final existingOnServer = keyForBaseUrl(session.server.baseUrl);
+    if (existingOnServer != null && existingOnServer != key) {
+      if (!makeActive) return state;
+      await _evictConnection(existingOnServer);
     }
 
     ref

@@ -147,32 +147,35 @@ class _AccountTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
         color: colors.darkGray,
-        borderRadius: BorderRadius.circular(12),
-        border: active
-            ? Border.all(color: colors.primary, width: 2)
-            : null,
-      ),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: colors.primary,
-          child: Text(_initial,
-              style: theme.textTheme.titleSmall!
-                  .copyWith(color: Colors.white)),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: active
+              ? BorderSide(color: colors.primary, width: 2)
+              : BorderSide.none,
         ),
-        title: Text(session.username, style: theme.textTheme.bodyLarge),
-        subtitle: Text(
-          session.server.name ?? session.server.baseUrl,
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: IconButton(
-          tooltip: 'Remove',
-          icon: Icon(Icons.close, color: colors.dirtyWhite, size: 20),
-          onPressed: onRemove,
+        child: ListTile(
+          onTap: onTap,
+          leading: CircleAvatar(
+            backgroundColor: colors.primary,
+            child: Text(_initial,
+                style: theme.textTheme.titleSmall!
+                    .copyWith(color: Colors.white)),
+          ),
+          title: Text(session.username, style: theme.textTheme.bodyLarge),
+          subtitle: Text(
+            session.server.name ?? session.server.baseUrl,
+            style: theme.textTheme.bodySmall,
+          ),
+          trailing: IconButton(
+            tooltip: 'Remove',
+            icon: Icon(Icons.close, color: colors.dirtyWhite, size: 20),
+            onPressed: onRemove,
+          ),
         ),
       ),
     );

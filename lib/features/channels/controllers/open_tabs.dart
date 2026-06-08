@@ -135,6 +135,18 @@ class OpenTabsController extends _$OpenTabsController {
     _commit(OpenTabsState(tabs: tabs, activeKey: activeKey));
   }
 
+  /// Drops tabs whose owning server isn't in [serverKeys]. Used on session
+  /// restore to prune tabs left behind by accounts that have since been logged
+  /// out (otherwise they'd linger in the strip as stale duplicates).
+  void retainServers(Set<String> serverKeys) {
+    if (state.tabs.every((t) => serverKeys.contains(t.serverKey))) return;
+    final tabs =
+        state.tabs.where((t) => serverKeys.contains(t.serverKey)).toList();
+    final activeKey =
+        tabs.any((t) => t.key == state.activeKey) ? state.activeKey : null;
+    _commit(OpenTabsState(tabs: tabs, activeKey: activeKey));
+  }
+
   void clear() {
     if (state.tabs.isEmpty && state.activeKey == null) return;
     _commit(const OpenTabsState());

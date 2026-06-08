@@ -29,7 +29,6 @@ import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
-import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';

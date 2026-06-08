@@ -15,6 +15,18 @@ class _RailUnit {
   bool get isFolder => folder != null;
 }
 
+/// Which connection a space in the (flat, cross-account) rail belongs to, so a
+/// space icon can resolve its CDN, route taps to the right server, and reflect
+/// whether that server is the active one — without the rail being grouped by
+/// server.
+class _SpaceConn {
+  const _SpaceConn(this.serverKey, this.cdnUrl, this.active);
+
+  final String serverKey;
+  final String? cdnUrl;
+  final bool active;
+}
+
 class _SpaceRail extends ConsumerWidget {
   const _SpaceRail({
     required this.selectedSpaceId,
@@ -40,68 +52,67 @@ class _SpaceRail extends ConsumerWidget {
     final connections = ref.watch(connectionsControllerProvider);
     final activeKey = connections.activeKey;
     final liveActiveSpaces = ref.watch(spacesControllerProvider);
-    final multi = connections.hasMultiple;
     final settings = ref.watch(settingsControllerProvider);
     final settingsCtl = ref.read(settingsControllerProvider.notifier);
 
-    // The effective global order across every group, used when persisting a
-    // reorder so dragged spaces keep a stable position.
-    final globalOrder = <String>[];
-    final railItems = <Widget>[];
-
+    // Spaces are a single flat, user-curated list across every connected
+    // account; the only grouping is folders the user creates. Aggregate every
+    // connection's spaces, remembering which connection each one belongs to so
+    // taps route to the right server even though the rail isn't grouped by one.
+    final byId = <String, AccordSpace>{};
+    final connOf = <String, _SpaceConn>{};
     for (final conn in connections.connections) {
       final isActive = conn.key == activeKey;
       final spaces = isActive ? (liveActiveSpaces ?? conn.spaces) : conn.spaces;
       final cdnUrl = conn.session.server.cdnUrl;
-      if (spaces.isEmpty && !multi) continue;
-
-      if (multi) {
-        railItems.add(
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 6, 0, 2),
-            child: _ServerGroupHeader(
-              name: conn.session.server.name ?? conn.session.server.baseUrl,
-              status: conn.status,
-              active: isActive,
-            ),
-          ),
-        );
+      for (final s in spaces) {
+        byId[s.id] = s;
+        connOf[s.id] = _SpaceConn(conn.key, cdnUrl, isActive);
       }
+    }
 
-      final ordered = _orderedIds(spaces, settings.spaceOrder);
-      globalOrder.addAll(ordered);
-      final byId = {for (final s in spaces) s.id: s};
-      final units = _buildUnits(ordered, byId, settings.spaceFolders);
+    // The effective global order, used when persisting a reorder so dragged
+    // spaces keep a stable position.
+    final globalOrder = _orderedIds(byId.values.toList(), settings.spaceOrder);
+    final units = _buildUnits(globalOrder, byId, settings.spaceFolders);
 
-      for (final unit in units) {
+    final railItems = <Widget>[];
+    for (final unit in units) {
+      if (unit.isFolder) {
         railItems.add(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: unit.isFolder
-                ? _FolderTile(
-                    folder: unit.folder!,
-                    spaces: unit.spaces,
-                    serverKey: conn.key,
-                    cdnUrl: cdnUrl,
-                    selectedSpaceId: isActive ? selectedSpaceId : null,
-                    onSelect: onSelect,
-                    onDropSpace: (spaceId) =>
-                        settingsCtl.moveSpaceToFolder(spaceId, unit.folder!.id),
-                  )
-                : _DraggableSpace(
-                    space: unit.space!,
-                    cdnUrl: cdnUrl,
-                    selected: isActive && unit.space!.id == selectedSpaceId,
-                    onTap: () => onSelect(conn.key, unit.space!.id),
-                    onReorderBefore: (movedId) => _reorderBefore(
-                      settingsCtl,
-                      globalOrder,
-                      movedId,
-                      unit.space!.id,
-                    ),
-                    onMenu: () =>
-                        _spaceMenu(context, ref, unit.space!, conn.key),
-                  ),
+            child: _FolderTile(
+              folder: unit.folder!,
+              spaces: unit.spaces,
+              connOf: connOf,
+              selectedSpaceId: selectedSpaceId,
+              onSelect: onSelect,
+              onDropSpace: (spaceId) =>
+                  settingsCtl.moveSpaceToFolder(spaceId, unit.folder!.id),
+            ),
+          ),
+        );
+      } else {
+        final space = unit.space!;
+        final sc = connOf[space.id];
+        final serverKey = sc?.serverKey ?? '';
+        railItems.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: _DraggableSpace(
+              space: space,
+              cdnUrl: sc?.cdnUrl,
+              selected: (sc?.active ?? false) && space.id == selectedSpaceId,
+              onTap: () => onSelect(serverKey, space.id),
+              onReorderBefore: (movedId) => _reorderBefore(
+                settingsCtl,
+                globalOrder,
+                movedId,
+                space.id,
+              ),
+              onMenu: () => _spaceMenu(context, ref, space, serverKey),
+            ),
           ),
         );
       }
@@ -487,8 +498,7 @@ class _FolderTile extends ConsumerWidget {
   const _FolderTile({
     required this.folder,
     required this.spaces,
-    required this.serverKey,
-    required this.cdnUrl,
+    required this.connOf,
     required this.selectedSpaceId,
     required this.onSelect,
     required this.onDropSpace,
@@ -496,8 +506,10 @@ class _FolderTile extends ConsumerWidget {
 
   final SpaceFolder folder;
   final List<AccordSpace> spaces;
-  final String serverKey;
-  final String? cdnUrl;
+
+  /// Per-space connection lookup so folder members can span servers: each
+  /// member resolves its own CDN, owning server, and active state.
+  final Map<String, _SpaceConn> connOf;
   final String? selectedSpaceId;
   final void Function(String serverKey, String spaceId) onSelect;
   final ValueChanged<String> onDropSpace;
@@ -554,9 +566,11 @@ class _FolderTile extends ConsumerWidget {
                         _memberMenu(context, ref, ctl, space),
                     child: _SpaceIcon(
                       space: space,
-                      selected: space.id == selectedSpaceId,
-                      cdnUrl: cdnUrl,
-                      onTap: () => onSelect(serverKey, space.id),
+                      selected: (connOf[space.id]?.active ?? false) &&
+                          space.id == selectedSpaceId,
+                      cdnUrl: connOf[space.id]?.cdnUrl,
+                      onTap: () =>
+                          onSelect(connOf[space.id]?.serverKey ?? '', space.id),
                     ),
                   ),
                 ),
@@ -578,7 +592,13 @@ class _FolderTile extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ..._serverActionTiles(context, ctx, ref, space, serverKey),
+            ..._serverActionTiles(
+              context,
+              ctx,
+              ref,
+              space,
+              connOf[space.id]?.serverKey ?? '',
+            ),
             ListTile(
               leading: const Icon(Icons.folder_off_outlined),
               title: Text('Remove "${space.name}" from folder'),
@@ -800,83 +820,6 @@ class _SpaceIcon extends ConsumerWidget {
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A slim per-server separator shown in the rail only when more than one server
-/// is connected: the server's initial, its name as a tooltip, and a status dot.
-class _ServerGroupHeader extends StatelessWidget {
-  const _ServerGroupHeader({
-    required this.name,
-    required this.status,
-    required this.active,
-  });
-
-  final String name;
-  final ConnectionStatus status;
-  final bool active;
-
-  Color get _statusColor {
-    switch (status) {
-      case ConnectionStatus.ready:
-      case ConnectionStatus.connected:
-        return const Color(0xFF43B581);
-      case ConnectionStatus.connecting:
-      case ConnectionStatus.reconnecting:
-        return const Color(0xFFFAA61A);
-      case ConnectionStatus.disconnected:
-        return const Color(0xFFF04747);
-    }
-  }
-
-  String get _initial {
-    final trimmed = name.trim();
-    return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Center(
-      child: Tooltip(
-        message: name,
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: colors.darkGray,
-            shape: BoxShape.circle,
-            border: active ? Border.all(color: colors.primary, width: 2) : null,
-          ),
-          alignment: Alignment.center,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Text(
-                _initial,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(color: colors.dirtyWhite),
-              ),
-              Positioned(
-                right: -2,
-                bottom: -2,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: _statusColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colors.background, width: 1.5),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
