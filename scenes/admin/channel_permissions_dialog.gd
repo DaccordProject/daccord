@@ -73,6 +73,9 @@ const PERM_GROUPS: Array = [
 	},
 ]
 
+## Sidebar collapses to a dropdown below this viewport width.
+const _COMPACT_THRESHOLD: float = 600.0
+
 var _selected_bg: Color:
 	get: return ThemeManager.get_color("secondary_button")
 
@@ -91,8 +94,17 @@ var _overwrite_types: Dictionary = {}
 var _original_overwrite_data: Dictionary = {}
 var _original_overwrite_types: Dictionary = {}
 
+# Compact-mode sidebar replacement
+var _compact_row: HBoxContainer
+var _compact_dropdown: OptionButton
+var _compact_dropdown_keys: Array = []
+var _is_compact_layout: bool = false
+
 @onready var _close_btn: Button = $CenterContainer/Panel/VBox/Header/CloseButton
 @onready var _title: Label = $CenterContainer/Panel/VBox/Header/Title
+@onready var _vbox: VBoxContainer = $CenterContainer/Panel/VBox
+@onready var _role_scroll: ScrollContainer = \
+	$CenterContainer/Panel/VBox/Content/RoleScroll
 @onready var _role_list: VBoxContainer = \
 	$CenterContainer/Panel/VBox/Content/RoleScroll/RoleList
 @onready var _perm_list: VBoxContainer = \
@@ -106,6 +118,8 @@ func _ready() -> void:
 	_close_btn.pressed.connect(_try_close)
 	_save_btn.pressed.connect(_on_save)
 	_reset_btn.pressed.connect(_on_reset)
+	_build_compact_row()
+	_update_compact_layout()
 
 func setup(channel: Dictionary, space_id: String) -> void:
 	_channel = channel
@@ -206,6 +220,7 @@ func _rebuild_role_list() -> void:
 	_role_list.add_child(add_btn)
 
 	_update_role_selection()
+	_rebuild_compact_dropdown()
 
 func _add_member_button(user_id: String) -> void:
 	var btn := Button.new()
@@ -241,6 +256,7 @@ func _update_role_selection() -> void:
 			btn.add_theme_stylebox_override("normal", sb)
 		else:
 			btn.remove_theme_stylebox_override("normal")
+	_sync_compact_dropdown_selection()
 
 func _on_entity_selected(
 	entity_id: String, entity_type: String
@@ -465,3 +481,111 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_try_close()
 		get_viewport().set_input_as_handled()
+
+# --- Compact-mode sidebar collapse ---
+
+func _build_compact_row() -> void:
+	_compact_row = HBoxContainer.new()
+	_compact_row.add_theme_constant_override("separation", 8)
+	_compact_row.visible = false
+
+	_compact_dropdown = OptionButton.new()
+	_compact_dropdown.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_compact_dropdown.item_selected.connect(_on_compact_dropdown_selected)
+	_compact_row.add_child(_compact_dropdown)
+
+	var add_btn := Button.new()
+	add_btn.text = tr("+ Member")
+	add_btn.pressed.connect(_on_add_member_overwrite)
+	_compact_row.add_child(add_btn)
+
+	# Insert directly after the header (index 1) so it appears above Content.
+	_vbox.add_child(_compact_row)
+	_vbox.move_child(_compact_row, 1)
+
+func _rebuild_compact_dropdown() -> void:
+	if not is_instance_valid(_compact_dropdown):
+		return
+	_compact_dropdown.clear()
+	_compact_dropdown_keys.clear()
+
+	var roles: Array = Client.get_roles_for_space(_space_id)
+	roles.sort_custom(func(a: Dictionary, b: Dictionary):
+		return a.get("position", 0) > b.get("position", 0)
+	)
+
+	var has_roles: bool = not roles.is_empty()
+	if has_roles:
+		_compact_dropdown.add_separator(tr("Roles"))
+	for role in roles:
+		var rid: String = role.get("id", "")
+		_compact_dropdown.add_item(role.get("name", ""))
+		_compact_dropdown_keys.append(rid)
+
+	var user_ids: Array = []
+	for eid in _overwrite_types:
+		if _overwrite_types[eid] == "user":
+			user_ids.append(eid)
+
+	if not user_ids.is_empty():
+		_compact_dropdown.add_separator(tr("Members"))
+		var members: Array = Client.get_members_for_space(_space_id)
+		for uid in user_ids:
+			var display_name: String = uid
+			for m in members:
+				if m.get("id", "") == uid:
+					display_name = m.get("display_name", uid)
+					break
+			_compact_dropdown.add_item(display_name)
+			_compact_dropdown_keys.append(uid)
+
+	_sync_compact_dropdown_selection()
+
+func _sync_compact_dropdown_selection() -> void:
+	if not is_instance_valid(_compact_dropdown):
+		return
+	if _selected_role_id.is_empty():
+		_compact_dropdown.selected = -1
+		return
+	var key_idx: int = _compact_dropdown_keys.find(_selected_role_id)
+	if key_idx == -1:
+		return
+	# Account for separator items inserted before the matching entry.
+	var visible_idx: int = 0
+	for i in _compact_dropdown.item_count:
+		if _compact_dropdown.is_item_separator(i):
+			continue
+		if visible_idx == key_idx:
+			_compact_dropdown.selected = i
+			return
+		visible_idx += 1
+
+func _on_compact_dropdown_selected(idx: int) -> void:
+	if _compact_dropdown.is_item_separator(idx):
+		return
+	# Convert the OptionButton index (which includes separators) into the
+	# matching _compact_dropdown_keys position.
+	var visible_idx: int = 0
+	for i in idx:
+		if not _compact_dropdown.is_item_separator(i):
+			visible_idx += 1
+	if visible_idx < 0 or visible_idx >= _compact_dropdown_keys.size():
+		return
+	var entity_id: String = _compact_dropdown_keys[visible_idx]
+	var entity_type: String = _overwrite_types.get(entity_id, "role")
+	_on_entity_selected(entity_id, entity_type)
+
+func _update_compact_layout() -> void:
+	if not is_instance_valid(_compact_row) or not is_instance_valid(_role_scroll):
+		return
+	var vp_w: float = get_viewport_rect().size.x
+	var should_compact: bool = vp_w < _COMPACT_THRESHOLD
+	if should_compact == _is_compact_layout:
+		return
+	_is_compact_layout = should_compact
+	_role_scroll.visible = not should_compact
+	_compact_row.visible = should_compact
+
+func _on_viewport_resized() -> void:
+	super._on_viewport_resized()
+	_update_compact_layout()
