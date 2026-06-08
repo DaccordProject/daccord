@@ -193,7 +193,7 @@ class ScreenShareCaptureOptions extends VideoCaptureOptions {
       if (deviceId != null) {
         constraints['deviceId'] = {'exact': deviceId};
       }
-      if (maxFrameRate != 0.0) {
+      if (maxFrameRate != null && maxFrameRate != 0.0) {
         constraints['mandatory'] = {'frameRate': maxFrameRate};
       }
     }

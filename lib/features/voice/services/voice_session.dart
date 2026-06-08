@@ -310,6 +310,7 @@ class VoiceSession {
     if (enabled) {
       options = ScreenShareCaptureOptions(
         sourceId: (sourceId != null && sourceId.isNotEmpty) ? sourceId : null,
+        maxFrameRate: (fps ?? 30).toDouble(),
         params: (width != null && height != null)
             ? VideoParameters(
                 dimensions: VideoDimensions(width, height),
