@@ -3,13 +3,21 @@ import 'dart:convert';
 
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
+import 'package:bonfire/features/updates/services/update_installer.dart';
 import 'package:bonfire/shared/app_info.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:universal_platform/universal_platform.dart';
 
 part 'update_controller.g.dart';
+
+/// Where an in-place install currently is. Drives the update UI's progress and
+/// disabled states; [idle] also covers "not started" and "completed on Android"
+/// (where the system installer takes over and the app keeps running).
+enum UpdatePhase { idle, downloading, verifying, installing, failed }
 
 /// Snapshot of the update checker.
 @immutable
@@ -20,6 +28,9 @@ class UpdateState {
     this.error,
     this.checkedOnce = false,
     this.dismissedVersion,
+    this.phase = UpdatePhase.idle,
+    this.progress = 0.0,
+    this.installError,
   });
 
   /// The latest release fetched, or null if none/unknown.
@@ -39,6 +50,21 @@ class UpdateState {
   /// Distinct from the persistent "skip this version" preference.
   final String? dismissedVersion;
 
+  /// Current phase of an in-place install (download → verify → swap).
+  final UpdatePhase phase;
+
+  /// Download progress (0..1) while [phase] is [UpdatePhase.downloading].
+  final double progress;
+
+  /// The last install failure's user-facing message, or null.
+  final String? installError;
+
+  /// Whether an install is actively in flight (download/verify/swap).
+  bool get installing =>
+      phase == UpdatePhase.downloading ||
+      phase == UpdatePhase.verifying ||
+      phase == UpdatePhase.installing;
+
   /// Whether [latest] is a newer build than the running one. Pre-releases are
   /// ignored unless this build is itself a pre-release (matching the reference
   /// updater); GitHub's `/releases/latest` already excludes pre-releases, so
@@ -57,12 +83,19 @@ class UpdateState {
     bool clearError = false,
     bool? checkedOnce,
     String? dismissedVersion,
+    UpdatePhase? phase,
+    double? progress,
+    String? installError,
+    bool clearInstallError = false,
   }) => UpdateState(
     latest: latest ?? this.latest,
     checking: checking ?? this.checking,
     error: clearError ? null : (error ?? this.error),
     checkedOnce: checkedOnce ?? this.checkedOnce,
     dismissedVersion: dismissedVersion ?? this.dismissedVersion,
+    phase: phase ?? this.phase,
+    progress: progress ?? this.progress,
+    installError: clearInstallError ? null : (installError ?? this.installError),
   );
 }
 
@@ -72,10 +105,12 @@ class UpdateState {
 /// throttled), a manual check, session-dismiss + persistent skip, and
 /// platform-aware download links.
 ///
-/// In-place self-replacement (binary swap + relaunch on desktop, APK install on
-/// Android) is intentionally deferred — it needs untestable per-platform native
-/// machinery. For now an available update links straight to the matching
-/// platform asset's download (or the release page), and web prompts a refresh.
+/// In-place self-replacement is handled by [installUpdate]: on desktop it
+/// downloads + verifies the matching bundle and a detached helper swaps the
+/// binary tree and relaunches (see [UpdateInstaller]); on Android it hands the
+/// APK to the system installer. Platforms without an in-place path (or older
+/// releases) still fall back to a plain download link, and web prompts a
+/// service-worker reload.
 @Riverpod(keepAlive: true)
 class UpdateController extends _$UpdateController {
   static const _throttle = Duration(hours: 1);
@@ -206,6 +241,104 @@ class UpdateController extends _$UpdateController {
     }
     for (final a in assets) {
       if (hasExt(a, exts)) return a.url;
+    }
+    return null;
+  }
+
+  /// The release asset matching the current platform (the object behind
+  /// [platformAssetUrl]), or null when none applies.
+  AppReleaseAsset? platformAsset() {
+    final url = platformAssetUrl();
+    if (url == null) return null;
+    return (state.latest?.assets ?? const []).firstWhereOrNull(
+      (a) => a.url == url,
+    );
+  }
+
+  /// Whether the running platform supports an in-place download-and-install
+  /// (desktop binary swap or Android APK install), and a matching asset exists.
+  bool get canInstallInPlace =>
+      UpdateInstaller.isSupported && platformAsset() != null;
+
+  /// Downloads the matching platform asset, verifies it against the release's
+  /// published checksums (when present), and installs it in place. On desktop
+  /// the app quits and the swap helper relaunches the new build; on Android the
+  /// system package installer takes over. Surfaces progress/errors via [state].
+  Future<void> installUpdate() async {
+    if (state.installing) return;
+    final asset = platformAsset();
+    if (asset == null) {
+      state = state.copyWith(
+        phase: UpdatePhase.failed,
+        installError: 'No downloadable build for this platform.',
+      );
+      return;
+    }
+    final installer = UpdateInstaller();
+    try {
+      state = state.copyWith(
+        phase: UpdatePhase.downloading,
+        progress: 0,
+        clearInstallError: true,
+      );
+      final archivePath = await installer.download(
+        asset.url,
+        fileName: asset.name,
+        onProgress: (value) => state = state.copyWith(progress: value),
+      );
+
+      final expected = await _expectedSha(asset.name);
+      if (expected != null) {
+        state = state.copyWith(phase: UpdatePhase.verifying);
+        await installer.verify(archivePath, expected);
+      } else {
+        debugPrint('No published checksum for ${asset.name}; skipping verify.');
+      }
+
+      state = state.copyWith(phase: UpdatePhase.installing);
+      // Desktop: install() quits the process and never returns here. Android:
+      // returns once the system installer has been launched.
+      await installer.install(archivePath, onReadyToQuit: () async {});
+      state = state.copyWith(phase: UpdatePhase.idle);
+    } on UpdateInstallException catch (e) {
+      state = state.copyWith(
+        phase: UpdatePhase.failed,
+        installError: e.message,
+      );
+    } catch (e) {
+      debugPrint('Install failed: $e');
+      state = state.copyWith(
+        phase: UpdatePhase.failed,
+        installError: 'Update failed. Try downloading it manually instead.',
+      );
+    }
+  }
+
+  /// Looks up the expected SHA-256 for [assetName] from the release's
+  /// `SHA256SUMS` asset (lines of `<hex>  <filename>`). Returns null when the
+  /// release publishes no checksums or the file isn't listed — callers then
+  /// proceed without verification (older releases predate checksums).
+  Future<String?> _expectedSha(String assetName) async {
+    final sums = (state.latest?.assets ?? const []).firstWhereOrNull(
+      (a) => a.name.toUpperCase().contains('SHA256SUMS'),
+    );
+    if (sums == null) return null;
+    try {
+      final res = await http
+          .get(
+            Uri.parse(sums.url),
+            headers: {'User-Agent': 'daccord/$kAppVersion'},
+          )
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      for (final line in const LineSplitter().convert(res.body)) {
+        final parts = line.trim().split(RegExp(r'\s+'));
+        if (parts.length >= 2 && p.basename(parts.last) == assetName) {
+          return parts.first;
+        }
+      }
+    } catch (e) {
+      debugPrint('Checksum fetch failed: $e');
     }
     return null;
   }

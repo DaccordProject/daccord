@@ -39,6 +39,9 @@ android {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    // FileProvider, used by MainActivity to hand a downloaded APK to the system
+    // installer for the in-app self-update.
+    implementation 'androidx.core:core-ktx:1.13.1'
 }
 
 flutter {

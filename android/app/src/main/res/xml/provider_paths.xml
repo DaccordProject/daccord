@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider roots for the in-app self-updater. getTemporaryDirectory()
+     (path_provider) maps to the app's internal cache dir, where the downloaded
+     APK is written; the external entries cover devices that back it externally. -->
+<paths>
+    <cache-path name="cache" path="." />
+    <files-path name="files" path="." />
+    <external-cache-path name="external_cache" path="." />
+    <external-files-path name="external_files" path="." />
+</paths>

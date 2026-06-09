@@ -1,0 +1,314 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:universal_platform/universal_platform.dart';
+
+/// Thrown when an in-place install can't complete; carries a user-facing message.
+class UpdateInstallException implements Exception {
+  UpdateInstallException(this.message);
+  final String message;
+  @override
+  String toString() => 'UpdateInstallException: $message';
+}
+
+/// Downloads a release asset, verifies it, and installs it in place — the
+/// desktop binary-swap / Android APK-install machinery behind the update UI.
+///
+/// Ports the reference client's `updater.gd` apply steps, with the fix called
+/// out in #87: the Godot updater copied flat files only and would drop Flutter's
+/// `data/` subtree; this copies the **whole bundle tree**. The actual swap +
+/// relaunch is delegated to a small detached helper script (per platform) that
+/// waits for this process to exit first — a running binary can't replace itself.
+///
+/// Paths are passed as plain strings so this stays free of `dart:io` types in
+/// its public surface; the web build gets the no-op stub instead (see
+/// `update_installer.dart`'s conditional export).
+class UpdateInstaller {
+  UpdateInstaller({http.Client? client}) : _http = client ?? http.Client();
+
+  final http.Client _http;
+
+  /// Platform channel mirrored by `MainActivity.kt` for the Android APK install.
+  static const _androidChannel = MethodChannel('com.daccord.app/installer');
+
+  /// Whether an in-place install is implemented for the current platform.
+  static bool get isSupported =>
+      UniversalPlatform.isWindows ||
+      UniversalPlatform.isMacOS ||
+      UniversalPlatform.isLinux ||
+      UniversalPlatform.isAndroid;
+
+  /// Streams [url] to a temp file, reporting fractional progress (0..1) when the
+  /// server sends a Content-Length. Returns the downloaded file's path.
+  Future<String> download(
+    String url, {
+    String? fileName,
+    void Function(double progress)? onProgress,
+  }) async {
+    final dir = await getTemporaryDirectory();
+    final staging = Directory(p.join(dir.path, 'daccord-update'));
+    if (staging.existsSync()) staging.deleteSync(recursive: true);
+    staging.createSync(recursive: true);
+
+    final name = fileName ?? p.basename(Uri.parse(url).path);
+    final out = File(p.join(staging.path, name.isEmpty ? 'download' : name));
+
+    final req = http.Request('GET', Uri.parse(url))
+      ..headers['User-Agent'] = 'daccord-updater'
+      ..followRedirects = true;
+    final resp = await _http.send(req);
+    if (resp.statusCode != 200) {
+      throw UpdateInstallException('Download failed (HTTP ${resp.statusCode}).');
+    }
+    final total = resp.contentLength ?? 0;
+    var received = 0;
+    final sink = out.openWrite();
+    try {
+      await for (final chunk in resp.stream) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (total > 0) onProgress?.call((received / total).clamp(0.0, 1.0));
+      }
+    } finally {
+      await sink.close();
+    }
+    return out.path;
+  }
+
+  /// Verifies the file at [path] against [expectedHex] (case-insensitive,
+  /// streamed). Throws on mismatch so a corrupt or tampered download never
+  /// reaches the swap step.
+  Future<void> verify(String path, String expectedHex) async {
+    final digest = await sha256.bind(File(path).openRead()).first;
+    if (digest.toString().toLowerCase() != expectedHex.toLowerCase()) {
+      throw UpdateInstallException(
+        'Integrity check failed — the download may be corrupt.',
+      );
+    }
+  }
+
+  /// Installs the downloaded asset at [path] for the current platform. On
+  /// desktop this spawns the detached swap helper and then quits the app (the
+  /// helper relaunches the new build); on Android it hands the APK to the system
+  /// package installer and returns. Throws [UpdateInstallException] on failure.
+  Future<void> install(
+    String path, {
+    required Future<void> Function() onReadyToQuit,
+  }) async {
+    final asset = File(path);
+    if (UniversalPlatform.isAndroid) {
+      await _installAndroid(asset);
+      return;
+    }
+    if (UniversalPlatform.isWindows) {
+      await _installWindows(asset);
+    } else if (UniversalPlatform.isMacOS) {
+      await _installMacOs(asset);
+    } else if (UniversalPlatform.isLinux) {
+      await _installLinux(asset);
+    } else {
+      throw UpdateInstallException('Self-update is not supported here.');
+    }
+    // Helper is now armed and polling for our exit — flush state, then quit.
+    await onReadyToQuit();
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    exit(0);
+  }
+
+  // ── Android ────────────────────────────────────────────────────────────────
+
+  Future<void> _installAndroid(File apk) async {
+    try {
+      await _androidChannel.invokeMethod<void>('installApk', {
+        'path': apk.path,
+      });
+    } on PlatformException catch (e) {
+      throw UpdateInstallException(
+        e.message ?? 'Could not open the installer.',
+      );
+    } on MissingPluginException {
+      throw UpdateInstallException('Installer is unavailable on this build.');
+    }
+  }
+
+  // ── Desktop: extract → stage → detached swap helper ─────────────────────────
+
+  /// Decodes a zip / tar.gz [archiveFile] into [dest], preserving the directory
+  /// tree (the #87 fix — never flatten). Returns [dest].
+  Future<Directory> _extract(File archiveFile, Directory dest) async {
+    final bytes = await archiveFile.readAsBytes();
+    final name = archiveFile.path.toLowerCase();
+    final Archive archive;
+    if (name.endsWith('.tar.gz') || name.endsWith('.tgz')) {
+      archive = TarDecoder().decodeBytes(GZipDecoder().decodeBytes(bytes));
+    } else if (name.endsWith('.zip')) {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } else {
+      throw UpdateInstallException('Unsupported archive: ${p.basename(name)}');
+    }
+    if (dest.existsSync()) dest.deleteSync(recursive: true);
+    dest.createSync(recursive: true);
+    for (final entry in archive) {
+      final outPath = p.join(dest.path, entry.name);
+      if (entry.isFile) {
+        File(outPath)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(entry.content as List<int>);
+      } else {
+        Directory(outPath).createSync(recursive: true);
+      }
+    }
+    return dest;
+  }
+
+  /// The directory that holds the running desktop bundle (everything the swap
+  /// must replace). On macOS this is the `.app` bundle itself.
+  String get _installRoot {
+    final exe = Platform.resolvedExecutable;
+    if (UniversalPlatform.isMacOS) {
+      // …/Daccord.app/Contents/MacOS/daccord → …/Daccord.app
+      return p.dirname(p.dirname(p.dirname(exe)));
+    }
+    return p.dirname(exe);
+  }
+
+  Future<File> _writeHelper(String name, String contents) async {
+    final dir = await getTemporaryDirectory();
+    final helper = File(p.join(dir.path, 'daccord-update', name));
+    helper.parent.createSync(recursive: true);
+    helper.writeAsStringSync(contents);
+    if (!UniversalPlatform.isWindows) {
+      await Process.run('chmod', ['+x', helper.path]);
+    }
+    return helper;
+  }
+
+  /// The current process id, guarded so an unexpected platform can't crash the
+  /// updater (the helper's `kill -0` loop just falls through on 0).
+  int get _pid {
+    try {
+      return pid;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> _installWindows(File zip) async {
+    final dir = await getTemporaryDirectory();
+    final staged = await _extract(
+      zip,
+      Directory(p.join(dir.path, 'daccord-update', 'staged')),
+    );
+    final dst = _installRoot;
+    final pid = _pid;
+    // rename-to-.old → move new → relaunch, restoring on failure (#87 rollback).
+    final bat = await _writeHelper('apply.bat', '''
+@echo off
+:wait
+tasklist /FI "PID eq $pid" 2>NUL | find "$pid" >NUL
+if "%ERRORLEVEL%"=="0" ( ping -n 2 127.0.0.1 >NUL & goto wait )
+if exist "$dst.old" rmdir /S /Q "$dst.old" >NUL 2>&1
+move "$dst" "$dst.old" >NUL 2>&1
+move "${staged.path}" "$dst" >NUL 2>&1
+if not exist "$dst\\daccord.exe" (
+  rmdir /S /Q "$dst" >NUL 2>&1
+  move "$dst.old" "$dst" >NUL 2>&1
+) else (
+  rmdir /S /Q "$dst.old" >NUL 2>&1
+)
+start "" "$dst\\daccord.exe"
+del "%~f0"
+''');
+    await Process.start('cmd.exe', [
+      '/c',
+      'start',
+      '',
+      '/min',
+      bat.path,
+    ], mode: ProcessStartMode.detached);
+  }
+
+  Future<void> _installLinux(File tarball) async {
+    final dir = await getTemporaryDirectory();
+    final staged = await _extract(
+      tarball,
+      Directory(p.join(dir.path, 'daccord-update', 'staged')),
+    );
+    final dst = _installRoot;
+    final pid = _pid;
+    final sh = await _writeHelper('apply.sh', '''
+#!/usr/bin/env bash
+set -u
+while kill -0 $pid 2>/dev/null; do sleep 0.5; done
+rm -rf "$dst.old"
+if mv "$dst" "$dst.old" 2>/dev/null; then
+  if mv "${staged.path}" "$dst" 2>/dev/null && [ -f "$dst/daccord" ]; then
+    chmod +x "$dst/daccord" 2>/dev/null
+    rm -rf "$dst.old"
+  else
+    rm -rf "$dst"; mv "$dst.old" "$dst"
+  fi
+fi
+nohup "$dst/daccord" >/dev/null 2>&1 &
+rm -f "\$0"
+''');
+    await Process.start('bash', [
+      sh.path,
+    ], mode: ProcessStartMode.detached);
+  }
+
+  Future<void> _installMacOs(File dmg) async {
+    // Attach the read-only image, locate the bundled .app, then let the helper
+    // copy it over the running bundle once we exit. Quarantine is stripped so
+    // Gatekeeper doesn't re-prompt on the freshly-copied bundle.
+    final mountPoint = p.join(
+      (await getTemporaryDirectory()).path,
+      'daccord-update',
+      'mnt',
+    );
+    Directory(mountPoint).createSync(recursive: true);
+    final attach = await Process.run('hdiutil', [
+      'attach',
+      dmg.path,
+      '-nobrowse',
+      '-mountpoint',
+      mountPoint,
+    ]);
+    if (attach.exitCode != 0) {
+      throw UpdateInstallException('Could not open the disk image.');
+    }
+    final srcApp = p.join(mountPoint, 'Daccord.app');
+    if (!Directory(srcApp).existsSync()) {
+      await Process.run('hdiutil', ['detach', mountPoint, '-force']);
+      throw UpdateInstallException('The update image is missing Daccord.app.');
+    }
+    final dst = _installRoot; // …/Daccord.app
+    final pid = _pid;
+    final sh = await _writeHelper('apply.sh', '''
+#!/usr/bin/env bash
+set -u
+while kill -0 $pid 2>/dev/null; do sleep 0.5; done
+rm -rf "$dst.old"
+if mv "$dst" "$dst.old" 2>/dev/null; then
+  if cp -R "$srcApp" "$dst" 2>/dev/null && [ -d "$dst" ]; then
+    xattr -cr "$dst" 2>/dev/null
+    rm -rf "$dst.old"
+  else
+    rm -rf "$dst"; mv "$dst.old" "$dst"
+  fi
+fi
+hdiutil detach "$mountPoint" -force >/dev/null 2>&1 || true
+open "$dst"
+rm -f "\$0"
+''');
+    await Process.start('bash', [
+      sh.path,
+    ], mode: ProcessStartMode.detached);
+  }
+}

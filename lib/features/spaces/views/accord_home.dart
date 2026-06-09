@@ -49,6 +49,7 @@ import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/views/update_banner.dart';
+import 'package:bonfire/features/updates/views/web_update_prompt.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -590,6 +591,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     return Column(
       children: [
         const UpdateBanner(),
+        const WebUpdatePrompt(),
         const RolePreviewBanner(),
         Expanded(child: body),
       ],

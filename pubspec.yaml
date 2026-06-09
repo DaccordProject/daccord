@@ -94,6 +94,10 @@ dependencies:
   webview_flutter: ^4.10.0
   dart_mappable: ^4.6.1
   pasteboard: ^0.5.0
+  # Self-update: extract downloaded desktop bundles (zip / tar.gz) before the
+  # in-place binary swap. Pure Dart, used only by features/updates. Pinned to the
+  # already-resolved transitive version to avoid a version-solve conflict.
+  archive: ^3.6.1
 
 dependency_overrides:
   http: ^1.2.1

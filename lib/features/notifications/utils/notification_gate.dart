@@ -24,6 +24,9 @@ class MessageNotificationGate {
   /// (kept for clarity), `'nothing'` suppresses unconditionally. `null` falls
   /// back to the default. Mirrors the reference client's per-channel level
   /// (`Config.get_channel_notification_level`).
+  /// [spaceMuted] mirrors a per-space mute (`AccordSettings.isSpaceMuted`): when
+  /// true the message's space is muted and no notification is shown, regardless
+  /// of mentions — matching the old client's "Mute Server" action.
   static bool shouldNotify({
     required bool notificationsEnabled,
     required bool suppressEveryone,
@@ -31,11 +34,13 @@ class MessageNotificationGate {
     required bool isVisibleChannel,
     required bool mentionsMe,
     required bool mentionEveryone,
+    bool spaceMuted = false,
     String? channelLevel,
   }) {
     if (!notificationsEnabled) return false;
     if (isOwnMessage) return false;
     if (isVisibleChannel) return false;
+    if (spaceMuted) return false;
     // The user-set per-channel level overrides the mention default, but is
     // still gated by the higher-priority knobs above (global enable, self,
     // visible channel) so a single setting can't accidentally re-enable an

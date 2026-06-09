@@ -135,6 +135,25 @@ class UpdatesScreen extends ConsumerWidget {
                 children: [
                   Builder(
                     builder: (context) {
+                      // Where the platform supports it, download + install in
+                      // place (desktop binary swap / Android APK install);
+                      // otherwise fall back to a plain download link.
+                      if (!kIsWeb && notifier.canInstallInPlace) {
+                        return FilledButton.icon(
+                          onPressed: update.installing
+                              ? null
+                              : () => notifier.installUpdate(),
+                          icon: update.installing
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.download),
+                          label: Text(_installLabel(update)),
+                        );
+                      }
                       // Prefer the matching platform asset (one-click download
                       // of the right file); fall back to the release page.
                       final assetUrl = notifier.platformAssetUrl();
@@ -154,15 +173,32 @@ class UpdatesScreen extends ConsumerWidget {
                     },
                   ),
                   TextButton(
-                    onPressed: () {
-                      notifier.skipCurrent();
-                      Navigator.of(context).maybePop();
-                    },
+                    onPressed: update.installing
+                        ? null
+                        : () {
+                            notifier.skipCurrent();
+                            Navigator.of(context).maybePop();
+                          },
                     child: const Text('Skip this version'),
                   ),
                 ],
               ),
             ),
+            if (update.phase == UpdatePhase.downloading && update.progress > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: LinearProgressIndicator(value: update.progress),
+              ),
+            if (update.installError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  update.installError!,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall!.copyWith(color: colors.red),
+                ),
+              ),
             if (kIsWeb)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -177,5 +213,22 @@ class UpdatesScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Button label reflecting the current install phase.
+String _installLabel(UpdateState update) {
+  switch (update.phase) {
+    case UpdatePhase.downloading:
+      final pct = (update.progress * 100).round();
+      return update.progress > 0 ? 'Downloading… $pct%' : 'Downloading…';
+    case UpdatePhase.verifying:
+      return 'Verifying…';
+    case UpdatePhase.installing:
+      return 'Installing…';
+    case UpdatePhase.failed:
+      return 'Retry update';
+    case UpdatePhase.idle:
+      return 'Download & install';
   }
 }
