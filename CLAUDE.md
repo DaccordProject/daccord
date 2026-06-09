@@ -13,7 +13,7 @@ We are repurposing Bonfire's mature, well-structured Flutter UI and reusing as m
 - **No Discord integration.** This client talks **only** to Daccord/Accord servers. All `discord.com`, `cdn.discordapp.com`, Discord gateway, Discord OAuth/token, and Firebase-push code paths are to be removed or replaced. Do not add Discord endpoints back.
 - **License stays GPLv3.** Bonfire is licensed GPL-3.0 and we retain it. See `LICENSE`. AccordKit-Dart and the Godot daccord client are MIT — GPLv3 may incorporate MIT-licensed code, so depending on `accordkit` is fine. Keep the `LICENSE` file as GPL-3.0; any new files inherit GPLv3.
 - **Reuse Bonfire.** Prefer adapting existing Bonfire widgets, controllers, routing, theming, and caching over rewriting. The networking/models swap is the bulk of the work; the UI should change as little as possible.
-- **Defer GDExtensions / native voice.** Voice/video (LiveKit, WebRTC, GDExtension-backed transport) is **out of scope for now**. Stub or hide voice UI; do not build native transport integrations yet.
+- **Voice, video & screen sharing are implemented.** Real-time voice, video, and screen sharing (LiveKit/WebRTC transport) are fully supported. Maintain and extend the existing voice stack; don't stub or hide voice UI.
 
 ## The three repositories involved
 
@@ -100,7 +100,7 @@ client.login(); // opens the gateway
 
 - **REST:** namespaced APIs on the client — `client.spaces`, `client.channels`, `client.messages`, `client.members`, `client.roles`, `client.users`, `client.invites`, `client.reactions`, `client.emojis`, `client.auth`, etc. Each call returns a `RestResult` with `.ok`, `.data`, `.error`, `.statusCode`, `.cursor` (cursor pagination). Rate-limit (429) retry is built in.
 - **Gateway:** ~50 typed `Stream` properties — `client.onMessageCreate`, `onMessageUpdate`, `onMessageDelete`, `onPresenceUpdate`, `onTypingStart`, `onMemberJoin`, `onChannelCreate`, `onReady`, `onReconnecting`, … plus `onRawEvent`. Wire these into Riverpod controllers the same way Bonfire wires firebridge cache events today (see `lib/features/events/`).
-- **Voice:** `client.voiceManager` exists but is **deferred** (see scope rules). Don't integrate native transport yet.
+- **Voice:** `client.voiceManager` drives the implemented voice/video/screen-sharing stack over LiveKit/WebRTC transport.
 
 Mirror Bonfire's existing pattern: a thin repository layer subscribes to gateway streams, updates a cache, and exposes Riverpod providers to the UI.
 
@@ -134,7 +134,7 @@ The recommended sequence (details in `docs/technical-spec.md`):
 4. **Models** — replace firebridge model usage with `Accord*` models (or thin adapters) feature by feature, starting with Space/Channel/Message lists.
 5. **Feature parity passes** — messaging, members, roles/admin, invites, reactions, emojis, search — matching the Godot `daccord` client.
 6. **Retire firebridge** — once nothing imports it, delete `packages/firebridge` and `firebridge_extensions`.
-7. **Voice/GDExtension** — deferred.
+7. **Voice/video/screen sharing** — implemented over LiveKit/WebRTC via `client.voiceManager`.
 
 When in doubt about Accord behaviour, read `../accordkit-dart` (the SDK source) and `../daccord` (the reference client's scenes/scripts).
 
