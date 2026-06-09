@@ -2,6 +2,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
+import 'package:bonfire/features/authentication/views/welcome_view.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
@@ -22,14 +23,28 @@ import 'package:url_launcher/url_launcher.dart';
 ///
 /// [initialMode] selects the Sign in / Register tab on entry; the `/register`
 /// route uses it to land directly on registration.
+///
+/// [startOnCredentials] skips the welcome → browser onboarding and lands
+/// directly on the connect-by-URL credentials form. The `/login` and `/register`
+/// routes set it so deep links and "add another account" go straight to the
+/// form, while the default `/` route opens onboarding.
 class AccordLoginScreen extends ConsumerStatefulWidget {
-  const AccordLoginScreen({super.key, this.initialMode = AuthMode.signIn});
+  const AccordLoginScreen({
+    super.key,
+    this.initialMode = AuthMode.signIn,
+    this.startOnCredentials = false,
+  });
 
   final AuthMode initialMode;
+  final bool startOnCredentials;
 
   @override
   ConsumerState<AccordLoginScreen> createState() => _AccordLoginScreenState();
 }
+
+/// The signed-out sub-flow: branded onboarding → public server browser → the
+/// credentials form for the chosen instance.
+enum _LoggedOutView { welcome, browse, credentials }
 
 class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   final _serverController = TextEditingController();
@@ -42,6 +57,12 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   final _confirmPasswordController = TextEditingController();
 
   late AuthMode _mode = widget.initialMode;
+
+  /// Which signed-out sub-view is showing. Defaults to onboarding unless the
+  /// route asked to land on the credentials form.
+  late _LoggedOutView _view = widget.startOnCredentials
+      ? _LoggedOutView.credentials
+      : _LoggedOutView.welcome;
 
   /// A space chosen from discovery while signed out: once the credentials in
   /// this form authenticate, we join it before handing off to the frame.
@@ -160,9 +181,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     );
   }
 
-  /// Discovery (opened from this screen while signed out) needs auth against
-  /// `serverUrl` before joining `spaceId`: pre-fill the form and remember the
-  /// space so the next successful login joins it automatically.
+  /// Discovery (the embedded browser while signed out) needs auth against
+  /// `serverUrl` before joining `spaceId`: switch to the credentials form,
+  /// pre-fill it, and remember the space so the next successful login joins it.
   void _onDiscoveryJoinRequiresAuth(String serverUrl, String spaceId) {
     Hive.box('accord-session').put('last-server', serverUrl);
     setState(() {
@@ -170,6 +191,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       _pendingJoinSpaceId = spaceId;
       _mode = AuthMode.signIn;
       _authLocalError = null;
+      _view = _LoggedOutView.credentials;
     });
   }
 
@@ -297,64 +319,125 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       });
     }
 
-    final Widget body;
+    // Loading / MFA / forced-password-change: simple centered forms with no
+    // onboarding chrome.
     if (_restoring ||
         state is AccordAuthInProgress ||
         state is AccordAuthLoggedIn) {
-      body = _Loading(label: _restoring ? 'Reconnecting…' : 'Signing in…');
-    } else if (state is AccordAuthMfaRequired) {
-      body = _MfaForm(
-        controller: _mfaController,
-        onSubmit: _submitMfa,
-        onCancel: () => ref.read(accordAuthProvider.notifier).logout(),
+      return _centered(
+        _Loading(label: _restoring ? 'Reconnecting…' : 'Signing in…'),
       );
-    } else if (state is AccordAuthPasswordResetRequired) {
-      body = _PasswordResetForm(
-        oldController: _oldPasswordController,
-        newController: _newPasswordController,
-        confirmController: _confirmPasswordController,
-        onSubmit: _submitPasswordChange,
-        onCancel: () => ref.read(accordAuthProvider.notifier).logout(),
-        error: _resetLocalError ?? state.error,
-      );
-    } else {
-      body = _AuthForm(
-        serverController: _serverController,
-        usernameController: _usernameController,
-        passwordController: _passwordController,
-        displayNameController: _displayNameController,
-        mode: _mode,
-        hasAccounts: _hasAccounts,
-        tosEnabled: _tosEnabled,
-        tosAccepted: _tosAccepted,
-        onModeChanged: _onModeChanged,
-        onSwitchAccount: () => context.go('/switcher'),
-        onGeneratePassword: _generatePassword,
-        onTosChanged: (v) => setState(() => _tosAccepted = v),
-        onTosLinkTap: _openTos,
-        onGuest: _submitGuest,
-        onDiscover: () => showAccordDiscovery(
-          context,
-          onJoinRequiresAuth: _onDiscoveryJoinRequiresAuth,
+    }
+    if (state is AccordAuthMfaRequired) {
+      return _centered(
+        _MfaForm(
+          controller: _mfaController,
+          onSubmit: _submitMfa,
+          onCancel: () => ref.read(accordAuthProvider.notifier).logout(),
         ),
-        onSubmit: _submit,
-        error:
-            _authLocalError ??
-            (state is AccordAuthFailed ? state.message : null),
+      );
+    }
+    if (state is AccordAuthPasswordResetRequired) {
+      return _centered(
+        _PasswordResetForm(
+          oldController: _oldPasswordController,
+          newController: _newPasswordController,
+          confirmController: _confirmPasswordController,
+          onSubmit: _submitPasswordChange,
+          onCancel: () => ref.read(accordAuthProvider.notifier).logout(),
+          error: _resetLocalError ?? state.error,
+        ),
       );
     }
 
+    // Signed out: walk welcome → browse → credentials. Intercept system back to
+    // step through the sub-flow rather than leaving the screen, except at the
+    // flow's entry view.
+    final Widget signedOut = switch (_view) {
+      _LoggedOutView.welcome => _centered(
+        WelcomeView(
+          onBrowse: () => setState(() => _view = _LoggedOutView.browse),
+          onManualConnect: () =>
+              setState(() => _view = _LoggedOutView.credentials),
+          onSwitchAccount: _hasAccounts ? () => context.go('/switcher') : null,
+        ),
+        maxWidth: 480,
+      ),
+      _LoggedOutView.browse => _BrowseView(
+        onBack: _goBack,
+        onManualConnect: () =>
+            setState(() => _view = _LoggedOutView.credentials),
+        onJoinRequiresAuth: _onDiscoveryJoinRequiresAuth,
+      ),
+      _LoggedOutView.credentials => _centered(
+        _AuthForm(
+          serverController: _serverController,
+          usernameController: _usernameController,
+          passwordController: _passwordController,
+          displayNameController: _displayNameController,
+          mode: _mode,
+          hasAccounts: _hasAccounts,
+          tosEnabled: _tosEnabled,
+          tosAccepted: _tosAccepted,
+          onBack: _atFlowRoot ? null : _goBack,
+          onModeChanged: _onModeChanged,
+          onSwitchAccount: () => context.go('/switcher'),
+          onGeneratePassword: _generatePassword,
+          onTosChanged: (v) => setState(() => _tosAccepted = v),
+          onTosLinkTap: _openTos,
+          onGuest: _submitGuest,
+          onDiscover: () => setState(() => _view = _LoggedOutView.browse),
+          onSubmit: _submit,
+          error:
+              _authLocalError ??
+              (state is AccordAuthFailed ? state.message : null),
+        ),
+      ),
+    };
+
+    return PopScope(
+      canPop: _atFlowRoot,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
+      },
+      child: signedOut,
+    );
+  }
+
+  Widget _centered(Widget child, {double maxWidth = 420}) {
     return Center(
       child: SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: body,
+            child: child,
           ),
         ),
       ),
     );
+  }
+
+  /// The signed-out view from which a back gesture should leave the screen
+  /// rather than step back through the onboarding sub-flow.
+  bool get _atFlowRoot =>
+      _view == _LoggedOutView.welcome ||
+      (widget.startOnCredentials && _view == _LoggedOutView.credentials);
+
+  void _goBack() {
+    setState(() {
+      if (_view == _LoggedOutView.browse) {
+        _view = widget.startOnCredentials
+            ? _LoggedOutView.credentials
+            : _LoggedOutView.welcome;
+      } else if (_view == _LoggedOutView.credentials) {
+        _view = _pendingJoinSpaceId != null
+            ? _LoggedOutView.browse
+            : _LoggedOutView.welcome;
+        _pendingJoinSpaceId = null;
+        _authLocalError = null;
+      }
+    });
   }
 }
 
@@ -395,6 +478,7 @@ class _AuthForm extends StatelessWidget {
     required this.onGuest,
     required this.onDiscover,
     required this.onSubmit,
+    this.onBack,
     this.error,
   });
 
@@ -406,6 +490,7 @@ class _AuthForm extends StatelessWidget {
   final bool hasAccounts;
   final bool tosEnabled;
   final bool tosAccepted;
+  final VoidCallback? onBack;
   final ValueChanged<AuthMode> onModeChanged;
   final VoidCallback onSwitchAccount;
   final VoidCallback onGeneratePassword;
@@ -425,6 +510,15 @@ class _AuthForm extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (onBack != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Back'),
+            ),
+          ),
         Text(
           'Welcome to Daccord',
           textAlign: TextAlign.center,
@@ -509,6 +603,69 @@ class _AuthForm extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// The signed-out server browser: a back affordance + the shared public-space
+/// directory ([AccordDiscoveryBody]) shown full-screen, with a manual
+/// connect-by-URL escape hatch. Joining a listing routes auth back through the
+/// hosting login screen via [onJoinRequiresAuth].
+class _BrowseView extends StatelessWidget {
+  const _BrowseView({
+    required this.onBack,
+    required this.onManualConnect,
+    required this.onJoinRequiresAuth,
+  });
+
+  final VoidCallback onBack;
+  final VoidCallback onManualConnect;
+  final void Function(String serverUrl, String spaceId) onJoinRequiresAuth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 12, 16, 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Back',
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back, size: 20),
+                  ),
+                  Icon(Icons.explore, size: 20, color: colors.dirtyWhite),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Discover Servers',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: AccordDiscoveryBody(onJoinRequiresAuth: onJoinRequiresAuth),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: TextButton.icon(
+                onPressed: onManualConnect,
+                icon: const Icon(Icons.link, size: 18),
+                label: const Text('Connect to a server by URL'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -26,7 +26,8 @@ final routerController = GoRouter(
             routes: [
               GoRoute(
                 path: 'login',
-                builder: (context, state) => const AccordLoginScreen(),
+                builder: (context, state) =>
+                    const AccordLoginScreen(startOnCredentials: true),
               ),
               GoRoute(
                 path: 'switcher',
@@ -34,8 +35,10 @@ final routerController = GoRouter(
               ),
               GoRoute(
                 path: 'register',
-                builder: (context, state) =>
-                    const AccordLoginScreen(initialMode: AuthMode.register),
+                builder: (context, state) => const AccordLoginScreen(
+                  initialMode: AuthMode.register,
+                  startOnCredentials: true,
+                ),
               ),
               GoRoute(
                 path: 'spaces',
