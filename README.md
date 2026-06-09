@@ -12,6 +12,7 @@ This is the **Flutter client** — a fork of [Bonfire](https://github.com/OpenBo
 - **Channels & DMs** -- Organize conversations into channels or message people directly
 - **Multi-server** -- Connect to multiple servers at the same time
 - **Emoji** -- Unicode and custom server emoji with a built-in picker
+- **Voice, video & screen sharing** -- Join voice and video channels and share your screen in real time
 - **Server admin tools** -- Manage channels, roles, bans, invites, and custom emoji
 - **Responsive** -- Works on wide monitors and narrow windows alike
 - **Dark theme** -- Easy on the eyes, right out of the box
@@ -22,7 +23,7 @@ This client connects **only** to Daccord/Accord servers -- there is no Discord i
 
 ## Platform support
 
-All platform targets are present (Android, iOS, Windows, macOS, Linux, Web). As the port is in progress, parity varies by platform and feature; voice/video is **deferred and out of scope** for now.
+All platform targets are present (Android, iOS, Windows, macOS, Linux, Web), including voice, video, and screen sharing.
 
 ## Getting started
 
