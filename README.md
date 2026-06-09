@@ -4,7 +4,7 @@ A free, open-source chat app for communities. Connect to one or more [accordserv
 
 This is the **Flutter client** — a fork of [Bonfire](https://github.com/OpenBonfire/bonfire) that reuses its mature Flutter UI and **replaces the Discord networking layer with the Accord protocol** via [`accordkit-dart`](https://github.com/DaccordProject/accordkit-dart). It aims for feature parity with the Godot-based reference client, [`daccord`](https://github.com/DaccordProject/daccord).
 
-> **Status:** early development. The Accord networking foundation, auth, read path, and a first write path are in place. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for migration status and [`docs/technical-spec.md`](docs/technical-spec.md) for the plan.
+> **Status:** early development. The Accord networking foundation, auth, read path, and a first write path are in place.
 
 ## Features
 
