@@ -291,6 +291,15 @@ jobs:
           pattern: daccord-*
           merge-multiple: true
 
+      - name: Generate checksums
+        # SHA256SUMS.txt lets the in-app self-updater verify a downloaded bundle
+        # before swapping it in (see update_controller._expectedSha), and gives
+        # manual downloaders an integrity check. Format: "<sha256>  <filename>".
+        run: |
+          cd artifacts
+          sha256sum $(find . -maxdepth 1 -type f -printf '%P\n' | sort) > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

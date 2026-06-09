@@ -207,6 +207,44 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(spaceFolders: next));
   }
 
+  /// Mutes or unmutes [spaceId]'s notifications (per-space suppression). No-op
+  /// when already in the requested state.
+  void setSpaceMuted(String spaceId, bool muted) {
+    final isMuted = state.mutedSpaces.contains(spaceId);
+    if (muted == isMuted) return;
+    _update(
+      state.copyWith(
+        mutedSpaces: muted
+            ? [...state.mutedSpaces, spaceId]
+            : [
+                for (final s in state.mutedSpaces)
+                  if (s != spaceId) s,
+              ],
+      ),
+    );
+  }
+
+  /// Toggles the muted state of [spaceId].
+  void toggleSpaceMuted(String spaceId) =>
+      setSpaceMuted(spaceId, !state.mutedSpaces.contains(spaceId));
+
+  /// Hides [spaceId] from the rail without leaving it, or restores it. No-op
+  /// when already in the requested state.
+  void setSpaceHidden(String spaceId, bool hidden) {
+    final isHidden = state.hiddenSpaces.contains(spaceId);
+    if (hidden == isHidden) return;
+    _update(
+      state.copyWith(
+        hiddenSpaces: hidden
+            ? [...state.hiddenSpaces, spaceId]
+            : [
+                for (final s in state.hiddenSpaces)
+                  if (s != spaceId) s,
+              ],
+      ),
+    );
+  }
+
   void _mutateFolder(String id, SpaceFolder Function(SpaceFolder) fn) =>
       _update(
         state.copyWith(

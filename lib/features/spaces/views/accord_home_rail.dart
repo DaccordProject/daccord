@@ -61,13 +61,20 @@ class _SpaceRail extends ConsumerWidget {
     // taps route to the right server even though the rail isn't grouped by one.
     final byId = <String, AccordSpace>{};
     final connOf = <String, _SpaceConn>{};
+    // Spaces the user hid from the rail (still joined) — collected so an "N
+    // hidden" affordance can offer to restore them.
+    final hidden = <AccordSpace>[];
     for (final conn in connections.connections) {
       final isActive = conn.key == activeKey;
       final spaces = isActive ? (liveActiveSpaces ?? conn.spaces) : conn.spaces;
       final cdnUrl = conn.session.server.cdnUrl;
       for (final s in spaces) {
-        byId[s.id] = s;
         connOf[s.id] = _SpaceConn(conn.key, cdnUrl, isActive);
+        if (settings.isSpaceHidden(s.id)) {
+          hidden.add(s);
+        } else {
+          byId[s.id] = s;
+        }
       }
     }
 
@@ -124,6 +131,18 @@ class _SpaceRail extends ConsumerWidget {
         child: _AddServerButton(onTap: onAddServer),
       ),
     );
+
+    if (hidden.isNotEmpty) {
+      railItems.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: _HiddenServersButton(
+            count: hidden.length,
+            onTap: () => _showHiddenServers(context, ref, hidden, connOf),
+          ),
+        ),
+      );
+    }
 
     return Container(
       width: 72,
@@ -307,6 +326,53 @@ class _SpaceRail extends ConsumerWidget {
     );
   }
 
+  /// Lists the spaces hidden from the rail with a one-tap restore each — the
+  /// counterpart to the "Hide from list" action so a hidden space is always
+  /// reachable again without leaving and rejoining.
+  Future<void> _showHiddenServers(
+    BuildContext context,
+    WidgetRef ref,
+    List<AccordSpace> hidden,
+    Map<String, _SpaceConn> connOf,
+  ) async {
+    final ctl = ref.read(settingsControllerProvider.notifier);
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Hidden servers'),
+              ),
+            ),
+            const Divider(height: 1),
+            for (final space in hidden)
+              ListTile(
+                leading: _SpaceIcon(
+                  space: space,
+                  selected: false,
+                  cdnUrl: connOf[space.id]?.cdnUrl,
+                  onTap: () {},
+                ),
+                title: Text(space.name, overflow: TextOverflow.ellipsis),
+                trailing: TextButton.icon(
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('Unhide'),
+                  onPressed: () {
+                    ctl.setSpaceHidden(space.id, false);
+                    Navigator.of(ctx).pop();
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The invite / settings / leave tiles shared by the standalone-space menu and
@@ -341,7 +407,31 @@ List<Widget> _serverActionTiles(
       accordHasPermission(perms, AccordPermission.viewAuditLog);
   final isOwner = userId != null && space.ownerId == userId;
   final colors = BonfireThemeExtension.of(context);
+  final settingsCtl = ref.read(settingsControllerProvider.notifier);
+  final muted = ref.read(settingsControllerProvider).isSpaceMuted(space.id);
   return [
+    ListTile(
+      leading: Icon(
+        muted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+      ),
+      title: Text(muted ? 'Unmute server' : 'Mute server'),
+      subtitle: muted
+          ? null
+          : const Text('Silence notifications from this server'),
+      onTap: () {
+        settingsCtl.toggleSpaceMuted(space.id);
+        Navigator.of(sheetContext).pop();
+      },
+    ),
+    if (canInvite)
+      ListTile(
+        leading: const Icon(Icons.link_outlined),
+        title: const Text('Copy server link'),
+        onTap: () {
+          Navigator.of(sheetContext).pop();
+          _copyServerLink(context, ref, space, serverKey);
+        },
+      ),
     if (canInvite)
       ListTile(
         leading: const Icon(Icons.person_add_outlined),
@@ -361,6 +451,15 @@ List<Widget> _serverActionTiles(
         },
       ),
     ListTile(
+      leading: const Icon(Icons.visibility_off_outlined),
+      title: const Text('Hide from list'),
+      subtitle: const Text('Remove from your rail without leaving'),
+      onTap: () {
+        settingsCtl.setSpaceHidden(space.id, true);
+        Navigator.of(sheetContext).pop();
+      },
+    ),
+    ListTile(
       enabled: !isOwner,
       leading: Icon(Icons.logout, color: isOwner ? null : colors.red),
       title: Text(
@@ -377,8 +476,139 @@ List<Widget> _serverActionTiles(
               _leaveSpace(context, ref, space, serverKey);
             },
     ),
+    ListTile(
+      enabled: !isOwner,
+      leading: Icon(
+        Icons.delete_forever_outlined,
+        color: isOwner ? null : colors.red,
+      ),
+      title: Text(
+        'Leave & delete data',
+        style: isOwner ? null : TextStyle(color: colors.red),
+      ),
+      subtitle: isOwner
+          ? null
+          : const Text('Permanently delete your messages & data here'),
+      onTap: isOwner
+          ? null
+          : () {
+              Navigator.of(sheetContext).pop();
+              _leaveAndDeleteSpace(context, ref, space, serverKey);
+            },
+    ),
     const Divider(height: 1),
   ];
+}
+
+/// Copies a shareable invite link for [space] to the clipboard, reusing an
+/// existing invite when one exists or minting a default 7-day one otherwise.
+/// Gated on `createInvites` by the caller. The quick equivalent of opening the
+/// full invite dialog just to copy a link.
+Future<void> _copyServerLink(
+  BuildContext context,
+  WidgetRef ref,
+  AccordSpace space,
+  String serverKey,
+) async {
+  final conn = ref.read(connectionsControllerProvider).connectionFor(serverKey);
+  final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
+  final baseUrl = conn?.session.server.baseUrl;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (client == null) return;
+
+  String? code;
+  final existing = await client.invites.listSpace(space.id);
+  final existingData = existing.data;
+  if (existing.ok && existingData is List) {
+    final invites = existingData.whereType<AccordInvite>().toList();
+    if (invites.isNotEmpty) code = invites.first.code;
+  }
+  if (code == null) {
+    final created = await client.invites.createSpace(
+      space.id,
+      data: {'max_age': 604800, 'max_uses': 0, 'temporary': false},
+    );
+    final createdData = created.data;
+    if (created.ok && createdData is AccordInvite) {
+      code = createdData.code;
+    } else if (created.ok) {
+      // Some servers return no body on create; refetch to recover the code.
+      final refetch = await client.invites.listSpace(space.id);
+      final refetchData = refetch.data;
+      if (refetch.ok && refetchData is List) {
+        final invites = refetchData.whereType<AccordInvite>().toList();
+        if (invites.isNotEmpty) code = invites.first.code;
+      }
+    }
+  }
+  if (code == null) {
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Could not create an invite link')),
+    );
+    return;
+  }
+  final link = baseUrl == null ? code : '$baseUrl/invite/$code';
+  await Clipboard.setData(ClipboardData(text: link));
+  messenger?.showSnackBar(
+    const SnackBar(content: Text('Server link copied')),
+  );
+}
+
+/// Confirms then leaves [space] *and deletes all the user's data* on its own
+/// connection (`deleteData: true`). The destructive sibling of [_leaveSpace],
+/// surfaced from the space menu as well as Privacy & Data. Owner-guarded by the
+/// caller (the tile is disabled for owners).
+Future<void> _leaveAndDeleteSpace(
+  BuildContext context,
+  WidgetRef ref,
+  AccordSpace space,
+  String serverKey,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Leave & delete data'),
+      content: Text(
+        "This will permanently leave '${space.name}' and delete all your "
+        'messages, reactions, and data from this server. Your account stays '
+        'active. This cannot be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Leave & delete'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
+  if (client == null) return;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final result = await client.members.leaveMe(space.id, deleteData: true);
+  if (!result.ok) {
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text('Failed to leave: ${result.error ?? 'unknown error'}'),
+      ),
+    );
+    return;
+  }
+  ref
+      .read(connectionsControllerProvider.notifier)
+      .removeSpace(serverKey, space.id);
+  ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
+  messenger?.showSnackBar(
+    SnackBar(content: Text("Left '${space.name}' and deleted your data")),
+  );
 }
 
 /// Confirms then leaves [space] on its own connection, without deleting any
@@ -851,6 +1081,42 @@ class _AddServerButton extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: const Icon(Icons.add, color: Color(0xFF43B581)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small affordance at the foot of the rail showing how many servers are
+/// hidden; tapping it opens the restore sheet.
+class _HiddenServersButton extends StatelessWidget {
+  const _HiddenServersButton({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Center(
+      child: Tooltip(
+        message: '$count hidden ${count == 1 ? 'server' : 'servers'}',
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colors.darkGray,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.visibility_off_outlined,
+              size: 20,
+              color: colors.dirtyWhite,
+            ),
           ),
         ),
       ),

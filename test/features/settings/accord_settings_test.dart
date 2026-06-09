@@ -14,6 +14,8 @@ void main() {
         sfxVolume: 0.42,
         recentEmoji: ['😀', 'party:123'],
         masterServerUrl: 'https://master.example.com',
+        mutedSpaces: ['space-1', 'space-2'],
+        hiddenSpaces: ['space-3'],
       );
 
       final restored = AccordSettings.fromJson(settings.toJson());
@@ -26,6 +28,10 @@ void main() {
       expect(restored.sfxVolume, 0.42);
       expect(restored.recentEmoji, ['😀', 'party:123']);
       expect(restored.masterServerUrl, 'https://master.example.com');
+      expect(restored.mutedSpaces, ['space-1', 'space-2']);
+      expect(restored.hiddenSpaces, ['space-3']);
+      expect(restored.isSpaceMuted('space-1'), isTrue);
+      expect(restored.isSpaceHidden('space-3'), isTrue);
     });
 
     test('a null accentColor round-trips as null', () {

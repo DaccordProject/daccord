@@ -169,6 +169,58 @@
     <div class="loading-text">Loading Daccord</div>
   </div>
 
+  <script>
+    // Service-worker update bridge (#91). Surfaces a newer deployed build to the
+    // running tab so the app can offer a one-tap reload instead of relying on a
+    // manual refresh. Read by lib/features/updates/services/web_update_web.dart.
+    (function () {
+      window.daccordUpdateAvailable = false;
+
+      window.daccordApplyUpdate = function () {
+        if (!('serviceWorker' in navigator)) {
+          window.location.reload();
+          return;
+        }
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          // Best-effort: ask a waiting worker to take over immediately. The
+          // default Flutter worker may ignore this, in which case the reload
+          // (and eventually closing every tab) still activates the new build.
+          if (reg && reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          window.location.reload();
+        }).catch(function () { window.location.reload(); });
+      };
+
+      if ('serviceWorker' in navigator) {
+        var markAvailable = function () {
+          window.daccordUpdateAvailable = true;
+        };
+        var watch = function (reg) {
+          if (!reg) return;
+          if (reg.waiting && navigator.serviceWorker.controller) markAvailable();
+          reg.addEventListener('updatefound', function () {
+            var installing = reg.installing;
+            if (!installing) return;
+            installing.addEventListener('statechange', function () {
+              if (installing.state === 'installed' &&
+                  navigator.serviceWorker.controller) {
+                markAvailable();
+              }
+            });
+          });
+        };
+        navigator.serviceWorker.ready.then(watch).catch(function () {});
+        // Poll for a new deploy while the tab stays open (every 30 minutes).
+        setInterval(function () {
+          navigator.serviceWorker.getRegistration().then(function (reg) {
+            if (reg) reg.update().catch(function () {});
+          }).catch(function () {});
+        }, 1800000);
+      }
+    })();
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 

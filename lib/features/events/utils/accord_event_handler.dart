@@ -274,6 +274,8 @@ VoidCallback handleAccordEvents(
       isVisibleChannel: message.channelId == accordVisibleChannelId,
       mentionsMe: message.mentions.contains(me),
       mentionEveryone: message.mentionEveryone,
+      spaceMuted:
+          message.spaceId != null && settings.isSpaceMuted(message.spaceId!),
       channelLevel: settings.channelNotificationLevel(message.channelId),
     );
     if (!notify) return;
@@ -295,6 +297,10 @@ VoidCallback handleAccordEvents(
     if (!isActive()) return;
     final settings = ref.read(settingsControllerProvider);
     if (!settings.soundsEnabled) return;
+    // A muted space stays silent — no chime, mirroring the suppressed banner.
+    if (message.spaceId != null && settings.isSpaceMuted(message.spaceId!)) {
+      return;
+    }
 
     final me = currentUserId;
     if (message.authorId == me) return;

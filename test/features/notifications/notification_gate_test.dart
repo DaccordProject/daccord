@@ -11,6 +11,7 @@ void main() {
     bool isVisibleChannel = false,
     bool mentionsMe = false,
     bool mentionEveryone = false,
+    bool spaceMuted = false,
     String? channelLevel,
   }) =>
       MessageNotificationGate.shouldNotify(
@@ -20,6 +21,7 @@ void main() {
         isVisibleChannel: isVisibleChannel,
         mentionsMe: mentionsMe,
         mentionEveryone: mentionEveryone,
+        spaceMuted: spaceMuted,
         channelLevel: channelLevel,
       );
 
@@ -89,6 +91,12 @@ void main() {
           notify(notificationsEnabled: false, mentionEveryone: true),
           isFalse,
         );
+      });
+
+      test('a muted space suppresses any notification, even mentions', () {
+        expect(notify(spaceMuted: true, mentionsMe: true), isFalse);
+        expect(notify(spaceMuted: true, mentionEveryone: true), isFalse);
+        expect(notify(spaceMuted: true, channelLevel: 'all'), isFalse);
       });
     });
   });

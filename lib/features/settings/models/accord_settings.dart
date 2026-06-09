@@ -78,6 +78,8 @@ class AccordSettings {
     this.uiScale = 1.0,
     this.spaceOrder = const <String>[],
     this.spaceFolders = const <SpaceFolder>[],
+    this.mutedSpaces = const <String>[],
+    this.hiddenSpaces = const <String>[],
   });
 
   /// Minimum / maximum UI text scale, matching the reference's `ui_scale` range.
@@ -224,6 +226,16 @@ class AccordSettings {
   /// User-defined rail folders. Mirrors the reference's `folders`.
   final List<SpaceFolder> spaceFolders;
 
+  /// Space IDs the user has muted (per-space notification suppression). Stored
+  /// client-side like [spaceFolders] — accordkit exposes no server-synced
+  /// notification settings. Mirrors the old client's space "Mute Server" action.
+  final List<String> mutedSpaces;
+
+  /// Space IDs hidden from the rail *without leaving membership* — the local
+  /// "Remove Server" action. The space stays joined on the server; it just isn't
+  /// rendered until unhidden. Stored client-side like [spaceFolders].
+  final List<String> hiddenSpaces;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -263,6 +275,8 @@ class AccordSettings {
     double? uiScale,
     List<String>? spaceOrder,
     List<SpaceFolder>? spaceFolders,
+    List<String>? mutedSpaces,
+    List<String>? hiddenSpaces,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -304,8 +318,16 @@ class AccordSettings {
       uiScale: uiScale ?? this.uiScale,
       spaceOrder: spaceOrder ?? this.spaceOrder,
       spaceFolders: spaceFolders ?? this.spaceFolders,
+      mutedSpaces: mutedSpaces ?? this.mutedSpaces,
+      hiddenSpaces: hiddenSpaces ?? this.hiddenSpaces,
     );
   }
+
+  /// Whether [spaceId]'s notifications are muted.
+  bool isSpaceMuted(String spaceId) => mutedSpaces.contains(spaceId);
+
+  /// Whether [spaceId] is hidden from the rail (still joined on the server).
+  bool isSpaceHidden(String spaceId) => hiddenSpaces.contains(spaceId);
 
   /// Whether the rules interstitial for [spaceId] has been accepted.
   bool isRulesAccepted(String spaceId) => acceptedRuleSpaces.contains(spaceId);
@@ -396,6 +418,8 @@ class AccordSettings {
     'uiScale': uiScale,
     'spaceOrder': spaceOrder,
     'spaceFolders': [for (final f in spaceFolders) f.toJson()],
+    'mutedSpaces': mutedSpaces,
+    'hiddenSpaces': hiddenSpaces,
   };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -473,6 +497,14 @@ class AccordSettings {
       spaceFolders: [
         for (final f in (json['spaceFolders'] as List? ?? const []))
           if (f is Map) SpaceFolder.fromJson(f),
+      ],
+      mutedSpaces: [
+        for (final s in (json['mutedSpaces'] as List? ?? const []))
+          s.toString(),
+      ],
+      hiddenSpaces: [
+        for (final s in (json['hiddenSpaces'] as List? ?? const []))
+          s.toString(),
       ],
     );
   }
