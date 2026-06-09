@@ -19,6 +19,9 @@ Future<void> setupHive() async {
   await Hive.openBox("last-location");
   await Hive.openBox("last-guild-channels");
   await Hive.openBox("added-accounts");
+  // Device-global desktop window geometry (size/position/maximized), restored
+  // before the first frame by `setupDesktopWindow`.
+  await Hive.openBox("window-state");
   // The active local device profile owns the `accord-session` (persisted
   // server + token + user for session restore) and `accord-settings` (client
   // preferences) boxes — bootstrap opens them from the active profile's

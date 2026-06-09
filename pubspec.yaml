@@ -70,6 +70,8 @@ dependencies:
   loading_animation_widget: ^1.2.1
   hive_ce: ^2.5.0
   universal_io: ^2.2.2
+  # Desktop window control — restore/persist last window size & position.
+  window_manager: ^0.4.3
 
   flutter_thumbhash: ^0.1.0+1
   flutter_cache_manager: ^3.4.0

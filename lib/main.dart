@@ -14,6 +14,7 @@ import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/router/controller.dart';
+import 'package:bonfire/shared/utils/desktop_window.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
 import 'package:flutter/foundation.dart';
@@ -72,6 +73,15 @@ void main() async {
     await setupHive();
   } catch (e, st) {
     debugPrint('setupHive failed during startup: $e\n$st');
+  }
+
+  // Restore the last desktop window size/position before the first frame
+  // (no-op on web/mobile). Guarded so a window-manager failure can't block
+  // startup.
+  try {
+    await setupDesktopWindow();
+  } catch (e, st) {
+    debugPrint('setupDesktopWindow failed during startup: $e\n$st');
   }
 
   runApp(
