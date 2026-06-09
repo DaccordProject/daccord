@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code (and humans) working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this project is
 
@@ -28,34 +28,40 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 ## Architecture (inherited from Bonfire)
 
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
-- **Models / serialization:** Freezed + `dart_mappable` (+ some `json_serializable`).
+- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). Client-side models use `json_serializable`; `freezed_annotation` is still a dependency but no `*.freezed.dart` files are generated in `lib/`.
 - **Routing:** `go_router`.
-- **Local storage:** `hive_ce` (token/session/settings persistence).
-- **Networking (TO BE REPLACED):** `packages/firebridge` — a fork of Nyxx that speaks Discord's REST v9 + gateway WebSocket. This is the layer we are swapping out for `accordkit`.
-- **Media:** `media_kit` / `cached_network_image` / `file_picker` — reusable as-is, just re-point CDN URLs at the Accord server.
+- **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
+- **Networking:** `accordkit` (git dependency). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
+- **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
+- **Media:** `media_kit` (+ `media_kit_video`, `video_player_media_kit`, pinned git forks) / `cached_network_image` / `file_picker` — re-point CDN URLs at the Accord server.
 - **Code generation is required during development:** `dart run build_runner watch -d`.
 
 ### Layout
 
 ```
 lib/
-  features/        # feature modules (auth, channels, messaging, guild, member, overview, sidebar, user, ...)
-    <feature>/
-      controllers/ # Riverpod controllers
-      repositories/# data access (currently firebridge-backed → migrate to accordkit)
+  features/        # feature modules: authentication, spaces, channels, messaging,
+    <feature>/     #   member, user, admin, server, events, voice, notifications,
+      controllers/ #   settings, developer, profiles, updates, ...
+      repositories/# data access (accordkit-backed)
       views/       # screens
       models/      # feature models
   shared/          # shared components, models, repositories, utils
   theme/           # theming
   router/          # go_router config
-  main.dart
+  main.dart        # startup: media_kit, Hive, ProviderScope, ProfileGate, deep links
 packages/
-  firebridge/            # Discord client lib — being retired in favour of accordkit
-  firebridge_extensions/ # pagination/sanitization helpers over firebridge
-  markdown_viewer/       # custom markdown rendering — KEEP (protocol-agnostic)
-docs/                    # product + technical specs (see below)
+  livekit_client/  # local fork of livekit_client 2.8.0 (#68 native-release fix) — voice transport
+  markdown_viewer/ # custom markdown rendering — protocol-agnostic, KEEP
+docs/              # product + technical specs (see below)
 android/ ios/ web/ windows/ linux/ macos/   # all platform targets present
 ```
+
+Cross-cutting startup features wired in `lib/main.dart`:
+- **Server config:** `lib/features/server/models/accord_server.dart` defines `AccordServer` (`baseUrl`/`gatewayUrl`/`cdnUrl`, derived from a base URL); `lib/features/server/controllers/connections.dart` owns the per-server `AccordClient` instances exposed as Riverpod providers.
+- **Multi-profile:** the app is wrapped in `ProfileGate`/`AppRestart` for switching between accounts.
+- **Deep links:** `daccord://` URLs (navigate / connect / invite) parsed via `ServerUri.parseDeepLink()`.
+- **Developer mode:** an MCP server (`mcpServerControllerProvider`) for in-app tooling.
 
 ## Domain mapping: Discord → Accord
 
@@ -100,7 +106,7 @@ client.login(); // opens the gateway
 
 - **REST:** namespaced APIs on the client — `client.spaces`, `client.channels`, `client.messages`, `client.members`, `client.roles`, `client.users`, `client.invites`, `client.reactions`, `client.emojis`, `client.auth`, etc. Each call returns a `RestResult` with `.ok`, `.data`, `.error`, `.statusCode`, `.cursor` (cursor pagination). Rate-limit (429) retry is built in.
 - **Gateway:** ~50 typed `Stream` properties — `client.onMessageCreate`, `onMessageUpdate`, `onMessageDelete`, `onPresenceUpdate`, `onTypingStart`, `onMemberJoin`, `onChannelCreate`, `onReady`, `onReconnecting`, … plus `onRawEvent`. Wire these into Riverpod controllers the same way Bonfire wires firebridge cache events today (see `lib/features/events/`).
-- **Voice:** `client.voiceManager` drives the implemented voice/video/screen-sharing stack over LiveKit/WebRTC transport.
+- **Voice:** `client.voice.join(channelId)` / `client.voice.leave(channelId)` return LiveKit credentials (`AccordVoiceServerUpdate` with `livekitUrl` + `token`); the `livekit_client` SDK (`packages/livekit_client`) is the actual transport. State lives in `VoiceConnection` (Riverpod) over a `VoiceSession` that wraps a LiveKit `Room`. Gateway `voice.server_update` events drive credential-refresh reconnects. See `lib/features/voice/`.
 
 Mirror Bonfire's existing pattern: a thin repository layer subscribes to gateway streams, updates a cache, and exposes Riverpod providers to the UI.
 
@@ -111,8 +117,9 @@ flutter pub get
 dart run build_runner watch -d        # keep running during dev (codegen)
 
 flutter run                            # run on a connected device/emulator
-flutter analyze                        # lint (analysis_options.yaml)
-flutter test                           # tests (currently minimal)
+flutter analyze --no-fatal-infos       # lint; --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
+flutter test                           # ~12 unit/widget tests, mostly voice/settings/server logic
+flutter test test/features/voice/voice_logic_test.dart   # run a single test file
 
 # Release builds
 flutter build apk     --no-tree-shake-icons -v          # Android
@@ -122,25 +129,19 @@ flutter build linux   -v                                # needs libmpv/media_kit
 flutter build ios     --release --no-tree-shake-icons --no-codesign -v
 ```
 
-CI lives in `.github/workflows/`. Note the legacy CI deploys to Bonfire infrastructure (`app.openbonfire.dev`) and references OpenBonfire signing/proxy — these must be updated for Daccord before relying on them.
+CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
+- `ci.yml` — `analyze` job runs build_runner codegen → `flutter analyze --no-fatal-infos` → `flutter test`; `build` job is a Web/Android/Linux/Windows matrix.
+- `release.yml` — tag-driven (`v*`); validates the tag matches `pubspec.yaml` version, gates on `ci.yml`, builds all platforms, publishes a GitHub Release.
 
-## Migration approach
+## Migration status
 
-The recommended sequence (details in `docs/technical-spec.md`):
-
-1. **Rebrand & config** — app name, identifiers, server config (base/gateway/cdn URLs), strip Discord-specific README/CI/Firebase.
-2. **Auth** — replace credential/MFA/token login against `discord.com` with `client.auth` against an Accord server; add a server-URL field.
-3. **Networking swap** — introduce an `accordkit`-backed repository/event layer paralleling `lib/features/events/`; map gateway events → Riverpod.
-4. **Models** — replace firebridge model usage with `Accord*` models (or thin adapters) feature by feature, starting with Space/Channel/Message lists.
-5. **Feature parity passes** — messaging, members, roles/admin, invites, reactions, emojis, search — matching the Godot `daccord` client.
-6. **Retire firebridge** — once nothing imports it, delete `packages/firebridge` and `firebridge_extensions`.
-7. **Voice/video/screen sharing** — implemented over LiveKit/WebRTC via `client.voiceManager`.
+The Discord → Accord migration is **essentially complete**: firebridge is gone, all 50+ feature files use `accordkit`, auth/spaces/channels/messaging/members/roles/voice are implemented, and there are no Discord/Firebase code paths left. Remaining work is **feature-parity polish** against the Godot `daccord` client (reactions, emojis, search, admin edge cases) rather than the wholesale swap.
 
 When in doubt about Accord behaviour, read `../accordkit-dart` (the SDK source) and `../daccord` (the reference client's scenes/scripts).
 
 ## Conventions
 
 - Match the surrounding code's style; Bonfire is feature-modular — keep new code inside the relevant `lib/features/<feature>/` module.
-- Run `dart run build_runner build -d` after changing any `@freezed`/`@riverpod`/mappable-annotated file.
+- Run `dart run build_runner build -d` after changing any `@riverpod`/`json_serializable`-annotated file (regenerates `*.g.dart`).
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.
