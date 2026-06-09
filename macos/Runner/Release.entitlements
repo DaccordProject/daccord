@@ -2,8 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<!-- App Sandbox is intentionally OFF. This app ships outside the Mac App
+	     Store (DMG via GitHub Releases) and self-updates in place; the sandbox
+	     forbids spawning the swap helper (hdiutil/bash) and writing over
+	     /Applications/Daccord.app, which breaks the updater. With the sandbox
+	     off, camera/mic are governed by TCC + the NS*UsageDescription strings in
+	     Info.plist rather than the device.* entitlements below (kept harmless). -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<key>com.apple.security.device.camera</key>
