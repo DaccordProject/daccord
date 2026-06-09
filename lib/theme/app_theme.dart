@@ -125,50 +125,35 @@ TextTheme _textTheme(BonfireThemeExtension palette) {
   final family = GoogleFonts.publicSans().fontFamily!;
   final high = palette.dirtyWhite;
   final medium = palette.gray;
+  // Every slot is defined with an explicit colour. ThemeData.copyWith replaces
+  // the textTheme wholesale (it does NOT merge with the base typography), so any
+  // slot left undefined here — or defined without a colour — resolves to the
+  // framework's near-black default and becomes unreadable on the dark surfaces
+  // (e.g. the "Daccord" welcome title, which uses headlineSmall). Metrics are
+  // kept tight (no `height`) to match the original layout and avoid overflow.
+  TextStyle s(double size, Color color,
+          [FontWeight weight = FontWeight.w500]) =>
+      TextStyle(
+          fontSize: size,
+          fontFamily: family,
+          fontWeight: weight,
+          color: color);
   return TextTheme(
-    displayLarge:
-        TextStyle(fontSize: 36, fontFamily: family, fontWeight: FontWeight.w500),
-    displayMedium:
-        TextStyle(fontSize: 20, fontFamily: family, fontWeight: FontWeight.w500),
-    displaySmall:
-        TextStyle(fontSize: 15, fontFamily: family, fontWeight: FontWeight.w500),
-    titleLarge: TextStyle(
-        fontSize: 36,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: high),
-    titleMedium: TextStyle(
-        fontSize: 20,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: high),
-    titleSmall: TextStyle(
-        fontSize: 15,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: high),
-    headlineLarge:
-        TextStyle(fontSize: 18, fontWeight: FontWeight.w500, fontFamily: family),
-    labelLarge: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        fontFamily: family,
-        color: medium),
-    labelMedium: TextStyle(
-        fontSize: 12,
-        fontFamily: family,
-        fontWeight: FontWeight.w500,
-        color: medium),
-    bodyLarge: TextStyle(
-        fontSize: 15,
-        fontFamily: family,
-        color: high,
-        fontWeight: FontWeight.w500),
-    bodyMedium: TextStyle(
-        fontSize: 14,
-        fontFamily: family,
-        color: medium,
-        fontWeight: FontWeight.w500),
+    displayLarge: s(36, high),
+    displayMedium: s(20, high),
+    displaySmall: s(15, high),
+    titleLarge: s(36, high),
+    titleMedium: s(20, high),
+    titleSmall: s(15, high),
+    headlineLarge: s(18, high),
+    headlineMedium: s(16, high),
+    headlineSmall: s(24, high),
+    labelLarge: s(15, medium),
+    labelMedium: s(12, medium),
+    labelSmall: s(11, medium),
+    bodyLarge: s(15, high),
+    bodyMedium: s(14, medium),
+    bodySmall: s(12, medium),
   );
 }
 
