@@ -1,4 +1,5 @@
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -119,6 +120,95 @@ void main() {
 
     test('a missing recentEmoji yields an empty list', () {
       expect(AccordSettings.fromJson(const {}).recentEmoji, isEmpty);
+    });
+  });
+
+  group('AccordSettings spaceOrder and spaceFolders', () {
+    test('round-trips spaceOrder', () {
+      const settings = AccordSettings(spaceOrder: ['a', 'b', 'c']);
+      final restored = AccordSettings.fromJson(settings.toJson());
+      expect(restored.spaceOrder, ['a', 'b', 'c']);
+    });
+
+    test('missing spaceOrder defaults to empty list', () {
+      final settings = AccordSettings.fromJson(const {});
+      expect(settings.spaceOrder, isEmpty);
+    });
+
+    test('round-trips spaceFolders with all fields', () {
+      const folder = SpaceFolder(
+        id: 'f1',
+        name: 'My Folder',
+        color: 0xFF5865F2,
+        collapsed: true,
+        spaceIds: ['s1', 's2'],
+      );
+      const settings = AccordSettings(spaceFolders: [folder]);
+      final restored = AccordSettings.fromJson(settings.toJson());
+      expect(restored.spaceFolders.length, 1);
+      final r = restored.spaceFolders.first;
+      expect(r.id, 'f1');
+      expect(r.name, 'My Folder');
+      expect(r.color, 0xFF5865F2);
+      expect(r.collapsed, isTrue);
+      expect(r.spaceIds, ['s1', 's2']);
+    });
+
+    test('missing spaceFolders defaults to empty list', () {
+      expect(AccordSettings.fromJson(const {}).spaceFolders, isEmpty);
+    });
+  });
+
+  group('SpaceFolder', () {
+    test('round-trips via toJson / fromJson', () {
+      const folder = SpaceFolder(
+        id: 'abc',
+        name: 'Games',
+        color: 0xFFED4245,
+        collapsed: false,
+        spaceIds: ['x', 'y'],
+      );
+      final restored = SpaceFolder.fromJson(folder.toJson());
+      expect(restored.id, 'abc');
+      expect(restored.name, 'Games');
+      expect(restored.color, 0xFFED4245);
+      expect(restored.collapsed, isFalse);
+      expect(restored.spaceIds, ['x', 'y']);
+    });
+
+    test('null color round-trips as null', () {
+      const folder = SpaceFolder(id: 'no-color');
+      final restored = SpaceFolder.fromJson(folder.toJson());
+      expect(restored.color, isNull);
+    });
+
+    test('copyWith preserves unchanged fields', () {
+      const folder = SpaceFolder(
+        id: 'f',
+        name: 'Old',
+        color: 0xFF112233,
+        collapsed: false,
+        spaceIds: ['a'],
+      );
+      final updated = folder.copyWith(name: 'New', collapsed: true);
+      expect(updated.id, 'f');
+      expect(updated.name, 'New');
+      expect(updated.color, 0xFF112233);
+      expect(updated.collapsed, isTrue);
+      expect(updated.spaceIds, ['a']);
+    });
+
+    test('copyWith clearColor nulls the color', () {
+      const folder = SpaceFolder(id: 'f', color: 0xFF112233);
+      expect(folder.copyWith(clearColor: true).color, isNull);
+    });
+
+    test('fromJson with missing fields applies defaults', () {
+      final folder = SpaceFolder.fromJson({'id': 'x'});
+      expect(folder.name, '');
+      expect(folder.color, isNull);
+      expect(folder.collapsed, isFalse);
+      expect(folder.spaceIds, isEmpty);
     });
   });
 

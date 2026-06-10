@@ -70,10 +70,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 part 'accord_home_rail.dart';
+part 'accord_home_rail_tiles.dart';
+part 'accord_home_space_actions.dart';
 part 'accord_home_tabs.dart';
 part 'accord_home_channels.dart';
 part 'accord_home_messages.dart';
 part 'accord_home_message_row.dart';
+part 'accord_home_mute_button.dart';
+part 'accord_home_reactions.dart';
 part 'accord_home_composer.dart';
 part 'accord_home_attachments.dart';
 
