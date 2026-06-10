@@ -177,19 +177,28 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
           Expanded(
             child: channels == null
                 ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: _buildChannelEntries(
-                      context,
-                      spaceId: id,
-                      channels: channels,
-                      selectedChannelId: selectedChannelId,
-                      onSelect: onSelect,
-                      canManageChannels: canManageChannels,
-                      collapsed: collapsed,
-                      onToggleCollapsed: _toggleCollapsed,
-                    ),
-                  ),
+                : (canManageChannels && id != null)
+                    ? _ChannelDragList(
+                        spaceId: id,
+                        channels: channels,
+                        selectedChannelId: selectedChannelId,
+                        onSelect: onSelect,
+                        collapsed: collapsed,
+                        onToggleCollapsed: _toggleCollapsed,
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        children: _buildChannelEntries(
+                          context,
+                          spaceId: id,
+                          channels: channels,
+                          selectedChannelId: selectedChannelId,
+                          onSelect: onSelect,
+                          canManageChannels: canManageChannels,
+                          collapsed: collapsed,
+                          onToggleCollapsed: _toggleCollapsed,
+                        ),
+                      ),
           ),
           VoiceBar(
             onTapStatus: () {
@@ -606,4 +615,275 @@ class _MentionBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Sidebar channel list with inline long-press drag-to-reorder for space managers.
+class _ChannelDragList extends ConsumerStatefulWidget {
+  const _ChannelDragList({
+    required this.spaceId,
+    required this.channels,
+    required this.selectedChannelId,
+    required this.onSelect,
+    required this.collapsed,
+    required this.onToggleCollapsed,
+  });
+
+  final String spaceId;
+  final List<AccordChannel> channels;
+  final String? selectedChannelId;
+  final ValueChanged<String> onSelect;
+  final Set<String> collapsed;
+  final ValueChanged<String> onToggleCollapsed;
+
+  @override
+  ConsumerState<_ChannelDragList> createState() => _ChannelDragListState();
+}
+
+class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
+  late List<_DragEntry> _items;
+  late String _signature;
+  bool _persisting = false;
+  bool _pendingPersist = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = _flatten(widget.channels);
+    _signature = _signatureOf(widget.channels);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChannelDragList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Ignore incoming list churn while our own optimistic PATCHes are landing;
+    // we reconcile once at the end of [_persist].
+    if (_persisting) return;
+    final sig = _signatureOf(widget.channels);
+    if (sig != _signature) _resync();
+  }
+
+  void _resync() {
+    setState(() {
+      _items = _flatten(widget.channels);
+      _signature = _signatureOf(widget.channels);
+    });
+  }
+
+  static int _pos(AccordChannel c) => parseChannelPosition(c);
+
+  static String _signatureOf(List<AccordChannel> channels) =>
+      channelListSignature(channels);
+
+  /// Categories (each followed by their children) then uncategorized channels,
+  /// each group ordered by `position`. Children carry their parent's id.
+  static List<_DragEntry> _flatten(List<AccordChannel> channels) {
+    final sorted = [...channels]..sort((a, b) => _pos(a).compareTo(_pos(b)));
+    final categories = sorted.where((c) => c.type == 'category').toList();
+    final leaves = sorted.where((c) => c.type != 'category').toList();
+    final byParent = <String?, List<AccordChannel>>{};
+    for (final c in leaves) {
+      byParent.putIfAbsent(c.parentId, () => []).add(c);
+    }
+    final out = <_DragEntry>[];
+    for (final c in byParent[null] ?? const <AccordChannel>[]) {
+      out.add(_DragEntry.channel(c, parentId: null));
+    }
+    for (final category in categories) {
+      out.add(_DragEntry.category(category));
+      for (final child in byParent[category.id] ?? const <AccordChannel>[]) {
+        out.add(_DragEntry.channel(child, parentId: category.id));
+      }
+    }
+    return out;
+  }
+
+  /// The items actually shown: every category, plus the children of categories
+  /// that aren't collapsed (uncategorized channels are always shown).
+  List<_DragEntry> get _visible => _items
+      .where((e) => e.isCategory || !widget.collapsed.contains(e.parentId))
+      .toList();
+
+  void _recomputeParents(_DragEntry moved) {
+    if (moved.isCategory) return;
+    String? newParent;
+    for (final e in _items) {
+      if (e.isCategory) {
+        newParent = e.channel.id;
+      } else if (identical(e, moved)) {
+        moved.parentId = newParent;
+        return;
+      }
+    }
+    moved.parentId = null;
+  }
+
+  // [newIndex] is already adjusted for the item removed at [oldIndex]
+  // (ReorderableListView.onReorderItem semantics): it's the target index within
+  // the post-removal list, so no manual decrement is needed.
+  void _onReorder(int oldIndex, int newIndex) {
+    final visible = _visible;
+    final moved = visible[oldIndex];
+    final newVisible = [...visible]..removeAt(oldIndex);
+    final _DragEntry? before =
+        newIndex < newVisible.length ? newVisible[newIndex] : null;
+
+    // A dragged category carries its contiguous children with it.
+    final List<_DragEntry> block;
+    if (moved.isCategory) {
+      final start = _items.indexOf(moved);
+      var end = start + 1;
+      while (end < _items.length && !_items[end].isCategory) {
+        end++;
+      }
+      block = _items.sublist(start, end);
+    } else {
+      block = [moved];
+    }
+
+    setState(() {
+      _items.removeWhere(block.contains);
+      final insertAt = before == null ? _items.length : _items.indexOf(before);
+      _items.insertAll(insertAt < 0 ? _items.length : insertAt, block);
+      _recomputeParents(moved);
+    });
+    _schedulePersist();
+  }
+
+  void _schedulePersist() {
+    if (_persisting) {
+      _pendingPersist = true;
+    } else {
+      _persist();
+    }
+  }
+
+  /// Walks the new ordering and PATCHes any channel whose (parent, position)
+  /// changed. Positions count within each bucket (categories share one bucket;
+  /// each category's children share another) so siblings stay coherent.
+  Future<void> _persist() async {
+    final client = ref.read(accordAuthProvider
+        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    if (client == null) return;
+    final notifier =
+        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+
+    final updates = <_DragUpdate>[];
+    var categoryPos = 0;
+    final childPos = <String?, int>{};
+    for (final entry in _items) {
+      final ch = entry.channel;
+      if (entry.isCategory) {
+        if (_pos(ch) != categoryPos) {
+          updates.add(_DragUpdate(ch.id, position: categoryPos));
+        }
+        categoryPos++;
+      } else {
+        final pos = childPos[entry.parentId] ?? 0;
+        childPos[entry.parentId] = pos + 1;
+        final parentChanged = ch.parentId != entry.parentId;
+        final positionChanged = _pos(ch) != pos;
+        if (parentChanged || positionChanged) {
+          updates.add(_DragUpdate(
+            ch.id,
+            position: pos,
+            parentId: parentChanged ? entry.parentId : null,
+            includeParent: parentChanged,
+          ));
+        }
+      }
+    }
+
+    if (updates.isEmpty) return;
+
+    _persisting = true;
+    try {
+      for (final u in updates) {
+        final body = <String, dynamic>{'position': u.position};
+        if (u.includeParent) body['parent_id'] = u.parentId;
+        await notifier.updateChannel(client, u.channelId, body);
+      }
+    } finally {
+      _persisting = false;
+      if (_pendingPersist && mounted) {
+        _pendingPersist = false;
+        _persist();
+      } else if (mounted) {
+        _resync();
+      }
+    }
+  }
+
+  Widget _buildItem(BuildContext context, _DragEntry entry) {
+    if (entry.isCategory) {
+      final cat = entry.channel;
+      return _CategoryHeader(
+        category: cat,
+        spaceId: widget.spaceId,
+        canManageChannels: true,
+        collapsed: widget.collapsed.contains(cat.id),
+        onToggle: () => widget.onToggleCollapsed(cat.id),
+        onAdd: () => showCreateChannelDialog(context,
+            spaceId: widget.spaceId, parentId: cat.id),
+        onEdit: () => showEditChannelDialog(context,
+            spaceId: widget.spaceId, channel: cat),
+      );
+    }
+    final ch = entry.channel;
+    return _ChannelTile(
+      channel: ch,
+      spaceId: widget.spaceId,
+      selected: ch.id == widget.selectedChannelId,
+      canManageChannels: true,
+      onTap: () => widget.onSelect(ch.id),
+      onEdit: () =>
+          showEditChannelDialog(context, spaceId: widget.spaceId, channel: ch),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      buildDefaultDragHandles: false,
+      itemCount: visible.length,
+      onReorderItem: _onReorder,
+      itemBuilder: (context, index) {
+        final entry = visible[index];
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey(entry.channel.id),
+          index: index,
+          child: _buildItem(context, entry),
+        );
+      },
+    );
+  }
+}
+
+/// One row in the drag model: a category header or a channel tile.
+class _DragEntry {
+  _DragEntry.category(this.channel)
+      : isCategory = true,
+        parentId = null;
+  _DragEntry.channel(this.channel, {required this.parentId})
+      : isCategory = false;
+
+  final AccordChannel channel;
+  final bool isCategory;
+  String? parentId;
+}
+
+/// A pending PATCH from a reorder: channel's new position and optional new parent.
+class _DragUpdate {
+  const _DragUpdate(
+    this.channelId, {
+    required this.position,
+    this.parentId,
+    this.includeParent = false,
+  });
+
+  final String channelId;
+  final int position;
+  final String? parentId;
+  final bool includeParent;
 }

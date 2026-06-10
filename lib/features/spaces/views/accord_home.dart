@@ -11,6 +11,7 @@ import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/models/open_tab.dart';
+import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/features/developer/services/mcp_home_bridge.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
