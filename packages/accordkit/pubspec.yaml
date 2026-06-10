@@ -1,0 +1,16 @@
+name: accordkit
+description: Accord protocol client for Dart — REST, Gateway WebSocket, and data models for Daccord servers.
+version: 2.0.0
+repository: https://github.com/DaccordProject/accordkit-dart
+homepage: https://daccord.gg
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  http: ^1.2.0
+  web_socket_channel: ^3.0.0
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.25.0
