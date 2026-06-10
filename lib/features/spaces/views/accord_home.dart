@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:pasteboard/pasteboard.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/channels/components/channel_context_menu.dart';
 import 'package:bonfire/features/channels/components/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
@@ -51,6 +52,7 @@ import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/views/update_banner.dart';
 import 'package:bonfire/features/updates/views/web_update_prompt.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
@@ -94,6 +96,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   String? _rulesCheckedSpaceId;
   // Member-list visibility, toggled by the user and by the MCP `navigate` group.
   bool _memberListVisible = true;
+
+  // Live channel-list width while the user drags the divider; null when not
+  // dragging (the persisted [AccordSettings.channelListWidth] is used instead).
+  // Kept local so each drag frame doesn't write to Hive — the final width is
+  // persisted on drag end.
+  double? _dragChannelWidth;
 
   /// Scaffold for the narrow (mobile) layout, so the channel-list drawer and
   /// member-list end-drawer can be opened/closed programmatically.
@@ -309,7 +317,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   /// call when the channel has no cached messages (no last ID → ack is a
   /// no-op; the local clear still happens).
   void _markChannelRead(String channelId) {
-    ref.read(readStateControllerProvider.notifier).markRead(channelId);
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    if (activeKey != null) {
+      ref
+          .read(readStateControllerProvider(activeKey).notifier)
+          .markRead(channelId);
+    }
     final messages = ref.read(accordMessagesControllerProvider(channelId));
     final lastId = messages?.isNotEmpty == true ? messages!.last.id : null;
     if (lastId == null) return;
@@ -498,12 +511,39 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= _wideLayoutBreakpoint;
         if (wide) {
+          final savedWidth = ref.watch(
+            settingsControllerProvider.select((s) => s.channelListWidth),
+          );
+          final channelWidth = (_dragChannelWidth ?? savedWidth).clamp(
+            AccordSettings.minChannelListWidth,
+            AccordSettings.maxChannelListWidth,
+          );
           return Stack(
             children: [
               Row(
                 children: [
                   rail,
-                  channelList(inDrawer: false),
+                  SizedBox(
+                    width: channelWidth,
+                    child: channelList(inDrawer: false),
+                  ),
+                  _ChannelListResizeHandle(
+                    onDragDelta: (dx) => setState(() {
+                      _dragChannelWidth = (channelWidth + dx).clamp(
+                        AccordSettings.minChannelListWidth,
+                        AccordSettings.maxChannelListWidth,
+                      );
+                    }),
+                    onDragEnd: () {
+                      final width = _dragChannelWidth;
+                      if (width != null) {
+                        ref
+                            .read(settingsControllerProvider.notifier)
+                            .setChannelListWidth(width);
+                      }
+                      setState(() => _dragChannelWidth = null);
+                    },
+                  ),
                   Expanded(child: messageArea),
                   if (hasMembers && _memberListVisible)
                     AccordMemberList(spaceId: effectiveSpaceId),

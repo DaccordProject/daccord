@@ -8,46 +8,68 @@ part of 'read_state.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Client-side read/unread tracker. Mirrors the reference client's
-/// `client_unread.gd`: the gateway handler marks channels unread on incoming
-/// messages (skipping the visible channel and own messages), and the home
-/// screen marks the visible channel read when it's selected — which also acks
-/// the latest message ID to the server. State is in-memory only; on cold start
-/// the user just sees no unread badges until the gateway reports new traffic,
-/// matching the reference's behavior.
+/// Client-side read/unread tracker, one instance per connected server (keyed by
+/// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
+/// servers don't clobber each other.
+///
+/// Three things feed it:
+///  * the gateway READY handler [hydrate]s the server's authoritative unread
+///    list on every (re)connect — this is what survives a cold start and what
+///    lights up *background* servers;
+///  * the gateway message handler [markUnread]s on incoming traffic for live
+///    updates (every connection, not just the active one);
+///  * the home screen / context menu / voice panel [markRead]s the channel the
+///    user opens, which separately POSTs `channels.ack` to the server.
 
 @ProviderFor(ReadStateController)
-const readStateControllerProvider = ReadStateControllerProvider._();
+const readStateControllerProvider = ReadStateControllerFamily._();
 
-/// Client-side read/unread tracker. Mirrors the reference client's
-/// `client_unread.gd`: the gateway handler marks channels unread on incoming
-/// messages (skipping the visible channel and own messages), and the home
-/// screen marks the visible channel read when it's selected — which also acks
-/// the latest message ID to the server. State is in-memory only; on cold start
-/// the user just sees no unread badges until the gateway reports new traffic,
-/// matching the reference's behavior.
+/// Client-side read/unread tracker, one instance per connected server (keyed by
+/// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
+/// servers don't clobber each other.
+///
+/// Three things feed it:
+///  * the gateway READY handler [hydrate]s the server's authoritative unread
+///    list on every (re)connect — this is what survives a cold start and what
+///    lights up *background* servers;
+///  * the gateway message handler [markUnread]s on incoming traffic for live
+///    updates (every connection, not just the active one);
+///  * the home screen / context menu / voice panel [markRead]s the channel the
+///    user opens, which separately POSTs `channels.ack` to the server.
 final class ReadStateControllerProvider
     extends $NotifierProvider<ReadStateController, ReadStateSnapshot> {
-  /// Client-side read/unread tracker. Mirrors the reference client's
-  /// `client_unread.gd`: the gateway handler marks channels unread on incoming
-  /// messages (skipping the visible channel and own messages), and the home
-  /// screen marks the visible channel read when it's selected — which also acks
-  /// the latest message ID to the server. State is in-memory only; on cold start
-  /// the user just sees no unread badges until the gateway reports new traffic,
-  /// matching the reference's behavior.
-  const ReadStateControllerProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'readStateControllerProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
+  /// Client-side read/unread tracker, one instance per connected server (keyed by
+  /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
+  /// servers don't clobber each other.
+  ///
+  /// Three things feed it:
+  ///  * the gateway READY handler [hydrate]s the server's authoritative unread
+  ///    list on every (re)connect — this is what survives a cold start and what
+  ///    lights up *background* servers;
+  ///  * the gateway message handler [markUnread]s on incoming traffic for live
+  ///    updates (every connection, not just the active one);
+  ///  * the home screen / context menu / voice panel [markRead]s the channel the
+  ///    user opens, which separately POSTs `channels.ack` to the server.
+  const ReadStateControllerProvider._({
+    required ReadStateControllerFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'readStateControllerProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
 
   @override
   String debugGetCreateSourceHash() => _$readStateControllerHash();
+
+  @override
+  String toString() {
+    return r'readStateControllerProvider'
+        ''
+        '($argument)';
+  }
 
   @$internal
   @override
@@ -60,25 +82,94 @@ final class ReadStateControllerProvider
       providerOverride: $SyncValueProvider<ReadStateSnapshot>(value),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ReadStateControllerProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
 }
 
 String _$readStateControllerHash() =>
-    r'1d0ce8afa2edb08a6937f422029e6056c7515348';
+    r'7e600872e2089de2b7a4cc6be94f53a349d80335';
 
-/// Client-side read/unread tracker. Mirrors the reference client's
-/// `client_unread.gd`: the gateway handler marks channels unread on incoming
-/// messages (skipping the visible channel and own messages), and the home
-/// screen marks the visible channel read when it's selected — which also acks
-/// the latest message ID to the server. State is in-memory only; on cold start
-/// the user just sees no unread badges until the gateway reports new traffic,
-/// matching the reference's behavior.
+/// Client-side read/unread tracker, one instance per connected server (keyed by
+/// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
+/// servers don't clobber each other.
+///
+/// Three things feed it:
+///  * the gateway READY handler [hydrate]s the server's authoritative unread
+///    list on every (re)connect — this is what survives a cold start and what
+///    lights up *background* servers;
+///  * the gateway message handler [markUnread]s on incoming traffic for live
+///    updates (every connection, not just the active one);
+///  * the home screen / context menu / voice panel [markRead]s the channel the
+///    user opens, which separately POSTs `channels.ack` to the server.
+
+final class ReadStateControllerFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          ReadStateController,
+          ReadStateSnapshot,
+          ReadStateSnapshot,
+          ReadStateSnapshot,
+          String
+        > {
+  const ReadStateControllerFamily._()
+    : super(
+        retry: null,
+        name: r'readStateControllerProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Client-side read/unread tracker, one instance per connected server (keyed by
+  /// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
+  /// servers don't clobber each other.
+  ///
+  /// Three things feed it:
+  ///  * the gateway READY handler [hydrate]s the server's authoritative unread
+  ///    list on every (re)connect — this is what survives a cold start and what
+  ///    lights up *background* servers;
+  ///  * the gateway message handler [markUnread]s on incoming traffic for live
+  ///    updates (every connection, not just the active one);
+  ///  * the home screen / context menu / voice panel [markRead]s the channel the
+  ///    user opens, which separately POSTs `channels.ack` to the server.
+
+  ReadStateControllerProvider call(String serverKey) =>
+      ReadStateControllerProvider._(argument: serverKey, from: this);
+
+  @override
+  String toString() => r'readStateControllerProvider';
+}
+
+/// Client-side read/unread tracker, one instance per connected server (keyed by
+/// `serverKey`, i.e. `userId@baseUrl`) so snowflake IDs that collide across
+/// servers don't clobber each other.
+///
+/// Three things feed it:
+///  * the gateway READY handler [hydrate]s the server's authoritative unread
+///    list on every (re)connect — this is what survives a cold start and what
+///    lights up *background* servers;
+///  * the gateway message handler [markUnread]s on incoming traffic for live
+///    updates (every connection, not just the active one);
+///  * the home screen / context menu / voice panel [markRead]s the channel the
+///    user opens, which separately POSTs `channels.ack` to the server.
 
 abstract class _$ReadStateController extends $Notifier<ReadStateSnapshot> {
-  ReadStateSnapshot build();
+  late final _$args = ref.$arg as String;
+  String get serverKey => _$args;
+
+  ReadStateSnapshot build(String serverKey);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
+    final created = build(_$args);
     final ref = this.ref as $Ref<ReadStateSnapshot, ReadStateSnapshot>;
     final element =
         ref.element

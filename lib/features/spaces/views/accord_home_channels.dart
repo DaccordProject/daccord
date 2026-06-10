@@ -95,7 +95,6 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     }
 
     return Container(
-      width: 220,
       decoration: BoxDecoration(
         color: colors.foreground,
         border: Border(
@@ -204,6 +203,53 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
   }
 }
 
+/// A thin draggable divider between the channel list and the message pane that
+/// resizes the channel column. Shows a horizontal-resize cursor on hover and
+/// highlights while being dragged.
+class _ChannelListResizeHandle extends StatefulWidget {
+  const _ChannelListResizeHandle({
+    required this.onDragDelta,
+    required this.onDragEnd,
+  });
+
+  final ValueChanged<double> onDragDelta;
+  final VoidCallback onDragEnd;
+
+  @override
+  State<_ChannelListResizeHandle> createState() =>
+      _ChannelListResizeHandleState();
+}
+
+class _ChannelListResizeHandleState extends State<_ChannelListResizeHandle> {
+  bool _active = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeLeftRight,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) => setState(() => _active = true),
+        onHorizontalDragUpdate: (d) => widget.onDragDelta(d.delta.dx),
+        onHorizontalDragEnd: (_) {
+          widget.onDragEnd();
+          setState(() => _active = false);
+        },
+        child: SizedBox(
+          width: 8,
+          child: Center(
+            child: Container(
+              width: _active ? 2 : 1,
+              color: _active ? colors.primary : colors.background,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Compact icon button for the channel-list header. The header is only ~200px
 /// wide, so the default 48px `IconButton` hit target overflows once several
 /// management actions are visible; this trims the footprint to 32px.
@@ -259,6 +305,7 @@ List<Widget> _buildChannelEntries(
         channel: channel,
         spaceId: spaceId,
         selected: channel.id == selectedChannelId,
+        canManageChannels: canManageChannels,
         onTap: () => onSelect(channel.id),
         onEdit: canManageChannels && spaceId != null
             ? () => showEditChannelDialog(context,
@@ -274,6 +321,8 @@ List<Widget> _buildChannelEntries(
     final isCollapsed = collapsed.contains(category.id);
     entries.add(_CategoryHeader(
       category: category,
+      spaceId: spaceId,
+      canManageChannels: canManageChannels,
       collapsed: isCollapsed,
       onToggle: () => onToggleCollapsed(category.id),
       onAdd: canManageChannels && spaceId != null
@@ -294,9 +343,11 @@ List<Widget> _buildChannelEntries(
   return entries;
 }
 
-class _CategoryHeader extends StatelessWidget {
+class _CategoryHeader extends ConsumerWidget {
   const _CategoryHeader({
     required this.category,
+    required this.spaceId,
+    required this.canManageChannels,
     required this.collapsed,
     required this.onToggle,
     this.onAdd,
@@ -304,16 +355,35 @@ class _CategoryHeader extends StatelessWidget {
   });
 
   final AccordChannel category;
+  final String? spaceId;
+  final bool canManageChannels;
   final bool collapsed;
   final VoidCallback onToggle;
   final VoidCallback? onAdd;
   final VoidCallback? onEdit;
 
+  void _showMenu(BuildContext context, WidgetRef ref, [Offset? position]) {
+    final id = spaceId;
+    if (id == null) return;
+    showCategoryContextMenu(
+      context,
+      ref,
+      category: category,
+      spaceId: id,
+      canManageChannels: canManageChannels,
+      collapsed: collapsed,
+      onToggle: onToggle,
+      globalPosition: position,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     return InkWell(
       onTap: onToggle,
+      onLongPress: () => _showMenu(context, ref, null),
+      onSecondaryTapUp: (d) => _showMenu(context, ref, d.globalPosition),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 2),
         child: Row(
@@ -359,6 +429,7 @@ class _ChannelTile extends ConsumerStatefulWidget {
     required this.channel,
     required this.spaceId,
     required this.selected,
+    required this.canManageChannels,
     required this.onTap,
     this.onEdit,
   });
@@ -366,6 +437,7 @@ class _ChannelTile extends ConsumerStatefulWidget {
   final AccordChannel channel;
   final String? spaceId;
   final bool selected;
+  final bool canManageChannels;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
 
@@ -375,6 +447,19 @@ class _ChannelTile extends ConsumerStatefulWidget {
 
 class _ChannelTileState extends ConsumerState<_ChannelTile> {
   bool _hovered = false;
+
+  void _showMenu([Offset? position]) {
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return;
+    showChannelContextMenu(
+      context,
+      ref,
+      channel: widget.channel,
+      spaceId: spaceId,
+      canManageChannels: widget.canManageChannels,
+      globalPosition: position,
+    );
+  }
 
   IconData get _glyph {
     switch (widget.channel.type) {
@@ -398,7 +483,12 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
         channel.type == 'text' ||
         channel.type == 'forum' ||
         channel.type == 'announcement';
-    final readState = ref.watch(readStateControllerProvider);
+    final activeKey = ref.watch(
+      connectionsControllerProvider.select((s) => s.activeKey),
+    );
+    final readState = activeKey == null
+        ? const ReadStateSnapshot()
+        : ref.watch(readStateControllerProvider(activeKey));
     final unread = readState.isUnread(channel.id) && !widget.selected;
     final mentions = readState.mentionCount(channel.id);
 
@@ -425,6 +515,8 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
             onTap: enabled ? widget.onTap : null,
+            onLongPress: () => _showMenu(null),
+            onSecondaryTapUp: (d) => _showMenu(d.globalPosition),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(

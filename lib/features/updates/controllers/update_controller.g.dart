@@ -14,10 +14,12 @@ part of 'update_controller.dart';
 /// throttled), a manual check, session-dismiss + persistent skip, and
 /// platform-aware download links.
 ///
-/// In-place self-replacement (binary swap + relaunch on desktop, APK install on
-/// Android) is intentionally deferred — it needs untestable per-platform native
-/// machinery. For now an available update links straight to the matching
-/// platform asset's download (or the release page), and web prompts a refresh.
+/// In-place self-replacement is handled by [installUpdate]: on desktop it
+/// downloads + verifies the matching bundle and a detached helper swaps the
+/// binary tree and relaunches (see [UpdateInstaller]); on Android it hands the
+/// APK to the system installer. Platforms without an in-place path (or older
+/// releases) still fall back to a plain download link, and web prompts a
+/// service-worker reload.
 
 @ProviderFor(UpdateController)
 const updateControllerProvider = UpdateControllerProvider._();
@@ -28,10 +30,12 @@ const updateControllerProvider = UpdateControllerProvider._();
 /// throttled), a manual check, session-dismiss + persistent skip, and
 /// platform-aware download links.
 ///
-/// In-place self-replacement (binary swap + relaunch on desktop, APK install on
-/// Android) is intentionally deferred — it needs untestable per-platform native
-/// machinery. For now an available update links straight to the matching
-/// platform asset's download (or the release page), and web prompts a refresh.
+/// In-place self-replacement is handled by [installUpdate]: on desktop it
+/// downloads + verifies the matching bundle and a detached helper swaps the
+/// binary tree and relaunches (see [UpdateInstaller]); on Android it hands the
+/// APK to the system installer. Platforms without an in-place path (or older
+/// releases) still fall back to a plain download link, and web prompts a
+/// service-worker reload.
 final class UpdateControllerProvider
     extends $NotifierProvider<UpdateController, UpdateState> {
   /// Checks the project's GitHub Releases for a newer build and exposes the
@@ -40,10 +44,12 @@ final class UpdateControllerProvider
   /// throttled), a manual check, session-dismiss + persistent skip, and
   /// platform-aware download links.
   ///
-  /// In-place self-replacement (binary swap + relaunch on desktop, APK install on
-  /// Android) is intentionally deferred — it needs untestable per-platform native
-  /// machinery. For now an available update links straight to the matching
-  /// platform asset's download (or the release page), and web prompts a refresh.
+  /// In-place self-replacement is handled by [installUpdate]: on desktop it
+  /// downloads + verifies the matching bundle and a detached helper swaps the
+  /// binary tree and relaunches (see [UpdateInstaller]); on Android it hands the
+  /// APK to the system installer. Platforms without an in-place path (or older
+  /// releases) still fall back to a plain download link, and web prompts a
+  /// service-worker reload.
   const UpdateControllerProvider._()
     : super(
         from: null,
@@ -71,7 +77,7 @@ final class UpdateControllerProvider
   }
 }
 
-String _$updateControllerHash() => r'f1ef891a0558743369237ab832c5fc12acb4c8af';
+String _$updateControllerHash() => r'2d2cf3dcf8973087f9462dcc72d2499ed3f42865';
 
 /// Checks the project's GitHub Releases for a newer build and exposes the
 /// result. Ports the reference client's `updater.gd`: a startup check plus an
@@ -79,10 +85,12 @@ String _$updateControllerHash() => r'f1ef891a0558743369237ab832c5fc12acb4c8af';
 /// throttled), a manual check, session-dismiss + persistent skip, and
 /// platform-aware download links.
 ///
-/// In-place self-replacement (binary swap + relaunch on desktop, APK install on
-/// Android) is intentionally deferred — it needs untestable per-platform native
-/// machinery. For now an available update links straight to the matching
-/// platform asset's download (or the release page), and web prompts a refresh.
+/// In-place self-replacement is handled by [installUpdate]: on desktop it
+/// downloads + verifies the matching bundle and a detached helper swaps the
+/// binary tree and relaunches (see [UpdateInstaller]); on Android it hands the
+/// APK to the system installer. Platforms without an in-place path (or older
+/// releases) still fall back to a plain download link, and web prompts a
+/// service-worker reload.
 
 abstract class _$UpdateController extends $Notifier<UpdateState> {
   UpdateState build();

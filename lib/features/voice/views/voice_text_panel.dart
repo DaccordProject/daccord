@@ -6,7 +6,9 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +53,15 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     // reference's `Client.clear_channel_unread`.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref.read(readStateControllerProvider.notifier).markRead(widget.channelId);
+        // The panel's channel lives on whichever server the call is pinned to,
+        // which may not be the active one.
+        final serverKey = ref.read(voiceControllerProvider).serverKey ??
+            ref.read(connectionsControllerProvider).activeKey;
+        if (serverKey != null) {
+          ref
+              .read(readStateControllerProvider(serverKey).notifier)
+              .markRead(widget.channelId);
+        }
       }
     });
   }

@@ -82,6 +82,11 @@ VoidCallback handleAccordEvents(
   // ── Initial sync ─────────────────────────────────────────────────────────
   subs.add(client.onReady.listen((data) async {
     setConnection(ConnectionStatus.ready);
+    // Hydrate this server's read state from the authoritative unread list the
+    // gateway sends in READY. Runs for every connection (active or background)
+    // and on every reconnect — this is what persists badges across a cold
+    // start and what lights up servers the user hasn't opened yet.
+    _hydrateReadState(ref, data, serverKey: serverKey);
     if (isActive()) {
       _seedPresences(ref, data);
       _seedVoiceStates(ref, data);
@@ -242,28 +247,46 @@ VoidCallback handleAccordEvents(
   // ── Read state (unread + mention badges) ─────────────────────────────────
   // Independent of the channel cache: every message that arrives in a channel
   // other than the visible one marks that channel unread (with a bumped
-  // mention count when the user is mentioned). Mirrors the reference client's
-  // `client_unread.gd`.
+  // mention count when the user is mentioned). Runs for *every* connection so
+  // background servers light up their rail icon too — state is keyed by
+  // [serverKey] so colliding snowflakes don't cross-contaminate. Only the
+  // active connection suppresses the on-screen channel (the visible-channel
+  // pointer belongs to the active session). Mirrors `client_unread.gd`.
   subs.add(client.onMessageCreate.listen((message) {
-    if (!isActive()) return;
     final me = currentUserId;
     if (message.authorId == me) return;
-    if (message.channelId == accordVisibleChannelId) return;
+    if (isActive() && message.channelId == accordVisibleChannelId) return;
     final mentionsMe = message.mentionEveryone ||
         message.mentions.contains(me);
     ref
-        .read(readStateControllerProvider.notifier)
-        .markUnread(message.channelId, isMention: mentionsMe);
+        .read(readStateControllerProvider(serverKey).notifier)
+        .markUnread(
+          message.channelId,
+          spaceId: message.spaceId,
+          isMention: mentionsMe,
+        );
+  }));
+
+  // ── Read-state sync (multi-device) ───────────────────────────────────────
+  // The server echoes our own acks to our *other* sessions, so reading a channel
+  // on one device clears its badge here too. Keyed by [serverKey] like the rest
+  // of read state; we only clear (acks never re-raise a badge).
+  subs.add(client.onReadStateUpdate.listen((data) {
+    final channelId = data['channel_id']?.toString();
+    if (channelId == null || channelId.isEmpty) return;
+    ref
+        .read(readStateControllerProvider(serverKey).notifier)
+        .markRead(channelId);
   }));
 
   // ── Mention notifications ────────────────────────────────────────────────
   // Independent of the channel cache: fire for *any* mentioning message, even
-  // in channels the UI hasn't opened. Skips our own messages, the channel
-  // that's currently on screen, and respects the user's notification prefs.
-  // Gated to the active connection: author/visible-channel matching relies on
-  // the active session's IDs, which collide with background servers'.
+  // in channels the UI hasn't opened and on servers that aren't currently
+  // active (so a message on server B still notifies while you're on server A).
+  // [currentUserId] is per-connection, so author matching is correct on every
+  // server; only the *visible-channel* skip is active-connection-scoped, since
+  // that pointer belongs to the on-screen session.
   subs.add(client.onMessageCreate.listen((message) {
-    if (!isActive()) return;
     final settings = ref.read(settingsControllerProvider);
 
     final me = currentUserId;
@@ -272,7 +295,8 @@ VoidCallback handleAccordEvents(
       notificationsEnabled: settings.notificationsEnabled,
       suppressEveryone: settings.suppressEveryone,
       isOwnMessage: message.authorId == me,
-      isVisibleChannel: message.channelId == accordVisibleChannelId,
+      isVisibleChannel:
+          isActive() && message.channelId == accordVisibleChannelId,
       mentionsMe: message.mentions.contains(me),
       mentionEveryone: message.mentionEveryone,
       spaceMuted:
@@ -292,10 +316,10 @@ VoidCallback handleAccordEvents(
 
   // ── Message SFX ──────────────────────────────────────────────────────────
   // Independent of the channel cache (mirrors the reference `play_for_message`).
-  // Plays for *any* incoming message, gated by sound prefs + window focus, and
-  // never chimes for our own messages or the channel that's on screen.
+  // Plays for *any* incoming message on *any* connection, gated by sound prefs
+  // + window focus, and never chimes for our own messages or the channel that's
+  // on screen (only the active connection owns the visible-channel pointer).
   subs.add(client.onMessageCreate.listen((message) {
-    if (!isActive()) return;
     final settings = ref.read(settingsControllerProvider);
     if (!settings.soundsEnabled) return;
     // A muted space stays silent — no chime, mirroring the suppressed banner.
@@ -310,7 +334,8 @@ VoidCallback handleAccordEvents(
     final isMention = message.mentions.contains(me) || everyone;
     soundManager.playForMessage(
       isMention: isMention,
-      isVisibleChannel: message.channelId == accordVisibleChannelId,
+      isVisibleChannel:
+          isActive() && message.channelId == accordVisibleChannelId,
       isMemberJoin: message.type == 'member_join',
     );
   }));
@@ -470,6 +495,50 @@ void _seedVoiceStates(Ref ref, Map<String, dynamic> ready) {
   for (final entry in byChannel.entries) {
     notifier.seedChannel(entry.key, entry.value);
   }
+}
+
+/// Seeds a server's read state from the gateway READY payload's `unread`
+/// array. Each entry carries `channel_id`, `mention_count` and (so the rail can
+/// roll a server-level badge up) `space_id`; when the server omits `space_id`
+/// we recover it from the READY `channels` array. This is the durable source of
+/// truth that survives restarts — the live message handler only adds deltas.
+void _hydrateReadState(
+  Ref ref,
+  Map<String, dynamic> ready, {
+  required String serverKey,
+}) {
+  final raw = ready['unread'];
+  if (raw is! List) return;
+
+  // channel_id → space_id fallback, in case `unread` entries omit space_id.
+  final channelSpace = <String, String>{};
+  final channels = ready['channels'];
+  if (channels is List) {
+    for (final c in channels) {
+      if (c is! Map) continue;
+      final id = (c['id'] ?? c['channel_id'])?.toString();
+      final space = (c['space_id'] ?? c['guild_id'])?.toString();
+      if (id != null && id.isNotEmpty && space != null && space.isNotEmpty) {
+        channelSpace[id] = space;
+      }
+    }
+  }
+
+  final entries = <ReadEntry>[];
+  for (final e in raw) {
+    if (e is! Map) continue;
+    final channelId = e['channel_id']?.toString();
+    if (channelId == null || channelId.isEmpty) continue;
+    final spaceId =
+        (e['space_id'] ?? channelSpace[channelId])?.toString();
+    final mentions = (e['mention_count'] as num?)?.toInt() ?? 0;
+    entries.add(ReadEntry(
+      channelId: channelId,
+      spaceId: (spaceId != null && spaceId.isNotEmpty) ? spaceId : null,
+      mentions: mentions,
+    ));
+  }
+  ref.read(readStateControllerProvider(serverKey).notifier).hydrate(entries);
 }
 
 /// Seeds the global presence cache from the gateway READY payload's

@@ -58,6 +58,51 @@ Future<void> showEditChannelDialog(
   );
 }
 
+/// Confirms, then deletes [channel] from [spaceId]. Returns true when deleted.
+/// Shared by the edit dialog and the channel/category context menus so the
+/// confirmation copy and failure handling stay consistent. Shows a SnackBar on
+/// failure (the edit dialog surfaces its own inline error and ignores this).
+Future<bool> confirmAndDeleteChannel(
+  BuildContext context,
+  WidgetRef ref, {
+  required String spaceId,
+  required AccordChannel channel,
+}) async {
+  final isCategory = channel.type == 'category';
+  final noun = isCategory ? 'category' : 'channel';
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Delete $noun'),
+      content: Text(
+          'Delete "${channel.name ?? channel.id}"? This cannot be undone.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return false;
+  final client = ref.read(accordAuthProvider
+      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  if (client == null) return false;
+  final ok = await ref
+      .read(accordChannelsControllerProvider(spaceId).notifier)
+      .deleteChannel(client, channel.id);
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to delete $noun')),
+    );
+  }
+  return ok;
+}
+
 class _ChannelEditorDialog extends ConsumerStatefulWidget {
   const _ChannelEditorDialog({
     required this.spaceId,

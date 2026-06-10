@@ -141,6 +141,16 @@ class SettingsController extends _$SettingsController {
     ),
   );
 
+  /// Sets the desktop channel-list column width, clamped to the supported range.
+  void setChannelListWidth(double width) => _update(
+    state.copyWith(
+      channelListWidth: width.clamp(
+        AccordSettings.minChannelListWidth,
+        AccordSettings.maxChannelListWidth,
+      ),
+    ),
+  );
+
   // ── Rail ordering & folders ───────────────────────────────────────────────
 
   /// Persists the manual rail space ordering (a flat list of space ids).

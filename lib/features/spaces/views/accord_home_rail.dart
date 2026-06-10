@@ -121,6 +121,7 @@ class _SpaceRail extends ConsumerWidget {
             child: _DraggableSpace(
               space: space,
               cdnUrl: sc?.cdnUrl,
+              serverKey: serverKey,
               selected: (sc?.active ?? false) && space.id == selectedSpaceId,
               onTap: () => onSelect(serverKey, space.id),
               onReorderBefore: (movedId) => _reorderBefore(
@@ -129,7 +130,8 @@ class _SpaceRail extends ConsumerWidget {
                 movedId,
                 space.id,
               ),
-              onMenu: () => _spaceMenu(context, ref, space, serverKey),
+              onMenu: (pos) =>
+                  _spaceMenu(context, ref, space, serverKey, pos),
             ),
           ),
         );
@@ -279,52 +281,41 @@ class _SpaceRail extends ConsumerWidget {
     WidgetRef ref,
     AccordSpace space,
     String serverKey,
-  ) async {
+    Offset position,
+  ) {
     final settings = ref.read(settingsControllerProvider);
     final ctl = ref.read(settingsControllerProvider.notifier);
     final inFolder = settings.spaceFolders.any(
       (f) => f.spaceIds.contains(space.id),
     );
 
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ..._serverActionTiles(context, ctx, ref, space, serverKey),
-            ListTile(
-              leading: const Icon(Icons.create_new_folder_outlined),
-              title: const Text('New folder with this space'),
-              onTap: () {
-                ctl.createFolder(spaceIds: [space.id]);
-                Navigator.of(ctx).pop();
-              },
-            ),
-            for (final f in settings.spaceFolders)
-              if (!f.spaceIds.contains(space.id))
-                ListTile(
-                  leading: const Icon(Icons.folder_outlined),
-                  title: Text(
-                    'Move to "${f.name.isEmpty ? 'Folder' : f.name}"',
-                  ),
-                  onTap: () {
-                    ctl.moveSpaceToFolder(space.id, f.id);
-                    Navigator.of(ctx).pop();
-                  },
-                ),
-            if (inFolder)
-              ListTile(
-                leading: const Icon(Icons.folder_off_outlined),
-                title: const Text('Remove from folder'),
-                onTap: () {
-                  ctl.moveSpaceToFolder(space.id, null);
-                  Navigator.of(ctx).pop();
-                },
-              ),
-          ],
-        ),
+    final entries = <AccordMenuEntry>[
+      ..._serverActionEntries(context, ref, space, serverKey),
+      AccordMenuEntry(
+        label: 'New folder with this space',
+        icon: Icons.create_new_folder_outlined,
+        onSelected: () => ctl.createFolder(spaceIds: [space.id]),
       ),
+      for (final f in settings.spaceFolders)
+        if (!f.spaceIds.contains(space.id))
+          AccordMenuEntry(
+            label: 'Move to "${f.name.isEmpty ? 'Folder' : f.name}"',
+            icon: Icons.folder_outlined,
+            onSelected: () => ctl.moveSpaceToFolder(space.id, f.id),
+          ),
+      if (inFolder)
+        AccordMenuEntry(
+          label: 'Remove from folder',
+          icon: Icons.folder_off_outlined,
+          onSelected: () => ctl.moveSpaceToFolder(space.id, null),
+        ),
+    ];
+
+    return showAccordContextMenu(
+      context,
+      entries: entries,
+      globalPosition: position,
+      title: space.name,
     );
   }
 
@@ -358,6 +349,7 @@ class _SpaceRail extends ConsumerWidget {
                   space: space,
                   selected: false,
                   cdnUrl: connOf[space.id]?.cdnUrl,
+                  serverKey: connOf[space.id]?.serverKey ?? '',
                   onTap: () {},
                 ),
                 title: Text(space.name, overflow: TextOverflow.ellipsis),
@@ -377,14 +369,11 @@ class _SpaceRail extends ConsumerWidget {
   }
 }
 
-/// The invite / settings / leave tiles shared by the standalone-space menu and
-/// the folder-member menu. [sheetContext] is the bottom sheet to pop on tap;
-/// [context] drives navigation after it closes. Gated on the space's own
-/// connection session, so actions hit the right server even when it isn't the
-/// active one.
-List<Widget> _serverActionTiles(
+/// The mute / invite / settings / leave entries shared by the standalone-space
+/// menu and the folder-member menu. Gated on the space's own connection session,
+/// so actions hit the right server even when it isn't the active one.
+List<AccordMenuEntry> _serverActionEntries(
   BuildContext context,
-  BuildContext sheetContext,
   WidgetRef ref,
   AccordSpace space,
   String serverKey,
@@ -408,97 +397,60 @@ List<Widget> _serverActionTiles(
       accordHasPermission(perms, AccordPermission.manageRoles) ||
       accordHasPermission(perms, AccordPermission.viewAuditLog);
   final isOwner = userId != null && space.ownerId == userId;
-  final colors = BonfireThemeExtension.of(context);
   final settingsCtl = ref.read(settingsControllerProvider.notifier);
   final muted = ref.read(settingsControllerProvider).isSpaceMuted(space.id);
   return [
-    ListTile(
-      leading: Icon(
-        muted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
-      ),
-      title: Text(muted ? 'Unmute server' : 'Mute server'),
-      subtitle: muted
-          ? null
-          : const Text('Silence notifications from this server'),
-      onTap: () {
-        settingsCtl.toggleSpaceMuted(space.id);
-        Navigator.of(sheetContext).pop();
-      },
+    AccordMenuEntry(
+      label: muted ? 'Unmute server' : 'Mute server',
+      icon: muted
+          ? Icons.notifications_active_outlined
+          : Icons.notifications_off_outlined,
+      subtitle: muted ? null : 'Silence notifications from this server',
+      onSelected: () => settingsCtl.toggleSpaceMuted(space.id),
     ),
     if (canInvite)
-      ListTile(
-        leading: const Icon(Icons.link_outlined),
-        title: const Text('Copy server link'),
-        onTap: () {
-          Navigator.of(sheetContext).pop();
-          _copyServerLink(context, ref, space, serverKey);
-        },
+      AccordMenuEntry(
+        label: 'Copy server link',
+        icon: Icons.link_outlined,
+        onSelected: () => _copyServerLink(context, ref, space, serverKey),
       ),
     if (canInvite)
-      ListTile(
-        leading: const Icon(Icons.person_add_outlined),
-        title: const Text('Invite people'),
-        onTap: () {
-          Navigator.of(sheetContext).pop();
-          showAccordInvites(context, spaceId: space.id);
-        },
+      AccordMenuEntry(
+        label: 'Invite people',
+        icon: Icons.person_add_outlined,
+        onSelected: () => showAccordInvites(context, spaceId: space.id),
       ),
     if (canManage)
-      ListTile(
-        leading: const Icon(Icons.settings_outlined),
-        title: const Text('Space settings'),
-        onTap: () {
-          Navigator.of(sheetContext).pop();
-          showAccordSpaceSettings(context, spaceId: space.id);
-        },
+      AccordMenuEntry(
+        label: 'Space settings',
+        icon: Icons.settings_outlined,
+        onSelected: () => showAccordSpaceSettings(context, spaceId: space.id),
       ),
-    ListTile(
-      leading: const Icon(Icons.visibility_off_outlined),
-      title: const Text('Hide from list'),
-      subtitle: const Text('Remove from your rail without leaving'),
-      onTap: () {
-        settingsCtl.setSpaceHidden(space.id, true);
-        Navigator.of(sheetContext).pop();
-      },
+    AccordMenuEntry(
+      label: 'Hide from list',
+      icon: Icons.visibility_off_outlined,
+      subtitle: 'Remove from your rail without leaving',
+      onSelected: () => settingsCtl.setSpaceHidden(space.id, true),
     ),
-    ListTile(
+    AccordMenuEntry(
+      label: 'Leave server',
+      icon: Icons.logout,
+      destructive: !isOwner,
       enabled: !isOwner,
-      leading: Icon(Icons.logout, color: isOwner ? null : colors.red),
-      title: Text(
-        'Leave server',
-        style: isOwner ? null : TextStyle(color: colors.red),
-      ),
-      subtitle: isOwner
-          ? const Text('Transfer ownership before leaving.')
-          : null,
-      onTap: isOwner
-          ? null
-          : () {
-              Navigator.of(sheetContext).pop();
-              _leaveSpace(context, ref, space, serverKey);
-            },
+      subtitle: isOwner ? 'Transfer ownership before leaving.' : null,
+      onSelected: isOwner ? null : () => _leaveSpace(context, ref, space, serverKey),
     ),
-    ListTile(
+    AccordMenuEntry(
+      label: 'Leave & delete data',
+      icon: Icons.delete_forever_outlined,
+      destructive: !isOwner,
       enabled: !isOwner,
-      leading: Icon(
-        Icons.delete_forever_outlined,
-        color: isOwner ? null : colors.red,
-      ),
-      title: Text(
-        'Leave & delete data',
-        style: isOwner ? null : TextStyle(color: colors.red),
-      ),
-      subtitle: isOwner
-          ? null
-          : const Text('Permanently delete your messages & data here'),
-      onTap: isOwner
-          ? null
-          : () {
-              Navigator.of(sheetContext).pop();
-              _leaveAndDeleteSpace(context, ref, space, serverKey);
-            },
+      subtitle:
+          isOwner ? null : 'Permanently delete your messages & data here',
+      onSelected:
+          isOwner ? null : () => _leaveAndDeleteSpace(context, ref, space, serverKey),
     ),
-    const Divider(height: 1),
+    const AccordMenuEntry.divider(),
   ];
 }
 
@@ -668,7 +620,7 @@ Future<void> _leaveSpace(
 
 /// A space icon that can be dragged (to reorder / into folders) and accepts a
 /// dropped space to reorder before itself.
-class _DraggableSpace extends StatelessWidget {
+class _DraggableSpace extends StatefulWidget {
   const _DraggableSpace({
     required this.space,
     required this.cdnUrl,
@@ -676,6 +628,7 @@ class _DraggableSpace extends StatelessWidget {
     required this.onTap,
     required this.onReorderBefore,
     required this.onMenu,
+    this.serverKey = '',
   });
 
   final AccordSpace space;
@@ -683,29 +636,41 @@ class _DraggableSpace extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final ValueChanged<String> onReorderBefore;
-  final VoidCallback onMenu;
+  final void Function(Offset position) onMenu;
+  final String serverKey;
+
+  @override
+  State<_DraggableSpace> createState() => _DraggableSpaceState();
+}
+
+class _DraggableSpaceState extends State<_DraggableSpace> {
+  // Captured on the down event so the double-tap menu can anchor where the
+  // user clicked (onDoubleTap itself carries no position).
+  Offset _lastTap = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
     final icon = _SpaceIcon(
-      space: space,
-      selected: selected,
-      cdnUrl: cdnUrl,
-      onTap: onTap,
+      space: widget.space,
+      selected: widget.selected,
+      cdnUrl: widget.cdnUrl,
+      serverKey: widget.serverKey,
+      onTap: widget.onTap,
     );
     return DragTarget<String>(
-      onWillAcceptWithDetails: (d) => d.data != space.id,
-      onAcceptWithDetails: (d) => onReorderBefore(d.data),
+      onWillAcceptWithDetails: (d) => d.data != widget.space.id,
+      onAcceptWithDetails: (d) => widget.onReorderBefore(d.data),
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
         child: LongPressDraggable<String>(
-          data: space.id,
+          data: widget.space.id,
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
-              space: space,
+              space: widget.space,
               selected: false,
-              cdnUrl: cdnUrl,
+              cdnUrl: widget.cdnUrl,
+              serverKey: widget.serverKey,
               onTap: () {},
             ),
           ),
@@ -714,8 +679,9 @@ class _DraggableSpace extends StatelessWidget {
           // management menu (new folder, move/remove) opens on double-tap or
           // right-click so it stays reachable on every platform.
           child: GestureDetector(
-            onDoubleTap: onMenu,
-            onSecondaryTap: onMenu,
+            onDoubleTapDown: (d) => _lastTap = d.globalPosition,
+            onDoubleTap: () => widget.onMenu(_lastTap),
+            onSecondaryTapUp: (d) => widget.onMenu(d.globalPosition),
             child: icon,
           ),
         ),
@@ -765,8 +731,10 @@ class _FolderTile extends ConsumerWidget {
               child: GestureDetector(
                 onTap: () =>
                     ctl.setFolderCollapsed(folder.id, !folder.collapsed),
-                onLongPress: () => _folderMenu(context, ref),
-                onSecondaryTap: () => _folderMenu(context, ref),
+                onLongPressStart: (d) =>
+                    _folderMenu(context, ref, d.globalPosition),
+                onSecondaryTapUp: (d) =>
+                    _folderMenu(context, ref, d.globalPosition),
                 child: Tooltip(
                   message: folder.name.isEmpty ? 'Folder' : folder.name,
                   child: Container(
@@ -793,14 +761,16 @@ class _FolderTile extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: GestureDetector(
-                    onLongPress: () => _memberMenu(context, ref, ctl, space),
-                    onSecondaryTap: () =>
-                        _memberMenu(context, ref, ctl, space),
+                    onLongPressStart: (d) =>
+                        _memberMenu(context, ref, ctl, space, d.globalPosition),
+                    onSecondaryTapUp: (d) =>
+                        _memberMenu(context, ref, ctl, space, d.globalPosition),
                     child: _SpaceIcon(
                       space: space,
                       selected: (connOf[space.id]?.active ?? false) &&
                           space.id == selectedSpaceId,
                       cdnUrl: connOf[space.id]?.cdnUrl,
+                      serverKey: connOf[space.id]?.serverKey ?? '',
                       onTap: () =>
                           onSelect(connOf[space.id]?.serverKey ?? '', space.id),
                     ),
@@ -817,83 +787,72 @@ class _FolderTile extends ConsumerWidget {
     WidgetRef ref,
     SettingsController ctl,
     AccordSpace space,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ..._serverActionTiles(
-              context,
-              ctx,
-              ref,
-              space,
-              connOf[space.id]?.serverKey ?? '',
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_off_outlined),
-              title: Text('Remove "${space.name}" from folder'),
-              onTap: () {
-                ctl.moveSpaceToFolder(space.id, null);
-                Navigator.of(ctx).pop();
-              },
-            ),
-          ],
-        ),
+    Offset position,
+  ) {
+    final entries = <AccordMenuEntry>[
+      ..._serverActionEntries(
+        context,
+        ref,
+        space,
+        connOf[space.id]?.serverKey ?? '',
       ),
+      AccordMenuEntry(
+        label: 'Remove "${space.name}" from folder',
+        icon: Icons.folder_off_outlined,
+        onSelected: () => ctl.moveSpaceToFolder(space.id, null),
+      ),
+    ];
+    return showAccordContextMenu(
+      context,
+      entries: entries,
+      globalPosition: position,
+      title: space.name,
     );
   }
 
-  Future<void> _folderMenu(BuildContext context, WidgetRef ref) async {
+  Future<void> _folderMenu(
+    BuildContext context,
+    WidgetRef ref,
+    Offset position,
+  ) {
     final ctl = ref.read(settingsControllerProvider.notifier);
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                folder.collapsed ? Icons.unfold_more : Icons.unfold_less,
-              ),
-              title: Text(folder.collapsed ? 'Expand' : 'Collapse'),
-              onTap: () {
-                ctl.setFolderCollapsed(folder.id, !folder.collapsed);
-                Navigator.of(ctx).pop();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename'),
-              onTap: () async {
-                Navigator.of(ctx).pop();
-                final name = await _promptName(context, folder.name);
-                if (name != null) ctl.renameFolder(folder.id, name);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.palette_outlined),
-              title: const Text('Recolor'),
-              onTap: () async {
-                Navigator.of(ctx).pop();
-                final color = await _pickColor(context);
-                if (color != null) {
-                  ctl.setFolderColor(folder.id, color == 0 ? null : color);
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_delete_outlined),
-              title: const Text('Delete folder'),
-              onTap: () {
-                ctl.deleteFolder(folder.id);
-                Navigator.of(ctx).pop();
-              },
-            ),
-          ],
-        ),
+    final entries = <AccordMenuEntry>[
+      AccordMenuEntry(
+        label: folder.collapsed ? 'Expand' : 'Collapse',
+        icon: folder.collapsed ? Icons.unfold_more : Icons.unfold_less,
+        onSelected: () =>
+            ctl.setFolderCollapsed(folder.id, !folder.collapsed),
       ),
+      AccordMenuEntry(
+        label: 'Rename',
+        icon: Icons.edit_outlined,
+        onSelected: () async {
+          final name = await _promptName(context, folder.name);
+          if (name != null) ctl.renameFolder(folder.id, name);
+        },
+      ),
+      AccordMenuEntry(
+        label: 'Recolor',
+        icon: Icons.palette_outlined,
+        onSelected: () async {
+          final color = await _pickColor(context);
+          if (color != null) {
+            ctl.setFolderColor(folder.id, color == 0 ? null : color);
+          }
+        },
+      ),
+      AccordMenuEntry(
+        label: 'Delete folder',
+        icon: Icons.folder_delete_outlined,
+        destructive: true,
+        onSelected: () => ctl.deleteFolder(folder.id),
+      ),
+    ];
+    return showAccordContextMenu(
+      context,
+      entries: entries,
+      globalPosition: position,
+      title: folder.name.isEmpty ? 'Folder' : folder.name,
     );
   }
 
@@ -965,12 +924,17 @@ class _SpaceIcon extends ConsumerWidget {
     required this.selected,
     required this.cdnUrl,
     required this.onTap,
+    this.serverKey = '',
   });
 
   final AccordSpace space;
   final bool selected;
   final String? cdnUrl;
   final VoidCallback onTap;
+
+  /// The connection that owns this space, so the unread badge reads that
+  /// server's read state (snowflakes collide across servers).
+  final String serverKey;
 
   String get _initials {
     final name = space.name.trim();
@@ -985,16 +949,13 @@ class _SpaceIcon extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final iconUrl = _spaceIconUrl(space, cdnUrl);
-    // Roll up per-channel read state into a single rail-level indicator. We
-    // only consider channels we've already loaded — the rail doesn't force a
-    // fetch for every server just to compute a badge.
-    final readState = ref.watch(readStateControllerProvider);
-    final channels =
-        ref.watch(accordChannelsControllerProvider(space.id)) ??
-        const <AccordChannel>[];
-    final channelIds = channels.map((c) => c.id);
-    final hasUnread = !selected && readState.anyUnread(channelIds);
-    final mentions = readState.mentionsAcross(channelIds);
+    // Roll up this server's per-channel read state into a single rail-level
+    // indicator. Keyed by [serverKey] so each server's badge reflects its own
+    // unread; driven by the READY-hydrated + live read state (no channel fetch
+    // needed, so background servers light up without opening them).
+    final readState = ref.watch(readStateControllerProvider(serverKey));
+    final hasUnread = !selected && readState.anyUnreadInSpace(space.id);
+    final mentions = readState.mentionsInSpace(space.id);
     final radius = BorderRadius.circular(selected ? 16 : 24);
     final fallback = Text(
       _initials,

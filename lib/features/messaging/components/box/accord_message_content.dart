@@ -136,7 +136,7 @@ class AccordMessageContent extends ConsumerWidget {
             name: channel?.name ?? channelId,
           ),
         );
-    ref.read(readStateControllerProvider.notifier).markRead(channelId);
+    ref.read(readStateControllerProvider(activeKey).notifier).markRead(channelId);
     ref.read(settingsControllerProvider.notifier).setLastSelection(
           spaceId,
           channelId,
