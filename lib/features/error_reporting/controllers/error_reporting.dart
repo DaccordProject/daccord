@@ -80,9 +80,11 @@ class ErrorReportingController extends _$ErrorReportingController {
     _active = created;
     _installGlobalHooks();
     // If this provider is torn down (e.g. container disposal) the global
-    // hooks must stop reporting through the dead client.
+    // hooks must stop reporting through the dead client and its HTTP pool
+    // must be released.
     ref.onDispose(() {
       if (identical(_active, created)) _active = null;
+      created.close();
     });
     return true;
   }
@@ -131,7 +133,13 @@ class ErrorReportingController extends _$ErrorReportingController {
     if (client == null) return;
     updateContext();
     client.setTag('type', 'user-feedback');
-    await client.captureMessage(scrubPiiText(description));
+    try {
+      await client.captureMessage(scrubPiiText(description));
+    } finally {
+      // Remove the temporary tag so it doesn't bleed into subsequent
+      // auto-captured error events.
+      client.removeTag('type');
+    }
   }
 
   /// IDs are truncated to their last 4 chars so events can be correlated

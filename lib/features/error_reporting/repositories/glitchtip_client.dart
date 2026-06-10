@@ -19,7 +19,7 @@ class GlitchTipClient {
   static const String clientName = 'daccord-flutter/1.0';
 
   final http.Client _http;
-  final Random _random = Random();
+  final Random _random = Random.secure();
 
   String _dsnKey = '';
   String _storeUrl = '';
@@ -59,12 +59,16 @@ class GlitchTipClient {
       'message': message,
       'timestamp': _isoTimestamp(),
     });
-    while (_breadcrumbs.length > maxBreadcrumbs) {
+    if (_breadcrumbs.length > maxBreadcrumbs) {
       _breadcrumbs.removeAt(0);
     }
   }
 
   void setTag(String key, String value) => _tags[key] = value;
+
+  void removeTag(String key) => _tags.remove(key);
+
+  void close() => _http.close();
 
   /// Sends a message-only event at [level] ('info' by default).
   Future<void> captureMessage(String message, {String level = 'info'}) {

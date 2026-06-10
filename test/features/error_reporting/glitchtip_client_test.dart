@@ -114,6 +114,22 @@ void main() {
     });
   });
 
+  test('removeTag removes a previously set tag from events', () async {
+    late http.Request captured;
+    final client = GlitchTipClient(
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response('', 200);
+      }),
+    );
+    client.init('https://k@host.example/1');
+    client.setTag('type', 'user-feedback');
+    client.removeTag('type');
+    await client.captureMessage('check');
+    final event = jsonDecode(captured.body) as Map<String, dynamic>;
+    expect((event['tags'] as Map).containsKey('type'), isFalse);
+  });
+
   test('breadcrumbs are capped at maxBreadcrumbs', () async {
     late http.Request captured;
     final client = GlitchTipClient(
