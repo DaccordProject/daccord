@@ -12,11 +12,9 @@ packages:
   accordkit:
     dependency: "direct main"
     description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "285e7b4263f875be3eadd0c3c6217932ae3e24b8"
-      url: "https://github.com/DaccordProject/accordkit-dart"
-    source: git
+      path: "packages/accordkit"
+      relative: true
+    source: path
     version: "2.0.0"
   after_layout:
     dependency: transitive
