@@ -95,6 +95,27 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return '$hh:$mm';
   }
 
+  // intl isn't a dependency, so the full timestamp shown in the tooltip is
+  // formatted by hand. Example: "Monday, 5 June 2026 at 14:30".
+  String get _fullTime {
+    final dt = DateTime.tryParse(_message.timestamp);
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    const weekdays = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+      'Friday', 'Saturday', 'Sunday', //
+    ];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June', 'July',
+      'August', 'September', 'October', 'November', 'December', //
+    ];
+    final weekday = weekdays[local.weekday - 1];
+    final month = months[local.month - 1];
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$weekday, ${local.day} $month ${local.year} at $hh:$mm';
+  }
+
   /// Nickname → user display name → username → "Unknown". Falls back to the
   /// on-demand user cache when the author isn't in the loaded member page, and
   /// never shows the raw snowflake ID (the user controller fetches asynchronously
@@ -257,7 +278,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onLongPress: widget.selecting ? null : widget.onLongPressSelect,
+        onLongPressStart:
+            widget.selecting ? null : (d) => _showActionsMenu(d.globalPosition),
+        onSecondaryTapUp:
+            widget.selecting ? null : (d) => _showActionsMenu(d.globalPosition),
         onTap: widget.selecting ? widget.onToggleSelected : null,
         child: Container(
           padding: widget.mentionsMe
@@ -290,11 +314,14 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                     opacity: _hovered ? 1 : 0,
                     child: Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        _time,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.labelSmall!.copyWith(
-                          color: colors.gray,
+                      child: Tooltip(
+                        message: _fullTime,
+                        child: Text(
+                          _time,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.labelSmall!.copyWith(
+                            color: colors.gray,
+                          ),
                         ),
                       ),
                     ),
@@ -342,10 +369,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            _time,
-                            style: theme.textTheme.labelMedium!.copyWith(
-                              color: colors.gray,
+                          Tooltip(
+                            message: _fullTime,
+                            child: Text(
+                              _time,
+                              style: theme.textTheme.labelMedium!.copyWith(
+                                color: colors.gray,
+                              ),
                             ),
                           ),
                           if (_message.editedAt != null) ...[
@@ -449,6 +479,79 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       targetType: 'message',
       targetId: _message.id,
       channelId: widget.channelId,
+    );
+  }
+
+  /// The long-press (mobile) / right-click (desktop) message menu. Bulk-select
+  /// lives here as one entry rather than being the long-press itself, so the
+  /// per-message actions stay reachable on touch.
+  void _showActionsMenu([Offset? position]) {
+    if (_editing) return;
+    final canDelete = widget.isOwn || widget.canManageMessages;
+    final canReport = !widget.isOwn && widget.spaceId != null;
+    final entries = <AccordMenuEntry>[
+      AccordMenuEntry(
+        label: 'Add reaction',
+        icon: Icons.add_reaction_outlined,
+        onSelected: _openReactionPicker,
+      ),
+      AccordMenuEntry(
+        label: 'Reply',
+        icon: Icons.reply,
+        onSelected: widget.onReply,
+      ),
+      AccordMenuEntry(
+        label: 'Thread',
+        icon: Icons.forum_outlined,
+        onSelected: _openThread,
+      ),
+      if (_message.content.isNotEmpty)
+        AccordMenuEntry(
+          label: 'Copy text',
+          icon: Icons.copy_outlined,
+          onSelected: () =>
+              Clipboard.setData(ClipboardData(text: _message.content)),
+        ),
+      if (widget.isOwn)
+        AccordMenuEntry(
+          label: 'Edit',
+          icon: Icons.edit_outlined,
+          onSelected: _startEdit,
+        ),
+      if (widget.canManageMessages)
+        AccordMenuEntry(
+          label: _message.pinned ? 'Unpin' : 'Pin',
+          icon: _message.pinned ? Icons.push_pin_outlined : Icons.push_pin,
+          onSelected: _togglePin,
+        ),
+      if (canDelete)
+        AccordMenuEntry(
+          label: 'Delete',
+          icon: Icons.delete_outline,
+          destructive: true,
+          onSelected: _delete,
+        ),
+      if (canReport)
+        AccordMenuEntry(
+          label: 'Report',
+          icon: Icons.flag_outlined,
+          onSelected: _report,
+        ),
+      if (widget.onLongPressSelect != null) ...[
+        const AccordMenuEntry.divider(),
+        AccordMenuEntry(
+          label: 'Select messages',
+          icon: Icons.checklist,
+          onSelected: widget.onLongPressSelect,
+        ),
+      ],
+    ];
+
+    showAccordContextMenu(
+      context,
+      entries: entries,
+      globalPosition: position,
+      title: _authorName,
     );
   }
 

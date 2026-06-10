@@ -16,6 +16,11 @@ dependencies:
   markdown_viewer:
     path: packages/markdown_viewer
 
+  # Promoted from transitive (pulled in by markdown_viewer) so message rendering
+  # can define custom inline markdown syntaxes for Accord mentions/channels/emoji.
+  dart_markdown: 3.1.7
+  source_span: ^1.10.1
+
   # Accord protocol SDK — the networking layer that replaced firebridge.
   accordkit:
     git:

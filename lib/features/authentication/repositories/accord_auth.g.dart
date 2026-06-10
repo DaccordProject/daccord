@@ -74,7 +74,7 @@ final class AccordAuthProvider
   }
 }
 
-String _$accordAuthHash() => r'3dc7e7fabb3e163accc80d22527ac1486485c37b';
+String _$accordAuthHash() => r'3f25a2f3b1a21e0a87e29114bbf0b17f012dae93';
 
 /// Authentication + connection lifecycle against Accord servers. The Accord
 /// replacement for the Discord-specific `Auth` provider.

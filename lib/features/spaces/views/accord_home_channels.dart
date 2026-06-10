@@ -95,7 +95,6 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     }
 
     return Container(
-      width: 220,
       decoration: BoxDecoration(
         color: colors.foreground,
         border: Border(
@@ -199,6 +198,53 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A thin draggable divider between the channel list and the message pane that
+/// resizes the channel column. Shows a horizontal-resize cursor on hover and
+/// highlights while being dragged.
+class _ChannelListResizeHandle extends StatefulWidget {
+  const _ChannelListResizeHandle({
+    required this.onDragDelta,
+    required this.onDragEnd,
+  });
+
+  final ValueChanged<double> onDragDelta;
+  final VoidCallback onDragEnd;
+
+  @override
+  State<_ChannelListResizeHandle> createState() =>
+      _ChannelListResizeHandleState();
+}
+
+class _ChannelListResizeHandleState extends State<_ChannelListResizeHandle> {
+  bool _active = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeLeftRight,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) => setState(() => _active = true),
+        onHorizontalDragUpdate: (d) => widget.onDragDelta(d.delta.dx),
+        onHorizontalDragEnd: (_) {
+          widget.onDragEnd();
+          setState(() => _active = false);
+        },
+        child: SizedBox(
+          width: 8,
+          child: Center(
+            child: Container(
+              width: _active ? 2 : 1,
+              color: _active ? colors.primary : colors.background,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -316,7 +362,7 @@ class _CategoryHeader extends ConsumerWidget {
   final VoidCallback? onAdd;
   final VoidCallback? onEdit;
 
-  void _showMenu(BuildContext context, WidgetRef ref) {
+  void _showMenu(BuildContext context, WidgetRef ref, [Offset? position]) {
     final id = spaceId;
     if (id == null) return;
     showCategoryContextMenu(
@@ -327,6 +373,7 @@ class _CategoryHeader extends ConsumerWidget {
       canManageChannels: canManageChannels,
       collapsed: collapsed,
       onToggle: onToggle,
+      globalPosition: position,
     );
   }
 
@@ -335,8 +382,8 @@ class _CategoryHeader extends ConsumerWidget {
     final colors = BonfireThemeExtension.of(context);
     return InkWell(
       onTap: onToggle,
-      onLongPress: () => _showMenu(context, ref),
-      onSecondaryTap: () => _showMenu(context, ref),
+      onLongPress: () => _showMenu(context, ref, null),
+      onSecondaryTapUp: (d) => _showMenu(context, ref, d.globalPosition),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 2),
         child: Row(
@@ -401,14 +448,16 @@ class _ChannelTile extends ConsumerStatefulWidget {
 class _ChannelTileState extends ConsumerState<_ChannelTile> {
   bool _hovered = false;
 
-  void _showMenu() {
+  void _showMenu([Offset? position]) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
     showChannelContextMenu(
       context,
+      ref,
       channel: widget.channel,
       spaceId: spaceId,
       canManageChannels: widget.canManageChannels,
+      globalPosition: position,
     );
   }
 
@@ -434,7 +483,12 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
         channel.type == 'text' ||
         channel.type == 'forum' ||
         channel.type == 'announcement';
-    final readState = ref.watch(readStateControllerProvider);
+    final activeKey = ref.watch(
+      connectionsControllerProvider.select((s) => s.activeKey),
+    );
+    final readState = activeKey == null
+        ? const ReadStateSnapshot()
+        : ref.watch(readStateControllerProvider(activeKey));
     final unread = readState.isUnread(channel.id) && !widget.selected;
     final mentions = readState.mentionCount(channel.id);
 
@@ -461,8 +515,8 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
             onTap: enabled ? widget.onTap : null,
-            onLongPress: _showMenu,
-            onSecondaryTap: _showMenu,
+            onLongPress: () => _showMenu(null),
+            onSecondaryTapUp: (d) => _showMenu(d.globalPosition),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(

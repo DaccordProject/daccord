@@ -80,11 +80,17 @@ class AccordSettings {
     this.spaceFolders = const <SpaceFolder>[],
     this.mutedSpaces = const <String>[],
     this.hiddenSpaces = const <String>[],
+    this.channelListWidth = defaultChannelListWidth,
   });
 
   /// Minimum / maximum UI text scale, matching the reference's `ui_scale` range.
   static const double minUiScale = 0.8;
   static const double maxUiScale = 1.4;
+
+  /// Default / clamp range for the resizable channel-list column (desktop).
+  static const double defaultChannelListWidth = 220;
+  static const double minChannelListWidth = 180;
+  static const double maxChannelListWidth = 420;
 
   /// Selected colour theme.
   final AppThemePreset themePreset;
@@ -236,6 +242,10 @@ class AccordSettings {
   /// rendered until unhidden. Stored client-side like [spaceFolders].
   final List<String> hiddenSpaces;
 
+  /// Width of the channel-list column on desktop, in logical pixels. Clamped to
+  /// [minChannelListWidth]–[maxChannelListWidth]; persisted across restarts.
+  final double channelListWidth;
+
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -277,6 +287,7 @@ class AccordSettings {
     List<SpaceFolder>? spaceFolders,
     List<String>? mutedSpaces,
     List<String>? hiddenSpaces,
+    double? channelListWidth,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -320,6 +331,7 @@ class AccordSettings {
       spaceFolders: spaceFolders ?? this.spaceFolders,
       mutedSpaces: mutedSpaces ?? this.mutedSpaces,
       hiddenSpaces: hiddenSpaces ?? this.hiddenSpaces,
+      channelListWidth: channelListWidth ?? this.channelListWidth,
     );
   }
 
@@ -420,6 +432,7 @@ class AccordSettings {
     'spaceFolders': [for (final f in spaceFolders) f.toJson()],
     'mutedSpaces': mutedSpaces,
     'hiddenSpaces': hiddenSpaces,
+    'channelListWidth': channelListWidth,
   };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -506,6 +519,12 @@ class AccordSettings {
         for (final s in (json['hiddenSpaces'] as List? ?? const []))
           s.toString(),
       ],
+      channelListWidth:
+          (json['channelListWidth'] as num?)?.toDouble().clamp(
+            minChannelListWidth,
+            maxChannelListWidth,
+          ) ??
+          defaultChannelListWidth,
     );
   }
 }
