@@ -7,6 +7,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/views/connections_settings_page.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
+import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
@@ -152,6 +153,29 @@ class AccordSettingsScreen extends ConsumerWidget {
             value: settings.suppressEveryone,
             onChanged: settings.notificationsEnabled
                 ? controller.setSuppressEveryone
+                : null,
+          ),
+          const Divider(height: 24),
+          _SectionHeader('Error Reporting'),
+          SwitchListTile(
+            title: const Text('Send error reports'),
+            subtitle: const Text(
+              'Anonymous crash and error reports. No personal data or '
+              'message content is included',
+            ),
+            value: settings.errorReportingEnabled,
+            onChanged: controller.setErrorReportingEnabled,
+          ),
+          ListTile(
+            leading: Icon(Icons.bug_report_outlined, color: colors.dirtyWhite),
+            title: const Text('Report a problem'),
+            subtitle: const Text(
+              'Describe a bug and send it to the developers',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            enabled: settings.errorReportingEnabled,
+            onTap: settings.errorReportingEnabled
+                ? () => _showReportProblemDialog(context, ref)
                 : null,
           ),
           const Divider(height: 24),
@@ -311,6 +335,63 @@ class AccordSettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// User-initiated feedback, mirroring the reference client's "Report a
+/// Problem" dialog: an optional free-text description sent as a tagged
+/// `user-feedback` event through the opt-in error reporting pipeline.
+Future<void> _showReportProblemDialog(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final textController = TextEditingController();
+  final send = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Report a Problem'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: textController,
+            autofocus: true,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Describe what happened (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No personal data or message content is included.',
+            style: Theme.of(ctx).textTheme.bodySmall,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Send Report'),
+        ),
+      ],
+    ),
+  );
+  if (send == true) {
+    await ref
+        .read(errorReportingControllerProvider.notifier)
+        .reportProblem(textController.text.trim());
+    if (context.mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Report sent. Thank you!')),
+      );
+    }
+  }
+  textController.dispose();
 }
 
 /// Lets the user pick which connected server's profile to edit, then opens the

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
+import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -374,6 +375,22 @@ class SettingsController extends _$SettingsController {
   void setAutoUpdateCheck(bool enabled) =>
       _update(state.copyWith(autoUpdateCheck: enabled));
 
+  /// Enables/disables anonymous error reporting (GlitchTip). Answering counts
+  /// as having seen the consent prompt, so it is never reshown. Mirrors the
+  /// reference's `Config.set_error_reporting_enabled` + consent stamping.
+  void setErrorReportingEnabled(bool enabled) => _update(
+    state.copyWith(
+      errorReportingEnabled: enabled,
+      errorReportingConsentShown: true,
+    ),
+  );
+
+  /// Marks the first-launch error-reporting consent dialog as answered
+  /// without changing the toggle. Mirrors the reference's
+  /// `Config.set_error_reporting_consent_shown`.
+  void markErrorReportingConsentShown() =>
+      _update(state.copyWith(errorReportingConsentShown: true));
+
   /// Records the release [version] the user dismissed from the update banner.
   void setDismissedUpdateVersion(String version) =>
       _update(state.copyWith(dismissedUpdateVersion: version));
@@ -392,6 +409,15 @@ class SettingsController extends _$SettingsController {
   void setLastSelection(String spaceId, String channelId) {
     if (state.lastSpaceId == spaceId && state.lastChannelId == channelId) {
       return;
+    }
+    // Navigation breadcrumbs for opt-in error reporting (no-ops while
+    // disabled); IDs are truncated before they leave the device.
+    final errorReporting = ref.read(errorReportingControllerProvider.notifier);
+    if (spaceId.isNotEmpty && spaceId != state.lastSpaceId) {
+      errorReporting.spaceSelected(spaceId);
+    }
+    if (channelId.isNotEmpty && channelId != state.lastChannelId) {
+      errorReporting.channelSelected(channelId);
     }
     _update(state.copyWith(lastSpaceId: spaceId, lastChannelId: channelId));
   }
