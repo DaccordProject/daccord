@@ -259,6 +259,7 @@ List<Widget> _buildChannelEntries(
         channel: channel,
         spaceId: spaceId,
         selected: channel.id == selectedChannelId,
+        canManageChannels: canManageChannels,
         onTap: () => onSelect(channel.id),
         onEdit: canManageChannels && spaceId != null
             ? () => showEditChannelDialog(context,
@@ -274,6 +275,8 @@ List<Widget> _buildChannelEntries(
     final isCollapsed = collapsed.contains(category.id);
     entries.add(_CategoryHeader(
       category: category,
+      spaceId: spaceId,
+      canManageChannels: canManageChannels,
       collapsed: isCollapsed,
       onToggle: () => onToggleCollapsed(category.id),
       onAdd: canManageChannels && spaceId != null
@@ -294,9 +297,11 @@ List<Widget> _buildChannelEntries(
   return entries;
 }
 
-class _CategoryHeader extends StatelessWidget {
+class _CategoryHeader extends ConsumerWidget {
   const _CategoryHeader({
     required this.category,
+    required this.spaceId,
+    required this.canManageChannels,
     required this.collapsed,
     required this.onToggle,
     this.onAdd,
@@ -304,16 +309,34 @@ class _CategoryHeader extends StatelessWidget {
   });
 
   final AccordChannel category;
+  final String? spaceId;
+  final bool canManageChannels;
   final bool collapsed;
   final VoidCallback onToggle;
   final VoidCallback? onAdd;
   final VoidCallback? onEdit;
 
+  void _showMenu(BuildContext context, WidgetRef ref) {
+    final id = spaceId;
+    if (id == null) return;
+    showCategoryContextMenu(
+      context,
+      ref,
+      category: category,
+      spaceId: id,
+      canManageChannels: canManageChannels,
+      collapsed: collapsed,
+      onToggle: onToggle,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     return InkWell(
       onTap: onToggle,
+      onLongPress: () => _showMenu(context, ref),
+      onSecondaryTap: () => _showMenu(context, ref),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 2),
         child: Row(
@@ -359,6 +382,7 @@ class _ChannelTile extends ConsumerStatefulWidget {
     required this.channel,
     required this.spaceId,
     required this.selected,
+    required this.canManageChannels,
     required this.onTap,
     this.onEdit,
   });
@@ -366,6 +390,7 @@ class _ChannelTile extends ConsumerStatefulWidget {
   final AccordChannel channel;
   final String? spaceId;
   final bool selected;
+  final bool canManageChannels;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
 
@@ -375,6 +400,17 @@ class _ChannelTile extends ConsumerStatefulWidget {
 
 class _ChannelTileState extends ConsumerState<_ChannelTile> {
   bool _hovered = false;
+
+  void _showMenu() {
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return;
+    showChannelContextMenu(
+      context,
+      channel: widget.channel,
+      spaceId: spaceId,
+      canManageChannels: widget.canManageChannels,
+    );
+  }
 
   IconData get _glyph {
     switch (widget.channel.type) {
@@ -425,6 +461,8 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
             onTap: enabled ? widget.onTap : null,
+            onLongPress: _showMenu,
+            onSecondaryTap: _showMenu,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(

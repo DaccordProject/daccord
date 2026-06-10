@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:pasteboard/pasteboard.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/channels/components/channel_context_menu.dart';
 import 'package:bonfire/features/channels/components/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
