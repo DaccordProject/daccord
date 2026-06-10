@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -54,21 +55,10 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     _items = _flatten(widget.channels);
   }
 
-  /// Builds the flat list shown in the reorderable view: each category
-  /// followed by its children, then uncategorized channels at the end (in a
-  /// synthetic "Uncategorized" group). Order within each group follows the
-  /// channel's current `position`.
-  /// AccordChannel.position is loosely-typed (`Object?`) so any sort/compare
-  /// goes through this helper. Treats missing/non-numeric values as 0 — the
-  /// reference client does the same.
-  static int _pos(AccordChannel c) {
-    final raw = c.position;
-    if (raw is int) return raw;
-    if (raw is num) return raw.toInt();
-    if (raw is String) return int.tryParse(raw) ?? 0;
-    return 0;
-  }
+  static int _pos(AccordChannel c) => parseChannelPosition(c);
 
+  /// Builds the flat list: each category followed by its children, then
+  /// uncategorized channels at the end. Order within each group follows `position`.
   static List<_Entry> _flatten(List<AccordChannel> channels) {
     final sorted = [...channels]..sort((a, b) => _pos(a).compareTo(_pos(b)));
     final categories = sorted.where((c) => c.type == 'category').toList();

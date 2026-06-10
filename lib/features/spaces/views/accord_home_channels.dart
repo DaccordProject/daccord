@@ -178,8 +178,6 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
             child: channels == null
                 ? const Center(child: CircularProgressIndicator())
                 : (canManageChannels && id != null)
-                    // Managers get inline drag-and-drop: long-press a channel or
-                    // category to reorder it or move it between categories.
                     ? _ChannelDragList(
                         spaceId: id,
                         channels: channels,
@@ -619,13 +617,7 @@ class _MentionBadge extends StatelessWidget {
   }
 }
 
-/// The channel sidebar for users who can manage channels: a [ReorderableListView]
-/// that lets them long-press to drag channels and categories into a new order,
-/// or drop a channel under a different category. Mirrors the modal reorder
-/// dialog's persistence (per-bucket `position`, plus `parent_id` when a channel
-/// crosses a category boundary) but inline in the sidebar. Collapsed categories
-/// keep their (hidden) children adjacent in the working model so they stay
-/// correctly parented even though they aren't shown.
+/// Sidebar channel list with inline long-press drag-to-reorder for space managers.
 class _ChannelDragList extends ConsumerStatefulWidget {
   const _ChannelDragList({
     required this.spaceId,
@@ -651,6 +643,7 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
   late List<_DragEntry> _items;
   late String _signature;
   bool _persisting = false;
+  bool _pendingPersist = false;
 
   @override
   void initState() {
@@ -676,22 +669,10 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
     });
   }
 
-  /// Channel `position` is loosely typed (`Object?`); funnel every read through
-  /// here. Missing/non-numeric values sort as 0, matching the reorder dialog.
-  static int _pos(AccordChannel c) {
-    final raw = c.position;
-    if (raw is int) return raw;
-    if (raw is num) return raw.toInt();
-    if (raw is String) return int.tryParse(raw) ?? 0;
-    return 0;
-  }
+  static int _pos(AccordChannel c) => parseChannelPosition(c);
 
-  static String _signatureOf(List<AccordChannel> channels) {
-    final parts = [
-      for (final c in channels) '${c.id}:${c.parentId}:${_pos(c)}',
-    ]..sort();
-    return parts.join(',');
-  }
+  static String _signatureOf(List<AccordChannel> channels) =>
+      channelListSignature(channels);
 
   /// Categories (each followed by their children) then uncategorized channels,
   /// each group ordered by `position`. Children carry their parent's id.
@@ -722,15 +703,18 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
       .where((e) => e.isCategory || !widget.collapsed.contains(e.parentId))
       .toList();
 
-  void _recomputeParents() {
-    String? current;
+  void _recomputeParents(_DragEntry moved) {
+    if (moved.isCategory) return;
+    String? newParent;
     for (final e in _items) {
       if (e.isCategory) {
-        current = e.channel.id;
-      } else {
-        e.parentId = current;
+        newParent = e.channel.id;
+      } else if (identical(e, moved)) {
+        moved.parentId = newParent;
+        return;
       }
     }
+    moved.parentId = null;
   }
 
   // [newIndex] is already adjusted for the item removed at [oldIndex]
@@ -760,9 +744,17 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
       _items.removeWhere(block.contains);
       final insertAt = before == null ? _items.length : _items.indexOf(before);
       _items.insertAll(insertAt < 0 ? _items.length : insertAt, block);
-      _recomputeParents();
+      _recomputeParents(moved);
     });
-    _persist();
+    _schedulePersist();
+  }
+
+  void _schedulePersist() {
+    if (_persisting) {
+      _pendingPersist = true;
+    } else {
+      _persist();
+    }
   }
 
   /// Walks the new ordering and PATCHes any channel whose (parent, position)
@@ -812,7 +804,12 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
       }
     } finally {
       _persisting = false;
-      if (mounted) _resync();
+      if (_pendingPersist && mounted) {
+        _pendingPersist = false;
+        _persist();
+      } else if (mounted) {
+        _resync();
+      }
     }
   }
 
@@ -863,9 +860,7 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
   }
 }
 
-/// One row in the inline reorder model: a category header or a channel tile.
-/// [parentId] tracks the category a channel currently sits under (null when
-/// uncategorized); it is recomputed as items are dragged.
+/// One row in the drag model: a category header or a channel tile.
 class _DragEntry {
   _DragEntry.category(this.channel)
       : isCategory = true,
@@ -878,8 +873,7 @@ class _DragEntry {
   String? parentId;
 }
 
-/// A pending PATCH computed from a reorder: a channel's new [position] and,
-/// when it crossed a category boundary, its new [parentId].
+/// A pending PATCH from a reorder: channel's new position and optional new parent.
 class _DragUpdate {
   const _DragUpdate(
     this.channelId, {
