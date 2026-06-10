@@ -13,6 +13,7 @@ import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/utils/desktop_window.dart';
 import 'package:bonfire/theme/app_theme.dart';
@@ -167,12 +168,70 @@ class _MainWindowState extends ConsumerState<MainWindow> {
   void initState() {
     super.initState();
     _initDeepLinks();
+    // Every route change becomes an error-reporting breadcrumb (a no-op until
+    // the user opts in).
+    routerController.routerDelegate.addListener(_onRouteChanged);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _maybeShowErrorReportingConsent(),
+    );
   }
 
   @override
   void dispose() {
+    routerController.routerDelegate.removeListener(_onRouteChanged);
     _linkSub?.cancel();
     super.dispose();
+  }
+
+  void _onRouteChanged() {
+    final path = routerController.routerDelegate.currentConfiguration.uri.path;
+    ref
+        .read(errorReportingControllerProvider.notifier)
+        .addBreadcrumb('Navigated: $path', 'navigation');
+  }
+
+  /// First-launch error-reporting consent, mirroring the reference client's
+  /// `main_window._show_consent_dialog`: asked once, never reshown (answering
+  /// — or toggling the switch in Settings — stamps the preference).
+  Future<void> _maybeShowErrorReportingConsent() async {
+    if (ref.read(settingsControllerProvider).errorReportingConsentShown) {
+      return;
+    }
+    // Give the router a moment to mount its navigator so the dialog has a
+    // context to attach to.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    if (ref.read(settingsControllerProvider).errorReportingConsentShown) {
+      return;
+    }
+    final ctx = rootNavigatorKey.currentContext;
+    if (ctx == null) return;
+    final enable = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Help improve daccord'),
+        content: const Text(
+          'Help improve daccord by sending anonymous crash and error '
+          'reports? No personal data is included. You can change this in '
+          'Settings at any time.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('No thanks'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    ref
+        .read(settingsControllerProvider.notifier)
+        .setErrorReportingEnabled(enable == true);
   }
 
   /// Listens for `daccord://` deep links (cold-start and while running) and
@@ -238,6 +297,9 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // Keep the local MCP server controller alive so it starts/stops with the
     // Developer Mode + MCP settings (desktop-only; a no-op on web).
     ref.watch(mcpServerControllerProvider);
+    // Keep opt-in error reporting alive; it activates/deactivates with the
+    // persisted consent toggle.
+    ref.watch(errorReportingControllerProvider);
     soundManager.enabled = settings.soundsEnabled;
     soundManager.volume = settings.sfxVolume;
     final theme = buildAppTheme(

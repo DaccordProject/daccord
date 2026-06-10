@@ -189,15 +189,22 @@ jobs:
         # intermittently 504 or arrive corrupted and fail the whole release.
         # Retry the build a few times with backoff so a transient fetch failure
         # doesn't sink a tagged release; a cached archive also short-circuits it.
+        env:
+          # GlitchTip DSN baked into release builds (reporting stays opt-in at
+          # runtime). When the secret is unset the empty define falls back to
+          # the in-repo dev DSN (see
+          # lib/features/error_reporting/controllers/error_reporting.dart).
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           set -uo pipefail
+          DEFINES=(--dart-define=SENTRY_DSN="${SENTRY_DSN:-}")
           build_once() {
             case "${{ matrix.platform }}" in
-              web)     flutter build web     --no-tree-shake-icons --release ;;
-              android) flutter build apk     --no-tree-shake-icons -v ;;
-              linux)   flutter build linux   -v ;;
-              windows) flutter build windows -v ;;
-              macos)   flutter build macos   -v ;;
+              web)     flutter build web     --no-tree-shake-icons --release "${DEFINES[@]}" ;;
+              android) flutter build apk     --no-tree-shake-icons -v "${DEFINES[@]}" ;;
+              linux)   flutter build linux   -v "${DEFINES[@]}" ;;
+              windows) flutter build windows -v "${DEFINES[@]}" ;;
+              macos)   flutter build macos   -v "${DEFINES[@]}" ;;
             esac
           }
           n=0; max=3

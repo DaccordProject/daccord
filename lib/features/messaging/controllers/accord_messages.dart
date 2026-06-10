@@ -2,6 +2,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
+import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -138,6 +139,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
+    // Action breadcrumb for opt-in error reporting — the fact a message was
+    // sent, never its content.
+    ref.read(errorReportingControllerProvider.notifier).messageSent();
     return true;
   }
 
@@ -254,6 +258,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
+    // Action breadcrumb for opt-in error reporting — the fact a message was
+    // sent, never its content.
+    ref.read(errorReportingControllerProvider.notifier).messageSent();
     return true;
   }
 
