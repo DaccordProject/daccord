@@ -17,6 +17,12 @@ const _channelTypes = <({String value, String label, IconData icon})>[
   (value: 'category', label: 'Category', icon: Icons.folder),
 ];
 
+/// Channel types whose stored messages and rendering are identical, so an
+/// existing channel may be switched between them retroactively without losing
+/// data. Mirrors accordserver's `is_non_destructive_type_change`; the type
+/// selector in edit mode is limited to this set.
+const _textLikeTypes = <String>{'text', 'announcement'};
+
 /// Slowmode (rate-limit per user) presets in seconds (0 = off). Mirrors the
 /// reference client's channel edit dialog.
 const _slowmodePresets = <({String label, int seconds})>[
@@ -172,6 +178,10 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
       final data = <String, dynamic>{
         'name': name,
         'topic': topic.isEmpty ? null : topic,
+        if (_textLikeTypes.contains(widget.channel!.type) &&
+            _textLikeTypes.contains(_type) &&
+            _type != widget.channel!.type)
+          'type': _type,
         if (supportsModeration) 'nsfw': _nsfw,
         if (supportsModeration) 'rate_limit': _rateLimit,
       };
@@ -318,6 +328,39 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
                   ),
                 if (_type != 'category' && categories.isNotEmpty)
                   const SizedBox(height: 12),
+              ],
+              // Edit mode: allow switching between non-destructive (text-like)
+              // types only. Voice/category/forum channels show no selector since
+              // no safe conversion exists.
+              if (_isEdit && _textLikeTypes.contains(widget.channel!.type)) ...[
+                DropdownButtonFormField<String>(
+                  initialValue:
+                      _textLikeTypes.contains(_type) ? _type : widget.channel!.type,
+                  decoration: const InputDecoration(
+                    labelText: 'Type',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final t in _channelTypes)
+                      if (_textLikeTypes.contains(t.value))
+                        DropdownMenuItem(
+                          value: t.value,
+                          child: Row(
+                            children: [
+                              Icon(t.icon, size: 16, color: colors.dirtyWhite),
+                              const SizedBox(width: 8),
+                              Text(t.label),
+                            ],
+                          ),
+                        ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (v) => setState(
+                          () => _type = v ?? widget.channel!.type),
+                ),
+                const SizedBox(height: 12),
               ],
               if (_type != 'category')
                 TextField(
