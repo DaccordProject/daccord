@@ -197,8 +197,8 @@ Future<void> _leaveAndDeleteSpace(
 }
 
 /// Confirms then leaves [space] on its own connection, without deleting any
-/// data (the destructive leave-and-delete lives in Privacy & Data). Drops the
-/// space from both the connection cache and the active list on success.
+/// data. Drops the space from both the connection cache and the active list on
+/// success.
 Future<void> _leaveSpace(
   BuildContext context,
   WidgetRef ref,

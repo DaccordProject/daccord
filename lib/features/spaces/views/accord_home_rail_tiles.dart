@@ -256,7 +256,7 @@ class _FolderTile extends ConsumerWidget {
           ),
         ],
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 
   Future<int?> _pickColor(BuildContext context) {
