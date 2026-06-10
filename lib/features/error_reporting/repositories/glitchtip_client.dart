@@ -115,7 +115,9 @@ class GlitchTipClient {
         ? '/${segments.sublist(0, segments.length - 1).join('/')}'
         : '';
     final host = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
-    _dsnKey = uri.userInfo;
+    // userInfo may be "key:secret" (legacy Sentry format) or just "key"; only
+    // the public key is sent in the X-Sentry-Auth header.
+    _dsnKey = uri.userInfo.split(':').first;
     _storeUrl = '${uri.scheme}://$host$prefix/api/$projectId/store/';
     return true;
   }
