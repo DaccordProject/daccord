@@ -3,7 +3,6 @@ import 'package:bonfire/features/messaging/components/box/accord_markdown_box.da
 import 'package:bonfire/features/messaging/components/box/accord_message_markup.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Joins the plain text of every [RichText] paragraph on screen (skipping the

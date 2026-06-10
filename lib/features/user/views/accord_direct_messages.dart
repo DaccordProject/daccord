@@ -53,16 +53,49 @@ String _channelTitle(AccordChannel channel, String? selfId) {
 
 /// Opens the direct-messages & friends panel: a tabbed dialog with the user's DM
 /// conversations and their friends list (with requests). The Accord analogue of
-/// the reference client's `dm_list` + `friends_list`.
-Future<void> showAccordDirectMessages(BuildContext context) {
+/// the reference client's `dm_list` + `friends_list`. Pass [initialChannel] to
+/// open straight into a conversation.
+Future<void> showAccordDirectMessages(
+  BuildContext context, {
+  AccordChannel? initialChannel,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (_) => const _DirectMessagesDialog(),
+    builder: (_) => _DirectMessagesDialog(initialChannel: initialChannel),
   );
 }
 
+/// Opens (creating if needed) the 1:1 direct message with [userId] and shows the
+/// DM dialog focused on that conversation. Accord's `createDm` is idempotent for
+/// a single recipient — it returns the existing DM when one already exists.
+Future<void> openAccordDirectMessage(
+  BuildContext context,
+  WidgetRef ref,
+  String userId,
+) async {
+  final client = ref.read(
+    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+  );
+  if (client == null) return;
+  final result = await client.users.createDm({
+    'recipients': [userId],
+  });
+  if (!context.mounted) return;
+  final data = result.data;
+  if (result.ok && data is AccordChannel) {
+    ref.read(dmChannelsControllerProvider.notifier).upsert(data);
+    await showAccordDirectMessages(context, initialChannel: data);
+  } else {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text('Failed to open direct message')),
+    );
+  }
+}
+
 class _DirectMessagesDialog extends ConsumerStatefulWidget {
-  const _DirectMessagesDialog();
+  const _DirectMessagesDialog({this.initialChannel});
+
+  final AccordChannel? initialChannel;
 
   @override
   ConsumerState<_DirectMessagesDialog> createState() =>
@@ -72,7 +105,7 @@ class _DirectMessagesDialog extends ConsumerStatefulWidget {
 class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs = TabController(length: 2, vsync: this);
-  AccordChannel? _openChannel;
+  late AccordChannel? _openChannel = widget.initialChannel;
 
   @override
   void dispose() {

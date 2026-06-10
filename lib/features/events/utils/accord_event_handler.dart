@@ -10,6 +10,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/notifications/controllers/notification.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/notifications/utils/notification_gate.dart';
@@ -341,31 +342,32 @@ VoidCallback handleAccordEvents(
 
   // ── Reactions (per channel) ──────────────────────────────────────────────
   // Like messages, only mutate channels the UI has opened.
-  String emojiName(Map<String, dynamic> data) {
+  // The gateway echoes a reaction's emoji either as a map (`{name, id}`) or as
+  // a bare token — `name:id` for custom emoji, a glyph/shortcode otherwise. We
+  // split the token so the id survives; otherwise a custom reaction would be
+  // stored with id=null and a name of `name:id`, rendering as literal text and
+  // never matching the optimistic pill (leaving two pills for one reaction).
+  EmojiRef reactionEmoji(Map<String, dynamic> data) {
     final raw = data['emoji'];
-    if (raw is Map) return raw['name']?.toString() ?? '';
-    if (raw is String) return raw;
-    return '';
-  }
-
-  String? emojiId(Map<String, dynamic> data) {
-    final raw = data['emoji'];
-    if (raw is Map) return raw['id']?.toString();
-    return null;
+    if (raw is Map) {
+      return (name: raw['name']?.toString() ?? '', id: raw['id']?.toString());
+    }
+    if (raw is String) return parseEmojiToken(raw);
+    return (name: '', id: null);
   }
 
   void applyReactionEvent(Map<String, dynamic> data, {required bool added}) {
     if (!isActive()) return;
     final channelId = data['channel_id']?.toString();
     final messageId = data['message_id']?.toString();
-    final name = emojiName(data);
-    if (channelId == null || messageId == null || name.isEmpty) return;
+    final emoji = reactionEmoji(data);
+    if (channelId == null || messageId == null || emoji.name.isEmpty) return;
     if (!activeMessageChannels.contains(channelId)) return;
     final isOwn = data['user_id']?.toString() == currentUserId;
     container
         .read(accordMessagesControllerProvider(channelId).notifier)
-        .applyReaction(messageId, name,
-            added: added, isOwn: isOwn, emojiId: emojiId(data));
+        .applyReaction(messageId, emoji.name,
+            added: added, isOwn: isOwn, emojiId: emoji.id);
   }
 
   subs.add(client.onReactionAdd.listen((d) => applyReactionEvent(d, added: true)));
@@ -385,7 +387,7 @@ VoidCallback handleAccordEvents(
     if (!isActive()) return;
     final channelId = data['channel_id']?.toString();
     final messageId = data['message_id']?.toString();
-    final name = emojiName(data);
+    final name = reactionEmoji(data).name;
     if (channelId == null || messageId == null || name.isEmpty) return;
     if (!activeMessageChannels.contains(channelId)) return;
     container

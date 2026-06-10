@@ -5,25 +5,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dart_markdown/dart_markdown.dart' as md;
 import 'package:flutter/material.dart';
 import 'package:markdown_viewer/markdown_viewer.dart';
-import 'package:source_span/source_span.dart';
 
-/// Custom markdown markup for Accord messages: inline `@user` / `@role` /
-/// `@everyone` / `#channel` chips, custom `:emoji:`, `||spoiler||` reveals, and
-/// Daccord `__underline__`.
+/// Resolved lookup tables + tap callbacks for rendering Accord's inline tokens
+/// (`@user` / `@role` / `@everyone` / `#channel` chips, custom `:emoji:`,
+/// `||spoiler||`, `__underline__`) as markdown syntax extensions.
 ///
-/// These plug into [MarkdownViewer] as `syntaxExtensions` + `elementBuilders`,
-/// so a message renders standard markdown (bold/italic/code/links/lists) AND
-/// these Accord tokens together — rather than the old all-or-nothing split where
-/// any chip disabled markdown for the whole message.
-///
-/// Build the pair via [buildAccordMarkup]; resolution data (member/role/channel
-/// lookups, custom emoji, cdn url) and tap callbacks are captured up front by
-/// the caller so the syntaxes and builders stay context-free.
-
-const _mentionColor = Color(0xFF5865F2);
-const _broadcastColor = Color(0xFFFAA61A);
-
-/// Lowercase-keyed lookups + tap handlers used to resolve and wire chips.
+/// All maps are keyed by the **lowercased** handle/name so resolution is
+/// case-insensitive. Anything not present here simply renders as plain text —
+/// an unresolved `#channel` or `@user` is left verbatim rather than chipped.
+/// Pass empty maps (the default) in contexts without a space (e.g. DMs); the
+/// protocol-agnostic tokens (`@everyone`/`@here`, spoiler, underline, markdown)
+/// still apply.
 class AccordMarkupContext {
   const AccordMarkupContext({
     this.userByHandle = const {},
@@ -35,192 +27,191 @@ class AccordMarkupContext {
     this.onTapChannel,
   });
 
-  /// Members keyed by lowercased username *and* display name.
   final Map<String, AccordMember> userByHandle;
-
-  /// Mentionable roles keyed by lowercased name.
   final Map<String, AccordRole> roleByName;
-
-  /// Non-category channels keyed by lowercased name.
   final Map<String, AccordChannel> channelByName;
-
-  /// Custom space emoji keyed by lowercased shortcode name.
   final Map<String, AccordEmoji> emojiByName;
-
   final String? cdnUrl;
-
-  /// Opens the profile popout for a mentioned user.
   final void Function(String userId)? onTapUser;
-
-  /// Opens (or switches to) the tab for a mentioned channel.
   final void Function(String channelId)? onTapChannel;
 }
 
-/// Returns the `(syntaxExtensions, elementBuilders)` to hand to [MarkdownViewer]
-/// for [ctx]. Returns empty lists when there is nothing to resolve against, so
-/// callers can skip the custom pipeline entirely.
+/// Builds the syntax extensions + element builders that teach
+/// [AccordMarkdownBox]'s `markdown_viewer` stack to render Accord's inline
+/// tokens *alongside* standard markdown (rather than replacing it).
+///
+/// Custom inline syntaxes are evaluated before the built-in emphasis syntaxes,
+/// so `__text__` becomes an underline (matching the reference client) instead
+/// of bold, and `:emoji:` / `@mention` / `#channel` chip up when they resolve.
 ({List<md.Syntax> syntaxes, List<MarkdownElementBuilder> builders})
 buildAccordMarkup(AccordMarkupContext ctx) {
-  final syntaxes = <md.Syntax>[
-    _MentionSyntax(ctx),
-    _ChannelSyntax(ctx),
-    _EmojiSyntax(ctx),
-    _SpoilerSyntax(),
-    _UnderlineSyntax(),
-  ];
-  final builders = <MarkdownElementBuilder>[
-    _MentionBuilder(ctx),
-    _ChannelBuilder(ctx),
-    _EmojiBuilder(),
-    _SpoilerBuilder(),
-    _UnderlineBuilder(),
-  ];
-  return (syntaxes: syntaxes, builders: builders);
+  return (
+    syntaxes: <md.Syntax>[
+      _SpoilerSyntax(),
+      _UnderlineSyntax(),
+      _EmojiSyntax(ctx),
+      _MentionSyntax(ctx),
+      _ChannelSyntax(ctx),
+    ],
+    builders: <MarkdownElementBuilder>[
+      _SpoilerBuilder(),
+      _UnderlineBuilder(),
+      _EmojiBuilder(),
+      _MentionBuilder(ctx.onTapUser),
+      _ChannelBuilder(ctx.onTapChannel),
+    ],
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Syntaxes
 // ---------------------------------------------------------------------------
 
-bool _isWordChar(int c) {
-  if (c >= 0x30 && c <= 0x39) return true; // 0-9
-  if (c >= 0x41 && c <= 0x5A) return true; // A-Z
-  if (c >= 0x61 && c <= 0x7A) return true; // a-z
-  if (c == 0x5F) return true; // _
-  return c > 0x7F; // non-ASCII (treat as word char)
-}
+/// `||text||` → an `accordSpoiler` element carrying the hidden text.
+class _SpoilerSyntax extends md.InlineSyntax {
+  _SpoilerSyntax() : super(RegExp(r'\|\|(.+?)\|\|', dotAll: true));
 
-md.InlineElement _leaf(
-  String type,
-  List<SourceSpan> markers,
-  Map<String, String> attributes,
-) =>
-    md.InlineElement(
-      type,
+  @override
+  md.InlineObject? parse(md.InlineParser parser, Match match) {
+    final markers = parser.consumeBy(match[0]!.length);
+    return md.InlineElement(
+      'accordSpoiler',
       markers: markers,
-      attributes: attributes,
+      attributes: {'text': match[1] ?? ''},
       start: markers.first.start,
       end: markers.last.end,
     );
-
-/// `@everyone`, `@here`, or `@username`/`@displayname`/`@rolename`. Only emits a
-/// chip when it resolves to a real broadcast/member/role; otherwise leaves the
-/// text alone (so `email@host` and unknown handles stay plain).
-class _MentionSyntax extends md.InlineSyntax {
-  _MentionSyntax(this.ctx)
-      : super(RegExp(r'@(everyone|here)\b|@(\w+)'));
-
-  final AccordMarkupContext ctx;
-
-  @override
-  md.InlineElement? parse(md.InlineParser parser, Match match) {
-    // Require the char before `@` (if any) to be a non-word char, so we don't
-    // chip up the back half of things like `email@host`.
-    final pos = parser.position;
-    if (pos > 0 && _isWordChar(parser.charAt(pos - 1))) return null;
-
-    final broadcast = match[1];
-    final handle = match[2];
-    Map<String, String>? attrs;
-    if (broadcast != null) {
-      attrs = {'kind': 'broadcast', 'label': '@$broadcast'};
-    } else if (handle != null) {
-      final lower = handle.toLowerCase();
-      final role = ctx.roleByName[lower];
-      if (role != null) {
-        attrs = {
-          'kind': 'role',
-          'label': '@${role.name}',
-          'roleColor': '${role.color}',
-        };
-      } else {
-        final member = ctx.userByHandle[lower];
-        if (member != null) {
-          attrs = {
-            'kind': 'user',
-            'label': '@${accordMemberName(member, fallback: handle)}',
-            if (member.user?.id != null) 'userId': member.user!.id,
-          };
-        }
-      }
-    }
-    if (attrs == null) return null;
-
-    final markers = parser.consumeBy(match[0]!.length);
-    return _leaf('accordMention', markers, attrs);
   }
 }
 
-/// `#channel-name` → chip when it resolves to a non-category channel.
-class _ChannelSyntax extends md.InlineSyntax {
-  _ChannelSyntax(this.ctx) : super(RegExp(r'#([A-Za-z0-9_\-]+)'));
-
-  final AccordMarkupContext ctx;
+/// `__text__` → an `accordUnderline` element. Unlike standard markdown (which
+/// treats `__` as bold) the reference client maps this to an underline. The
+/// inner text is preserved as a child [md.Text] so it renders with the parent
+/// style merged.
+class _UnderlineSyntax extends md.InlineSyntax {
+  _UnderlineSyntax() : super(RegExp(r'__(.+?)__', dotAll: true));
 
   @override
-  md.InlineElement? parse(md.InlineParser parser, Match match) {
-    final name = match[1];
-    if (name == null) return null;
-    final channel = ctx.channelByName[name.toLowerCase()];
-    if (channel == null) return null;
-
-    final markers = parser.consumeBy(match[0]!.length);
-    return _leaf('accordChannel', markers, {
-      'label': '#${channel.name}',
-      'channelId': channel.id,
-    });
+  md.InlineObject? parse(md.InlineParser parser, Match match) {
+    final start = parser.position;
+    final full = match[0]!;
+    final innerSpans = parser.subspan(start + 2, start + full.length - 2);
+    final markers = parser.consumeBy(full.length);
+    return md.InlineElement(
+      'accordUnderline',
+      markers: markers,
+      children: innerSpans
+          .map<md.InlineObject>((span) => md.Text.fromSpan(span))
+          .toList(),
+      start: markers.first.start,
+      end: markers.last.end,
+    );
   }
 }
 
-/// `:shortcode:` → custom space emoji image when it resolves.
+/// `:name:` → an `accordEmoji` element, but only when the name resolves to a
+/// space emoji. Otherwise it regrets the match (returns `null` without
+/// consuming) so the literal `:name:` is left for other syntaxes / plain text.
 class _EmojiSyntax extends md.InlineSyntax {
   _EmojiSyntax(this.ctx) : super(RegExp(r':([A-Za-z0-9_]+):'));
 
   final AccordMarkupContext ctx;
 
   @override
-  md.InlineElement? parse(md.InlineParser parser, Match match) {
-    final name = match[1];
-    if (name == null) return null;
-    final emoji = ctx.emojiByName[name.toLowerCase()];
+  md.InlineObject? parse(md.InlineParser parser, Match match) {
+    final emoji = ctx.emojiByName[match[1]!.toLowerCase()];
     if (emoji == null) return null;
-    final url = _emojiImageUrl(emoji, ctx.cdnUrl);
-    if (url == null) return null;
-
+    final url = _emojiUrl(emoji, ctx.cdnUrl);
     final markers = parser.consumeBy(match[0]!.length);
-    return _leaf('accordEmoji', markers, {'url': url, 'name': name});
-  }
-}
-
-/// `||spoiler||` → tap-to-reveal box. Inner content is rendered as plain text.
-class _SpoilerSyntax extends md.InlineSyntax {
-  _SpoilerSyntax() : super(RegExp(r'\|\|(.+?)\|\|', dotAll: true));
-
-  @override
-  md.InlineElement? parse(md.InlineParser parser, Match match) {
-    final markers = parser.consumeBy(match[0]!.length);
-    return _leaf('accordSpoiler', markers, {'text': match[1] ?? ''});
-  }
-}
-
-/// Daccord `__text__` underline (the reference maps `__` to underline, not the
-/// CommonMark strong emphasis). Registered ahead of the built-in underscore
-/// emphasis so it wins.
-class _UnderlineSyntax extends md.InlineSyntax {
-  _UnderlineSyntax() : super(RegExp(r'__(.+?)__', dotAll: true));
-
-  @override
-  md.InlineElement? parse(md.InlineParser parser, Match match) {
-    final length = match[0]!.length;
-    final open = parser.consumeBy(2);
-    final content = parser.consumeBy(length - 4);
-    final close = parser.consumeBy(2);
     return md.InlineElement(
-      'accordUnderline',
-      markers: [...open, ...close],
-      children: content.map<md.InlineObject>(md.Text.fromSpan).toList(),
-      start: open.first.start,
-      end: close.last.end,
+      'accordEmoji',
+      markers: markers,
+      attributes: {'name': match[1]!, if (url != null) 'url': url},
+      start: markers.first.start,
+      end: markers.last.end,
+    );
+  }
+}
+
+/// `@everyone` / `@here` / `@handle` → an `accordMention` chip. `@everyone` and
+/// `@here` always chip up; a `@handle` chips only when it resolves to a
+/// mentionable role or a member (else it regrets). A leading word character
+/// (e.g. the `@` in `email@host`) suppresses the match.
+class _MentionSyntax extends md.InlineSyntax {
+  _MentionSyntax(this.ctx) : super(RegExp(r'@(everyone|here)\b|@(\w+)'));
+
+  final AccordMarkupContext ctx;
+
+  @override
+  md.InlineObject? parse(md.InlineParser parser, Match match) {
+    final pos = parser.position;
+    if (pos > 0 && _isWordCharCode(parser.charAt(pos - 1))) return null;
+
+    String label;
+    Color color;
+    String? userId;
+
+    final broadcast = match[1];
+    if (broadcast != null) {
+      label = '@$broadcast';
+      color = _broadcastColor;
+    } else {
+      final handle = match[2]!;
+      final lower = handle.toLowerCase();
+      final role = ctx.roleByName[lower];
+      if (role != null) {
+        label = '@${role.name}';
+        color = accordRoleColor(role.color) ?? _mentionColor;
+      } else {
+        final member = ctx.userByHandle[lower];
+        if (member == null) return null;
+        label = '@${_memberLabel(member, handle)}';
+        color = _mentionColor;
+        userId = member.user?.id;
+      }
+    }
+
+    final markers = parser.consumeBy(match[0]!.length);
+    return md.InlineElement(
+      'accordMention',
+      markers: markers,
+      attributes: {
+        'label': label,
+        'color': _encodeColor(color),
+        if (userId != null) 'userId': userId,
+      },
+      start: markers.first.start,
+      end: markers.last.end,
+    );
+  }
+}
+
+/// `#name` → an `accordChannel` chip, only when it resolves to a real channel
+/// (else it regrets). A leading word character suppresses the match.
+class _ChannelSyntax extends md.InlineSyntax {
+  _ChannelSyntax(this.ctx) : super(RegExp(r'#([A-Za-z0-9_\-]+)'));
+
+  final AccordMarkupContext ctx;
+
+  @override
+  md.InlineObject? parse(md.InlineParser parser, Match match) {
+    final pos = parser.position;
+    if (pos > 0 && _isWordCharCode(parser.charAt(pos - 1))) return null;
+
+    final channel = ctx.channelByName[match[1]!.toLowerCase()];
+    if (channel == null) return null;
+
+    final markers = parser.consumeBy(match[0]!.length);
+    return md.InlineElement(
+      'accordChannel',
+      markers: markers,
+      attributes: {
+        'label': '#${channel.name}',
+        'color': _encodeColor(_mentionColor),
+        'channelId': channel.id,
+      },
+      start: markers.first.start,
+      end: markers.last.end,
     );
   }
 }
@@ -229,37 +220,13 @@ class _UnderlineSyntax extends md.InlineSyntax {
 // Builders
 // ---------------------------------------------------------------------------
 
-String? _emojiImageUrl(AccordEmoji emoji, String? cdnUrl) {
-  if (emoji.imageUrl.isNotEmpty) {
-    return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: cdnUrl ?? '');
-  }
-  final id = emoji.id;
-  if (id == null) return null;
-  return AccordCDN.emoji(
-    id,
-    format: emoji.animated ? 'gif' : 'png',
-    cdnUrl: cdnUrl ?? '',
-  );
-}
-
-/// Wraps [child] as an inline widget. The root span is a [WidgetSpan] so the
-/// renderer keeps it as a discrete inline item instead of trying to merge it
-/// into an adjacent text run.
-RichText _inlineWidget(Widget child) => RichText(
-      text: WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        baseline: TextBaseline.alphabetic,
-        child: child,
-      ),
-    );
-
 class _MentionBuilder extends MarkdownElementBuilder {
-  _MentionBuilder(this.ctx);
+  _MentionBuilder(this.onTapUser);
 
-  final AccordMarkupContext ctx;
+  final void Function(String userId)? onTapUser;
 
   @override
-  final matchTypes = const ['accordMention'];
+  List<String> get matchTypes => const ['accordMention'];
 
   @override
   bool isBlock(element) => false;
@@ -267,34 +234,23 @@ class _MentionBuilder extends MarkdownElementBuilder {
   @override
   Widget? buildWidget(element, parent) {
     final a = element.attributes;
-    final kind = a['kind'];
-    final color = switch (kind) {
-      'broadcast' => _broadcastColor,
-      'role' =>
-        accordRoleColor(int.tryParse(a['roleColor'] ?? '') ?? 0) ??
-            _mentionColor,
-      _ => _mentionColor,
-    };
     final userId = a['userId'];
+    final tap = (userId != null && onTapUser != null)
+        ? () => onTapUser!(userId)
+        : null;
     return _inlineWidget(
-      _Chip(
-        label: a['label'] ?? '',
-        color: color,
-        onTap: userId != null && ctx.onTapUser != null
-            ? () => ctx.onTapUser!(userId)
-            : null,
-      ),
+      _Chip(label: a['label'] ?? '', color: _decodeColor(a['color']), onTap: tap),
     );
   }
 }
 
 class _ChannelBuilder extends MarkdownElementBuilder {
-  _ChannelBuilder(this.ctx);
+  _ChannelBuilder(this.onTapChannel);
 
-  final AccordMarkupContext ctx;
+  final void Function(String channelId)? onTapChannel;
 
   @override
-  final matchTypes = const ['accordChannel'];
+  List<String> get matchTypes => const ['accordChannel'];
 
   @override
   bool isBlock(element) => false;
@@ -303,21 +259,18 @@ class _ChannelBuilder extends MarkdownElementBuilder {
   Widget? buildWidget(element, parent) {
     final a = element.attributes;
     final channelId = a['channelId'];
+    final tap = (channelId != null && onTapChannel != null)
+        ? () => onTapChannel!(channelId)
+        : null;
     return _inlineWidget(
-      _Chip(
-        label: a['label'] ?? '',
-        color: _mentionColor,
-        onTap: channelId != null && ctx.onTapChannel != null
-            ? () => ctx.onTapChannel!(channelId)
-            : null,
-      ),
+      _Chip(label: a['label'] ?? '', color: _decodeColor(a['color']), onTap: tap),
     );
   }
 }
 
 class _EmojiBuilder extends MarkdownElementBuilder {
   @override
-  final matchTypes = const ['accordEmoji'];
+  List<String> get matchTypes => const ['accordEmoji'];
 
   @override
   bool isBlock(element) => false;
@@ -325,43 +278,50 @@ class _EmojiBuilder extends MarkdownElementBuilder {
   @override
   Widget? buildWidget(element, parent) {
     final a = element.attributes;
-    return _inlineWidget(
-      _EmojiImage(url: a['url'], name: a['name'] ?? ''),
-    );
+    return _inlineWidget(_EmojiImage(url: a['url'], name: a['name'] ?? ''));
   }
 }
 
 class _SpoilerBuilder extends MarkdownElementBuilder {
   @override
-  final matchTypes = const ['accordSpoiler'];
+  List<String> get matchTypes => const ['accordSpoiler'];
 
   @override
   bool isBlock(element) => false;
 
   @override
   Widget? buildWidget(element, parent) {
-    return _inlineWidget(
-      _Spoiler(text: element.attributes['text'] ?? '', style: parent.style),
-    );
+    return _inlineWidget(_Spoiler(text: element.attributes['text'] ?? ''));
   }
 }
 
+/// Underline relies on the default (children-merging) [buildWidget]; supplying
+/// a [textStyle] with an underline decoration is enough.
 class _UnderlineBuilder extends MarkdownElementBuilder {
   _UnderlineBuilder()
       : super(textStyle: const TextStyle(decoration: TextDecoration.underline));
 
   @override
-  final matchTypes = const ['accordUnderline'];
-
-  @override
-  bool isBlock(element) => false;
+  List<String> get matchTypes => const ['accordUnderline'];
 }
 
 // ---------------------------------------------------------------------------
 // Widgets
 // ---------------------------------------------------------------------------
 
-/// A styled mention/channel pill. Tappable when [onTap] is provided.
+/// Wraps an arbitrary [child] widget into a [RichText] whose root span is a
+/// [WidgetSpan]. The renderer only permits `RichText`/`Text`/`DefaultTextStyle`
+/// /`Consumer` from an inline `buildWidget`; returning the widget *inside* a
+/// `RichText` (with a `WidgetSpan` root) keeps it a discrete inline item — the
+/// merge pass detects the `WidgetSpan` and lays these out in a `Wrap` rather
+/// than trying to cast it into a `List<TextSpan>` (which would throw).
+Widget _inlineWidget(Widget child) => RichText(
+      text: WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: child,
+      ),
+    );
+
 class _Chip extends StatelessWidget {
   const _Chip({required this.label, required this.color, this.onTap});
 
@@ -421,10 +381,9 @@ class _EmojiImage extends StatelessWidget {
 }
 
 class _Spoiler extends StatefulWidget {
-  const _Spoiler({required this.text, this.style});
+  const _Spoiler({required this.text});
 
   final String text;
-  final TextStyle? style;
 
   @override
   State<_Spoiler> createState() => _SpoilerState();
@@ -436,6 +395,7 @@ class _SpoilerState extends State<_Spoiler> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    final style = Theme.of(context).textTheme.bodyLarge;
     return GestureDetector(
       onTap: _revealed ? null : () => setState(() => _revealed = true),
       child: MouseRegion(
@@ -448,7 +408,7 @@ class _SpoilerState extends State<_Spoiler> {
           ),
           child: Text(
             widget.text,
-            style: (widget.style ?? const TextStyle()).copyWith(
+            style: (style ?? const TextStyle()).copyWith(
               color: _revealed ? null : Colors.transparent,
             ),
           ),
@@ -456,4 +416,49 @@ class _SpoilerState extends State<_Spoiler> {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const _mentionColor = Color(0xFF5865F2);
+const _broadcastColor = Color(0xFFFAA61A);
+
+String _encodeColor(Color color) => color.toARGB32().toString();
+
+Color _decodeColor(String? encoded) {
+  if (encoded == null) return _mentionColor;
+  return Color(int.tryParse(encoded) ?? _mentionColor.toARGB32());
+}
+
+String _memberLabel(AccordMember member, String fallback) {
+  final display = member.user?.displayName;
+  if (display != null && display.isNotEmpty) return display;
+  final username = member.user?.username;
+  if (username != null && username.isNotEmpty) return username;
+  return fallback;
+}
+
+/// Resolves [emoji] to an absolute image URL (mirrors the emoji picker): an
+/// explicit `imageUrl` wins, else the CDN path by id. Null when neither.
+String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) {
+  if (emoji.imageUrl.isNotEmpty) {
+    return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: cdnUrl ?? '');
+  }
+  final id = emoji.id;
+  if (id == null) return null;
+  return AccordCDN.emoji(
+    id,
+    format: emoji.animated ? 'gif' : 'png',
+    cdnUrl: cdnUrl ?? '',
+  );
+}
+
+bool _isWordCharCode(int c) {
+  if (c >= 0x30 && c <= 0x39) return true; // 0-9
+  if (c >= 0x41 && c <= 0x5A) return true; // A-Z
+  if (c >= 0x61 && c <= 0x7A) return true; // a-z
+  if (c == 0x5F) return true; // _
+  return c > 0x7F; // non-ASCII (treat as word char)
 }
