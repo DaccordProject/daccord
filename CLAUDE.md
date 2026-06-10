@@ -31,7 +31,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 - **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). Client-side models use `json_serializable`; `freezed_annotation` is still a dependency but no `*.freezed.dart` files are generated in `lib/`.
 - **Routing:** `go_router`.
 - **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
-- **Networking:** `accordkit` (git dependency). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
+- **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
 - **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
 - **Media:** `media_kit` (+ `media_kit_video`, `video_player_media_kit`, pinned git forks) / `cached_network_image` / `file_picker` — re-point CDN URLs at the Accord server.
 - **Code generation is required during development:** `dart run build_runner watch -d`.
@@ -51,6 +51,7 @@ lib/
   router/          # go_router config
   main.dart        # startup: media_kit, Hive, ProviderScope, ProfileGate, deep links
 packages/
+  accordkit/       # Accord protocol SDK (REST + gateway + models) — networking layer, maintained here
   livekit_client/  # local fork of livekit_client 2.8.0 (#68 native-release fix) — voice transport
   markdown_viewer/ # custom markdown rendering — protocol-agnostic, KEEP
 docs/              # product + technical specs (see below)
@@ -82,14 +83,15 @@ Bonfire's code uses Discord vocabulary; Accord uses similar-but-distinct terms. 
 
 ## AccordKit-Dart: the new networking layer
 
-Add as a git dependency in `pubspec.yaml`:
+Vendored in-tree and wired via a path dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
   accordkit:
-    git:
-      url: https://github.com/DaccordProject/accordkit-dart
+    path: packages/accordkit
 ```
+
+The SDK source now lives at `packages/accordkit` and is maintained in this repo (no longer a git dependency on `DaccordProject/accordkit-dart`). Edit it directly here.
 
 Entry point is `AccordClient` (`package:accordkit/accordkit.dart`):
 
@@ -137,7 +139,7 @@ CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
 
 The Discord → Accord migration is **essentially complete**: firebridge is gone, all 50+ feature files use `accordkit`, auth/spaces/channels/messaging/members/roles/voice are implemented, and there are no Discord/Firebase code paths left. Remaining work is **feature-parity polish** against the Godot `daccord` client (reactions, emojis, search, admin edge cases) rather than the wholesale swap.
 
-When in doubt about Accord behaviour, read `../accordkit-dart` (the SDK source) and `../daccord` (the reference client's scenes/scripts).
+When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SDK source) and `../daccord` (the reference client's scenes/scripts).
 
 ## Conventions
 
