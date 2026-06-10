@@ -83,7 +83,18 @@ class _SpaceRail extends ConsumerWidget {
     final globalOrder = _orderedIds(byId.values.toList(), settings.spaceOrder);
     final units = _buildUnits(globalOrder, byId, settings.spaceFolders);
 
-    final railItems = <Widget>[];
+    final railItems = <Widget>[
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: _DirectMessagesButton(
+          onTap: () => showAccordDirectMessages(context),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        child: Divider(color: colors.darkGray, height: 2, thickness: 2),
+      ),
+    ];
     for (final unit in units) {
       if (unit.isFolder) {
         railItems.add(
@@ -153,15 +164,6 @@ class _SpaceRail extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: railItems,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Direct messages',
-            onPressed: () => showAccordDirectMessages(context),
-            icon: Icon(
-              Icons.chat_bubble_outline,
-              size: 20,
-              color: colors.dirtyWhite,
             ),
           ),
           IconButton(
@@ -1051,6 +1053,42 @@ class _SpaceIcon extends ConsumerWidget {
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Direct Messages affordance pinned at the top of the rail, styled as a
+/// space-icon tile (Discord-style "home" button) rather than a small footer
+/// icon. Opens the DM/friends modal.
+class _DirectMessagesButton extends StatelessWidget {
+  const _DirectMessagesButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Center(
+      child: Tooltip(
+        message: 'Direct messages',
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colors.darkGray,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.chat_bubble_outline,
+              size: 22,
+              color: colors.dirtyWhite,
+            ),
           ),
         ),
       ),
