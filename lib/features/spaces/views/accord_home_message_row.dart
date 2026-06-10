@@ -1033,7 +1033,11 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
     );
     final users = _users;
     return AlertDialog(
-      title: Text('Reacted with :${widget.emojiName}:'),
+      title: Text(
+        widget.emojiId == null
+            ? 'Reacted with ${resolveEmojiGlyph(widget.emojiName)}'
+            : 'Reacted with :${widget.emojiName}:',
+      ),
       content: SizedBox(
         width: 300,
         child: users == null

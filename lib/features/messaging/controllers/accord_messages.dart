@@ -305,7 +305,9 @@ class AccordMessagesController extends _$AccordMessagesController {
       (r) => _emojiName(r) == emojiName,
     );
     final adding = !(existing?.includesMe ?? false);
-    final token = emojiId == null ? emojiName : '$emojiName:$emojiId';
+    final token = emojiId == null
+        ? resolveEmojiGlyph(emojiName)
+        : '$emojiName:$emojiId';
 
     applyReaction(
       messageId,
@@ -341,7 +343,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     String? emojiId,
     int limit = 100,
   }) async {
-    final token = emojiId == null ? emojiName : '$emojiName:$emojiId';
+    final token = emojiId == null
+        ? resolveEmojiGlyph(emojiName)
+        : '$emojiName:$emojiId';
     final result = await client.reactions.listUsers(
       channelId,
       messageId,
@@ -353,7 +357,21 @@ class AccordMessagesController extends _$AccordMessagesController {
       return const [];
     }
     final data = result.data;
-    return data is List ? data.whereType<AccordUser>().toList() : const [];
+    if (data is! List) return const [];
+    // The endpoint returns bare user-id strings, not user objects — resolve each
+    // to an AccordUser, falling back to an id-only stub if the fetch fails so the
+    // reactor still appears (and the list matches the badge count).
+    final ids = [
+      for (final item in data)
+        if (item is AccordUser) item.id else item.toString(),
+    ].where((id) => id.isNotEmpty).toList();
+    return Future.wait(
+      ids.map((id) async {
+        final res = await client.users.fetch(id);
+        final user = res.data;
+        return res.ok && user is AccordUser ? user : AccordUser(id: id);
+      }),
+    );
   }
 
   /// Applies a reaction add/remove to [messageId]'s aggregate counts. Used both
