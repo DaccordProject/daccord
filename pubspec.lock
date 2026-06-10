@@ -417,7 +417,7 @@ packages:
     source: hosted
     version: "4.6.1"
   dart_markdown:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: dart_markdown
       sha256: b9b7e13733dd418bc83e6f4e68d79caebab6cd3a8b301e91d1bfd6ef5ef8e993
@@ -1621,7 +1621,7 @@ packages:
     source: hosted
     version: "0.10.13"
   source_span:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: source_span
       sha256: "254ee5351d6cb365c859e20ee823c3bb479bf4a293c22d17a9f1bf144ce86f7c"

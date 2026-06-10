@@ -1,5 +1,6 @@
 import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/shared/utils/style/markdown/stylesheet.dart';
+import 'package:dart_markdown/dart_markdown.dart' as md;
 import 'package:flutter/material.dart';
 import 'package:flutter_prism/flutter_prism.dart';
 import 'package:markdown_viewer/markdown_viewer.dart';
@@ -7,13 +8,24 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Renders Accord message content as markdown, reusing Bonfire's
 /// `markdown_viewer` stack (stylesheet + Prism code highlighting + external
-/// link launching). It takes a plain content string; Accord carries mentions as
-/// message metadata (`mentions` / `mentionRoles` / `mentionEveryone`) rather
-/// than inline markup, so there is no `<@id>` / `<#id>` substitution to do here.
+/// link launching).
+///
+/// Callers that render inside a space (see `AccordMessageContent`) inject
+/// [syntaxExtensions] + [elementBuilders] for Accord's inline tokens — `@user`
+/// / `@role` / `@everyone` / `#channel` chips, custom `:emoji:`, `||spoiler||`
+/// and `__underline__` — so those render *alongside* standard markdown rather
+/// than replacing it. Callers without that context (e.g. embeds) pass nothing.
 class AccordMarkdownBox extends StatelessWidget {
-  const AccordMarkdownBox({super.key, required this.content});
+  const AccordMarkdownBox({
+    super.key,
+    required this.content,
+    this.syntaxExtensions = const [],
+    this.elementBuilders = const [],
+  });
 
   final String content;
+  final List<md.Syntax> syntaxExtensions;
+  final List<MarkdownElementBuilder> elementBuilders;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +38,8 @@ class AccordMarkdownBox extends StatelessWidget {
       enableImageSize: false,
       selectable: shouldUseDesktopLayout(context),
       enableKbd: false,
+      syntaxExtensions: syntaxExtensions,
+      elementBuilders: elementBuilders,
       styleSheet: getMarkdownStyleSheet(context),
       highlightBuilder: (text, language, infoString) {
         final prism = Prism(
