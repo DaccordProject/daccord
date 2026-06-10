@@ -5,7 +5,7 @@ library;
 /// The current app version, kept in sync with `pubspec.yaml` `version:`
 /// (the `+build` suffix is omitted). Used as the baseline the update checker
 /// compares GitHub releases against.
-const String kAppVersion = '0.2.0';
+const String kAppVersion = '0.2.1';
 
 /// `owner/repo` whose GitHub Releases drive the in-app update checker. This is
 /// the Flutter client's own repository (the reference client checks its own
