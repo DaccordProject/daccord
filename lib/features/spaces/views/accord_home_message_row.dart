@@ -914,8 +914,13 @@ class _ReactionPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final name = reaction.emoji['name']?.toString() ?? '';
-    final id = reaction.emoji['id']?.toString();
+    final rawName = reaction.emoji['name']?.toString() ?? '';
+    final rawId = reaction.emoji['id']?.toString();
+    // A custom emoji whose source didn't split it arrives as name=`name:id`,
+    // id=null; recover the id so we render the image instead of literal text.
+    final parsed = parseEmojiToken(rawName);
+    final id = rawId ?? parsed.id;
+    final name = rawId != null ? rawName : parsed.name;
     final mine = reaction.includesMe;
     return Material(
       color: mine ? colors.primary.withValues(alpha: 0.25) : colors.darkGray,

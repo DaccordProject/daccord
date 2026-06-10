@@ -443,5 +443,13 @@ class AccordMessagesController extends _$AccordMessagesController {
     state = [...current];
   }
 
-  String _emojiName(AccordReaction r) => r.emoji['name']?.toString() ?? '';
+  // Dedup/match key for a reaction. Custom emoji may arrive with the id baked
+  // into the name (`name:id`) when the source didn't split it; strip it so a
+  // gateway echo and a REST-loaded reaction for the same emoji collapse to one.
+  String _emojiName(AccordReaction r) {
+    final name = r.emoji['name']?.toString() ?? '';
+    final id = r.emoji['id']?.toString();
+    if (id != null && id.isNotEmpty) return name;
+    return parseEmojiToken(name).name;
+  }
 }

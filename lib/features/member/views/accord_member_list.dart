@@ -7,9 +7,11 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The right-hand member roster for the Accord home view. Groups the space's
@@ -172,7 +174,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _MemberRow extends StatelessWidget {
+class _MemberRow extends ConsumerWidget {
   const _MemberRow({
     required this.member,
     required this.roles,
@@ -188,7 +190,7 @@ class _MemberRow extends StatelessWidget {
   final String status;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final name = accordMemberName(member);
@@ -211,6 +213,20 @@ class _MemberRow extends StatelessWidget {
             context,
             spaceId: spaceId,
             userId: member.userId,
+          ),
+          onSecondaryTapUp: (d) => _showMemberContextMenu(
+            context,
+            ref,
+            member,
+            spaceId,
+            d.globalPosition,
+          ),
+          onLongPress: () => _showMemberContextMenu(
+            context,
+            ref,
+            member,
+            spaceId,
+            null,
           ),
           child: Opacity(
             opacity: dimmed ? 0.5 : 1,
@@ -243,4 +259,68 @@ class _MemberRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Quick-utility right-click / long-press menu for a roster member: view their
+/// profile, start a DM, or copy their id/username. Moderation lives in the
+/// profile popout reached by tapping the row. [globalPos] is the pointer
+/// location for a right-click; it's null for a long-press, where the menu
+/// anchors to the overlay centre instead.
+Future<void> _showMemberContextMenu(
+  BuildContext context,
+  WidgetRef ref,
+  AccordMember member,
+  String spaceId,
+  Offset? globalPos,
+) async {
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+  if (overlay == null) return;
+  final anchor = globalPos ?? overlay.size.center(Offset.zero);
+  final currentUserId = ref.read(
+    accordAuthProvider.select(
+      (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+    ),
+  );
+  final isSelf = currentUserId != null && currentUserId == member.userId;
+  final username = member.user?.username;
+  final selected = await showMenu<String>(
+    context: context,
+    position: RelativeRect.fromRect(
+      anchor & const Size(40, 40),
+      Offset.zero & overlay.size,
+    ),
+    items: [
+      const PopupMenuItem(value: 'profile', child: Text('View Profile')),
+      if (!isSelf)
+        const PopupMenuItem(value: 'dm', child: Text('Direct Message')),
+      const PopupMenuDivider(),
+      const PopupMenuItem(value: 'copyId', child: Text('Copy User ID')),
+      if (username != null && username.isNotEmpty)
+        const PopupMenuItem(value: 'copyName', child: Text('Copy Username')),
+    ],
+  );
+  if (selected == null || !context.mounted) return;
+  switch (selected) {
+    case 'profile':
+      await showAccordMemberPopout(
+        context,
+        spaceId: spaceId,
+        userId: member.userId,
+      );
+    case 'dm':
+      await openAccordDirectMessage(context, ref, member.userId);
+    case 'copyId':
+      await Clipboard.setData(ClipboardData(text: member.userId));
+      if (context.mounted) _toast(context, 'User ID copied');
+    case 'copyName':
+      await Clipboard.setData(ClipboardData(text: username!));
+      if (context.mounted) _toast(context, 'Username copied');
+  }
+}
+
+void _toast(BuildContext context, String message) {
+  if (!context.mounted) return;
+  ScaffoldMessenger.maybeOf(
+    context,
+  )?.showSnackBar(SnackBar(content: Text(message)));
 }

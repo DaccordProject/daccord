@@ -364,6 +364,28 @@ final Map<String, String> _emojiByName = {
   for (final e in kEmojiCatalog) e.name: e.char,
 };
 
+/// A reaction emoji's identity: a [name] (unicode shortcode or custom-emoji
+/// name) plus an optional custom-emoji [id].
+typedef EmojiRef = ({String name, String? id});
+
+/// Splits an emoji reference into its name and optional custom-emoji id.
+///
+/// Custom emoji travel as `name:id` (id a numeric snowflake) in REST tokens and
+/// in gateway reaction echoes, while unicode emoji arrive as a bare glyph or
+/// shortcode. Recovering the id lets the UI load the image instead of rendering
+/// `name:id` as literal text. A trailing `:` (the colon-wrapped shortcode form
+/// `:hamburger:`) or any non-numeric tail is left untouched as part of [name].
+EmojiRef parseEmojiToken(String value) {
+  final i = value.lastIndexOf(':');
+  if (i > 0 && i < value.length - 1) {
+    final id = value.substring(i + 1);
+    if (id.codeUnits.every((c) => c >= 0x30 && c <= 0x39)) {
+      return (name: value.substring(0, i), id: id);
+    }
+  }
+  return (name: value, id: null);
+}
+
 /// Resolves a unicode-emoji reference to its glyph. [value] may already be the
 /// glyph (returned as-is), a bare shortcode (`hamburger`), or a colon-wrapped
 /// shortcode (`:hamburger:`). Falls back to [value] when the shortcode isn't in

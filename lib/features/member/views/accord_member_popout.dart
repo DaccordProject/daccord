@@ -9,6 +9,7 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -509,6 +510,23 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
               ],
               if (!isSelf) ...[
                 const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : () => openAccordDirectMessage(
+                            context,
+                            ref,
+                            widget.userId,
+                          ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: colors.primary,
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text('Direct Message'),
+                  ),
+                ),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
