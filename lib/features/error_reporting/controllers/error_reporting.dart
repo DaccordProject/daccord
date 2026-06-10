@@ -5,6 +5,7 @@ import 'package:bonfire/features/error_reporting/repositories/glitchtip_client.d
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'error_reporting.g.dart';
