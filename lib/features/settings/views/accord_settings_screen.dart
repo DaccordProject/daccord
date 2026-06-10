@@ -10,6 +10,7 @@ import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -295,6 +296,7 @@ class AccordSettingsScreen extends ConsumerWidget {
           const ListTile(
             title: Text('Daccord'),
             subtitle: Text('A native multi-platform Daccord client (GPLv3).'),
+            trailing: Text('v$kAppVersion'),
           ),
           const Divider(height: 24),
           ListTile(

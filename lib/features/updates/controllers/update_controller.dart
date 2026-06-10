@@ -214,46 +214,61 @@ class UpdateController extends _$UpdateController {
         .setSkippedUpdateVersion(version);
   }
 
-  /// The download URL of the release asset matching the current platform, or
-  /// null when none is found (the caller then falls back to the release page).
-  /// Always null on web (no downloadable binary applies).
-  String? platformAssetUrl() {
-    final assets = state.latest?.assets ?? const [];
-    if (assets.isEmpty || UniversalPlatform.isWeb) return null;
-    bool hasExt(AppReleaseAsset a, List<String> exts) {
-      final n = a.name.toLowerCase();
-      return exts.any(n.endsWith);
-    }
+  /// File extensions the in-place installer can actually apply for the current
+  /// platform, in priority order. Kept in lockstep with [UpdateInstaller]: it
+  /// extracts a `.tar.gz`/`.zip` bundle on Linux/Windows, mounts a `.dmg` on
+  /// macOS, and hands a `.apk` to the system installer on Android. Package
+  /// formats the swap helper can't apply (`.deb`/`.rpm`/`.appimage`, setup
+  /// `.exe`/`.msi`) are deliberately excluded — they're download-only.
+  List<String> get _installableExts {
+    if (UniversalPlatform.isAndroid) return const ['.apk'];
+    if (UniversalPlatform.isWindows) return const ['.zip'];
+    if (UniversalPlatform.isMacOS) return const ['.dmg'];
+    if (UniversalPlatform.isLinux) return const ['.tar.gz'];
+    return const [];
+  }
 
-    List<String> exts;
-    if (UniversalPlatform.isAndroid) {
-      exts = const ['.apk'];
-    } else if (UniversalPlatform.isWindows) {
-      exts = const ['.exe', '.msi', '.zip'];
-    } else if (UniversalPlatform.isMacOS) {
-      exts = const ['.dmg', '.pkg', '.zip'];
-    } else if (UniversalPlatform.isLinux) {
-      exts = const ['.appimage', '.tar.gz', '.deb', '.rpm'];
-    } else if (UniversalPlatform.isIOS) {
-      return null; // iOS updates come from the App Store.
-    } else {
-      return null;
+  /// Extensions worth offering as a direct download for the platform, in
+  /// priority order. A superset of [_installableExts] that also includes
+  /// package formats a user can install manually but the swap helper can't
+  /// apply in place.
+  List<String> get _downloadExts {
+    if (UniversalPlatform.isAndroid) return const ['.apk'];
+    if (UniversalPlatform.isWindows) return const ['.zip', '.exe', '.msi'];
+    if (UniversalPlatform.isMacOS) return const ['.dmg', '.pkg', '.zip'];
+    if (UniversalPlatform.isLinux) {
+      return const ['.tar.gz', '.deb', '.rpm', '.appimage'];
     }
-    for (final a in assets) {
-      if (hasExt(a, exts)) return a.url;
+    return const [];
+  }
+
+  /// First release asset whose name ends with one of [exts], honouring [exts]
+  /// as a priority list (GitHub returns assets in upload/alphabetical order, so
+  /// iterating assets first would ignore our preference — e.g. picking the
+  /// unextractable `.deb` over the `.tar.gz`). Returns null when none match.
+  AppReleaseAsset? _assetForExts(List<String> exts) {
+    final assets = state.latest?.assets ?? const [];
+    if (assets.isEmpty) return null;
+    for (final ext in exts) {
+      final match = assets.firstWhereOrNull(
+        (a) => a.name.toLowerCase().endsWith(ext),
+      );
+      if (match != null) return match;
     }
     return null;
   }
 
-  /// The release asset matching the current platform (the object behind
-  /// [platformAssetUrl]), or null when none applies.
-  AppReleaseAsset? platformAsset() {
-    final url = platformAssetUrl();
-    if (url == null) return null;
-    return (state.latest?.assets ?? const []).firstWhereOrNull(
-      (a) => a.url == url,
-    );
+  /// The download URL of the best release asset for the current platform, or
+  /// null when none is found (the caller then falls back to the release page).
+  /// Always null on web/iOS (no self-served binary applies).
+  String? platformAssetUrl() {
+    if (UniversalPlatform.isWeb || UniversalPlatform.isIOS) return null;
+    return _assetForExts(_downloadExts)?.url;
   }
+
+  /// The release asset the in-place installer can apply for the current
+  /// platform, or null when none applies (the UI then offers a plain download).
+  AppReleaseAsset? platformAsset() => _assetForExts(_installableExts);
 
   /// Whether the running platform supports an in-place download-and-install
   /// (desktop binary swap or Android APK install), and a matching asset exists.
