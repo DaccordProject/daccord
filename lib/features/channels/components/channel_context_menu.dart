@@ -50,8 +50,12 @@ Future<void> showChannelContextMenu(
   if (client != null) {
     final result = await client.users.listMutes();
     final data = result.data;
-    final ids =
-        data is List ? data.map((e) => e.toString()).toSet() : const <String>{};
+    final ids = data is List
+        ? data
+            .map((e) => e is Map ? e['channel_id']?.toString() : e?.toString())
+            .whereType<String>()
+            .toSet()
+        : const <String>{};
     muted = ids.contains(channel.id);
   }
   if (!hostContext.mounted) return;

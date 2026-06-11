@@ -587,6 +587,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     BonfireThemeExtension colors,
     String? cdnUrl,
   ) {
+    final spaceId = widget.spaceId;
+    final customEmoji = spaceId == null
+        ? const <AccordEmoji>[]
+        : ref.watch(accordEmojisControllerProvider(spaceId)) ??
+              const <AccordEmoji>[];
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Wrap(
@@ -596,7 +601,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
           for (final reaction in _message.reactions!)
             _ReactionPill(
               reaction: reaction,
-              cdnUrl: cdnUrl,
+              imageUrl: _reactionEmojiUrl(reaction, customEmoji, cdnUrl),
               onTap: () => _toggleReaction(
                 reaction.emoji['name']?.toString() ?? '',
                 emojiId: reaction.emoji['id']?.toString(),
@@ -605,6 +610,30 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             ),
         ],
       ),
+    );
+  }
+
+  /// Resolves a custom reaction's image URL. Reactions only carry `{id, name}`,
+  /// so the authoritative `image_url` (with the space segment and real
+  /// extension) is looked up from the space's emoji catalog by id; the bare CDN
+  /// path is a last resort. Null for unicode reactions.
+  String? _reactionEmojiUrl(
+    AccordReaction reaction,
+    List<AccordEmoji> customEmoji,
+    String? cdnUrl,
+  ) {
+    final rawId = reaction.emoji['id']?.toString();
+    final id =
+        rawId ?? parseEmojiToken(reaction.emoji['name']?.toString() ?? '').id;
+    if (id == null) return null;
+    final match = customEmoji.firstWhereOrNull((e) => e.id == id);
+    if (match != null && match.imageUrl.isNotEmpty) {
+      return AccordCDN.resolvePath(match.imageUrl, cdnUrl: cdnUrl ?? '');
+    }
+    return AccordCDN.emoji(
+      id,
+      format: match?.animated ?? false ? 'gif' : 'png',
+      cdnUrl: cdnUrl ?? '',
     );
   }
 

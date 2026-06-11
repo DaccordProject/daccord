@@ -22,7 +22,7 @@ class _ReactionPill extends StatelessWidget {
     required this.reaction,
     required this.onTap,
     required this.onShowReactors,
-    this.cdnUrl,
+    this.imageUrl,
   });
 
   final AccordReaction reaction;
@@ -30,7 +30,9 @@ class _ReactionPill extends StatelessWidget {
 
   /// Long-press / right-click: reveal who reacted.
   final VoidCallback onShowReactors;
-  final String? cdnUrl;
+
+  /// Resolved image URL for a custom-emoji reaction; null for unicode.
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -64,9 +66,9 @@ class _ReactionPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (id != null)
+              if (id != null && imageUrl != null)
                 CachedNetworkImage(
-                  imageUrl: AccordCDN.emoji(id, cdnUrl: cdnUrl ?? ''),
+                  imageUrl: imageUrl!,
                   width: 16,
                   height: 16,
                   fit: BoxFit.contain,
@@ -181,30 +183,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
                 shrinkWrap: true,
                 children: [
                   for (final user in users)
-                    ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 14,
-                        backgroundColor: accordAvatarColor(user, user.id),
-                        foregroundImage: accordAvatarUrl(user, cdnUrl) == null
-                            ? null
-                            : CachedNetworkImageProvider(
-                                accordAvatarUrl(user, cdnUrl)!,
-                              ),
-                        child: Text(
-                          accordUserName(
-                            user,
-                            fallback: '?',
-                          ).characters.first.toUpperCase(),
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                      ),
-                      title: Text(
-                        accordUserName(user, fallback: user.id),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    _ReactorTile(user: user, cdnUrl: cdnUrl),
                 ],
               ),
       ),
@@ -214,6 +193,36 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
           child: const Text('Close'),
         ),
       ],
+    );
+  }
+}
+
+class _ReactorTile extends StatelessWidget {
+  const _ReactorTile({required this.user, required this.cdnUrl});
+
+  final AccordUser user;
+  final String? cdnUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = accordAvatarUrl(user, cdnUrl);
+    return ListTile(
+      dense: true,
+      leading: CircleAvatar(
+        radius: 14,
+        backgroundColor: accordAvatarColor(user, user.id),
+        foregroundImage:
+            avatarUrl == null ? null : CachedNetworkImageProvider(avatarUrl),
+        child: Text(
+          accordUserName(user, fallback: '?').characters.first.toUpperCase(),
+          style: const TextStyle(fontSize: 11),
+        ),
+      ),
+      title: Text(
+        accordUserName(user, fallback: user.id),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }
