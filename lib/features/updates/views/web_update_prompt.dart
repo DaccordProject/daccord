@@ -49,36 +49,39 @@ class _WebUpdatePromptState extends State<WebUpdatePrompt> {
     final colors = BonfireThemeExtension.of(context);
     return Material(
       color: colors.primary,
-      child: InkWell(
-        onTap: applyWebUpdate,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              const Icon(Icons.refresh, size: 16, color: Colors.white),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'A new version is available — reload to update.',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white, fontSize: 13),
+      child: SafeArea(
+        bottom: false,
+        child: InkWell(
+          onTap: applyWebUpdate,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(Icons.refresh, size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'A new version is available — reload to update.',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.white, fontSize: 13),
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: applyWebUpdate,
-                child: const Text(
-                  'Reload',
-                  style: TextStyle(color: Colors.white),
+                TextButton(
+                  onPressed: applyWebUpdate,
+                  child: const Text(
+                    'Reload',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
-              ),
-              InkWell(
-                onTap: () => setState(() => _dismissed = true),
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(Icons.close, size: 16, color: Colors.white),
+                InkWell(
+                  onTap: () => setState(() => _dismissed = true),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 16, color: Colors.white),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

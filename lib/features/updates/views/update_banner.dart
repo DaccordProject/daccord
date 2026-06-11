@@ -29,31 +29,34 @@ class UpdateBanner extends ConsumerWidget {
     final colors = BonfireThemeExtension.of(context);
     return Material(
       color: colors.primary,
-      child: InkWell(
-        onTap: () => showUpdatesSettings(context),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              const Icon(Icons.system_update, size: 16, color: Colors.white),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Update available — ${release.name}. Tap to view.',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+      child: SafeArea(
+        bottom: false,
+        child: InkWell(
+          onTap: () => showUpdatesSettings(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                const Icon(Icons.system_update, size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Update available — ${release.name}. Tap to view.',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
                 ),
-              ),
-              InkWell(
-                onTap: () => ref
-                    .read(updateControllerProvider.notifier)
-                    .dismissCurrent(),
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(Icons.close, size: 16, color: Colors.white),
+                InkWell(
+                  onTap: () => ref
+                      .read(updateControllerProvider.notifier)
+                      .dismissCurrent(),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close, size: 16, color: Colors.white),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
