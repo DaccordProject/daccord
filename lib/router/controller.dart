@@ -42,7 +42,9 @@ final routerController = GoRouter(
               ),
               GoRoute(
                 path: 'spaces',
-                builder: (context, state) => const AccordHomeScreen(),
+                builder: (context, state) => AccordHomeScreen(
+                  initialSpaceId: state.uri.queryParameters['space'],
+                ),
               ),
               GoRoute(
                 path: 'settings',

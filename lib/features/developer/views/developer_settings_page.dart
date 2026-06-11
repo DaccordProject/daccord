@@ -24,6 +24,7 @@ class DeveloperSettingsPage extends ConsumerWidget {
     'navigate': 'Navigate (switch space/channel, open views)',
     'message': 'Message (send, edit, delete, react)',
     'moderate': 'Moderate (kick, ban, timeout)',
+    'manage': 'Manage (roles, permissions, member roles)',
     'voice': 'Voice (join, leave, mute, deafen)',
   };
 

@@ -14,6 +14,7 @@ import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/features/spaces/views/accord_role_management.dart';
 import 'package:bonfire/features/spaces/views/accord_soundboard.dart';
 import 'package:bonfire/features/spaces/views/accord_transfer_ownership.dart';
+import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
@@ -205,8 +206,15 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       withData: true,
     );
     final file = picked?.files.firstOrNull;
-    if (file?.bytes == null) return;
-    final dataUri = AccordCDN.buildDataUri(file!.bytes!, file.name);
+    if (file?.bytes == null || !mounted) return;
+    final cropped = await showImageCropDialog(
+      context,
+      imageBytes: file!.bytes!,
+      aspectRatio: 16 / 9,
+      title: 'Crop banner',
+    );
+    if (cropped == null) return;
+    final dataUri = AccordCDN.buildDataUri(cropped, 'banner.png');
     await _update({'banner': dataUri}, 'Failed to update banner');
   }
 
@@ -219,9 +227,17 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       withData: true,
     );
     final file = picked?.files.firstOrNull;
-    if (file?.bytes == null) return;
+    if (file?.bytes == null || !mounted) return;
+    final cropped = await showImageCropDialog(
+      context,
+      imageBytes: file!.bytes!,
+      aspectRatio: 1,
+      circular: true,
+      title: 'Crop icon',
+    );
+    if (cropped == null) return;
     setState(() {
-      _pendingIconDataUri = AccordCDN.buildDataUri(file!.bytes!, file.name);
+      _pendingIconDataUri = AccordCDN.buildDataUri(cropped, 'icon.png');
       _iconRemoved = false;
     });
   }

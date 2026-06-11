@@ -8,6 +8,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
@@ -140,10 +141,18 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       withData: true,
     );
     final file = picked?.files.firstOrNull;
-    if (file?.bytes == null) return;
+    if (file?.bytes == null || !mounted) return;
+    final cropped = await showImageCropDialog(
+      context,
+      imageBytes: file!.bytes!,
+      aspectRatio: 1,
+      circular: true,
+      title: 'Crop avatar',
+    );
+    if (cropped == null) return;
     setState(() {
-      _newAvatarBytes = file!.bytes!;
-      _newAvatarFilename = file.name;
+      _newAvatarBytes = cropped;
+      _newAvatarFilename = 'avatar.png';
       // An uploaded image hides the colored fallback, so reset the picker to
       // transparent — the chosen color only applies to imageless avatars.
       _accentColor = null;

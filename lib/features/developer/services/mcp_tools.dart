@@ -124,6 +124,14 @@ class McpTools {
         _schema({'user_id': 'string'}, ['user_id']), _getUser);
     _register('get_space', 'read', 'Get space details by ID',
         _schema({'space_id': 'string'}, ['space_id']), _getSpace);
+    _register('list_roles', 'read', 'List roles in a space',
+        _schema({'space_id': 'string'}, ['space_id']), _listRoles);
+    _register(
+        'list_permissions',
+        'read',
+        'List all known permission identifiers and their descriptions',
+        {},
+        _listPermissions);
 
     // ── navigate ────────────────────────────────────────────────────────────
     _register('select_space', 'navigate', 'Switch to a space',
@@ -231,6 +239,110 @@ class McpTools {
           'duration'
         ]),
         _timeoutMember);
+
+    // ── manage ────────────────────────────────────────────────────────────
+    _register(
+        'create_role',
+        'manage',
+        'Create a role in a space (permissions is an array of permission ids)',
+        _schema({
+          'space_id': 'string',
+          'name': 'string',
+          'color': 'integer',
+          'permissions': 'array',
+          'hoist': 'boolean',
+          'mentionable': 'boolean',
+        }, [
+          'space_id',
+          'name'
+        ]),
+        _createRole);
+    _register(
+        'update_role',
+        'manage',
+        'Update a role; only the provided fields change. permissions replaces '
+            'the role\'s full permission set',
+        _schema({
+          'space_id': 'string',
+          'role_id': 'string',
+          'name': 'string',
+          'color': 'integer',
+          'permissions': 'array',
+          'position': 'integer',
+          'hoist': 'boolean',
+          'mentionable': 'boolean',
+        }, [
+          'space_id',
+          'role_id'
+        ]),
+        _updateRole);
+    _register(
+        'delete_role',
+        'manage',
+        'Delete a role from a space',
+        _schema({'space_id': 'string', 'role_id': 'string'},
+            ['space_id', 'role_id']),
+        _deleteRole);
+    _register(
+        'add_member_role',
+        'manage',
+        'Assign a role to a member',
+        _schema({
+          'space_id': 'string',
+          'user_id': 'string',
+          'role_id': 'string',
+        }, [
+          'space_id',
+          'user_id',
+          'role_id'
+        ]),
+        _addMemberRole);
+    _register(
+        'remove_member_role',
+        'manage',
+        'Remove a role from a member',
+        _schema({
+          'space_id': 'string',
+          'user_id': 'string',
+          'role_id': 'string',
+        }, [
+          'space_id',
+          'user_id',
+          'role_id'
+        ]),
+        _removeMemberRole);
+    _register(
+        'list_channel_permissions',
+        'manage',
+        'List a channel\'s permission overwrites (per-role and per-member '
+            'allow/deny rules)',
+        _schema({'channel_id': 'string'}, ['channel_id']),
+        _listChannelPermissions);
+    _register(
+        'set_channel_permission',
+        'manage',
+        'Create or update a channel permission overwrite for a role or member. '
+            'target_type is "role" or "member"; target_id is the role/user id. '
+            'allow and deny are arrays of permission ids (see list_permissions)',
+        _schema({
+          'channel_id': 'string',
+          'target_id': 'string',
+          'target_type': 'string',
+          'allow': 'array',
+          'deny': 'array',
+        }, [
+          'channel_id',
+          'target_id',
+          'target_type'
+        ]),
+        _setChannelPermission);
+    _register(
+        'delete_channel_permission',
+        'manage',
+        'Remove a channel permission overwrite for a role or member',
+        _schema({'channel_id': 'string', 'target_id': 'string'},
+            ['channel_id', 'target_id']),
+        _deleteChannelPermission);
 
     // ── voice ─────────────────────────────────────────────────────────────
     _register('join_voice_channel', 'voice', 'Join a voice channel',
@@ -368,6 +480,26 @@ class McpTools {
     if (r.data is! AccordUser) return {'error': 'User not found: $id'};
     return {'ok': true, 'user': _userBrief(r.data as AccordUser)};
   }
+
+  Future<Map<String, dynamic>> _listRoles(Map<String, dynamic> args) async {
+    final id = (args['space_id'] ?? '').toString();
+    if (id.isEmpty) return {'error': 'space_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.roles.list(id);
+    if (!r.ok) return _restError(r);
+    final roles = (r.data as List? ?? const []).whereType<AccordRole>();
+    return {'ok': true, 'roles': [for (final role in roles) _roleFull(role)]};
+  }
+
+  Future<Map<String, dynamic>> _listPermissions(Map<String, dynamic> args) =>
+      Future.value({
+        'ok': true,
+        'permissions': [
+          for (final p in AccordPermission.all())
+            {'id': p, 'description': AccordPermission.description(p)},
+        ],
+      });
 
   // ── navigate handlers ───────────────────────────────────────────────────
 
@@ -545,6 +677,149 @@ class McpTools {
     return r.ok ? {'ok': true} : _restError(r);
   }
 
+  // ── manage handlers ───────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> _createRole(Map<String, dynamic> args) async {
+    final spaceId = (args['space_id'] ?? '').toString();
+    final name = (args['name'] ?? '').toString();
+    if (spaceId.isEmpty) return {'error': 'space_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    if (name.isEmpty) return {'error': 'name is required'};
+    final data = <String, dynamic>{'name': name};
+    if (args.containsKey('color')) data['color'] = _asInt(args['color'], 0);
+    final perms = _permList(args['permissions']);
+    if (perms != null) data['permissions'] = perms;
+    if (args.containsKey('hoist')) data['hoist'] = _asBool(args['hoist']);
+    if (args.containsKey('mentionable')) {
+      data['mentionable'] = _asBool(args['mentionable']);
+    }
+    final r = await client.roles.create(spaceId, data);
+    if (!r.ok) return _restError(r);
+    return {
+      'ok': true,
+      if (r.data is AccordRole) 'role': _roleFull(r.data as AccordRole),
+    };
+  }
+
+  Future<Map<String, dynamic>> _updateRole(Map<String, dynamic> args) async {
+    final spaceId = (args['space_id'] ?? '').toString();
+    final roleId = (args['role_id'] ?? '').toString();
+    if (spaceId.isEmpty) return {'error': 'space_id is required'};
+    if (roleId.isEmpty) return {'error': 'role_id is required'};
+    final data = <String, dynamic>{};
+    if (args.containsKey('name')) {
+      final name = (args['name'] ?? '').toString();
+      if (name.isEmpty) return {'error': 'name cannot be empty'};
+      data['name'] = name;
+    }
+    if (args.containsKey('color')) data['color'] = _asInt(args['color'], 0);
+    final perms = _permList(args['permissions']);
+    if (perms != null) data['permissions'] = perms;
+    if (args.containsKey('position')) {
+      data['position'] = _asInt(args['position'], 0);
+    }
+    if (args.containsKey('hoist')) data['hoist'] = _asBool(args['hoist']);
+    if (args.containsKey('mentionable')) {
+      data['mentionable'] = _asBool(args['mentionable']);
+    }
+    if (data.isEmpty) return {'error': 'No fields to update'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.roles.update(spaceId, roleId, data);
+    if (!r.ok) return _restError(r);
+    return {
+      'ok': true,
+      if (r.data is AccordRole) 'role': _roleFull(r.data as AccordRole),
+    };
+  }
+
+  Future<Map<String, dynamic>> _deleteRole(Map<String, dynamic> args) async {
+    final spaceId = (args['space_id'] ?? '').toString();
+    final roleId = (args['role_id'] ?? '').toString();
+    if (spaceId.isEmpty) return {'error': 'space_id is required'};
+    if (roleId.isEmpty) return {'error': 'role_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.roles.delete(spaceId, roleId);
+    return r.ok ? {'ok': true} : _restError(r);
+  }
+
+  Future<Map<String, dynamic>> _addMemberRole(Map<String, dynamic> args) async {
+    final spaceId = (args['space_id'] ?? '').toString();
+    final userId = (args['user_id'] ?? '').toString();
+    final roleId = (args['role_id'] ?? '').toString();
+    if (spaceId.isEmpty) return {'error': 'space_id is required'};
+    if (userId.isEmpty) return {'error': 'user_id is required'};
+    if (roleId.isEmpty) return {'error': 'role_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.members.addRole(spaceId, userId, roleId);
+    return r.ok ? {'ok': true} : _restError(r);
+  }
+
+  Future<Map<String, dynamic>> _removeMemberRole(
+      Map<String, dynamic> args) async {
+    final spaceId = (args['space_id'] ?? '').toString();
+    final userId = (args['user_id'] ?? '').toString();
+    final roleId = (args['role_id'] ?? '').toString();
+    if (spaceId.isEmpty) return {'error': 'space_id is required'};
+    if (userId.isEmpty) return {'error': 'user_id is required'};
+    if (roleId.isEmpty) return {'error': 'role_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.members.removeRole(spaceId, userId, roleId);
+    return r.ok ? {'ok': true} : _restError(r);
+  }
+
+  Future<Map<String, dynamic>> _listChannelPermissions(
+      Map<String, dynamic> args) async {
+    final channelId = (args['channel_id'] ?? '').toString();
+    if (channelId.isEmpty) return {'error': 'channel_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.channels.listOverwrites(channelId);
+    if (!r.ok) return _restError(r);
+    final raw = r.data is List ? r.data as List : const [];
+    return {
+      'ok': true,
+      'overwrites': [for (final o in raw) _overwriteBrief(o)],
+    };
+  }
+
+  Future<Map<String, dynamic>> _setChannelPermission(
+      Map<String, dynamic> args) async {
+    final channelId = (args['channel_id'] ?? '').toString();
+    final targetId = (args['target_id'] ?? '').toString();
+    final type = (args['target_type'] ?? '').toString().toLowerCase();
+    if (channelId.isEmpty) return {'error': 'channel_id is required'};
+    if (targetId.isEmpty) return {'error': 'target_id is required'};
+    if (type != 'role' && type != 'member') {
+      return {'error': 'target_type must be "role" or "member"'};
+    }
+    final client = _client;
+    if (client == null) return _notConnected;
+    final data = <String, dynamic>{
+      'type': type,
+      'allow': _permList(args['allow']) ?? const <String>[],
+      'deny': _permList(args['deny']) ?? const <String>[],
+    };
+    final r = await client.channels.upsertOverwrite(channelId, targetId, data);
+    return r.ok ? {'ok': true} : _restError(r);
+  }
+
+  Future<Map<String, dynamic>> _deleteChannelPermission(
+      Map<String, dynamic> args) async {
+    final channelId = (args['channel_id'] ?? '').toString();
+    final targetId = (args['target_id'] ?? '').toString();
+    if (channelId.isEmpty) return {'error': 'channel_id is required'};
+    if (targetId.isEmpty) return {'error': 'target_id is required'};
+    final client = _client;
+    if (client == null) return _notConnected;
+    final r = await client.channels.deleteOverwrite(channelId, targetId);
+    return r.ok ? {'ok': true} : _restError(r);
+  }
+
   // ── voice handlers ────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> _joinVoice(Map<String, dynamic> args) async {
@@ -660,6 +935,27 @@ class McpTools {
         'roles': m.roles,
       };
 
+  Map<String, dynamic> _roleFull(AccordRole r) => {
+        'id': r.id,
+        'name': r.name,
+        'color': r.color,
+        'hoist': r.hoist,
+        'position': r.position,
+        'permissions': [for (final p in r.permissions) p.toString()],
+        'managed': r.managed,
+        'mentionable': r.mentionable,
+      };
+
+  Map<String, dynamic> _overwriteBrief(Object? o) {
+    final m = o is Map ? o : const {};
+    return {
+      'id': (m['id'] ?? '').toString(),
+      'type': (m['type'] ?? 'role').toString(),
+      'allow': [for (final p in (m['allow'] as List? ?? const [])) p.toString()],
+      'deny': [for (final p in (m['deny'] as List? ?? const [])) p.toString()],
+    };
+  }
+
   Map<String, dynamic> _messageBrief(AccordMessage m) => {
         'id': m.id,
         'content': m.content,
@@ -684,5 +980,17 @@ class McpTools {
     if (v is int) return v;
     if (v is num) return v.toInt();
     return int.tryParse('$v') ?? fallback;
+  }
+
+  bool _asBool(Object? v) {
+    if (v is bool) return v;
+    return '$v'.toLowerCase() == 'true';
+  }
+
+  /// Coerces an arg into a list of permission id strings, or null when the
+  /// caller didn't supply a list (so the field is left untouched on update).
+  List<String>? _permList(Object? v) {
+    if (v is List) return [for (final e in v) e.toString()];
+    return null;
   }
 }

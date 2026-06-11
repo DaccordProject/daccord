@@ -1,9 +1,11 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Instance-admin "Spaces" tab: lists every space on the instance, with search,
 /// create, delete and owner-transfer. Mirrors the reference client's
@@ -61,6 +63,20 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
       _busy = false;
       _spaces = data is List ? data.cast<AccordSpace>() : <AccordSpace>[];
     });
+  }
+
+  /// Opens [space] in the rail using the admin's own connection — no public
+  /// join. As an instance admin we already have access, so we just surface the
+  /// space and navigate into it rather than hitting the member-join endpoint.
+  void _open(AccordSpace space) {
+    final state = ref.read(accordAuthProvider);
+    final key = state is AccordAuthLoggedIn ? state.session.key : null;
+    // Flip the active server *before* upserting: `setActiveServer` reseeds the
+    // rail from the connection's cached space list, which would otherwise wipe
+    // out the space we surface here.
+    if (key != null) ref.read(accordAuthProvider.notifier).setActiveServer(key);
+    ref.read(spacesControllerProvider.notifier).upsertSpace(space);
+    context.go('/spaces?space=${Uri.encodeComponent(space.id)}');
   }
 
   Future<void> _create() async {
@@ -230,6 +246,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
                         itemBuilder: (context, i) => _SpaceRow(
                           space: list[i],
                           busy: _busy,
+                          onOpen: () => _open(list[i]),
                           onDelete: () => _delete(list[i]),
                           onTransfer: () => _transfer(list[i]),
                         ),
@@ -245,12 +262,14 @@ class _SpaceRow extends StatelessWidget {
   const _SpaceRow({
     required this.space,
     required this.busy,
+    required this.onOpen,
     required this.onDelete,
     required this.onTransfer,
   });
 
   final AccordSpace space;
   final bool busy;
+  final VoidCallback onOpen;
   final VoidCallback onDelete;
   final VoidCallback onTransfer;
 
@@ -277,6 +296,10 @@ class _SpaceRow extends StatelessWidget {
       trailing: Wrap(
         spacing: 4,
         children: [
+          TextButton(
+            onPressed: busy ? null : onOpen,
+            child: const Text('Open'),
+          ),
           TextButton(
             onPressed: busy ? null : onTransfer,
             child: const Text('Transfer'),

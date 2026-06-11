@@ -56,7 +56,14 @@ class AccordMessageContent extends ConsumerWidget {
       );
     }
 
-    final members = ref.watch(accordMembersControllerProvider(id));
+    // The member roster is only consulted to resolve `@handle` mentions, and
+    // backfilling it fans out a fetch per member. Most messages contain no
+    // mention, so skip the load entirely unless this one does — that keeps a
+    // mention-free channel from triggering the roster fetch when the member
+    // sidebar (which loads it on its own) is collapsed.
+    final members = content.contains('@')
+        ? ref.watch(accordMembersControllerProvider(id))
+        : null;
     final space = ref.watch(
       spacesControllerProvider.select(
         (s) => s?.firstWhereOrNull((sp) => sp.id == id),

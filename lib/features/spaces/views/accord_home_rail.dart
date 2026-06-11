@@ -95,20 +95,41 @@ class _SpaceRail extends ConsumerWidget {
         child: Divider(color: colors.darkGray, height: 2, thickness: 2),
       ),
     ];
+    // A drop zone for the track at [anchorId] (null = end of the list), so a
+    // space/folder can be inserted between items — including between a space and
+    // a folder — rather than only onto an icon.
+    Widget gapFor(String? anchorId) => _InsertionGap(
+      onDropSpace: (spaceId) =>
+          _dropSpaceBefore(settingsCtl, settings, globalOrder, spaceId, anchorId),
+      onDropFolder: (folderId) =>
+          _moveFolderBefore(settingsCtl, settings, globalOrder, folderId, anchorId),
+    );
+
     for (final unit in units) {
+      railItems.add(gapFor(_unitAnchor(unit)));
       if (unit.isFolder) {
         railItems.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: _FolderTile(
-              folder: unit.folder!,
-              spaces: unit.spaces,
-              connOf: connOf,
-              selectedSpaceId: selectedSpaceId,
-              onSelect: onSelect,
-              onDropSpace: (spaceId) =>
-                  settingsCtl.moveSpaceToFolder(spaceId, unit.folder!.id),
+          _FolderTile(
+            folder: unit.folder!,
+            spaces: unit.spaces,
+            connOf: connOf,
+            selectedSpaceId: selectedSpaceId,
+            onSelect: onSelect,
+            onDropSpace: (spaceId) =>
+                settingsCtl.moveSpaceToFolder(spaceId, unit.folder!.id),
+            onReorderFolderBefore: (folderId) => _moveFolderBefore(
+              settingsCtl,
+              settings,
+              globalOrder,
+              folderId,
+              unit.spaces.first.id,
             ),
+            onMemberDropBefore: (draggedId, targetMemberId) =>
+                settingsCtl.moveSpaceToFolder(
+                  draggedId,
+                  unit.folder!.id,
+                  before: targetMemberId,
+                ),
           ),
         );
       } else {
@@ -116,27 +137,33 @@ class _SpaceRail extends ConsumerWidget {
         final sc = connOf[space.id];
         final serverKey = sc?.serverKey ?? '';
         railItems.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: _DraggableSpace(
-              space: space,
-              cdnUrl: sc?.cdnUrl,
-              serverKey: serverKey,
-              selected: (sc?.active ?? false) && space.id == selectedSpaceId,
-              onTap: () => onSelect(serverKey, space.id),
-              onReorderBefore: (movedId) => _reorderBefore(
-                settingsCtl,
-                globalOrder,
-                movedId,
-                space.id,
-              ),
-              onMenu: (pos) =>
-                  _spaceMenu(context, ref, space, serverKey, pos),
+          _DraggableSpace(
+            space: space,
+            cdnUrl: sc?.cdnUrl,
+            serverKey: serverKey,
+            selected: (sc?.active ?? false) && space.id == selectedSpaceId,
+            onTap: () => onSelect(serverKey, space.id),
+            onDropSpaceBefore: (movedId) => _dropSpaceBefore(
+              settingsCtl,
+              settings,
+              globalOrder,
+              movedId,
+              space.id,
             ),
+            onDropFolderBefore: (folderId) => _moveFolderBefore(
+              settingsCtl,
+              settings,
+              globalOrder,
+              folderId,
+              space.id,
+            ),
+            onMenu: (pos) => _spaceMenu(context, ref, space, serverKey, pos),
           ),
         );
       }
     }
+    // Trailing gap so items can be dropped at the very end of the list.
+    railItems.add(gapFor(null));
 
     railItems.add(
       Padding(
@@ -252,24 +279,86 @@ class _SpaceRail extends ConsumerWidget {
     return units;
   }
 
+  /// The id used to anchor an insertion before [unit]: a standalone space's own
+  /// id, or a folder's first member (folders anchor at their first member's
+  /// position in [spaceOrder]).
+  String _unitAnchor(_RailUnit unit) =>
+      unit.isFolder ? unit.spaces.first.id : unit.space!.id;
+
   void _reorderBefore(
     SettingsController ctl,
     List<String> globalOrder,
     String movedId,
-    String targetId,
+    String? targetId,
   ) {
     if (movedId == targetId) return;
     final next = [
       for (final id in globalOrder)
         if (id != movedId) id,
     ];
-    final idx = next.indexOf(targetId);
+    final idx = targetId == null ? -1 : next.indexOf(targetId);
     if (idx < 0) {
       next.add(movedId);
     } else {
       next.insert(idx, movedId);
     }
     ctl.setSpaceOrder(next);
+  }
+
+  /// Drops [movedId] before [targetId] in the rail, first pulling it out of any
+  /// folder it belonged to (so a folder member dragged onto a rail space leaves
+  /// the folder and lands at that position).
+  void _dropSpaceBefore(
+    SettingsController ctl,
+    AccordSettings settings,
+    List<String> globalOrder,
+    String movedId,
+    String? targetId,
+  ) {
+    if (movedId == targetId) return;
+    final inFolder = settings.spaceFolders.any(
+      (f) => f.spaceIds.contains(movedId),
+    );
+    if (inFolder) ctl.moveSpaceToFolder(movedId, null);
+    _reorderBefore(ctl, globalOrder, movedId, targetId);
+  }
+
+  /// Reorders the whole folder [folderId] so it sits just before [anchorId] in
+  /// the rail. Folders anchor at their first member's position in [spaceOrder],
+  /// so this relocates the folder's member ids as a contiguous block.
+  void _moveFolderBefore(
+    SettingsController ctl,
+    AccordSettings settings,
+    List<String> globalOrder,
+    String folderId,
+    String? anchorId,
+  ) {
+    SpaceFolder? folder;
+    for (final f in settings.spaceFolders) {
+      if (f.id == folderId) {
+        folder = f;
+        break;
+      }
+    }
+    if (folder == null) return;
+    final inOrder = globalOrder.toSet();
+    final block = [
+      for (final id in folder.spaceIds)
+        if (inOrder.contains(id)) id,
+    ];
+    if (block.isEmpty || block.contains(anchorId)) return;
+    final blockSet = block.toSet();
+    final rest = [
+      for (final id in globalOrder)
+        if (!blockSet.contains(id)) id,
+    ];
+    final idx = anchorId == null ? -1 : rest.indexOf(anchorId);
+    if (idx < 0) {
+      rest.addAll(block);
+    } else {
+      rest.insertAll(idx, block);
+    }
+    ctl.setSpaceOrder(rest);
   }
 
   /// Context menu for a space (double-tap / right-click): server actions

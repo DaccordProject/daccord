@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
-import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -198,18 +197,26 @@ class SettingsController extends _$SettingsController {
     ),
   );
 
-  /// Moves [spaceId] into [folderId] (appended), or out of all folders when
-  /// [folderId] is null. Empty folders left behind are pruned.
-  void moveSpaceToFolder(String spaceId, String? folderId) {
+  /// Moves [spaceId] into [folderId], or out of all folders when [folderId] is
+  /// null. Within the target folder it is inserted before [before] (when that
+  /// id is present) or appended otherwise — so this also reorders a space within
+  /// a folder. Empty folders left behind are pruned.
+  void moveSpaceToFolder(String spaceId, String? folderId, {String? before}) {
     final next = <SpaceFolder>[];
     for (final f in state.spaceFolders) {
-      final without = [
+      var ids = [
         for (final s in f.spaceIds)
           if (s != spaceId) s,
       ];
-      final updated = f.id == folderId
-          ? f.copyWith(spaceIds: [...without, spaceId])
-          : f.copyWith(spaceIds: without);
+      if (f.id == folderId) {
+        final at = before == null ? -1 : ids.indexOf(before);
+        if (at < 0) {
+          ids = [...ids, spaceId];
+        } else {
+          ids = [...ids.sublist(0, at), spaceId, ...ids.sublist(at)];
+        }
+      }
+      final updated = f.copyWith(spaceIds: ids);
       // Drop folders emptied by this move (but keep the target).
       if (updated.spaceIds.isNotEmpty || updated.id == folderId) {
         next.add(updated);
@@ -409,15 +416,6 @@ class SettingsController extends _$SettingsController {
   void setLastSelection(String spaceId, String channelId) {
     if (state.lastSpaceId == spaceId && state.lastChannelId == channelId) {
       return;
-    }
-    // Navigation breadcrumbs for opt-in error reporting (no-ops while
-    // disabled); IDs are truncated before they leave the device.
-    final errorReporting = ref.read(errorReportingControllerProvider.notifier);
-    if (spaceId.isNotEmpty && spaceId != state.lastSpaceId) {
-      errorReporting.spaceSelected(spaceId);
-    }
-    if (channelId.isNotEmpty && channelId != state.lastChannelId) {
-      errorReporting.channelSelected(channelId);
     }
     _update(state.copyWith(lastSpaceId: spaceId, lastChannelId: channelId));
   }

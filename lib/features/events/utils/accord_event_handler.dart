@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
+import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
@@ -194,11 +195,19 @@ VoidCallback handleAccordEvents(
     final spaceId = channel.spaceId;
     if (spaceId == null) {
       ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
-      return;
+    } else {
+      container
+          .read(accordChannelsControllerProvider(spaceId).notifier)
+          .upsertChannel(channel);
     }
-    container
-        .read(accordChannelsControllerProvider(spaceId).notifier)
-        .upsertChannel(channel);
+    // Keep the open-tab strip's captured label in sync on rename; it renders
+    // OpenTab.name, which is otherwise only refreshed when the tab is reopened.
+    final name = channel.name;
+    if (name != null) {
+      ref
+          .read(openTabsControllerProvider.notifier)
+          .updateName('$serverKey ${channel.id}', name);
+    }
   }
 
   subs.add(client.onChannelCreate.listen(cacheChannel));

@@ -34,6 +34,7 @@ class AccordSettings {
     'navigate',
     'message',
     'moderate',
+    'manage',
     'voice',
   ];
 
