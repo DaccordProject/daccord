@@ -80,6 +80,9 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// event replay, so anything that happened while disconnected is missing
   /// from the cache until refetched.
   Future<void> reload(AccordClient client) {
+    // Reset the pagination guard so that if loadOlder was in flight its
+    // eventual state-write is superseded by the reload result.
+    isLoadingOlder = false;
     hasMoreOlder = true;
     return _load(client, channelId);
   }

@@ -23,7 +23,12 @@ class BackgroundConnectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startInForeground()
-        return START_STICKY
+        // START_NOT_STICKY: the service exists only to keep the Dart isolate's
+        // process unfrozen while the app is backgrounded. If the OS kills the
+        // process there is no Flutter engine left to reconnect, so auto-restart
+        // serves no purpose; the Flutter Riverpod controller re-starts it when
+        // the user brings the app back.
+        return START_NOT_STICKY
     }
 
     private fun startInForeground() {

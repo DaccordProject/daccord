@@ -336,21 +336,29 @@ class GatewaySocket {
           : GatewayState.connecting);
       return;
     }
-    _probeLiveness();
+    // Only probe a fully-established connection; if we're mid-handshake
+    // (connecting/resuming) the existing attempt is already in progress.
+    if (_state != GatewayState.connected) return;
+    unawaited(_probeLiveness());
   }
 
   Future<void> _probeLiveness() async {
     if (_probePending) return;
     _probePending = true;
+    // Stop the heartbeat timer for the duration of the probe. Without this,
+    // the timer can fire while _heartbeatAckReceived is false (reset below)
+    // and close a live connection before the probe ACK arrives.
+    _stopHeartbeat();
     try {
       _heartbeatAckReceived = false;
       _send({'op': GatewayOpcodes.heartbeat, 'data': _sequence});
       await _sleep(probeTimeout);
-      if (_heartbeatAckReceived ||
-          _reconnectCancelled ||
-          _state == GatewayState.disconnected) {
+      if (_heartbeatAckReceived) {
+        // Connection is alive; resume normal heartbeating.
+        _startHeartbeat();
         return;
       }
+      if (_reconnectCancelled || _state == GatewayState.disconnected) return;
       _conn?.close(4000, 'liveness probe timeout');
     } finally {
       _probePending = false;
