@@ -488,6 +488,17 @@ class AccordAuth extends _$AccordAuth {
     return AddServerOutcome.ok();
   }
 
+  /// Pokes every live connection's gateway to verify it's still alive,
+  /// reconnecting any that died (see [AccordClient.ensureConnected]). Called
+  /// when the app returns to the foreground: mobile OSes freeze the process
+  /// while backgrounded, which stops heartbeats, silently kills sockets, and
+  /// can exhaust the automatic reconnect budget before the user comes back.
+  void ensureConnectedAll() {
+    for (final conn in _connections.values) {
+      conn.client.ensureConnected();
+    }
+  }
+
   /// Flips the active connection to [key] (a server already connected). No-op if
   /// [key] is not connected.
   void setActiveServer(String key) {

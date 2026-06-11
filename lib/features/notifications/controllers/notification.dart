@@ -36,6 +36,10 @@ Future<void> initializeNotifications() async {
       flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
   await androidPlugin?.createNotificationChannel(_androidChannel);
+  // Android 13+ gates notifications behind a runtime permission; without this
+  // request nothing the app posts (mentions, the background-connection
+  // service's status notification) is ever shown.
+  await androidPlugin?.requestNotificationsPermission();
 
   _initialized = true;
 }

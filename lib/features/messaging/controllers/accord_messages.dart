@@ -75,6 +75,15 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
   }
 
+  /// Re-fetches the newest page, replacing the cache in place (no flash to the
+  /// loading state). Used after a gateway re-identify: a fresh session gets no
+  /// event replay, so anything that happened while disconnected is missing
+  /// from the cache until refetched.
+  Future<void> reload(AccordClient client) {
+    hasMoreOlder = true;
+    return _load(client, channelId);
+  }
+
   /// Loads the previous page of messages (older than the currently-oldest one
   /// in cache) and prepends them to [state]. Idempotent under concurrent calls
   /// and a no-op once [hasMoreOlder] is false. Returns the number of new

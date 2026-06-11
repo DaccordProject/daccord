@@ -7,8 +7,19 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />. <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission
         android:name="android.permission.VIBRATE" />
+    <!-- Android 13+: runtime permission to post notifications (mentions and
+         the background-connection service's status notification). -->
+    <uses-permission
+        android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Background connection: a dataSync foreground service keeps the process
+         (and so the gateway socket) alive while the app is backgrounded. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
 
     <uses-feature
@@ -72,6 +83,13 @@
                 <data android:scheme="daccord" />
             </intent-filter>
         </activity>
+        <!-- Optional (settings-gated) foreground service that keeps the app
+             process out of the cached-app freezer while backgrounded, so the
+             gateway connection and mention notifications keep working. -->
+        <service
+            android:name=".BackgroundConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

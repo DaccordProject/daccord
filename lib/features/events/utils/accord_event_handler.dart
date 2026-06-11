@@ -81,6 +81,7 @@ VoidCallback handleAccordEvents(
   }));
 
   // ── Initial sync ─────────────────────────────────────────────────────────
+  var hadReady = false;
   subs.add(client.onReady.listen((data) async {
     setConnection(ConnectionStatus.ready);
     // Hydrate this server's read state from the authoritative unread list the
@@ -93,6 +94,21 @@ VoidCallback handleAccordEvents(
       _seedVoiceStates(ref, data);
     }
     await _loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
+    // A READY after the first means the gateway re-identified on a fresh
+    // session (a resumed session replays missed events instead, and emits
+    // `resumed`, not `ready`). Nothing replays what was missed while
+    // disconnected, so re-fetch the history of every open message pane.
+    // Active server only: the open panes are its channels.
+    if (hadReady && isActive()) {
+      for (final channelId in [...activeMessageChannels]) {
+        unawaited(
+          container
+              .read(accordMessagesControllerProvider(channelId).notifier)
+              .reload(client),
+        );
+      }
+    }
+    hadReady = true;
   }));
 
   // ── Presence (active server only) ────────────────────────────────────────

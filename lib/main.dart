@@ -5,6 +5,7 @@ import 'package:app_links/app_links.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/hive.dart';
+import 'package:bonfire/features/notifications/controllers/background_connection.dart';
 import 'package:bonfire/features/notifications/controllers/notification.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
@@ -163,10 +164,18 @@ class MainWindow extends ConsumerStatefulWidget {
 
 class _MainWindowState extends ConsumerState<MainWindow> {
   StreamSubscription<Uri>? _linkSub;
+  AppLifecycleListener? _lifecycle;
 
   @override
   void initState() {
     super.initState();
+    // Mobile OSes freeze the process while backgrounded: heartbeats stop, the
+    // gateway sockets die, and the automatic reconnect budget can burn out
+    // before the user comes back. Verify/revive every connection on resume.
+    _lifecycle = AppLifecycleListener(
+      onResume: () =>
+          ref.read(accordAuthProvider.notifier).ensureConnectedAll(),
+    );
     _initDeepLinks();
     // Every route change becomes an error-reporting breadcrumb (a no-op until
     // the user opts in).
@@ -179,6 +188,7 @@ class _MainWindowState extends ConsumerState<MainWindow> {
   @override
   void dispose() {
     routerController.routerDelegate.removeListener(_onRouteChanged);
+    _lifecycle?.dispose();
     _linkSub?.cancel();
     super.dispose();
   }
@@ -297,6 +307,9 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // Keep the local MCP server controller alive so it starts/stops with the
     // Developer Mode + MCP settings (desktop-only; a no-op on web).
     ref.watch(mcpServerControllerProvider);
+    // Keep the Android background-connection service in sync with its setting
+    // and the login state (a no-op everywhere but Android).
+    ref.watch(backgroundConnectionControllerProvider);
     // Keep opt-in error reporting alive; it activates/deactivates with the
     // persisted consent toggle.
     ref.watch(errorReportingControllerProvider);

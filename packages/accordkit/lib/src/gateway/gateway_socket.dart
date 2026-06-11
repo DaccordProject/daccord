@@ -38,6 +38,10 @@ class GatewaySocket {
   final String _osName;
   final int maxReconnectAttempts;
 
+  /// How long [ensureConnected] waits for a heartbeat ACK before declaring a
+  /// nominally-connected socket dead and forcing a reconnect.
+  final Duration probeTimeout;
+
   AccordConfig? _config;
   GatewayConnection? _conn;
   StreamSubscription<String>? _sub;
@@ -52,6 +56,7 @@ class GatewaySocket {
   int _reconnectAttempts = 0;
   bool _reconnectCancelled = false;
   bool _resumePending = false;
+  bool _probePending = false;
 
   GatewaySocket({
     GatewayConnectionFactory? connectionFactory,
@@ -59,6 +64,7 @@ class GatewaySocket {
     double Function()? random,
     String osName = 'dart',
     this.maxReconnectAttempts = 10,
+    this.probeTimeout = const Duration(seconds: 5),
     this.token = '',
     this.tokenType = 'Bot',
     List<String>? intents,
@@ -305,6 +311,50 @@ class GatewaySocket {
     _sub = null;
     await conn?.close(code, reason);
     _disconnected.add(DisconnectInfo(code, reason));
+  }
+
+  /// Verifies the connection is alive and revives it if not. Call after a
+  /// period of process suspension (e.g. the app returning to the foreground on
+  /// mobile, where the OS freezes timers and silently kills sockets).
+  ///
+  /// - Disconnected: reconnects immediately with a fresh backoff budget, even
+  ///   when earlier automatic reconnects exhausted [maxReconnectAttempts].
+  ///   Resumes the previous session when one is held, else re-identifies.
+  /// - Nominally connected: the socket may be dead without a close frame ever
+  ///   having been delivered, so send an out-of-band heartbeat and force-close
+  ///   (triggering the normal reconnect path) if no ACK arrives within
+  ///   [probeTimeout].
+  ///
+  /// No-op before [connectToGateway] is first called or after an explicit
+  /// [disconnectFromGateway]/[dispose] — being offline is then intentional.
+  void ensureConnected() {
+    if (_reconnectCancelled || _gatewayUrl.isEmpty) return;
+    if (_state == GatewayState.disconnected) {
+      _reconnectAttempts = 0;
+      _openConnection(_sessionId.isNotEmpty
+          ? GatewayState.resuming
+          : GatewayState.connecting);
+      return;
+    }
+    _probeLiveness();
+  }
+
+  Future<void> _probeLiveness() async {
+    if (_probePending) return;
+    _probePending = true;
+    try {
+      _heartbeatAckReceived = false;
+      _send({'op': GatewayOpcodes.heartbeat, 'data': _sequence});
+      await _sleep(probeTimeout);
+      if (_heartbeatAckReceived ||
+          _reconnectCancelled ||
+          _state == GatewayState.disconnected) {
+        return;
+      }
+      _conn?.close(4000, 'liveness probe timeout');
+    } finally {
+      _probePending = false;
+    }
   }
 
   /// Sends a presence update.

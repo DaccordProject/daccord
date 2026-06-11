@@ -18,6 +18,7 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 /// Client settings: appearance (theme preset + accent), notifications, account.
 class AccordSettingsScreen extends ConsumerWidget {
@@ -155,6 +156,17 @@ class AccordSettingsScreen extends ConsumerWidget {
                 ? controller.setSuppressEveryone
                 : null,
           ),
+          if (UniversalPlatform.isAndroid)
+            SwitchListTile(
+              title: const Text('Background connection'),
+              subtitle: const Text(
+                'Stay connected while the app is in the background so '
+                'messages and notifications keep arriving. Shows a '
+                'persistent notification and uses more battery.',
+              ),
+              value: settings.backgroundConnection,
+              onChanged: controller.setBackgroundConnection,
+            ),
           const Divider(height: 24),
           _SectionHeader('Error Reporting'),
           SwitchListTile(

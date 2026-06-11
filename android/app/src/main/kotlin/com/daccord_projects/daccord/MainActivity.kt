@@ -15,8 +15,13 @@ import java.io.File
 /// `installApk` opens a downloaded APK with the system package installer via a
 /// FileProvider content URI, routing the user to grant "install unknown apps"
 /// first when needed.
+///
+/// Also hosts `com.daccord.app/background_connection`, which starts/stops the
+/// [BackgroundConnectionService] foreground service (see
+/// `lib/features/notifications/controllers/background_connection.dart`).
 class MainActivity : FlutterActivity() {
     private val channelName = "com.daccord.app/installer"
+    private val backgroundChannelName = "com.daccord.app/background_connection"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -35,6 +40,24 @@ class MainActivity : FlutterActivity() {
                                 result.error("install_failed", e.message, null)
                             }
                         }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, backgroundChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        try {
+                            BackgroundConnectionService.start(this)
+                            result.success(null)
+                        } catch (e: Exception) {
+                            result.error("start_failed", e.message, null)
+                        }
+                    }
+                    "stop" -> {
+                        BackgroundConnectionService.stop(this)
+                        result.success(null)
                     }
                     else -> result.notImplemented()
                 }
