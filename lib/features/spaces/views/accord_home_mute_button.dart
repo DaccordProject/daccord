@@ -42,7 +42,10 @@ class _MuteButtonState extends ConsumerState<_MuteButton> {
     if (!mounted) return;
     final data = result.data;
     final ids = data is List
-        ? data.map((e) => e.toString()).toSet()
+        ? data
+            .map((e) => e is Map ? e['channel_id']?.toString() : e?.toString())
+            .whereType<String>()
+            .toSet()
         : const <String>{};
     setState(() => _muted = ids.contains(widget.channelId));
   }

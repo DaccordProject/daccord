@@ -22,7 +22,7 @@ class _ReactionPill extends StatelessWidget {
     required this.reaction,
     required this.onTap,
     required this.onShowReactors,
-    this.cdnUrl,
+    this.imageUrl,
   });
 
   final AccordReaction reaction;
@@ -30,7 +30,9 @@ class _ReactionPill extends StatelessWidget {
 
   /// Long-press / right-click: reveal who reacted.
   final VoidCallback onShowReactors;
-  final String? cdnUrl;
+
+  /// Resolved image URL for a custom-emoji reaction; null for unicode.
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +46,7 @@ class _ReactionPill extends StatelessWidget {
     final id = rawId ?? parsed.id;
     final name = rawId != null ? rawName : parsed.name;
     final mine = reaction.includesMe;
+    final emojiUrl = imageUrl;
     return Material(
       color: mine ? colors.primary.withValues(alpha: 0.25) : colors.darkGray,
       borderRadius: BorderRadius.circular(12),
@@ -64,9 +67,9 @@ class _ReactionPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (id != null)
+              if (id != null && emojiUrl != null)
                 CachedNetworkImage(
-                  imageUrl: AccordCDN.emoji(id, cdnUrl: cdnUrl ?? ''),
+                  imageUrl: emojiUrl,
                   width: 16,
                   height: 16,
                   fit: BoxFit.contain,
