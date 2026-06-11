@@ -492,16 +492,14 @@ class McpTools {
     return {'ok': true, 'roles': [for (final role in roles) _roleFull(role)]};
   }
 
-  Future<Map<String, dynamic>> _listPermissions(
-      Map<String, dynamic> args) async {
-    return {
-      'ok': true,
-      'permissions': [
-        for (final p in AccordPermission.all())
-          {'id': p, 'description': AccordPermission.description(p)},
-      ],
-    };
-  }
+  Future<Map<String, dynamic>> _listPermissions(Map<String, dynamic> args) =>
+      Future.value({
+        'ok': true,
+        'permissions': [
+          for (final p in AccordPermission.all())
+            {'id': p, 'description': AccordPermission.description(p)},
+        ],
+      });
 
   // ── navigate handlers ───────────────────────────────────────────────────
 
@@ -712,7 +710,11 @@ class McpTools {
     final client = _client;
     if (client == null) return _notConnected;
     final data = <String, dynamic>{};
-    if (args.containsKey('name')) data['name'] = (args['name'] ?? '').toString();
+    if (args.containsKey('name')) {
+      final name = (args['name'] ?? '').toString();
+      if (name.isEmpty) return {'error': 'name cannot be empty'};
+      data['name'] = name;
+    }
     if (args.containsKey('color')) data['color'] = _asInt(args['color'], 0);
     final perms = _permList(args['permissions']);
     if (perms != null) data['permissions'] = perms;
