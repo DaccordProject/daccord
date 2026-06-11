@@ -623,7 +623,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     String? cdnUrl,
   ) {
     final rawId = reaction.emoji['id']?.toString();
-    final id = rawId ?? parseEmojiToken(reaction.emoji['name']?.toString() ?? '').id;
+    final id =
+        rawId ?? parseEmojiToken(reaction.emoji['name']?.toString() ?? '').id;
     if (id == null) return null;
     final match = customEmoji.firstWhereOrNull((e) => e.id == id);
     if (match != null && match.imageUrl.isNotEmpty) {
