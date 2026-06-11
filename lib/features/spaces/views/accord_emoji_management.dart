@@ -308,8 +308,15 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
   }
 
   String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) {
+    if (emoji.imageUrl.isNotEmpty) {
+      return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: cdnUrl ?? '');
+    }
     final id = emoji.id;
     if (id == null) return null;
-    return AccordCDN.emoji(id, format: 'png', cdnUrl: cdnUrl ?? '');
+    return AccordCDN.emoji(
+      id,
+      format: emoji.animated ? 'gif' : 'png',
+      cdnUrl: cdnUrl ?? '',
+    );
   }
 }
