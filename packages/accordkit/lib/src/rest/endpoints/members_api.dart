@@ -6,11 +6,14 @@ import '../rest_result.dart';
 class MembersApi extends EndpointBase {
   MembersApi(super.rest);
 
-  /// Lists members of a space. Supports `limit`/`after`.
+  /// Lists members of a space. Supports `limit`/`after`. When [withUser] is
+  /// true, the server embeds each member's public `user` object (resolved in a
+  /// single batched query), so callers can skip the per-member user fetch.
   Future<RestResult> list(String spaceId,
-      {Map<String, dynamic> query = const {}}) async {
+      {Map<String, dynamic> query = const {}, bool withUser = false}) async {
+    final q = withUser ? {...query, 'with_user': true} : query;
     final result =
-        await rest.makeRequest('GET', '/spaces/$spaceId/members', query: query);
+        await rest.makeRequest('GET', '/spaces/$spaceId/members', query: q);
     return result.deserializeArray(AccordMember.fromJson);
   }
 

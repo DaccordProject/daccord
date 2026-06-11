@@ -141,6 +141,20 @@ void main() {
   });
 
   group('MembersApi', () {
+    test('list with withUser sets with_user query', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData([]));
+      await MembersApi(rest).list('7', query: {'limit': 100}, withUser: true);
+      expect(req.url.path, '/api/v1/spaces/7/members');
+      expect(req.url.queryParameters['limit'], '100');
+      expect(req.url.queryParameters['with_user'], 'true');
+    });
+
+    test('list omits with_user by default', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData([]));
+      await MembersApi(rest).list('7');
+      expect(req.url.queryParameters.containsKey('with_user'), isFalse);
+    });
+
     test('leaveMe with deleteData sets query', () async {
       rest = mockRest(log: log, responder: (_) => jsonData(null));
       await MembersApi(rest).leaveMe('7', deleteData: true);

@@ -65,6 +65,8 @@ import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,7 +87,11 @@ part 'accord_home_attachments.dart';
 /// The primary Accord screen: a three-pane view (space rail → channel list →
 /// message history) wired to the Accord controllers.
 class AccordHomeScreen extends ConsumerStatefulWidget {
-  const AccordHomeScreen({super.key});
+  const AccordHomeScreen({super.key, this.initialSpaceId});
+
+  /// A space to focus as soon as the screen mounts (e.g. when arriving from the
+  /// admin panel's "Open"). Takes precedence over the restored last selection.
+  final String? initialSpaceId;
 
   @override
   ConsumerState<AccordHomeScreen> createState() => _AccordHomeScreenState();
@@ -120,6 +126,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _pendingOpenSpaceId = widget.initialSpaceId;
     mcpHomeBridge.registerAll(_mcpNavHandlers());
     // Passive, throttled startup update check (gated on the setting).
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -282,7 +289,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
             name: channel?.name ?? channelId,
           ),
         );
-    if (channel?.type != 'voice') _markChannelRead(channelId);
+    if (channel?.type != 'voice') {
+      _markChannelRead(channelId, fallbackMessageId: channel?.lastMessageId);
+    }
     setState(() => _pendingOpenSpaceId = null);
     ref
         .read(settingsControllerProvider.notifier)
@@ -308,7 +317,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
               name: channel.name ?? channel.id,
             ),
           );
-      _markChannelRead(channel.id);
+      _markChannelRead(channel.id, fallbackMessageId: channel.lastMessageId);
       ref
           .read(settingsControllerProvider.notifier)
           .setLastSelection(spaceId, channel.id);
@@ -319,10 +328,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   }
 
   /// Marks [channelId] read locally and POSTs `channels.ack` with the latest
-  /// known message ID so the server's read position catches up too. Safe to
-  /// call when the channel has no cached messages (no last ID → ack is a
-  /// no-op; the local clear still happens).
-  void _markChannelRead(String channelId) {
+  /// known message ID so the server's read position catches up too. Prefers the
+  /// newest cached message; when the cache is empty it falls back to
+  /// [fallbackMessageId] (the channel's `last_message_id`). That fallback is
+  /// what clears a *phantom* unread: if the message that lit the channel was
+  /// since deleted, the cache loads empty but the server still lists the channel
+  /// in its READY `unread` array — without acking the channel's last_message_id
+  /// the badge would re-light on every cold start.
+  void _markChannelRead(String channelId, {String? fallbackMessageId}) {
     final activeKey = ref.read(connectionsControllerProvider).activeKey;
     if (activeKey != null) {
       ref
@@ -330,7 +343,8 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
           .markRead(channelId);
     }
     final messages = ref.read(accordMessagesControllerProvider(channelId));
-    final lastId = messages?.isNotEmpty == true ? messages!.last.id : null;
+    final lastId =
+        messages?.isNotEmpty == true ? messages!.last.id : fallbackMessageId;
     if (lastId == null) return;
     final client = ref.read(
       accordAuthProvider.select(

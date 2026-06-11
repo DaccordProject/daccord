@@ -1,14 +1,115 @@
 part of 'accord_home.dart';
 
-/// A space icon that can be dragged (to reorder / into folders) and accepts a
-/// dropped space to reorder before itself.
+/// Payload carried while dragging a rail item, so a drop target can tell a
+/// space drag (reorder / move between folders) from a folder drag (reorder the
+/// whole folder) without overloading a bare id string.
+sealed class _RailDrag {
+  const _RailDrag();
+}
+
+class _SpaceDrag extends _RailDrag {
+  const _SpaceDrag(this.spaceId);
+  final String spaceId;
+}
+
+class _FolderDrag extends _RailDrag {
+  const _FolderDrag(this.folderId);
+  final String folderId;
+}
+
+/// Desktop pointers have no "long press" affordance and scroll via the wheel,
+/// so a drag should start immediately on click-drag. Touch platforms keep the
+/// long-press gesture so dragging doesn't fight finger-scrolling.
+bool get _immediateDrag => switch (defaultTargetPlatform) {
+  TargetPlatform.linux ||
+  TargetPlatform.macOS ||
+  TargetPlatform.windows => true,
+  _ => false,
+};
+
+/// Builds the platform-appropriate draggable for a rail item: an immediate
+/// [Draggable] on desktop, a [LongPressDraggable] on touch.
+Widget _railDraggable({
+  required _RailDrag data,
+  required Widget feedback,
+  required Widget childWhenDragging,
+  required Widget child,
+}) => _immediateDrag
+    ? Draggable<_RailDrag>(
+        data: data,
+        feedback: feedback,
+        childWhenDragging: childWhenDragging,
+        child: child,
+      )
+    : LongPressDraggable<_RailDrag>(
+        data: data,
+        feedback: feedback,
+        childWhenDragging: childWhenDragging,
+        child: child,
+      );
+
+/// A drop zone occupying the track between two rail items, so a space or folder
+/// can be inserted *at* that position (e.g. between a space and a folder)
+/// instead of only onto an icon. Grows and shows an insertion bar while a
+/// compatible drag hovers it.
+class _InsertionGap extends StatelessWidget {
+  const _InsertionGap({
+    required this.onDropSpace,
+    required this.onDropFolder,
+  });
+
+  /// A space [spaceId] was dropped in this gap: place it here as a standalone
+  /// rail entry (pulled out of any folder it was in).
+  final ValueChanged<String> onDropSpace;
+
+  /// A folder [folderId] was dropped in this gap: move the whole folder here.
+  final ValueChanged<String> onDropFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return DragTarget<_RailDrag>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) {
+        switch (d.data) {
+          case _SpaceDrag(:final spaceId):
+            onDropSpace(spaceId);
+          case _FolderDrag(:final folderId):
+            onDropFolder(folderId);
+        }
+      },
+      builder: (context, candidate, _) {
+        final active = candidate.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: active ? 24 : 12,
+          alignment: Alignment.center,
+          child: active
+              ? Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                )
+              : null,
+        );
+      },
+    );
+  }
+}
+
+/// A space icon that can be dragged (to reorder / into-or-out-of folders) and
+/// accepts a dropped space or folder to place it before itself in the rail.
 class _DraggableSpace extends StatefulWidget {
   const _DraggableSpace({
     required this.space,
     required this.cdnUrl,
     required this.selected,
     required this.onTap,
-    required this.onReorderBefore,
+    required this.onDropSpaceBefore,
+    required this.onDropFolderBefore,
     required this.onMenu,
     this.serverKey = '',
   });
@@ -17,7 +118,14 @@ class _DraggableSpace extends StatefulWidget {
   final String? cdnUrl;
   final bool selected;
   final VoidCallback onTap;
-  final ValueChanged<String> onReorderBefore;
+
+  /// A space [spaceId] was dropped on this tile: place it before this space
+  /// (pulling it out of any folder it was in).
+  final ValueChanged<String> onDropSpaceBefore;
+
+  /// A folder [folderId] was dropped on this tile: move the whole folder before
+  /// this space.
+  final ValueChanged<String> onDropFolderBefore;
   final void Function(Offset position) onMenu;
   final String serverKey;
 
@@ -39,13 +147,23 @@ class _DraggableSpaceState extends State<_DraggableSpace> {
       serverKey: widget.serverKey,
       onTap: widget.onTap,
     );
-    return DragTarget<String>(
-      onWillAcceptWithDetails: (d) => d.data != widget.space.id,
-      onAcceptWithDetails: (d) => widget.onReorderBefore(d.data),
+    return DragTarget<_RailDrag>(
+      onWillAcceptWithDetails: (d) => switch (d.data) {
+        _SpaceDrag(:final spaceId) => spaceId != widget.space.id,
+        _FolderDrag() => true,
+      },
+      onAcceptWithDetails: (d) {
+        switch (d.data) {
+          case _SpaceDrag(:final spaceId):
+            widget.onDropSpaceBefore(spaceId);
+          case _FolderDrag(:final folderId):
+            widget.onDropFolderBefore(folderId);
+        }
+      },
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
-        child: LongPressDraggable<String>(
-          data: widget.space.id,
+        child: _railDraggable(
+          data: _SpaceDrag(widget.space.id),
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
@@ -57,9 +175,9 @@ class _DraggableSpaceState extends State<_DraggableSpace> {
             ),
           ),
           childWhenDragging: Opacity(opacity: 0.3, child: icon),
-          // Long-press drives the drag (reorder / into-folder); the rail
-          // management menu (new folder, move/remove) opens on double-tap or
-          // right-click so it stays reachable on every platform.
+          // Drag drives the reorder / into-folder move; the rail management menu
+          // (new folder, move/remove) opens on double-tap or right-click so it
+          // stays reachable on every platform.
           child: GestureDetector(
             onDoubleTapDown: (d) => _lastTap = d.globalPosition,
             onDoubleTap: () => widget.onMenu(_lastTap),
@@ -72,9 +190,11 @@ class _DraggableSpaceState extends State<_DraggableSpace> {
   }
 }
 
-/// A collapsible folder tile in the rail. Tap toggles collapse; long-press opens
-/// the management menu; it accepts dropped spaces to add them.
-class _FolderTile extends ConsumerWidget {
+/// A collapsible folder tile in the rail. Tap toggles collapse; double-tap /
+/// right-click opens the management menu; long-press drags the folder to
+/// reorder it. It accepts dropped spaces (to add them) and dropped folders (to
+/// reorder before it).
+class _FolderTile extends ConsumerStatefulWidget {
   const _FolderTile({
     required this.folder,
     required this.spaces,
@@ -82,6 +202,8 @@ class _FolderTile extends ConsumerWidget {
     required this.selectedSpaceId,
     required this.onSelect,
     required this.onDropSpace,
+    required this.onReorderFolderBefore,
+    required this.onMemberDropBefore,
   });
 
   final SpaceFolder folder;
@@ -92,75 +214,116 @@ class _FolderTile extends ConsumerWidget {
   final Map<String, _SpaceConn> connOf;
   final String? selectedSpaceId;
   final void Function(String serverKey, String spaceId) onSelect;
+
+  /// A space [spaceId] was dropped on the folder tile: add it to this folder.
   final ValueChanged<String> onDropSpace;
 
+  /// A folder [folderId] was dropped on this folder tile: move that folder
+  /// before this one.
+  final ValueChanged<String> onReorderFolderBefore;
+
+  /// A space [draggedSpaceId] was dropped on member [targetMemberId]: place it
+  /// in this folder before that member (reorder within, or move in positioned).
+  final void Function(String draggedSpaceId, String targetMemberId)
+  onMemberDropBefore;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FolderTile> createState() => _FolderTileState();
+}
+
+class _FolderTileState extends ConsumerState<_FolderTile> {
+  // Captured on the down event so the double-tap menu can anchor where the
+  // user clicked (onDoubleTap itself carries no position).
+  Offset _lastTap = Offset.zero;
+
+  SpaceFolder get folder => widget.folder;
+  List<AccordSpace> get spaces => widget.spaces;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final ctl = ref.read(settingsControllerProvider.notifier);
     final folderColor = folder.color != null
         ? Color(folder.color!)
         : colors.darkGray;
 
-    return DragTarget<String>(
-      onWillAcceptWithDetails: (d) => !folder.spaceIds.contains(d.data),
-      onAcceptWithDetails: (d) => onDropSpace(d.data),
-      builder: (context, candidate, _) {
-        final highlight = candidate.isNotEmpty;
-        return Column(
-          children: [
-            Center(
-              child: GestureDetector(
-                onTap: () =>
-                    ctl.setFolderCollapsed(folder.id, !folder.collapsed),
-                onLongPressStart: (d) =>
-                    _folderMenu(context, ref, d.globalPosition),
-                onSecondaryTapUp: (d) =>
-                    _folderMenu(context, ref, d.globalPosition),
-                child: Tooltip(
-                  message: folder.name.isEmpty ? 'Folder' : folder.name,
+    final folderIcon = Tooltip(
+      message: folder.name.isEmpty ? 'Folder' : folder.name,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: folderColor.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          folder.collapsed ? Icons.folder : Icons.folder_open,
+          color: colors.dirtyWhite,
+        ),
+      ),
+    );
+
+    return Column(
+      children: [
+        Center(
+          child: DragTarget<_RailDrag>(
+            onWillAcceptWithDetails: (d) => switch (d.data) {
+              _SpaceDrag(:final spaceId) => !folder.spaceIds.contains(spaceId),
+              _FolderDrag(:final folderId) => folderId != folder.id,
+            },
+            onAcceptWithDetails: (d) {
+              switch (d.data) {
+                case _SpaceDrag(:final spaceId):
+                  widget.onDropSpace(spaceId);
+                case _FolderDrag(:final folderId):
+                  widget.onReorderFolderBefore(folderId);
+              }
+            },
+            builder: (context, candidate, _) {
+              final highlight = candidate.isNotEmpty;
+              return _railDraggable(
+                data: _FolderDrag(folder.id),
+                feedback: Material(color: Colors.transparent, child: folderIcon),
+                childWhenDragging: Opacity(opacity: 0.3, child: folderIcon),
+                child: GestureDetector(
+                  onTap: () =>
+                      ctl.setFolderCollapsed(folder.id, !folder.collapsed),
+                  onDoubleTapDown: (d) => _lastTap = d.globalPosition,
+                  onDoubleTap: () => _folderMenu(context, ref, _lastTap),
+                  onSecondaryTapUp: (d) =>
+                      _folderMenu(context, ref, d.globalPosition),
                   child: Container(
-                    width: 48,
-                    height: 48,
                     decoration: BoxDecoration(
-                      color: folderColor.withValues(alpha: highlight ? 1 : 0.5),
                       borderRadius: BorderRadius.circular(16),
                       border: highlight
                           ? Border.all(color: colors.primary, width: 2)
                           : null,
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      folder.collapsed ? Icons.folder : Icons.folder_open,
-                      color: colors.dirtyWhite,
-                    ),
+                    child: folderIcon,
                   ),
                 ),
+              );
+            },
+          ),
+        ),
+        if (!folder.collapsed)
+          for (final space in spaces)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: _FolderMemberTile(
+                space: space,
+                conn: widget.connOf[space.id],
+                selected: (widget.connOf[space.id]?.active ?? false) &&
+                    space.id == widget.selectedSpaceId,
+                onTap: () =>
+                    widget.onSelect(widget.connOf[space.id]?.serverKey ?? '', space.id),
+                onDropBefore: (draggedId) =>
+                    widget.onMemberDropBefore(draggedId, space.id),
+                onMenu: (pos) => _memberMenu(context, ref, ctl, space, pos),
               ),
             ),
-            if (!folder.collapsed)
-              for (final space in spaces)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: GestureDetector(
-                    onLongPressStart: (d) =>
-                        _memberMenu(context, ref, ctl, space, d.globalPosition),
-                    onSecondaryTapUp: (d) =>
-                        _memberMenu(context, ref, ctl, space, d.globalPosition),
-                    child: _SpaceIcon(
-                      space: space,
-                      selected: (connOf[space.id]?.active ?? false) &&
-                          space.id == selectedSpaceId,
-                      cdnUrl: connOf[space.id]?.cdnUrl,
-                      serverKey: connOf[space.id]?.serverKey ?? '',
-                      onTap: () =>
-                          onSelect(connOf[space.id]?.serverKey ?? '', space.id),
-                    ),
-                  ),
-                ),
-          ],
-        );
-      },
+      ],
     );
   }
 
@@ -176,7 +339,7 @@ class _FolderTile extends ConsumerWidget {
         context,
         ref,
         space,
-        connOf[space.id]?.serverKey ?? '',
+        widget.connOf[space.id]?.serverKey ?? '',
       ),
       AccordMenuEntry(
         label: 'Remove "${space.name}" from folder',
@@ -294,6 +457,82 @@ class _FolderTile extends ConsumerWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A space icon shown inside an expanded folder. Like [_DraggableSpace] but its
+/// drops are scoped to the folder: dragging it out onto a rail space pulls it
+/// from the folder, and a space dropped on it lands before it within the folder.
+class _FolderMemberTile extends StatefulWidget {
+  const _FolderMemberTile({
+    required this.space,
+    required this.conn,
+    required this.selected,
+    required this.onTap,
+    required this.onDropBefore,
+    required this.onMenu,
+  });
+
+  final AccordSpace space;
+  final _SpaceConn? conn;
+  final bool selected;
+  final VoidCallback onTap;
+
+  /// A space [draggedSpaceId] was dropped on this member: place it before this
+  /// member within the folder.
+  final ValueChanged<String> onDropBefore;
+  final void Function(Offset position) onMenu;
+
+  @override
+  State<_FolderMemberTile> createState() => _FolderMemberTileState();
+}
+
+class _FolderMemberTileState extends State<_FolderMemberTile> {
+  Offset _lastTap = Offset.zero;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _SpaceIcon(
+      space: widget.space,
+      selected: widget.selected,
+      cdnUrl: widget.conn?.cdnUrl,
+      serverKey: widget.conn?.serverKey ?? '',
+      onTap: widget.onTap,
+    );
+    return DragTarget<_RailDrag>(
+      onWillAcceptWithDetails: (d) => switch (d.data) {
+        _SpaceDrag(:final spaceId) => spaceId != widget.space.id,
+        _FolderDrag() => false,
+      },
+      onAcceptWithDetails: (d) {
+        if (d.data case _SpaceDrag(:final spaceId)) {
+          widget.onDropBefore(spaceId);
+        }
+      },
+      builder: (context, candidate, _) => Opacity(
+        opacity: candidate.isNotEmpty ? 0.5 : 1,
+        child: _railDraggable(
+          data: _SpaceDrag(widget.space.id),
+          feedback: Material(
+            color: Colors.transparent,
+            child: _SpaceIcon(
+              space: widget.space,
+              selected: false,
+              cdnUrl: widget.conn?.cdnUrl,
+              serverKey: widget.conn?.serverKey ?? '',
+              onTap: () {},
+            ),
+          ),
+          childWhenDragging: Opacity(opacity: 0.3, child: icon),
+          child: GestureDetector(
+            onDoubleTapDown: (d) => _lastTap = d.globalPosition,
+            onDoubleTap: () => widget.onMenu(_lastTap),
+            onSecondaryTapUp: (d) => widget.onMenu(d.globalPosition),
+            child: icon,
+          ),
         ),
       ),
     );

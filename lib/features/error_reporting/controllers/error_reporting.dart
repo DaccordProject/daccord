@@ -80,6 +80,22 @@ class ErrorReportingController extends _$ErrorReportingController {
     _client = created;
     _active = created;
     _installGlobalHooks();
+    // Navigation breadcrumbs: react to the persisted selection changing rather
+    // than having SettingsController push to us (that would form a dependency
+    // cycle, since we watch settings above). IDs are truncated before they
+    // leave the device.
+    ref.listen(settingsControllerProvider.select((s) => s.lastSpaceId), (
+      prev,
+      next,
+    ) {
+      if (next.isNotEmpty && next != prev) spaceSelected(next);
+    });
+    ref.listen(settingsControllerProvider.select((s) => s.lastChannelId), (
+      prev,
+      next,
+    ) {
+      if (next.isNotEmpty && next != prev) channelSelected(next);
+    });
     // If this provider is torn down (e.g. container disposal) the global
     // hooks must stop reporting through the dead client and its HTTP pool
     // must be released.
