@@ -3,11 +3,14 @@ name: CI
 # Continuous integration for the Daccord Flutter client.
 #
 # - `analyze`  : code generation + static analysis + unit tests (the gate).
+#                Runs on every push/PR — this is what blocks merges.
 # - `build`    : release builds for web / Android / Linux / Windows, uploaded
-#                as artifacts so any commit can be smoke-tested by hand.
+#                as artifacts. Only runs on manual `workflow_dispatch` — PRs
+#                don't need four release builds to merge, and tagged releases
+#                build every platform themselves in release.yml.
 #
 # This workflow is also `workflow_call`-able so the Release workflow can reuse
-# it as a pre-release gate (see release.yml).
+# the analyze/test gate (see release.yml).
 
 on:
   push:
@@ -17,14 +20,6 @@ on:
       - "**"
   pull_request:
   workflow_call:
-    inputs:
-      skip_build:
-        description: >-
-          Skip the per-platform build matrix and run only analyze/test.
-          release.yml sets this true because it builds every platform itself,
-          so there's no point building everything twice on the release path.
-        type: boolean
-        default: false
   workflow_dispatch:
 
 concurrency:
@@ -86,9 +81,9 @@ jobs:
   build:
     name: Build ${{ matrix.name }}
     needs: analyze
-    # On normal push/PR/dispatch, inputs.skip_build is null (falsy) so the
-    # matrix runs. release.yml passes skip_build: true to gate on tests only.
-    if: ${{ !inputs.skip_build }}
+    # Smoke-test artifacts only — run on demand, never automatically on push/PR
+    # (analyze is the merge gate) or workflow_call (release.yml builds its own).
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -192,9 +187,9 @@ jobs:
           build_once() {
             case "${{ matrix.platform }}" in
               web)     flutter build web     --no-tree-shake-icons --release ;;
-              android) flutter build apk     --no-tree-shake-icons -v ;;
-              linux)   flutter build linux   -v ;;
-              windows) flutter build windows -v ;;
+              android) flutter build apk     --no-tree-shake-icons ;;
+              linux)   flutter build linux ;;
+              windows) flutter build windows ;;
             esac
           }
           n=0; max=3
