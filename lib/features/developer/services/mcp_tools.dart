@@ -683,9 +683,9 @@ class McpTools {
     final spaceId = (args['space_id'] ?? '').toString();
     final name = (args['name'] ?? '').toString();
     if (spaceId.isEmpty) return {'error': 'space_id is required'};
-    if (name.isEmpty) return {'error': 'name is required'};
     final client = _client;
     if (client == null) return _notConnected;
+    if (name.isEmpty) return {'error': 'name is required'};
     final data = <String, dynamic>{'name': name};
     if (args.containsKey('color')) data['color'] = _asInt(args['color'], 0);
     final perms = _permList(args['permissions']);
@@ -707,8 +707,6 @@ class McpTools {
     final roleId = (args['role_id'] ?? '').toString();
     if (spaceId.isEmpty) return {'error': 'space_id is required'};
     if (roleId.isEmpty) return {'error': 'role_id is required'};
-    final client = _client;
-    if (client == null) return _notConnected;
     final data = <String, dynamic>{};
     if (args.containsKey('name')) {
       final name = (args['name'] ?? '').toString();
@@ -726,6 +724,8 @@ class McpTools {
       data['mentionable'] = _asBool(args['mentionable']);
     }
     if (data.isEmpty) return {'error': 'No fields to update'};
+    final client = _client;
+    if (client == null) return _notConnected;
     final r = await client.roles.update(spaceId, roleId, data);
     if (!r.ok) return _restError(r);
     return {
