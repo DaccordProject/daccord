@@ -136,6 +136,11 @@ class AccordClient {
   /// Closes the gateway connection.
   Future<void> logout() => gateway.disconnectFromGateway();
 
+  /// Verifies the gateway connection is alive and revives it if not (see
+  /// [GatewaySocket.ensureConnected]). Call when the app returns to the
+  /// foreground on platforms that suspend background processes.
+  void ensureConnected() => gateway.ensureConnected();
+
   /// Sends a presence update through the gateway.
   void updatePresence(String status,
           {Map<String, dynamic> activity = const {}}) =>

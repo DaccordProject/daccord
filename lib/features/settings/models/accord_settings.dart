@@ -46,6 +46,7 @@ class AccordSettings {
     this.accentColor,
     this.notificationsEnabled = true,
     this.suppressEveryone = false,
+    this.backgroundConnection = false,
     this.soundsEnabled = true,
     this.sfxVolume = 1.0,
     this.videoResolution = 1,
@@ -106,6 +107,12 @@ class AccordSettings {
 
   /// When true, `@everyone` mentions never raise a notification.
   final bool suppressEveryone;
+
+  /// Android only: run a foreground service while backgrounded so the gateway
+  /// connection (and with it message delivery + notifications) survives the
+  /// OS freezing the app. Off by default — it shows a persistent notification
+  /// and costs battery.
+  final bool backgroundConnection;
 
   /// Whether to play SFX (message sent/received, mentions).
   final bool soundsEnabled;
@@ -265,6 +272,7 @@ class AccordSettings {
     bool clearAccentColor = false,
     bool? notificationsEnabled,
     bool? suppressEveryone,
+    bool? backgroundConnection,
     bool? soundsEnabled,
     double? sfxVolume,
     int? videoResolution,
@@ -309,6 +317,7 @@ class AccordSettings {
       accentColor: clearAccentColor ? null : (accentColor ?? this.accentColor),
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       suppressEveryone: suppressEveryone ?? this.suppressEveryone,
+      backgroundConnection: backgroundConnection ?? this.backgroundConnection,
       soundsEnabled: soundsEnabled ?? this.soundsEnabled,
       sfxVolume: sfxVolume ?? this.sfxVolume,
       videoResolution: videoResolution ?? this.videoResolution,
@@ -416,6 +425,7 @@ class AccordSettings {
     'accentColor': accentColor,
     'notificationsEnabled': notificationsEnabled,
     'suppressEveryone': suppressEveryone,
+    'backgroundConnection': backgroundConnection,
     'soundsEnabled': soundsEnabled,
     'sfxVolume': sfxVolume,
     'videoResolution': videoResolution,
@@ -463,6 +473,7 @@ class AccordSettings {
       accentColor: (json['accentColor'] as num?)?.toInt(),
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
       suppressEveryone: json['suppressEveryone'] as bool? ?? false,
+      backgroundConnection: json['backgroundConnection'] as bool? ?? false,
       soundsEnabled: json['soundsEnabled'] as bool? ?? true,
       sfxVolume: (json['sfxVolume'] as num?)?.toDouble() ?? 1.0,
       videoResolution: (json['videoResolution'] as num?)?.toInt() ?? 1,

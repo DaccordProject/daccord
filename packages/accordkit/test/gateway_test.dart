@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
@@ -254,6 +255,211 @@ void main() {
 
       expect(socket.sessionId, '');
       expect(factory.connections.length, 2);
+      await socket.dispose();
+    });
+  });
+
+  group('ensureConnected', () {
+    /// A socket whose automatic reconnects are exhausted immediately, so tests
+    /// can observe ensureConnected reviving a connection the backoff gave up on.
+    GatewaySocket makeExhaustedSocket(FakeConnectionFactory factory) {
+      final s = GatewaySocket(
+        connectionFactory: factory.call,
+        sleep: (_) async {},
+        random: () => 0.0,
+        maxReconnectAttempts: 0,
+        token: 'tok',
+        tokenType: 'Bot',
+      );
+      s.setup(AccordConfig(), 'tok', tknType: 'Bot', intentList: ['messages']);
+      return s;
+    }
+
+    test('is a no-op before the first connect', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+
+      socket.ensureConnected();
+      await pump();
+
+      expect(factory.connections, isEmpty);
+      await socket.dispose();
+    });
+
+    test('is a no-op after an explicit disconnect', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+      await socket.disconnectFromGateway();
+
+      socket.ensureConnected();
+      await pump();
+
+      expect(factory.connections, hasLength(1));
+      expect(socket.state, GatewayState.disconnected);
+      await socket.dispose();
+    });
+
+    test('is a no-op when the handshake is still in progress', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      // Start connecting but don't pump — the socket is in the 'connecting'
+      // state (ready future hasn't resolved yet).
+      socket.connectToGateway('ws://x');
+
+      socket.ensureConnected();
+      await pump();
+
+      // Still only the one connection; no probe heartbeat was sent.
+      expect(factory.connections, hasLength(1));
+      expect(socket.state, GatewayState.connected);
+      await socket.dispose();
+    });
+
+    test('revives a dead socket even after reconnects are exhausted',
+        () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeExhaustedSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      factory.last.simulateClose(1006);
+      await pump();
+      expect(socket.state, GatewayState.disconnected);
+      expect(factory.connections, hasLength(1));
+
+      socket.ensureConnected();
+      await pump();
+
+      expect(factory.connections, hasLength(2));
+      expect(socket.state, GatewayState.connected);
+      await socket.dispose();
+    });
+
+    test('resumes the previous session when one is held', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeExhaustedSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'ready',
+        'seq': 3,
+        'data': {'session_id': 'S1'},
+      }));
+      await pump();
+
+      factory.last.simulateClose(1006);
+      await pump();
+      socket.ensureConnected();
+      await pump();
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 60000},
+      }));
+      await pump();
+
+      final sent = lastSent(factory.last);
+      expect(sent['op'], GatewayOpcodes.resume);
+      expect(sent['data']['session_id'], 'S1');
+      expect(sent['data']['seq'], 3);
+      await socket.dispose();
+    });
+
+    test('force-closes a stale connection that misses the probe ack',
+        () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+      expect(socket.state, GatewayState.connected);
+
+      socket.ensureConnected();
+      await pump(4);
+
+      // The probe heartbeat went out, was never acked, and the dead socket was
+      // closed and reopened through the normal reconnect path.
+      final probe =
+          jsonDecode(factory.connections.first.sent.last) as Map<String, dynamic>;
+      expect(probe['op'], GatewayOpcodes.heartbeat);
+      expect(factory.connections.first.closeCode, 4000);
+      expect(factory.connections, hasLength(2));
+      await socket.dispose();
+    });
+
+    test('leaves a live connection alone when the probe is acked', () async {
+      final factory = FakeConnectionFactory();
+      Completer<void>? gate;
+      final socket = GatewaySocket(
+        connectionFactory: factory.call,
+        sleep: (_) {
+          gate = Completer<void>();
+          return gate!.future;
+        },
+        random: () => 0.0,
+        token: 'tok',
+        tokenType: 'Bot',
+      );
+      socket.setup(AccordConfig(), 'tok', tknType: 'Bot');
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      socket.ensureConnected();
+      await pump();
+      factory.last.receive(jsonEncode({'op': GatewayOpcodes.heartbeatAck}));
+      await pump();
+      gate!.complete();
+      await pump();
+
+      expect(factory.connections, hasLength(1));
+      expect(socket.state, GatewayState.connected);
+      await socket.dispose();
+    });
+
+    test('heartbeat timer does not race with probe during ack window', () async {
+      // Verify that the probe stops the heartbeat timer before sending its OOB
+      // heartbeat, so a timer tick mid-probe can't close a live connection that
+      // hasn't had time to ACK yet.
+      final factory = FakeConnectionFactory();
+      Completer<void>? sleepGate;
+      final socket = GatewaySocket(
+        connectionFactory: factory.call,
+        sleep: (_) {
+          sleepGate = Completer<void>();
+          return sleepGate!.future;
+        },
+        random: () => 0.0,
+        token: 'tok',
+        tokenType: 'Bot',
+        probeTimeout: const Duration(seconds: 5),
+      );
+      socket.setup(AccordConfig(), 'tok', tknType: 'Bot');
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      // Receive HELLO so the heartbeat timer starts.
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 30000},
+      }));
+      await pump();
+
+      // Start a probe — it should stop the heartbeat timer immediately.
+      socket.ensureConnected();
+      await pump();
+
+      // Simulate an ACK arriving before the probe timeout.
+      factory.last.receive(jsonEncode({'op': GatewayOpcodes.heartbeatAck}));
+      await pump();
+
+      // Complete the probe sleep.
+      sleepGate!.complete();
+      await pump();
+
+      // Connection still intact; no second connection was opened.
+      expect(factory.connections, hasLength(1));
+      expect(socket.state, GatewayState.connected);
       await socket.dispose();
     });
   });

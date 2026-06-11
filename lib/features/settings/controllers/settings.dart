@@ -47,6 +47,11 @@ class SettingsController extends _$SettingsController {
   void setSuppressEveryone(bool suppress) =>
       _update(state.copyWith(suppressEveryone: suppress));
 
+  /// Android only: keep a foreground service (and so the gateway connection)
+  /// alive while the app is backgrounded.
+  void setBackgroundConnection(bool enabled) =>
+      _update(state.copyWith(backgroundConnection: enabled));
+
   void setSoundsEnabled(bool enabled) =>
       _update(state.copyWith(soundsEnabled: enabled));
 
