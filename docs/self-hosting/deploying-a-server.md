@@ -133,7 +133,7 @@ Make sure the following ports are accessible:
 
 ## Connecting from daccord
 
-Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address (e.g., `chat.example.com` or `your-ip:39099`) and create an account.
+Once your server is running, open daccord and click the **+** button in the sidebar to add a new server. Enter your server's address and create an account. Use `chat.example.com` for a server behind an HTTPS reverse proxy, or `http://your-ip:39099` when connecting directly over the local network — the `http://` prefix is required there, since a bare address defaults to `https://` and a plain-HTTP server will fail with a "Broken pipe" error.
 
 ## Updating
 

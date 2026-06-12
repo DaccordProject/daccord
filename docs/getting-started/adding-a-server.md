@@ -22,7 +22,9 @@ The simplest URL is just a hostname like `chat.example.com`. You can also includ
 
 - A port number: `chat.example.com:8443`
 - A specific space: `chat.example.com#my-space` (defaults to "general" if omitted)
-- A protocol: `https://chat.example.com` (HTTPS is used by default)
+- A protocol: `https://chat.example.com` (HTTPS is used by default when no scheme is given)
+
+> **Connecting to a local or self-hosted server?** Add the `http://` prefix, e.g. `http://localhost:39099` or `http://192.168.1.50:39099`. Self-hosted servers serve plain HTTP on the local network, and without the prefix the client assumes `https://` and the connection fails with a "Broken pipe" error.
 - A pre-filled token: `chat.example.com?token=yourtoken` (logs you in automatically)
 - An invite code: `chat.example.com?invite=yourcode` (joins the space using the invite)
 
