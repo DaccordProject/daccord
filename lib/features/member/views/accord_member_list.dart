@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -8,6 +9,7 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
+import 'package:bonfire/shared/components/server_unreachable.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +69,14 @@ class _Roster extends ConsumerWidget {
     final presences = ref.watch(presenceControllerProvider);
 
     if (members == null) {
+      if (ref.watch(connectionControllerProvider).isUnreachable) {
+        return ServerUnreachable(onRetry: () {
+          final auth = ref.read(accordAuthProvider);
+          if (auth is AccordAuthLoggedIn) {
+            auth.client.ensureConnected();
+          }
+        });
+      }
       return const Center(child: CircularProgressIndicator());
     }
 

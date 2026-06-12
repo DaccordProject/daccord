@@ -16,6 +16,7 @@ import 'package:bonfire/features/notifications/controllers/notification.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
 import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -605,6 +606,9 @@ Future<void> _loadSpaces(
   // complete the moment they become active.
   await _hydrateRoles(client, spaces);
   ref.read(connectionsControllerProvider.notifier).setSpaces(serverKey, spaces);
+  // Persist the freshly-loaded list so the rail can show this server's spaces
+  // (dimmed) on the next launch even if the server is then unreachable.
+  unawaited(SpaceCache.save(serverKey, spaces));
   if (!isActive()) return;
   ref.read(spacesControllerProvider.notifier).setSpaces(spaces);
   for (final space in spaces) {

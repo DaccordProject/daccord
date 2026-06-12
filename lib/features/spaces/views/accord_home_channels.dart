@@ -176,7 +176,16 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
           ),
           Expanded(
             child: channels == null
-                ? const Center(child: CircularProgressIndicator())
+                ? (ref
+                        .watch(connectionControllerProvider)
+                        .isUnreachable
+                    ? ServerUnreachable(onRetry: () {
+                        final auth = ref.read(accordAuthProvider);
+                        if (auth is AccordAuthLoggedIn) {
+                          auth.client.ensureConnected();
+                        }
+                      })
+                    : const Center(child: CircularProgressIndicator()))
                 : (canManageChannels && id != null)
                     ? _ChannelDragList(
                         spaceId: id,

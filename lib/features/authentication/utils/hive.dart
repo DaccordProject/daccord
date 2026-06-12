@@ -19,6 +19,9 @@ Future<void> setupHive() async {
   await Hive.openBox("last-location");
   await Hive.openBox("last-guild-channels");
   await Hive.openBox("added-accounts");
+  // Last-known space list per server, so the rail can render a server's spaces
+  // (dimmed, while unreachable) before/without a successful gateway connect.
+  await Hive.openBox("space-cache");
   // Device-global desktop window geometry (size/position/maximized), restored
   // before the first frame by `setupDesktopWindow`.
   await Hive.openBox("window-state");
