@@ -143,13 +143,8 @@ class _SpaceRail extends ConsumerWidget {
             serverKey: serverKey,
             selected: (sc?.active ?? false) && space.id == selectedSpaceId,
             onTap: () => onSelect(serverKey, space.id),
-            onDropSpaceBefore: (movedId) => _dropSpaceBefore(
-              settingsCtl,
-              settings,
-              globalOrder,
-              movedId,
-              space.id,
-            ),
+            onMergeSpace: (movedId) =>
+                settingsCtl.createFolder(spaceIds: [space.id, movedId]),
             onDropFolderBefore: (folderId) => _moveFolderBefore(
               settingsCtl,
               settings,
