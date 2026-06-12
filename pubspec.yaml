@@ -2,7 +2,7 @@ name: bonfire
 description: "A fast, cross-platform Flutter client for Daccord."
 publish_to: "none"
 
-version: 0.2.2+1
+version: 0.2.3+1
 
 environment:
   sdk: ^3.10.0
@@ -75,6 +75,12 @@ dependencies:
   loading_animation_widget: ^1.2.1
   hive_ce: ^2.5.0
   universal_io: ^2.2.2
+  # Single source of truth for the app version: reads the version Flutter bakes
+  # in from pubspec at build time, so `kAppVersion` (lib/shared/app_info.dart)
+  # never has to be hand-edited. Bump only `version:` above.
+  # Pinned to 9.x: the livekit_client fork pulls win32 ^5 (via device_info_plus),
+  # and package_info_plus >=10 requires win32 ^6, which conflicts.
+  package_info_plus: ^9.0.0
   # Desktop window control — restore/persist last window size & position.
   window_manager: ^0.4.3
 
