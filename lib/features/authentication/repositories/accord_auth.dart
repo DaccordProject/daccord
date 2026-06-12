@@ -10,6 +10,7 @@ import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/utils/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:flutter/foundation.dart';
@@ -344,6 +345,7 @@ class AccordAuth extends _$AccordAuth {
     ref.read(connectionsControllerProvider.notifier).clear();
     ref.invalidate(readStateControllerProvider);
     ref.read(openTabsControllerProvider.notifier).clear();
+    unawaited(SpaceCache.clear());
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);
     ref
         .read(connectionControllerProvider.notifier)
@@ -670,6 +672,7 @@ class AccordAuth extends _$AccordAuth {
     }
     ref.invalidate(readStateControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
+    unawaited(SpaceCache.remove(key));
 
     if (_activeKey == key) {
       _activeKey = null;
@@ -715,6 +718,7 @@ class AccordAuth extends _$AccordAuth {
     ref.read(connectionsControllerProvider.notifier).remove(key);
     ref.invalidate(readStateControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
+    unawaited(SpaceCache.remove(key));
   }
 
   /// Connects [session] as a live server (or, if already connected, optionally
@@ -742,6 +746,17 @@ class AccordAuth extends _$AccordAuth {
     ref
         .read(connectionsControllerProvider.notifier)
         .register(session, status: ConnectionStatus.connecting);
+
+    // Seed the rail from the last-known cache so this server's spaces show
+    // immediately (dimmed, while connecting/unreachable) instead of waiting on
+    // READY — which never arrives if the server is offline. The gateway READY
+    // overwrites this with the authoritative list once connected.
+    final cachedSpaces = SpaceCache.load(key);
+    if (cachedSpaces.isNotEmpty) {
+      ref
+          .read(connectionsControllerProvider.notifier)
+          .setSpaces(key, cachedSpaces);
+    }
 
     final client = AccordClient(
       token: session.token,

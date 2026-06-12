@@ -577,6 +577,14 @@ class _SpaceIcon extends ConsumerWidget {
     final readState = ref.watch(readStateControllerProvider(serverKey));
     final hasUnread = !selected && readState.anyUnreadInSpace(space.id);
     final mentions = readState.mentionsInSpace(space.id);
+    // Dim the icon while its server's gateway is down, so an unreachable space
+    // reads as offline rather than just unselected.
+    final unreachable = serverKey.isNotEmpty &&
+        (ref
+                .watch(connectionsControllerProvider
+                    .select((s) => s.connectionFor(serverKey)?.status))
+                ?.isUnreachable ??
+            false);
     final radius = BorderRadius.circular(selected ? 16 : 24);
     final fallback = Text(
       _initials,
@@ -592,26 +600,29 @@ class _SpaceIcon extends ConsumerWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                width: 48,
-                height: 48,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: selected ? colors.primary : colors.darkGray,
-                  borderRadius: radius,
+              Opacity(
+                opacity: unreachable ? 0.4 : 1.0,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: 48,
+                  height: 48,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: selected ? colors.primary : colors.darkGray,
+                    borderRadius: radius,
+                  ),
+                  alignment: Alignment.center,
+                  child: iconUrl == null
+                      ? fallback
+                      : CachedNetworkImage(
+                          imageUrl: iconUrl,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) => fallback,
+                          errorWidget: (_, _, _) => fallback,
+                        ),
                 ),
-                alignment: Alignment.center,
-                child: iconUrl == null
-                    ? fallback
-                    : CachedNetworkImage(
-                        imageUrl: iconUrl,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        placeholder: (_, _) => fallback,
-                        errorWidget: (_, _, _) => fallback,
-                      ),
               ),
               if (mentions > 0)
                 Positioned(
