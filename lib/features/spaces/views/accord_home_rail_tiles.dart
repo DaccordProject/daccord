@@ -27,26 +27,73 @@ bool get _immediateDrag => switch (defaultTargetPlatform) {
   _ => false,
 };
 
-/// Builds the platform-appropriate draggable for a rail item: an immediate
-/// [Draggable] on desktop, a [LongPressDraggable] on touch.
-Widget _railDraggable({
-  required _RailDrag data,
-  required Widget feedback,
-  required Widget childWhenDragging,
-  required Widget child,
-}) => _immediateDrag
-    ? Draggable<_RailDrag>(
-        data: data,
-        feedback: feedback,
-        childWhenDragging: childWhenDragging,
-        child: child,
-      )
-    : LongPressDraggable<_RailDrag>(
-        data: data,
-        feedback: feedback,
-        childWhenDragging: childWhenDragging,
-        child: child,
+/// The platform-appropriate draggable for a rail item: an immediate [Draggable]
+/// on desktop (click-drag), a [LongPressDraggable] on touch (press-and-hold to
+/// lift, with haptic, so dragging doesn't fight finger-scrolling).
+///
+/// On touch a long-press that is *released in place* (no drag) is treated as a
+/// context-menu request via [onPressMenu] — that's the menu's discoverable home
+/// there, since touch has no right-click and long-press is the platform's
+/// universal "show actions" gesture. Desktop opens the same menu on right-click
+/// instead (handled by the child), so [onPressMenu] never fires there.
+class _RailDraggable extends StatefulWidget {
+  const _RailDraggable({
+    required this.data,
+    required this.feedback,
+    required this.childWhenDragging,
+    required this.child,
+    this.onPressMenu,
+  });
+
+  final _RailDrag data;
+  final Widget feedback;
+  final Widget childWhenDragging;
+  final Widget child;
+
+  /// Touch only: the user long-pressed and released without dragging at this
+  /// global position — open the item's management menu there.
+  final ValueChanged<Offset>? onPressMenu;
+
+  @override
+  State<_RailDraggable> createState() => _RailDraggableState();
+}
+
+class _RailDraggableState extends State<_RailDraggable> {
+  // Captured on pointer-down so a release-in-place can anchor the menu where the
+  // finger landed (the drag callbacks don't carry the press origin).
+  Offset _downPos = Offset.zero;
+  bool _moved = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_immediateDrag) {
+      return Draggable<_RailDrag>(
+        data: widget.data,
+        feedback: widget.feedback,
+        childWhenDragging: widget.childWhenDragging,
+        child: widget.child,
       );
+    }
+    return Listener(
+      onPointerDown: (e) => _downPos = e.position,
+      child: LongPressDraggable<_RailDrag>(
+        data: widget.data,
+        feedback: widget.feedback,
+        childWhenDragging: widget.childWhenDragging,
+        onDragStarted: () => _moved = false,
+        onDragUpdate: (d) {
+          if (!_moved && (d.globalPosition - _downPos).distance > 24) {
+            _moved = true;
+          }
+        },
+        onDragEnd: (d) {
+          if (!_moved && !d.wasAccepted) widget.onPressMenu?.call(_downPos);
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
 
 /// A drop zone occupying the track between two rail items, so a space or folder
 /// can be inserted *at* that position (e.g. between a space and a folder)
@@ -100,15 +147,17 @@ class _InsertionGap extends StatelessWidget {
   }
 }
 
-/// A space icon that can be dragged (to reorder / into-or-out-of folders) and
-/// accepts a dropped space or folder to place it before itself in the rail.
-class _DraggableSpace extends StatefulWidget {
+/// A space icon that can be dragged to reorder (drop in the gaps between tiles)
+/// or to group: dropping another space *onto* it merges the two into a new
+/// folder (Discord-style), and dropping a folder onto it reorders that folder
+/// before this space.
+class _DraggableSpace extends StatelessWidget {
   const _DraggableSpace({
     required this.space,
     required this.cdnUrl,
     required this.selected,
     required this.onTap,
-    required this.onDropSpaceBefore,
+    required this.onMergeSpace,
     required this.onDropFolderBefore,
     required this.onMenu,
     this.serverKey = '',
@@ -119,9 +168,9 @@ class _DraggableSpace extends StatefulWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  /// A space [spaceId] was dropped on this tile: place it before this space
-  /// (pulling it out of any folder it was in).
-  final ValueChanged<String> onDropSpaceBefore;
+  /// A space [spaceId] was dropped *onto* this tile: group the two into a new
+  /// folder (drop between tiles to reorder instead).
+  final ValueChanged<String> onMergeSpace;
 
   /// A folder [folderId] was dropped on this tile: move the whole folder before
   /// this space.
@@ -130,58 +179,48 @@ class _DraggableSpace extends StatefulWidget {
   final String serverKey;
 
   @override
-  State<_DraggableSpace> createState() => _DraggableSpaceState();
-}
-
-class _DraggableSpaceState extends State<_DraggableSpace> {
-  // Captured on the down event so the double-tap menu can anchor where the
-  // user clicked (onDoubleTap itself carries no position).
-  Offset _lastTap = Offset.zero;
-
-  @override
   Widget build(BuildContext context) {
     final icon = _SpaceIcon(
-      space: widget.space,
-      selected: widget.selected,
-      cdnUrl: widget.cdnUrl,
-      serverKey: widget.serverKey,
-      onTap: widget.onTap,
+      space: space,
+      selected: selected,
+      cdnUrl: cdnUrl,
+      serverKey: serverKey,
+      onTap: onTap,
     );
     return DragTarget<_RailDrag>(
       onWillAcceptWithDetails: (d) => switch (d.data) {
-        _SpaceDrag(:final spaceId) => spaceId != widget.space.id,
+        _SpaceDrag(:final spaceId) => spaceId != space.id,
         _FolderDrag() => true,
       },
       onAcceptWithDetails: (d) {
         switch (d.data) {
           case _SpaceDrag(:final spaceId):
-            widget.onDropSpaceBefore(spaceId);
+            onMergeSpace(spaceId);
           case _FolderDrag(:final folderId):
-            widget.onDropFolderBefore(folderId);
+            onDropFolderBefore(folderId);
         }
       },
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
-        child: _railDraggable(
-          data: _SpaceDrag(widget.space.id),
+        child: _RailDraggable(
+          data: _SpaceDrag(space.id),
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
-              space: widget.space,
+              space: space,
               selected: false,
-              cdnUrl: widget.cdnUrl,
-              serverKey: widget.serverKey,
+              cdnUrl: cdnUrl,
+              serverKey: serverKey,
               onTap: () {},
             ),
           ),
           childWhenDragging: Opacity(opacity: 0.3, child: icon),
-          // Drag drives the reorder / into-folder move; the rail management menu
-          // (new folder, move/remove) opens on double-tap or right-click so it
-          // stays reachable on every platform.
+          // Drag drives reorder / grouping; the management menu (new folder,
+          // move/remove, leave) opens via long-press on touch and right-click on
+          // desktop so it stays reachable everywhere.
+          onPressMenu: onMenu,
           child: GestureDetector(
-            onDoubleTapDown: (d) => _lastTap = d.globalPosition,
-            onDoubleTap: () => widget.onMenu(_lastTap),
-            onSecondaryTapUp: (d) => widget.onMenu(d.globalPosition),
+            onSecondaryTapUp: (d) => onMenu(d.globalPosition),
             child: icon,
           ),
         ),
@@ -190,9 +229,9 @@ class _DraggableSpaceState extends State<_DraggableSpace> {
   }
 }
 
-/// A collapsible folder tile in the rail. Tap toggles collapse; double-tap /
-/// right-click opens the management menu; long-press drags the folder to
-/// reorder it. It accepts dropped spaces (to add them) and dropped folders (to
+/// A collapsible folder tile in the rail. Tap toggles collapse; the management
+/// menu opens on long-press (touch) or right-click (desktop); dragging reorders
+/// the folder. It accepts dropped spaces (to add them) and dropped folders (to
 /// reorder before it).
 class _FolderTile extends ConsumerStatefulWidget {
   const _FolderTile({
@@ -232,10 +271,6 @@ class _FolderTile extends ConsumerStatefulWidget {
 }
 
 class _FolderTileState extends ConsumerState<_FolderTile> {
-  // Captured on the down event so the double-tap menu can anchor where the
-  // user clicked (onDoubleTap itself carries no position).
-  Offset _lastTap = Offset.zero;
-
   SpaceFolder get folder => widget.folder;
   List<AccordSpace> get spaces => widget.spaces;
 
@@ -282,15 +317,14 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
             },
             builder: (context, candidate, _) {
               final highlight = candidate.isNotEmpty;
-              return _railDraggable(
+              return _RailDraggable(
                 data: _FolderDrag(folder.id),
                 feedback: Material(color: Colors.transparent, child: folderIcon),
                 childWhenDragging: Opacity(opacity: 0.3, child: folderIcon),
+                onPressMenu: (pos) => _folderMenu(context, ref, pos),
                 child: GestureDetector(
                   onTap: () =>
                       ctl.setFolderCollapsed(folder.id, !folder.collapsed),
-                  onDoubleTapDown: (d) => _lastTap = d.globalPosition,
-                  onDoubleTap: () => _folderMenu(context, ref, _lastTap),
                   onSecondaryTapUp: (d) =>
                       _folderMenu(context, ref, d.globalPosition),
                   child: Container(
@@ -466,7 +500,7 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
 /// A space icon shown inside an expanded folder. Like [_DraggableSpace] but its
 /// drops are scoped to the folder: dragging it out onto a rail space pulls it
 /// from the folder, and a space dropped on it lands before it within the folder.
-class _FolderMemberTile extends StatefulWidget {
+class _FolderMemberTile extends StatelessWidget {
   const _FolderMemberTile({
     required this.space,
     required this.conn,
@@ -487,50 +521,42 @@ class _FolderMemberTile extends StatefulWidget {
   final void Function(Offset position) onMenu;
 
   @override
-  State<_FolderMemberTile> createState() => _FolderMemberTileState();
-}
-
-class _FolderMemberTileState extends State<_FolderMemberTile> {
-  Offset _lastTap = Offset.zero;
-
-  @override
   Widget build(BuildContext context) {
     final icon = _SpaceIcon(
-      space: widget.space,
-      selected: widget.selected,
-      cdnUrl: widget.conn?.cdnUrl,
-      serverKey: widget.conn?.serverKey ?? '',
-      onTap: widget.onTap,
+      space: space,
+      selected: selected,
+      cdnUrl: conn?.cdnUrl,
+      serverKey: conn?.serverKey ?? '',
+      onTap: onTap,
     );
     return DragTarget<_RailDrag>(
       onWillAcceptWithDetails: (d) => switch (d.data) {
-        _SpaceDrag(:final spaceId) => spaceId != widget.space.id,
+        _SpaceDrag(:final spaceId) => spaceId != space.id,
         _FolderDrag() => false,
       },
       onAcceptWithDetails: (d) {
         if (d.data case _SpaceDrag(:final spaceId)) {
-          widget.onDropBefore(spaceId);
+          onDropBefore(spaceId);
         }
       },
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
-        child: _railDraggable(
-          data: _SpaceDrag(widget.space.id),
+        child: _RailDraggable(
+          data: _SpaceDrag(space.id),
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
-              space: widget.space,
+              space: space,
               selected: false,
-              cdnUrl: widget.conn?.cdnUrl,
-              serverKey: widget.conn?.serverKey ?? '',
+              cdnUrl: conn?.cdnUrl,
+              serverKey: conn?.serverKey ?? '',
               onTap: () {},
             ),
           ),
           childWhenDragging: Opacity(opacity: 0.3, child: icon),
+          onPressMenu: onMenu,
           child: GestureDetector(
-            onDoubleTapDown: (d) => _lastTap = d.globalPosition,
-            onDoubleTap: () => widget.onMenu(_lastTap),
-            onSecondaryTapUp: (d) => widget.onMenu(d.globalPosition),
+            onSecondaryTapUp: (d) => onMenu(d.globalPosition),
             child: icon,
           ),
         ),
