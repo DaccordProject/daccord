@@ -53,8 +53,10 @@ Click the tray icon to open the menu:
 
 With Accord running, open the daccord client, click the **+** button in the sidebar, and add a server.
 
-- **On the same computer:** use `localhost:39099`.
-- **From another device on your network:** use your computer's local IP address and port, for example `192.168.1.50:39099`.
+- **On the same computer:** use `http://localhost:39099`.
+- **From another device on your network:** use your computer's local IP address and port, for example `http://192.168.1.50:39099`.
+
+> **Include the `http://` prefix.** A self-hosted Accord server speaks plain HTTP on your local network, but the client assumes `https://` when you leave the scheme off. Without the prefix the connection fails with a "Broken pipe" error, because the client tries a TLS handshake against a plain-HTTP port. Public servers reached over a domain name normally use `https://` and can be entered without the prefix.
 
 Create an account on your new server and you're in. See [Creating an Account](../getting-started/creating-an-account.md) and [Adding a Server](../getting-started/adding-a-server.md) for the client-side steps.
 

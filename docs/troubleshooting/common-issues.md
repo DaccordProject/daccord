@@ -10,6 +10,7 @@ section: troubleshooting
 ## Can't Connect to a Server
 
 - **Check the URL** -- Make sure you entered the server address correctly. It should look like `chat.example.com` or `chat.example.com:8443`.
+- **"Broken pipe" error on a local server** -- When you enter an address with no scheme, the client assumes `https://`. A self-hosted Accord server speaks plain HTTP, so the TLS handshake fails and the connection drops. Add the `http://` prefix explicitly, e.g. `http://localhost:39099` or `http://192.168.1.50:39099`.
 - **Server unreachable** -- The server may be down or behind a firewall. Contact the server admin.
 - **Wrong credentials** -- Double-check your username and password. Passwords are case-sensitive.
 
