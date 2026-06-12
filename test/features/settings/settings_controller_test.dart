@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -233,6 +234,114 @@ void main() {
       expect(s.inputVolume, 150);
       expect(s.outputVolume, 80);
       expect(s.inputSensitivity, 70);
+    });
+  });
+
+  group('setSpaceOrder', () {
+    test('persists the ordering across a controller rebuild', () {
+      final c1 = makeContainer();
+      controllerOf(c1).setSpaceOrder(['s3', 's1', 's2']);
+      expect(stateOf(c1).spaceOrder, ['s3', 's1', 's2']);
+
+      final c2 = makeContainer();
+      expect(stateOf(c2).spaceOrder, ['s3', 's1', 's2']);
+    });
+
+    test('overwrites a previous order', () {
+      final c = makeContainer();
+      controllerOf(c)
+        ..setSpaceOrder(['a', 'b', 'c'])
+        ..setSpaceOrder(['c', 'a']);
+      expect(stateOf(c).spaceOrder, ['c', 'a']);
+    });
+  });
+
+  group('createFolder', () {
+    test('creates a folder with the given name and space ids', () {
+      final c = makeContainer();
+      controllerOf(c).createFolder(name: 'work', spaceIds: ['s1', 's2']);
+      final folders = stateOf(c).spaceFolders;
+      expect(folders.length, 1);
+      expect(folders.first.name, 'work');
+      expect(folders.first.spaceIds, ['s1', 's2']);
+    });
+
+    test('returns the id of the newly created folder', () {
+      final c = makeContainer();
+      final id = controllerOf(c).createFolder(name: 'x');
+      expect(stateOf(c).spaceFolders.first.id, id);
+    });
+
+    test('removes the given spaces from any existing folder they belong to', () {
+      final c = makeContainer();
+      controllerOf(c).createFolder(name: 'old', spaceIds: ['s1', 's3']);
+      controllerOf(c).createFolder(name: 'new', spaceIds: ['s1', 's2']);
+      final folders = stateOf(c).spaceFolders;
+      final old = folders.firstWhere((f) => f.name == 'old');
+      final newF = folders.firstWhere((f) => f.name == 'new');
+      expect(old.spaceIds, ['s3'], reason: 's1 should have been stripped from old');
+      expect(newF.spaceIds, ['s1', 's2']);
+    });
+
+    test('merge via drop-onto creates folder with target first then dragged', () {
+      // Simulates the onMergeSpace callback: createFolder(spaceIds: [target, dragged])
+      final c = makeContainer();
+      controllerOf(c).createFolder(spaceIds: ['target', 'dragged']);
+      expect(stateOf(c).spaceFolders.first.spaceIds, ['target', 'dragged']);
+    });
+
+    test('merging a space already in a folder moves it to the new one', () {
+      final c = makeContainer();
+      controllerOf(c).createFolder(name: 'existing', spaceIds: ['s1', 's3']);
+      controllerOf(c).createFolder(spaceIds: ['s1', 's2']);
+      final existing = stateOf(c).spaceFolders.firstWhere((f) => f.name == 'existing');
+      expect(existing.spaceIds, ['s3'], reason: 's1 must leave the old folder');
+      expect(stateOf(c).spaceFolders.last.spaceIds, ['s1', 's2']);
+    });
+  });
+
+  group('moveSpaceToFolder', () {
+    test('appends a space to the target folder', () {
+      final c = makeContainer();
+      final fId = controllerOf(c).createFolder(name: 'f', spaceIds: ['s1']);
+      controllerOf(c).moveSpaceToFolder('s2', fId);
+      expect(stateOf(c).spaceFolders.first.spaceIds, ['s1', 's2']);
+    });
+
+    test('inserts before a given member when before is specified', () {
+      final c = makeContainer();
+      final fId = controllerOf(c).createFolder(name: 'f', spaceIds: ['s1', 's2']);
+      controllerOf(c).moveSpaceToFolder('s3', fId, before: 's2');
+      expect(stateOf(c).spaceFolders.first.spaceIds, ['s1', 's3', 's2']);
+    });
+
+    test('removes a space from its folder when folderId is null', () {
+      final c = makeContainer();
+      controllerOf(c).createFolder(name: 'f', spaceIds: ['s1', 's2']);
+      controllerOf(c).moveSpaceToFolder('s1', null);
+      expect(stateOf(c).spaceFolders.first.spaceIds, ['s2']);
+    });
+
+    test('prunes a folder that becomes empty', () {
+      final c = makeContainer();
+      controllerOf(c).createFolder(name: 'f', spaceIds: ['s1']);
+      controllerOf(c).moveSpaceToFolder('s1', null);
+      expect(stateOf(c).spaceFolders, isEmpty);
+    });
+
+    test('moving across folders leaves the source folder intact', () {
+      final c = makeContainer();
+      final src = controllerOf(c).createFolder(name: 'src', spaceIds: ['s1', 's2']);
+      final dst = controllerOf(c).createFolder(name: 'dst', spaceIds: ['s3']);
+      controllerOf(c).moveSpaceToFolder('s1', dst);
+      expect(
+        stateOf(c).spaceFolders.firstWhere((f) => f.id == src).spaceIds,
+        ['s2'],
+      );
+      expect(
+        stateOf(c).spaceFolders.firstWhere((f) => f.id == dst).spaceIds,
+        ['s3', 's1'],
+      );
     });
   });
 }

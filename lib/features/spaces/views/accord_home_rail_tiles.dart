@@ -80,9 +80,12 @@ class _RailDraggableState extends State<_RailDraggable> {
         data: widget.data,
         feedback: widget.feedback,
         childWhenDragging: widget.childWhenDragging,
-        onDragStarted: () => _moved = false,
+        onDragStarted: () {
+          _moved = false;
+          HapticFeedback.mediumImpact();
+        },
         onDragUpdate: (d) {
-          if (!_moved && (d.globalPosition - _downPos).distance > 24) {
+          if (!_moved && (d.globalPosition - _downPos).distance > 8) {
             _moved = true;
           }
         },
