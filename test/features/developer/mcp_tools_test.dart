@@ -152,7 +152,7 @@ void main() {
       expect(result.containsKey('ok'), isFalse);
     });
 
-    test('returns not-connected when no fields to update', () async {
+    test('returns no-fields error without hitting client', () async {
       // With no optional fields, returns 'No fields to update' before
       // touching the client.
       final result = await tools.tools['update_role']!.handler({

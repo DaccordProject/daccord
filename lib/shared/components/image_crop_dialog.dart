@@ -5,8 +5,7 @@ import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
 
 /// Modal that lets the user pan (x/y) and zoom an image inside a fixed-aspect
-/// frame, then returns the cropped bytes (PNG). Mirrors the reposition+zoom
-/// flow Discord uses for server icons/banners and user avatars.
+/// frame, then returns the cropped bytes (PNG).
 ///
 /// The crop rect is fixed at [aspectRatio]; the user moves the image behind it.
 /// [circular] only changes the mask shape — the output is always rectangular

@@ -122,7 +122,7 @@ class _SpaceRail extends ConsumerWidget {
               settings,
               globalOrder,
               folderId,
-              unit.spaces.first.id,
+              unit.spaces.isNotEmpty ? unit.spaces.first.id : null,
             ),
             onMemberDropBefore: (draggedId, targetMemberId) =>
                 settingsCtl.moveSpaceToFolder(
@@ -269,7 +269,7 @@ class _SpaceRail extends ConsumerWidget {
             for (final sid in folder.spaceIds)
               if (byId[sid] != null) byId[sid]!,
           ];
-          units.add(_RailUnit.folder(folder, members));
+          if (members.isNotEmpty) units.add(_RailUnit.folder(folder, members));
         }
         continue;
       }
@@ -282,8 +282,14 @@ class _SpaceRail extends ConsumerWidget {
   /// The id used to anchor an insertion before [unit]: a standalone space's own
   /// id, or a folder's first member (folders anchor at their first member's
   /// position in [spaceOrder]).
-  String _unitAnchor(_RailUnit unit) =>
-      unit.isFolder ? unit.spaces.first.id : unit.space!.id;
+  String _unitAnchor(_RailUnit unit) {
+    if (unit.isFolder) {
+      // spaces is always non-empty here (empty folders are skipped in
+      // _buildUnits), but guard defensively so a stale unit never crashes.
+      return unit.spaces.isNotEmpty ? unit.spaces.first.id : '';
+    }
+    return unit.space!.id;
+  }
 
   void _reorderBefore(
     SettingsController ctl,
