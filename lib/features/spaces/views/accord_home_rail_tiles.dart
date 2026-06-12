@@ -600,8 +600,9 @@ class _SpaceIcon extends ConsumerWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Opacity(
+              AnimatedOpacity(
                 opacity: unreachable ? 0.4 : 1.0,
+                duration: const Duration(milliseconds: 300),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   width: 48,
