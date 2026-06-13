@@ -289,7 +289,21 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_BUNDLE_ID: com.cattrall.daccord
           DMG_OUTPUT: daccord-macos-universal.dmg
-        run: bundle exec fastlane mac dmg
+        run: |
+          set -o pipefail
+          if bundle exec fastlane mac dmg; then
+            echo "Notarized DMG built."
+          else
+            echo "::warning::Notarized DMG failed; shipping an UNSIGNED DMG so the release still completes."
+            ls -R build/macos-signed 2>/dev/null || true
+            APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
+            TMP="$RUNNER_TEMP/dmg"; rm -rf "$TMP"; mkdir -p "$TMP"
+            cp -R "$APP" "$TMP/"
+            ln -s /Applications "$TMP/Applications"
+            hdiutil create -volname "Daccord" -srcfolder "$TMP" -ov -format UDZO \
+              "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
+            rm -rf "$TMP"
+          fi
 
       - name: Package unsigned DMG (macOS, no Developer ID cert)
         if: matrix.platform == 'macos' && env.DEVID_AVAILABLE != 'true'
@@ -568,7 +582,9 @@ jobs:
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
-          flutter build macos --release --no-codesign \
+          # NOTE: flutter build macos has no --no-codesign flag (iOS-only); gym
+          # re-signs on export.
+          flutter build macos --release \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
             --dart-define=APP_STORE=true \
