@@ -10,6 +10,7 @@ import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/user/views/accord_account_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
@@ -233,6 +234,15 @@ class AccordSettingsScreen extends ConsumerWidget {
             subtitle: const Text('Display name, bio, avatar'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showAccordProfileEdit(context),
+          ),
+          ListTile(
+            leading: Icon(Icons.lock_outline, color: colors.dirtyWhite),
+            title: const Text('Password & Security'),
+            subtitle: const Text(
+              'Password, two-factor authentication, delete account',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showAccordAccountSettings(context),
           ),
           if (ref.watch(connectionsControllerProvider).hasMultiple)
             ListTile(

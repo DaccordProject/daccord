@@ -3,7 +3,6 @@ import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
-import 'package:bonfire/features/user/views/accord_account_settings.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,8 +45,6 @@ class SelfStatusButton extends ConsumerWidget {
       tooltip: customStatus ?? 'Set status',
       onSelected: (value) {
         switch (value) {
-          case _accountValue:
-            showAccordAccountSettings(context);
           case _customValue:
             _showCustomStatusDialog(context, ref, userId, status, customStatus);
           case _clearCustomValue:
@@ -94,23 +91,11 @@ class SelfStatusButton extends ConsumerWidget {
               ],
             ),
           ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: _accountValue,
-          child: Row(
-            children: [
-              Icon(Icons.manage_accounts, size: 16, color: colors.gray),
-              const SizedBox(width: 10),
-              const Text('Account settings'),
-            ],
-          ),
-        ),
       ],
       icon: Icon(Icons.circle, size: 16, color: dotColor),
     );
   }
 
-  static const String _accountValue = '__account__';
   static const String _customValue = '__custom__';
   static const String _clearCustomValue = '__clear_custom__';
 
