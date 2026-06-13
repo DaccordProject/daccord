@@ -448,15 +448,20 @@ jobs:
           echo "$PROFILE_B64" | base64 --decode > "$DIR/daccord_ios_appstore.mobileprovision"
 
       - name: Build iOS (Flutter, unsigned)
-        # Compiles the Dart/Flutter side and writes Generated.xcconfig (build
-        # name from pubspec, build number from the run); gym then archives + signs.
+        # Compiles the Dart/Flutter side and writes Generated.xcconfig; gym then
+        # archives + signs. CFBundleShortVersionString must be a numeric x.y.z,
+        # so strip any prerelease/build suffix from the pubspec version (e.g. a
+        # `0.2.4-rc.1` tag still uploads as marketing version `0.2.4`).
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        run: >
-          flutter build ios --release --no-codesign
-          --build-number=${{ github.run_number }}
-          --dart-define=APP_STORE=true
-          --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+        run: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
+          echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
+          flutter build ios --release --no-codesign \
+            --build-name="$BUILD_NAME" \
+            --build-number=${{ github.run_number }} \
+            --dart-define=APP_STORE=true \
+            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
 
       - name: Archive, sign & upload to TestFlight
         env:
@@ -557,13 +562,17 @@ jobs:
         run: cp macos/Runner/AppStore.entitlements macos/Runner/Release.entitlements
 
       - name: Build macOS (Flutter, unsigned)
+        # Numeric marketing version only (see the iOS job's note).
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        run: >
-          flutter build macos --release --no-codesign
-          --build-number=${{ github.run_number }}
-          --dart-define=APP_STORE=true
-          --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+        run: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
+          echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
+          flutter build macos --release --no-codesign \
+            --build-name="$BUILD_NAME" \
+            --build-number=${{ github.run_number }} \
+            --dart-define=APP_STORE=true \
+            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
 
       - name: Archive, sign & upload to App Store Connect
         env:

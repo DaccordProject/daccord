@@ -1,5 +1,4 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
-import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
 import 'package:bonfire/shared/app_info.dart';
