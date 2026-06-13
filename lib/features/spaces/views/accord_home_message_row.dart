@@ -86,13 +86,22 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     super.dispose();
   }
 
+  // Bare HH:MM. Used in the grouped-message gutter, a fixed narrow slot where a
+  // full date wouldn't fit (grouped rows are within minutes of their header).
+  String get _clock {
+    final dt = DateTime.tryParse(_message.timestamp);
+    if (dt == null) return '';
+    return messageClockString(dt.toLocal());
+  }
+
+  // The header time is date-aware so a message from days ago isn't mistaken for
+  // a recent one: today shows just the time, yesterday is prefixed, earlier this
+  // week shows the weekday, and older messages get the calendar date. intl isn't
+  // a dependency, so this is formatted by hand.
   String get _time {
     final dt = DateTime.tryParse(_message.timestamp);
     if (dt == null) return '';
-    final local = dt.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
+    return messageTimeString(dt.toLocal());
   }
 
   // intl isn't a dependency, so the full timestamp shown in the tooltip is
@@ -317,7 +326,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                       child: Tooltip(
                         message: _fullTime,
                         child: Text(
-                          _time,
+                          _clock,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.labelSmall!.copyWith(
                             color: colors.gray,
