@@ -49,6 +49,12 @@
 	<string>Daccord needs microphone access for voice channels.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Daccord needs camera access for video in voice channels.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Daccord needs access to your photo library so you can attach and send photos and files in your conversations.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Daccord needs permission to save images and files you download from your conversations to your photo library.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Daccord does not track your location; this is only requested by a bundled component and is never used to collect location data.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

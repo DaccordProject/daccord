@@ -28,6 +28,16 @@ Future<void> initAppInfo() async {
   }
 }
 
+/// True when this build is destined for an app store (iOS App Store / Mac App
+/// Store), set via `--dart-define=APP_STORE=true` in the store release lanes.
+///
+/// App Store Review Guidelines forbid apps that download and run executable
+/// code or self-update outside the store, and the Mac App Store build is
+/// sandboxed (which blocks the swap helper anyway). So when this is true the
+/// in-app updater is disabled entirely: no startup/periodic GitHub check and no
+/// in-place install path. Store builds update through the store.
+const bool kAppStoreBuild = bool.fromEnvironment('APP_STORE');
+
 /// `owner/repo` whose GitHub Releases drive the in-app update checker. This is
 /// the Flutter client's own repository (the reference client checks its own
 /// Godot repo). See [kGithubLatestReleaseUrl].

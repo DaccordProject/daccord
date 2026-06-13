@@ -11,6 +11,23 @@ on:
   push:
     tags:
       - "v*"
+  # Manual trigger to exercise the App Store deploy jobs without cutting a real
+  # tagged release. The verify/build/release jobs are gated to tag pushes, so a
+  # workflow_dispatch run only does the App Store uploads below.
+  workflow_dispatch:
+    inputs:
+      deploy_ios:
+        description: "Build + upload the iOS App Store build to TestFlight"
+        type: boolean
+        default: true
+      deploy_mac:
+        description: "Build + upload the Mac App Store build to App Store Connect"
+        type: boolean
+        default: true
+      deploy_android:
+        description: "Build + upload the Android App Bundle to Google Play"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -21,6 +38,10 @@ env:
 jobs:
   verify:
     name: Verify version
+    # Only meaningful for a tag push; on workflow_dispatch there's no tag, and
+    # skipping this also skips build/release (they need it), leaving just the
+    # App Store deploy jobs.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -54,6 +75,10 @@ jobs:
     # also caches that ~hundreds-of-MB binary — the thing that 504'd before.
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
+      # The Developer ID Application cert can only be created by the account
+      # holder (not the App Store Connect API key), so it may be absent. When it
+      # is, the DMG is built unsigned (previous behaviour) instead of failing.
+      DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -116,6 +141,23 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+
+      - name: Set up Ruby (macOS)
+        # Fastlane (gym + notarize) signs and notarizes the DMG below.
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Import Developer ID certificate (macOS)
+        # Developer ID Application cert → the DMG's .app is signed with a
+        # hardened runtime and notarized so Gatekeeper allows direct downloads.
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          p12-password: ${{ secrets.CERT_P12_PASSWORD }}
 
       - name: Set up Java 17 (Android)
         if: matrix.platform == 'android'
@@ -237,11 +279,43 @@ jobs:
         if: matrix.platform == 'linux'
         run: dist/build-deb.sh "${{ steps.version.outputs.APP_VERSION }}" "${{ matrix.artifact }}.deb"
 
-      - name: Create DMG (macOS)
-        if: matrix.platform == 'macos'
-        # Flutter ships a single universal (arm64 + x86_64) .app, so one image
-        # runs natively on both architectures — ship it as a single download.
+      - name: Sign, package & notarize DMG (macOS)
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
+        # gym re-exports the (already Flutter-built) app signed with Developer ID
+        # + hardened runtime, then we wrap it in a single universal (arm64 +
+        # x86_64) DMG and notarize+staple it so Gatekeeper trusts the download.
+        # This is the direct-download build, so the self-updater stays enabled
+        # (no APP_STORE define).
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_BUNDLE_ID: com.cattrall.daccord
+          DMG_OUTPUT: daccord-macos-universal.dmg
         run: |
+          set -o pipefail
+          if bundle exec fastlane mac dmg; then
+            echo "Notarized DMG built."
+          else
+            echo "::warning::Notarized DMG failed; shipping an UNSIGNED DMG so the release still completes."
+            ls -R build/macos-signed 2>/dev/null || true
+            APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
+            TMP="$RUNNER_TEMP/dmg"; rm -rf "$TMP"; mkdir -p "$TMP"
+            cp -R "$APP" "$TMP/"
+            ln -s /Applications "$TMP/Applications"
+            hdiutil create -volname "Daccord" -srcfolder "$TMP" -ov -format UDZO \
+              "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
+            rm -rf "$TMP"
+          fi
+
+      - name: Package unsigned DMG (macOS, no Developer ID cert)
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE != 'true'
+        # Fallback when the Developer ID cert secret isn't set: ship the same
+        # universal DMG unsigned (the pre-notarization behaviour) rather than
+        # failing the release. Gatekeeper will warn on first launch.
+        run: |
+          echo "::warning::DEVELOPER_ID_CERT_P12 not set — building UNSIGNED DMG (not notarized)."
           APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
           TMP="$RUNNER_TEMP/dmg"
           rm -rf "$TMP"; mkdir -p "$TMP"
@@ -314,3 +388,327 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: artifacts/*
+
+  # ---------------------------------------------------------------------------
+  # App Store deploys. These run on a tag push and on workflow_dispatch (gated
+  # by the deploy_ios / deploy_mac inputs). They build the *store* variants
+  # (App Sandbox / no self-updater via --dart-define=APP_STORE=true) and upload
+  # to App Store Connect using an App Store Connect API key. Signing assets come
+  # from repo secrets — see docs/app-store-deploy.md.
+  # ---------------------------------------------------------------------------
+  ios-appstore:
+    name: iOS App Store
+    needs: ci
+    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_ios) }}
+    runs-on: macos-15
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/livekit_client/**/*.podspec') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Update CocoaPods spec repo
+        run: pod repo update
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Import Apple Distribution certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DIST_CERT_P12 }}
+          p12-password: ${{ secrets.CERT_P12_PASSWORD }}
+
+      - name: Install provisioning profile
+        env:
+          PROFILE_B64: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: |
+          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$DIR"
+          echo "$PROFILE_B64" | base64 --decode > "$DIR/daccord_ios_appstore.mobileprovision"
+
+      - name: Build iOS (Flutter, unsigned)
+        # Compiles the Dart/Flutter side and writes Generated.xcconfig; gym then
+        # archives + signs. CFBundleShortVersionString must be a numeric x.y.z,
+        # so strip any prerelease/build suffix from the pubspec version (e.g. a
+        # `0.2.4-rc.1` tag still uploads as marketing version `0.2.4`).
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
+          echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
+          flutter build ios --release --no-codesign \
+            --build-name="$BUILD_NAME" \
+            --build-number=${{ github.run_number }} \
+            --dart-define=APP_STORE=true \
+            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+
+      - name: Archive, sign & upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_BUNDLE_ID: com.cattrall.daccord
+          IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
+        run: bundle exec fastlane ios beta
+
+  mac-appstore:
+    name: Mac App Store
+    needs: ci
+    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_mac) }}
+    runs-on: macos-15
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/livekit_client/**/*.podspec') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Update CocoaPods spec repo
+        run: pod repo update
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Import Apple Distribution certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DIST_CERT_P12 }}
+          p12-password: ${{ secrets.CERT_P12_PASSWORD }}
+          keychain: signing_temp
+          keychain-password: ${{ secrets.CERT_P12_PASSWORD }}
+
+      - name: Import Mac Installer Distribution certificate
+        # Signs the .pkg installer that the Mac App Store ingests.
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.MAC_INSTALLER_CERT_P12 }}
+          p12-password: ${{ secrets.CERT_P12_PASSWORD }}
+          keychain: signing_temp
+          keychain-password: ${{ secrets.CERT_P12_PASSWORD }}
+          create-keychain: false
+
+      - name: Install provisioning profile
+        env:
+          PROFILE_B64: ${{ secrets.MAC_PROFILE_BASE64 }}
+        run: |
+          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$DIR"
+          echo "$PROFILE_B64" | base64 --decode > "$DIR/daccord_mac_appstore.provisionprofile"
+
+      - name: Use sandboxed App Store entitlements
+        # Mac App Store requires the App Sandbox. Swap the sandboxed entitlements
+        # over the (non-sandboxed) Release.entitlements in THIS job's checkout
+        # only; the Runner target's CODE_SIGN_ENTITLEMENTS already points there.
+        # The DMG job's checkout is untouched, so it stays non-sandboxed.
+        run: cp macos/Runner/AppStore.entitlements macos/Runner/Release.entitlements
+
+      - name: Build macOS (Flutter, unsigned)
+        # Numeric marketing version only (see the iOS job's note).
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
+          echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
+          # NOTE: flutter build macos has no --no-codesign flag (iOS-only); gym
+          # re-signs on export.
+          flutter build macos --release \
+            --build-name="$BUILD_NAME" \
+            --build-number=${{ github.run_number }} \
+            --dart-define=APP_STORE=true \
+            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+
+      - name: Archive, sign & upload to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_BUNDLE_ID: com.cattrall.daccord
+          MAC_PROFILE_NAME: ${{ secrets.MAC_PROFILE_NAME }}
+        run: bundle exec fastlane mac appstore
+
+  # ---------------------------------------------------------------------------
+  # Google Play deploy. Builds a signed Android App Bundle (.aab) and uploads it
+  # to Google Play via fastlane supply, authenticating with a Play service
+  # account. Like the Apple jobs it runs on a tag push and on workflow_dispatch
+  # (gated by deploy_android). The AAB is signed with the upload key from
+  # secrets; final delivery signing is handled by Play App Signing. Listing
+  # metadata/graphics live in the Play Console — only the binary is uploaded.
+  # See docs/app-store-deploy.md.
+  # ---------------------------------------------------------------------------
+  android-play:
+    name: Google Play
+    needs: ci
+    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_android) }}
+    runs-on: ubuntu-latest
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Set up Ruby
+        # fastlane supply (upload_to_play_store) does the Play upload.
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Decode upload keystore
+        # The AAB must be signed with the upload key before Play accepts it; Play
+        # App Signing then re-signs with the app signing key for delivery.
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+
+      - name: Write Play service-account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Build Android App Bundle
+        # Numeric marketing version only (mirrors the Apple jobs). The Play
+        # build sets APP_STORE=true to disable the in-app GitHub self-updater
+        # (Play policy forbids self-updating; the direct-download APK keeps it).
+        # versionCode = run number so it strictly increases across uploads.
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
+          echo "Play version: $BUILD_NAME (build ${{ github.run_number }})"
+          flutter build appbundle --release \
+            --build-name="$BUILD_NAME" \
+            --build-number=${{ github.run_number }} \
+            --dart-define=APP_STORE=true \
+            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+
+      - name: Upload to Google Play
+        env:
+          PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
+          ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
+          ANDROID_AAB_PATH: build/app/outputs/bundle/release/app-release.aab
+          # Default: push live to the internal testing track so testers get the
+          # build immediately. Override via repo variables for a different
+          # rollout (e.g. PLAY_RELEASE_STATUS=draft to upload without releasing).
+          PLAY_TRACK: ${{ vars.PLAY_TRACK || 'internal' }}
+          PLAY_RELEASE_STATUS: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+        run: bundle exec fastlane android play
