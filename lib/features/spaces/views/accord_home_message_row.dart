@@ -477,6 +477,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     channelId: widget.channelId,
     spaceId: widget.spaceId,
     root: _message,
+    canManageMessages: widget.canManageMessages,
   );
 
   void _report() {
