@@ -1,0 +1,4 @@
+app_identifier(ENV.fetch("APP_BUNDLE_ID", "com.cattrall.daccord"))
+
+# Authentication is via an App Store Connect API key (see Fastfile#asc_api_key);
+# no apple_id / team_id is needed here.

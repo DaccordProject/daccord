@@ -1,0 +1,154 @@
+# Daccord App Store release lanes.
+#
+# These build the *store* variants (iOS App Store + Mac App Store) and upload
+# them to App Store Connect. They are invoked by .github/workflows/release.yml,
+# which first imports the signing certs and provisioning profiles into a temp
+# keychain and runs `flutter build … --no-codesign` so the Flutter/Dart side is
+# already compiled; `build_app` (gym) then archives + signs + exports.
+#
+# Everything is parameterised through environment variables set by the workflow
+# from GitHub secrets — see docs/app-store-deploy.md for the full list.
+#
+# Auth + upload use an App Store Connect API key (no Apple ID / 2FA in CI).
+
+# Build the App Store Connect API key object once per run.
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
+    is_key_content_base64: true,
+  )
+end
+
+# Common manual-signing xcargs. We force manual signing here (rather than in the
+# committed project, which stays on Automatic for local dev) so CI never needs a
+# logged-in Xcode account. `entitlements` is mac-only (the sandboxed App Store
+# entitlements); pass nil for iOS.
+def signing_xcargs(profile_name, entitlements: nil)
+  args = [
+    "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID')}",
+    "CODE_SIGN_STYLE=Manual",
+    "PROVISIONING_PROFILE_SPECIFIER=#{profile_name}",
+    "CODE_SIGN_IDENTITY=Apple Distribution",
+  ]
+  args << "CODE_SIGN_ENTITLEMENTS=#{entitlements}" if entitlements
+  args.join(" ")
+end
+
+platform :ios do
+  desc "Build a signed iOS .ipa and upload it to TestFlight / App Store Connect"
+  lane :beta do
+    api_key = asc_api_key
+    profile = ENV.fetch("IOS_PROFILE_NAME")
+    build_app(
+      workspace: "ios/Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build/appstore",
+      output_name: "Daccord-iOS.ipa",
+      clean: false, # Flutter already produced the build; don't nuke it.
+      export_options: {
+        provisioningProfiles: { ENV.fetch("APP_BUNDLE_ID") => profile },
+        teamID: ENV.fetch("APPLE_TEAM_ID"),
+        signingStyle: "manual",
+      },
+      xcargs: signing_xcargs(profile),
+    )
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "build/appstore/Daccord-iOS.ipa",
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+    )
+  end
+end
+
+platform :mac do
+  desc "Build a sandboxed signed .pkg and upload it to the Mac App Store"
+  lane :appstore do
+    api_key = asc_api_key
+    profile = ENV.fetch("MAC_PROFILE_NAME")
+    build_app(
+      workspace: "macos/Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build/appstore",
+      output_name: "Daccord-macOS",
+      clean: false,
+      export_options: {
+        provisioningProfiles: { ENV.fetch("APP_BUNDLE_ID") => profile },
+        teamID: ENV.fetch("APPLE_TEAM_ID"),
+        signingStyle: "manual",
+      },
+      # CODE_SIGN_ENTITLEMENTS swaps in the sandboxed App Store entitlements
+      # (Release.entitlements stays non-sandboxed for the DMG build).
+      xcargs: signing_xcargs(profile, entitlements: "Runner/AppStore.entitlements"),
+    )
+    pkg = Dir["build/appstore/*.pkg"].first
+    UI.user_error!("No .pkg produced by gym") if pkg.nil?
+    upload_to_app_store(
+      api_key: api_key,
+      pkg: pkg,
+      skip_metadata: true,
+      skip_screenshots: true,
+      skip_app_version_update: true,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true,
+    )
+  end
+
+  desc "Build a Developer ID-signed, notarized universal .dmg for direct download"
+  lane :dmg do
+    api_key = asc_api_key
+    # Re-export the Flutter-built app via gym so all nested frameworks/dylibs
+    # are signed with Developer ID + a hardened runtime (required for
+    # notarization). This is the non-store build, so no App Sandbox and the
+    # self-updater stays on.
+    build_app(
+      workspace: "macos/Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "developer-id",
+      output_directory: "build/macos-signed",
+      output_name: "Daccord",
+      clean: false,
+      export_options: {
+        teamID: ENV.fetch("APPLE_TEAM_ID"),
+        signingStyle: "manual",
+      },
+      xcargs: [
+        "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID')}",
+        "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=Developer ID Application",
+        "ENABLE_HARDENED_RUNTIME=YES",
+        "OTHER_CODE_SIGN_FLAGS=--timestamp",
+      ].join(" "),
+    )
+    app = Dir["build/macos-signed/*.app"].first
+    UI.user_error!("No signed .app produced by gym") if app.nil?
+
+    out = File.join(ENV.fetch("GITHUB_WORKSPACE", Dir.pwd),
+                    ENV.fetch("DMG_OUTPUT", "daccord-macos-universal.dmg"))
+    # Single universal (arm64 + x86_64) image with the usual /Applications
+    # drag-install symlink, mirroring the previous hdiutil packaging.
+    require "tmpdir"
+    Dir.mktmpdir do |tmp|
+      sh("cp", "-R", app, tmp)
+      sh("ln", "-s", "/Applications", File.join(tmp, "Applications"))
+      sh("hdiutil", "create", "-volname", "Daccord", "-srcfolder", tmp,
+         "-ov", "-format", "UDZO", out)
+    end
+
+    # Submit to Apple's notary service and staple the ticket into the DMG so it
+    # passes Gatekeeper offline.
+    notarize(
+      package: out,
+      api_key: api_key,
+      print_log: true,
+    )
+  end
+end

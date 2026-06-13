@@ -125,6 +125,9 @@ class UpdateController extends _$UpdateController {
   /// Runs a startup check (throttled, gated on the setting) and arms the hourly
   /// periodic check. Safe to call repeatedly — the timer is armed only once.
   Future<void> maybeCheckOnStartup() async {
+    // App Store builds update through the store; never check GitHub or arm the
+    // periodic timer (see [kAppStoreBuild]).
+    if (kAppStoreBuild) return;
     _timer ??= Timer.periodic(_throttle, (_) {
       if (ref.read(settingsControllerProvider).autoUpdateCheck) check();
     });
@@ -273,7 +276,7 @@ class UpdateController extends _$UpdateController {
   /// Whether the running platform supports an in-place download-and-install
   /// (desktop binary swap or Android APK install), and a matching asset exists.
   bool get canInstallInPlace =>
-      UpdateInstaller.isSupported && platformAsset() != null;
+      !kAppStoreBuild && UpdateInstaller.isSupported && platformAsset() != null;
 
   /// Downloads the matching platform asset, verifies it against the release's
   /// published checksums (when present), and installs it in place. On desktop
