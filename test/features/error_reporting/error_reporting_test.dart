@@ -62,6 +62,20 @@ void main() {
     expect(resolveGlitchTipDsn(), kDefaultGlitchTipDsn);
   });
 
+  test('kDefaultGlitchTipDsn is parseable and targets project 2', () {
+    final c = GlitchTipClient();
+    expect(
+      c.init(kDefaultGlitchTipDsn),
+      isTrue,
+      reason: 'Default DSN must be parseable by GlitchTipClient',
+    );
+    expect(
+      c.storeUrl,
+      contains('/api/2/store/'),
+      reason: 'Default DSN must target GlitchTip project 2',
+    );
+  });
+
   group('ErrorReportingController', () {
     late Directory tempDir;
 

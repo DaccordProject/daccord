@@ -1,74 +1,210 @@
-# Daccord (Flutter)
+# Daccord — Flutter Client
 
-A free, open-source chat app for communities. Connect to one or more [accordserver](https://github.com/DaccordProject/accordserver) instances and chat in real time with your friends, teammates, or community.
+### Communication without compromise.
 
-This is the **Flutter client** — a fork of [Bonfire](https://github.com/OpenBonfire/bonfire) that reuses its mature Flutter UI and **replaces the Discord networking layer with the Accord protocol** via [`accordkit-dart`](https://github.com/DaccordProject/accordkit-dart). It aims for feature parity with the Godot-based reference client, [`daccord`](https://github.com/DaccordProject/daccord).
+**Daccord** is the free, open-source alternative to Discord — chat, voice, and video with native apps you control. This repository is the **Flutter client**: a fast, beautiful, cross-platform app that talks to *your* server, not someone else's cloud.
 
-> **Status:** early development. The Accord networking foundation, auth, read path, and a first write path are in place.
+No ads. No tracking. No corporate lock-in. **Your server, your data, your rules.**
 
-## Features
+<p align="left">
+  <img alt="License: GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue.svg">
+  <img alt="Built with Flutter" src="https://img.shields.io/badge/built%20with-Flutter-027DFD.svg">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-success.svg">
+  <img alt="Status: early development" src="https://img.shields.io/badge/status-early%20development-orange.svg">
+</p>
 
-- **Real-time messaging** -- Send, edit, delete, and reply to messages instantly over WebSocket
-- **Channels & DMs** -- Organize conversations into channels or message people directly
-- **Multi-server** -- Connect to multiple servers at the same time
-- **Emoji** -- Unicode and custom server emoji with a built-in picker
-- **Voice, video & screen sharing** -- Join voice and video channels and share your screen in real time
-- **Server admin tools** -- Manage channels, roles, bans, invites, and custom emoji
-- **Responsive** -- Works on wide monitors and narrow windows alike
-- **Dark theme** -- Easy on the eyes, right out of the box
+> ⚠️ **Early development.** Daccord is moving fast and things may change. Expect rough edges — and help us file them down.
 
-## Talks only to Accord
+---
 
-This client connects **only** to Daccord/Accord servers -- there is no Discord integration. You enter your Accord server URL at login; gateway and CDN URLs are derived from it.
+## Why Daccord?
 
-## Platform support
+Discord is great until it isn't — until your community gets the wrong end of a moderation bot, until features you relied on disappear behind a paywall, until you realize none of it is actually *yours*.
 
-All platform targets are present (Android, iOS, Windows, macOS, Linux, Web), including voice, video, and screen sharing.
+Daccord flips the model. The people who show up are what make a community — not the platform that hosts it.
 
-## Getting started
+- 🔒 **Your data, your rules.** No ads, no tracking, no corporate lock-in. Privacy without invasive measures like forced identity exposure or unnecessary data collection.
+- 🏠 **Self-hosted by design.** Don't just *join* a server — run your own. Keep full control of your data, accounts, and voice traffic. Nothing passes through us.
+- 🆓 **Free and open source.** GPLv3-licensed and community-driven, with nothing locked behind a paywall.
+- 🌍 **Native on every platform.** Lightweight, fast, and built with Flutter, with a responsive UI that adapts from phone to desktop.
 
-When you first open Daccord, the window will be empty. To start chatting:
+This client is the front door: one native app for every screen you own.
 
-1. Click the **+** button in the server bar on the left
-2. Enter your server URL (for example: `chat.example.com#general?token=your-token`)
-3. That's it -- you'll be connected and can start chatting right away
+---
 
-You can add as many servers as you like. Need a server to connect to? Check out [accordserver](https://github.com/DaccordProject/accordserver) to host your own.
+## ✨ Features
 
-## Building from source
+- 💬 **Real-time messaging** — send, edit, delete, and reply over WebSocket, across channels and DMs. Updates that feel alive.
+- 🌐 **Multi-server** — connect to many Daccord servers at once and switch between them seamlessly. Your work crew and your gaming crew, side by side.
+- 😀 **Emoji** — full unicode support plus custom server emoji, all behind a slick built-in picker.
+- 🎙️ **Voice, video & screen sharing** — crystal-clear calls powered by **LiveKit/WebRTC**, with camera and screen share built right in.
+- 🛡️ **Server admin tools** — manage channels, roles, bans, invites, and custom emoji without ever leaving the app.
+- 📱 **Responsive everywhere** — one UI that flows from phone to desktop, sharp at every size.
+- 🌙 **Dark theme** — easy on the eyes, right out of the box.
 
-Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install).
+---
+
+## 📦 Platforms
+
+Native apps for every major platform:
+
+| Android | iOS | Windows | macOS | Linux | Web |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+All platform targets are present in the repository (`android/`, `ios/`, `windows/`, `macos/`, `linux/`, `web/`).
+
+---
+
+## 🚀 Getting started
+
+Daccord connects only to **Daccord/Accord servers** — there is no Discord integration of any kind. You don't sign in to a central service; you connect directly to a server.
+
+1. Open the app.
+2. Click the **`+`** in the server bar on the left.
+3. Enter a server address — including your channel and token — like this:
+
+   ```
+   chat.example.com#general?token=your-token
+   ```
+
+4. That's it — you're in. 🎉
+
+You can add as many servers as you like.
+
+### Don't have a server yet?
+
+Run your own. **AccordServer** is the open-source, Rust-powered backend that powers every Daccord community — your infrastructure, your rules.
+
+➡️ **[github.com/DaccordProject/accordserver](https://github.com/DaccordProject/accordserver)**
+
+---
+
+## 🧱 How it's built
+
+Daccord stands on the shoulders of giants. It's a fork of **[Bonfire](https://github.com/OpenBonfire/bonfire)** — a mature, fast, cross-platform Discord client written in Flutter. We reuse Bonfire's polished UI, theming, routing, and caching, and **replace its Discord networking layer entirely** with the **Accord protocol** via **[accordkit-dart](https://github.com/DaccordProject/accordkit-dart)**.
+
+The result: Bonfire's battle-tested experience, pointed at a platform that's actually free and open. It aims for feature parity with the Godot-based reference client, [`daccord`](https://github.com/DaccordProject/daccord).
+
+A thin repository layer subscribes to Accord gateway streams, updates a local cache, and exposes Riverpod providers to the UI.
+
+### Tech stack
+
+| Concern | Choice | Notes |
+|---|---|---|
+| Language / framework | Dart / Flutter | |
+| State management | [Riverpod 3](https://riverpod.dev/) | `flutter_riverpod` + `riverpod_annotation` codegen (`*.g.dart`) |
+| Routing | [`go_router`](https://pub.dev/packages/go_router) | |
+| Local storage | [`hive_ce`](https://pub.dev/packages/hive_ce) | boxes: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings` |
+| Networking | [`accordkit`](https://github.com/DaccordProject/accordkit-dart) | Accord protocol SDK — REST + gateway WebSocket + models. Vendored in-tree at `packages/accordkit` |
+| Voice / video / screen share | [`livekit_client`](https://pub.dev/packages/livekit_client) | local fork at `packages/livekit_client`, over WebRTC |
+| Media | [`media_kit`](https://pub.dev/packages/media_kit) / `cached_network_image` | CDN URLs point at the Accord server |
+| Markdown | `markdown_viewer` | custom renderer at `packages/markdown_viewer` |
+| Serialization | `json_serializable` | model types mostly come from `accordkit` (`Accord*`) |
+
+### Domain model
+
+Accord uses similar-but-distinct vocabulary from Discord:
+
+| Term | accordkit type | Meaning |
+|---|---|---|
+| **Space** | `AccordSpace` | a server / community |
+| **Channel** | `AccordChannel` | text, voice, forum, or category |
+| **Message** | `AccordMessage` | |
+| **Member** | `AccordMember` | a user within a space |
+| **User** | `AccordUser` | |
+| **Role** | `AccordRole` | |
+
+---
+
+## 🛠️ Building from source
+
+You'll need the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed.
 
 ```bash
 flutter pub get
-dart run build_runner watch -d   # keep running during dev (Riverpod/Freezed codegen)
-flutter run                       # run on a connected device/emulator
-flutter analyze                   # lint
-flutter test                      # tests
+dart run build_runner watch -d        # keep running during dev (Riverpod / JSON codegen)
+flutter run                            # run on a connected device, emulator, or browser
 ```
 
-`accordkit` is consumed as a git dependency (`DaccordProject/accordkit-dart`). When working on both, a sibling checkout at `../accordkit-dart` is handy.
+`build_runner watch -d` regenerates `*.g.dart` files. Keep it running while developing, or run a one-shot build after editing any `@riverpod` / `json_serializable`-annotated file:
 
-### Build issues (mostly Linux)
+```bash
+dart run build_runner build -d
+```
 
-Media playback uses `media_kit` / libmpv. On Linux you may need:
+### Lint & test
 
-1. **libmpv cannot be found** -- install `libmpv` / `libmpv-devel` (package name varies per distro). On Fedora, if it's installed but not found: `sudo ln -s /usr/lib64/libmpv.so.2 /usr/lib64/libmpv.so.1`.
-2. **media_kit build errors** -- install `mpv` / `mpv-devel`.
-3. **`undefined symbol: vkCreateXlibSurfaceKHR`** -- run `export LD_LIBRARY_PATH=/lib64:$LD_LIBRARY_PATH` (point this at wherever libmpv lives) in the terminal you launch from.
+```bash
+flutter analyze --no-fatal-infos       # --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
+flutter test                           # unit/widget tests (voice/settings/server logic)
+```
 
-## Architecture
+### Release builds
 
-- **State:** Riverpod 3 (codegen) · **Models:** Freezed + `dart_mappable` · **Routing:** `go_router`
-- **Storage:** `hive_ce` · **Media:** `media_kit` / `cached_network_image` / `file_picker`
-- **Networking:** `accordkit` (`AccordClient`: REST + gateway WebSocket). The legacy `packages/firebridge` (Discord) layer has been fully retired.
+```bash
+flutter build apk     --no-tree-shake-icons       # Android
+flutter build web     --no-tree-shake-icons --release   # Web
+flutter build windows
+flutter build macos
+flutter build linux                               # needs libmpv / media_kit deps
+flutter build ios     --release --no-tree-shake-icons --no-codesign
+```
 
-See [`CLAUDE.md`](CLAUDE.md) for the domain mapping (Discord → Accord) and contributor guidance.
+---
 
-## Contributing
+## ❓ FAQ
 
-Contributions are welcome! Feel free to open an issue or submit a pull request.
+**Is Daccord really free?**
+Yes — completely free and open source under the GPLv3. Nothing is locked behind a paywall.
 
-## License
+**Does Daccord connect to Discord?**
+No. This client talks *only* to Daccord/Accord servers. There is no Discord integration — none of your data goes to Discord, and the app never connects to Discord's services.
 
-GPL-3.0 (inherited from Bonfire). See [`LICENSE`](LICENSE). `accordkit` and the reference `daccord` client are MIT, which GPLv3 may incorporate.
+**Where is my data stored?**
+On whichever Accord server you connect to — including one you host yourself. Nothing passes through us.
+
+**Do I need to run a server to use Daccord?**
+No — you can join any Accord server you have an address and token for. But hosting your own gives you full control. See [Don't have a server yet?](#dont-have-a-server-yet)
+
+**Which platforms are supported?**
+Android, iOS, Windows, macOS, Linux, and the Web.
+
+---
+
+## 🤝 Be part of it
+
+> This only works if we do it together.
+
+Daccord grows because people like you show up. It's open source and community-driven — every contribution, bug report, and pull request makes it better for everyone.
+
+- 🐛 **Report bugs** — open an [issue](https://github.com/DaccordProject/daccord/issues) and help us improve.
+- 💻 **Contribute code** — pull requests are welcome.
+- 🚀 **Launch a server** — host your own [AccordServer](https://github.com/DaccordProject/accordserver) and grow a community.
+
+If you're contributing code, a few house rules keep this a port rather than a rewrite:
+
+- Keep changes **minimal and reuse-first** — prefer adapting existing Bonfire widgets, controllers, routing, and theming.
+- Keep new code inside the relevant `lib/features/<feature>/` module and match the surrounding style.
+- Run `dart run build_runner build -d` after touching any `@riverpod` / `json_serializable`-annotated file.
+- **No Discord.** Don't reintroduce Discord endpoints, branding, or Firebase push. This client talks only to Accord servers.
+- Run `flutter analyze --no-fatal-infos` and `flutter test` before opening a PR.
+
+---
+
+## Related repositories
+
+| Repo | What it is | Language | License |
+|---|---|---|---|
+| **this repo** | Flutter client (what you ship) | Dart / Flutter | GPL-3.0 |
+| [`accordkit-dart`](https://github.com/DaccordProject/accordkit-dart) | Accord protocol SDK (networking layer) | Dart | MIT |
+| [`accordserver`](https://github.com/DaccordProject/accordserver) | Accord server backend | Rust | — |
+| [`daccord`](https://github.com/DaccordProject/daccord) | Godot reference client (feature/UX reference) | GDScript | MIT |
+
+`accordkit`, `livekit_client`, and `markdown_viewer` are vendored in-tree under `packages/` and maintained in this repository.
+
+---
+
+## 📄 License
+
+Licensed under the **[GNU General Public License v3.0](LICENSE)** (GPLv3), inherited from Bonfire. AccordKit-Dart and the Godot reference client are MIT-licensed; GPLv3 may incorporate MIT-licensed code, so depending on `accordkit` is fine.
