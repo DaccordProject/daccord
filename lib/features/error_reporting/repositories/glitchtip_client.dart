@@ -148,7 +148,7 @@ class GlitchTipClient {
 
   Future<void> _sendEvent(Map<String, dynamic> event) async {
     try {
-      await _http.post(
+      final response = await _http.post(
         Uri.parse(_storeUrl),
         headers: {
           'Content-Type': 'application/json',
@@ -159,6 +159,12 @@ class GlitchTipClient {
         },
         body: jsonEncode(event),
       );
+      if (kDebugMode && response.statusCode >= 400) {
+        debugPrint(
+          '[GlitchTip] event rejected: HTTP ${response.statusCode} '
+          '(store URL: $_storeUrl)',
+        );
+      }
     } catch (_) {
       // Error reporting must never throw back into the app.
     }
