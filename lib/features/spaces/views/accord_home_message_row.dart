@@ -91,10 +91,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   String get _clock {
     final dt = DateTime.tryParse(_message.timestamp);
     if (dt == null) return '';
-    final local = dt.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
+    return messageClockString(dt.toLocal());
   }
 
   // The header time is date-aware so a message from days ago isn't mistaken for
@@ -104,27 +101,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   String get _time {
     final dt = DateTime.tryParse(_message.timestamp);
     if (dt == null) return '';
-    final local = dt.toLocal();
-    final clock = _clock;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final thatDay = DateTime(local.year, local.month, local.day);
-    final daysAgo = today.difference(thatDay).inDays;
-
-    if (daysAgo == 0) return clock;
-    if (daysAgo == 1) return 'Yesterday at $clock';
-    if (daysAgo >= 2 && daysAgo <= 6) {
-      const weekdays = [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-        'Friday', 'Saturday', 'Sunday', //
-      ];
-      return '${weekdays[local.weekday - 1]} at $clock';
-    }
-
-    final dd = local.day.toString().padLeft(2, '0');
-    final mo = local.month.toString().padLeft(2, '0');
-    return '$dd/$mo/${local.year} $clock';
+    return messageTimeString(dt.toLocal());
   }
 
   // intl isn't a dependency, so the full timestamp shown in the tooltip is
