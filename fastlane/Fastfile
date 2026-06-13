@@ -83,7 +83,10 @@ platform :mac do
     # copies AppStore.entitlements over Release.entitlements in this job's
     # checkout only), so the Runner target's existing CODE_SIGN_ENTITLEMENTS
     # picks them up. The DMG build job keeps the non-sandboxed file.
-    build_app(
+    # build_app returns the exported artifact's absolute path — use it directly
+    # rather than globbing build/appstore (gym's cwd ≠ this lane's, so a relative
+    # glob can miss the file even though gym exported it successfully).
+    pkg = build_app(
       workspace: "macos/Runner.xcworkspace",
       scheme: "Runner",
       configuration: "Release",
@@ -97,8 +100,8 @@ platform :mac do
         signingStyle: "manual",
       },
     )
-    pkg = Dir["build/appstore/*.pkg"].first
-    UI.user_error!("No .pkg produced by gym") if pkg.nil?
+    pkg ||= lane_context[SharedValues::PKG_OUTPUT_PATH] || Dir["build/appstore/*.pkg"].first
+    UI.user_error!("No .pkg produced by gym (got #{pkg.inspect})") if pkg.nil? || !File.exist?(pkg)
     upload_to_app_store(
       api_key: api_key,
       pkg: pkg,
@@ -118,7 +121,10 @@ platform :mac do
     # are signed with Developer ID + a hardened runtime (required for
     # notarization). This is the non-store build, so no App Sandbox and the
     # self-updater stays on.
-    build_app(
+    # build_app returns the exported artifact's absolute path; fall back to a
+    # glob only if that's empty (gym's cwd ≠ this lane's, so a relative glob can
+    # miss the file even when the export succeeded).
+    app = build_app(
       workspace: "macos/Runner.xcworkspace",
       scheme: "Runner",
       configuration: "Release",
@@ -138,8 +144,8 @@ platform :mac do
         "OTHER_CODE_SIGN_FLAGS=--timestamp",
       ].join(" "),
     )
-    app = Dir["build/macos-signed/*.app"].first
-    UI.user_error!("No signed .app produced by gym") if app.nil?
+    app = Dir["build/macos-signed/*.app"].first if app.nil? || !File.exist?(app.to_s)
+    UI.user_error!("No signed .app produced by gym (got #{app.inspect})") if app.nil? || !File.exist?(app)
 
     out = File.join(ENV.fetch("GITHUB_WORKSPACE", Dir.pwd),
                     ENV.fetch("DMG_OUTPUT", "daccord-macos-universal.dmg"))
