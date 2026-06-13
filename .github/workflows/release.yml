@@ -549,6 +549,13 @@ jobs:
           mkdir -p "$DIR"
           echo "$PROFILE_B64" | base64 --decode > "$DIR/daccord_mac_appstore.provisionprofile"
 
+      - name: Use sandboxed App Store entitlements
+        # Mac App Store requires the App Sandbox. Swap the sandboxed entitlements
+        # over the (non-sandboxed) Release.entitlements in THIS job's checkout
+        # only; the Runner target's CODE_SIGN_ENTITLEMENTS already points there.
+        # The DMG job's checkout is untouched, so it stays non-sandboxed.
+        run: cp macos/Runner/AppStore.entitlements macos/Runner/Release.entitlements
+
       - name: Build macOS (Flutter, unsigned)
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
