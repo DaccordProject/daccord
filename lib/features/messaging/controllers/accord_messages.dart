@@ -450,7 +450,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message?.reactions == null) return;
     message!.reactions = message.reactions!
-        .where((r) => _emojiName(r) != emojiName)
+        .where((r) => _emojiName(r) != _emojiKey(emojiName, null))
         .toList();
     state = [...current];
   }
