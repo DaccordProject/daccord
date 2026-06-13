@@ -15,7 +15,7 @@ part 'error_reporting.g.dart';
 /// secret); the dev DSN stays in the repo for local testing, mirroring the
 /// reference client's `project.godot` setup.
 const String kDefaultGlitchTipDsn =
-    'https://8ca39e8b380a42548f2d8e9468d47ac2@crash.daccord.gg/1';
+    'https://f7c1b4791bdc42daac0b6411d41c8c4f@crash.daccord.gg/2';
 
 const String _envSentryDsn = String.fromEnvironment('SENTRY_DSN');
 
