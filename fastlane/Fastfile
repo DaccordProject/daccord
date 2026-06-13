@@ -11,6 +11,8 @@
 #
 # Auth + upload use an App Store Connect API key (no Apple ID / 2FA in CI).
 
+require "shellwords" # String#shellescape for xcargs values containing spaces
+
 # Build the App Store Connect API key object once per run.
 def asc_api_key
   app_store_connect_api_key(
@@ -26,13 +28,17 @@ end
 # logged-in Xcode account. `entitlements` is mac-only (the sandboxed App Store
 # entitlements); pass nil for iOS.
 def signing_xcargs(profile_name, entitlements: nil)
+  # gym passes xcargs to xcodebuild as a raw shell string, so any value
+  # containing a space (e.g. the "Apple Distribution" identity, or a profile
+  # name with spaces) must be shell-escaped — otherwise xcodebuild sees the
+  # second word as a stray token and bails with "Unknown build action".
   args = [
     "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID')}",
     "CODE_SIGN_STYLE=Manual",
-    "PROVISIONING_PROFILE_SPECIFIER=#{profile_name}",
-    "CODE_SIGN_IDENTITY=Apple Distribution",
+    "PROVISIONING_PROFILE_SPECIFIER=#{profile_name.shellescape}",
+    "CODE_SIGN_IDENTITY=#{'Apple Distribution'.shellescape}",
   ]
-  args << "CODE_SIGN_ENTITLEMENTS=#{entitlements}" if entitlements
+  args << "CODE_SIGN_ENTITLEMENTS=#{entitlements.shellescape}" if entitlements
   args.join(" ")
 end
 
@@ -123,7 +129,7 @@ platform :mac do
       xcargs: [
         "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID')}",
         "CODE_SIGN_STYLE=Manual",
-        "CODE_SIGN_IDENTITY=Developer ID Application",
+        "CODE_SIGN_IDENTITY=#{'Developer ID Application'.shellescape}",
         "ENABLE_HARDENED_RUNTIME=YES",
         "OTHER_CODE_SIGN_FLAGS=--timestamp",
       ].join(" "),
