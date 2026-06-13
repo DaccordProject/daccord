@@ -321,7 +321,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = state?.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
     final existing = message.reactions?.firstWhereOrNull(
-      (r) => _emojiName(r) == emojiName,
+      (r) => _emojiName(r) == _emojiKey(emojiName, emojiId),
     );
     final adding = !(existing?.includesMe ?? false);
     final token = emojiId == null
@@ -408,8 +408,9 @@ class AccordMessagesController extends _$AccordMessagesController {
     final message = current.firstWhereOrNull((m) => m.id == messageId);
     if (message == null) return;
 
+    final key = _emojiKey(emojiName, emojiId);
     final reactions = [...(message.reactions ?? const <AccordReaction>[])];
-    final index = reactions.indexWhere((r) => _emojiName(r) == emojiName);
+    final index = reactions.indexWhere((r) => _emojiName(r) == key);
 
     if (added) {
       if (index >= 0) {
@@ -420,7 +421,9 @@ class AccordMessagesController extends _$AccordMessagesController {
       } else {
         reactions.add(
           AccordReaction(
-            emoji: {'id': emojiId, 'name': emojiName},
+            // Store the canonical key (glyph for unicode) so an optimistic pill
+            // and its later gateway echo dedup to one — see [_emojiKey].
+            emoji: {'id': emojiId, 'name': key},
             count: 1,
             includesMe: isOwn,
           ),
@@ -462,13 +465,18 @@ class AccordMessagesController extends _$AccordMessagesController {
     state = [...current];
   }
 
-  // Dedup/match key for a reaction. Custom emoji may arrive with the id baked
-  // into the name (`name:id`) when the source didn't split it; strip it so a
-  // gateway echo and a REST-loaded reaction for the same emoji collapse to one.
-  String _emojiName(AccordReaction r) {
-    final name = r.emoji['name']?.toString() ?? '';
-    final id = r.emoji['id']?.toString();
+  // Dedup/match key for a reaction.
+  String _emojiName(AccordReaction r) =>
+      _emojiKey(r.emoji['name']?.toString() ?? '', r.emoji['id']?.toString());
+
+  // Canonical dedup key for an emoji reference. Custom emoji key on their name
+  // (the id is carried separately, and may arrive baked into the name as
+  // `name:id` when the source didn't split it — strip it). Unicode emoji key on
+  // their glyph: the picker hands us a shortcode (`hamburger`) while the gateway
+  // echoes the glyph (`🍔`), so without resolving both to the glyph an optimistic
+  // pill and its echo wouldn't match, leaving two pills for one reaction.
+  String _emojiKey(String name, String? id) {
     if (id != null && id.isNotEmpty) return name;
-    return parseEmojiToken(name).name;
+    return resolveEmojiGlyph(parseEmojiToken(name).name);
   }
 }
