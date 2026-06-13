@@ -92,7 +92,9 @@ void main() {
       final n = notifier(c);
 
       // A reaction loaded from REST might still have the shortcode as its name.
-      n.state = [_msg(reactions: [_reaction('hamburger', count: 1)])];
+      // It's ours (includesMe) so the own-remove guard lets the toggle proceed —
+      // the point under test is that the glyph still matches the shortcode pill.
+      n.state = [_msg(reactions: [_reaction('hamburger', count: 1, me: true)])];
 
       // Toggle off via glyph (what toggleReaction builds the token from).
       n.applyReaction('m1', '🍔', added: false, isOwn: true, emojiId: null);
