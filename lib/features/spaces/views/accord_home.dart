@@ -579,73 +579,95 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         // Narrow: rail + channel list move into a drawer, members into an
         // end-drawer, so the message pane keeps full width instead of
         // overflowing.
-        return Scaffold(
-          key: _scaffoldKey,
-          backgroundColor: colors.background,
-          drawerEdgeDragWidth: 48,
-          drawer: Drawer(
-            width: 292,
+        //
+        // Wrap in [PopScope] so Android's left-edge back swipe (which shares the
+        // same edge as the swipe-to-open-sidebar gesture) steps through / opens
+        // the drawers instead of popping the route. The home (`/spaces`) is a
+        // child of the login route (`/`), so an un-intercepted system back would
+        // pop down to the sign-in screen — the cause of the "swiping left
+        // re-prompts for sign in" bug.
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            final scaffold = _scaffoldKey.currentState;
+            if (scaffold == null) return;
+            if (scaffold.isEndDrawerOpen) {
+              scaffold.closeEndDrawer();
+            } else if (scaffold.isDrawerOpen) {
+              scaffold.closeDrawer();
+            } else {
+              scaffold.openDrawer();
+            }
+          },
+          child: Scaffold(
+            key: _scaffoldKey,
             backgroundColor: colors.background,
-            child: SafeArea(
-              child: Row(
-                children: [
-                  rail,
-                  Expanded(child: channelList(inDrawer: true)),
-                ],
-              ),
-            ),
-          ),
-          endDrawer: hasMembers
-              ? Drawer(
-                  width: 260,
-                  backgroundColor: colors.background,
-                  child: SafeArea(
-                    child: AccordMemberList(spaceId: effectiveSpaceId),
-                  ),
-                )
-              : null,
-          body: Stack(
-            children: [
-              // Inset the mobile chrome below the OS status bar / nav bar.
-              // The pip overlay stays outside so it can use the full screen.
-              SafeArea(
-                child: Column(
+            drawerEdgeDragWidth: 48,
+            drawer: Drawer(
+              width: 292,
+              backgroundColor: colors.background,
+              child: SafeArea(
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Channels',
-                          icon: Icon(Icons.menu, color: colors.dirtyWhite),
-                          onPressed: () =>
-                              _scaffoldKey.currentState?.openDrawer(),
-                        ),
-                        Expanded(child: _TabStrip(onSelect: _selectTab)),
-                        if (hasMembers)
-                          IconButton(
-                            tooltip: 'Members',
-                            icon: Icon(
-                              Icons.people_alt_outlined,
-                              color: colors.dirtyWhite,
-                            ),
-                            onPressed: () =>
-                                _scaffoldKey.currentState?.openEndDrawer(),
-                          ),
-                      ],
-                    ),
-                    Expanded(
-                      child: _MessagePane(
-                        channel: channels?.firstWhereOrNull(
-                          (c) => c.id == shownChannelId,
-                        ),
-                        channelId: shownChannelId,
-                        spaceId: effectiveSpaceId,
-                      ),
-                    ),
+                    rail,
+                    Expanded(child: channelList(inDrawer: true)),
                   ],
                 ),
               ),
-              pip,
-            ],
+            ),
+            endDrawer: hasMembers
+                ? Drawer(
+                    width: 260,
+                    backgroundColor: colors.background,
+                    child: SafeArea(
+                      child: AccordMemberList(spaceId: effectiveSpaceId),
+                    ),
+                  )
+                : null,
+            body: Stack(
+              children: [
+                // Inset the mobile chrome below the OS status bar / nav bar.
+                // The pip overlay stays outside so it can use the full screen.
+                SafeArea(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Channels',
+                            icon: Icon(Icons.menu, color: colors.dirtyWhite),
+                            onPressed: () =>
+                                _scaffoldKey.currentState?.openDrawer(),
+                          ),
+                          Expanded(child: _TabStrip(onSelect: _selectTab)),
+                          if (hasMembers)
+                            IconButton(
+                              tooltip: 'Members',
+                              icon: Icon(
+                                Icons.people_alt_outlined,
+                                color: colors.dirtyWhite,
+                              ),
+                              onPressed: () =>
+                                  _scaffoldKey.currentState?.openEndDrawer(),
+                            ),
+                        ],
+                      ),
+                      Expanded(
+                        child: _MessagePane(
+                          channel: channels?.firstWhereOrNull(
+                            (c) => c.id == shownChannelId,
+                          ),
+                          channelId: shownChannelId,
+                          spaceId: effectiveSpaceId,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                pip,
+              ],
+            ),
           ),
         );
       },
