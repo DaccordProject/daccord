@@ -71,6 +71,10 @@ jobs:
     # also caches that ~hundreds-of-MB binary — the thing that 504'd before.
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
+      # The Developer ID Application cert can only be created by the account
+      # holder (not the App Store Connect API key), so it may be absent. When it
+      # is, the DMG is built unsigned (previous behaviour) instead of failing.
+      DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -136,7 +140,7 @@ jobs:
 
       - name: Set up Ruby (macOS)
         # Fastlane (gym + notarize) signs and notarizes the DMG below.
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -145,7 +149,7 @@ jobs:
       - name: Import Developer ID certificate (macOS)
         # Developer ID Application cert → the DMG's .app is signed with a
         # hardened runtime and notarized so Gatekeeper allows direct downloads.
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
@@ -272,7 +276,7 @@ jobs:
         run: dist/build-deb.sh "${{ steps.version.outputs.APP_VERSION }}" "${{ matrix.artifact }}.deb"
 
       - name: Sign, package & notarize DMG (macOS)
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
         # gym re-exports the (already Flutter-built) app signed with Developer ID
         # + hardened runtime, then we wrap it in a single universal (arm64 +
         # x86_64) DMG and notarize+staple it so Gatekeeper trusts the download.
@@ -286,6 +290,22 @@ jobs:
           APP_BUNDLE_ID: com.cattrall.daccord
           DMG_OUTPUT: daccord-macos-universal.dmg
         run: bundle exec fastlane mac dmg
+
+      - name: Package unsigned DMG (macOS, no Developer ID cert)
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE != 'true'
+        # Fallback when the Developer ID cert secret isn't set: ship the same
+        # universal DMG unsigned (the pre-notarization behaviour) rather than
+        # failing the release. Gatekeeper will warn on first launch.
+        run: |
+          echo "::warning::DEVELOPER_ID_CERT_P12 not set — building UNSIGNED DMG (not notarized)."
+          APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
+          TMP="$RUNNER_TEMP/dmg"
+          rm -rf "$TMP"; mkdir -p "$TMP"
+          cp -R "$APP" "$TMP/"
+          ln -s /Applications "$TMP/Applications"
+          hdiutil create -volname "Daccord" -srcfolder "$TMP" -ov -format UDZO \
+            "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
+          rm -rf "$TMP"
 
       - name: Package (Windows)
         if: matrix.platform == 'windows'
