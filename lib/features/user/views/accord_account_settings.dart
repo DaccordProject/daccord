@@ -8,6 +8,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+/// Extracts the bare TOTP secret from an `otpauth://` URI, or returns the
+/// input unchanged when it is not an otpauth URI (e.g. already a plain secret).
+///
+/// `otpauth://totp/label?secret=BASE32SECRET&issuer=…` → `BASE32SECRET`
+String? extractTotpSecret(String? uri) {
+  if (uri == null) return null;
+  final match = RegExp(
+    r'[?&]secret=([^&]+)',
+    caseSensitive: false,
+  ).firstMatch(uri);
+  return match?.group(1) ?? uri;
+}
+
 /// Opens the account settings dialog: change password and manage two-factor
 /// authentication. The Accord analogue of Discord's "My Account" panel.
 Future<void> showAccordAccountSettings(BuildContext context) {
@@ -617,6 +630,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
                   data: _otpauth!,
                   size: 180,
                   backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.M,
                 ),
               ),
             ),
@@ -633,7 +647,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               children: [
                 Expanded(
                   child: SelectableText(
-                    _secret ?? _otpauth ?? '',
+                    _secret ?? extractTotpSecret(_otpauth) ?? '',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -641,7 +655,9 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
                   tooltip: 'Copy secret',
                   icon: const Icon(Icons.copy, size: 16),
                   onPressed: () => Clipboard.setData(
-                    ClipboardData(text: _secret ?? _otpauth ?? ''),
+                    ClipboardData(
+                      text: _secret ?? extractTotpSecret(_otpauth) ?? '',
+                    ),
                   ),
                 ),
               ],
@@ -652,10 +668,14 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
             controller: _code,
             enabled: !_busy,
             keyboardType: TextInputType.number,
+            maxLength: 6,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) { if (!_busy) _verify(); },
             decoration: const InputDecoration(
               labelText: '6-digit code',
               isDense: true,
               border: OutlineInputBorder(),
+              counterText: '',
             ),
           ),
           if (_error != null) ...[
