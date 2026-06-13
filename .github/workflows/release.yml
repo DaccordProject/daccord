@@ -560,7 +560,7 @@ jobs:
         env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: >
-          flutter build macos --release
+          flutter build macos --release --no-codesign
           --build-number=${{ github.run_number }}
           --dart-define=APP_STORE=true
           --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
