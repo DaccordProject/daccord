@@ -5,6 +5,19 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Release signing. In CI the upload keystore + credentials come from environment
+// variables (decoded from GitHub secrets by the android-play job); locally they
+// can come from an (untracked) android/key.properties. When neither is present
+// the release build falls back to the debug key so `flutter run --release` and
+// the direct-download APK still build without secrets.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH") ?: keystoreProperties["storeFile"]
+def hasReleaseSigning = releaseStoreFile != null && !releaseStoreFile.toString().isEmpty()
+
 android {
     namespace = "com.daccord_projects.daccord"
     compileSdk = flutter.compileSdkVersion
@@ -28,11 +41,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile = file(releaseStoreFile)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: keystoreProperties["storePassword"]
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: keystoreProperties["keyAlias"]
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: keystoreProperties["keyPassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // Sign release artifacts (AAB for Play, APK for direct download) with
+            // the upload key when it's available; otherwise fall back to the debug
+            // key so secret-less builds (`flutter run --release`, the GitHub
+            // Release APK) still work.
+            signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

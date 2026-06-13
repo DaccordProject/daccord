@@ -44,6 +44,30 @@ def force_manual_signing(project, profile_name)
   )
 end
 
+platform :android do
+  desc "Upload the release App Bundle (.aab) to Google Play"
+  # The workflow builds a signed AAB with `flutter build appbundle` and writes
+  # the Google Play service-account JSON to a file, then calls this lane. Auth is
+  # the service-account key (no interactive Google login in CI). Listing metadata
+  # and graphics are managed in the Play Console, so all uploads except the
+  # binary are skipped here.
+  lane :play do
+    upload_to_play_store(
+      package_name: ENV.fetch("ANDROID_PACKAGE_NAME", "com.daccord_projects.daccord"),
+      json_key: ENV.fetch("PLAY_JSON_KEY_PATH"),
+      aab: ENV.fetch("ANDROID_AAB_PATH", "build/app/outputs/bundle/release/app-release.aab"),
+      track: ENV.fetch("PLAY_TRACK", "internal"),
+      # "completed" releases the build to the track's testers immediately; set
+      # PLAY_RELEASE_STATUS=draft to upload without distributing.
+      release_status: ENV.fetch("PLAY_RELEASE_STATUS", "completed"),
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+    )
+  end
+end
+
 platform :ios do
   desc "Build a signed iOS .ipa and upload it to TestFlight / App Store Connect"
   lane :beta do
