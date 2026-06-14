@@ -1,4 +1,5 @@
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
@@ -36,16 +37,8 @@ class DeveloperSettingsPage extends ConsumerWidget {
     final controller = ref.read(settingsControllerProvider.notifier);
     final server = ref.watch(mcpServerControllerProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Developer'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return SettingsScaffold(
+      title: 'Developer',
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

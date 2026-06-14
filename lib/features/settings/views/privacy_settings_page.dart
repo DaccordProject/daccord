@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/section_header.dart';
@@ -127,16 +128,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
     final spaces = ref.watch(spacesControllerProvider) ?? const <AccordSpace>[];
     final userId = ref.watchUserId();
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Privacy & Data'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return SettingsScaffold(
+      title: 'Privacy & Data',
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

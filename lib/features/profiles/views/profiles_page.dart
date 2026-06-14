@@ -1,4 +1,5 @@
 import 'package:bonfire/features/profiles/controllers/profiles_controller.dart';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/profiles/models/device_profile.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -24,16 +25,8 @@ class ProfilesScreen extends ConsumerWidget {
     final notifier = ref.read(profilesControllerProvider.notifier);
     final activeId = notifier.activeId;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Device Profiles'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return SettingsScaffold(
+      title: 'Device Profiles',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _createProfile(context, ref),
         icon: const Icon(Icons.add),
