@@ -27,7 +27,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # The repo pins the Flutter channel in .fvmrc; keep this in sync with it.
+  # Channel used by the *build* job below. The *analyze* job now matrix-tests
+  # both beta and stable (see strategy.matrix.channel), so it ignores this.
+  # Keep in sync with .fvmrc and release.yml.
   FLUTTER_CHANNEL: beta
   # Workspace-local pub cache so actions/cache can persist it (incl. the
   # flutter_webrtc git checkout + its downloaded libwebrtc binary).
