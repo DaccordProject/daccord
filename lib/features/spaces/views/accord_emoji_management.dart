@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -62,7 +63,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to upload emoji',
+        () => _error = result.errorOr('Failed to upload emoji'),
       );
       return;
     }
@@ -92,7 +93,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to rename emoji',
+        () => _error = result.errorOr('Failed to rename emoji'),
       );
       return;
     }
@@ -126,7 +127,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to delete emoji',
+        () => _error = result.errorOr('Failed to delete emoji'),
       );
       return;
     }

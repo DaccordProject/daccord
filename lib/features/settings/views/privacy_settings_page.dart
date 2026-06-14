@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -109,9 +110,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
     if (!mounted) return;
     setState(() => _leaving.remove(space.id));
     if (!result.ok) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('Failed: ${result.error ?? 'unknown error'}')),
-      );
+      showErrorSnack(context, result, prefix: 'Failed');
       return;
     }
     // Drop the space from the cache immediately; the gateway member.leave echo

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
@@ -183,7 +184,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to save profile',
+        () => _error = result.errorOr('Failed to save profile'),
       );
       return;
     }

@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -190,7 +191,7 @@ class _DangerZoneSectionState extends ConsumerState<_DangerZoneSection> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to delete account';
+        _error = result.errorOr('Failed to delete account');
       });
       return;
     }
@@ -314,7 +315,7 @@ class _PasswordSectionState extends ConsumerState<_PasswordSection> {
       _success = result.ok;
       _message = result.ok
           ? 'Password updated'
-          : result.error?.toString() ?? 'Failed to change password';
+          : result.errorOr('Failed to change password');
       if (result.ok) {
         _old.clear();
         _new.clear();
@@ -423,7 +424,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
         _secret = data['secret']?.toString();
         _otpauth = data['otpauth_uri']?.toString() ?? data['uri']?.toString();
       } else {
-        _error = result.error?.toString() ?? 'Failed to start 2FA setup';
+        _error = result.errorOr('Failed to start 2FA setup');
       }
     });
   }
@@ -454,7 +455,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
         _code.clear();
         widget.onChanged(true);
       } else {
-        _error = result.error?.toString() ?? 'Invalid code';
+        _error = result.errorOr('Invalid code');
       }
     });
   }
@@ -479,7 +480,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
         _backupCodes = null;
         widget.onChanged(false);
       } else {
-        _error = result.error?.toString() ?? 'Failed to disable 2FA';
+        _error = result.errorOr('Failed to disable 2FA');
       }
     });
   }

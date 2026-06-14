@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
@@ -84,7 +85,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     } else {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? failure;
+        _error = result.errorOr(failure);
       });
     }
   }

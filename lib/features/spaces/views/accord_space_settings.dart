@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
@@ -181,7 +182,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      if (!result.ok) _error = result.error?.toString() ?? failure;
+      if (!result.ok) _error = result.errorOr(failure);
     });
     final space = result.data;
     if (result.ok && space is AccordSpace) {
@@ -336,7 +337,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to delete space';
+        _error = result.errorOr('Failed to delete space');
       });
       return;
     }
@@ -396,7 +397,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to update nickname',
+        () => _error = result.errorOr('Failed to update nickname'),
       );
       return;
     }

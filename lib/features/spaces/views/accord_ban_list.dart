@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -70,7 +71,7 @@ class _BanListState extends ConsumerState<_BanList> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to load bans';
+        _error = result.errorOr('Failed to load bans');
       });
       return;
     }
@@ -103,7 +104,7 @@ class _BanListState extends ConsumerState<_BanList> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to unban';
+        _error = result.errorOr('Failed to unban');
       });
       return;
     }

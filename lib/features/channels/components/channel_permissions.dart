@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -324,7 +325,7 @@ class _ChannelPermissionsDialogState
       if (active.contains(id)) continue;
       final res = await client.channels.deleteOverwrite(widget.channel.id, id);
       if (!res.ok) {
-        err = res.error?.toString() ?? 'Failed to update permissions';
+        err = res.errorOr('Failed to update permissions');
         break;
       }
     }
@@ -336,7 +337,7 @@ class _ChannelPermissionsDialogState
           {'type': p.$2, 'allow': p.$3, 'deny': p.$4},
         );
         if (!res.ok) {
-          err = res.error?.toString() ?? 'Failed to update permissions';
+          err = res.errorOr('Failed to update permissions');
           break;
         }
       }

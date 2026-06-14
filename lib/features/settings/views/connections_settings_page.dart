@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -123,9 +124,7 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
     if (!mounted) return;
     setState(() => _disconnecting.remove(conn.id));
     if (!result.ok) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('Failed: ${result.error ?? 'unknown error'}')),
-      );
+      showErrorSnack(context, result, prefix: 'Failed');
       return;
     }
     setState(() {

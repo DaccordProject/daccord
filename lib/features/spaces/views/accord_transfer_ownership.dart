@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -70,7 +71,7 @@ class _TransferOwnershipDialogState
     } else {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to transfer ownership';
+        _error = result.errorOr('Failed to transfer ownership');
       });
     }
   }

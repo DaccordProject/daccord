@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -108,7 +109,7 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
     if (!mounted) return null;
     setState(() {
       _busy = false;
-      if (!result.ok) _error = result.error?.toString() ?? failure;
+      if (!result.ok) _error = result.errorOr(failure);
     });
     return result.ok ? result.data as T? : null;
   }
