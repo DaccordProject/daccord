@@ -1,4 +1,5 @@
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
@@ -24,17 +25,6 @@ import 'package:go_router/go_router.dart';
 /// Client settings: appearance (theme preset + accent), notifications, account.
 class AccordSettingsScreen extends ConsumerWidget {
   const AccordSettingsScreen({super.key});
-
-  static const _accentSwatches = <(int, String)>[
-    (0xFF2448BE, 'Blue'),
-    (0xFF5865F2, 'Blurple'),
-    (0xFF57F287, 'Green'),
-    (0xFFEB459E, 'Pink'),
-    (0xFFFEE75C, 'Yellow'),
-    (0xFFED4245, 'Red'),
-    (0xFF88C0D0, 'Cyan'),
-    (0xFFFF7A45, 'Orange'),
-  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -90,14 +80,14 @@ class AccordSettingsScreen extends ConsumerWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _AccentSwatch(
+                ColorSwatchChip(
                   color: defaultAccentFor(settings.themePreset),
                   selected: settings.accentColor == null,
                   label: 'Default',
                   onTap: () => controller.setAccentColor(null),
                 ),
-                for (final (argb, name) in _accentSwatches)
-                  _AccentSwatch(
+                for (final (argb, name) in avatarColorPalette)
+                  ColorSwatchChip(
                     color: Color(argb),
                     selected: settings.accentColor == argb,
                     label: name,
@@ -499,44 +489,3 @@ class _MasterServerFieldState extends ConsumerState<_MasterServerField> {
   }
 }
 
-class _AccentSwatch extends StatelessWidget {
-  const _AccentSwatch({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-    this.label,
-  });
-
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-  final String? label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final checkColor =
-        ThemeData.estimateBrightnessForColor(color) == Brightness.light
-        ? Colors.black
-        : Colors.white;
-    final swatch = GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? colors.dirtyWhite : Colors.transparent,
-            width: 3,
-          ),
-        ),
-        child: selected ? Icon(Icons.check, size: 18, color: checkColor) : null,
-      ),
-    );
-    final label = this.label;
-    if (label == null || label.isEmpty) return swatch;
-    return Tooltip(message: label, child: swatch);
-  }
-}

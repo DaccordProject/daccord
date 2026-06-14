@@ -78,7 +78,15 @@ class DeveloperSettingsPage extends ConsumerWidget {
                     controller.setMcpGroupAllowed(group, v ?? false),
               ),
             const Divider(height: 24),
-            _ActivityHeader(),
+            SectionHeader(
+              'Recent activity',
+              trailing: TextButton(
+                onPressed: () => ref
+                    .read(mcpServerControllerProvider.notifier)
+                    .clearActivity(),
+                child: const Text('Clear'),
+              ),
+            ),
             if (server.activity.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -216,34 +224,6 @@ class _TokenTile extends ConsumerWidget {
             onPressed: () => ref
                 .read(settingsControllerProvider.notifier)
                 .regenerateMcpToken(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActivityHeader extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'RECENT ACTIVITY',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium!
-                  .copyWith(color: colors.gray, letterSpacing: 0.6),
-            ),
-          ),
-          TextButton(
-            onPressed: () =>
-                ref.read(mcpServerControllerProvider.notifier).clearActivity(),
-            child: const Text('Clear'),
           ),
         ],
       ),
