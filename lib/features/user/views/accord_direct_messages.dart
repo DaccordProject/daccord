@@ -75,9 +75,7 @@ Future<void> openAccordDirectMessage(
   WidgetRef ref,
   String userId,
 ) async {
-  final client = ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  final client = ref.accordClient;
   if (client == null) return;
   final result = await client.users.createDm({
     'recipients': [userId],
