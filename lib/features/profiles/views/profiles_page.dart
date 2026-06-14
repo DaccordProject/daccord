@@ -1,4 +1,5 @@
 import 'package:bonfire/features/profiles/controllers/profiles_controller.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/profiles/models/device_profile.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
@@ -92,28 +93,14 @@ class ProfilesScreen extends ConsumerWidget {
     WidgetRef ref,
     DeviceProfile p,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete profile'),
-        content: Text(
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete profile',
+      message:
           "Delete '${p.name}' and all its accounts and settings? This cannot "
           'be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (confirmed != true) return;
     await ref.read(profilesControllerProvider.notifier).delete(p.id);

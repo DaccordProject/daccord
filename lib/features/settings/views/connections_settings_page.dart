@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -94,27 +95,13 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
     if (client == null || conn.id.isEmpty || _disconnecting.contains(conn.id)) {
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Disconnect'),
-        content: Text(
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Disconnect',
+      message:
           'Disconnect ${conn.type}${conn.name.isNotEmpty ? ' (${conn.name})' : ''}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Disconnect'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Disconnect',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _disconnecting.add(conn.id));
