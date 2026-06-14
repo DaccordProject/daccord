@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,10 +26,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
   bool _busy = false;
   String? _error;
 
-  AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+  AccordClient? get _client => ref.accordClient;
 
   @override
   void initState() {
@@ -105,26 +102,12 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
 
   Future<bool?> _confirm(String title, String message, String action,
       {bool danger = false}) {
-    final colors = BonfireThemeExtension.of(context);
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: danger
-                ? FilledButton.styleFrom(backgroundColor: colors.red)
-                : null,
-            child: Text(action),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: action,
+      danger: danger,
     );
   }
 

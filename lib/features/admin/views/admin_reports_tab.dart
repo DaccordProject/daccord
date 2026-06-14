@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -33,10 +33,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
   String? _error;
   String? _status = 'pending';
 
-  AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+  AccordClient? get _client => ref.accordClient;
 
   @override
   void initState() {
@@ -128,22 +125,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
   }
 
   Future<bool> _confirm(String title, String message, String action) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: action,
     );
     return ok == true;
   }

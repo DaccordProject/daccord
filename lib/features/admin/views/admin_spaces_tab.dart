@@ -1,4 +1,6 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -24,10 +26,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
   bool _busy = false;
   String _query = '';
 
-  AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+  AccordClient? get _client => ref.accordClient;
 
   @override
   void initState() {
@@ -163,22 +162,11 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
   }
 
   Future<bool?> _confirm(String title, String message, String action) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: action,
     );
   }
 

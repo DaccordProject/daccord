@@ -17,8 +17,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _load() async {
     final client = _client;
@@ -136,8 +135,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.accordClient;
 
   bool get _isGroupChannel => _isGroup(_channel, widget.selfId);
 
@@ -277,22 +275,11 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   }
 
   Future<bool?> _confirm(String title, String message, String action) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: action,
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/views/mic_level_meter.dart';
@@ -76,7 +77,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          _Header('Input device'),
+          SectionHeader('Input device'),
           _DeviceDropdown(
             devices: _audioInputs,
             loading: _loadingDevices,
@@ -89,7 +90,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             value: settings.inputVolume,
             onChanged: controller.setInputVolume,
           ),
-          _Header('Mic test'),
+          SectionHeader('Mic test'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Column(
@@ -121,7 +122,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
           ),
           const Divider(height: 24),
           if (!kIsWeb) ...[
-            _Header('Output device'),
+            SectionHeader('Output device'),
             _DeviceDropdown(
               devices: _audioOutputs,
               loading: _loadingDevices,
@@ -136,7 +137,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             onChanged: controller.setOutputVolume,
           ),
           const Divider(height: 24),
-          _Header('Camera'),
+          SectionHeader('Camera'),
           _DeviceDropdown(
             devices: _videoInputs,
             loading: _loadingDevices,
@@ -178,27 +179,6 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium!
-            .copyWith(color: colors.gray, letterSpacing: 0.6),
       ),
     );
   }

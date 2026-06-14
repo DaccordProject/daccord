@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -48,9 +49,7 @@ class _AccountSettingsDialogState
     _loadMfaState();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _loadMfaState() async {
     final client = _client;
@@ -167,9 +166,7 @@ class _DangerZoneSectionState extends ConsumerState<_DangerZoneSection> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _delete() async {
     final client = _client;
@@ -404,9 +401,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _enable() async {
     final client = _client;

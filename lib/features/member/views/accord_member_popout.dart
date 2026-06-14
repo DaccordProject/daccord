@@ -1,4 +1,6 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
@@ -52,9 +54,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   bool _busy = false;
   String? _error;
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _run(
     Future<RestResult> Function(AccordClient client) action, {
@@ -243,22 +243,11 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     required String message,
     required String action,
   }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: action,
     );
   }
 

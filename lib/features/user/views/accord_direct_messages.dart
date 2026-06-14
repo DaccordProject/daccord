@@ -1,4 +1,6 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -76,9 +78,7 @@ Future<void> openAccordDirectMessage(
   WidgetRef ref,
   String userId,
 ) async {
-  final client = ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  final client = ref.accordClient;
   if (client == null) return;
   final result = await client.users.createDm({
     'recipients': [userId],

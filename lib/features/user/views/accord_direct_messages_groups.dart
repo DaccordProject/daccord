@@ -22,9 +22,7 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _search() async {
     final client = _client;
@@ -221,9 +219,7 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _search() async {
     final client = _client;

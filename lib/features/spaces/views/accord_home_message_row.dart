@@ -145,9 +145,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return name.substring(0, 1).toUpperCase();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   void _startEdit() {
     setState(() {

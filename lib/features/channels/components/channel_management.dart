@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/components/channel_permissions.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -76,27 +76,14 @@ Future<bool> confirmAndDeleteChannel(
 }) async {
   final isCategory = channel.type == 'category';
   final noun = isCategory ? 'category' : 'channel';
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Delete $noun'),
-      content: Text(
-          'Delete "${channel.name ?? channel.id}"? This cannot be undone.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
+  final confirmed = await showConfirmDialog(
+    context,
+    title: 'Delete $noun',
+    message: 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
+    confirmLabel: 'Delete',
   );
   if (confirmed != true) return false;
-  final client = ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  final client = ref.accordClient;
   if (client == null) return false;
   final ok = await ref
       .read(accordChannelsControllerProvider(spaceId).notifier)
@@ -154,8 +141,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _submit() async {
     final name = _name.text.trim();
@@ -212,23 +198,11 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     final client = _client;
     final channel = widget.channel;
     if (client == null || channel == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete channel'),
-        content: Text(
-            'Delete "${channel.name ?? channel.id}"? This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete channel',
+      message: 'Delete "${channel.name ?? channel.id}"? This cannot be undone.',
+      confirmLabel: 'Delete',
     );
     if (confirmed != true || !mounted) return;
     setState(() {

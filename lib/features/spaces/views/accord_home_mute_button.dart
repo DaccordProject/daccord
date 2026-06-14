@@ -31,9 +31,7 @@ class _MuteButtonState extends ConsumerState<_MuteButton> {
     }
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _load() async {
     final client = _client;

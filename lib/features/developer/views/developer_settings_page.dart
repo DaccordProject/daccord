@@ -1,4 +1,5 @@
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
+import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -48,7 +49,7 @@ class DeveloperSettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          _SectionHeader('Client MCP server'),
+          SectionHeader('Client MCP server'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
@@ -74,7 +75,7 @@ class DeveloperSettingsPage extends ConsumerWidget {
             const _PortField(),
             const _TokenTile(),
             const Divider(height: 24),
-            _SectionHeader('Exposed tool groups'),
+            SectionHeader('Exposed tool groups'),
             for (final group in AccordSettings.mcpToolGroups)
               CheckboxListTile(
                 dense: true,
@@ -252,27 +253,6 @@ class _ActivityHeader extends ConsumerWidget {
             child: const Text('Clear'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context)
-            .textTheme
-            .labelMedium!
-            .copyWith(color: colors.gray, letterSpacing: 0.6),
       ),
     );
   }
