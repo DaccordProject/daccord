@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:collection/collection.dart';
 import 'package:pasteboard/pasteboard.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';

@@ -1,6 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -33,10 +32,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
   String? _error;
   String? _status = 'pending';
 
-  AccordClient? get _client => ref.read(
-        accordAuthProvider
-            .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-      );
+  AccordClient? get _client => ref.accordClient;
 
   @override
   void initState() {

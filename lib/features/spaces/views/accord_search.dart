@@ -1,9 +1,8 @@
 import 'dart:async';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -59,9 +58,7 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   void _onChanged(String value) {
     _debounce?.cancel();

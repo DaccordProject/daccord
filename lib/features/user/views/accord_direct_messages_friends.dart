@@ -18,9 +18,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _load() async {
     final client = _client;
@@ -275,9 +273,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _search() async {
     final client = _client;

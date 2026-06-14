@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
 
 import 'package:accordkit/accordkit.dart';
@@ -36,9 +37,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   /// independently.
   final Set<String> _leaving = {};
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _requestExport() async {
     final client = _client;

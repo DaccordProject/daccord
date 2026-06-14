@@ -17,8 +17,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     _load();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.accordClient;
 
   Future<void> _load() async {
     final client = _client;
@@ -136,8 +135,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     super.dispose();
   }
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.accordClient;
 
   bool get _isGroupChannel => _isGroup(_channel, widget.selfId);
 

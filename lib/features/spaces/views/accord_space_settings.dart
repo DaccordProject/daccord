@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
@@ -148,9 +149,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     _systemChannelId = space.systemChannelId;
   }
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   Set<String> _perms() {
     final space = ref

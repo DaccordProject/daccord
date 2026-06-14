@@ -1,8 +1,7 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -45,9 +44,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
   bool _selecting = false;
   final Set<String> _selected = {};
 
-  AccordClient? get _client => ref.read(
-    accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-  );
+  AccordClient? get _client => ref.accordClient;
 
   @override
   void initState() {
