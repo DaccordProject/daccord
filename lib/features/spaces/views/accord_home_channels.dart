@@ -726,10 +726,12 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
     moved.parentId = null;
   }
 
-  // [newIndex] is already adjusted for the item removed at [oldIndex]
-  // (ReorderableListView.onReorderItem semantics): it's the target index within
-  // the post-removal list, so no manual decrement is needed.
+  // [ReorderableListView.onReorder] reports [newIndex] in pre-removal
+  // coordinates (the slot is counted as if the dragged item were still
+  // present), so apply the canonical decrement to convert it to the target
+  // index within the post-removal list that the logic below expects.
   void _onReorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
     final visible = _visible;
     final moved = visible[oldIndex];
     final newVisible = [...visible]..removeAt(oldIndex);
@@ -856,7 +858,7 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       buildDefaultDragHandles: false,
       itemCount: visible.length,
-      onReorderItem: _onReorder,
+      onReorder: _onReorder,
       itemBuilder: (context, index) {
         final entry = visible[index];
         return ReorderableDelayedDragStartListener(

@@ -27,7 +27,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # The repo pins the Flutter channel in .fvmrc; keep this in sync with it.
+  # Channel used by the *build* job below. The *analyze* job now matrix-tests
+  # both beta and stable (see strategy.matrix.channel), so it ignores this.
+  # Keep in sync with .fvmrc and release.yml.
   FLUTTER_CHANNEL: beta
   # Workspace-local pub cache so actions/cache can persist it (incl. the
   # flutter_webrtc git checkout + its downloaded libwebrtc binary).
@@ -35,8 +37,19 @@ env:
 
 jobs:
   analyze:
-    name: Analyze & Test
+    name: Analyze & Test (${{ matrix.channel }})
     runs-on: ubuntu-latest
+    strategy:
+      # Run every channel even if one fails, so a stable-only break and a
+      # beta-only break are both reported in the same run.
+      fail-fast: false
+      matrix:
+        # Gate on both the pinned dev channel (.fvmrc) AND stable. A widget/SDK
+        # API that diverges between channels — e.g. ReorderableListView's
+        # onReorder vs onReorderItem (#138, #107) — is a hard error on one and
+        # silently tolerated on the other; analyzing a single channel lets that
+        # land on master. Catching it here is the cheap smoke test.
+        channel: [beta, stable]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,23 +57,24 @@ jobs:
       - name: Cache pub + native deps
         uses: actions/cache@v4
         with:
+          # Channel in the key so beta/stable don't clobber each other's cache.
+          key: pub-${{ runner.os }}-${{ matrix.channel }}-${{ hashFiles('pubspec.lock') }}
           path: ${{ github.workspace }}/.pub-cache
-          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
-            pub-${{ runner.os }}-
+            pub-${{ runner.os }}-${{ matrix.channel }}-
 
       - name: Cache codegen (build_runner)
         uses: actions/cache@v4
         with:
           path: .dart_tool/build
-          key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          key: codegen-${{ runner.os }}-${{ matrix.channel }}-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
-            codegen-${{ runner.os }}-
+            codegen-${{ runner.os }}-${{ matrix.channel }}-
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          channel: ${{ matrix.channel }}
           cache: true
 
       - name: Install dependencies
