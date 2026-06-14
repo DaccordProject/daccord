@@ -17,13 +17,13 @@ Three lenses, applied to every screen and flow:
 2. **Consistency** — same concept looks and behaves the same everywhere: spacing, typography, iconography, button hierarchy, hover/press/focus states, context-menu contents, terminology (use **Accord** vocab — Space, Channel, Member, Role — never Discord's "Guild/Server"). Matches patterns already established in *other* features of this app. Reuses `lib/shared/components/` rather than reinventing.
 3. **Chat-app conventions** — does the interaction match what users already expect from Discord et al.? Message hover actions, reply/edit/react affordances, unread indicators, mention/typing/presence cues, drag-to-reorder, right-click context menus on desktop, long-press + bottom sheets on mobile, swipe gestures. Deviate only when there's a reason; flag unjustified novelty as a cost.
 
-Mobile and desktop are **not** the same audit. The app switches layout at a **720px width breakpoint** (`_wideLayoutBreakpoint` in `accord_home.dart`, mirrored in `voice_view.dart`). Below it: single-pane, drawer nav, touch targets ≥44px, gestures, bottom sheets. Above it: multi-pane, hover states, right-click menus, keyboard shortcuts. Every finding must say which surface(s) it applies to.
+Mobile and desktop are **not** the same audit. The app switches layout at a **720px width breakpoint** (`_wideLayoutBreakpoint` in `accord_home.dart`; `_sidePanelBreakpoint` in `voice_view.dart` — same value, different name). Below it: single-pane, drawer nav, touch targets ≥44px, gestures, bottom sheets. Above it: multi-pane, hover states, right-click menus, keyboard shortcuts. Every finding must say which surface(s) it applies to.
 
 ## Phase 1 — Code-first analysis
 
 Map the feature before looking at it running.
 
-1. Read the feature module top to bottom: `lib/features/<feature>/{views,components,controllers,repositories,models}/`. Note every screen, dialog, sheet, and the user flows that reach them.
+1. Read the feature module top to bottom: `lib/features/<feature>/{views,components,controllers,repositories,models}/`. Note every screen, dialog, sheet, and the user flows that reach them. **Note:** `channels` and `messaging` have no `views/` subdirectory — their UI lives inside `lib/features/spaces/views/` (e.g. `accord_home_messages.dart`, `accord_home_composer.dart`). When sweeping either of those features, include the relevant `spaces/views/` files in your read.
 2. For each surface, check the three lenses above against the code: Does it use `MediaQuery`/`LayoutBuilder` to adapt at 720px, or is it fixed? Does it reuse shared components and theme tokens (`lib/theme/`), or hardcode colors/spacing? Are loading/empty/error states present?
 3. **Cross-feature consistency:** compare against sibling features. If messaging uses a particular context-menu or dialog pattern, the swept feature should too. `grep` for the shared widget to see how others use it.
 4. **Reference benchmarks** (read, don't copy):
@@ -37,7 +37,8 @@ Now see it actually render and behave, to confirm/kill provisional findings and 
 
 **Launch:** prefer the `run` skill, or run on web for browser-driven inspection:
 ```bash
-flutter run -d chrome --web-port 8080   # or the project's usual run path
+flutter run -d chrome --web-port 8080   # preferred: browser tools for screenshots
+flutter run -d linux                    # fallback when Chrome / a browser is unavailable
 ```
 If a daccord MCP server is connected (`mcp__daccord__*`), use it to drive navigation deterministically: `select_space`, `select_channel`, `open_settings`, `open_dm`, `open_thread`, `open_voice_view`, `toggle_member_list`, `toggle_search`, `set_theme`, and `get_current_state` to read where you are. These are faster and more reliable than clicking.
 
