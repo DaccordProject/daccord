@@ -81,7 +81,23 @@ class CallState {
 @Riverpod(keepAlive: true)
 class CallController extends _$CallController {
   @override
-  CallState build() => const CallState();
+  CallState build() {
+    // Catch-all for the outgoing call's voice session ending by any path the
+    // explicit transitions below don't cover — most importantly the in-call
+    // "Disconnect" button, which routes through [VoiceController.leave] without
+    // touching this controller. Without this, the "Calling…" state and the
+    // ringback would leak after a manual hang-up. The server emits `call.end`
+    // to the callee when the room empties, so their ring is dismissed too.
+    ref.listen(voiceControllerProvider.select((v) => v.channelId),
+        (prev, next) {
+      final outgoing = state.outgoingChannelId;
+      if (outgoing != null && prev == outgoing && next != outgoing) {
+        soundManager.stopRingtone();
+        state = state.copyWith(clearOutgoing: true);
+      }
+    });
+    return const CallState();
+  }
 
   /// The client for [serverKey], or the active connection's client when null.
   AccordClient? _clientFor(String? serverKey) {
@@ -104,6 +120,10 @@ class CallController extends _$CallController {
 
     if (video) await voice.toggleVideo();
     state = state.copyWith(outgoingChannelId: channel.id, clearEnded: true);
+    // Ringback for the caller, mirroring the callee's ringtone — a phone-call
+    // staple Discord plays too. Stopped once the call is answered, declined, or
+    // cancelled (see [markAnswered]/[handleDecline]/the build() leave listener).
+    soundManager.startRingtone(outgoing: true);
     await client.voice.ring(channel.id, metadata: {'video': video});
   }
 
@@ -132,6 +152,7 @@ class CallController extends _$CallController {
   /// Cancels an outgoing call we're still ringing on (callee hasn't answered):
   /// leaves voice and sends `call/cancel`. If already answered this just leaves.
   Future<void> cancelOutgoing() async {
+    soundManager.stopRingtone();
     final channelId = state.outgoingChannelId;
     final voice = ref.read(voiceControllerProvider);
     final client = _clientFor(voice.serverKey);
@@ -172,6 +193,7 @@ class CallController extends _$CallController {
   /// surface a "declined" banner.
   void handleDecline(AccordCallSignal sig) {
     if (state.outgoingChannelId != sig.channelId) return;
+    soundManager.stopRingtone();
     ref.read(voiceControllerProvider.notifier).leave();
     state = state.copyWith(clearOutgoing: true, endedMessage: 'Call declined');
   }
@@ -188,6 +210,9 @@ class CallController extends _$CallController {
   /// "Calling…" state. Driven by the voice-state cache in the event handler.
   void markAnswered(String channelId) {
     if (state.outgoingChannelId != channelId) return;
+    // The callee picked up — stop the ringback even though we stay connected
+    // (our own voice channel doesn't change, so the leave listener won't fire).
+    soundManager.stopRingtone();
     state = state.copyWith(clearOutgoing: true);
   }
 }
