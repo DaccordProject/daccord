@@ -268,11 +268,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final bottomGap = compact ? 3.0 : 6.0;
     final avatarRadius = compact ? 14.0 : 18.0;
     final gutter = compact ? 8.0 : 12.0;
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
     final avatarUrl = widget.author != null
         ? accordMemberAvatarUrl(widget.author, cdnUrl)
         : accordAvatarUrl(widget.authorUser, cdnUrl);

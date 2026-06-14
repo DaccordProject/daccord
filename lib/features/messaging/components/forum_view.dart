@@ -251,8 +251,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     final users = ref.watch(accordUsersControllerProvider);
     final ensureUser =
         ref.read(accordUsersControllerProvider.notifier).ensure;
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
+    final cdnUrl = ref.watchCdnUrl();
     return Stack(
       children: [
         Column(

@@ -1,6 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -38,11 +37,7 @@ class AccordMessageContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
 
     final id = spaceId;
     if (id == null) {

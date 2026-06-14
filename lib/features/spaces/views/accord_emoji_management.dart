@@ -2,8 +2,6 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -182,11 +180,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final emojis = ref.watch(accordEmojisControllerProvider(widget.spaceId));
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
 
     return Dialog(
       child: ConstrainedBox(

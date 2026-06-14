@@ -1,6 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
@@ -78,11 +77,7 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
     super.dispose();
   }
 
-  String? get _cdnUrl => ref.read(
-    accordAuthProvider.select(
-      (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-    ),
-  );
+  String? get _cdnUrl => ref.readCdnUrl();
 
   List<AccordEmoji> get _customEmoji {
     final spaceId = widget.spaceId;

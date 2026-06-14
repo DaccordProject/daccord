@@ -1,6 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -49,8 +48,7 @@ class VoiceParticipantList extends ConsumerWidget {
         : ref.watch(spacesControllerProvider.select((s) =>
                 s?.firstWhereOrNull((sp) => sp.id == spaceId)?.roles)) ??
             const <AccordRole>[];
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
+    final cdnUrl = ref.watchCdnUrl();
 
     final sorted = [...states]..sort((a, b) => _nameFor(a.userId, members, users)
         .toLowerCase()

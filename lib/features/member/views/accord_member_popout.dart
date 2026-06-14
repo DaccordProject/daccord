@@ -1,8 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -282,16 +280,8 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         (p) => accordCustomStatus(p, widget.userId),
       ),
     );
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
-    final currentUserId = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
+    final currentUserId = ref.watchUserId();
 
     final name = member != null
         ? accordMemberName(member)

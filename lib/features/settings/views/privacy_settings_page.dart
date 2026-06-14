@@ -5,8 +5,6 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:file_picker/file_picker.dart';
@@ -128,11 +126,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final spaces = ref.watch(spacesControllerProvider) ?? const <AccordSpace>[];
-    final userId = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final userId = ref.watchUserId();
 
     return Scaffold(
       backgroundColor: colors.background,
