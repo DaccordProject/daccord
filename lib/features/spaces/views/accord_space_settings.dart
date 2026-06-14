@@ -521,7 +521,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       ),
       body: _AdaptiveSettingsBody(
         form: [
-          _SectionHeader('Banner'),
+          SectionHeader('Banner'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Column(
@@ -588,7 +588,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
           ),
           if (canManageSpace) ...[
             const Divider(height: 24),
-            _SectionHeader('Overview'),
+            SectionHeader('Overview'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(
@@ -658,7 +658,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               ),
             ),
             const Divider(height: 24),
-            _SectionHeader('Moderation'),
+            SectionHeader('Moderation'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               child: Column(
@@ -721,7 +721,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               subtitle: const Text('Let unauthenticated users browse'),
             ),
             const Divider(height: 24),
-            _SectionHeader('Channels'),
+            SectionHeader('Channels'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               child: Column(
@@ -776,7 +776,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
           ],
         ],
         actions: [
-          _SectionHeader('Membership'),
+          SectionHeader('Membership'),
           ListTile(
             leading: Icon(Icons.badge_outlined, color: colors.dirtyWhite),
             title: const Text('Change your nickname'),
@@ -790,7 +790,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
               canManageEmojis ||
               canUseSoundboard) ...[
             const Divider(height: 24),
-            _SectionHeader('Management'),
+            SectionHeader('Management'),
             if (canManageRoles)
               ListTile(
                 leading: Icon(Icons.shield_outlined, color: colors.dirtyWhite),
@@ -853,7 +853,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
           ],
           if (isOwner) ...[
             const Divider(height: 24),
-            _SectionHeader('Danger zone'),
+            SectionHeader('Danger zone'),
             ListTile(
               leading: Icon(Icons.swap_horiz, color: colors.dirtyWhite),
               title: const Text('Transfer ownership'),
@@ -953,23 +953,5 @@ class _AdaptiveSettingsBody extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelMedium!.copyWith(
-          color: colors.gray,
-          letterSpacing: 0.6,
-        ),
-      ),
-    );
-  }
-}
+// Section headers use the shared SectionHeader from
+// shared/components/section_header.dart.

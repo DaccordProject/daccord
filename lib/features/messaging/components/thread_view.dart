@@ -1,4 +1,6 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -360,8 +362,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
 
   AccordMessage get _message => widget.message;
 
-  AccordClient? get _client => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+  AccordClient? get _client => ref.accordClient;
 
   bool get _canDelete => widget.isOwn || widget.canManageMessages;
 
