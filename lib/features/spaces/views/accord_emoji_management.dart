@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -110,23 +111,12 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     if (client == null) return;
     final id = emoji.id;
     if (id == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete emoji?'),
-        content: Text(':${emoji.name}: will be removed from this space.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete emoji?',
+      message: ':${emoji.name}: will be removed from this space.',
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (ok != true || !mounted) return;
     setState(() {

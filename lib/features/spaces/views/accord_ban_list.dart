@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -89,22 +90,11 @@ class _BanListState extends ConsumerState<_BanList> {
   Future<void> _unban(_Ban ban) async {
     final client = _client;
     if (client == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Unban member?'),
-        content: Text('Allow ${ban.name} back into the space?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Unban'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Unban member?',
+      message: 'Allow ${ban.name} back into the space?',
+      confirmLabel: 'Unban',
     );
     if (ok != true || !mounted) return;
     setState(() => _busy = true);
@@ -128,22 +118,11 @@ class _BanListState extends ConsumerState<_BanList> {
     final client = _client;
     if (client == null || _selected.isEmpty) return;
     final ids = _selected.toList();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Unban members?'),
-        content: Text('Allow ${ids.length} member(s) back into the space?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Unban'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Unban members?',
+      message: 'Allow ${ids.length} member(s) back into the space?',
+      confirmLabel: 'Unban',
     );
     if (ok != true || !mounted) return;
     setState(() => _busy = true);

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
@@ -94,29 +95,15 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   Future<void> _leaveAndDelete(AccordSpace space) async {
     final client = _client;
     if (client == null || _leaving.contains(space.id)) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Leave & Delete Data'),
-        content: Text(
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Leave & Delete Data',
+      message:
           "This will permanently leave '${space.name}' and delete all your "
           'messages, reactions, and data from this server. Your account stays '
           'active. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Leave & Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Leave & Delete',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _leaving.add(space.id));
