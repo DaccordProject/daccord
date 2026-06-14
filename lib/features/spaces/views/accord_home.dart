@@ -351,12 +351,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     final lastId =
         messages?.isNotEmpty == true ? messages!.last.id : fallbackMessageId;
     if (lastId == null) return;
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
-    client?.channels.ack(channelId, lastId);
+    ref.accordClient?.channels.ack(channelId, lastId);
   }
 
   /// Shows the rules interstitial once when a space with a rules channel is
