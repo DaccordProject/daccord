@@ -50,6 +50,14 @@ Set<String> accordEffectivePermissions({
 bool accordHasPermission(Set<String> perms, String perm) =>
     perms.contains(AccordPermission.administrator) || perms.contains(perm);
 
+/// Whether [perms] should reveal the space settings affordance: any of
+/// manage-space, manage-roles or view-audit-log. The gate shared by the space
+/// header menu and the channel list's settings gear.
+bool canManageSpaceSettings(Set<String> perms) =>
+    accordHasPermission(perms, AccordPermission.manageSpace) ||
+    accordHasPermission(perms, AccordPermission.manageRoles) ||
+    accordHasPermission(perms, AccordPermission.viewAuditLog);
+
 /// A sentinel "above everyone" position returned for instance admins and the
 /// space owner, so hierarchy checks treat them as outranking every real role.
 const int kAccordMaxRolePosition = 999999;

@@ -23,10 +23,7 @@ List<AccordMenuEntry> _serverActionEntries(
     previewRoleId: preview?.spaceId == space.id ? preview?.roleId : null,
   );
   final canInvite = accordHasPermission(perms, AccordPermission.createInvites);
-  final canManage =
-      accordHasPermission(perms, AccordPermission.manageSpace) ||
-      accordHasPermission(perms, AccordPermission.manageRoles) ||
-      accordHasPermission(perms, AccordPermission.viewAuditLog);
+  final canManage = canManageSpaceSettings(perms);
   final isOwner = userId != null && space.ownerId == userId;
   final settingsCtl = ref.read(settingsControllerProvider.notifier);
   final muted = ref.read(settingsControllerProvider).isSpaceMuted(space.id);

@@ -76,9 +76,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
         currentUserIsAdmin: isAdmin,
         previewRoleId: preview?.spaceId == id ? preview?.roleId : null,
       );
-      canManage = accordHasPermission(perms, AccordPermission.manageSpace) ||
-          accordHasPermission(perms, AccordPermission.manageRoles) ||
-          accordHasPermission(perms, AccordPermission.viewAuditLog);
+      canManage = canManageSpaceSettings(perms);
       canManageChannels =
           accordHasPermission(perms, AccordPermission.manageChannels);
       canInvite =
