@@ -231,6 +231,8 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                 channelId: channelId,
                 spaceId: spaceId,
                 canPost: canSend || canManageMessages,
+                canManageMessages: canManageMessages,
+                currentUserId: currentUserId,
               ),
             ),
           ],

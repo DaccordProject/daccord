@@ -5,22 +5,48 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/components/thread_view.dart';
+import 'package:bonfire/features/spaces/utils/message_time.dart';
+import 'package:bonfire/shared/components/context_menu.dart';
+import 'package:bonfire/theme/theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// A forum channel's body: a list of top-level posts (each a thread root) with
-/// a "New post" action. Replaces the message stream for `forum`-type channels.
+/// How the forum index orders its posts.
+enum ForumSort { latestActivity, newest, mostReplies }
+
+extension on ForumSort {
+  String get label => switch (this) {
+        ForumSort.latestActivity => 'Latest activity',
+        ForumSort.newest => 'Newest',
+        ForumSort.mostReplies => 'Most replies',
+      };
+}
+
+/// A forum channel's body: a traditional forum board of top-level posts (each a
+/// thread root) with a sort control and a "New post" action. Each row shows the
+/// author, created/last-activity times, reply count, and pinned badge, and
+/// exposes per-post actions (reply / edit / pin / delete). Replaces the message
+/// stream for `forum`-type channels.
 class ForumChannelView extends ConsumerStatefulWidget {
   const ForumChannelView({
     super.key,
     required this.channelId,
     required this.spaceId,
     required this.canPost,
+    this.canManageMessages = false,
+    this.currentUserId,
   });
 
   final String channelId;
   final String? spaceId;
   final bool canPost;
+
+  /// Whether the current user can manage others' posts (pin, delete).
+  final bool canManageMessages;
+
+  /// The signed-in user's id, used to gate edit/delete of own posts.
+  final String? currentUserId;
 
   @override
   ConsumerState<ForumChannelView> createState() => _ForumChannelViewState();
@@ -28,6 +54,7 @@ class ForumChannelView extends ConsumerStatefulWidget {
 
 class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   List<AccordMessage>? _posts;
+  ForumSort _sort = ForumSort.latestActivity;
 
   @override
   void initState() {
@@ -60,6 +87,28 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     });
   }
 
+  /// Posts ordered by the active sort. Pinned posts always float to the top.
+  List<AccordMessage> get _sorted {
+    final posts = [...?_posts];
+    int byNewest(AccordMessage a, AccordMessage b) =>
+        _instant(b.timestamp).compareTo(_instant(a.timestamp));
+    int cmp(AccordMessage a, AccordMessage b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      switch (_sort) {
+        case ForumSort.newest:
+          return byNewest(a, b);
+        case ForumSort.mostReplies:
+          final c = b.replyCount.compareTo(a.replyCount);
+          return c != 0 ? c : byNewest(a, b);
+        case ForumSort.latestActivity:
+          return _lastActivity(b).compareTo(_lastActivity(a));
+      }
+    }
+
+    posts.sort(cmp);
+    return posts;
+  }
+
   Future<void> _newPost() async {
     final created = await showDialog<AccordMessage>(
       context: context,
@@ -70,58 +119,172 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     }
   }
 
+  Future<void> _openPost(AccordMessage post) async {
+    final result = await showAccordThread(
+      context,
+      channelId: widget.channelId,
+      spaceId: widget.spaceId,
+      root: post,
+      canManageMessages: widget.canManageMessages,
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      final list = [...?_posts];
+      final index = list.indexWhere((m) => m.id == post.id);
+      if (index < 0) return;
+      if (result.deleted) {
+        list.removeAt(index);
+      } else if (result.root != null) {
+        list[index] = result.root!;
+      }
+      _posts = list;
+    });
+  }
+
+  bool _isOwn(AccordMessage post) =>
+      widget.currentUserId != null && post.authorId == widget.currentUserId;
+
+  Future<void> _editPost(AccordMessage post) async {
+    final updated = await showPostEditor(
+      context,
+      channelId: widget.channelId,
+      post: post,
+      withTitle: true,
+    );
+    if (updated == null || !mounted) return;
+    setState(() {
+      final list = [...?_posts];
+      final index = list.indexWhere((m) => m.id == post.id);
+      if (index >= 0) list[index] = updated;
+      _posts = list;
+    });
+  }
+
+  Future<void> _deletePost(AccordMessage post) async {
+    final client = _client;
+    if (client == null) return;
+    final confirmed = await confirmDeletePost(context, isPost: true);
+    if (confirmed != true) return;
+    final result = await client.messages.delete(widget.channelId, post.id);
+    if (!mounted || !result.ok) return;
+    setState(() => _posts = [...?_posts]..removeWhere((m) => m.id == post.id));
+  }
+
+  Future<void> _togglePin(AccordMessage post) async {
+    final client = _client;
+    if (client == null) return;
+    final result = post.pinned
+        ? await client.messages.unpin(widget.channelId, post.id)
+        : await client.messages.pin(widget.channelId, post.id);
+    if (!mounted || !result.ok) return;
+    setState(() {
+      final list = [...?_posts];
+      final i = list.indexWhere((m) => m.id == post.id);
+      if (i >= 0) list[i].pinned = !post.pinned;
+      _posts = list;
+    });
+  }
+
+  void _showPostMenu(AccordMessage post, [Offset? position]) {
+    final isOwn = _isOwn(post);
+    final entries = <AccordMenuEntry>[
+      AccordMenuEntry(
+        label: 'Open',
+        icon: Icons.open_in_new,
+        onSelected: () => _openPost(post),
+      ),
+      if (isOwn)
+        AccordMenuEntry(
+          label: 'Edit',
+          icon: Icons.edit_outlined,
+          onSelected: () => _editPost(post),
+        ),
+      if (widget.canManageMessages)
+        AccordMenuEntry(
+          label: post.pinned ? 'Unpin' : 'Pin',
+          icon: post.pinned ? Icons.push_pin_outlined : Icons.push_pin,
+          onSelected: () => _togglePin(post),
+        ),
+      if (isOwn || widget.canManageMessages)
+        AccordMenuEntry(
+          label: 'Delete',
+          icon: Icons.delete_outline,
+          destructive: true,
+          onSelected: () => _deletePost(post),
+        ),
+    ];
+    showAccordContextMenu(context,
+        entries: entries,
+        globalPosition: position,
+        title: resolveForumPostTitle(post));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
     final posts = _posts;
+    // Compute once and capture in the itemBuilder closure so _sorted is not
+    // invoked O(n) times as items scroll into view.
+    final sorted = _sorted;
     final members = widget.spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(widget.spaceId!));
     final users = ref.watch(accordUsersControllerProvider);
     final ensureUser =
         ref.read(accordUsersControllerProvider.notifier).ensure;
+    final cdnUrl = ref.watch(accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
     return Stack(
       children: [
-        if (posts == null)
-          const Center(child: CircularProgressIndicator())
-        else if (posts.isEmpty)
-          Center(
-              child: Text('No posts yet', style: theme.textTheme.bodyMedium))
-        else
-          ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: posts.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              final title = post.title;
-              final titleText =
-                  title is String && title.isNotEmpty ? title : '(untitled)';
-              final author = accordAuthorName(post.authorId,
-                  members: members, users: users, ensure: ensureUser);
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.article_outlined),
-                  title: Text(titleText, style: theme.textTheme.titleSmall),
-                  subtitle: Text(
-                    post.content.isEmpty ? 'by $author' : post.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: post.replyCount > 0
-                      ? Text('${post.replyCount}',
-                          style: theme.textTheme.labelMedium)
-                      : null,
-                  onTap: () => showAccordThread(
-                    context,
-                    channelId: widget.channelId,
-                    spaceId: widget.spaceId,
-                    root: post,
-                  ),
-                ),
-              );
-            },
-          ),
+        Column(
+          children: [
+            _SortBar(
+              sort: _sort,
+              onChanged: (s) => setState(() => _sort = s),
+              count: posts?.length ?? 0,
+            ),
+            Expanded(
+              child: posts == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : posts.isEmpty
+                      ? Center(
+                          child: Text('No posts yet',
+                              style: theme.textTheme.bodyMedium))
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+                            itemCount: sorted.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final post = sorted[index];
+                              return _PostRow(
+                                post: post,
+                                colors: colors,
+                                author: accordAuthorName(post.authorId,
+                                    members: members,
+                                    users: users,
+                                    ensure: ensureUser),
+                                avatarUrl: accordAuthorAvatarUrl(post.authorId,
+                                    members: members,
+                                    users: users,
+                                    cdnUrl: cdnUrl),
+                                avatarBg: accordAvatarColor(
+                                  members?[post.authorId]?.user ??
+                                      users[post.authorId],
+                                  post.authorId,
+                                ),
+                                onTap: () => _openPost(post),
+                                onMenu: (pos) => _showPostMenu(post, pos),
+                              );
+                            },
+                          ),
+                        ),
+            ),
+          ],
+        ),
         if (widget.canPost)
           Positioned(
             right: 16,
@@ -135,6 +298,239 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
       ],
     );
   }
+}
+
+/// The sort selector + post count strip above the board.
+class _SortBar extends StatelessWidget {
+  const _SortBar({
+    required this.sort,
+    required this.onChanged,
+    required this.count,
+  });
+
+  final ForumSort sort;
+  final ValueChanged<ForumSort> onChanged;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Row(
+        children: [
+          Text('$count ${count == 1 ? 'post' : 'posts'}',
+              style: theme.textTheme.labelMedium!
+                  .copyWith(color: colors.gray)),
+          const Spacer(),
+          Icon(Icons.sort, size: 16, color: colors.gray),
+          const SizedBox(width: 6),
+          PopupMenuButton<ForumSort>(
+            initialValue: sort,
+            tooltip: 'Sort posts',
+            onSelected: onChanged,
+            itemBuilder: (context) => [
+              for (final s in ForumSort.values)
+                PopupMenuItem(value: s, child: Text(s.label)),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(sort.label, style: theme.textTheme.labelMedium),
+                Icon(Icons.arrow_drop_down, size: 18, color: colors.gray),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single forum post row: avatar, title (+ pinned badge), author and
+/// created/last-activity metadata, reply count, and an overflow menu.
+class _PostRow extends StatelessWidget {
+  const _PostRow({
+    required this.post,
+    required this.colors,
+    required this.author,
+    required this.avatarUrl,
+    required this.avatarBg,
+    required this.onTap,
+    required this.onMenu,
+  });
+
+  final AccordMessage post;
+  final BonfireThemeExtension colors;
+  final String author;
+  final String? avatarUrl;
+  final Color avatarBg;
+  final VoidCallback onTap;
+  final void Function(Offset position) onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final initial =
+        author.trim().isEmpty ? '?' : author.trim()[0].toUpperCase();
+    final replies = post.replyCount;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      child: GestureDetector(
+        onLongPressStart: (d) => onMenu(d.globalPosition),
+        onSecondaryTapUp: (d) => onMenu(d.globalPosition),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: avatarBg,
+                  foregroundImage: avatarUrl == null
+                      ? null
+                      : CachedNetworkImageProvider(avatarUrl!),
+                  child: Text(initial,
+                      style: theme.textTheme.titleMedium!
+                          .copyWith(color: accordOnColor(avatarBg))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (post.pinned) ...[
+                            Icon(Icons.push_pin,
+                                size: 14, color: colors.primary),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(resolveForumPostTitle(post),
+                                style: theme.textTheme.titleSmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(_metaLine(),
+                          style: theme.textTheme.labelMedium!
+                              .copyWith(color: colors.gray),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      if (post.content.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(post.content,
+                            style: theme.textTheme.bodySmall!
+                                .copyWith(color: colors.gray),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      tooltip: 'Post actions',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        final box = context.findRenderObject() as RenderBox?;
+                        final pos = box == null
+                            ? Offset.zero
+                            : box.localToGlobal(box.size.center(Offset.zero));
+                        onMenu(pos);
+                      },
+                      icon: Icon(Icons.more_horiz,
+                          size: 18, color: colors.gray),
+                    ),
+                    if (replies > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8, top: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.forum_outlined,
+                                size: 14, color: colors.gray),
+                            const SizedBox(width: 4),
+                            Text('$replies',
+                                style: theme.textTheme.labelMedium!
+                                    .copyWith(color: colors.gray)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _metaLine() {
+    final created = _relativeOrDate(post.timestamp);
+    final parts = <String>['by $author'];
+    if (created.isNotEmpty) parts.add(created);
+    final last = _lastReplyText(post);
+    if (last != null) parts.add(last);
+    return parts.join(' · ');
+  }
+}
+
+/// A post's display title: its title if set, else the first line of its body,
+/// else a neutral fallback (never the raw "(untitled)" leak).
+String resolveForumPostTitle(AccordMessage post) {
+  final title = post.title;
+  if (title is String && title.trim().isNotEmpty) return title.trim();
+  final firstLine = post.content.split('\n').firstWhere(
+        (l) => l.trim().isNotEmpty,
+        orElse: () => '',
+      );
+  if (firstLine.trim().isNotEmpty) return firstLine.trim();
+  return 'Untitled post';
+}
+
+/// Parses an ISO timestamp to a comparable instant, or epoch for unparseable
+/// values (so they sort last under a descending order).
+DateTime _instant(String iso) =>
+    DateTime.tryParse(iso)?.toUtc() ??
+    DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+/// A post's last-activity instant: its newest reply, falling back to creation.
+DateTime _lastActivity(AccordMessage post) {
+  final last = post.lastReplyAt;
+  if (last is String && last.isNotEmpty) {
+    final dt = DateTime.tryParse(last);
+    if (dt != null) return dt.toUtc();
+  }
+  return _instant(post.timestamp);
+}
+
+/// A "last reply ..." label for a post with replies, else null.
+String? _lastReplyText(AccordMessage post) {
+  if (post.replyCount <= 0) return null;
+  final last = post.lastReplyAt;
+  if (last is! String || last.isEmpty) return null;
+  final when = _relativeOrDate(last);
+  return when.isEmpty ? null : 'last reply $when';
+}
+
+/// A short date-aware label for an ISO timestamp (reusing the message-time
+/// formatter), or empty when unparseable.
+String _relativeOrDate(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return '';
+  return messageTimeString(dt.toLocal());
 }
 
 class _NewPostDialog extends ConsumerStatefulWidget {
