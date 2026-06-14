@@ -222,6 +222,30 @@ void main() {
       final result = await VoiceApi(rest).getStatus('5');
       expect((result.data as List).single, isA<AccordVoiceState>());
     });
+
+    test('ring posts to the call/ring path with optional metadata', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData({'ok': true}));
+      await VoiceApi(rest).ring('5', metadata: {'video': true});
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/v1/channels/5/call/ring');
+      expect(req.jsonBody, {
+        'metadata': {'video': true}
+      });
+    });
+
+    test('declineCall posts to the call/decline path', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData({'ok': true}));
+      await VoiceApi(rest).declineCall('5');
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/v1/channels/5/call/decline');
+    });
+
+    test('cancelCall posts to the call/cancel path', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData({'ok': true}));
+      await VoiceApi(rest).cancelCall('5');
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/v1/channels/5/call/cancel');
+    });
   });
 
   group('PluginsApi', () {

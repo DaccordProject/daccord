@@ -64,6 +64,7 @@ import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_bar.dart';
 import 'package:bonfire/features/voice/views/voice_participants.dart';
+import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -574,6 +575,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                 ],
               ),
               pip,
+              const IncomingCallOverlay(),
             ],
           );
         }
@@ -667,6 +669,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                   ),
                 ),
                 pip,
+                const IncomingCallOverlay(),
               ],
             ),
           ),
