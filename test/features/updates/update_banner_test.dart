@@ -109,6 +109,43 @@ void main() {
 
       expect(tester.getSize(find.byType(UpdateBanner)).height, 0);
     });
+
+    testWidgets('shows "Update ready" text when updateReady is true',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(
+          update: const UpdateState(
+            latest: _newerRelease,
+            phase: UpdatePhase.ready,
+            stagedArchivePath: '/tmp/archive.zip',
+            preparedVersion: '99.0.0',
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Update ready'), findsOneWidget);
+      expect(find.textContaining('Tap to restart'), findsOneWidget);
+    });
+
+    testWidgets(
+        'collapses "Update ready" banner when dismissedVersion matches',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(
+          update: const UpdateState(
+            latest: _newerRelease,
+            phase: UpdatePhase.ready,
+            stagedArchivePath: '/tmp/archive.zip',
+            preparedVersion: '99.0.0',
+            dismissedVersion: '99.0.0',
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.getSize(find.byType(UpdateBanner)).height, 0);
+    });
   });
 
   group('WebUpdatePrompt', () {

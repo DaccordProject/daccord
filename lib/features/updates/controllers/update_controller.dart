@@ -72,10 +72,6 @@ class UpdateState {
   /// when a newer release ships. Null when nothing has been prepared.
   final String? preparedVersion;
 
-  /// Whether a download/verify is actively in flight in the background.
-  bool get downloading =>
-      phase == UpdatePhase.downloading || phase == UpdatePhase.verifying;
-
   /// Whether an install is actively in flight (download/verify/swap).
   bool get installing =>
       phase == UpdatePhase.downloading ||
@@ -109,6 +105,7 @@ class UpdateState {
     bool clearInstallError = false,
     String? stagedArchivePath,
     String? preparedVersion,
+    bool clearStaged = false,
   }) => UpdateState(
     latest: latest ?? this.latest,
     checking: checking ?? this.checking,
@@ -118,8 +115,8 @@ class UpdateState {
     phase: phase ?? this.phase,
     progress: progress ?? this.progress,
     installError: clearInstallError ? null : (installError ?? this.installError),
-    stagedArchivePath: stagedArchivePath ?? this.stagedArchivePath,
-    preparedVersion: preparedVersion ?? this.preparedVersion,
+    stagedArchivePath: clearStaged ? null : (stagedArchivePath ?? this.stagedArchivePath),
+    preparedVersion: clearStaged ? null : (preparedVersion ?? this.preparedVersion),
   );
 }
 
@@ -320,11 +317,11 @@ class UpdateController extends _$UpdateController {
     final skipped = ref.read(settingsControllerProvider).skippedUpdateVersion;
     if (version == skipped) return;
     // Already downloading/verifying/installing, or already staged for this same
-    // version — don't re-download.
+    // version — don't re-download. The second guard also covers the case where
+    // a staged archive survived an Android install hand-off before the idle
+    // transition cleared it (belt-and-suspenders for any future callers).
     if (state.installing) return;
-    if (state.phase == UpdatePhase.ready && state.preparedVersion == version) {
-      return;
-    }
+    if (state.preparedVersion == version && state.stagedArchivePath != null) return;
     final asset = platformAsset();
     if (asset == null) return;
     try {
@@ -374,7 +371,9 @@ class UpdateController extends _$UpdateController {
       // Desktop: install() quits the process and never returns here. Android:
       // returns once the system installer has been launched.
       await installer.install(archivePath, onReadyToQuit: () async {});
-      state = state.copyWith(phase: UpdatePhase.idle);
+      // Android only: clear staged state so a future re-check can re-stage
+      // if the user cancelled the system installer.
+      state = state.copyWith(phase: UpdatePhase.idle, clearStaged: true);
     } on UpdateInstallException catch (e) {
       state = state.copyWith(
         phase: UpdatePhase.failed,

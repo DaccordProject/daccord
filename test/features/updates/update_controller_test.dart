@@ -173,4 +173,56 @@ void main() {
       expect(state.updateAvailable, isFalse);
     });
   });
+
+  group('UpdateState.updateReady', () {
+    test('is false in initial state', () {
+      expect(const UpdateState().updateReady, isFalse);
+    });
+
+    test('is false when phase is ready but stagedArchivePath is null', () {
+      const state = UpdateState(phase: UpdatePhase.ready);
+      expect(state.updateReady, isFalse);
+    });
+
+    test('is false when stagedArchivePath is set but phase is not ready', () {
+      const state = UpdateState(
+        stagedArchivePath: '/tmp/archive.zip',
+        preparedVersion: '99.0.0',
+      );
+      expect(state.updateReady, isFalse);
+    });
+
+    test('is true when phase is ready and stagedArchivePath is set', () {
+      const state = UpdateState(
+        phase: UpdatePhase.ready,
+        stagedArchivePath: '/tmp/archive.zip',
+        preparedVersion: '99.0.0',
+      );
+      expect(state.updateReady, isTrue);
+    });
+  });
+
+  group('UpdateState.copyWith clearStaged', () {
+    test('clearStaged: true nils out stagedArchivePath and preparedVersion', () {
+      const state = UpdateState(
+        phase: UpdatePhase.ready,
+        stagedArchivePath: '/tmp/archive.zip',
+        preparedVersion: '99.0.0',
+      );
+      final cleared = state.copyWith(phase: UpdatePhase.idle, clearStaged: true);
+      expect(cleared.stagedArchivePath, isNull);
+      expect(cleared.preparedVersion, isNull);
+    });
+
+    test('clearStaged: false (default) preserves existing staged values', () {
+      const state = UpdateState(
+        phase: UpdatePhase.ready,
+        stagedArchivePath: '/tmp/archive.zip',
+        preparedVersion: '99.0.0',
+      );
+      final updated = state.copyWith(phase: UpdatePhase.installing);
+      expect(updated.stagedArchivePath, '/tmp/archive.zip');
+      expect(updated.preparedVersion, '99.0.0');
+    });
+  });
 }
