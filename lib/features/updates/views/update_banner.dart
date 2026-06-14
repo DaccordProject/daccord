@@ -1,7 +1,7 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
-import 'package:bonfire/theme/theme.dart';
+import 'package:bonfire/shared/components/app_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,9 +32,10 @@ class UpdateBanner extends ConsumerWidget {
 
     // A verified build is staged → offer the one-click apply.
     if (update.updateReady) {
-      return _Banner(
-        label: 'Update ready — ${release.name}. Tap to restart & install.',
-        onTap: update.installing ? null : () => notifier.applyUpdate(),
+      return AppBanner(
+        icon: Icons.system_update,
+        message: 'Update ready — ${release.name}. Tap to restart & install.',
+        onTap: update.installing ? () {} : () => notifier.applyUpdate(),
         onDismiss: () => notifier.dismissCurrent(),
       );
     }
@@ -48,59 +49,11 @@ class UpdateBanner extends ConsumerWidget {
         (!notifier.canInstallInPlace || update.phase == UpdatePhase.failed);
     if (!showViewBanner) return const SizedBox.shrink();
 
-    return _Banner(
-      label: 'Update available — ${release.name}. Tap to view.',
+    return AppBanner(
+      icon: Icons.system_update,
+      message: 'Update available — ${release.name}. Tap to view.',
       onTap: () => showUpdatesSettings(context),
       onDismiss: () => notifier.dismissCurrent(),
-    );
-  }
-}
-
-class _Banner extends StatelessWidget {
-  const _Banner({
-    required this.label,
-    required this.onTap,
-    required this.onDismiss,
-  });
-
-  final String label;
-  final VoidCallback? onTap;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Material(
-      color: colors.primary,
-      child: SafeArea(
-        bottom: false,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              children: [
-                const Icon(Icons.system_update, size: 16, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                ),
-                InkWell(
-                  onTap: onDismiss,
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.close, size: 16, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
