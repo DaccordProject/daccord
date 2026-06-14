@@ -142,7 +142,7 @@ class UpdatesScreen extends ConsumerWidget {
                         return FilledButton.icon(
                           onPressed: update.installing
                               ? null
-                              : () => notifier.installUpdate(),
+                              : () => notifier.applyUpdate(),
                           icon: update.installing
                               ? const SizedBox(
                                   width: 16,
@@ -150,7 +150,11 @@ class UpdatesScreen extends ConsumerWidget {
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Icon(Icons.download),
+                              : Icon(
+                                  update.updateReady
+                                      ? Icons.restart_alt
+                                      : Icons.download,
+                                ),
                           label: Text(_installLabel(update)),
                         );
                       }
@@ -224,6 +228,8 @@ String _installLabel(UpdateState update) {
       return update.progress > 0 ? 'Downloading… $pct%' : 'Downloading…';
     case UpdatePhase.verifying:
       return 'Verifying…';
+    case UpdatePhase.ready:
+      return 'Restart & install';
     case UpdatePhase.installing:
       return 'Installing…';
     case UpdatePhase.failed:
