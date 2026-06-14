@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/screen_share_picker.dart';
@@ -85,17 +86,39 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
   /// beside the video grid.
   static const double _sidePanelBreakpoint = 720;
 
+  /// Whether this is a DM/group-DM call (no parent space). DM calls layer the
+  /// ring/accept/decline signaling on top of the plain voice session.
+  bool get _isDmCall => widget.spaceId == null;
+
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final connectedHere = ref.watch(voiceControllerProvider
         .select((v) => v.channelId == widget.channelId));
 
+    // A DM call presented full-screen pops itself once the call ends (we leave,
+    // the peer declines, or the room empties) rather than stranding the user on
+    // an un-rejoinable DM lobby.
+    if (widget.fullScreen && _isDmCall) {
+      ref.listen(voiceControllerProvider.select((v) => v.channelId),
+          (prev, next) {
+        if (prev == widget.channelId && next != widget.channelId && mounted) {
+          Navigator.of(context).maybePop();
+        }
+      });
+    }
+
+    final ringing = _isDmCall &&
+        connectedHere &&
+        ref.watch(callControllerProvider
+            .select((s) => s.outgoingChannelId == widget.channelId));
+
     return Container(
       color: colors.background,
       child: Column(
         children: [
           _header(context, colors),
+          if (ringing) _RingingBanner(name: widget.channelName),
           Expanded(child: _body(connectedHere)),
           if (connectedHere)
             _ControlBar(channelId: widget.channelId, spaceId: widget.spaceId),
@@ -185,6 +208,46 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
                     : Icons.fullscreen,
                 size: 20,
                 color: colors.dirtyWhite),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A thin banner shown while an outgoing DM call is still ringing (the callee
+/// hasn't joined yet).
+class _RingingBanner extends StatelessWidget {
+  const _RingingBanner({required this.name});
+
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: colors.foreground,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: colors.dirtyWhite),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              name == null || name!.isEmpty ? 'Calling…' : 'Calling $name…',
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium!
+                  .copyWith(color: colors.dirtyWhite),
+            ),
           ),
         ],
       ),

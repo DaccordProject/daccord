@@ -4,6 +4,7 @@ import 'dart:math';
 
 import '../core/accord_config.dart';
 import '../models/accord_relationship.dart';
+import '../models/call_signal.dart';
 import '../models/channel.dart';
 import '../models/interaction.dart';
 import '../models/invite.dart';
@@ -131,6 +132,11 @@ class GatewaySocket {
   late final _voiceServerUpdate = _ctrl<AccordVoiceServerUpdate>();
   late final _voiceSignal = _ctrl<Map<String, dynamic>>();
 
+  late final _callRing = _ctrl<AccordCallSignal>();
+  late final _callDecline = _ctrl<AccordCallSignal>();
+  late final _callCancel = _ctrl<AccordCallSignal>();
+  late final _callEnd = _ctrl<AccordCallSignal>();
+
   late final _banCreate = _ctrl<Map<String, dynamic>>();
   late final _banDelete = _ctrl<Map<String, dynamic>>();
 
@@ -222,6 +228,11 @@ class GatewaySocket {
   Stream<AccordVoiceServerUpdate> get onVoiceServerUpdate =>
       _voiceServerUpdate.stream;
   Stream<Map<String, dynamic>> get onVoiceSignal => _voiceSignal.stream;
+
+  Stream<AccordCallSignal> get onCallRing => _callRing.stream;
+  Stream<AccordCallSignal> get onCallDecline => _callDecline.stream;
+  Stream<AccordCallSignal> get onCallCancel => _callCancel.stream;
+  Stream<AccordCallSignal> get onCallEnd => _callEnd.stream;
 
   Stream<Map<String, dynamic>> get onBanCreate => _banCreate.stream;
   Stream<Map<String, dynamic>> get onBanDelete => _banDelete.stream;
@@ -747,6 +758,18 @@ class GatewaySocket {
         break;
       case 'voice.signal':
         _voiceSignal.add(data);
+        break;
+      case 'call.ring':
+        _callRing.add(AccordCallSignal.fromJson(data, type: 'ring'));
+        break;
+      case 'call.decline':
+        _callDecline.add(AccordCallSignal.fromJson(data, type: 'decline'));
+        break;
+      case 'call.cancel':
+        _callCancel.add(AccordCallSignal.fromJson(data, type: 'cancel'));
+        break;
+      case 'call.end':
+        _callEnd.add(AccordCallSignal.fromJson(data, type: 'end'));
         break;
       case 'ban.create':
         _banCreate.add(data);

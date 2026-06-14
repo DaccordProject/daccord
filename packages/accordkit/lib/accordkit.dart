@@ -54,6 +54,7 @@ export 'src/models/activity.dart';
 export 'src/models/application.dart';
 export 'src/models/attachment.dart';
 export 'src/models/audit_log_entry.dart';
+export 'src/models/call_signal.dart';
 export 'src/models/channel.dart';
 export 'src/models/command.dart';
 export 'src/models/embed.dart';
