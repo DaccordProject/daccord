@@ -1,4 +1,5 @@
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
@@ -59,7 +60,7 @@ class AccordSettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          _SectionHeader('Appearance'),
+          SectionHeader('Appearance'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Wrap(
@@ -140,7 +141,7 @@ class AccordSettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(height: 24),
-          _SectionHeader('Notifications'),
+          SectionHeader('Notifications'),
           SwitchListTile(
             title: const Text('Enable notifications'),
             subtitle: const Text('Show a system notification when mentioned'),
@@ -156,7 +157,7 @@ class AccordSettingsScreen extends ConsumerWidget {
                 : null,
           ),
           const Divider(height: 24),
-          _SectionHeader('Error Reporting'),
+          SectionHeader('Error Reporting'),
           SwitchListTile(
             title: const Text('Send error reports'),
             subtitle: const Text(
@@ -179,7 +180,7 @@ class AccordSettingsScreen extends ConsumerWidget {
                 : null,
           ),
           const Divider(height: 24),
-          _SectionHeader('Sounds'),
+          SectionHeader('Sounds'),
           SwitchListTile(
             title: const Text('Enable sounds'),
             subtitle: const Text('Play SFX for messages and mentions'),
@@ -202,7 +203,7 @@ class AccordSettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(height: 24),
-          _SectionHeader('Voice & Video'),
+          SectionHeader('Voice & Video'),
           ListTile(
             leading: Icon(Icons.mic_none, color: colors.dirtyWhite),
             title: const Text('Voice & video settings'),
@@ -213,7 +214,7 @@ class AccordSettingsScreen extends ConsumerWidget {
             onTap: () => showVoiceSettings(context),
           ),
           const Divider(height: 24),
-          _SectionHeader('Account'),
+          SectionHeader('Account'),
           if (session != null)
             ListTile(
               leading: CircleAvatar(
@@ -280,13 +281,13 @@ class AccordSettingsScreen extends ConsumerWidget {
               onTap: () => context.go('/admin'),
             ),
           const Divider(height: 24),
-          _SectionHeader('Server Directory'),
+          SectionHeader('Server Directory'),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: _MasterServerField(),
           ),
           const Divider(height: 24),
-          _SectionHeader('Updates'),
+          SectionHeader('Updates'),
           ListTile(
             leading: Icon(Icons.system_update, color: colors.dirtyWhite),
             title: const Text('Updates'),
@@ -295,10 +296,10 @@ class AccordSettingsScreen extends ConsumerWidget {
             onTap: () => showUpdatesSettings(context),
           ),
           const Divider(height: 24),
-          _SectionHeader('Backup'),
+          SectionHeader('Backup'),
           const SettingsBackupSection(),
           const Divider(height: 24),
-          _SectionHeader('Developer'),
+          SectionHeader('Developer'),
           SwitchListTile(
             title: const Text('Developer Mode'),
             subtitle: const Text(
@@ -316,7 +317,7 @@ class AccordSettingsScreen extends ConsumerWidget {
               onTap: () => showDeveloperSettings(context),
             ),
           const Divider(height: 24),
-          _SectionHeader('About'),
+          SectionHeader('About'),
           ListTile(
             title: const Text('Daccord'),
             subtitle: const Text(
@@ -422,27 +423,6 @@ Future<void> _pickServerProfile(BuildContext context, WidgetRef ref) async {
       ),
     ),
   );
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelMedium!.copyWith(
-          color: colors.gray,
-          letterSpacing: 0.6,
-        ),
-      ),
-    );
-  }
 }
 
 /// Editable master-server directory URL (default https://master.daccord.gg),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
 
@@ -159,7 +160,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          _Header('Data export'),
+          SectionHeader('Data export'),
           _Body(
             'Download a copy of your personal data stored on this server, '
             'including your profile, messages, and relationships. The export '
@@ -196,7 +197,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
               ),
             ),
           const Divider(height: 24),
-          _Header('Leave & delete data'),
+          SectionHeader('Leave & delete data'),
           _Body(
             'Leave a server and permanently delete all your data from it, '
             'including messages, reactions, and read states. Your account on '
@@ -221,7 +222,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                 onLeave: () => _leaveAndDelete(space),
               ),
           const Divider(height: 24),
-          _Header('Data deletion'),
+          SectionHeader('Data deletion'),
           _Body(
             'When you delete your account, all personal data is permanently '
             'removed from the server. This includes your profile, messages, '
@@ -229,7 +230,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
             'cannot be undone. Account deletion lives under Account settings.',
           ),
           const Divider(height: 24),
-          _Header('Data retention'),
+          SectionHeader('Data retention'),
           _Body(
             'Data is retained for as long as your account exists. There is no '
             'automatic expiration of messages or attachments. Server '
@@ -284,27 +285,6 @@ class _SpaceLeaveTile extends StatelessWidget {
               onPressed: onLeave,
               child: const Text('Leave & Delete'),
             ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelMedium!.copyWith(
-          color: colors.gray,
-          letterSpacing: 0.6,
-        ),
-      ),
     );
   }
 }
