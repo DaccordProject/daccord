@@ -108,7 +108,9 @@ class UpdateState {
     String? installError,
     bool clearInstallError = false,
     String? stagedArchivePath,
+    bool clearStagedArchive = false,
     String? preparedVersion,
+    bool clearPreparedVersion = false,
   }) => UpdateState(
     latest: latest ?? this.latest,
     checking: checking ?? this.checking,
@@ -118,8 +120,10 @@ class UpdateState {
     phase: phase ?? this.phase,
     progress: progress ?? this.progress,
     installError: clearInstallError ? null : (installError ?? this.installError),
-    stagedArchivePath: stagedArchivePath ?? this.stagedArchivePath,
-    preparedVersion: preparedVersion ?? this.preparedVersion,
+    stagedArchivePath:
+        clearStagedArchive ? null : (stagedArchivePath ?? this.stagedArchivePath),
+    preparedVersion:
+        clearPreparedVersion ? null : (preparedVersion ?? this.preparedVersion),
   );
 }
 
@@ -374,7 +378,13 @@ class UpdateController extends _$UpdateController {
       // Desktop: install() quits the process and never returns here. Android:
       // returns once the system installer has been launched.
       await installer.install(archivePath, onReadyToQuit: () async {});
-      state = state.copyWith(phase: UpdatePhase.idle);
+      // Clear the staged path so the next periodic check doesn't skip the
+      // re-download guard and re-offer a build that has already been applied.
+      state = state.copyWith(
+        phase: UpdatePhase.idle,
+        clearStagedArchive: true,
+        clearPreparedVersion: true,
+      );
     } on UpdateInstallException catch (e) {
       state = state.copyWith(
         phase: UpdatePhase.failed,

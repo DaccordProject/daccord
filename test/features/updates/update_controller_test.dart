@@ -173,4 +173,117 @@ void main() {
       expect(state.updateAvailable, isFalse);
     });
   });
+
+  group('UpdateState.updateReady', () {
+    test('is false when phase is idle even if stagedArchivePath is set', () {
+      const state = UpdateState(
+        phase: UpdatePhase.idle,
+        stagedArchivePath: '/tmp/daccord.tar.gz',
+      );
+      expect(state.updateReady, isFalse);
+    });
+
+    test('is false when phase is ready but stagedArchivePath is null', () {
+      const state = UpdateState(phase: UpdatePhase.ready);
+      expect(state.updateReady, isFalse);
+    });
+
+    test('is true when phase is ready and stagedArchivePath is set', () {
+      const state = UpdateState(
+        phase: UpdatePhase.ready,
+        stagedArchivePath: '/tmp/daccord.tar.gz',
+      );
+      expect(state.updateReady, isTrue);
+    });
+  });
+
+  group('UpdateState.downloading', () {
+    test('is true when phase is downloading', () {
+      expect(
+        const UpdateState(phase: UpdatePhase.downloading).downloading,
+        isTrue,
+      );
+    });
+
+    test('is true when phase is verifying', () {
+      expect(
+        const UpdateState(phase: UpdatePhase.verifying).downloading,
+        isTrue,
+      );
+    });
+
+    test('is false for idle, ready, installing, failed', () {
+      for (final p in [
+        UpdatePhase.idle,
+        UpdatePhase.ready,
+        UpdatePhase.installing,
+        UpdatePhase.failed,
+      ]) {
+        expect(UpdateState(phase: p).downloading, isFalse, reason: '$p');
+      }
+    });
+  });
+
+  group('UpdateState.installing', () {
+    test('covers downloading, verifying, and installing phases', () {
+      for (final p in [
+        UpdatePhase.downloading,
+        UpdatePhase.verifying,
+        UpdatePhase.installing,
+      ]) {
+        expect(UpdateState(phase: p).installing, isTrue, reason: '$p');
+      }
+    });
+
+    test('is false for idle, ready, and failed', () {
+      // Importantly, ready phase is NOT considered "installing" — this is what
+      // lets the user tap "Apply" while the staged build is waiting.
+      for (final p in [
+        UpdatePhase.idle,
+        UpdatePhase.ready,
+        UpdatePhase.failed,
+      ]) {
+        expect(UpdateState(phase: p).installing, isFalse, reason: '$p');
+      }
+    });
+  });
+
+  group('UpdateState.copyWith staged fields', () {
+    const staged = UpdateState(
+      phase: UpdatePhase.ready,
+      stagedArchivePath: '/tmp/build.tar.gz',
+      preparedVersion: '2.0.0',
+    );
+
+    test('preserves stagedArchivePath and preparedVersion when not cleared', () {
+      final copy = staged.copyWith(phase: UpdatePhase.idle);
+      expect(copy.stagedArchivePath, '/tmp/build.tar.gz');
+      expect(copy.preparedVersion, '2.0.0');
+    });
+
+    test('clearStagedArchive nulls out the path', () {
+      final copy = staged.copyWith(clearStagedArchive: true);
+      expect(copy.stagedArchivePath, isNull);
+      // preparedVersion is untouched
+      expect(copy.preparedVersion, '2.0.0');
+    });
+
+    test('clearPreparedVersion nulls out the version', () {
+      final copy = staged.copyWith(clearPreparedVersion: true);
+      expect(copy.preparedVersion, isNull);
+      // stagedArchivePath is untouched
+      expect(copy.stagedArchivePath, '/tmp/build.tar.gz');
+    });
+
+    test('both clear flags together reset all staged state', () {
+      final copy = staged.copyWith(
+        phase: UpdatePhase.idle,
+        clearStagedArchive: true,
+        clearPreparedVersion: true,
+      );
+      expect(copy.stagedArchivePath, isNull);
+      expect(copy.preparedVersion, isNull);
+      expect(copy.updateReady, isFalse);
+    });
+  });
 }
