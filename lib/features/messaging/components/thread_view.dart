@@ -146,6 +146,12 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
     });
   }
 
+  void _popWithResult() {
+    Navigator.of(context).pop(
+      identical(_root, widget.root) ? null : ThreadResult.edited(_root),
+    );
+  }
+
   Future<void> _editRoot() async {
     final updated = await showPostEditor(
       context,
@@ -186,10 +192,16 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
         (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
     final replies = _replies;
     final currentUserId = _currentUserId;
-    return Dialog(
-      // When the root is edited it returns via [_editRoot] state; a back/scrim
-      // dismiss should still surface that edit to the caller.
-      child: ConstrainedBox(
+    return PopScope(
+      canPop: false,
+      // Ensures back-nav and scrim taps surface any root edit to the caller,
+      // matching the close-button path.
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _popWithResult();
+      },
+      child: Dialog(
+        child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 680),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -207,11 +219,7 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
                         overflow: TextOverflow.ellipsis),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(
-                      identical(_root, widget.root)
-                          ? null
-                          : ThreadResult.edited(_root),
-                    ),
+                    onPressed: _popWithResult,
                     icon: const Icon(Icons.close, size: 18),
                   ),
                 ],
@@ -297,6 +305,7 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -438,7 +447,6 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
       _message.authorId,
     );
     final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
-    final showActions = widget.isOwn || _canDelete;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -491,7 +499,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                   ],
                 ),
               ),
-              if (showActions)
+              if (_canDelete)
                 Opacity(
                   opacity: _hovered ? 1 : 0,
                   child: IconButton(
@@ -523,6 +531,9 @@ Future<bool?> confirmDeletePost(BuildContext context, {required bool isPost}) {
           child: const Text('Cancel'),
         ),
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('Delete'),
         ),

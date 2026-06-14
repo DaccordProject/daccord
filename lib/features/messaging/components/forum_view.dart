@@ -177,7 +177,12 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
         ? await client.messages.unpin(widget.channelId, post.id)
         : await client.messages.pin(widget.channelId, post.id);
     if (!mounted || !result.ok) return;
-    setState(() => post.pinned = !post.pinned);
+    setState(() {
+      final list = [...?_posts];
+      final i = list.indexWhere((m) => m.id == post.id);
+      if (i >= 0) list[i].pinned = !post.pinned;
+      _posts = list;
+    });
   }
 
   void _showPostMenu(AccordMessage post, [Offset? position]) {
@@ -211,7 +216,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     showAccordContextMenu(context,
         entries: entries,
         globalPosition: position,
-        title: _postTitle(post));
+        title: resolveForumPostTitle(post));
   }
 
   @override
@@ -219,6 +224,9 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final posts = _posts;
+    // Compute once and capture in the itemBuilder closure so _sorted is not
+    // invoked O(n) times as items scroll into view.
+    final sorted = _sorted;
     final members = widget.spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(widget.spaceId!));
@@ -247,11 +255,11 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
                           onRefresh: _load,
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-                            itemCount: _sorted.length,
+                            itemCount: sorted.length,
                             separatorBuilder: (_, _) =>
                                 const SizedBox(height: 8),
                             itemBuilder: (context, index) {
-                              final post = _sorted[index];
+                              final post = sorted[index];
                               return _PostRow(
                                 post: post,
                                 colors: colors,
@@ -403,7 +411,7 @@ class _PostRow extends StatelessWidget {
                             const SizedBox(width: 4),
                           ],
                           Expanded(
-                            child: Text(_postTitle(post),
+                            child: Text(resolveForumPostTitle(post),
                                 style: theme.textTheme.titleSmall,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis),
@@ -481,7 +489,7 @@ class _PostRow extends StatelessWidget {
 
 /// A post's display title: its title if set, else the first line of its body,
 /// else a neutral fallback (never the raw "(untitled)" leak).
-String _postTitle(AccordMessage post) {
+String resolveForumPostTitle(AccordMessage post) {
   final title = post.title;
   if (title is String && title.trim().isNotEmpty) return title.trim();
   final firstLine = post.content.split('\n').firstWhere(
