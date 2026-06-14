@@ -10,6 +10,27 @@ void main() {
     video: true,
   );
 
+  group('CallState.hasOutgoing', () {
+    test('false when no outgoing call', () {
+      expect(const CallState().hasOutgoing, isFalse);
+    });
+
+    test('true once outgoingChannelId is set', () {
+      expect(const CallState(outgoingChannelId: 'dm1').hasOutgoing, isTrue);
+    });
+
+    test('cleared immediately by clearOutgoing (guards re-entrant startCall)',
+        () {
+      const state = CallState(outgoingChannelId: 'dm1');
+      expect(state.hasOutgoing, isTrue);
+      // Simulates the optimistic guard: a second tap sees the flag already set.
+      final concurrent = state.copyWith();
+      expect(concurrent.hasOutgoing, isTrue);
+      // After the call ends the flag is cleared.
+      expect(state.copyWith(clearOutgoing: true).hasOutgoing, isFalse);
+    });
+  });
+
   group('CallState.copyWith', () {
     test('carries forward unspecified fields', () {
       const state = CallState(incoming: incoming, outgoingChannelId: 'dm9');

@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/notifications/controllers/sound.dart';
@@ -81,23 +83,7 @@ class CallState {
 @Riverpod(keepAlive: true)
 class CallController extends _$CallController {
   @override
-  CallState build() {
-    // Catch-all for the outgoing call's voice session ending by any path the
-    // explicit transitions below don't cover — most importantly the in-call
-    // "Disconnect" button, which routes through [VoiceController.leave] without
-    // touching this controller. Without this, the "Calling…" state and the
-    // ringback would leak after a manual hang-up. The server emits `call.end`
-    // to the callee when the room empties, so their ring is dismissed too.
-    ref.listen(voiceControllerProvider.select((v) => v.channelId),
-        (prev, next) {
-      final outgoing = state.outgoingChannelId;
-      if (outgoing != null && prev == outgoing && next != outgoing) {
-        soundManager.stopRingtone();
-        state = state.copyWith(clearOutgoing: true);
-      }
-    });
-    return const CallState();
-  }
+  CallState build() => const CallState();
 
   /// The client for [serverKey], or the active connection's client when null.
   AccordClient? _clientFor(String? serverKey) {
@@ -109,34 +95,48 @@ class CallController extends _$CallController {
   /// Places an outgoing call on a DM/group-DM [channel]: joins voice, then rings
   /// the other participant(s). [video] starts the camera and hints the callee.
   Future<void> startCall(AccordChannel channel, {bool video = false}) async {
+    // Guard against concurrent taps: set outgoingChannelId synchronously so a
+    // second tap that arrives before the first await sees hasOutgoing == true.
+    if (state.hasOutgoing) return;
+    if (ref.read(voiceControllerProvider).channelId == channel.id) return;
+    state = state.copyWith(outgoingChannelId: channel.id, clearEnded: true);
+
     final serverKey = ref.read(connectionsControllerProvider).activeKey;
     final client = _clientFor(serverKey);
-    if (client == null) return;
+    if (client == null) {
+      state = state.copyWith(clearOutgoing: true);
+      return;
+    }
 
     final voice = ref.read(voiceControllerProvider.notifier);
     await voice.join(channel.id, null);
     // Bail if the join failed (the voice controller surfaces its own error).
-    if (ref.read(voiceControllerProvider).channelId != channel.id) return;
+    if (ref.read(voiceControllerProvider).channelId != channel.id) {
+      state = state.copyWith(clearOutgoing: true);
+      return;
+    }
 
     if (video) await voice.toggleVideo();
-    state = state.copyWith(outgoingChannelId: channel.id, clearEnded: true);
-    // Ringback for the caller, mirroring the callee's ringtone — a phone-call
-    // staple Discord plays too. Stopped once the call is answered, declined, or
-    // cancelled (see [markAnswered]/[handleDecline]/the build() leave listener).
-    soundManager.startRingtone(outgoing: true);
+    unawaited(soundManager.startRingtone(outgoing: true));
     await client.voice.ring(channel.id, metadata: {'video': video});
   }
 
   /// Accepts the pending incoming call by joining its voice channel (the server
-  /// treats the join as the accept). Returns the channel id joined, or null.
+  /// treats the join as the accept). Returns the channel id joined, or null on
+  /// failure (e.g. the voice join was rejected by the server).
   Future<String?> acceptIncoming() async {
     final incoming = state.incoming;
     if (incoming == null) return null;
-    soundManager.stopRingtone();
+    unawaited(soundManager.stopRingtone());
     state = state.copyWith(clearIncoming: true);
     await ref
         .read(voiceControllerProvider.notifier)
         .join(incoming.channelId, null);
+    // Voice controller surfaces its own error; return null so the caller won't
+    // open a full-screen view for a channel we aren't actually connected to.
+    if (ref.read(voiceControllerProvider).channelId != incoming.channelId) {
+      return null;
+    }
     return incoming.channelId;
   }
 
@@ -144,23 +144,21 @@ class CallController extends _$CallController {
   Future<void> declineIncoming() async {
     final incoming = state.incoming;
     if (incoming == null) return;
-    soundManager.stopRingtone();
+    unawaited(soundManager.stopRingtone());
     state = state.copyWith(clearIncoming: true);
     await _clientFor(incoming.serverKey)?.voice.declineCall(incoming.channelId);
   }
 
   /// Cancels an outgoing call we're still ringing on (callee hasn't answered):
-  /// leaves voice and sends `call/cancel`. If already answered this just leaves.
+  /// leaves voice and sends `call/cancel`. No-ops if there is no outgoing call.
   Future<void> cancelOutgoing() async {
-    soundManager.stopRingtone();
     final channelId = state.outgoingChannelId;
-    final voice = ref.read(voiceControllerProvider);
-    final client = _clientFor(voice.serverKey);
+    if (channelId == null) return;
+    final client = _clientFor(ref.read(voiceControllerProvider).serverKey);
+    unawaited(soundManager.stopRingtone());
+    state = state.copyWith(clearOutgoing: true);
     await ref.read(voiceControllerProvider.notifier).leave();
-    if (channelId != null) {
-      await client?.voice.cancelCall(channelId);
-      state = state.copyWith(clearOutgoing: true);
-    }
+    await client?.voice.cancelCall(channelId);
   }
 
   void clearEndedMessage() {
@@ -168,7 +166,7 @@ class CallController extends _$CallController {
     state = state.copyWith(clearEnded: true);
   }
 
-  // ── Gateway-driven transitions (called from the event handler) ────────────
+  // ── Gateway-driven transitions (called from the event handler) ────────────────
 
   /// A `call.ring` arrived. Ignored if it's our own ring or we're already in the
   /// call; otherwise shows the incoming-call UI and starts the ringtone.
@@ -186,15 +184,15 @@ class CallController extends _$CallController {
         video: sig.metadata?['video'] == true,
       ),
     );
-    soundManager.startRingtone();
+    unawaited(soundManager.startRingtone());
   }
 
   /// A `call.decline` arrived. If it's for our outgoing call, end it locally and
   /// surface a "declined" banner.
   void handleDecline(AccordCallSignal sig) {
     if (state.outgoingChannelId != sig.channelId) return;
-    soundManager.stopRingtone();
-    ref.read(voiceControllerProvider.notifier).leave();
+    unawaited(soundManager.stopRingtone());
+    unawaited(ref.read(voiceControllerProvider.notifier).leave());
     state = state.copyWith(clearOutgoing: true, endedMessage: 'Call declined');
   }
 
@@ -202,17 +200,15 @@ class CallController extends _$CallController {
   /// answered (or the room emptied). Dismiss any incoming ring for that channel.
   void handleCancelOrEnd(AccordCallSignal sig) {
     if (state.incoming?.channelId != sig.channelId) return;
-    soundManager.stopRingtone();
+    unawaited(soundManager.stopRingtone());
     state = state.copyWith(clearIncoming: true);
   }
 
   /// A peer joined the channel we're ringing — the call connected, so drop the
-  /// "Calling…" state. Driven by the voice-state cache in the event handler.
+  /// "Calling…" state and stop the outgoing ringback tone.
   void markAnswered(String channelId) {
     if (state.outgoingChannelId != channelId) return;
-    // The callee picked up — stop the ringback even though we stay connected
-    // (our own voice channel doesn't change, so the leave listener won't fire).
-    soundManager.stopRingtone();
+    unawaited(soundManager.stopRingtone());
     state = state.copyWith(clearOutgoing: true);
   }
 }
