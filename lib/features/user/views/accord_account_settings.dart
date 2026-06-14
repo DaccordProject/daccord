@@ -6,6 +6,20 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
+/// Extracts the bare TOTP secret from an `otpauth://` URI, or returns the
+/// input unchanged when it is not an otpauth URI (e.g. already a plain secret).
+///
+/// `otpauth://totp/label?secret=BASE32SECRET&issuer=…` → `BASE32SECRET`
+String? extractTotpSecret(String? uri) {
+  if (uri == null) return null;
+  final match = RegExp(
+    r'[?&]secret=([^&]+)',
+    caseSensitive: false,
+  ).firstMatch(uri);
+  return match?.group(1) ?? uri;
+}
 
 /// Opens the account settings dialog: change password and manage two-factor
 /// authentication. The Accord analogue of Discord's "My Account" panel.
@@ -68,7 +82,7 @@ class _AccountSettingsDialogState
                 children: [
                   Expanded(
                     child: Text(
-                      'Account settings',
+                      'Password & Security',
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
@@ -598,9 +612,29 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
         ] else ...[
           Text(
-            'Add this secret to your authenticator app, then enter the code:',
+            'Scan this QR code with your authenticator app, or enter the '
+            'secret manually, then type the 6-digit code:',
             style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
           ),
+          if (_otpauth != null) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                // White quiet zone so scanners read the code regardless of theme.
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: QrImageView(
+                  data: _otpauth!,
+                  size: 180,
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.M,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
@@ -609,9 +643,24 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               color: colors.darkGray,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: SelectableText(
-              _secret ?? _otpauth ?? '',
-              style: theme.textTheme.bodyMedium,
+            child: Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    _secret ?? extractTotpSecret(_otpauth) ?? '',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Copy secret',
+                  icon: const Icon(Icons.copy, size: 16),
+                  onPressed: () => Clipboard.setData(
+                    ClipboardData(
+                      text: _secret ?? extractTotpSecret(_otpauth) ?? '',
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 10),
@@ -619,10 +668,14 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
             controller: _code,
             enabled: !_busy,
             keyboardType: TextInputType.number,
+            maxLength: 6,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) { if (!_busy) _verify(); },
             decoration: const InputDecoration(
               labelText: '6-digit code',
               isDense: true,
               border: OutlineInputBorder(),
+              counterText: '',
             ),
           ),
           if (_error != null) ...[
