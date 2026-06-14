@@ -170,10 +170,11 @@ class VoiceController extends _$VoiceController {
 
   /// Joins the voice [channelId] in [spaceId]. Leaves any current channel
   /// first, fetches LiveKit credentials over REST, then connects the session.
-  Future<void> join(String channelId, String spaceId) =>
+  /// [spaceId] is null for DM/group-DM calls, which have no parent space.
+  Future<void> join(String channelId, String? spaceId) =>
       _serialize(() => _joinLocked(channelId, spaceId));
 
-  Future<void> _joinLocked(String channelId, String spaceId) async {
+  Future<void> _joinLocked(String channelId, String? spaceId) async {
     if (state.channelId == channelId) return;
     if (state.isConnected) await _leaveLocked();
 

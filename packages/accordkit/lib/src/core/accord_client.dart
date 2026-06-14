@@ -4,6 +4,7 @@ import '../gateway/gateway_connection.dart';
 import '../gateway/gateway_events.dart';
 import '../gateway/gateway_socket.dart';
 import '../models/accord_relationship.dart';
+import '../models/call_signal.dart';
 import '../models/channel.dart';
 import '../models/interaction.dart';
 import '../models/invite.dart';
@@ -235,6 +236,11 @@ class AccordClient {
   Stream<AccordVoiceServerUpdate> get onVoiceServerUpdate =>
       gateway.onVoiceServerUpdate;
   Stream<Map<String, dynamic>> get onVoiceSignal => gateway.onVoiceSignal;
+
+  Stream<AccordCallSignal> get onCallRing => gateway.onCallRing;
+  Stream<AccordCallSignal> get onCallDecline => gateway.onCallDecline;
+  Stream<AccordCallSignal> get onCallCancel => gateway.onCallCancel;
+  Stream<AccordCallSignal> get onCallEnd => gateway.onCallEnd;
 
   Stream<Map<String, dynamic>> get onBanCreate => gateway.onBanCreate;
   Stream<Map<String, dynamic>> get onBanDelete => gateway.onBanDelete;

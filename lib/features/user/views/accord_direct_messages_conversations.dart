@@ -296,6 +296,24 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     );
   }
 
+  /// Places an outgoing DM call: rings the other participant(s) and opens the
+  /// full-screen call view. The callee gets a `call.ring` and can accept/decline.
+  Future<void> _startCall({required bool video}) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    await ref
+        .read(callControllerProvider.notifier)
+        .startCall(_channel, video: video);
+    if (!mounted) return;
+    // Bail if the underlying voice join failed (an error is surfaced elsewhere).
+    if (ref.read(voiceControllerProvider).channelId != _channel.id) return;
+    await showFullScreenVoice(
+      navigator.context,
+      channelId: _channel.id,
+      spaceId: null,
+      channelName: _channelTitle(_channel, widget.selfId),
+    );
+  }
+
   void _showMembers() {
     showDialog<void>(
       context: context,
@@ -358,6 +376,16 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
                 child: Text(_channelTitle(_channel, widget.selfId),
                     style: theme.textTheme.titleSmall,
                     overflow: TextOverflow.ellipsis),
+              ),
+              IconButton(
+                tooltip: 'Start voice call',
+                onPressed: () => _startCall(video: false),
+                icon: Icon(Icons.call, size: 20, color: colors.dirtyWhite),
+              ),
+              IconButton(
+                tooltip: 'Start video call',
+                onPressed: () => _startCall(video: true),
+                icon: Icon(Icons.videocam, size: 20, color: colors.dirtyWhite),
               ),
               if (group)
                 PopupMenuButton<String>(

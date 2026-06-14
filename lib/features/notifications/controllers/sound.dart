@@ -38,6 +38,11 @@ class SoundManager {
   int _next = 0;
   bool _initialized = false;
 
+  /// Dedicated looping player for the incoming/outgoing call ringtone, separate
+  /// from the one-shot SFX pool so it can sustain across a ring.
+  final AudioPlayer _ringPlayer = AudioPlayer();
+  bool _ringing = false;
+
   AppLifecycleListener? _lifecycle;
 
   /// Whether the app currently has focus. The generic `message_received` sound
@@ -56,6 +61,7 @@ class SoundManager {
     for (final player in _pool) {
       player.setReleaseMode(ReleaseMode.stop);
     }
+    _ringPlayer.setReleaseMode(ReleaseMode.loop);
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) => focused = state == AppLifecycleState.resumed,
     );
@@ -137,8 +143,27 @@ class SoundManager {
     }
   }
 
+  /// Starts looping the incoming-call ringtone until [stopRingtone]. No-ops if
+  /// already ringing, disabled, or muted.
+  Future<void> startRingtone({bool outgoing = false}) async {
+    if (_ringing || !enabled || volume <= 0.0) return;
+    _ringing = true;
+    await _ringPlayer.setVolume(volume.clamp(0.0, 1.0).toDouble());
+    await _ringPlayer.play(
+      AssetSource(outgoing ? 'sfx/ring_outgoing.wav' : 'sfx/ringtone.wav'),
+    );
+  }
+
+  /// Stops the call ringtone loop.
+  Future<void> stopRingtone() async {
+    if (!_ringing) return;
+    _ringing = false;
+    await _ringPlayer.stop();
+  }
+
   void dispose() {
     _lifecycle?.dispose();
+    _ringPlayer.dispose();
     for (final player in _pool) {
       player.dispose();
     }

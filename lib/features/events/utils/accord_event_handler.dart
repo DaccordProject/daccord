@@ -20,6 +20,7 @@ import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -128,6 +129,13 @@ VoidCallback handleAccordEvents(
     final voice = ref.read(voiceControllerProvider);
     final isVoiceServer = serverKey == voice.serverKey;
 
+    // A peer joining the DM channel we're ringing means our call connected;
+    // drop the "Calling…" state. No-ops unless this matches our outgoing call,
+    // so it's safe to run regardless of which server is active.
+    if (vs.userId != me && vs.channelId != null) {
+      ref.read(callControllerProvider.notifier).markAnswered(vs.channelId!);
+    }
+
     if (isActive()) {
       final cache = ref.read(voiceStatesControllerProvider);
       final previousChannel = _channelOf(cache, vs.userId);
@@ -177,6 +185,25 @@ VoidCallback handleAccordEvents(
         serverKey == ref.read(voiceControllerProvider).serverKey;
     if (!isActive() && !isVoiceServer) return;
     ref.read(voiceControllerProvider.notifier).handleServerUpdate(info);
+  }));
+
+  // ── DM call signaling ────────────────────────────────────────────────────
+  // The server targets `call.*` events at DM participants directly (not a
+  // space), so they arrive on whichever connection owns the DM. Route them into
+  // the call controller, which owns ring/accept/decline state for the whole app.
+  subs.add(client.onCallRing.listen((sig) {
+    ref
+        .read(callControllerProvider.notifier)
+        .handleRing(sig, serverKey, currentUserId);
+  }));
+  subs.add(client.onCallDecline.listen((sig) {
+    ref.read(callControllerProvider.notifier).handleDecline(sig);
+  }));
+  subs.add(client.onCallCancel.listen((sig) {
+    ref.read(callControllerProvider.notifier).handleCancelOrEnd(sig);
+  }));
+  subs.add(client.onCallEnd.listen((sig) {
+    ref.read(callControllerProvider.notifier).handleCancelOrEnd(sig);
   }));
 
   // ── Space cache ──────────────────────────────────────────────────────────

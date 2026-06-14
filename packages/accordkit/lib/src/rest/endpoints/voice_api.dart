@@ -29,6 +29,30 @@ class VoiceApi extends EndpointBase {
     return rest.makeRequest('DELETE', '/channels/$channelId/voice/leave');
   }
 
+  /// Starts ringing the other participant(s) of a DM/group-DM [channelId] with
+  /// an incoming-call notification. The caller is expected to have already
+  /// joined voice (or to join right after). [metadata] is echoed to recipients
+  /// in the `call.ring` event. DM channels only.
+  Future<RestResult> ring(String channelId,
+      {Map<String, dynamic>? metadata}) {
+    return rest.makeRequest(
+      'POST',
+      '/channels/$channelId/call/ring',
+      body: {if (metadata != null) 'metadata': metadata},
+    );
+  }
+
+  /// Declines an incoming DM call, broadcasting `call.decline` to participants.
+  Future<RestResult> declineCall(String channelId) {
+    return rest.makeRequest('POST', '/channels/$channelId/call/decline');
+  }
+
+  /// Cancels an outgoing DM call before the callee answers, broadcasting
+  /// `call.cancel` to participants.
+  Future<RestResult> cancelCall(String channelId) {
+    return rest.makeRequest('POST', '/channels/$channelId/call/cancel');
+  }
+
   /// Lists available voice regions for a space.
   Future<RestResult> listRegions(String spaceId) {
     return rest.makeRequest('GET', '/spaces/$spaceId/voice-regions');

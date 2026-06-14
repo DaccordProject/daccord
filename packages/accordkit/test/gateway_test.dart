@@ -116,6 +116,60 @@ void main() {
       await socket.dispose();
     });
 
+    test('call.ring emits a typed AccordCallSignal', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      final rings = <AccordCallSignal>[];
+      socket.onCallRing.listen(rings.add);
+
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'call.ring',
+        'data': {
+          'channel_id': '5',
+          'caller_id': '9',
+          'participants': ['9', '2'],
+          'metadata': {'video': true},
+        },
+      }));
+      await pump();
+
+      expect(rings.single.type, 'ring');
+      expect(rings.single.channelId, '5');
+      expect(rings.single.callerId, '9');
+      expect(rings.single.participants, ['9', '2']);
+      expect(rings.single.metadata, {'video': true});
+      await socket.dispose();
+    });
+
+    test('call.decline / cancel / end emit typed signals', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      final events = <AccordCallSignal>[];
+      socket.onCallDecline.listen(events.add);
+      socket.onCallCancel.listen(events.add);
+      socket.onCallEnd.listen(events.add);
+
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      for (final type in ['call.decline', 'call.cancel', 'call.end']) {
+        factory.last.receive(jsonEncode({
+          'op': GatewayOpcodes.event,
+          'type': type,
+          'data': {'channel_id': '5', 'user_id': '2'},
+        }));
+      }
+      await pump();
+
+      expect(events.map((e) => e.type), ['decline', 'cancel', 'end']);
+      expect(events.every((e) => e.channelId == '5' && e.userId == '2'), isTrue);
+      await socket.dispose();
+    });
+
     test('ready event records the session id', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
