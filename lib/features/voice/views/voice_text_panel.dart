@@ -1,6 +1,4 @@
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -77,8 +75,7 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
   Future<void> _send() async {
     final text = _input.text;
     if (text.trim().isEmpty || _sending) return;
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.accordClient;
     if (client == null) return;
     setState(() => _sending = true);
     final ok = await ref

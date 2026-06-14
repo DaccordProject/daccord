@@ -1,7 +1,5 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -119,11 +117,7 @@ class SelfStatusButton extends ConsumerWidget {
     String status,
     String text,
   ) {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     final trimmed = text.trim();
     client.gateway.updatePresence(
@@ -148,11 +142,7 @@ class SelfStatusButton extends ConsumerWidget {
   }
 
   void _setStatus(WidgetRef ref, String? userId, String status) {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
     // Preserve any custom status when only the status dot changes.
     final custom = userId == null
