@@ -32,6 +32,15 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# Newer MSVC toolchains (VS 2022 17.14+ / VS 18) promote the
+# <experimental/coroutine> deprecation to a hard error (C2338 / STL1011).
+# Several Flutter plugins (audioplayers_windows, permission_handler_windows,
+# flutter_local_notifications_windows) still include that header, so silence the
+# deprecation across all targets and plugin subdirectories added below.
+if(MSVC)
+  add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+endif()
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
