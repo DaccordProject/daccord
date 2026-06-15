@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
@@ -8,6 +9,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -56,18 +58,6 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
   /// `accent_color`). `null` means "transparent" — the avatar falls back to the
   /// deterministic [accordAvatarColor] derived from the user ID.
   int? _accentColor;
-
-  /// Preset background swatches for the imageless avatar.
-  static const _avatarSwatches = <int>[
-    0xFF2448BE, // blue
-    0xFF5865F2, // blurple
-    0xFF57F287, // green
-    0xFFEB459E, // pink
-    0xFFFEE75C, // yellow
-    0xFFED4245, // red
-    0xFF88C0D0, // cyan
-    0xFFFF7A45, // orange
-  ];
 
   /// The profile loaded from the targeted server (drives the avatar preview).
   AccordUser? _loadedUser;
@@ -183,7 +173,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to save profile',
+        () => _error = result.errorOr('Failed to save profile'),
       );
       return;
     }
@@ -342,7 +332,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _ColorSwatch(
+                    ColorSwatchChip(
                       color: accordIdColor(session?.userId ?? ''),
                       selected: _accentColor == null,
                       transparent: true,
@@ -351,8 +341,8 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                           ? null
                           : () => setState(() => _accentColor = null),
                     ),
-                    for (final argb in _avatarSwatches)
-                      _ColorSwatch(
+                    for (final (argb, _) in avatarColorPalette)
+                      ColorSwatchChip(
                         color: Color(argb),
                         selected: _accentColor == argb,
                         label: null,
@@ -409,50 +399,3 @@ Uint8List _toUint8(List<int> bytes) =>
     bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
 
 /// A selectable avatar-background swatch. The [transparent] variant marks the
-/// "no chosen color" option (the avatar falls back to its auto color), drawn
-/// with a slash over the preview tint.
-class _ColorSwatch extends StatelessWidget {
-  const _ColorSwatch({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-    this.label,
-    this.transparent = false,
-  });
-
-  final Color color;
-  final bool selected;
-  final VoidCallback? onTap;
-  final String? label;
-  final bool transparent;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Tooltip(
-      message: label ?? '',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: selected ? colors.dirtyWhite : Colors.transparent,
-              width: 3,
-            ),
-          ),
-          child: Icon(
-            transparent
-                ? Icons.format_color_reset_outlined
-                : (selected ? Icons.check : null),
-            size: 18,
-            color: accordOnColor(color),
-          ),
-        ),
-      ),
-    );
-  }
-}

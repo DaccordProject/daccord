@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
 import 'package:accordkit/accordkit.dart';
@@ -183,7 +184,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
 
     setState(() {
       if (!result.ok) {
-        _error = result.error?.toString() ?? 'Failed to load directory';
+        _error = result.errorOr('Failed to load directory');
         _listings = const [];
         return;
       }
@@ -247,7 +248,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
     if ((result.ok || result.statusCode == 409) && space is AccordSpace) {
       ref.read(spacesControllerProvider.notifier).upsertSpace(space);
     } else if (!result.ok && result.statusCode != 409) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to join');
+      setState(() => _error = result.errorOr('Failed to join'));
       return;
     }
     if (mounted) Navigator.of(context).maybePop();

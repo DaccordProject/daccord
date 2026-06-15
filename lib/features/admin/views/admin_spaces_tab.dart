@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -53,7 +54,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to load spaces';
+        _error = result.errorOr('Failed to load spaces');
       });
       return;
     }
@@ -96,7 +97,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(() =>
-          _error = result.error?.toString() ?? 'Failed to create space');
+          _error = result.errorOr('Failed to create space'));
       return;
     }
     _load();
@@ -117,7 +118,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to delete space';
+        _error = result.errorOr('Failed to delete space');
       });
       return;
     }
@@ -147,7 +148,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to transfer ownership';
+        _error = result.errorOr('Failed to transfer ownership');
       });
       return;
     }

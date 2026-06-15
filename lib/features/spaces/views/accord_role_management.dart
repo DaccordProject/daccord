@@ -1,8 +1,7 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
@@ -78,16 +77,8 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
     final space = ref
         .read(spacesControllerProvider)
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
-    final currentUserId = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
-    final isAdmin = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false,
-      ),
-    );
+    final currentUserId = ref.readUserId();
+    final isAdmin = ref.readIsAdmin();
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
     return accordMyHighestRolePosition(
       space: space,
@@ -118,7 +109,7 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
     if (!mounted) return null;
     setState(() {
       _busy = false;
-      if (!result.ok) _error = result.error?.toString() ?? failure;
+      if (!result.ok) _error = result.errorOr(failure);
     });
     return result.ok ? result.data as T? : null;
   }

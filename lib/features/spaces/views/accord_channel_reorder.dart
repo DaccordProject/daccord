@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -147,7 +148,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
         if (!mounted) return;
         setState(() {
           _busy = false;
-          _error = result.error?.toString() ?? 'Failed to reorder';
+          _error = result.errorOr('Failed to reorder');
         });
         return;
       }

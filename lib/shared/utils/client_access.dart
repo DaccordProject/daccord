@@ -6,17 +6,47 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 AccordClient? _clientFromState(AccordAuthState s) =>
     s is AccordAuthLoggedIn ? s.client : null;
 
+String? _userIdFromState(AccordAuthState s) =>
+    s is AccordAuthLoggedIn ? s.session.userId : null;
+
+String? _cdnUrlFromState(AccordAuthState s) =>
+    s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null;
+
+bool _isAdminFromState(AccordAuthState s) =>
+    s is AccordAuthLoggedIn && s.session.isAdmin;
+
 /// The currently authenticated [AccordClient], or `null` when logged out.
 ///
 /// Centralizes the `accordAuthProvider.select(...)` lookup that was otherwise
-/// copy-pasted into ~20 `ConsumerState` getters across the app.
+/// copy-pasted into ~20 `ConsumerState` getters across the app. The
+/// `watch*`/`read*` pairs cover the same authenticated-session fields (user id,
+/// CDN base, instance-admin flag) that were likewise inlined at ~40 sites; use
+/// the `watch*` variant in `build`/widgets and the `read*` variant in callbacks.
 extension AccordClientWidgetRef on WidgetRef {
   AccordClient? get accordClient =>
       read(accordAuthProvider.select(_clientFromState));
+
+  String? watchUserId() => watch(accordAuthProvider.select(_userIdFromState));
+  String? readUserId() => read(accordAuthProvider.select(_userIdFromState));
+
+  String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
+  String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
+
+  bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
+  bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
 }
 
 /// Same as [AccordClientWidgetRef], for provider/notifier `Ref` contexts.
 extension AccordClientRef on Ref {
   AccordClient? get accordClient =>
       read(accordAuthProvider.select(_clientFromState));
+
+  String? watchUserId() => watch(accordAuthProvider.select(_userIdFromState));
+  String? readUserId() => read(accordAuthProvider.select(_userIdFromState));
+
+  String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
+  String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
+
+  bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
+  bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
 }

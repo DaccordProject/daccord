@@ -1,5 +1,4 @@
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -38,8 +37,7 @@ class IncomingCallOverlay extends ConsumerWidget {
     // Backfill the caller's profile if it isn't cached yet.
     ref.read(accordUsersControllerProvider.notifier).ensure(incoming.callerId);
     final users = ref.watch(accordUsersControllerProvider);
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
+    final cdnUrl = ref.watchCdnUrl();
 
     final caller = users[incoming.callerId];
     final callerName = accordUserName(caller, fallback: 'Someone');

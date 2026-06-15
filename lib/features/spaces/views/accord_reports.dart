@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
@@ -93,7 +94,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
       if (result.ok) {
         _done = true;
       } else {
-        _error = result.error?.toString() ?? 'Failed to submit report';
+        _error = result.errorOr('Failed to submit report');
       }
     });
   }
@@ -276,7 +277,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     if (!result.ok) {
       setState(() {
         _loading = false;
-        _error = result.error?.toString() ?? 'Failed to load';
+        _error = result.errorOr('Failed to load');
       });
       return;
     }
@@ -308,7 +309,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     if (!result.ok) {
       setState(() {
         _loadingMore = false;
-        _error = result.error?.toString() ?? 'Failed to load more';
+        _error = result.errorOr('Failed to load more');
       });
       return;
     }
@@ -357,7 +358,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     });
     if (!mounted) return;
     if (!result.ok) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to resolve');
+      setState(() => _error = result.errorOr('Failed to resolve'));
       return;
     }
     setState(
@@ -405,7 +406,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to delete message',
+        () => _error = result.errorOr('Failed to delete message'),
       );
       return;
     }
@@ -429,7 +430,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to kick');
+      setState(() => _error = result.errorOr('Failed to kick'));
       return;
     }
     await _resolve(id, 'actioned', actionTaken: 'kick_member');
@@ -452,7 +453,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to ban');
+      setState(() => _error = result.errorOr('Failed to ban'));
       return;
     }
     await _resolve(id, 'actioned', actionTaken: 'ban_member');

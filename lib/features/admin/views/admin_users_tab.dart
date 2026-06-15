@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -60,7 +61,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     if (!result.ok) {
       setState(() {
         _loading = false;
-        _error = result.error?.toString() ?? 'Failed to load users';
+        _error = result.errorOr('Failed to load users');
       });
       return;
     }
@@ -85,7 +86,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     if (!result.ok) {
       setState(() {
         _loadingMore = false;
-        _error = result.error?.toString() ?? 'Failed to load more';
+        _error = result.errorOr('Failed to load more');
       });
       return;
     }
@@ -119,7 +120,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     if (!mounted) return;
     if (!result.ok) {
       setState(() =>
-          _error = result.error?.toString() ?? 'Failed to update user');
+          _error = result.errorOr('Failed to update user'));
       return;
     }
     setState(() => user.isAdmin = value);
@@ -144,7 +145,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(() =>
-          _error = result.error?.toString() ?? 'Failed to update user');
+          _error = result.errorOr('Failed to update user'));
       return;
     }
     setState(() => user.disabled = disable);
@@ -165,7 +166,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(() =>
-          _error = result.error?.toString() ?? 'Failed to reset password');
+          _error = result.errorOr('Failed to reset password'));
       return;
     }
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -189,7 +190,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to delete user';
+        _error = result.errorOr('Failed to delete user');
       });
       return;
     }

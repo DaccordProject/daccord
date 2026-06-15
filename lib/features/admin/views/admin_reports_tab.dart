@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -118,7 +119,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     });
     if (!mounted) return;
     if (!result.ok) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to resolve');
+      setState(() => _error = result.errorOr('Failed to resolve'));
       return;
     }
     setState(() => _reports.removeWhere((e) => e['id']?.toString() == id));
@@ -148,7 +149,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to kick');
+      setState(() => _error = result.errorOr('Failed to kick'));
       return;
     }
     await _resolve(r, 'actioned', actionTaken: 'kick_member');
@@ -168,7 +169,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() => _error = result.error?.toString() ?? 'Failed to ban');
+      setState(() => _error = result.errorOr('Failed to ban'));
       return;
     }
     await _resolve(r, 'actioned', actionTaken: 'ban_member');
@@ -189,7 +190,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(() =>
-          _error = result.error?.toString() ?? 'Failed to delete message');
+          _error = result.errorOr('Failed to delete message'));
       return;
     }
     await _resolve(r, 'actioned', actionTaken: 'delete_message');

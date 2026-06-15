@@ -115,8 +115,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
 
   AccordClient? get _client => ref.accordClient;
 
-  String? get _currentUserId => ref.read(accordAuthProvider
-      .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
+  String? get _currentUserId => ref.readUserId();
 
   Future<void> _load() async {
     final client = _client;
@@ -271,8 +270,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final users = ref.watch(accordUsersControllerProvider);
     final ensureUser =
         ref.read(accordUsersControllerProvider.notifier).ensure;
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
+    final cdnUrl = ref.watchCdnUrl();
     final replies = _replies;
     final currentUserId = _currentUserId;
     final dialog = widget.dialog;

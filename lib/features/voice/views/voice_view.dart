@@ -1,5 +1,4 @@
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -286,11 +285,7 @@ class _LobbyBody extends ConsumerWidget {
         ? null
         : ref.watch(accordMembersControllerProvider(spaceId!));
     final users = ref.watch(accordUsersControllerProvider);
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
 
     return Center(
       child: Column(
@@ -441,16 +436,8 @@ class _ConnectedBody extends ConsumerWidget {
         ? null
         : ref.watch(accordMembersControllerProvider(spaceId!));
     final users = ref.watch(accordUsersControllerProvider);
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
-    final myId = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
+    final myId = ref.watchUserId();
     final session = ref.read(voiceControllerProvider.notifier).session;
 
     String nameOf(String userId) => members?[userId] != null

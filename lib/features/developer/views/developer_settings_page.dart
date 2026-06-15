@@ -1,4 +1,5 @@
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
@@ -36,16 +37,8 @@ class DeveloperSettingsPage extends ConsumerWidget {
     final controller = ref.read(settingsControllerProvider.notifier);
     final server = ref.watch(mcpServerControllerProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Developer'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return SettingsScaffold(
+      title: 'Developer',
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
@@ -85,7 +78,15 @@ class DeveloperSettingsPage extends ConsumerWidget {
                     controller.setMcpGroupAllowed(group, v ?? false),
               ),
             const Divider(height: 24),
-            _ActivityHeader(),
+            SectionHeader(
+              'Recent activity',
+              trailing: TextButton(
+                onPressed: () => ref
+                    .read(mcpServerControllerProvider.notifier)
+                    .clearActivity(),
+                child: const Text('Clear'),
+              ),
+            ),
             if (server.activity.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -223,34 +224,6 @@ class _TokenTile extends ConsumerWidget {
             onPressed: () => ref
                 .read(settingsControllerProvider.notifier)
                 .regenerateMcpToken(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActivityHeader extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = BonfireThemeExtension.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'RECENT ACTIVITY',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium!
-                  .copyWith(color: colors.gray, letterSpacing: 0.6),
-            ),
-          ),
-          TextButton(
-            onPressed: () =>
-                ref.read(mcpServerControllerProvider.notifier).clearActivity(),
-            child: const Text('Clear'),
           ),
         ],
       ),

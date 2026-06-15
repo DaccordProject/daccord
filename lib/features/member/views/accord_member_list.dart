@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
@@ -62,10 +63,7 @@ class _Roster extends ConsumerWidget {
             const <AccordRole>[],
       ),
     );
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
-    );
+    final cdnUrl = ref.watchCdnUrl();
     final presences = ref.watch(presenceControllerProvider);
 
     if (members == null) {
@@ -286,11 +284,7 @@ Future<void> _showMemberContextMenu(
   final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
   if (overlay == null) return;
   final anchor = globalPos ?? overlay.size.center(Offset.zero);
-  final currentUserId = ref.read(
-    accordAuthProvider.select(
-      (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-    ),
-  );
+  final currentUserId = ref.readUserId();
   final isSelf = currentUserId != null && currentUserId == member.userId;
   final username = member.user?.username;
   final selected = await showMenu<String>(

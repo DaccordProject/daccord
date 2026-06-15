@@ -1,7 +1,7 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/spaces/controllers/space.dart';
@@ -46,11 +46,7 @@ class _TransferOwnershipDialogState
   }
 
   Future<void> _submit() async {
-    final client = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.accordClient;
     final target = _selectedId;
     if (client == null || target == null) return;
     setState(() {
@@ -69,7 +65,7 @@ class _TransferOwnershipDialogState
     } else {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to transfer ownership';
+        _error = result.errorOr('Failed to transfer ownership');
       });
     }
   }
@@ -78,11 +74,7 @@ class _TransferOwnershipDialogState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final currentUserId = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final currentUserId = ref.watchUserId();
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
     final candidates =
         (members?.values ?? const <AccordMember>[])

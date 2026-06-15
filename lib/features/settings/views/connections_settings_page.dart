@@ -1,4 +1,7 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -92,27 +95,13 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
     if (client == null || conn.id.isEmpty || _disconnecting.contains(conn.id)) {
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Disconnect'),
-        content: Text(
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Disconnect',
+      message:
           'Disconnect ${conn.type}${conn.name.isNotEmpty ? ' (${conn.name})' : ''}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Disconnect'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Disconnect',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _disconnecting.add(conn.id));
@@ -123,9 +112,7 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
     if (!mounted) return;
     setState(() => _disconnecting.remove(conn.id));
     if (!result.ok) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('Failed: ${result.error ?? 'unknown error'}')),
-      );
+      showErrorSnack(context, result, prefix: 'Failed');
       return;
     }
     setState(() {
@@ -139,23 +126,15 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Connections'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
+    return SettingsScaffold(
+      title: 'Connections',
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: _loading ? null : _load,
+          icon: const Icon(Icons.refresh),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      ],
       body: _body(colors),
     );
   }

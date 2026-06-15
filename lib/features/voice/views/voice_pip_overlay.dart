@@ -1,5 +1,4 @@
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -139,8 +138,7 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
     final session = ref.read(voiceControllerProvider.notifier).session;
     if (session == null) return null;
     final voice = ref.read(voiceControllerProvider);
-    final myId = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
+    final myId = ref.readUserId();
 
     if (voice.selfStream && session.localScreenTrack != null) {
       return session.localScreenTrack;

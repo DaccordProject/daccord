@@ -47,10 +47,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
             spacesControllerProvider
                 .select((s) => s?.firstWhereOrNull((sp) => sp.id == id)),
           );
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null),
-    );
+    final cdnUrl = ref.watchCdnUrl();
     final bannerUrl =
         space == null ? null : accordSpaceBannerUrl(space, cdnUrl);
 
@@ -67,14 +64,8 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     var canManageChannels = false;
     var canInvite = false;
     if (id != null) {
-      final currentUserId = ref.watch(
-        accordAuthProvider.select(
-            (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
-      );
-      final isAdmin = ref.watch(
-        accordAuthProvider.select(
-            (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
-      );
+      final currentUserId = ref.watchUserId();
+      final isAdmin = ref.watchIsAdmin();
       final members = ref.watch(accordMembersControllerProvider(id));
       final preview = ref.watch(rolePreviewControllerProvider);
       final perms = accordEffectivePermissions(
@@ -85,9 +76,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
         currentUserIsAdmin: isAdmin,
         previewRoleId: preview?.spaceId == id ? preview?.roleId : null,
       );
-      canManage = accordHasPermission(perms, AccordPermission.manageSpace) ||
-          accordHasPermission(perms, AccordPermission.manageRoles) ||
-          accordHasPermission(perms, AccordPermission.viewAuditLog);
+      canManage = canManageSpaceSettings(perms);
       canManageChannels =
           accordHasPermission(perms, AccordPermission.manageChannels);
       canInvite =

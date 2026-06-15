@@ -150,11 +150,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
     final users = _users;
     return AlertDialog(
       title: Text(

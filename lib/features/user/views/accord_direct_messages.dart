@@ -2,8 +2,6 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
@@ -116,11 +114,7 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
     super.dispose();
   }
 
-  String? get _selfId => ref.read(
-    accordAuthProvider.select(
-      (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-    ),
-  );
+  String? get _selfId => ref.readUserId();
 
   @override
   Widget build(BuildContext context) {

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:bonfire/features/updates/services/web_update.dart';
-import 'package:bonfire/theme/theme.dart';
+import 'package:bonfire/shared/components/app_banner.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -46,45 +46,17 @@ class _WebUpdatePromptState extends State<WebUpdatePrompt> {
   @override
   Widget build(BuildContext context) {
     if (!kIsWeb || !_available || _dismissed) return const SizedBox.shrink();
-    final colors = BonfireThemeExtension.of(context);
-    return Material(
-      color: colors.primary,
-      child: SafeArea(
-        bottom: false,
-        child: InkWell(
-          onTap: applyWebUpdate,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              children: [
-                const Icon(Icons.refresh, size: 16, color: Colors.white),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'A new version is available — reload to update.',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                ),
-                TextButton(
-                  onPressed: applyWebUpdate,
-                  child: const Text(
-                    'Reload',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => setState(() => _dismissed = true),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.close, size: 16, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return AppBanner(
+      icon: Icons.refresh,
+      message: 'A new version is available — reload to update.',
+      onTap: applyWebUpdate,
+      onDismiss: () => setState(() => _dismissed = true),
+      actions: [
+        TextButton(
+          onPressed: applyWebUpdate,
+          child: const Text('Reload', style: TextStyle(color: Colors.white)),
         ),
-      ),
+      ],
     );
   }
 }

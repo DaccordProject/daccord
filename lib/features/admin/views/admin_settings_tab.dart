@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -65,7 +66,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     if (!result.ok) {
       setState(() {
         _loading = false;
-        _error = result.error?.toString() ?? 'Failed to load settings';
+        _error = result.errorOr('Failed to load settings');
       });
       return;
     }
@@ -113,7 +114,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     setState(() => _saving = false);
     if (!result.ok) {
       setState(() =>
-          _error = result.error?.toString() ?? 'Failed to save settings');
+          _error = result.errorOr('Failed to save settings'));
       return;
     }
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(

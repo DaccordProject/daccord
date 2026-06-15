@@ -1,8 +1,7 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
@@ -156,16 +155,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final space = ref
         .read(spacesControllerProvider)
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
-    final currentUserId = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
-    final isAdmin = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false,
-      ),
-    );
+    final currentUserId = ref.readUserId();
+    final isAdmin = ref.readIsAdmin();
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
     final preview = ref.read(rolePreviewControllerProvider);
     return accordEffectivePermissions(
@@ -191,7 +182,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      if (!result.ok) _error = result.error?.toString() ?? failure;
+      if (!result.ok) _error = result.errorOr(failure);
     });
     final space = result.data;
     if (result.ok && space is AccordSpace) {
@@ -346,7 +337,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.error?.toString() ?? 'Failed to delete space';
+        _error = result.errorOr('Failed to delete space');
       });
       return;
     }
@@ -359,11 +350,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
   /// member cache so every roster/message row picks it up immediately.
   Future<void> _editOwnNickname() async {
     final client = _client;
-    final currentUserId = ref.read(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final currentUserId = ref.readUserId();
     if (client == null || currentUserId == null) return;
     final members = ref.read(accordMembersControllerProvider(widget.spaceId));
     final me = members?[currentUserId];
@@ -410,7 +397,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     setState(() => _busy = false);
     if (!result.ok) {
       setState(
-        () => _error = result.error?.toString() ?? 'Failed to update nickname',
+        () => _error = result.errorOr('Failed to update nickname'),
       );
       return;
     }
@@ -450,11 +437,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
         (s) => s?.firstWhereOrNull((sp) => sp.id == widget.spaceId),
       ),
     );
-    final cdnUrl = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
-      ),
-    );
+    final cdnUrl = ref.watchCdnUrl();
     final perms = _perms();
     final canManageSpace = accordHasPermission(
       perms,
@@ -468,11 +451,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       perms,
       AccordPermission.viewAuditLog,
     );
-    final currentUserId = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final currentUserId = ref.watchUserId();
     final isOwner =
         space != null &&
         currentUserId != null &&

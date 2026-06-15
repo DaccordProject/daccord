@@ -1,12 +1,12 @@
 import 'dart:convert';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:file_picker/file_picker.dart';
@@ -111,9 +111,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
     if (!mounted) return;
     setState(() => _leaving.remove(space.id));
     if (!result.ok) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('Failed: ${result.error ?? 'unknown error'}')),
-      );
+      showErrorSnack(context, result, prefix: 'Failed');
       return;
     }
     // Drop the space from the cache immediately; the gateway member.leave echo
@@ -128,22 +126,10 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final spaces = ref.watch(spacesControllerProvider) ?? const <AccordSpace>[];
-    final userId = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
-      ),
-    );
+    final userId = ref.watchUserId();
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Privacy & Data'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return SettingsScaffold(
+      title: 'Privacy & Data',
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

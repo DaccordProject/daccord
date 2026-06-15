@@ -1,4 +1,5 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -33,16 +34,8 @@ class UpdatesScreen extends ConsumerWidget {
     final release = update.latest;
     final available = update.updateAvailable;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.foreground,
-        title: const Text('Updates'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return SettingsScaffold(
+      title: 'Updates',
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

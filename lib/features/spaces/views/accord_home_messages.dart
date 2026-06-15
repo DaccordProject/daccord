@@ -173,14 +173,8 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
         : ref.watch(spacesControllerProvider
             .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)));
     final roles = space?.roles ?? const <AccordRole>[];
-    final currentUserId = ref.watch(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.userId : null),
-    );
-    final isAdmin = ref.watch(
-      accordAuthProvider.select(
-          (s) => s is AccordAuthLoggedIn ? s.session.isAdmin : false),
-    );
+    final currentUserId = ref.watchUserId();
+    final isAdmin = ref.watchIsAdmin();
     final myRoles = (currentUserId == null ? null : members?[currentUserId])
             ?.roles ??
         const <String>[];
