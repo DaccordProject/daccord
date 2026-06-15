@@ -706,12 +706,13 @@ jobs:
         # first-ever release can be uploaded manually via the Play Console (a
         # brand-new app rejects API uploads with an opaque 500 until its first
         # release is created by hand).
-        if: always()
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
           name: daccord-playstore-aab
           path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload to Google Play
         env:
