@@ -2,6 +2,8 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -14,8 +16,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Opens a thread/forum-post view: the [root] message at the top, its replies
-/// below, and a composer that posts replies into the thread (`thread_id`).
+/// Opens a thread/forum-post view as a modal dialog: the [root] message at the
+/// top, its replies below, and a composer that posts replies into the thread
+/// (`thread_id`). Used for ad-hoc threads off regular messages; forum channels
+/// embed [AccordThreadPane] inline in the message area instead.
 ///
 /// [canManageMessages] gates moderator actions (delete others' replies). When
 /// the root post is edited or deleted from inside the view the returned future
@@ -30,11 +34,18 @@ Future<ThreadResult?> showAccordThread(
 }) {
   return showDialog<ThreadResult>(
     context: context,
-    builder: (_) => _ThreadView(
-      channelId: channelId,
-      spaceId: spaceId,
-      root: root,
-      canManageMessages: canManageMessages,
+    builder: (dialogContext) => Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 680),
+        child: AccordThreadPane(
+          channelId: channelId,
+          spaceId: spaceId,
+          root: root,
+          canManageMessages: canManageMessages,
+          dialog: true,
+          onClose: (result) => Navigator.of(dialogContext).pop(result),
+        ),
+      ),
     ),
   );
 }
@@ -54,24 +65,37 @@ class ThreadResult {
   final bool deleted;
 }
 
-class _ThreadView extends ConsumerStatefulWidget {
-  const _ThreadView({
+/// The thread/forum-post view body: the [root] message, its replies, and a
+/// reply composer. Renders inline (filling the message area, with a back arrow)
+/// by default, or as dialog chrome (a close icon, shrink-wrapped) when [dialog]
+/// is set. [onClose] is invoked with a [ThreadResult] when the root is edited or
+/// deleted (else `null`) so the caller can refresh its row and dismiss the view.
+class AccordThreadPane extends ConsumerStatefulWidget {
+  const AccordThreadPane({
+    super.key,
     required this.channelId,
     required this.spaceId,
     required this.root,
     required this.canManageMessages,
+    required this.onClose,
+    this.dialog = false,
   });
 
   final String channelId;
   final String? spaceId;
   final AccordMessage root;
   final bool canManageMessages;
+  final void Function(ThreadResult? result) onClose;
+
+  /// When true, renders with dialog chrome (close icon, shrink-wrapped); when
+  /// false, fills the available area with a back arrow.
+  final bool dialog;
 
   @override
-  ConsumerState<_ThreadView> createState() => _ThreadViewState();
+  ConsumerState<AccordThreadPane> createState() => _AccordThreadPaneState();
 }
 
-class _ThreadViewState extends ConsumerState<_ThreadView> {
+class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   final TextEditingController _input = TextEditingController();
   late AccordMessage _root = widget.root;
   List<AccordMessage>? _replies;
@@ -146,8 +170,8 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
     });
   }
 
-  void _popWithResult() {
-    Navigator.of(context).pop(
+  void _close() {
+    widget.onClose(
       identical(_root, widget.root) ? null : ThreadResult.edited(_root),
     );
   }
@@ -169,13 +193,72 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
     if (confirmed != true) return;
     final result = await client.messages.delete(widget.channelId, _root.id);
     if (!mounted || !result.ok) return;
-    Navigator.of(context).pop(const ThreadResult.deleted());
+    widget.onClose(const ThreadResult.deleted());
   }
 
   String _title() {
     final title = _root.title;
     if (title is String && title.isNotEmpty) return title;
     return 'Thread';
+  }
+
+  /// Offers two share links for this post: a `daccord://` deep link that opens
+  /// directly in a daccord client, and the public `/s/...` web URL that anyone
+  /// (and search-engine crawlers) can open.
+  void _showShareMenu([Offset? position]) {
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return;
+
+    final entries = <AccordMenuEntry>[
+      AccordMenuEntry(
+        label: 'Share with those who have the app',
+        icon: Icons.rocket_launch_outlined,
+        onSelected: () => _copyShareLink(
+          'daccord://navigate/$spaceId/${widget.channelId}?msg=${_root.id}',
+          'App link copied to clipboard',
+        ),
+      ),
+    ];
+
+    final space = ref.read(spaceControllerProvider(spaceId));
+    final channels = ref.read(accordChannelsControllerProvider(spaceId));
+    AccordChannel? channel;
+    for (final c in channels ?? const <AccordChannel>[]) {
+      if (c.id == widget.channelId) {
+        channel = c;
+        break;
+      }
+    }
+    final baseUrl = ref.read(accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.baseUrl : null));
+    final slug = space?.slug;
+    final channelName = channel?.name;
+    if (baseUrl != null &&
+        slug != null &&
+        slug.isNotEmpty &&
+        channelName != null &&
+        channelName.isNotEmpty) {
+      final webLink = '$baseUrl/s/${Uri.encodeComponent(slug)}'
+          '/${Uri.encodeComponent(channelName)}'
+          '/${Uri.encodeComponent(_root.id)}';
+      entries.add(AccordMenuEntry(
+        label: 'Share with the internet',
+        icon: Icons.public,
+        onSelected: () =>
+            _copyShareLink(webLink, 'Public link copied to clipboard'),
+      ));
+    }
+
+    showAccordContextMenu(context,
+        entries: entries, globalPosition: position, title: 'Share post');
+  }
+
+  void _copyShareLink(String link, String message) {
+    Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
   }
 
   @override
@@ -192,122 +275,129 @@ class _ThreadViewState extends ConsumerState<_ThreadView> {
         (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
     final replies = _replies;
     final currentUserId = _currentUserId;
+    final dialog = widget.dialog;
+    final list = ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        _MessageLine(
+          message: _root,
+          isRoot: true,
+          members: members,
+          users: users,
+          ensure: ensureUser,
+          cdnUrl: cdnUrl,
+          spaceId: widget.spaceId,
+          channelId: widget.channelId,
+          isOwn: currentUserId != null && _root.authorId == currentUserId,
+          canManageMessages: widget.canManageMessages,
+          onEdit: _editRoot,
+          onDelete: _deleteRoot,
+          onChanged: (_, {required deleted}) {},
+        ),
+        const Divider(height: 16),
+        if (replies == null)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (replies.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+                child: Text('No replies yet',
+                    style: theme.textTheme.bodySmall)),
+          )
+        else
+          for (final reply in replies)
+            _MessageLine(
+              message: reply,
+              isRoot: false,
+              members: members,
+              users: users,
+              ensure: ensureUser,
+              cdnUrl: cdnUrl,
+              spaceId: widget.spaceId,
+              channelId: widget.channelId,
+              isOwn: currentUserId != null && reply.authorId == currentUserId,
+              canManageMessages: widget.canManageMessages,
+              onChanged: _onReplyChanged,
+            ),
+      ],
+    );
+
+    final content = Column(
+      mainAxisSize: dialog ? MainAxisSize.min : MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: dialog
+              ? const EdgeInsets.fromLTRB(16, 16, 8, 8)
+              : const EdgeInsets.fromLTRB(8, 8, 8, 8),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: dialog ? 'Close' : 'Back',
+                onPressed: _close,
+                icon: Icon(dialog ? Icons.close : Icons.arrow_back, size: 18),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.forum, size: 18, color: colors.dirtyWhite),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_title(),
+                    style: theme.textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (widget.spaceId != null)
+                IconButton(
+                  tooltip: 'Share',
+                  onPressed: _showShareMenu,
+                  icon: Icon(Icons.ios_share,
+                      size: 18, color: colors.dirtyWhite),
+                ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        dialog ? Flexible(child: list) : Expanded(child: list),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _input,
+                  enabled: !_sending,
+                  minLines: 1,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'Reply to thread',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _send(),
+                ),
+              ),
+              IconButton(
+                onPressed: _sending ? null : _send,
+                icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
     return PopScope(
       canPop: false,
-      // Ensures back-nav and scrim taps surface any root edit to the caller,
-      // matching the close-button path.
+      // Intercept back-nav and (in dialog mode) scrim taps so any root edit is
+      // surfaced to the caller, matching the close/back button path.
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _popWithResult();
+        _close();
       },
-      child: Dialog(
-        child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 680),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-              child: Row(
-                children: [
-                  Icon(Icons.forum, size: 18, color: colors.dirtyWhite),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_title(),
-                        style: theme.textTheme.titleMedium,
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                  IconButton(
-                    onPressed: _popWithResult,
-                    icon: const Icon(Icons.close, size: 18),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Flexible(
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  _MessageLine(
-                    message: _root,
-                    isRoot: true,
-                    members: members,
-                    users: users,
-                    ensure: ensureUser,
-                    cdnUrl: cdnUrl,
-                    spaceId: widget.spaceId,
-                    channelId: widget.channelId,
-                    isOwn: currentUserId != null &&
-                        _root.authorId == currentUserId,
-                    canManageMessages: widget.canManageMessages,
-                    onEdit: _editRoot,
-                    onDelete: _deleteRoot,
-                    onChanged: (_, {required deleted}) {},
-                  ),
-                  const Divider(height: 16),
-                  if (replies == null)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (replies.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Center(
-                          child: Text('No replies yet',
-                              style: theme.textTheme.bodySmall)),
-                    )
-                  else
-                    for (final reply in replies)
-                      _MessageLine(
-                        message: reply,
-                        isRoot: false,
-                        members: members,
-                        users: users,
-                        ensure: ensureUser,
-                        cdnUrl: cdnUrl,
-                        spaceId: widget.spaceId,
-                        channelId: widget.channelId,
-                        isOwn: currentUserId != null &&
-                            reply.authorId == currentUserId,
-                        canManageMessages: widget.canManageMessages,
-                        onChanged: _onReplyChanged,
-                      ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      enabled: !_sending,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'Reply to thread',
-                        border: OutlineInputBorder(),
-                      ),
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _sending ? null : _send,
-                    icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        ),
-      ),
+      child: content,
     );
   }
 }

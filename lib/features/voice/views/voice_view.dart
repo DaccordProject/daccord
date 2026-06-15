@@ -93,25 +93,32 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final connectedHere = ref.watch(voiceControllerProvider
-        .select((v) => v.channelId == widget.channelId));
+    final connectedHere = ref.watch(
+      voiceControllerProvider.select((v) => v.channelId == widget.channelId),
+    );
 
     // A DM call presented full-screen pops itself once the call ends (we leave,
     // the peer declines, or the room empties) rather than stranding the user on
     // an un-rejoinable DM lobby.
     if (widget.fullScreen && _isDmCall) {
-      ref.listen(voiceControllerProvider.select((v) => v.channelId),
-          (prev, next) {
+      ref.listen(voiceControllerProvider.select((v) => v.channelId), (
+        prev,
+        next,
+      ) {
         if (prev == widget.channelId && next != widget.channelId && mounted) {
           Navigator.of(context).maybePop();
         }
       });
     }
 
-    final ringing = _isDmCall &&
+    final ringing =
+        _isDmCall &&
         connectedHere &&
-        ref.watch(callControllerProvider
-            .select((s) => s.outgoingChannelId == widget.channelId));
+        ref.watch(
+          callControllerProvider.select(
+            (s) => s.outgoingChannelId == widget.channelId,
+          ),
+        );
 
     return Container(
       color: colors.background,
@@ -133,8 +140,10 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
             channelId: widget.channelId,
             spaceId: widget.spaceId,
             spotlightUserId: _spotlightUserId,
-            onToggleSpotlight: (userId) => setState(() => _spotlightUserId =
-                _spotlightUserId == userId ? null : userId),
+            onToggleSpotlight: (userId) => setState(
+              () =>
+                  _spotlightUserId = _spotlightUserId == userId ? null : userId,
+            ),
           )
         : _LobbyBody(channelId: widget.channelId, spaceId: widget.spaceId);
 
@@ -176,17 +185,20 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
           Icon(Icons.volume_up, size: 18, color: colors.dirtyWhite),
           const SizedBox(width: 6),
           Expanded(
-            child: Text(widget.channelName ?? '',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall),
+            child: Text(
+              widget.channelName ?? '',
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
           ),
           IconButton(
             tooltip: _chatOpen ? 'Hide chat' : 'Show chat',
             onPressed: () => setState(() => _chatOpen = !_chatOpen),
             icon: Icon(
-                _chatOpen ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                size: 18,
-                color: _chatOpen ? colors.primary : colors.dirtyWhite),
+              _chatOpen ? Icons.chat_bubble : Icons.chat_bubble_outline,
+              size: 18,
+              color: _chatOpen ? colors.primary : colors.dirtyWhite,
+            ),
           ),
           IconButton(
             tooltip: widget.fullScreen ? 'Exit full screen' : 'Full screen',
@@ -203,11 +215,10 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
               }
             },
             icon: Icon(
-                widget.fullScreen
-                    ? Icons.fullscreen_exit
-                    : Icons.fullscreen,
-                size: 20,
-                color: colors.dirtyWhite),
+              widget.fullScreen ? Icons.fullscreen_exit : Icons.fullscreen,
+              size: 20,
+              color: colors.dirtyWhite,
+            ),
           ),
         ],
       ),
@@ -236,17 +247,18 @@ class _RingingBanner extends StatelessWidget {
             width: 14,
             height: 14,
             child: CircularProgressIndicator(
-                strokeWidth: 2, color: colors.dirtyWhite),
+              strokeWidth: 2,
+              color: colors.dirtyWhite,
+            ),
           ),
           const SizedBox(width: 10),
           Flexible(
             child: Text(
               name == null || name!.isEmpty ? 'Calling…' : 'Calling $name…',
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium!
-                  .copyWith(color: colors.dirtyWhite),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium!.copyWith(color: colors.dirtyWhite),
             ),
           ),
         ],
@@ -265,25 +277,32 @@ class _LobbyBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final states = ref.watch(voiceStatesControllerProvider
-        .select((cache) => voiceStatesFor(cache, channelId)));
+    final states = ref.watch(
+      voiceStatesControllerProvider.select(
+        (cache) => voiceStatesFor(cache, channelId),
+      ),
+    );
     final members = spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(spaceId!));
     final users = ref.watch(accordUsersControllerProvider);
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
+    final cdnUrl = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
+    );
 
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (states.isEmpty)
-            Text('No one is here yet',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium!
-                    .copyWith(color: colors.gray))
+            Text(
+              'No one is here yet',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium!.copyWith(color: colors.gray),
+            )
           else
             Wrap(
               alignment: WrapAlignment.center,
@@ -293,15 +312,18 @@ class _LobbyBody extends ConsumerWidget {
                 for (final vs in states)
                   _LobbyAvatar(
                     name: members?[vs.userId] != null
-                        ? accordMemberName(members![vs.userId],
-                            fallback: vs.userId)
+                        ? accordMemberName(
+                            members![vs.userId],
+                            fallback: vs.userId,
+                          )
                         : accordUserName(users[vs.userId], fallback: vs.userId),
                     avatarUrl: members?[vs.userId] != null
                         ? accordMemberAvatarUrl(members![vs.userId], cdnUrl)
                         : accordAvatarUrl(users[vs.userId], cdnUrl),
                     bg: accordAvatarColor(
-                        members?[vs.userId]?.user ?? users[vs.userId],
-                        vs.userId),
+                      members?[vs.userId]?.user ?? users[vs.userId],
+                      vs.userId,
+                    ),
                   ),
               ],
             ),
@@ -311,8 +333,8 @@ class _LobbyBody extends ConsumerWidget {
             onPressed: spaceId == null
                 ? null
                 : () => ref
-                    .read(voiceControllerProvider.notifier)
-                    .join(channelId, spaceId!),
+                      .read(voiceControllerProvider.notifier)
+                      .join(channelId, spaceId!),
             icon: const Icon(Icons.call),
             label: const Text('Join Voice'),
           ),
@@ -347,18 +369,21 @@ class _LobbyAvatar extends StatelessWidget {
             foregroundImage: avatarUrl == null
                 ? null
                 : CachedNetworkImageProvider(avatarUrl!),
-            child: Text(initial,
-                style: TextStyle(color: accordOnColor(bg), fontSize: 18)),
+            child: Text(
+              initial,
+              style: TextStyle(color: accordOnColor(bg), fontSize: 18),
+            ),
           ),
           const SizedBox(height: 4),
-          Text(name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall!
-                  .copyWith(color: colors.dirtyWhite)),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall!.copyWith(color: colors.dirtyWhite),
+          ),
         ],
       ),
     );
@@ -404,18 +429,28 @@ class _ConnectedBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Rebuild on any room change (track added/removed, speaker changes).
     ref.watch(voiceControllerProvider.select((v) => v.tick));
-    final states = ref.watch(voiceStatesControllerProvider
-        .select((cache) => voiceStatesFor(cache, channelId)));
+    final states = ref.watch(
+      voiceStatesControllerProvider.select(
+        (cache) => voiceStatesFor(cache, channelId),
+      ),
+    );
     final speaking = ref.watch(
-        voiceControllerProvider.select((v) => v.speakingUserIds));
+      voiceControllerProvider.select((v) => v.speakingUserIds),
+    );
     final members = spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(spaceId!));
     final users = ref.watch(accordUsersControllerProvider);
-    final cdnUrl = ref.watch(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null));
-    final myId = ref.watch(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.session.userId : null));
+    final cdnUrl = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null,
+      ),
+    );
+    final myId = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.userId : null,
+      ),
+    );
     final session = ref.read(voiceControllerProvider.notifier).session;
 
     String nameOf(String userId) => members?[userId] != null
@@ -424,8 +459,8 @@ class _ConnectedBody extends ConsumerWidget {
     String? avatarOf(String userId) => members?[userId] != null
         ? accordMemberAvatarUrl(members![userId], cdnUrl)
         : accordAvatarUrl(users[userId], cdnUrl);
-    Color bgOf(String userId) => accordAvatarColor(
-        members?[userId]?.user ?? users[userId], userId);
+    Color bgOf(String userId) =>
+        accordAvatarColor(members?[userId]?.user ?? users[userId], userId);
 
     final tiles = <_Tile>[];
     for (final vs in states) {
@@ -436,28 +471,32 @@ class _ConnectedBody extends ConsumerWidget {
             ? session.localCameraTrack
             : session.remoteCameraTrack(vs.userId);
       }
-      tiles.add(_Tile(
-        userId: vs.userId,
-        name: nameOf(vs.userId),
-        avatarUrl: avatarOf(vs.userId),
-        bg: bgOf(vs.userId),
-        track: camera,
-        isScreen: false,
-        muted: vs.selfMute || vs.selfDeaf,
-      ));
-      if (vs.selfStream && session != null) {
-        final screen = isMe
-            ? session.localScreenTrack
-            : session.remoteScreenTrack(vs.userId);
-        tiles.add(_Tile(
+      tiles.add(
+        _Tile(
           userId: vs.userId,
           name: nameOf(vs.userId),
           avatarUrl: avatarOf(vs.userId),
           bg: bgOf(vs.userId),
-          track: screen,
-          isScreen: true,
-          muted: false,
-        ));
+          track: camera,
+          isScreen: false,
+          muted: vs.selfMute || vs.selfDeaf,
+        ),
+      );
+      if (vs.selfStream && session != null) {
+        final screen = isMe
+            ? session.localScreenTrack
+            : session.remoteScreenTrack(vs.userId);
+        tiles.add(
+          _Tile(
+            userId: vs.userId,
+            name: nameOf(vs.userId),
+            avatarUrl: avatarOf(vs.userId),
+            bg: bgOf(vs.userId),
+            track: screen,
+            isScreen: true,
+            muted: false,
+          ),
+        );
       }
     }
 
@@ -466,12 +505,12 @@ class _ConnectedBody extends ConsumerWidget {
     }
 
     Widget tileWidget(_Tile t) => _VideoTile(
-          key: ValueKey('${t.userId}:${t.isScreen}'),
-          tile: t,
-          speaking: speaking.contains(t.userId),
-          spotlighted: spotlightUserId == t.userId,
-          onDoubleTap: () => onToggleSpotlight(t.userId),
-        );
+      key: ValueKey('${t.userId}:${t.isScreen}'),
+      tile: t,
+      speaking: speaking.contains(t.userId),
+      spotlighted: spotlightUserId == t.userId,
+      onDoubleTap: () => onToggleSpotlight(t.userId),
+    );
 
     // Spotlight a chosen tile (or any active screen-share) above a strip.
     final spotlightIdx = spotlightUserId != null
@@ -480,7 +519,7 @@ class _ConnectedBody extends ConsumerWidget {
     if (spotlightIdx >= 0 && tiles.length > 1) {
       final rest = [
         for (var i = 0; i < tiles.length; i++)
-          if (i != spotlightIdx) tiles[i]
+          if (i != spotlightIdx) tiles[i],
       ];
       return Column(
         children: [
@@ -492,16 +531,21 @@ class _ConnectedBody extends ConsumerWidget {
           ),
           SizedBox(
             height: 110,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              children: [
-                for (final t in rest)
-                  Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: AspectRatio(aspectRatio: 1, child: tileWidget(t)),
-                  ),
-              ],
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(scrollbars: false),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  for (final t in rest)
+                    Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: AspectRatio(aspectRatio: 1, child: tileWidget(t)),
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -511,10 +555,10 @@ class _ConnectedBody extends ConsumerWidget {
     final columns = tiles.length <= 1
         ? 1
         : tiles.length <= 4
-            ? 2
-            : tiles.length <= 9
-                ? 3
-                : 4;
+        ? 2
+        : tiles.length <= 9
+        ? 3
+        : 4;
     return Padding(
       padding: const EdgeInsets.all(8),
       child: GridView.count(
@@ -545,8 +589,9 @@ class _VideoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final initial =
-        tile.name.isEmpty ? '?' : tile.name.characters.first.toUpperCase();
+    final initial = tile.name.isEmpty
+        ? '?'
+        : tile.name.characters.first.toUpperCase();
     return GestureDetector(
       onDoubleTap: onDoubleTap,
       child: Container(
@@ -557,8 +602,8 @@ class _VideoTile extends StatelessWidget {
           border: speaking
               ? Border.all(color: colors.green, width: 2)
               : spotlighted
-                  ? Border.all(color: colors.primary, width: 2)
-                  : null,
+              ? Border.all(color: colors.primary, width: 2)
+              : null,
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -578,17 +623,20 @@ class _VideoTile extends StatelessWidget {
                   foregroundImage: tile.avatarUrl == null
                       ? null
                       : CachedNetworkImageProvider(tile.avatarUrl!),
-                  child: Text(initial,
-                      style: TextStyle(
-                          color: accordOnColor(tile.bg), fontSize: 20)),
+                  child: Text(
+                    initial,
+                    style: TextStyle(
+                      color: accordOnColor(tile.bg),
+                      fontSize: 20,
+                    ),
+                  ),
                 ),
               ),
             Positioned(
               left: 6,
               bottom: 6,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(4),
@@ -601,13 +649,17 @@ class _VideoTile extends StatelessWidget {
                       const SizedBox(width: 4),
                     ],
                     if (tile.isScreen) ...[
-                      const Icon(Icons.screen_share,
-                          size: 12, color: Colors.white),
+                      const Icon(
+                        Icons.screen_share,
+                        size: 12,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 4),
                     ],
-                    Text(tile.name,
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 11)),
+                    Text(
+                      tile.name,
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
                   ],
                 ),
               ),
@@ -717,9 +769,11 @@ class _ControlButton extends StatelessWidget {
         child: IconButton(
           tooltip: tooltip,
           onPressed: onPressed,
-          icon: Icon(icon,
-              size: 20,
-              color: active ? Colors.white : colors.dirtyWhite),
+          icon: Icon(
+            icon,
+            size: 20,
+            color: active ? Colors.white : colors.dirtyWhite,
+          ),
         ),
       ),
     );

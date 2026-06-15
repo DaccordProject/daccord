@@ -57,6 +57,11 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   List<AccordMessage>? _posts;
   ForumSort _sort = ForumSort.latestActivity;
 
+  /// The post whose thread is open inline in the message area, or null when the
+  /// board is showing. Opening a post swaps the board for [AccordThreadPane]
+  /// rather than a modal dialog.
+  AccordMessage? _openPostMessage;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +73,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.channelId != widget.channelId) {
       _posts = null;
+      _openPostMessage = null;
       _load();
     }
   }
@@ -119,16 +125,17 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
     }
   }
 
-  Future<void> _openPost(AccordMessage post) async {
-    final result = await showAccordThread(
-      context,
-      channelId: widget.channelId,
-      spaceId: widget.spaceId,
-      root: post,
-      canManageMessages: widget.canManageMessages,
-    );
-    if (result == null || !mounted) return;
+  void _openPost(AccordMessage post) {
+    setState(() => _openPostMessage = post);
+  }
+
+  /// Returns from an inline thread to the board, applying any root edit/delete
+  /// the thread surfaced so the row reflects it without a full reload.
+  void _onThreadClosed(AccordMessage post, ThreadResult? result) {
+    if (!mounted) return;
     setState(() {
+      _openPostMessage = null;
+      if (result == null) return;
       final list = [...?_posts];
       final index = list.indexWhere((m) => m.id == post.id);
       if (index < 0) return;
@@ -223,6 +230,17 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
+    final openPost = _openPostMessage;
+    if (openPost != null) {
+      return AccordThreadPane(
+        key: ValueKey(openPost.id),
+        channelId: widget.channelId,
+        spaceId: widget.spaceId,
+        root: openPost,
+        canManageMessages: widget.canManageMessages,
+        onClose: (result) => _onThreadClosed(openPost, result),
+      );
+    }
     final posts = _posts;
     // Compute once and capture in the itemBuilder closure so _sorted is not
     // invoked O(n) times as items scroll into view.

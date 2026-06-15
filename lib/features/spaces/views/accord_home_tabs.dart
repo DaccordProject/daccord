@@ -33,45 +33,46 @@ class _TabStrip extends ConsumerWidget {
       height: 38,
       decoration: BoxDecoration(
         color: colors.background,
-        border: Border(
-          bottom: BorderSide(color: colors.foreground, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: colors.foreground, width: 1)),
       ),
-      child: ReorderableListView.builder(
-        scrollDirection: Axis.horizontal,
-        buildDefaultDragHandles: false,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-        proxyDecorator: (child, index, animation) => Material(
-          color: Colors.transparent,
-          child: child,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: ReorderableListView.builder(
+          scrollDirection: Axis.horizontal,
+          buildDefaultDragHandles: false,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          proxyDecorator: (child, index, animation) =>
+              Material(color: Colors.transparent, child: child),
+          itemCount: tabs.length,
+          onReorder: (oldIndex, newIndex) => ref
+              .read(openTabsControllerProvider.notifier)
+              .reorder(oldIndex, newIndex),
+          itemBuilder: (context, index) {
+            final tab = tabs[index];
+            final conn = connections.connectionFor(tab.serverKey);
+            final space = conn?.spaces.firstWhereOrNull(
+              (s) => s.id == tab.spaceId,
+            );
+            final iconUrl = (nameCounts[tab.name] ?? 0) > 1 && space != null
+                ? _spaceIconUrl(space, conn?.session.server.cdnUrl)
+                : null;
+            return ReorderableDragStartListener(
+              key: ValueKey(tab.key),
+              index: index,
+              child: _TabChip(
+                tab: tab,
+                active: tab.key == activeKey,
+                iconUrl: iconUrl,
+                onTap: () => onSelect(tab),
+                onClose: () => ref
+                    .read(openTabsControllerProvider.notifier)
+                    .close(tab.key),
+                onContextMenu: (pos) =>
+                    _showTabMenu(context, ref, tab, index, tabs.length, pos),
+              ),
+            );
+          },
         ),
-        itemCount: tabs.length,
-        onReorder: (oldIndex, newIndex) => ref
-            .read(openTabsControllerProvider.notifier)
-            .reorder(oldIndex, newIndex),
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final conn = connections.connectionFor(tab.serverKey);
-          final space =
-              conn?.spaces.firstWhereOrNull((s) => s.id == tab.spaceId);
-          final iconUrl = (nameCounts[tab.name] ?? 0) > 1 && space != null
-              ? _spaceIconUrl(space, conn?.session.server.cdnUrl)
-              : null;
-          return ReorderableDragStartListener(
-            key: ValueKey(tab.key),
-            index: index,
-            child: _TabChip(
-              tab: tab,
-              active: tab.key == activeKey,
-              iconUrl: iconUrl,
-              onTap: () => onSelect(tab),
-              onClose: () =>
-                  ref.read(openTabsControllerProvider.notifier).close(tab.key),
-              onContextMenu: (pos) =>
-                  _showTabMenu(context, ref, tab, index, tabs.length, pos),
-            ),
-          );
-        },
       ),
     );
   }
@@ -128,22 +129,25 @@ class _TabStrip extends ConsumerWidget {
   }
 
   void _copyTabLink(BuildContext context, WidgetRef ref, OpenTab tab) {
-    final conn =
-        ref.read(connectionsControllerProvider).connectionFor(tab.serverKey);
+    final conn = ref
+        .read(connectionsControllerProvider)
+        .connectionFor(tab.serverKey);
     if (conn == null) return;
     final space = conn.spaces.firstWhereOrNull((s) => s.id == tab.spaceId);
     final url = _buildConnectLink(conn.session.server, space, tab.name);
     Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied!')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Link copied!')));
   }
 }
 
 /// Builds a `daccord://connect/<host>[/<slug>][?channel=<name>]` share link,
 /// matching the reference client's `UriHandler.build_connect_url`.
 String _buildConnectLink(
-    AccordServer server, AccordSpace? space, String channelName) {
+  AccordServer server,
+  AccordSpace? space,
+  String channelName,
+) {
   var host = server.baseUrl.replaceFirst(RegExp(r'^https?://'), '');
   final slash = host.indexOf('/');
   if (slash != -1) host = host.substring(0, slash);
@@ -218,10 +222,9 @@ class _TabChip extends StatelessWidget {
                     tab.name,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                          color: active ? Colors.white : colors.dirtyWhite,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.normal,
-                        ),
+                      color: active ? Colors.white : colors.dirtyWhite,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 2),

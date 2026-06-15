@@ -16,8 +16,10 @@ part 'update_controller.g.dart';
 
 /// Where an in-place install currently is. Drives the update UI's progress and
 /// disabled states; [idle] also covers "not started" and "completed on Android"
-/// (where the system installer takes over and the app keeps running).
-enum UpdatePhase { idle, downloading, verifying, installing, failed }
+/// (where the system installer takes over and the app keeps running). [ready]
+/// means the new build has been downloaded and verified in the background and is
+/// staged for a one-click apply (restart-and-swap).
+enum UpdatePhase { idle, downloading, verifying, ready, installing, failed }
 
 /// Snapshot of the update checker.
 @immutable
@@ -31,6 +33,8 @@ class UpdateState {
     this.phase = UpdatePhase.idle,
     this.progress = 0.0,
     this.installError,
+    this.stagedArchivePath,
+    this.preparedVersion,
   });
 
   /// The latest release fetched, or null if none/unknown.
@@ -59,11 +63,27 @@ class UpdateState {
   /// The last install failure's user-facing message, or null.
   final String? installError;
 
+  /// Path to the downloaded-and-verified bundle staged for a one-click apply,
+  /// set when [phase] reaches [UpdatePhase.ready]. Null until then.
+  final String? stagedArchivePath;
+
+  /// The version currently being prepared or staged (download → ready), used to
+  /// dedupe repeated background prepares and to detect a stale staged archive
+  /// when a newer release ships. Null when nothing has been prepared.
+  final String? preparedVersion;
+
+  /// Whether a download/verify is actively in flight in the background.
+  bool get downloading =>
+      phase == UpdatePhase.downloading || phase == UpdatePhase.verifying;
+
   /// Whether an install is actively in flight (download/verify/swap).
   bool get installing =>
       phase == UpdatePhase.downloading ||
       phase == UpdatePhase.verifying ||
       phase == UpdatePhase.installing;
+
+  /// Whether a verified build is staged and one click away from being applied.
+  bool get updateReady => phase == UpdatePhase.ready && stagedArchivePath != null;
 
   /// Whether [latest] is a newer build than the running one. Pre-releases are
   /// ignored unless this build is itself a pre-release (matching the reference
@@ -87,6 +107,10 @@ class UpdateState {
     double? progress,
     String? installError,
     bool clearInstallError = false,
+    String? stagedArchivePath,
+    bool clearStagedArchive = false,
+    String? preparedVersion,
+    bool clearPreparedVersion = false,
   }) => UpdateState(
     latest: latest ?? this.latest,
     checking: checking ?? this.checking,
@@ -96,6 +120,10 @@ class UpdateState {
     phase: phase ?? this.phase,
     progress: progress ?? this.progress,
     installError: clearInstallError ? null : (installError ?? this.installError),
+    stagedArchivePath:
+        clearStagedArchive ? null : (stagedArchivePath ?? this.stagedArchivePath),
+    preparedVersion:
+        clearPreparedVersion ? null : (preparedVersion ?? this.preparedVersion),
   );
 }
 
@@ -105,11 +133,13 @@ class UpdateState {
 /// throttled), a manual check, session-dismiss + persistent skip, and
 /// platform-aware download links.
 ///
-/// In-place self-replacement is handled by [installUpdate]: on desktop it
-/// downloads + verifies the matching bundle and a detached helper swaps the
-/// binary tree and relaunches (see [UpdateInstaller]); on Android it hands the
-/// APK to the system installer. Platforms without an in-place path (or older
-/// releases) still fall back to a plain download link, and web prompts a
+/// In-place self-replacement is split for a one-click experience: as soon as a
+/// check finds a newer build, [prepareUpdate] downloads + verifies the matching
+/// bundle in the background and stages it ([UpdatePhase.ready]); the user's
+/// single click then calls [applyUpdate], where a detached helper swaps the
+/// binary tree and relaunches (see [UpdateInstaller]). On Android the staged APK
+/// is handed to the system installer. Platforms without an in-place path (or
+/// older releases) still fall back to a plain download link, and web prompts a
 /// service-worker reload.
 @Riverpod(keepAlive: true)
 class UpdateController extends _$UpdateController {
@@ -187,6 +217,9 @@ class UpdateController extends _$UpdateController {
         checkedOnce: true,
         clearError: true,
       );
+      // Pull the new build down in the background so the user only ever clicks
+      // once (to apply). No-op on platforms without an in-place install.
+      unawaited(prepareUpdate());
       return state;
     } catch (e) {
       debugPrint('Update check failed: $e');
@@ -278,46 +311,80 @@ class UpdateController extends _$UpdateController {
   bool get canInstallInPlace =>
       !kAppStoreBuild && UpdateInstaller.isSupported && platformAsset() != null;
 
-  /// Downloads the matching platform asset, verifies it against the release's
-  /// published checksums (when present), and installs it in place. On desktop
-  /// the app quits and the swap helper relaunches the new build; on Android the
-  /// system package installer takes over. Surfaces progress/errors via [state].
-  Future<void> installUpdate() async {
+  /// Downloads and verifies the matching platform asset in the background,
+  /// leaving it staged at [UpdatePhase.ready] for a one-click [applyUpdate].
+  /// Triggered automatically after a check finds a newer build. A no-op when the
+  /// platform can't self-install, the version is skipped, or a prepare for the
+  /// current version is already in flight or done — so it's safe to call on
+  /// every periodic check.
+  Future<void> prepareUpdate() async {
+    if (!canInstallInPlace || !state.updateAvailable) return;
+    final version = state.latest?.version;
+    if (version == null) return;
+    final skipped = ref.read(settingsControllerProvider).skippedUpdateVersion;
+    if (version == skipped) return;
+    // Already downloading/verifying/installing, or already staged for this same
+    // version — don't re-download.
     if (state.installing) return;
-    final asset = platformAsset();
-    if (asset == null) {
-      state = state.copyWith(
-        phase: UpdatePhase.failed,
-        installError: 'No downloadable build for this platform.',
-      );
+    if (state.phase == UpdatePhase.ready && state.preparedVersion == version) {
       return;
     }
+    final asset = platformAsset();
+    if (asset == null) return;
+    try {
+      final archivePath = await _downloadAndVerify(asset);
+      state = state.copyWith(
+        phase: UpdatePhase.ready,
+        stagedArchivePath: archivePath,
+        preparedVersion: version,
+      );
+    } on UpdateInstallException catch (e) {
+      state = state.copyWith(phase: UpdatePhase.failed, installError: e.message);
+    } catch (e) {
+      debugPrint('Background update download failed: $e');
+      state = state.copyWith(
+        phase: UpdatePhase.failed,
+        installError: 'Could not download the update.',
+      );
+    }
+  }
+
+  /// Applies the update in place: on desktop the app quits and the swap helper
+  /// relaunches the new build; on Android the system package installer takes
+  /// over. Uses the build already staged by [prepareUpdate] when present (the
+  /// one-click path); otherwise downloads + verifies first. Surfaces
+  /// progress/errors via [state].
+  Future<void> applyUpdate() async {
+    if (state.installing) return;
     final installer = UpdateInstaller();
     try {
-      state = state.copyWith(
-        phase: UpdatePhase.downloading,
-        progress: 0,
-        clearInstallError: true,
-      );
-      final archivePath = await installer.download(
-        asset.url,
-        fileName: asset.name,
-        onProgress: (value) => state = state.copyWith(progress: value),
-      );
-
-      final expected = await _expectedSha(asset.name);
-      if (expected != null) {
-        state = state.copyWith(phase: UpdatePhase.verifying);
-        await installer.verify(archivePath, expected);
-      } else {
-        debugPrint('No published checksum for ${asset.name}; skipping verify.');
+      var archivePath = state.stagedArchivePath;
+      // Re-download if nothing is staged, or the staged build is for an older
+      // release than the one now offered.
+      if (archivePath == null ||
+          state.preparedVersion != state.latest?.version) {
+        final asset = platformAsset();
+        if (asset == null) {
+          state = state.copyWith(
+            phase: UpdatePhase.failed,
+            installError: 'No downloadable build for this platform.',
+          );
+          return;
+        }
+        archivePath = await _downloadAndVerify(asset);
       }
 
       state = state.copyWith(phase: UpdatePhase.installing);
       // Desktop: install() quits the process and never returns here. Android:
       // returns once the system installer has been launched.
       await installer.install(archivePath, onReadyToQuit: () async {});
-      state = state.copyWith(phase: UpdatePhase.idle);
+      // Clear the staged path so the next periodic check doesn't skip the
+      // re-download guard and re-offer a build that has already been applied.
+      state = state.copyWith(
+        phase: UpdatePhase.idle,
+        clearStagedArchive: true,
+        clearPreparedVersion: true,
+      );
     } on UpdateInstallException catch (e) {
       state = state.copyWith(
         phase: UpdatePhase.failed,
@@ -330,6 +397,32 @@ class UpdateController extends _$UpdateController {
         installError: 'Update failed. Try downloading it manually instead.',
       );
     }
+  }
+
+  /// Downloads [asset] to a temp file (reporting progress) and verifies it
+  /// against the release's published checksums when present. Returns the staged
+  /// file path; throws [UpdateInstallException] on download/verify failure.
+  Future<String> _downloadAndVerify(AppReleaseAsset asset) async {
+    final installer = UpdateInstaller();
+    state = state.copyWith(
+      phase: UpdatePhase.downloading,
+      progress: 0,
+      clearInstallError: true,
+    );
+    final archivePath = await installer.download(
+      asset.url,
+      fileName: asset.name,
+      onProgress: (value) => state = state.copyWith(progress: value),
+    );
+
+    final expected = await _expectedSha(asset.name);
+    if (expected != null) {
+      state = state.copyWith(phase: UpdatePhase.verifying);
+      await installer.verify(archivePath, expected);
+    } else {
+      debugPrint('No published checksum for ${asset.name}; skipping verify.');
+    }
+    return archivePath;
   }
 
   /// Looks up the expected SHA-256 for [assetName] from the release's

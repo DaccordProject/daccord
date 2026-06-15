@@ -356,21 +356,24 @@ class _TabBar extends StatelessWidget {
     final colors = BonfireThemeExtension.of(context);
     return SizedBox(
       height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        children: [
-          if (hasRecent) _tab(colors, _Tab.recent, Icons.history, 'Recent'),
-          if (hasCustom)
-            _tab(
-              colors,
-              _Tab.custom,
-              Icons.workspace_premium_outlined,
-              'Custom',
-            ),
-          for (final c in EmojiCategory.values)
-            _tab(colors, c, c.icon, c.label),
-        ],
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          children: [
+            if (hasRecent) _tab(colors, _Tab.recent, Icons.history, 'Recent'),
+            if (hasCustom)
+              _tab(
+                colors,
+                _Tab.custom,
+                Icons.workspace_premium_outlined,
+                'Custom',
+              ),
+            for (final c in EmojiCategory.values)
+              _tab(colors, c, c.icon, c.label),
+          ],
+        ),
       ),
     );
   }
