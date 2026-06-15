@@ -701,6 +701,19 @@ jobs:
             --dart-define=APP_STORE=true \
             --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
 
+      - name: Upload signed AAB artifact
+        # Keep the exact signed bundle even if the Play API upload fails, so the
+        # first-ever release can be uploaded manually via the Play Console (a
+        # brand-new app rejects API uploads with an opaque 500 until its first
+        # release is created by hand).
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daccord-playstore-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Upload to Google Play
         env:
           PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
