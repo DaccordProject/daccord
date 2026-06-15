@@ -37,7 +37,9 @@ add_definitions(-DUNICODE -D_UNICODE)
 # Several Flutter plugins (audioplayers_windows, permission_handler_windows,
 # flutter_local_notifications_windows) still include that header, so silence the
 # deprecation across all targets and plugin subdirectories added below.
-add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+if(MSVC)
+  add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+endif()
 
 # Compilation settings that should be applied to most targets.
 #
