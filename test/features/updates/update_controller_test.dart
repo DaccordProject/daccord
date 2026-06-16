@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
@@ -6,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:universal_platform/universal_platform.dart';
-import 'dart:io';
 
 // Note: kAppStoreBuild is a compile-time const (bool.fromEnvironment('APP_STORE')).
 // It is always false in unit tests unless built with --dart-define=APP_STORE=true,
@@ -390,6 +391,16 @@ void main() {
           isTrue,
           reason: 'expected a "$ext" asset, got "${asset.name}"',
         );
+        // Guard against the Windows web-bundle ambiguity: daccord-web.zip and
+        // daccord-windows-x86_64.zip both end with .zip; only the latter is a
+        // valid Windows installer.
+        if (UniversalPlatform.isWindows) {
+          expect(
+            asset.name.toLowerCase().contains('windows'),
+            isTrue,
+            reason: 'picked web bundle "${asset.name}" instead of Windows installer',
+          );
+        }
       }
     });
 
@@ -406,6 +417,23 @@ void main() {
       expect(asset, isNotNull);
       expect(asset!.name, endsWith('.tar.gz'));
       expect(asset.name, isNot(endsWith('.deb')));
+    });
+
+    test('prefers windows zip over web zip when web zip is listed first', () {
+      // Regression guard for the daccord-web.zip ambiguity: GitHub returns assets
+      // in alphabetical order, so `daccord-web.zip` sorts before
+      // `daccord-windows-x86_64.zip`. The in-place installer must never pick the
+      // web bundle as the Windows installer.
+      if (!UniversalPlatform.isWindows) return;
+      final c = makeContainer();
+      setLatest(c, [
+        _asset('daccord-web.zip'),
+        _asset('daccord-windows-x86_64.zip'),
+      ]);
+      final asset = controllerOf(c).platformAsset();
+      expect(asset, isNotNull);
+      expect(asset!.name, equals('daccord-windows-x86_64.zip'));
+      expect(asset.name, isNot(equals('daccord-web.zip')));
     });
 
     test('a package-only release has no in-place asset but is downloadable', () {

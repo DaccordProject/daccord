@@ -256,9 +256,13 @@ class UpdateController extends _$UpdateController {
   /// macOS, and hands a `.apk` to the system installer on Android. Package
   /// formats the swap helper can't apply (`.deb`/`.rpm`/`.appimage`, setup
   /// `.exe`/`.msi`) are deliberately excluded — they're download-only.
+  ///
+  /// Windows uses the more-specific `windows-x86_64.zip` suffix before the
+  /// generic `.zip` so the web build bundle (`daccord-web.zip`) is never
+  /// mistakenly selected ahead of the actual Windows installer.
   List<String> get _installableExts {
     if (UniversalPlatform.isAndroid) return const ['.apk'];
-    if (UniversalPlatform.isWindows) return const ['.zip'];
+    if (UniversalPlatform.isWindows) return const ['windows-x86_64.zip', '.zip'];
     if (UniversalPlatform.isMacOS) return const ['.dmg'];
     if (UniversalPlatform.isLinux) return const ['.tar.gz'];
     return const [];
@@ -270,7 +274,9 @@ class UpdateController extends _$UpdateController {
   /// apply in place.
   List<String> get _downloadExts {
     if (UniversalPlatform.isAndroid) return const ['.apk'];
-    if (UniversalPlatform.isWindows) return const ['.zip', '.exe', '.msi'];
+    if (UniversalPlatform.isWindows) {
+      return const ['windows-x86_64.zip', '.zip', '-setup.exe', '.exe', '.msi'];
+    }
     if (UniversalPlatform.isMacOS) return const ['.dmg', '.pkg', '.zip'];
     if (UniversalPlatform.isLinux) {
       return const ['.tar.gz', '.deb', '.rpm', '.appimage'];
