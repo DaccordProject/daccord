@@ -61,6 +61,24 @@ android {
             signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
+
+    // Two distribution channels that share one applicationId (same app) but differ
+    // in manifest contributions. Pick one with `--flavor github` / `--flavor play`.
+    flavorDimensions "distribution"
+    productFlavors {
+        // Sideloadable build published to GitHub Releases. Keeps the in-app
+        // self-updater — REQUEST_INSTALL_PACKAGES is declared in
+        // src/github/AndroidManifest.xml.
+        github {
+            dimension "distribution"
+        }
+        // Google Play build. Play delivers updates, so the self-updater and its
+        // REQUEST_INSTALL_PACKAGES permission are omitted here; the build also
+        // passes --dart-define=APP_STORE=true to disable the updater at runtime.
+        play {
+            dimension "distribution"
+        }
+    }
 }
 
 dependencies {

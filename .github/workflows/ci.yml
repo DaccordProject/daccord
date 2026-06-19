@@ -201,7 +201,7 @@ jobs:
           build_once() {
             case "${{ matrix.platform }}" in
               web)     flutter build web     --no-tree-shake-icons --release ;;
-              android) flutter build apk     --no-tree-shake-icons ;;
+              android) flutter build apk     --no-tree-shake-icons --flavor github ;;
               linux)   flutter build linux ;;
               windows) flutter build windows ;;
             esac

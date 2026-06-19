@@ -2,23 +2,18 @@
     <uses-permission
         android:name="android.permission.INTERNET" />
     <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <uses-permission
         android:name="android.permission.VIBRATE" />
-    <!-- Android 13+: runtime permission to post notifications (mentions and
-         the background-connection service's status notification). -->
+    <!-- Android 13+: runtime permission to post notifications (mentions; and,
+         in the sideload build, the background-connection service's status
+         notification). -->
     <uses-permission
         android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Background connection: a dataSync foreground service keeps the process
-         (and so the gateway socket) alive while the app is backgrounded. -->
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- The background-connection foreground service (FOREGROUND_SERVICE +
+         FOREGROUND_SERVICE_DATA_SYNC and the <service> below) is declared only in
+         the `github` flavor (src/github/AndroidManifest.xml). The Play build omits
+         it — Accord has no push system yet, so background delivery on Play awaits
+         server-side push; shipping it keeps the AAB clear of the Play foreground-
+         service declaration. -->
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -36,9 +31,9 @@
         android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission
         android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <!-- In-app self-update: install a downloaded APK via the system installer. -->
-    <uses-permission
-        android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- REQUEST_INSTALL_PACKAGES (in-app self-update) is declared only in the
+         `github` flavor (src/github/AndroidManifest.xml). The Play build omits it
+         and updates through Google Play. -->
     <application
         android:label="Daccord"
         android:name="${applicationName}"
@@ -83,13 +78,8 @@
                 <data android:scheme="daccord" />
             </intent-filter>
         </activity>
-        <!-- Optional (settings-gated) foreground service that keeps the app
-             process out of the cached-app freezer while backgrounded, so the
-             gateway connection and mention notifications keep working. -->
-        <service
-            android:name=".BackgroundConnectionService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <!-- BackgroundConnectionService is declared in the `github` flavor only
+             (src/github/AndroidManifest.xml); the Play build ships without it. -->
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

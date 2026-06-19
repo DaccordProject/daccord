@@ -118,13 +118,17 @@ Mirror Bonfire's existing pattern: a thin repository layer subscribes to gateway
 flutter pub get
 dart run build_runner watch -d        # keep running during dev (codegen)
 
-flutter run                            # run on a connected device/emulator
+flutter run --flavor github            # run on a connected device/emulator (Android needs a flavor)
 flutter analyze --no-fatal-infos       # lint; --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
 flutter test                           # ~12 unit/widget tests, mostly voice/settings/server logic
 flutter test test/features/voice/voice_logic_test.dart   # run a single test file
 
 # Release builds
-flutter build apk     --no-tree-shake-icons -v          # Android
+# Android has two product flavors (see android/app/build.gradle): `github` (sideload
+# APK, keeps the in-app self-updater) and `play` (Play AAB, no self-updater). Android
+# builds/runs MUST pass --flavor; other platforms have no flavors.
+flutter build apk       --flavor github --no-tree-shake-icons -v          # Android sideload APK
+flutter build appbundle --flavor play  --dart-define=APP_STORE=true       # Play Store AAB
 flutter build web     --no-tree-shake-icons --release   # Web (WASM)
 flutter build windows -v
 flutter build linux   -v                                # needs libmpv/media_kit deps

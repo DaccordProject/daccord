@@ -242,7 +242,7 @@ jobs:
           build_once() {
             case "${{ matrix.platform }}" in
               web)     flutter build web     --no-tree-shake-icons --release "${DEFINES[@]}" ;;
-              android) flutter build apk     --no-tree-shake-icons -v "${DEFINES[@]}" ;;
+              android) flutter build apk     --no-tree-shake-icons -v --flavor github "${DEFINES[@]}" ;;
               linux)   flutter build linux   -v "${DEFINES[@]}" ;;
               windows) flutter build windows -v "${DEFINES[@]}" ;;
               macos)   flutter build macos   -v "${DEFINES[@]}" ;;
@@ -267,7 +267,7 @@ jobs:
 
       - name: Package (Android)
         if: matrix.platform == 'android'
-        run: cp build/app/outputs/flutter-apk/app-release.apk "${{ matrix.artifact }}.apk"
+        run: cp build/app/outputs/flutter-apk/app-github-release.apk "${{ matrix.artifact }}.apk"
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'
@@ -695,7 +695,7 @@ jobs:
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "Play version: $BUILD_NAME (build ${{ github.run_number }})"
-          flutter build appbundle --release \
+          flutter build appbundle --release --flavor play \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
             --dart-define=APP_STORE=true \
@@ -710,7 +710,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: daccord-playstore-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          path: build/app/outputs/bundle/playRelease/app-play-release.aab
           if-no-files-found: warn
           retention-days: 30
 
@@ -718,7 +718,7 @@ jobs:
         env:
           PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
           ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
-          ANDROID_AAB_PATH: build/app/outputs/bundle/release/app-release.aab
+          ANDROID_AAB_PATH: build/app/outputs/bundle/playRelease/app-play-release.aab
           # Default: push live to the internal testing track so testers get the
           # build immediately. Override via repo variables for a different
           # rollout (e.g. PLAY_RELEASE_STATUS=draft to upload without releasing).

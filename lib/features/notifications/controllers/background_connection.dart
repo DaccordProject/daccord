@@ -1,6 +1,7 @@
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +29,11 @@ class BackgroundConnectionController extends _$BackgroundConnectionController {
 
   @override
   void build() {
-    if (!UniversalPlatform.isAndroid) return;
+    // Store builds (the Play AAB, built with --flavor play + APP_STORE=true) ship
+    // without BackgroundConnectionService in their manifest, so never try to start
+    // it — that would crash on an undeclared service. Background delivery on Play
+    // awaits a server-side push system; the sideload build keeps this feature.
+    if (!UniversalPlatform.isAndroid || kAppStoreBuild) return;
     final enabled = ref.watch(
       settingsControllerProvider.select((s) => s.backgroundConnection),
     );

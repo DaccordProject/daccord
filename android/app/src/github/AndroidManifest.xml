@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Sideloadable GitHub-release build only: the in-app self-updater installs
+         a downloaded APK via the system package installer (MainActivity.installApk).
+         The Play build omits this permission and updates through Google Play. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Sideloadable build only: the optional, settings-gated background-connection
+         foreground service keeps the app process out of the cached-app freezer while
+         backgrounded, so the gateway socket stays alive and mention notifications
+         keep firing. The Play build omits this (Accord has no push system yet) to
+         stay clear of the Play foreground-service declaration; the runtime start is
+         additionally gated off for store builds (kAppStoreBuild). -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <application>
+        <service
+            android:name=".BackgroundConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+</manifest>

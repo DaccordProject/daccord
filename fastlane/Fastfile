@@ -55,7 +55,7 @@ platform :android do
     upload_to_play_store(
       package_name: ENV.fetch("ANDROID_PACKAGE_NAME", "com.daccord_projects.daccord"),
       json_key: ENV.fetch("PLAY_JSON_KEY_PATH"),
-      aab: ENV.fetch("ANDROID_AAB_PATH", "build/app/outputs/bundle/release/app-release.aab"),
+      aab: ENV.fetch("ANDROID_AAB_PATH", "build/app/outputs/bundle/playRelease/app-play-release.aab"),
       track: ENV.fetch("PLAY_TRACK", "internal"),
       # "completed" releases the build to the track's testers immediately; set
       # PLAY_RELEASE_STATUS=draft to upload without distributing.
