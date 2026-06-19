@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#7c8cff;
+    --green:#46dd8a;
+    --purple:#b18cff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{overflow:hidden;}
+  body{
+    font-family:'Inter','Lato','Noto Sans',sans-serif;
+    background:#0a0b10;
+    color:#fff;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+  }
+  /* canvas size + per-device tuning */
+  body[data-device="iphone"]{ --W:1284px; --H:2778px; --padX:104px; --padTop:165px;
+    --pill-fs:30px; --h-fs:97px; --h-lh:1.05; --sub-fs:41px; --sub-mt:34px;
+    --dev-w:772px; --gap:104px; --textmax:1080px; }
+  body[data-device="ipad"]{ --W:2048px; --H:2732px; --padX:170px; --padTop:170px;
+    --pill-fs:34px; --h-fs:108px; --h-lh:1.05; --sub-fs:46px; --sub-mt:38px;
+    --dev-w:828px; --gap:96px; --textmax:1500px; }
+
+  #stage{
+    width:var(--W); height:var(--H); position:relative; overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 92% 6%, rgba(96,108,255,0.40) 0%, rgba(96,108,255,0.0) 42%),
+      radial-gradient(120% 90% at 6% 99%, rgba(58,214,142,0.34) 0%, rgba(58,214,142,0.0) 44%),
+      radial-gradient(140% 120% at 50% 30%, #14161f 0%, #0a0b10 60%, #07080c 100%);
+    display:flex; flex-direction:column; align-items:center;
+    padding:var(--padTop) var(--padX) 0;
+  }
+  #stage::after{ /* subtle vignette */
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(120% 100% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%);
+  }
+  .head{ width:100%; max-width:var(--textmax); text-align:center; z-index:2; }
+  .pill{
+    display:inline-flex; align-items:center; gap:.5em;
+    font-size:var(--pill-fs); font-weight:600; letter-spacing:.18em; text-transform:uppercase;
+    color:#cdd3de; background:rgba(255,255,255,0.055);
+    border:1px solid rgba(255,255,255,0.14);
+    padding:.62em 1.25em; border-radius:999px;
+  }
+  .pill .dot{ width:.5em; height:.5em; border-radius:50%;
+    background:linear-gradient(135deg,var(--blue),var(--green)); }
+  h1{
+    margin-top:.62em; font-size:var(--h-fs); line-height:var(--h-lh);
+    font-weight:900; letter-spacing:-0.02em;
+  }
+  h1 .blue{color:var(--blue);} h1 .green{color:var(--green);} h1 .purple{color:var(--purple);}
+  .sub{
+    margin-top:var(--sub-mt); font-size:var(--sub-fs); line-height:1.4;
+    font-weight:400; color:#aeb4c0; max-width:18em; margin-left:auto; margin-right:auto;
+  }
+  .badges{ margin-top:1.1em; display:flex; gap:.6em; justify-content:center; flex-wrap:wrap; }
+  .badges span{ font-size:calc(var(--pill-fs) * .94); font-weight:600; color:#c3c9d4;
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+    padding:.42em 1em; border-radius:999px; }
+
+  .device{
+    margin-top:var(--gap); width:var(--dev-w); flex:0 0 auto; z-index:2;
+    background:#050507; border-radius:calc(var(--dev-w) * .135);
+    padding:calc(var(--dev-w) * .018);
+    border:1px solid rgba(255,255,255,0.10);
+    box-shadow:0 2px 0 rgba(255,255,255,0.06) inset, 0 50px 130px rgba(0,0,0,0.65);
+  }
+  .screen{
+    width:100%; aspect-ratio:740 / 1542; overflow:hidden;
+    border-radius:calc(var(--dev-w) * .118);
+    background:#111;
+  }
+  .screen img{ width:100%; height:100%; object-fit:cover; object-position:top center; display:block; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="head">
+    <div class="pill"><span class="dot"></span><span id="pill"></span></div>
+    <h1 id="headline"></h1>
+    <p class="sub" id="sub"></p>
+    <div class="badges" id="badges" style="display:none"></div>
+  </div>
+  <div class="device"><div class="screen"><img id="shot" alt=""></div></div>
+</div>
+<script>
+  const SCENES = {
+    1:{ img:'inner/t-01.png', pill:'Free &amp; Open-Source',
+        h:'Chat, <span class="blue">voice</span> &amp; video<br>without <span class="green">compromise</span>',
+        sub:'The open-source home for communities you actually own.' },
+    2:{ img:'inner/t-03.png', pill:'Multi-Server',
+        h:'Every <span class="blue">community,</span><br>side by <span class="green">side</span>',
+        sub:'Connect to as many Daccord servers as you like and switch between them in a tap.' },
+    3:{ img:'inner/t-04.png', pill:'Members &amp; Roles',
+        h:'Roles, <span class="blue">members</span><br>&amp; rich <span class="green">profiles</span>',
+        sub:'See who&rsquo;s online, browse colour-coded roles, and open a full profile with a tap.' },
+    4:{ img:'inner/t-05.png', pill:'Server Admin Tools',
+        h:'Full <span class="blue">control</span> of<br>your <span class="green">server</span>',
+        sub:'Manage roles, permissions, channels, bans and invites &mdash; all without leaving the app.' },
+    5:{ img:'inner/t-02.png', pill:'Powered by LiveKit / WebRTC',
+        h:'Crystal-clear <span class="green">voice,</span><br>video &amp; <span class="purple">screen share</span>',
+        sub:'Hop into a call in one tap. Camera, screen sharing and low-latency audio, built right in.' },
+    6:{ img:'inner/t-06.png', pill:'GPLv3 &middot; Self-Hosted',
+        h:'Open source.<br>No ads. <span class="blue">No tracking.</span>',
+        sub:'Your server, your data, your rules. Run your own &mdash; nothing passes through us.',
+        badges:['iOS','Android','Desktop','Web'] },
+  };
+  const p = new URLSearchParams(location.search);
+  const device = p.get('device') === 'ipad' ? 'ipad' : 'iphone';
+  const scene = SCENES[p.get('scene') || '1'];
+  document.body.dataset.device = device;
+  document.getElementById('pill').innerHTML = scene.pill;
+  document.getElementById('headline').innerHTML = scene.h;
+  document.getElementById('sub').innerHTML = scene.sub;
+  document.getElementById('shot').src = scene.img;
+  if (scene.badges){
+    const b = document.getElementById('badges'); b.style.display='flex';
+    b.innerHTML = scene.badges.map(x=>`<span>${x}</span>`).join('');
+  }
+</script>
+</body>
+</html>
