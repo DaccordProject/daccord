@@ -1,12 +1,19 @@
 import 'dart:async';
 
+import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/member/controllers/accord_members.dart';
+import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
+import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/views/accord_soundboard.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/services/voice_session.dart';
 import 'package:bonfire/features/voice/views/mic_level_meter.dart';
 import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -61,6 +68,34 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
             .watch(accordChannelsControllerProvider(voice.spaceId!))
             ?.firstWhereOrNull((c) => c.id == voice.channelId)
             ?.name;
+
+    // Surface the soundboard to members who can use it in the connected space,
+    // mirroring the gate in Space Settings (see accord_space_settings.dart).
+    final spaceId = voice.spaceId;
+    var canUseSoundboard = false;
+    var canManageSoundboard = false;
+    if (spaceId != null) {
+      final space = ref.watch(
+        spacesControllerProvider
+            .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)),
+      );
+      final currentUserId = ref.watchUserId();
+      final isAdmin = ref.watchIsAdmin();
+      final members = ref.watch(accordMembersControllerProvider(spaceId));
+      final preview = ref.watch(rolePreviewControllerProvider);
+      final perms = accordEffectivePermissions(
+        space: space,
+        selfMember: currentUserId == null ? null : members?[currentUserId],
+        roles: space?.roles ?? const <AccordRole>[],
+        currentUserId: currentUserId ?? '',
+        currentUserIsAdmin: isAdmin,
+        previewRoleId: preview?.spaceId == spaceId ? preview?.roleId : null,
+      );
+      canUseSoundboard =
+          accordHasPermission(perms, AccordPermission.useSoundboard);
+      canManageSoundboard =
+          accordHasPermission(perms, AccordPermission.manageSoundboard);
+    }
 
     final (statusText, statusColor) = _status(voice, colors, channelName);
 
@@ -136,6 +171,18 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
                     active: voice.selfStream,
                     activeColor: colors.green,
                     onPressed: () => toggleScreenShareWithPicker(context, ref),
+                  ),
+                if (canUseSoundboard && spaceId != null)
+                  _VoiceButton(
+                    icon: Icons.graphic_eq,
+                    tooltip: 'Soundboard',
+                    active: false,
+                    activeColor: colors.primary,
+                    onPressed: () => showAccordSoundboard(
+                      context,
+                      spaceId: spaceId,
+                      canManage: canManageSoundboard,
+                    ),
                   ),
                 const Spacer(),
                 _VoiceButton(
