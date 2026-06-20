@@ -69,8 +69,7 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
             ?.firstWhereOrNull((c) => c.id == voice.channelId)
             ?.name;
 
-    // Surface the soundboard to members who can use it in the connected space,
-    // mirroring the gate in Space Settings (see accord_space_settings.dart).
+    // Mirrors accord_space_settings.dart — keep these permission checks in sync.
     final spaceId = voice.spaceId;
     var canUseSoundboard = false;
     var canManageSoundboard = false;

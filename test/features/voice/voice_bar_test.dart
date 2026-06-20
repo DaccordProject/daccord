@@ -88,4 +88,16 @@ void main() {
 
     expect(find.byIcon(Icons.graphic_eq), findsNothing);
   });
+
+  testWidgets('hides soundboard button in a DM voice call (null spaceId)',
+      (tester) async {
+    // DM/group-DM calls have no parent space, so the soundboard must never appear
+    // regardless of any permission state.
+    await tester.pumpWidget(
+      _host(const VoiceConnection(channelId: 'c1', selfMute: true)),
+    );
+    await tester.pump();
+
+    expect(find.byIcon(Icons.graphic_eq), findsNothing);
+  });
 }
