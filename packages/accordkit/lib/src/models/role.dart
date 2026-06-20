@@ -12,6 +12,10 @@ class AccordRole {
   bool managed;
   bool mentionable;
 
+  /// Home domain for a role in a federated (replica) space, or `null` when
+  /// local. When set, [id] is qualified.
+  String? origin;
+
   AccordRole({
     this.id = '',
     this.name = '',
@@ -22,6 +26,7 @@ class AccordRole {
     List<dynamic>? permissions,
     this.managed = false,
     this.mentionable = false,
+    this.origin,
   }) : permissions = permissions ?? [];
 
   factory AccordRole.fromJson(Map<String, dynamic> d) {
@@ -35,6 +40,7 @@ class AccordRole {
       permissions: asList(d['permissions']) ?? [],
       managed: asBool(d['managed']),
       mentionable: asBool(d['mentionable']),
+      origin: asStringOrNull(d['origin']),
     );
   }
 
@@ -50,6 +56,7 @@ class AccordRole {
       'mentionable': mentionable,
     };
     if (icon != null) d['icon'] = icon;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
 }

@@ -8,6 +8,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
+import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
@@ -261,6 +262,13 @@ class _MemberRow extends ConsumerWidget {
                           .copyWith(color: nameColor ?? colors.dirtyWhite),
                     ),
                   ),
+                  if (member.isRemote) ...[
+                    const SizedBox(width: 6),
+                    RemoteOriginBadge(
+                      domain: member.homeDomain,
+                      showDomain: false,
+                    ),
+                  ],
                 ],
               ),
             ),

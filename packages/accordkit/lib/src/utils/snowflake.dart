@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'qualified_id.dart';
+
 /// Helpers for decoding and generating Accord snowflake IDs. Snowflakes embed
 /// a millisecond timestamp (relative to the Accord epoch) in their high bits.
 class AccordSnowflake {
@@ -9,10 +11,11 @@ class AccordSnowflake {
   static final Random _random = Random();
 
   /// Decodes the embedded creation timestamp (ms since Unix epoch). Returns 0
-  /// for an empty or non-numeric snowflake.
+  /// for an empty or non-numeric snowflake. Tolerates qualified federation IDs
+  /// (`<snowflake>@<domain>`) by decoding the bare snowflake part.
   static int decodeTimestampMs(String snowflake) {
     if (snowflake.isEmpty) return 0;
-    final id = int.tryParse(snowflake) ?? 0;
+    final id = int.tryParse(localPart(snowflake)) ?? 0;
     return (id >> 22) + epochMs;
   }
 

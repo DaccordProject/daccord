@@ -35,17 +35,50 @@ String accordInitial(String? name) {
   return trimmed.substring(0, 1).toUpperCase();
 }
 
+/// The CDN base URL for a federated home [domain] (e.g. `b.example` →
+/// `https://b.example/cdn`). Used to resolve a remote user's avatar/banner
+/// against their *home* server rather than the connected server. Mirrors the
+/// per-server CDN derivation in `AccordServer.fromBaseUrl`.
+String cdnBaseForDomain(String domain) => 'https://$domain/cdn';
+
+/// The home domain of a remote (federated) user, or null when local. Falls back
+/// to the domain embedded in a qualified id when `origin` isn't set explicitly.
+String? accordUserOrigin(AccordUser? user) {
+  if (user == null) return null;
+  final origin = user.origin;
+  if (origin != null && origin.isNotEmpty) return origin;
+  return domainOf(user.id);
+}
+
+/// The home domain of a remote (federated) member, or null when local.
+String? accordMemberOrigin(AccordMember? member) => member?.homeDomain;
+
+/// Whether [user] is homed on a remote (federated) server.
+bool accordIsRemoteUser(AccordUser? user) => accordUserOrigin(user) != null;
+
+/// Whether [member] is homed on a remote (federated) server.
+bool accordIsRemoteMember(AccordMember? member) => member?.isRemote ?? false;
+
 /// Resolves a user's `avatar` reference to an absolute CDN URL, or null when
 /// unset (callers fall back to an initial). The field is either a bare asset
-/// hash or a server-relative/absolute path; both are handled.
-String? accordAvatarUrl(AccordUser? user, String? cdnUrl) {
+/// hash or a server-relative/absolute path; both are handled. For a remote
+/// (federated) user the asset lives on their *home* server, so a bare hash or
+/// server-relative path resolves against the home domain's CDN rather than the
+/// connected server's; absolute URLs (already rewritten server-side) pass
+/// through unchanged.
+String? accordAvatarUrl(AccordUser? user, String? cdnUrl) =>
+    _userAvatarUrl(user, cdnUrl, domain: accordUserOrigin(user));
+
+String? _userAvatarUrl(AccordUser? user, String? cdnUrl, {String? domain}) {
   final avatar = user?.avatar;
   if (avatar == null || avatar.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
+  final cdn = domain != null ? cdnBaseForDomain(domain) : (cdnUrl ?? '');
   if (avatar.contains('/') || avatar.startsWith('http')) {
     return AccordCDN.resolvePath(avatar, cdnUrl: cdn);
   }
-  return AccordCDN.avatar(user!.id, avatar,
+  // A remote user's id is qualified; the home CDN keys avatars by the bare
+  // snowflake, so strip any `@domain` before building the path.
+  return AccordCDN.avatar(localPart(user!.id), avatar,
       format: AccordCDN.autoFormat(avatar), cdnUrl: cdn);
 }
 
@@ -53,17 +86,19 @@ String? accordAvatarUrl(AccordUser? user, String? cdnUrl) {
 /// ([AccordMember.avatar]) over the user's global avatar. Mirrors the reference
 /// client: an override starting with `/` is a CDN path; otherwise it's a bare
 /// hash served from `/cdn/avatars/<hash>`. Falls back to the user avatar, then
-/// null (callers render an initial).
+/// null (callers render an initial). Remote members resolve assets against their
+/// home server's CDN.
 String? accordMemberAvatarUrl(AccordMember? member, String? cdnUrl) {
+  final domain = member?.homeDomain;
   final override = member?.avatar;
   if (override is String && override.isNotEmpty) {
-    final cdn = cdnUrl ?? '';
+    final cdn = domain != null ? cdnBaseForDomain(domain) : (cdnUrl ?? '');
     if (override.startsWith('/') || override.startsWith('http')) {
       return AccordCDN.resolvePath(override, cdnUrl: cdn);
     }
     return AccordCDN.resolvePath('/cdn/avatars/$override', cdnUrl: cdn);
   }
-  return accordAvatarUrl(member?.user, cdnUrl);
+  return _userAvatarUrl(member?.user, cdnUrl, domain: domain);
 }
 
 /// Resolves a message/post author's display name by `author_id`, consulting the

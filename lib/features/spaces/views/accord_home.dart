@@ -19,6 +19,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
+import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
 import 'package:bonfire/features/messaging/views/emoji_picker.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';

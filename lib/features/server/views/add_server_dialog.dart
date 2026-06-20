@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
+import 'package:bonfire/features/spaces/controllers/federation_join.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -48,13 +49,18 @@ class _AddServerDialog extends ConsumerStatefulWidget {
 
 class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final TabController _tabs = TabController(length: 3, vsync: this);
 
   final _urlCtrl = TextEditingController();
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _displayCtrl = TextEditingController();
   final _mfaCtrl = TextEditingController();
+  final _fedCtrl = TextEditingController();
+
+  // "Join federated space" tab state (independent of the URL flow above).
+  bool _fedBusy = false;
+  String? _fedError;
 
   _UrlStep _step = _UrlStep.url;
   AuthMode _credMode = AuthMode.signIn;
@@ -97,6 +103,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     _passCtrl.dispose();
     _displayCtrl.dispose();
     _mfaCtrl.dispose();
+    _fedCtrl.dispose();
     super.dispose();
   }
 
@@ -348,6 +355,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
               tabs: const [
                 Tab(text: 'Enter URL'),
                 Tab(text: 'Browse'),
+                Tab(text: 'Federated'),
               ],
             ),
             Flexible(
@@ -371,6 +379,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                       _tabs.animateTo(0);
                     },
                   ),
+                  _federatedTab(theme, colors),
                 ],
               ),
             ),
@@ -497,6 +506,101 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       case _UrlStep.mfa:
         _submitMfa();
         break;
+    }
+  }
+
+  /// The "Join a federated space" tab: enter a remote space address
+  /// (`spaceId@domain`) and join it through the currently active connection.
+  /// Federation is server-to-server, so no new login is needed — the active
+  /// server runs the handshake on the user's behalf.
+  Widget _federatedTab(ThemeData theme, BonfireThemeExtension colors) {
+    final connected = _auth.client != null;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Join a federated space', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 6),
+          Text(
+            'Enter a space hosted on another Daccord server. Your current '
+            'server connects to it on your behalf.',
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.gray),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _fedCtrl,
+            enabled: connected && !_fedBusy,
+            autofocus: true,
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: 'Space address',
+              hintText: 'spaceId@server.example',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) =>
+                connected && !_fedBusy ? _submitFederatedJoin() : null,
+          ),
+          if (!connected) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Connect to a server first, then join a federated space from it.',
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.gray),
+            ),
+          ],
+          if (_fedError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _fedError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              FilledButton(
+                onPressed:
+                    connected && !_fedBusy ? _submitFederatedJoin : null,
+                child: _fedBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Join'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitFederatedJoin() async {
+    final client = _auth.client;
+    if (client == null) return;
+    final addr = parseFederatedAddress(_fedCtrl.text);
+    if (addr == null) {
+      setState(() => _fedError = 'Enter a space as spaceId@server.example');
+      return;
+    }
+    setState(() {
+      _fedBusy = true;
+      _fedError = null;
+    });
+    final outcome =
+        await joinFederatedSpace(ref, client, addr.domain, addr.spaceId);
+    if (!mounted) return;
+    if (outcome.error == null) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _fedBusy = false;
+        _fedError = outcome.error;
+      });
     }
   }
 }

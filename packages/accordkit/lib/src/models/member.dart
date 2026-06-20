@@ -1,4 +1,5 @@
 import '../utils/json_utils.dart';
+import '../utils/qualified_id.dart';
 import 'user.dart';
 
 /// A member of a space (a user plus space-scoped data).
@@ -17,6 +18,11 @@ class AccordMember {
   Object? timedOutUntil;
   Object? permissions;
 
+  /// Home domain for a federated (remote) member, or `null` when local. Falls
+  /// back to the domain embedded in a qualified [userId] when not set
+  /// explicitly. See [isRemote].
+  String? origin;
+
   AccordMember({
     this.userId = '',
     this.user,
@@ -31,7 +37,16 @@ class AccordMember {
     this.pending,
     this.timedOutUntil,
     this.permissions,
+    this.origin,
   }) : roles = roles ?? [];
+
+  /// The member's home domain when remote: the explicit [origin], else the
+  /// domain embedded in a qualified [userId] (or the user's own origin).
+  String? get homeDomain =>
+      origin ?? domainOf(userId) ?? user?.origin ?? domainOf(user?.id ?? '');
+
+  /// Whether this member is homed on a remote (federated) server.
+  bool get isRemote => homeDomain != null;
 
   factory AccordMember.fromJson(Map<String, dynamic> d) {
     final m = AccordMember(
@@ -45,6 +60,7 @@ class AccordMember {
       pending: d['pending'],
       timedOutUntil: d['communication_disabled_until'] ?? d['timed_out_until'],
       permissions: d['permissions'],
+      origin: asStringOrNull(d['origin']),
     );
 
     final rawUser = asMap(d['user']);
@@ -54,6 +70,9 @@ class AccordMember {
     } else {
       m.userId = asString(d['user_id']);
     }
+    // Inherit the home domain from the user object or a qualified id when the
+    // member row didn't carry an explicit `origin`.
+    m.origin ??= m.user?.origin ?? domainOf(m.userId);
 
     for (final r in asList(d['roles']) ?? const []) {
       m.roles.add(asString(r));
@@ -76,6 +95,7 @@ class AccordMember {
     if (pending != null) d['pending'] = pending;
     if (timedOutUntil != null) d['timed_out_until'] = timedOutUntil;
     if (permissions != null) d['permissions'] = permissions;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
 }

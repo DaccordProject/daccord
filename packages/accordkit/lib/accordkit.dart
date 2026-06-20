@@ -25,6 +25,7 @@ export 'src/rest/endpoints/bans_api.dart';
 export 'src/rest/endpoints/channels_api.dart';
 export 'src/rest/endpoints/directory_api.dart';
 export 'src/rest/endpoints/emojis_api.dart';
+export 'src/rest/endpoints/federation_api.dart';
 export 'src/rest/endpoints/interactions_api.dart';
 export 'src/rest/endpoints/invites_api.dart';
 export 'src/rest/endpoints/members_api.dart';
@@ -77,4 +78,5 @@ export 'src/models/voice_state.dart';
 
 // Utils
 export 'src/utils/cdn.dart';
+export 'src/utils/qualified_id.dart';
 export 'src/utils/snowflake.dart';

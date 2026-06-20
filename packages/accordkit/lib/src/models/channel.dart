@@ -24,6 +24,10 @@ class AccordChannel {
   Object? autoArchiveAfter;
   String createdAt;
 
+  /// Home domain for a channel in a federated (replica) space, or `null` when
+  /// local. When set, [id] is qualified.
+  String? origin;
+
   AccordChannel({
     this.id = '',
     this.type = 'text',
@@ -44,6 +48,7 @@ class AccordChannel {
     this.archived,
     this.autoArchiveAfter,
     this.createdAt = '',
+    this.origin,
   }) : permissionOverwrites = permissionOverwrites ?? [];
 
   factory AccordChannel.fromJson(Map<String, dynamic> d) {
@@ -65,6 +70,7 @@ class AccordChannel {
       archived: d['archived'],
       autoArchiveAfter: d['auto_archive_after'] ?? d['auto_archive_duration'],
       createdAt: asString(d['created_at']),
+      origin: asStringOrNull(d['origin']),
     );
 
     final rawRecipients = asList(d['recipients']);
@@ -107,6 +113,7 @@ class AccordChannel {
     if (allowAnonymousRead) d['allow_anonymous_read'] = true;
     if (archived != null) d['archived'] = archived;
     if (autoArchiveAfter != null) d['auto_archive_after'] = autoArchiveAfter;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
 }

@@ -34,6 +34,11 @@ class AccordSpace {
   int premiumSubscriptionCount;
   String createdAt;
 
+  /// Home domain for a federated (replica) space, or `null` when the space is
+  /// homed on the connected server. When set, this space is a local replica of
+  /// a space homed on `origin` and its [id] is qualified.
+  String? origin;
+
   AccordSpace({
     this.id = '',
     this.name = '',
@@ -64,6 +69,7 @@ class AccordSpace {
     this.premiumTier = 'none',
     this.premiumSubscriptionCount = 0,
     this.createdAt = '',
+    this.origin,
   })  : features = features ?? [],
         roles = roles ?? [],
         emojis = emojis ?? [];
@@ -97,6 +103,7 @@ class AccordSpace {
       premiumTier: asString(d['premium_tier'], 'none'),
       premiumSubscriptionCount: asInt(d['premium_subscription_count']),
       createdAt: asString(d['created_at']),
+      origin: asStringOrNull(d['origin']),
     );
 
     for (final r in asList(d['roles']) ?? const []) {
@@ -142,6 +149,10 @@ class AccordSpace {
     if (afkChannelId != null) d['afk_channel_id'] = afkChannelId;
     if (systemChannelId != null) d['system_channel_id'] = systemChannelId;
     if (rulesChannelId != null) d['rules_channel_id'] = rulesChannelId;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
+
+  /// Whether this space is a federated replica homed on another server.
+  bool get isRemote => origin != null;
 }
