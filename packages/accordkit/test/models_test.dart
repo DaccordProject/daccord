@@ -83,6 +83,23 @@ void main() {
       expect(s.isRemote, isTrue);
       expect(s.toJson()['origin'], 'b.example');
     });
+
+    test('cross-server DM channel carries a qualified id and remote recipient',
+        () {
+      // A replica DM channel: qualified channel id, and the remote participant
+      // resolves their home domain from their own qualified id.
+      final c = AccordChannel.fromJson({
+        'id': '50@b.example',
+        'type': 'dm',
+        'recipients': [
+          {'id': '123@b.example', 'username': 'alice'},
+        ],
+      });
+      expect(c.id, '50@b.example');
+      final recipient = c.recipients!.single;
+      expect(recipient.id, '123@b.example');
+      expect(domainOf(recipient.id), 'b.example');
+    });
   });
 
   group('AccordApplication', () {

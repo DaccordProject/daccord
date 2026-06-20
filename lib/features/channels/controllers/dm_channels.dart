@@ -3,6 +3,27 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dm_channels.g.dart';
 
+/// Builds the `createDm` request body for a 1:1 DM with [recipientId].
+///
+/// A **qualified** id (`<snowflake>@<domain>`) uses the single `recipient_id`
+/// field so the server takes its cross-server DM path (deterministic home +
+/// replica mirror). A bare id uses the `recipients` list, an unchanged
+/// same-server DM. The server accepts either field, so this only steers which
+/// path it picks.
+Map<String, dynamic> dmCreateBody(String recipientId) => isRemoteId(recipientId)
+    ? <String, dynamic>{'recipient_id': recipientId}
+    : <String, dynamic>{
+        'recipients': [recipientId],
+      };
+
+/// Whether [value] is a usable remote DM handle: a qualified id with a non-empty
+/// local part and a home domain (`<id>@<domain>`). Bare (local) ids are rejected
+/// — the remote-DM flow is specifically for users on another server.
+bool isValidRemoteHandle(String value) {
+  final v = value.trim();
+  return isRemoteId(v) && domainOf(v) != null && localPart(v).isNotEmpty;
+}
+
 /// Global cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
 /// one-shot `users.listChannels` fetch and then watches it, while

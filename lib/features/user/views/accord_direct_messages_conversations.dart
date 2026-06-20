@@ -42,23 +42,44 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     widget.onOpen(channel);
   }
 
+  /// Prompts for a remote user's qualified handle (`<id>@<domain>`) and opens a
+  /// cross-server DM with them. The opened channel is reflected in the DM list
+  /// (and surfaced) by [openAccordDirectMessage].
+  Future<void> _messageRemoteUser() async {
+    final handle = await showDialog<String>(
+      context: context,
+      builder: (_) => const _RemoteDmDialog(),
+    );
+    if (handle == null || !mounted) return;
+    await openAccordDirectMessage(context, ref, handle);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final channels = ref.watch(dmChannelsControllerProvider);
+    final cdnUrl = ref.watchCdnUrl();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              onPressed: _createGroup,
-              icon: const Icon(Icons.group_add, size: 18),
-              label: const Text('New group'),
-            ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: _createGroup,
+                icon: const Icon(Icons.group_add, size: 18),
+                label: const Text('New group'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _messageRemoteUser,
+                icon: const Icon(Icons.alternate_email, size: 18),
+                label: const Text('Message remote user'),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -75,16 +96,38 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                         final channel = channels[index];
                         final title = _channelTitle(channel, widget.selfId);
                         final group = _isGroup(channel, widget.selfId);
+                        final origin =
+                            _dmRemoteOrigin(channel, widget.selfId);
+                        final others = _others(channel, widget.selfId);
+                        final other =
+                            group || others.isEmpty ? null : others.first;
+                        final avatarUrl = other == null
+                            ? null
+                            : accordAvatarUrl(other, cdnUrl);
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundColor: colors.darkGray,
+                            foregroundImage: avatarUrl == null
+                                ? null
+                                : CachedNetworkImageProvider(avatarUrl),
                             child: group
                                 ? Icon(Icons.group,
                                     size: 18, color: colors.dirtyWhite)
                                 : Text(accordInitial(title)),
                           ),
-                          title: Text(title,
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          title: Row(
+                            children: [
+                              Flexible(
+                                child: Text(title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              if (origin != null) ...[
+                                const SizedBox(width: 6),
+                                RemoteOriginBadge(domain: origin),
+                              ],
+                            ],
+                          ),
                           subtitle: group
                               ? Text(
                                   '${_others(channel, widget.selfId).length + 1} members',
@@ -357,9 +400,20 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
                   ),
                 ),
               Expanded(
-                child: Text(_channelTitle(_channel, widget.selfId),
-                    style: theme.textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(_channelTitle(_channel, widget.selfId),
+                          style: theme.textTheme.titleSmall,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    if (_dmRemoteOrigin(_channel, widget.selfId) != null) ...[
+                      const SizedBox(width: 6),
+                      RemoteOriginBadge(
+                          domain: _dmRemoteOrigin(_channel, widget.selfId)),
+                    ],
+                  ],
+                ),
               ),
               IconButton(
                 tooltip: 'Start voice call',
@@ -449,6 +503,82 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Prompts for a remote user's qualified handle (`<id>@<domain>`) to start a
+/// cross-server DM. Pops the validated, trimmed handle on submit, or null on
+/// cancel. Identity discovery is out of scope — the user supplies the handle
+/// (e.g. shared out-of-band or copied from a remote profile).
+class _RemoteDmDialog extends StatefulWidget {
+  const _RemoteDmDialog();
+
+  @override
+  State<_RemoteDmDialog> createState() => _RemoteDmDialogState();
+}
+
+class _RemoteDmDialogState extends State<_RemoteDmDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// A handle is valid when it is a qualified remote id: a non-empty local part
+  /// and a home domain (`<id>@<domain>`). Local (bare) ids are rejected — this
+  /// flow is specifically for users on another server.
+  void _submit() {
+    final value = _controller.text.trim();
+    if (!isValidRemoteHandle(value)) {
+      setState(
+          () => _error = 'Enter a qualified handle, e.g. 123@server.example');
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Message a remote user'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enter the user\'s qualified handle on their home server.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: '123@server.example',
+              border: const OutlineInputBorder(),
+              errorText: _error,
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Message'),
         ),
       ],
     );
