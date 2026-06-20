@@ -780,6 +780,7 @@ class AccordAuth extends _$AccordAuth {
       client,
       serverKey: key,
       currentUserId: session.userId,
+      selfDomain: session.server.homeDomain,
       isActive: () => _activeKey == key,
     );
     _connections[key] = _Conn(

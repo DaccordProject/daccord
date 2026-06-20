@@ -32,3 +32,19 @@ bool isRemoteId(String id) => id.contains('@');
 /// `@`) are returned unchanged, so this is idempotent.
 String qualify(String id, String domain) =>
     id.contains('@') ? id : '$id@$domain';
+
+/// Whether [actorId] denotes the local user [localId].
+///
+/// A bare match is the common (non-federated) case. But the local user's *own*
+/// action can echo back across federation qualified to the local home
+/// [localDomain] (`<localId>@<localDomain>`) — e.g. a reaction added on a
+/// remote-homed message, or a message we sent into a remote-homed space — and
+/// must still count as "self". The domain guard keeps this from matching a
+/// different remote user that happens to share our bare snowflake (snowflakes
+/// are only unique per home server, which is the whole reason for qualified
+/// IDs).
+bool isSameUser(String actorId, String localId, {String? localDomain}) {
+  if (actorId == localId) return true;
+  if (localDomain == null || localDomain.isEmpty) return false;
+  return localPart(actorId) == localId && domainOf(actorId) == localDomain;
+}

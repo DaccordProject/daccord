@@ -48,6 +48,12 @@ class AccordServer {
     return v;
   }
 
+  /// The server's federation home domain — the base URL host (e.g.
+  /// `a.example`). Qualified IDs minted by this server suffix `@<homeDomain>`,
+  /// so this is what recognises the local user's own actions when they echo back
+  /// qualified from a remote home. Mirrors the server's federation `domain`.
+  String get homeDomain => Uri.parse(baseUrl).host;
+
   /// Builds the accordkit [AccordConfig] for this server.
   AccordConfig toConfig() => AccordConfig(
         baseUrl: baseUrl,

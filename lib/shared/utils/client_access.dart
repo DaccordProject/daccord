@@ -12,6 +12,9 @@ String? _userIdFromState(AccordAuthState s) =>
 String? _cdnUrlFromState(AccordAuthState s) =>
     s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null;
 
+String? _homeDomainFromState(AccordAuthState s) =>
+    s is AccordAuthLoggedIn ? s.session.server.homeDomain : null;
+
 bool _isAdminFromState(AccordAuthState s) =>
     s is AccordAuthLoggedIn && s.session.isAdmin;
 
@@ -32,6 +35,11 @@ extension AccordClientWidgetRef on WidgetRef {
   String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
   String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
 
+  String? watchHomeDomain() =>
+      watch(accordAuthProvider.select(_homeDomainFromState));
+  String? readHomeDomain() =>
+      read(accordAuthProvider.select(_homeDomainFromState));
+
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
 }
@@ -46,6 +54,11 @@ extension AccordClientRef on Ref {
 
   String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
   String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
+
+  String? watchHomeDomain() =>
+      watch(accordAuthProvider.select(_homeDomainFromState));
+  String? readHomeDomain() =>
+      read(accordAuthProvider.select(_homeDomainFromState));
 
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
