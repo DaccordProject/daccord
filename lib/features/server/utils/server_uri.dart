@@ -131,8 +131,7 @@ class ServerUri {
     if (at <= 0 || at == payload.length - 1) return null;
     final spaceId = payload.substring(0, at);
     final authority = payload.substring(at + 1);
-    final host = _hostFromAuthority(authority);
-    if (host == null) return null;
+    if (_hostFromAuthority(authority) == null) return null;
     return ParsedServerUrl(
       route: 'federate',
       spaceId: spaceId,

@@ -66,5 +66,30 @@ void main() {
     test('cdnBaseForDomain mirrors per-server CDN derivation', () {
       expect(cdnBaseForDomain('b.example'), 'https://b.example/cdn');
     });
+
+    test('remote server-relative avatar path resolves against the home CDN', () {
+      final user = AccordUser(
+        id: '123@b.example',
+        username: 'a',
+        avatar: '/cdn/avatars/custom/avatar.png',
+        origin: 'b.example',
+      );
+      // A server-relative path is rewritten with the home CDN prefix.
+      expect(
+        accordAvatarUrl(user, 'https://a.example/cdn'),
+        'https://b.example/cdn/avatars/custom/avatar.png',
+      );
+    });
+
+    test('remote member bare-hash override resolves against the home CDN', () {
+      final member = AccordMember.fromJson({
+        'space_id': '7@b.example',
+        'user': {'id': '123@b.example', 'username': 'alice'},
+        'avatar': 'spaceavatar',
+      });
+      // The space-scoped avatar override should also resolve to the home CDN.
+      final url = accordMemberAvatarUrl(member, 'https://a.example/cdn');
+      expect(url, 'https://b.example/cdn/avatars/spaceavatar');
+    });
   });
 }

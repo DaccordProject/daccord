@@ -21,6 +21,14 @@ void main() {
       expect(parseFederatedAddress('42@'), isNull);
       expect(parseFederatedAddress('@b.example'), isNull);
     });
+
+    test('uses last @ so a qualified spaceId is preserved', () {
+      // A space ID that is already qualified (e.g. from another federated hop)
+      // still splits correctly: everything before the final @ is the space id.
+      final addr = parseFederatedAddress('42@olddomain.example@newdomain.example');
+      expect(addr?.spaceId, '42@olddomain.example');
+      expect(addr?.domain, 'newdomain.example');
+    });
   });
 
   group('federate deep link', () {
@@ -33,6 +41,14 @@ void main() {
 
     test('rejects a federate link without a domain', () {
       expect(ServerUri.parseDeepLink('daccord://federate/42'), isNull);
+    });
+
+    test('preserves qualified spaceId in federate deep link', () {
+      final parsed = ServerUri.parseDeepLink(
+          'daccord://federate/42@olddomain.example@newdomain.example');
+      expect(parsed?.route, 'federate');
+      expect(parsed?.spaceId, '42@olddomain.example');
+      expect(parsed?.domain, 'newdomain.example');
     });
   });
 }
