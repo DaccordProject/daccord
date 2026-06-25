@@ -78,8 +78,61 @@ List<AccordMenuEntry> _serverActionEntries(
       onSelected:
           isOwner ? null : () => _leaveAndDeleteSpace(context, ref, space, serverKey),
     ),
+    AccordMenuEntry(
+      label: 'Remove server',
+      icon: Icons.link_off,
+      destructive: true,
+      subtitle: 'Disconnect & remove from this app — works even when offline',
+      onSelected: () => _removeServer(context, ref, serverKey),
+    ),
     const AccordMenuEntry.divider(),
   ];
+}
+
+/// Removes the whole server *connection* that hosts a space from this app,
+/// purely locally: it disposes the client and clears the saved credentials,
+/// the rail entry, open tabs, unread state and the cached space list. Unlike
+/// [_leaveSpace] it makes no network call, so it works for a server you can no
+/// longer reach. A connection can host several spaces, so this removes all of
+/// them on that host; nothing is deleted server-side.
+Future<void> _removeServer(
+  BuildContext context,
+  WidgetRef ref,
+  String serverKey,
+) async {
+  final conn = ref.read(connectionsControllerProvider).connectionFor(serverKey);
+  if (conn == null) return;
+  final server = conn.session.server;
+  final label =
+      (server.name?.isNotEmpty ?? false) ? server.name! : server.homeDomain;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text("Remove '$label'?"),
+      content: const Text(
+        'This disconnects your account and removes the server from this app, '
+        'including any of its spaces. Nothing is deleted on the server, and you '
+        'can add it back later with its address or an invite.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Remove'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  await ref.read(accordAuthProvider.notifier).removeAccount(conn.session);
+  messenger?.showSnackBar(SnackBar(content: Text("Removed '$label'")));
 }
 
 /// Copies a shareable invite link for [space] to the clipboard, reusing an

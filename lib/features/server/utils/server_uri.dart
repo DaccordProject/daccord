@@ -1,3 +1,4 @@
+import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 
 /// A parsed "Add a Server" URL or `daccord://` deep link.
@@ -28,6 +29,9 @@ class ParsedServerUrl {
   final String? channelId;
   final String? messageId;
 
+  /// For `federate` links: the remote home domain hosting the space to join.
+  final String? domain;
+
   const ParsedServerUrl({
     this.server,
     this.route = 'connect',
@@ -37,6 +41,7 @@ class ParsedServerUrl {
     this.spaceId,
     this.channelId,
     this.messageId,
+    this.domain,
   });
 
   bool get hasInvite => invite != null && invite!.isNotEmpty;
@@ -92,6 +97,7 @@ class ServerUri {
   ///   `daccord://connect/<host>[:<port>][/<space-slug>][?token=&invite=]`
   ///   `daccord://invite/<code>@<host>[:<port>]`
   ///   `daccord://navigate/<space-id>[/<channel-id>][?msg=<message-id>]`
+  ///   `daccord://federate/<space-id>@<home-domain>`
   static ParsedServerUrl? parseDeepLink(String uri) {
     var text = uri.trim();
     const scheme = 'daccord://';
@@ -112,9 +118,26 @@ class ServerUri {
         return _parseInvite(payload);
       case 'navigate':
         return _parseNavigate(payload);
+      case 'federate':
+        return _parseFederate(payload);
       default:
         return null;
     }
+  }
+
+  /// Parses `daccord://federate/<space-id>@<home-domain>` — join a space homed
+  /// on a remote federated server. The current connection performs the join.
+  static ParsedServerUrl? _parseFederate(String payload) {
+    final at = payload.lastIndexOf('@');
+    if (at <= 0 || at == payload.length - 1) return null;
+    final spaceId = payload.substring(0, at);
+    final authority = payload.substring(at + 1);
+    if (_hostFromAuthority(authority) == null) return null;
+    return ParsedServerUrl(
+      route: 'federate',
+      spaceId: spaceId,
+      domain: authority,
+    );
   }
 
   static ParsedServerUrl? _parseConnect(String payload) {
@@ -215,10 +238,12 @@ class ServerUri {
     return RegExp(r'^[A-Za-z0-9]+$').hasMatch(s);
   }
 
-  static bool _isValidHost(String host) {
-    if (host.isEmpty || host.contains(' ')) return false;
-    return !RegExp('''[<>;'"]''').hasMatch(host);
-  }
+  /// Validates a bare host (port already split off). Uses a strict hostname
+  /// allowlist rather than a denylist so userinfo (`@`), path separators
+  /// (`/`, `\`) and other URL metacharacters can't smuggle the auth-bearing
+  /// base URL onto a different host than the one shown. Loopback is allowed
+  /// here — a user may legitimately point at a self-hosted dev server.
+  static bool _isValidHost(String host) => isValidHost(host);
 
   static String? _blankToNull(String? v) =>
       (v == null || v.isEmpty) ? null : v;

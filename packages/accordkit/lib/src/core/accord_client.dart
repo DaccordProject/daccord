@@ -25,6 +25,7 @@ import '../rest/endpoints/bans_api.dart';
 import '../rest/endpoints/channels_api.dart';
 import '../rest/endpoints/directory_api.dart';
 import '../rest/endpoints/emojis_api.dart';
+import '../rest/endpoints/federation_api.dart';
 import '../rest/endpoints/interactions_api.dart';
 import '../rest/endpoints/invites_api.dart';
 import '../rest/endpoints/members_api.dart';
@@ -75,6 +76,7 @@ class AccordClient {
   late final AuditLogsApi auditLogs;
   late final AdminApi adminApi;
   late final DirectoryApi directory;
+  late final FederationApi federation;
   late final VoiceManager voiceManager;
 
   AccordClient({
@@ -121,6 +123,7 @@ class AccordClient {
     auditLogs = AuditLogsApi(rest);
     adminApi = AdminApi(rest);
     directory = DirectoryApi(rest);
+    federation = FederationApi(rest);
 
     gateway = GatewaySocket(
       connectionFactory: connectionFactory,

@@ -314,4 +314,17 @@ void main() {
       expect(req.jsonArrayBody!.single['id'], '1');
     });
   });
+
+  group('FederationApi', () {
+    test('joinSpace posts domain + space_id', () async {
+      rest = mockRest(
+          log: log, responder: (_) => jsonData({'space_id': '42@b.example'}));
+      final result = await FederationApi(rest).joinSpace('b.example', '42');
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/v1/federation/spaces/join');
+      expect(req.jsonBody, {'domain': 'b.example', 'space_id': '42'});
+      // The server wraps the mirrored, qualified id in a `data` envelope.
+      expect((result.data as Map)['space_id'], '42@b.example');
+    });
+  });
 }

@@ -1,8 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_users.g.dart';
@@ -30,22 +28,15 @@ class AccordUsersController extends _$AccordUsersController {
         _inFlight.contains(userId)) {
       return;
     }
-    final client = ref.read(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-    );
+    final client = ref.accordClient;
     if (client == null) return;
 
     _inFlight.add(userId);
     Future(() async {
-      final result = await client.users.fetch(userId);
+      final user = (await client.users.fetch(userId))
+          .dataOrLog<AccordUser>('fetch user $userId');
       _inFlight.remove(userId);
-      final data = result.data;
-      if (result.ok && data is AccordUser) {
-        state = {...state, userId: data};
-      } else if (!result.ok) {
-        debugPrint('Failed to fetch user $userId: ${result.error}');
-      }
+      if (user != null) state = {...state, userId: user};
     });
   }
 

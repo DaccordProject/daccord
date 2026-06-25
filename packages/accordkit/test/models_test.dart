@@ -26,6 +26,79 @@ void main() {
       expect(j['id'], '1');
       expect(j.containsKey('display_name'), isFalse);
       expect(j.containsKey('avatar'), isFalse);
+      // A local user has no origin and omits it.
+      expect(j.containsKey('origin'), isFalse);
+    });
+  });
+
+  group('federation origin', () {
+    test('user round-trips origin', () {
+      final u = AccordUser.fromJson({
+        'id': '123@b.example',
+        'username': 'alice@b.example',
+        'origin': 'b.example',
+      });
+      expect(u.origin, 'b.example');
+      expect(u.toJson()['origin'], 'b.example');
+    });
+
+    test('member infers origin from a qualified user id', () {
+      final m = AccordMember.fromJson({
+        'space_id': '7@b.example',
+        'user': {'id': '123@b.example', 'username': 'alice@b.example'},
+      });
+      expect(m.isRemote, isTrue);
+      expect(m.homeDomain, 'b.example');
+    });
+
+    test('local member is not remote', () {
+      final m = AccordMember.fromJson({
+        'space_id': '7',
+        'user': {'id': '123', 'username': 'bob'},
+      });
+      expect(m.isRemote, isFalse);
+      expect(m.homeDomain, isNull);
+      expect(m.toJson().containsKey('origin'), isFalse);
+    });
+
+    test('message infers origin from a qualified author id', () {
+      final msg = AccordMessage.fromJson({
+        'id': '9@b.example',
+        'channel_id': '5@b.example',
+        'author': {'id': '123@b.example'},
+        'content': 'hi',
+      });
+      expect(msg.isRemote, isTrue);
+      expect(msg.origin, 'b.example');
+      // Dedup/ordering keys keep the full qualified author id.
+      expect(msg.authorId, '123@b.example');
+    });
+
+    test('space exposes origin and isRemote', () {
+      final s = AccordSpace.fromJson({
+        'id': '7@b.example',
+        'name': 'Remote',
+        'origin': 'b.example',
+      });
+      expect(s.isRemote, isTrue);
+      expect(s.toJson()['origin'], 'b.example');
+    });
+
+    test('cross-server DM channel carries a qualified id and remote recipient',
+        () {
+      // A replica DM channel: qualified channel id, and the remote participant
+      // resolves their home domain from their own qualified id.
+      final c = AccordChannel.fromJson({
+        'id': '50@b.example',
+        'type': 'dm',
+        'recipients': [
+          {'id': '123@b.example', 'username': 'alice'},
+        ],
+      });
+      expect(c.id, '50@b.example');
+      final recipient = c.recipients!.single;
+      expect(recipient.id, '123@b.example');
+      expect(domainOf(recipient.id), 'b.example');
     });
   });
 

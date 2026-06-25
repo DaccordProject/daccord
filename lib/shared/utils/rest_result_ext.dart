@@ -11,6 +11,36 @@ extension RestResultErrorText on RestResult {
   String errorOr(String fallback) => error?.toString() ?? fallback;
 }
 
+/// Payload-parsing helpers for the self-loading cache controllers.
+///
+/// Fold the `if (!result.ok) { debugPrint('Failed to load …'); return; }` +
+/// `result.data is List ? …whereType<T>() : …` idiom that every list/object
+/// loader (`accord_channels`, `accord_emojis`, `accord_members`, …) repeated.
+extension RestResultParse on RestResult {
+  /// The payload as a typed list, or `null` (logged) on failure or non-list
+  /// data. [describe] names the resource for the failure log, e.g.
+  /// `'channels for $spaceId'`.
+  List<T>? listOrLog<T>(String describe) {
+    if (!ok) {
+      debugPrint('Failed to load $describe: $error');
+      return null;
+    }
+    final payload = data;
+    return payload is List ? payload.whereType<T>().toList() : null;
+  }
+
+  /// The payload as a single typed value, or `null` (logged) on failure or a
+  /// type mismatch.
+  T? dataOrLog<T>(String describe) {
+    if (!ok) {
+      debugPrint('Failed to $describe: $error');
+      return null;
+    }
+    final payload = data;
+    return payload is T ? payload : null;
+  }
+}
+
 /// Shows a SnackBar reporting a failed [result] as `'<prefix>: <error>'`.
 void showErrorSnack(
   BuildContext context,

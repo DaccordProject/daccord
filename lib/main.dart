@@ -2,15 +2,16 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/hive.dart';
-import 'package:bonfire/features/notifications/controllers/notification.dart';
-import 'package:bonfire/features/notifications/controllers/sound.dart';
+import 'package:bonfire/features/notifications/services/notification.dart';
+import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
+import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
@@ -261,12 +262,37 @@ class _MainWindowState extends ConsumerState<MainWindow> {
 
     final loggedIn = ref.read(accordAuthProvider) is AccordAuthLoggedIn;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       switch (parsed.route) {
         case 'navigate':
           // Target an already-connected server by space id; for now just open
           // the home surface (deep space/channel selection is a follow-up).
           if (loggedIn) routerController.go('/spaces');
+          break;
+        case 'federate':
+          // Join a space homed on a remote server through the active
+          // connection. Requires being signed in (federation is server-to
+          // -server); otherwise route to login.
+          if (!loggedIn) {
+            routerController.go('/login');
+            break;
+          }
+          final domain = parsed.domain;
+          final spaceId = parsed.spaceId;
+          final client = ref.read(accordAuthProvider.notifier).client;
+          if (domain == null || spaceId == null || client == null) break;
+          final outcome =
+              await joinFederatedSpace(ref, client, domain, spaceId);
+          if (outcome.error == null) {
+            routerController.go('/spaces');
+          } else {
+            final ctx = rootNavigatorKey.currentContext;
+            if (ctx != null) {
+              ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
+                SnackBar(content: Text(outcome.error!)),
+              );
+            }
+          }
           break;
         case 'connect':
         case 'invite':

@@ -1,4 +1,5 @@
 import '../utils/json_utils.dart';
+import '../utils/qualified_id.dart';
 import 'attachment.dart';
 import 'embed.dart';
 import 'reaction.dart';
@@ -32,6 +33,11 @@ class AccordMessage {
   List<String> threadParticipants;
   Object? title;
 
+  /// Home domain for a remote-homed (federated) message, or `null` when the
+  /// message is homed on the connected server. Falls back to the domain of a
+  /// qualified [authorId]. See [isRemote].
+  String? origin;
+
   AccordMessage({
     this.id = '',
     this.channelId = '',
@@ -59,6 +65,7 @@ class AccordMessage {
     this.lastReplyAt,
     List<String>? threadParticipants,
     this.title,
+    this.origin,
   })  : mentions = mentions ?? [],
         mentionRoles = mentionRoles ?? [],
         attachments = attachments ?? [],
@@ -90,6 +97,12 @@ class AccordMessage {
     m.authorId = rawAuthor != null
         ? asString(rawAuthor['id'])
         : asString(d['author_id']);
+
+    // A remote-homed message carries `origin`; otherwise infer it from a
+    // qualified author id or the author's own origin so the UI can flag it.
+    m.origin = asStringOrNull(d['origin']) ??
+        asStringOrNull(rawAuthor?['origin']) ??
+        domainOf(m.authorId);
 
     for (final u in asList(d['mentions']) ?? const []) {
       final um = asMap(u);
@@ -176,6 +189,10 @@ class AccordMessage {
       d['thread_participants'] = threadParticipants;
     }
     if (title != null) d['title'] = title;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
+
+  /// Whether this message is homed on a remote (federated) server.
+  bool get isRemote => origin != null || isRemoteId(authorId);
 }

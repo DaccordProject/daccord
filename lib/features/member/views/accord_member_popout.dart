@@ -8,6 +8,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
+import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
@@ -308,19 +309,27 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
           : null,
     );
     final isSelf = currentUserId != null && currentUserId == widget.userId;
-    final canKick =
-        !isSelf && accordHasPermission(perms, AccordPermission.kickMembers);
-    final canBan =
-        !isSelf && accordHasPermission(perms, AccordPermission.banMembers);
-    final canTimeout =
-        !isSelf && accordHasPermission(perms, AccordPermission.moderateMembers);
-    final canManageRoles = accordHasPermission(
-      perms,
-      AccordPermission.manageRoles,
-    );
-    final canEditNickname = isSelf
-        ? accordHasPermission(perms, AccordPermission.changeNickname)
-        : accordHasPermission(perms, AccordPermission.manageNicknames);
+    // A remote (federated) user is homed on another server; local-only
+    // moderation (kick/ban/timeout/roles/nickname) can't be performed on them
+    // here, so those actions are suppressed regardless of local permissions.
+    final remoteDomain =
+        accordMemberOrigin(member) ?? accordUserOrigin(cachedUser);
+    final isRemote = remoteDomain != null;
+    final canKick = !isSelf &&
+        !isRemote &&
+        accordHasPermission(perms, AccordPermission.kickMembers);
+    final canBan = !isSelf &&
+        !isRemote &&
+        accordHasPermission(perms, AccordPermission.banMembers);
+    final canTimeout = !isSelf &&
+        !isRemote &&
+        accordHasPermission(perms, AccordPermission.moderateMembers);
+    final canManageRoles =
+        !isRemote && accordHasPermission(perms, AccordPermission.manageRoles);
+    final canEditNickname = !isRemote &&
+        (isSelf
+            ? accordHasPermission(perms, AccordPermission.changeNickname)
+            : accordHasPermission(perms, AccordPermission.manageNicknames));
     final timedOut =
         member?.timedOutUntil != null &&
         member!.timedOutUntil.toString().isNotEmpty;
@@ -387,6 +396,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                               color: colors.dirtyWhite,
                             ),
                           ),
+                        ],
+                        if (isRemote) ...[
+                          const SizedBox(height: 4),
+                          RemoteOriginBadge(domain: remoteDomain),
                         ],
                       ],
                     ),

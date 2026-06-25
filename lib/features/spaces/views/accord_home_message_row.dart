@@ -127,6 +127,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   String get _initial => accordInitial(_authorName);
 
+  /// The home domain of a remote (federated) author, or null when local. Drives
+  /// the federated-origin badge so remote authors are visually distinguishable.
+  String? get _authorOrigin =>
+      accordMemberOrigin(widget.author) ??
+      accordUserOrigin(widget.authorUser) ??
+      _message.origin;
+
   AccordClient? get _client => ref.accordClient;
 
   void _startEdit() {
@@ -316,18 +323,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 _MaybeTappable(
                   enabled: tappable,
                   onTap: _openPopout,
-                  child: CircleAvatar(
+                  child: AccordMemberAvatar(
+                    avatarUrl: avatarUrl,
+                    initial: _initial,
                     radius: avatarRadius,
                     backgroundColor: avatarBg,
-                    foregroundImage: avatarUrl == null
-                        ? null
-                        : CachedNetworkImageProvider(avatarUrl),
-                    child: Text(
-                      _initial,
-                      style: theme.textTheme.titleSmall!.copyWith(
-                        color: accordOnColor(avatarBg),
-                      ),
-                    ),
+                    initialStyle: theme.textTheme.titleSmall,
                   ),
                 ),
               SizedBox(width: gutter),
@@ -353,6 +354,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                               ),
                             ),
                           ),
+                          if (_authorOrigin != null) ...[
+                            const SizedBox(width: 5),
+                            RemoteOriginBadge(domain: _authorOrigin),
+                          ],
                           const SizedBox(width: 8),
                           Tooltip(
                             message: _fullTime,

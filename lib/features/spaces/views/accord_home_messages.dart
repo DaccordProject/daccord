@@ -79,24 +79,12 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
         .select((s) => s is AccordAuthLoggedIn ? s.client : null));
     if (client == null) return;
     final count = _selectedMessageIds.length;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete messages'),
-        content: Text('Delete $count message(s)? This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete messages',
+      message: 'Delete $count message(s)? This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _bulkDeleting = true);
@@ -174,6 +162,9 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
             .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)));
     final roles = space?.roles ?? const <AccordRole>[];
     final currentUserId = ref.watchUserId();
+    // Our home domain — recognises our own author/mention id when a remote home
+    // echoes it back qualified (`me@a.example`) on a federated message.
+    final homeDomain = ref.watchHomeDomain();
     final isAdmin = ref.watchIsAdmin();
     final myRoles = (currentUserId == null ? null : members?[currentUserId])
             ?.roles ??
@@ -359,14 +350,15 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
                           final colorRole = author == null
                               ? null
                               : memberColorRole(author, roles);
-                          final isOwn = currentUserId != null &&
-                              message.authorId == currentUserId;
+                          final uid = currentUserId;
+                          final isOwn = uid != null &&
+                              isSameUser(message.authorId, uid,
+                                  localDomain: homeDomain);
                           final mentionsMe = !isOwn &&
-                              currentUserId != null &&
+                              uid != null &&
                               (message.mentionEveryone ||
-                                  message.mentions.contains(currentUserId) ||
-                                  message.mentionRoles
-                                      .any(myRoles.contains));
+                                  _mentionsSelf(message, uid, homeDomain,
+                                      myRoles));
                           return _MessageRow(
                             message: message,
                             grouped: grouped,
@@ -411,6 +403,19 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
     );
   }
 }
+
+/// Whether [message] mentions the local user [uid] (directly or via one of
+/// their [myRoles]). A federated mention of us is qualified to our [homeDomain]
+/// (`uid@homeDomain`), so direct mentions match through [isSameUser] rather than
+/// a bare equality. `@everyone` is handled by the caller.
+bool _mentionsSelf(
+  AccordMessage message,
+  String uid,
+  String? homeDomain,
+  List<String> myRoles,
+) =>
+    message.mentions.any((m) => isSameUser(m, uid, localDomain: homeDomain)) ||
+    message.mentionRoles.any(myRoles.contains);
 
 /// How close in time two consecutive same-author messages must be to collapse
 /// into a single group (matching the reference client's denser layout).

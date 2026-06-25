@@ -35,6 +35,14 @@ void main() {
       final a = AccordSnowflake.generateNonce();
       expect(int.tryParse(a), isNotNull);
     });
+
+    test('decodeTimestampMs tolerates qualified federation ids', () {
+      final sf =
+          AccordSnowflake.fromTimestampMs(AccordSnowflake.epochMs + 3000);
+      // A qualified `<snowflake>@<domain>` decodes the same as the bare id.
+      expect(AccordSnowflake.decodeTimestampMs('$sf@b.example'),
+          AccordSnowflake.decodeTimestampMs(sf));
+    });
   });
 
   group('AccordCDN', () {

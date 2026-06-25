@@ -1,8 +1,7 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_emojis.g.dart';
@@ -14,10 +13,7 @@ part 'accord_emojis.g.dart';
 class AccordEmojisController extends _$AccordEmojisController {
   @override
   List<AccordEmoji>? build(String spaceId) {
-    final client = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-    );
+    final client = ref.watchAccordClient();
     if (client != null) {
       _load(client, spaceId);
     }
@@ -25,35 +21,22 @@ class AccordEmojisController extends _$AccordEmojisController {
   }
 
   Future<void> _load(AccordClient client, String spaceId) async {
-    final result = await client.emojis.list(spaceId);
-    if (!result.ok) {
-      debugPrint('Failed to load emojis for $spaceId: ${result.error}');
-      return;
-    }
-    final data = result.data;
-    if (data is List) {
-      state = data.whereType<AccordEmoji>().toList();
-    }
+    final emojis = (await client.emojis.list(spaceId))
+        .listOrLog<AccordEmoji>('emojis for $spaceId');
+    if (emojis != null) state = emojis;
   }
 
   /// Inserts [emoji] (when the id is new) or replaces an existing one in
   /// place. Used by the emoji-management dialog to mirror create/rename
   /// results into the cache without a full reload.
   void upsert(AccordEmoji emoji) {
-    final current = [...(state ?? const <AccordEmoji>[])];
-    final index = current.indexWhere((e) => e.id == emoji.id);
-    if (index >= 0) {
-      current[index] = emoji;
-    } else {
-      current.add(emoji);
-    }
-    state = current;
+    state = (state ?? const <AccordEmoji>[]).upsertById(emoji, (e) => e.id);
   }
 
   /// Drops [emojiId] from the cache after a successful delete.
   void remove(String emojiId) {
     final current = state;
     if (current == null) return;
-    state = current.where((e) => e.id != emojiId).toList();
+    state = current.removeById(emojiId, (e) => e.id);
   }
 }

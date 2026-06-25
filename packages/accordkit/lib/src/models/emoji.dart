@@ -12,6 +12,10 @@ class AccordEmoji {
   String? creatorId;
   String imageUrl;
 
+  /// Home domain for a custom emoji in a federated (replica) space, or `null`
+  /// when local. Remote emoji carry an absolute [imageUrl] on their home CDN.
+  String? origin;
+
   AccordEmoji({
     this.id,
     this.name = '',
@@ -22,6 +26,7 @@ class AccordEmoji {
     List<String>? roleIds,
     this.creatorId,
     this.imageUrl = '',
+    this.origin,
   }) : roleIds = roleIds ?? [];
 
   factory AccordEmoji.fromJson(Map<String, dynamic> d) {
@@ -36,6 +41,7 @@ class AccordEmoji {
       imageUrl: asString(d['image_url']),
       roleIds: [for (final r in rawRoles) asString(r)],
       creatorId: asStringOrNull(d['creator_id']),
+      origin: asStringOrNull(d['origin']),
     );
   }
 
@@ -51,6 +57,7 @@ class AccordEmoji {
     if (id != null) d['id'] = id;
     if (creatorId != null) d['creator_id'] = creatorId;
     if (imageUrl.isNotEmpty) d['image_url'] = imageUrl;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
 }

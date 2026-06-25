@@ -17,10 +17,17 @@ class AccordMemberAvatar extends StatelessWidget {
     this.radius = 16,
     this.ringColor,
     this.backgroundColor,
+    this.initialStyle,
   });
 
   final String? avatarUrl;
   final String initial;
+
+  /// Text style for the fallback initial. The avatar always re-tints it for
+  /// contrast against the background, so callers typically pass a size/weight
+  /// only (e.g. `theme.textTheme.titleSmall` or `TextStyle(fontSize: 18)`).
+  /// Defaults to `labelLarge` — the size used by the roster/list avatars.
+  final TextStyle? initialStyle;
 
   /// Presence status (`online`/`idle`/`dnd`/…) driving the dot, or null to omit
   /// the dot for avatars that don't surface presence.
@@ -57,7 +64,7 @@ class AccordMemberAvatar extends StatelessWidget {
                 url == null ? null : CachedNetworkImageProvider(url),
             child: Text(
               initial,
-              style: theme.textTheme.labelLarge!
+              style: (initialStyle ?? theme.textTheme.labelLarge!)
                   .copyWith(color: accordOnColor(bg)),
             ),
           ),

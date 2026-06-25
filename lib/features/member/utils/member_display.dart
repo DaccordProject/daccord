@@ -35,17 +35,94 @@ String accordInitial(String? name) {
   return trimmed.substring(0, 1).toUpperCase();
 }
 
+/// The CDN base URL for a federated home [domain] (e.g. `b.example` →
+/// `https://b.example/cdn`), or `null` when [domain] is not a safe host to fetch
+/// from. Used to resolve a remote user's avatar/banner against their *home*
+/// server rather than the connected server. A federated peer supplies [domain],
+/// so it is validated as a real hostname (optionally with a `:port`) and
+/// rejected when it is loopback/link-local — otherwise a malicious origin could
+/// point image fetches at internal/cloud-metadata addresses or smuggle
+/// userinfo/path into the host. Mirrors the per-server CDN derivation in
+/// `AccordServer.fromBaseUrl`.
+String? cdnBaseForDomain(String domain) =>
+    _isSafeFederationHost(domain) ? 'https://$domain/cdn' : null;
+
+/// Validates a federation [domain] that may carry an optional `:port`: a real
+/// hostname that is not loopback/link-local.
+bool _isSafeFederationHost(String domain) {
+  var host = domain;
+  final colon = domain.lastIndexOf(':');
+  if (colon != -1) {
+    if (int.tryParse(domain.substring(colon + 1)) == null) return false;
+    host = domain.substring(0, colon);
+  }
+  return isValidHost(host) && !isLoopbackOrLinkLocalHost(host);
+}
+
+/// Whether [asset] is safe to fetch for a remote home [domain]: a relative path
+/// (resolved against the home CDN) or an absolute URL whose host is the home
+/// [domain] itself. An absolute URL pointing anywhere else is rejected so a
+/// remote object can't turn an avatar/emoji into an off-home tracking fetch.
+bool _assetAllowedForDomain(String asset, String domain) {
+  if (!(asset.startsWith('http://') || asset.startsWith('https://'))) {
+    return true; // relative — resolves against the home CDN
+  }
+  final uri = Uri.tryParse(asset);
+  if (uri == null) return false;
+  final colon = domain.lastIndexOf(':');
+  final host = colon != -1 && int.tryParse(domain.substring(colon + 1)) != null
+      ? domain.substring(0, colon)
+      : domain;
+  return uri.host.toLowerCase() == host.toLowerCase();
+}
+
+/// The home domain of a remote (federated) user, or null when local. Falls back
+/// to the domain embedded in a qualified id when `origin` isn't set explicitly.
+String? accordUserOrigin(AccordUser? user) {
+  if (user == null) return null;
+  final origin = user.origin;
+  if (origin != null && origin.isNotEmpty) return origin;
+  return domainOf(user.id);
+}
+
+/// The home domain of a remote (federated) member, or null when local.
+String? accordMemberOrigin(AccordMember? member) => member?.homeDomain;
+
+/// Whether [user] is homed on a remote (federated) server.
+bool accordIsRemoteUser(AccordUser? user) => accordUserOrigin(user) != null;
+
+/// Whether [member] is homed on a remote (federated) server.
+bool accordIsRemoteMember(AccordMember? member) => member?.isRemote ?? false;
+
 /// Resolves a user's `avatar` reference to an absolute CDN URL, or null when
 /// unset (callers fall back to an initial). The field is either a bare asset
-/// hash or a server-relative/absolute path; both are handled.
-String? accordAvatarUrl(AccordUser? user, String? cdnUrl) {
+/// hash or a server-relative/absolute path; both are handled. For a remote
+/// (federated) user the asset lives on their *home* server, so a bare hash or
+/// server-relative path resolves against the home domain's CDN rather than the
+/// connected server's; absolute URLs (already rewritten server-side) pass
+/// through unchanged.
+String? accordAvatarUrl(AccordUser? user, String? cdnUrl) =>
+    _userAvatarUrl(user, cdnUrl, domain: accordUserOrigin(user));
+
+String? _userAvatarUrl(AccordUser? user, String? cdnUrl, {String? domain}) {
   final avatar = user?.avatar;
   if (avatar == null || avatar.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
+  final String cdn;
+  if (domain != null) {
+    final base = cdnBaseForDomain(domain);
+    // Unsafe home domain, or an absolute URL that points off the home server:
+    // render an initial rather than fetch from an untrusted host.
+    if (base == null || !_assetAllowedForDomain(avatar, domain)) return null;
+    cdn = base;
+  } else {
+    cdn = cdnUrl ?? '';
+  }
   if (avatar.contains('/') || avatar.startsWith('http')) {
     return AccordCDN.resolvePath(avatar, cdnUrl: cdn);
   }
-  return AccordCDN.avatar(user!.id, avatar,
+  // A remote user's id is qualified; the home CDN keys avatars by the bare
+  // snowflake, so strip any `@domain` before building the path.
+  return AccordCDN.avatar(localPart(user!.id), avatar,
       format: AccordCDN.autoFormat(avatar), cdnUrl: cdn);
 }
 
@@ -53,17 +130,59 @@ String? accordAvatarUrl(AccordUser? user, String? cdnUrl) {
 /// ([AccordMember.avatar]) over the user's global avatar. Mirrors the reference
 /// client: an override starting with `/` is a CDN path; otherwise it's a bare
 /// hash served from `/cdn/avatars/<hash>`. Falls back to the user avatar, then
-/// null (callers render an initial).
+/// null (callers render an initial). Remote members resolve assets against their
+/// home server's CDN.
 String? accordMemberAvatarUrl(AccordMember? member, String? cdnUrl) {
+  final domain = member?.homeDomain;
   final override = member?.avatar;
   if (override is String && override.isNotEmpty) {
-    final cdn = cdnUrl ?? '';
+    final String cdn;
+    if (domain != null) {
+      final base = cdnBaseForDomain(domain);
+      // Unsafe home domain, or an off-home absolute override: fall back to the
+      // user's global avatar (itself home-gated) rather than fetch off-home.
+      if (base == null || !_assetAllowedForDomain(override, domain)) {
+        return _userAvatarUrl(member?.user, cdnUrl, domain: domain);
+      }
+      cdn = base;
+    } else {
+      cdn = cdnUrl ?? '';
+    }
     if (override.startsWith('/') || override.startsWith('http')) {
       return AccordCDN.resolvePath(override, cdnUrl: cdn);
     }
     return AccordCDN.resolvePath('/cdn/avatars/$override', cdnUrl: cdn);
   }
-  return accordAvatarUrl(member?.user, cdnUrl);
+  return _userAvatarUrl(member?.user, cdnUrl, domain: domain);
+}
+
+/// Resolves a custom [emoji] to an absolute image URL, applying the same
+/// federation trust boundary as avatars: a remote emoji (one carrying an
+/// `origin`) resolves against its home server's CDN, and an absolute `imageUrl`
+/// is honoured only when it points at that home server. Returns null when there
+/// is nothing safe to show (callers render the emoji name/placeholder).
+/// Centralizes the `imageUrl`-or-CDN-by-id logic previously inlined in the emoji
+/// picker, message markup, and emoji-management views.
+String? accordEmojiUrl(AccordEmoji emoji, String? cdnUrl) {
+  final domain = emoji.origin;
+  final remote = domain != null && domain.isNotEmpty;
+  final String cdn;
+  if (remote) {
+    final base = cdnBaseForDomain(domain);
+    if (base == null) return null; // unsafe home domain
+    cdn = base;
+  } else {
+    cdn = cdnUrl ?? '';
+  }
+  if (emoji.imageUrl.isNotEmpty) {
+    if (remote && !_assetAllowedForDomain(emoji.imageUrl, domain)) return null;
+    return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: cdn);
+  }
+  final id = emoji.id;
+  if (id == null) return null;
+  // A remote emoji id is qualified; the home CDN keys by the bare snowflake.
+  return AccordCDN.emoji(localPart(id),
+      format: emoji.animated ? 'gif' : 'png', cdnUrl: cdn);
 }
 
 /// Resolves a message/post author's display name by `author_id`, consulting the

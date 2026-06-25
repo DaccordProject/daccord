@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
-import 'package:bonfire/features/notifications/controllers/sound.dart';
+import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';

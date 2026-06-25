@@ -1,9 +1,8 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_members.g.dart';
@@ -33,10 +32,7 @@ class AccordMembersController extends _$AccordMembersController {
     activeMemberSpaces.add(spaceId);
     ref.onDispose(() => activeMemberSpaces.remove(spaceId));
 
-    final client = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-    );
+    final client = ref.watchAccordClient();
     if (client != null) {
       _load(client, spaceId);
     }
@@ -47,18 +43,11 @@ class AccordMembersController extends _$AccordMembersController {
     // `withUser` asks the server to embed each member's user object, so
     // `_resolveUsers` finds them already populated and skips the per-member
     // fetch. Older servers ignore the flag; the fallback fetch still runs then.
-    final result = await client.members
-        .list(spaceId, query: {'limit': 100}, withUser: true);
-    if (!result.ok) {
-      debugPrint('Failed to load members for $spaceId: ${result.error}');
-      return;
-    }
-    final data = result.data;
-    if (data is! List) return;
-    final members = {
-      for (final member in data.whereType<AccordMember>())
-        member.userId: member,
-    };
+    final list = (await client.members
+            .list(spaceId, query: {'limit': 100}, withUser: true))
+        .listOrLog<AccordMember>('members for $spaceId');
+    if (list == null) return;
+    final members = {for (final member in list) member.userId: member};
     state = members;
     await _resolveUsers(client, members);
   }

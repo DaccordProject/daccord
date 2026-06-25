@@ -19,6 +19,11 @@ class AccordUser {
   bool isGuest;
   String createdAt;
 
+  /// Home domain for a federated (remote) user, or `null` when the user is
+  /// local to the connected server. When set, [id] is a qualified
+  /// `<snowflake>@<domain>` and CDN assets resolve against this home server.
+  String? origin;
+
   AccordUser({
     this.id = '',
     this.username = '',
@@ -36,6 +41,7 @@ class AccordUser {
     this.disabled = false,
     this.isGuest = false,
     this.createdAt = '',
+    this.origin,
   });
 
   factory AccordUser.fromJson(Map<String, dynamic> d) {
@@ -56,6 +62,7 @@ class AccordUser {
       disabled: asBool(d['disabled']),
       isGuest: asBool(d['is_guest']),
       createdAt: asString(d['created_at']),
+      origin: asStringOrNull(d['origin']),
     );
   }
 
@@ -78,6 +85,7 @@ class AccordUser {
     if (banner != null) d['banner'] = banner;
     if (accentColor != null) d['accent_color'] = accentColor;
     if (bio != null) d['bio'] = bio;
+    if (origin != null) d['origin'] = origin;
     return d;
   }
 }

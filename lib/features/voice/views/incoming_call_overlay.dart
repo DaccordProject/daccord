@@ -6,7 +6,7 @@ import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,15 +77,12 @@ class IncomingCallOverlay extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                CircleAvatar(
+                AccordMemberAvatar(
+                  avatarUrl: avatarUrl,
+                  initial: initial,
                   radius: 22,
                   backgroundColor: bg,
-                  foregroundImage: avatarUrl == null
-                      ? null
-                      : CachedNetworkImageProvider(avatarUrl),
-                  child: Text(initial,
-                      style:
-                          TextStyle(color: accordOnColor(bg), fontSize: 18)),
+                  initialStyle: const TextStyle(fontSize: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

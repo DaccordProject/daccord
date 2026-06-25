@@ -440,20 +440,11 @@ String _memberLabel(AccordMember member, String fallback) {
   return fallback;
 }
 
-/// Resolves [emoji] to an absolute image URL (mirrors the emoji picker): an
-/// explicit `imageUrl` wins, else the CDN path by id. Null when neither.
-String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) {
-  if (emoji.imageUrl.isNotEmpty) {
-    return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: cdnUrl ?? '');
-  }
-  final id = emoji.id;
-  if (id == null) return null;
-  return AccordCDN.emoji(
-    id,
-    format: emoji.animated ? 'gif' : 'png',
-    cdnUrl: cdnUrl ?? '',
-  );
-}
+/// Resolves [emoji] to an absolute image URL via the shared, federation-aware
+/// resolver (remote emoji resolve against their home CDN). Null when neither an
+/// `imageUrl` nor an id is available.
+String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) =>
+    accordEmojiUrl(emoji, cdnUrl);
 
 bool _isWordCharCode(int c) {
   if (c >= 0x30 && c <= 0x39) return true; // 0-9

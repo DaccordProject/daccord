@@ -1,5 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

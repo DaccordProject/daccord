@@ -12,8 +12,8 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
-import 'package:bonfire/features/notifications/controllers/notification.dart';
-import 'package:bonfire/features/notifications/controllers/sound.dart';
+import 'package:bonfire/features/notifications/services/notification.dart';
+import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
@@ -46,9 +46,19 @@ VoidCallback handleAccordEvents(
   AccordClient client, {
   required String serverKey,
   required String currentUserId,
+  required String selfDomain,
   required bool Function() isActive,
 }) {
   final subs = <StreamSubscription<dynamic>>[];
+
+  // Federation echoes the local user's own actions back qualified to our home
+  // domain (`<id>@<selfDomain>`), so a bare `== currentUserId` no longer
+  // recognises them. These treat both forms as self — see [isSameUser] — and
+  // are used wherever an event would otherwise self-notify, self-chime, or
+  // double-count (message author, mentions, reaction ownership, typing).
+  bool isSelf(String? id) =>
+      id != null && isSameUser(id, currentUserId, localDomain: selfDomain);
+  bool mentionsSelf(Iterable<String> mentions) => mentions.any(isSelf);
 
   // This handler is a long-lived imperative event sink, not a provider build, so
   // its cross-provider writes must not register against the auth provider's
@@ -306,11 +316,9 @@ VoidCallback handleAccordEvents(
   // active connection suppresses the on-screen channel (the visible-channel
   // pointer belongs to the active session). Mirrors `client_unread.gd`.
   subs.add(client.onMessageCreate.listen((message) {
-    final me = currentUserId;
-    if (message.authorId == me) return;
+    if (isSelf(message.authorId)) return;
     if (isActive() && message.channelId == accordVisibleChannelId) return;
-    final mentionsMe = message.mentionEveryone ||
-        message.mentions.contains(me);
+    final mentionsMe = message.mentionEveryone || mentionsSelf(message.mentions);
     ref
         .read(readStateControllerProvider(serverKey).notifier)
         .markUnread(
@@ -342,15 +350,13 @@ VoidCallback handleAccordEvents(
   subs.add(client.onMessageCreate.listen((message) {
     final settings = ref.read(settingsControllerProvider);
 
-    final me = currentUserId;
-
     final notify = MessageNotificationGate.shouldNotify(
       notificationsEnabled: settings.notificationsEnabled,
       suppressEveryone: settings.suppressEveryone,
-      isOwnMessage: message.authorId == me,
+      isOwnMessage: isSelf(message.authorId),
       isVisibleChannel:
           isActive() && message.channelId == accordVisibleChannelId,
-      mentionsMe: message.mentions.contains(me),
+      mentionsMe: mentionsSelf(message.mentions),
       mentionEveryone: message.mentionEveryone,
       spaceMuted:
           message.spaceId != null && settings.isSpaceMuted(message.spaceId!),
@@ -380,11 +386,10 @@ VoidCallback handleAccordEvents(
       return;
     }
 
-    final me = currentUserId;
-    if (message.authorId == me) return;
+    if (isSelf(message.authorId)) return;
 
     final everyone = message.mentionEveryone && !settings.suppressEveryone;
-    final isMention = message.mentions.contains(me) || everyone;
+    final isMention = mentionsSelf(message.mentions) || everyone;
     soundManager.playForMessage(
       isMention: isMention,
       isVisibleChannel:
@@ -416,7 +421,10 @@ VoidCallback handleAccordEvents(
     final emoji = reactionEmoji(data);
     if (channelId == null || messageId == null || emoji.name.isEmpty) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    final isOwn = data['user_id']?.toString() == currentUserId;
+    // A federated reaction carries a qualified actor id; our own reaction on a
+    // remote-homed message echoes back qualified to our domain, so match both
+    // forms or the optimistic pill and its echo double-count.
+    final isOwn = isSelf(data['user_id']?.toString());
     container
         .read(accordMessagesControllerProvider(channelId).notifier)
         .applyReaction(messageId, emoji.name,
@@ -449,13 +457,17 @@ VoidCallback handleAccordEvents(
   }));
 
   // ── Typing indicators (per channel) ──────────────────────────────────────
+  // A remote user's typing arrives with a qualified id; the typing controller
+  // holds it verbatim and the UI resolves identity via the member/user cache
+  // (fetching the replica on demand). Our own typing echoes back qualified to
+  // our domain on a remote-homed channel, so skip-self matches both forms.
   subs.add(client.onTypingStart.listen((data) {
     if (!isActive()) return;
     final channelId = data['channel_id']?.toString();
     final userId = data['user_id']?.toString();
     if (channelId == null || userId == null) return;
     if (!activeMessageChannels.contains(channelId)) return;
-    if (userId == currentUserId) return; // don't show our own typing
+    if (isSelf(userId)) return; // don't show our own typing
     ref.read(typingControllerProvider(channelId).notifier).userTyping(userId);
   }));
 

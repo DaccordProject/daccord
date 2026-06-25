@@ -7,7 +7,7 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,17 +132,12 @@ class _ParticipantRow extends StatelessWidget {
                   : null,
             ),
             padding: const EdgeInsets.all(1),
-            child: CircleAvatar(
+            child: AccordMemberAvatar(
+              avatarUrl: avatarUrl,
+              initial: initial,
               radius: 9,
               backgroundColor: avatarBg,
-              foregroundImage: avatarUrl == null
-                  ? null
-                  : CachedNetworkImageProvider(avatarUrl),
-              child: Text(
-                initial,
-                style: TextStyle(
-                    fontSize: 9, color: accordOnColor(avatarBg)),
-              ),
+              initialStyle: const TextStyle(fontSize: 9),
             ),
           ),
           const SizedBox(width: 6),

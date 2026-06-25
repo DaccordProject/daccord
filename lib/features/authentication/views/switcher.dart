@@ -1,4 +1,4 @@
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';

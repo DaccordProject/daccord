@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -10,7 +10,7 @@ import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -405,15 +405,12 @@ class _PostRow extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
+                AccordMemberAvatar(
+                  avatarUrl: avatarUrl,
+                  initial: initial,
                   radius: 20,
                   backgroundColor: avatarBg,
-                  foregroundImage: avatarUrl == null
-                      ? null
-                      : CachedNetworkImageProvider(avatarUrl!),
-                  child: Text(initial,
-                      style: theme.textTheme.titleMedium!
-                          .copyWith(color: accordOnColor(avatarBg))),
+                  initialStyle: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

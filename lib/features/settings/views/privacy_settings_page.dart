@@ -117,9 +117,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
     // Drop the space from the cache immediately; the gateway member.leave echo
     // would do this too, but the local update keeps the page in sync.
     ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text("Left '${space.name}' and deleted your data")),
-    );
+    showInfoSnack(context, "Left '${space.name}' and deleted your data");
   }
 
   @override

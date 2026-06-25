@@ -1,5 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,6 +11,9 @@ String? _userIdFromState(AccordAuthState s) =>
 
 String? _cdnUrlFromState(AccordAuthState s) =>
     s is AccordAuthLoggedIn ? s.session.server.cdnUrl : null;
+
+String? _homeDomainFromState(AccordAuthState s) =>
+    s is AccordAuthLoggedIn ? s.session.server.homeDomain : null;
 
 bool _isAdminFromState(AccordAuthState s) =>
     s is AccordAuthLoggedIn && s.session.isAdmin;
@@ -32,6 +35,11 @@ extension AccordClientWidgetRef on WidgetRef {
   String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
   String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
 
+  String? watchHomeDomain() =>
+      watch(accordAuthProvider.select(_homeDomainFromState));
+  String? readHomeDomain() =>
+      read(accordAuthProvider.select(_homeDomainFromState));
+
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
 }
@@ -41,11 +49,24 @@ extension AccordClientRef on Ref {
   AccordClient? get accordClient =>
       read(accordAuthProvider.select(_clientFromState));
 
+  /// The currently authenticated client, re-read on every auth change.
+  ///
+  /// Use in a controller `build` so the controller rebuilds (and reloads) when
+  /// the active account/session changes. Replaces the copy-pasted
+  /// `ref.watch(accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null))`.
+  AccordClient? watchAccordClient() =>
+      watch(accordAuthProvider.select(_clientFromState));
+
   String? watchUserId() => watch(accordAuthProvider.select(_userIdFromState));
   String? readUserId() => read(accordAuthProvider.select(_userIdFromState));
 
   String? watchCdnUrl() => watch(accordAuthProvider.select(_cdnUrlFromState));
   String? readCdnUrl() => read(accordAuthProvider.select(_cdnUrlFromState));
+
+  String? watchHomeDomain() =>
+      watch(accordAuthProvider.select(_homeDomainFromState));
+  String? readHomeDomain() =>
+      read(accordAuthProvider.select(_homeDomainFromState));
 
   bool watchIsAdmin() => watch(accordAuthProvider.select(_isAdminFromState));
   bool readIsAdmin() => read(accordAuthProvider.select(_isAdminFromState));
