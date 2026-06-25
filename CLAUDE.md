@@ -28,7 +28,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 ## Architecture (inherited from Bonfire)
 
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
-- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. `freezed`/`json_serializable` are **not** dependencies (no `*.freezed.dart` or model `*.g.dart` files exist in `lib/`; the only generated files are Riverpod's).
+- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. `freezed`/`json_serializable` remain (dev) dependencies but are unused by any model: no `*.freezed.dart` or model `*.g.dart` files exist in `lib/` (the only generated files are Riverpod's). They can be dropped once someone regenerates `pubspec.lock` locally.
 - **Routing:** `go_router`.
 - **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.

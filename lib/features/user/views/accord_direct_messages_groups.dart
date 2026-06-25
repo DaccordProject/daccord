@@ -69,7 +69,6 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
     final results = _results;
     return Dialog(
       child: ConstrainedBox(
