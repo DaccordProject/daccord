@@ -137,9 +137,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(_error!,
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.red)),
+                  child: InlineError(_error!, centered: false),
                 ),
               _Label('Server name'),
               TextField(

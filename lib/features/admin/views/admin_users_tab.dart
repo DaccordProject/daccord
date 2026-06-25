@@ -203,7 +203,6 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -234,9 +233,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(_error!,
-                style:
-                    theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            child: InlineError(_error!, centered: false),
           ),
         Expanded(
           child: _loading

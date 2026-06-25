@@ -237,10 +237,7 @@ class _DangerZoneSectionState extends ConsumerState<_DangerZoneSection> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(
-            _error!,
-            style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-          ),
+          InlineError(_error!, centered: false),
         ],
         const SizedBox(height: 10),
         Align(
@@ -552,10 +549,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-            ),
+            InlineError(_error!, centered: false),
           ],
           const SizedBox(height: 10),
           Align(
@@ -594,10 +588,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-            ),
+            InlineError(_error!, centered: false),
           ],
           const SizedBox(height: 10),
           Align(
@@ -677,10 +668,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-            ),
+            InlineError(_error!, centered: false),
           ],
           const SizedBox(height: 10),
           Align(

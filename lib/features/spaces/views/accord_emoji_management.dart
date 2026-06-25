@@ -218,10 +218,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                InlineError(_error!, centered: false),
               ],
               const SizedBox(height: 12),
               Flexible(

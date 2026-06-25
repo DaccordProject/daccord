@@ -469,9 +469,7 @@ class _ChannelPermissionsDialogState
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(_error!,
-                      style: theme.textTheme.bodySmall!
-                          .copyWith(color: colors.red)),
+                  child: InlineError(_error!, centered: false),
                 ),
               _Footer(
                 colors: colors,

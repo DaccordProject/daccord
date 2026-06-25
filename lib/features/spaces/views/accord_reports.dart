@@ -177,12 +177,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall!.copyWith(
-                          color: colors.red,
-                        ),
-                      ),
+                      InlineError(_error!, centered: false),
                     ],
                     const SizedBox(height: 20),
                     Row(
@@ -563,10 +558,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                child: InlineError(_error!, centered: false),
               ),
           ],
         ),

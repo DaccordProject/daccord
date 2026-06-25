@@ -237,9 +237,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(_error!,
-                style:
-                    theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            child: InlineError(_error!, centered: false),
           ),
         Expanded(
           child: _loading

@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/utils/channel_sort.dart';
@@ -281,10 +282,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                InlineError(_error!, centered: false),
               ],
               const SizedBox(height: 8),
               Flexible(

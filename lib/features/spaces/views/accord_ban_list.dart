@@ -234,12 +234,7 @@ class _BanListState extends ConsumerState<_BanList> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: colors.red,
-                    ),
-                  ),
+                  child: InlineError(_error!, centered: false),
                 ),
               Flexible(
                 child: _busy && bans == null

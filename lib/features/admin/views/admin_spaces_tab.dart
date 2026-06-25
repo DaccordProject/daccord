@@ -176,7 +176,6 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
     final spaces = _spaces;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -213,9 +212,7 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(_error!,
-                style:
-                    theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            child: InlineError(_error!, centered: false),
           ),
         Expanded(
           child: _busy && spaces == null

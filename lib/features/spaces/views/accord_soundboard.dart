@@ -285,10 +285,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                InlineError(_error!, centered: false),
               ],
             ],
           ),

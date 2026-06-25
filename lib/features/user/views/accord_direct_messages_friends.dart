@@ -201,10 +201,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(8),
-            child: Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-            ),
+            child: InlineError(_error!, centered: false),
           ),
       ],
     );
