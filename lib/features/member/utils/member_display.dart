@@ -25,6 +25,16 @@ String accordUserName(AccordUser? user, {String fallback = 'Unknown'}) {
   return fallback;
 }
 
+/// The single uppercase initial drawn on an imageless avatar, or `?` when the
+/// name is empty/whitespace. Consolidates the
+/// `name.isEmpty ? '?' : name[0].toUpperCase()` expression (and its
+/// `.substring(0, 1)` / `.trim()` variants) duplicated across ~24 avatar sites.
+String accordInitial(String? name) {
+  final trimmed = name?.trim() ?? '';
+  if (trimmed.isEmpty) return '?';
+  return trimmed.substring(0, 1).toUpperCase();
+}
+
 /// Resolves a user's `avatar` reference to an absolute CDN URL, or null when
 /// unset (callers fall back to an initial). The field is either a bare asset
 /// hash or a server-relative/absolute path; both are handled.
