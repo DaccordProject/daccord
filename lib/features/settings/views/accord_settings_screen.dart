@@ -10,11 +10,13 @@ import 'package:bonfire/features/settings/views/connections_settings_page.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_account_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
 import 'package:bonfire/shared/app_info.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -211,8 +213,7 @@ class AccordSettingsScreen extends ConsumerWidget {
               leading: CircleAvatar(
                 backgroundColor: colors.primary,
                 child: Text(
-                  (session.username.isNotEmpty ? session.username[0] : '?')
-                      .toUpperCase(),
+                  accordInitial(session.username),
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
@@ -389,9 +390,7 @@ Future<void> _showReportProblemDialog(
         .read(errorReportingControllerProvider.notifier)
         .reportProblem(textController.text.trim());
     if (context.mounted) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text('Report sent. Thank you!')),
-      );
+      showInfoSnack(context, 'Report sent. Thank you!');
     }
   }
   textController.dispose();
@@ -458,9 +457,7 @@ class _MasterServerFieldState extends ConsumerState<_MasterServerField> {
     final applied = ref.read(settingsControllerProvider).masterServerUrl;
     _controller.text = applied;
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.maybeOf(
-      context,
-    )?.showSnackBar(const SnackBar(content: Text('Master server URL saved')));
+    showInfoSnack(context, 'Master server URL saved');
   }
 
   @override

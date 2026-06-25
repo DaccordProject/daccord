@@ -5,6 +5,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -112,7 +113,7 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                   if (snapshot.connectionState != ConnectionState.done) {
                     return const Padding(
                       padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: LoadingView(),
                     );
                   }
                   final pins = snapshot.data ?? const <AccordMessage>[];

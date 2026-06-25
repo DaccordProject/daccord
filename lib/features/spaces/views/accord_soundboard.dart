@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -234,7 +235,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
                 ),
               Flexible(
                 child: sounds == null
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const LoadingView()
                     : Builder(
                         builder: (context) {
                           final filtered = _query.isEmpty

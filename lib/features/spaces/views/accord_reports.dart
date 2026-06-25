@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -512,7 +513,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const LoadingView()
                   : _reports.isEmpty
                   ? Center(
                       child: Text(

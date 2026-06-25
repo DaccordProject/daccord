@@ -7,6 +7,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/components/thread_view.dart';
 import 'package:bonfire/features/spaces/utils/message_time.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -263,7 +264,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
             ),
             Expanded(
               child: posts == null
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const LoadingView()
                   : posts.isEmpty
                       ? Center(
                           child: Text('No posts yet',
@@ -389,8 +390,7 @@ class _PostRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial =
-        author.trim().isEmpty ? '?' : author.trim()[0].toUpperCase();
+    final initial = accordInitial(author);
     final replies = post.replyCount;
     return Card(
       clipBehavior: Clip.antiAlias,

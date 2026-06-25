@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -117,7 +118,7 @@ class _AccountSettingsDialogState
               if (_mfaEnabled == null)
                 const Padding(
                   padding: EdgeInsets.all(8),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: LoadingView(),
                 )
               else
                 _TwoFactorSection(

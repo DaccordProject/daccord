@@ -1,7 +1,9 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -169,9 +171,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
           _error = result.errorOr('Failed to reset password'));
       return;
     }
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text("Password reset for ${user.username}")),
-    );
+    showInfoSnack(context, "Password reset for ${user.username}");
   }
 
   Future<void> _delete(AccordUser user) async {
@@ -240,7 +240,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
           ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const LoadingView()
               : _users.isEmpty
                   ? Center(
                       child: Text('No users found.',
@@ -306,8 +306,7 @@ class _UserRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final initial =
-        user.username.isNotEmpty ? user.username[0].toUpperCase() : '?';
+    final initial = accordInitial(user.username);
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: colors.primary,

@@ -298,7 +298,7 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
                               leading: CircleAvatar(
                                 radius: 16,
                                 backgroundColor: colors.darkGray,
-                                child: Text(_userName(user)[0].toUpperCase()),
+                                child: Text(accordInitial(_userName(user))),
                               ),
                               title: Text(
                                 _userName(user),
@@ -423,7 +423,7 @@ class _GroupMembersDialog extends StatelessWidget {
                               leading: CircleAvatar(
                                 radius: 16,
                                 backgroundColor: colors.darkGray,
-                                child: Text(_userName(user)[0].toUpperCase()),
+                                child: Text(accordInitial(_userName(user))),
                               ),
                               title: Text(
                                 _userName(user),

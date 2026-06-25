@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -117,9 +118,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
           _error = result.errorOr('Failed to save settings'));
       return;
     }
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text('Server settings saved')),
-    );
+    showInfoSnack(context, 'Server settings saved');
   }
 
   @override
@@ -127,7 +126,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingView();
     }
     return Column(
       children: [

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
@@ -299,7 +301,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
         const SizedBox(height: 8),
         Expanded(
           child: listings == null
-              ? const Center(child: CircularProgressIndicator())
+              ? const LoadingView()
               : listings.isEmpty
               ? Center(
                   child: Text(
@@ -408,7 +410,7 @@ class _DiscoveryCard extends StatelessWidget {
                   ? null
                   : CachedNetworkImageProvider(iconUrl),
               child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                accordInitial(name),
                 style: theme.textTheme.titleMedium,
               ),
             ),

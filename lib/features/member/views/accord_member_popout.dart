@@ -345,7 +345,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                 children: [
                   AccordMemberAvatar(
                     avatarUrl: avatarUrl,
-                    initial: name.isEmpty ? '?' : name[0].toUpperCase(),
+                    initial: accordInitial(name),
                     status: status,
                     radius: 28,
                     backgroundColor: accordAvatarColor(

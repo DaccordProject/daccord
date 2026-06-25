@@ -8,6 +8,7 @@ import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -116,7 +117,7 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
           _header(context, colors),
           Expanded(
             child: messages == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const LoadingView()
                 : messages.isEmpty
                     ? Center(
                         child: Text('No messages yet',
@@ -257,8 +258,7 @@ class _VoiceTextMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final initial =
-        authorName.isEmpty ? '?' : authorName.characters.first.toUpperCase();
+    final initial = accordInitial(authorName);
     return Padding(
       padding: EdgeInsets.only(top: grouped ? 1 : 8),
       child: Row(

@@ -7,11 +7,12 @@ import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
 import 'package:bonfire/features/spaces/utils/message_time.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -296,7 +297,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         if (replies == null)
           const Padding(
             padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
+            child: LoadingView(),
           )
         else if (replies.isEmpty)
           Padding(
@@ -533,7 +534,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
           widget.users[_message.authorId],
       _message.authorId,
     );
-    final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
+    final initial = accordInitial(name);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -545,15 +546,11 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 16,
+              AccordMemberAvatar(
+                avatarUrl: avatarUrl,
+                initial: initial,
                 backgroundColor: avatarBg,
-                foregroundImage: avatarUrl == null
-                    ? null
-                    : CachedNetworkImageProvider(avatarUrl),
-                child: Text(initial,
-                    style: theme.textTheme.labelLarge!
-                        .copyWith(color: accordOnColor(avatarBg))),
+                radius: 16,
               ),
               const SizedBox(width: 10),
               Expanded(

@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -428,7 +429,7 @@ class _ChannelPermissionsDialogState
               ),
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const LoadingView()
                     : Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

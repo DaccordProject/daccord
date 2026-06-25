@@ -63,7 +63,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
         ),
         Expanded(
           child: channels == null
-              ? const Center(child: CircularProgressIndicator())
+              ? const LoadingView()
               : channels.isEmpty
                   ? Center(
                       child: Text('No direct messages yet',
@@ -81,9 +81,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                             child: group
                                 ? Icon(Icons.group,
                                     size: 18, color: colors.dirtyWhite)
-                                : Text(title.isNotEmpty
-                                    ? title[0].toUpperCase()
-                                    : '?'),
+                                : Text(accordInitial(title)),
                           ),
                           title: Text(title,
                               maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -270,8 +268,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.maybeOf(context)
-        ?.showSnackBar(SnackBar(content: Text(message)));
+    showInfoSnack(context, message);
   }
 
   Future<bool?> _confirm(String title, String message, String action) {
@@ -410,7 +407,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
         const Divider(height: 1),
         Expanded(
           child: messages == null
-              ? const Center(child: CircularProgressIndicator())
+              ? const LoadingView()
               : messages.isEmpty
                   ? Center(
                       child: Text('No messages yet',

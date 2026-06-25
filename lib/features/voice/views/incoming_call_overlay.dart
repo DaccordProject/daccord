@@ -4,6 +4,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
@@ -25,8 +26,7 @@ class IncomingCallOverlay extends ConsumerWidget {
     ref.listen(callControllerProvider.select((s) => s.endedMessage),
         (prev, msg) {
       if (msg == null) return;
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text(msg)));
+      showInfoSnack(context, msg);
       ref.read(callControllerProvider.notifier).clearEndedMessage();
     });
 
@@ -55,8 +55,7 @@ class IncomingCallOverlay extends ConsumerWidget {
         ? '${channel?.name?.isNotEmpty == true ? channel!.name : 'Group'} · $callerName'
         : callerName;
 
-    final initial =
-        callerName.isEmpty ? '?' : callerName.characters.first.toUpperCase();
+    final initial = accordInitial(callerName);
 
     return Positioned(
       top: 0,

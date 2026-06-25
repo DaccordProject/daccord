@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
@@ -144,7 +145,7 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
               child: _loading
                   ? const Padding(
                       padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: LoadingView(),
                     )
                   : TabBarView(
                       controller: _tabs,

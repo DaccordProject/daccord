@@ -125,11 +125,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return 'Unknown';
   }
 
-  String get _initial {
-    final name = _authorName.trim();
-    if (name.isEmpty) return '?';
-    return name.substring(0, 1).toUpperCase();
-  }
+  String get _initial => accordInitial(_authorName);
 
   AccordClient? get _client => ref.accordClient;
 
