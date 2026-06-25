@@ -145,7 +145,12 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
       return const LoadingView();
     }
     if (_error != null) {
-      return InlineError(_error!);
+      return Center(
+        child: Text(
+          _error!,
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: colors.red),
+        ),
+      );
     }
     if (_connections.isEmpty) {
       return Center(

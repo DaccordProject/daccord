@@ -75,4 +75,40 @@ void main() {
       }
     });
   });
+
+  group('messageTimestampString', () {
+    test('formats a known date with weekday, day, month, year and time', () {
+      // 2026-06-05 is a Friday.
+      final dt = DateTime(2026, 6, 5, 14, 30);
+      expect(messageTimestampString(dt), 'Friday, 5 June 2026 at 14:30');
+    });
+
+    test('pads single-digit minutes', () {
+      final dt = DateTime(2026, 3, 2, 9, 5); // Monday 2 March 2026
+      expect(messageTimestampString(dt), 'Monday, 2 March 2026 at 09:05');
+    });
+
+    test('uses correct month names for all 12 months', () {
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December',
+      ];
+      for (var m = 1; m <= 12; m++) {
+        final dt = DateTime(2026, m, 1, 0, 0);
+        expect(messageTimestampString(dt), contains(months[m - 1]));
+      }
+    });
+
+    test('uses correct weekday names for all 7 days', () {
+      const weekdays = [
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+        'Friday', 'Saturday', 'Sunday',
+      ];
+      // 2026-06-01 is a Monday; iterate through the full week.
+      for (var d = 0; d < 7; d++) {
+        final dt = DateTime(2026, 6, 1 + d, 12, 0);
+        expect(messageTimestampString(dt), contains(weekdays[d]));
+      }
+    });
+  });
 }
