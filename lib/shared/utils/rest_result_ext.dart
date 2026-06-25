@@ -21,3 +21,14 @@ void showErrorSnack(
     SnackBar(content: Text('$prefix: ${result.error ?? 'unknown error'}')),
   );
 }
+
+/// Shows a SnackBar with an informational [message] (success/confirmation).
+///
+/// Companion to [showErrorSnack] for the non-error toasts that were otherwise
+/// hand-inlined as `ScaffoldMessenger.maybeOf(context)?.showSnackBar(...)`
+/// across the moderation, settings and DM screens.
+void showInfoSnack(BuildContext context, String message) {
+  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+}

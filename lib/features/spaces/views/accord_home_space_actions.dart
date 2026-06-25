@@ -178,9 +178,7 @@ Future<void> _leaveAndDeleteSpace(
   final result = await client.members.leaveMe(space.id, deleteData: true);
   if (!result.ok) {
     messenger?.showSnackBar(
-      SnackBar(
-        content: Text('Failed to leave: ${result.error ?? 'unknown error'}'),
-      ),
+      SnackBar(content: Text('Failed to leave: ${result.errorOr('unknown error')}')),
     );
     return;
   }
@@ -233,9 +231,7 @@ Future<void> _leaveSpace(
   final result = await client.members.leaveMe(space.id);
   if (!result.ok) {
     messenger?.showSnackBar(
-      SnackBar(
-        content: Text('Failed to leave: ${result.error ?? 'unknown error'}'),
-      ),
+      SnackBar(content: Text('Failed to leave: ${result.errorOr('unknown error')}')),
     );
     return;
   }

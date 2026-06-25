@@ -313,7 +313,7 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
           ),
           Expanded(
             child: messages == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const LoadingView()
                 : messages.isEmpty
                     ? Center(
                         child: Text('No messages yet',

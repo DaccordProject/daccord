@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/messaging/components/box/accord_markdown_box.dart';
-import 'package:bonfire/features/messaging/components/inline_video_player.dart';
+import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
+import 'package:bonfire/features/messaging/views/inline_video_player.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';

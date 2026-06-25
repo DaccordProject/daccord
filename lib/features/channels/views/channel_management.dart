@@ -2,7 +2,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
-import 'package:bonfire/features/channels/components/channel_permissions.dart';
+import 'package:bonfire/features/channels/views/channel_permissions.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

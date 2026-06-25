@@ -51,13 +51,17 @@ class SpaceCache {
   static Future<void> remove(String key) async {
     try {
       await _box.delete(key);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to evict cached spaces for $key: $e');
+    }
   }
 
   /// Drops every cached server (full logout).
   static Future<void> clear() async {
     try {
       await _box.clear();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to clear cached spaces: $e');
+    }
   }
 }

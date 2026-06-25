@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -236,13 +237,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(_error!,
-                style:
-                    theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            child: InlineError(_error!, centered: false),
           ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const LoadingView()
               : _reports.isEmpty
                   ? Center(
                       child: Text('No reports',

@@ -3,6 +3,7 @@ import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -213,9 +214,7 @@ class _TokenTile extends ConsumerWidget {
                 ? null
                 : () {
                     Clipboard.setData(ClipboardData(text: token));
-                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                      const SnackBar(content: Text('Token copied')),
-                    );
+                    showInfoSnack(context, 'Token copied');
                   },
           ),
           IconButton(

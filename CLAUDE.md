@@ -28,7 +28,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 ## Architecture (inherited from Bonfire)
 
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
-- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). Client-side models use `json_serializable`; `freezed_annotation` is still a dependency but no `*.freezed.dart` files are generated in `lib/`.
+- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. `freezed`/`json_serializable` remain (dev) dependencies but are unused by any model: no `*.freezed.dart` or model `*.g.dart` files exist in `lib/` (the only generated files are Riverpod's). They can be dropped once someone regenerates `pubspec.lock` locally.
 - **Routing:** `go_router`.
 - **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
@@ -59,7 +59,7 @@ android/ ios/ web/ windows/ linux/ macos/   # all platform targets present
 ```
 
 Cross-cutting startup features wired in `lib/main.dart`:
-- **Server config:** `lib/features/server/models/accord_server.dart` defines `AccordServer` (`baseUrl`/`gatewayUrl`/`cdnUrl`, derived from a base URL); `lib/features/server/controllers/connections.dart` owns the per-server `AccordClient` instances exposed as Riverpod providers.
+- **Server config:** `lib/features/server/models/accord_server.dart` defines `AccordServer` (`baseUrl`/`gatewayUrl`/`cdnUrl`, derived from a base URL). The live per-server `AccordClient` instances are owned by `AccordAuth` (`lib/features/authentication/repositories/accord_auth.dart`, exposed as `accordAuthProvider`); `lib/features/server/controllers/connections.dart` holds the rail's per-connection UI state (session + status + cached spaces), not the clients.
 - **Multi-profile:** the app is wrapped in `ProfileGate`/`AppRestart` for switching between accounts.
 - **Deep links:** `daccord://` URLs (navigate / connect / invite) parsed via `ServerUri.parseDeepLink()`.
 - **Developer mode:** an MCP server (`mcpServerControllerProvider`) for in-app tooling.
@@ -110,7 +110,7 @@ client.login(); // opens the gateway
 - **Gateway:** ~50 typed `Stream` properties — `client.onMessageCreate`, `onMessageUpdate`, `onMessageDelete`, `onPresenceUpdate`, `onTypingStart`, `onMemberJoin`, `onChannelCreate`, `onReady`, `onReconnecting`, … plus `onRawEvent`. Wire these into Riverpod controllers the same way Bonfire wires firebridge cache events today (see `lib/features/events/`).
 - **Voice:** `client.voice.join(channelId)` / `client.voice.leave(channelId)` return LiveKit credentials (`AccordVoiceServerUpdate` with `livekitUrl` + `token`); the `livekit_client` SDK (`packages/livekit_client`) is the actual transport. State lives in `VoiceConnection` (Riverpod) over a `VoiceSession` that wraps a LiveKit `Room`. Gateway `voice.server_update` events drive credential-refresh reconnects. See `lib/features/voice/`.
 
-Mirror Bonfire's existing pattern: a thin repository layer subscribes to gateway streams, updates a cache, and exposes Riverpod providers to the UI.
+The actual wiring: a single gateway dispatcher (`lib/features/events/controllers/accord_event_handler.dart`) subscribes to every gateway stream and calls imperative mutators on the per-feature Riverpod cache controllers (`accord_messages`, `accord_members`, `accord_channels`, …). Those same controllers own the REST reads/writes for their domain, and screens `watch` them. A dedicated per-feature `repositories/` layer exists only for `authentication` (`AccordAuth`, which owns the clients) and `error_reporting` — elsewhere data access lives in the controllers (and, for some admin/moderation screens, directly in the views).
 
 ## Build / run / test
 
@@ -148,6 +148,6 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
 ## Conventions
 
 - Match the surrounding code's style; Bonfire is feature-modular — keep new code inside the relevant `lib/features/<feature>/` module.
-- Run `dart run build_runner build -d` after changing any `@riverpod`/`json_serializable`-annotated file (regenerates `*.g.dart`).
+- Run `dart run build_runner build -d` after changing any `@riverpod`-annotated file (regenerates `*.g.dart`).
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.

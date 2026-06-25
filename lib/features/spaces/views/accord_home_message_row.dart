@@ -104,25 +104,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return messageTimeString(dt.toLocal());
   }
 
-  // intl isn't a dependency, so the full timestamp shown in the tooltip is
-  // formatted by hand. Example: "Monday, 5 June 2026 at 14:30".
+  // Full timestamp shown in the tooltip, e.g. "Monday, 5 June 2026 at 14:30".
   String get _fullTime {
     final dt = DateTime.tryParse(_message.timestamp);
     if (dt == null) return '';
-    final local = dt.toLocal();
-    const weekdays = [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-      'Friday', 'Saturday', 'Sunday', //
-    ];
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June', 'July',
-      'August', 'September', 'October', 'November', 'December', //
-    ];
-    final weekday = weekdays[local.weekday - 1];
-    final month = months[local.month - 1];
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '$weekday, ${local.day} $month ${local.year} at $hh:$mm';
+    return messageTimestampString(dt.toLocal());
   }
 
   /// Nickname → user display name → username → "Unknown". Falls back to the
@@ -139,11 +125,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     return 'Unknown';
   }
 
-  String get _initial {
-    final name = _authorName.trim();
-    if (name.isEmpty) return '?';
-    return name.substring(0, 1).toUpperCase();
-  }
+  String get _initial => accordInitial(_authorName);
 
   AccordClient? get _client => ref.accordClient;
 

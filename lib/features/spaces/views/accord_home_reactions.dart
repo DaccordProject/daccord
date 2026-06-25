@@ -163,7 +163,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
         child: users == null
             ? const SizedBox(
                 height: 80,
-                child: Center(child: CircularProgressIndicator()),
+                child: LoadingView(),
               )
             : users.isEmpty
             ? Padding(
@@ -204,15 +204,11 @@ class _ReactorTile extends StatelessWidget {
     final avatarUrl = accordAvatarUrl(user, cdnUrl);
     return ListTile(
       dense: true,
-      leading: CircleAvatar(
-        radius: 14,
+      leading: AccordMemberAvatar(
+        avatarUrl: avatarUrl,
+        initial: accordInitial(accordUserName(user, fallback: '?')),
         backgroundColor: accordAvatarColor(user, user.id),
-        foregroundImage:
-            avatarUrl == null ? null : CachedNetworkImageProvider(avatarUrl),
-        child: Text(
-          accordUserName(user, fallback: '?').characters.first.toUpperCase(),
-          style: const TextStyle(fontSize: 11),
-        ),
+        radius: 14,
       ),
       title: Text(
         accordUserName(user, fallback: user.id),

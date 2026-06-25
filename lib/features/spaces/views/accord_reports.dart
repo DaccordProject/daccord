@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -176,12 +177,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall!.copyWith(
-                          color: colors.red,
-                        ),
-                      ),
+                      InlineError(_error!, centered: false),
                     ],
                     const SizedBox(height: 20),
                     Row(
@@ -512,7 +508,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const LoadingView()
                   : _reports.isEmpty
                   ? Center(
                       child: Text(
@@ -562,10 +558,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                child: InlineError(_error!, centered: false),
               ),
           ],
         ),

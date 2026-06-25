@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -72,9 +73,7 @@ class SettingsBackupSection extends ConsumerWidget {
 
   void _toast(BuildContext context, String message) {
     if (!context.mounted) return;
-    ScaffoldMessenger.maybeOf(
-      context,
-    )?.showSnackBar(SnackBar(content: Text(message)));
+    showInfoSnack(context, message);
   }
 
   @override

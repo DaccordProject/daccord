@@ -69,7 +69,6 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
     final results = _results;
     return Dialog(
       child: ConstrainedBox(
@@ -131,10 +130,7 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                InlineError(_error!, centered: false),
               ],
               const SizedBox(height: 8),
               Flexible(
@@ -298,7 +294,7 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
                               leading: CircleAvatar(
                                 radius: 16,
                                 backgroundColor: colors.darkGray,
-                                child: Text(_userName(user)[0].toUpperCase()),
+                                child: Text(accordInitial(_userName(user))),
                               ),
                               title: Text(
                                 _userName(user),
@@ -423,7 +419,7 @@ class _GroupMembersDialog extends StatelessWidget {
                               leading: CircleAvatar(
                                 radius: 16,
                                 backgroundColor: colors.darkGray,
-                                child: Text(_userName(user)[0].toUpperCase()),
+                                child: Text(accordInitial(_userName(user))),
                               ),
                               title: Text(
                                 _userName(user),

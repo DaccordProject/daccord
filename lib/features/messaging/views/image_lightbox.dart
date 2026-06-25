@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -32,9 +33,7 @@ class _ImageLightbox extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: url,
                   fit: BoxFit.contain,
-                  placeholder: (_, _) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  placeholder: (_, _) => const LoadingView(),
                   errorWidget: (_, _, _) => const Icon(
                     Icons.broken_image_outlined,
                     color: Colors.white54,

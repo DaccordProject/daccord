@@ -174,7 +174,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                           auth.client.ensureConnected();
                         }
                       })
-                    : const Center(child: CircularProgressIndicator()))
+                    : const LoadingView())
                 : (canManageChannels && id != null)
                     ? _ChannelDragList(
                         spaceId: id,

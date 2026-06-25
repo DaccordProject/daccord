@@ -116,7 +116,7 @@ class _ParticipantRow extends StatelessWidget {
     final nameColor =
         (colorRole == null ? null : accordRoleColor(colorRole.color)) ??
             colors.dirtyWhite;
-    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final initial = accordInitial(name);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(indent, 1, 8, 1),

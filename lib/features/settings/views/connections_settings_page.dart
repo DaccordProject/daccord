@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -141,15 +142,13 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
 
   Widget _body(BonfireThemeExtension colors) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingView();
     }
     if (_error != null) {
       return Center(
         child: Text(
           _error!,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium!.copyWith(color: colors.red),
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: colors.red),
         ),
       );
     }

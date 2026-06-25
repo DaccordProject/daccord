@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -854,10 +855,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
             ? null
             : Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                child: InlineError(_error!, centered: false),
               ),
       ),
     );

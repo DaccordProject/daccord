@@ -1,8 +1,10 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -174,7 +176,6 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
     final spaces = _spaces;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -211,13 +212,11 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(_error!,
-                style:
-                    theme.textTheme.bodySmall!.copyWith(color: colors.red)),
+            child: InlineError(_error!, centered: false),
           ),
         Expanded(
           child: _busy && spaces == null
-              ? const Center(child: CircularProgressIndicator())
+              ? const LoadingView()
               : spaces == null
                   ? const SizedBox.shrink()
                   : Builder(builder: (context) {
@@ -273,8 +272,7 @@ class _SpaceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final initial =
-        space.name.isNotEmpty ? space.name[0].toUpperCase() : '?';
+    final initial = accordInitial(space.name);
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: colors.primary,

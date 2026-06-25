@@ -1,6 +1,8 @@
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,7 +75,7 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
               if (accounts == null)
                 const Padding(
                   padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: LoadingView(),
                 )
               else if (accounts.isEmpty)
                 Padding(
@@ -138,10 +140,7 @@ class _AccountTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
-  String get _initial {
-    final name = session.username.trim();
-    return name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
-  }
+  String get _initial => accordInitial(session.username);
 
   @override
   Widget build(BuildContext context) {

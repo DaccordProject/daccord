@@ -7,7 +7,7 @@ import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
-import 'package:bonfire/features/events/utils/accord_event_handler.dart';
+import 'package:bonfire/features/events/controllers/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';

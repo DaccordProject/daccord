@@ -1,4 +1,5 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/shared/app_info.dart';
@@ -77,12 +78,7 @@ class UpdatesScreen extends ConsumerWidget {
           if (update.error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                update.error!,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall!.copyWith(color: colors.red),
-              ),
+              child: InlineError(update.error!, centered: false),
             )
           else if (update.checkedOnce && !available)
             Padding(
@@ -189,12 +185,7 @@ class UpdatesScreen extends ConsumerWidget {
             if (update.installError != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  update.installError!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                child: InlineError(update.installError!, centered: false),
               ),
             if (kIsWeb)
               Padding(

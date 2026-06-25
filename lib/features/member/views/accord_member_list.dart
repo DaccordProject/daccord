@@ -10,7 +10,9 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/server_unreachable.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -75,7 +77,7 @@ class _Roster extends ConsumerWidget {
           }
         });
       }
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingView();
     }
 
     final sections = _buildSections(members.values.toList(), roles, presences);
@@ -206,7 +208,7 @@ class _MemberRow extends ConsumerWidget {
     final colorRole = memberColorRole(member, roles);
     final nameColor =
         colorRole == null ? colors.dirtyWhite : accordRoleColor(colorRole.color);
-    final initial = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
+    final initial = accordInitial(name);
     // Offline members read as muted, matching the reference roster.
     final dimmed = status == 'offline';
 
@@ -324,7 +326,5 @@ Future<void> _showMemberContextMenu(
 
 void _toast(BuildContext context, String message) {
   if (!context.mounted) return;
-  ScaffoldMessenger.maybeOf(
-    context,
-  )?.showSnackBar(SnackBar(content: Text(message)));
+  showInfoSnack(context, message);
 }

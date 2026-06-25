@@ -1,5 +1,6 @@
 import 'package:bonfire/features/profiles/controllers/profiles_controller.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/profiles/models/device_profile.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
@@ -124,9 +125,7 @@ class ProfilesScreen extends ConsumerWidget {
       if (pin == null) return;
       if (!notifier.verifyPin(p.id, pin)) {
         if (context.mounted) {
-          ScaffoldMessenger.maybeOf(
-            context,
-          )?.showSnackBar(const SnackBar(content: Text('Incorrect PIN')));
+          showInfoSnack(context, 'Incorrect PIN');
         }
         return;
       }

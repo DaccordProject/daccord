@@ -353,7 +353,7 @@ class _LobbyAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final initial = accordInitial(name);
     return SizedBox(
       width: 72,
       child: Column(
@@ -576,9 +576,7 @@ class _VideoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final initial = tile.name.isEmpty
-        ? '?'
-        : tile.name.characters.first.toUpperCase();
+    final initial = accordInitial(tile.name);
     return GestureDetector(
       onDoubleTap: onDoubleTap,
       child: Container(

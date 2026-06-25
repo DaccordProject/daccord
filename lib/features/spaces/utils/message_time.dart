@@ -3,6 +3,11 @@ const _weekdays = [
   'Friday', 'Saturday', 'Sunday',
 ];
 
+const _months = [
+  'January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December',
+];
+
 /// Bare `HH:MM` string for a local [DateTime].
 String messageClockString(DateTime local) {
   final hh = local.hour.toString().padLeft(2, '0');
@@ -36,4 +41,14 @@ String messageTimeString(DateTime local, {DateTime? now}) {
   final dd = local.day.toString().padLeft(2, '0');
   final mo = local.month.toString().padLeft(2, '0');
   return '$dd/$mo/${local.year} $clock';
+}
+
+/// Full, unabbreviated timestamp for tooltips, e.g.
+/// `Monday, 5 June 2026 at 14:30`. `intl` isn't a dependency, so the weekday and
+/// month names are spelled out by hand here rather than re-inlined per caller.
+String messageTimestampString(DateTime local) {
+  final weekday = _weekdays[local.weekday - 1];
+  final month = _months[local.month - 1];
+  return '$weekday, ${local.day} $month ${local.year} at '
+      '${messageClockString(local)}';
 }

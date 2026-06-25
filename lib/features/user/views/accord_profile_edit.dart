@@ -9,6 +9,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -258,7 +259,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
               if (!_loaded)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: LoadingView(),
                 )
               else ...[
                 Center(
@@ -274,10 +275,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                                   : null),
                         child: (_newAvatarBytes == null && avatarUrl == null)
                             ? Text(
-                                (session?.username.isNotEmpty == true
-                                        ? session!.username[0]
-                                        : '?')
-                                    .toUpperCase(),
+                                accordInitial(session?.username),
                                 style: TextStyle(
                                   fontSize: 24,
                                   color: accordOnColor(previewBg),
@@ -354,12 +352,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: colors.red,
-                    ),
-                  ),
+                  InlineError(_error!, centered: false),
                 ],
                 const SizedBox(height: 16),
                 Row(

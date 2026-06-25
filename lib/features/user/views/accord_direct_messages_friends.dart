@@ -81,7 +81,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     final colors = BonfireThemeExtension.of(context);
     final all = _relationships;
     if (all == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingView();
     }
     final incoming = all.where((r) => r.type == _Rel.pendingIn).toList();
     final outgoing = all.where((r) => r.type == _Rel.pendingOut).toList();
@@ -201,10 +201,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(8),
-            child: Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-            ),
+            child: InlineError(_error!, centered: false),
           ),
       ],
     );
@@ -246,7 +243,7 @@ class _FriendRow extends StatelessWidget {
       leading: CircleAvatar(
         radius: 16,
         backgroundColor: colors.darkGray,
-        child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
+        child: Text(accordInitial(name)),
       ),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: trailing,
@@ -377,7 +374,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
                               leading: CircleAvatar(
                                 radius: 16,
                                 backgroundColor: colors.darkGray,
-                                child: Text(_userName(user)[0].toUpperCase()),
+                                child: Text(accordInitial(_userName(user))),
                               ),
                               title: Text(
                                 _userName(user),

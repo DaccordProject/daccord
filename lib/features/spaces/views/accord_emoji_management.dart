@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -217,15 +218,12 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall!.copyWith(color: colors.red),
-                ),
+                InlineError(_error!, centered: false),
               ],
               const SizedBox(height: 12),
               Flexible(
                 child: emojis == null
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const LoadingView()
                     : emojis.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(24),

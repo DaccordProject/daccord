@@ -1,9 +1,12 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
-import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
@@ -87,9 +90,7 @@ Future<void> openAccordDirectMessage(
     ref.read(dmChannelsControllerProvider.notifier).upsert(data);
     await showAccordDirectMessages(context, initialChannel: data);
   } else {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text('Failed to open direct message')),
-    );
+    showInfoSnack(context, 'Failed to open direct message');
   }
 }
 

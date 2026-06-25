@@ -80,4 +80,26 @@ void main() {
       expect(find.text('Oops: unknown error'), findsOneWidget);
     });
   });
+
+  group('showInfoSnack', () {
+    testWidgets('shows snack bar with the given message', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(extensions: [_theme]),
+          home: Builder(builder: (ctx) {
+            return Scaffold(
+              body: ElevatedButton(
+                onPressed: () => showInfoSnack(ctx, 'Settings saved'),
+                child: const Text('trigger'),
+              ),
+            );
+          }),
+        ),
+      );
+      await tester.tap(find.text('trigger'));
+      await tester.pump();
+
+      expect(find.text('Settings saved'), findsOneWidget);
+    });
+  });
 }
