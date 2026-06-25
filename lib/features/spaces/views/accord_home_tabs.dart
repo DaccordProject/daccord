@@ -136,8 +136,7 @@ class _TabStrip extends ConsumerWidget {
     final space = conn.spaces.firstWhereOrNull((s) => s.id == tab.spaceId);
     final url = _buildConnectLink(conn.session.server, space, tab.name);
     Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Link copied!')));
+    showInfoSnack(context, 'Link copied!');
   }
 }
 

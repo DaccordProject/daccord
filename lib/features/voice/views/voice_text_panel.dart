@@ -10,7 +10,7 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -268,15 +268,12 @@ class _VoiceTextMessage extends StatelessWidget {
             width: 32,
             child: grouped
                 ? null
-                : CircleAvatar(
+                : AccordMemberAvatar(
+                    avatarUrl: avatarUrl,
+                    initial: initial,
                     radius: 14,
                     backgroundColor: avatarBg,
-                    foregroundImage: avatarUrl == null
-                        ? null
-                        : CachedNetworkImageProvider(avatarUrl!),
-                    child: Text(initial,
-                        style: TextStyle(
-                            color: accordOnColor(avatarBg), fontSize: 12)),
+                    initialStyle: const TextStyle(fontSize: 12),
                   ),
           ),
           const SizedBox(width: 8),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../theme/theme.dart';
+import 'package:bonfire/theme/theme.dart';
 
 /// A subtle "federated" marker for content homed on a remote server. Renders a
 /// small globe glyph and, optionally, the home `@domain` suffix in a muted

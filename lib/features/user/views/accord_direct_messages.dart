@@ -117,11 +117,7 @@ void _snackDmError(
   String fallback,
 ) {
   final reason = error?.message;
-  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-    SnackBar(
-      content: Text(reason != null && reason.isNotEmpty ? reason : fallback),
-    ),
-  );
+  showInfoSnack(context, reason != null && reason.isNotEmpty ? reason : fallback);
 }
 
 class _DirectMessagesDialog extends ConsumerStatefulWidget {

@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'connections.g.dart';
@@ -114,13 +115,7 @@ class ConnectionsController extends _$ConnectionsController {
   void upsertSpace(String key, AccordSpace space) {
     final existing = state.connectionFor(key);
     if (existing == null) return;
-    final spaces = [...existing.spaces];
-    final i = spaces.indexWhere((s) => s.id == space.id);
-    if (i >= 0) {
-      spaces[i] = space;
-    } else {
-      spaces.add(space);
-    }
+    final spaces = existing.spaces.upsertById(space, (s) => s.id);
     state = state.copyWith(connections: _upsert(existing.copyWith(spaces: spaces)));
   }
 
@@ -129,7 +124,7 @@ class ConnectionsController extends _$ConnectionsController {
     if (existing == null) return;
     state = state.copyWith(
       connections: _upsert(existing.copyWith(
-        spaces: existing.spaces.where((s) => s.id != spaceId).toList(),
+        spaces: existing.spaces.removeById(spaceId, (s) => s.id),
       )),
     );
   }
@@ -151,14 +146,6 @@ class ConnectionsController extends _$ConnectionsController {
 
   void clear() => state = const ConnectionsState();
 
-  List<AccordConnection> _upsert(AccordConnection conn) {
-    final list = [...state.connections];
-    final i = list.indexWhere((c) => c.key == conn.key);
-    if (i >= 0) {
-      list[i] = conn;
-    } else {
-      list.add(conn);
-    }
-    return list;
-  }
+  List<AccordConnection> _upsert(AccordConnection conn) =>
+      state.connections.upsertById(conn, (c) => c.key);
 }

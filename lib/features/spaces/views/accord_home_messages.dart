@@ -79,24 +79,12 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
         .select((s) => s is AccordAuthLoggedIn ? s.client : null));
     if (client == null) return;
     final count = _selectedMessageIds.length;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete messages'),
-        content: Text('Delete $count message(s)? This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete messages',
+      message: 'Delete $count message(s)? This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _bulkDeleting = true);

@@ -1,4 +1,4 @@
-import 'package:bonfire/features/notifications/controllers/sound.dart';
+import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

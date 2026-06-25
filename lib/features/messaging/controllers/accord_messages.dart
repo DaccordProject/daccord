@@ -1,11 +1,9 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_messages.g.dart';
@@ -32,11 +30,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     activeMessageChannels.add(channelId);
     ref.onDispose(() => activeMessageChannels.remove(channelId));
 
-    final client = ref.watch(
-      accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.client : null,
-      ),
-    );
+    final client = ref.watchAccordClient();
     if (client != null) {
       _load(client, channelId);
     }

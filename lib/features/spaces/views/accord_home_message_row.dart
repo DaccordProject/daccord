@@ -323,18 +323,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 _MaybeTappable(
                   enabled: tappable,
                   onTap: _openPopout,
-                  child: CircleAvatar(
+                  child: AccordMemberAvatar(
+                    avatarUrl: avatarUrl,
+                    initial: _initial,
                     radius: avatarRadius,
                     backgroundColor: avatarBg,
-                    foregroundImage: avatarUrl == null
-                        ? null
-                        : CachedNetworkImageProvider(avatarUrl),
-                    child: Text(
-                      _initial,
-                      style: theme.textTheme.titleSmall!.copyWith(
-                        color: accordOnColor(avatarBg),
-                      ),
-                    ),
+                    initialStyle: theme.textTheme.titleSmall,
                   ),
                 ),
               SizedBox(width: gutter),

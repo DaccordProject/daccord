@@ -2,7 +2,7 @@ import 'package:bonfire/features/admin/views/admin_reports_tab.dart';
 import 'package:bonfire/features/admin/views/admin_settings_tab.dart';
 import 'package:bonfire/features/admin/views/admin_spaces_tab.dart';
 import 'package:bonfire/features/admin/views/admin_users_tab.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';

@@ -1,5 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -202,82 +202,68 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _search,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    prefixIcon: Icon(Icons.search, size: 18),
-                    hintText: 'Search by username',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) => _load(),
+    return AdminListScaffold(
+      error: _error,
+      loading: _loading,
+      isEmpty: _users.isEmpty,
+      emptyMessage: 'No users found.',
+      header: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _search,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search, size: 18),
+                  hintText: 'Search by username',
+                  border: OutlineInputBorder(),
                 ),
+                onSubmitted: (_) => _load(),
               ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _loading ? null : _load,
-                child: const Text('Search'),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: _loading ? null : _load,
+              child: const Text('Search'),
+            ),
+          ],
         ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: InlineError(_error!, centered: false),
-          ),
-        Expanded(
-          child: _loading
-              ? const LoadingView()
-              : _users.isEmpty
-                  ? Center(
-                      child: Text('No users found.',
-                          style: theme.textTheme.bodyMedium))
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      itemCount: _users.length + (_hasMore ? 1 : 0),
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        if (i >= _users.length) {
-                          return Center(
-                            child: _loadingMore
-                                ? const Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    ),
-                                  )
-                                : TextButton(
-                                    onPressed: _loadMore,
-                                    child: const Text('Load more'),
-                                  ),
-                          );
-                        }
-                        return _UserRow(
-                          user: _users[i],
-                          busy: _busy,
-                          onSetAdmin: (v) => _setAdmin(_users[i], v),
-                          onToggleDisabled: () =>
-                              _setDisabled(_users[i], !_users[i].disabled),
-                          onResetPassword: () => _resetPassword(_users[i]),
-                          onDelete: () => _delete(_users[i]),
-                        );
-                      },
+      ),
+      list: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        itemCount: _users.length + (_hasMore ? 1 : 0),
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, i) {
+          if (i >= _users.length) {
+            return Center(
+              child: _loadingMore
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : TextButton(
+                      onPressed: _loadMore,
+                      child: const Text('Load more'),
                     ),
-        ),
-      ],
+            );
+          }
+          return _UserRow(
+            user: _users[i],
+            busy: _busy,
+            onSetAdmin: (v) => _setAdmin(_users[i], v),
+            onToggleDisabled: () =>
+                _setDisabled(_users[i], !_users[i].disabled),
+            onResetPassword: () => _resetPassword(_users[i]),
+            onDelete: () => _delete(_users[i]),
+          );
+        },
+      ),
     );
   }
 }

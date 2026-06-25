@@ -1,4 +1,4 @@
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';

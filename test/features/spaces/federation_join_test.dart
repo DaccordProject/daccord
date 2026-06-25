@@ -1,4 +1,4 @@
-import 'package:bonfire/features/spaces/controllers/federation_join.dart';
+import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:flutter_test/flutter_test.dart';
 

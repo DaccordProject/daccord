@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dm_channels.g.dart';
@@ -63,6 +64,6 @@ class DmChannelsController extends _$DmChannelsController {
   void remove(String channelId) {
     final current = state;
     if (current == null) return;
-    state = current.where((c) => c.id != channelId).toList();
+    state = current.removeById(channelId, (c) => c.id);
   }
 }

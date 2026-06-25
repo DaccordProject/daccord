@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'spaces.g.dart';
@@ -16,20 +17,13 @@ class SpacesController extends _$SpacesController {
 
   /// Inserts [space], or replaces it in place if already present.
   void upsertSpace(AccordSpace space) {
-    final current = [...(state ?? const <AccordSpace>[])];
-    final index = current.indexWhere((s) => s.id == space.id);
-    if (index >= 0) {
-      current[index] = space;
-    } else {
-      current.add(space);
-    }
-    state = current;
+    state = (state ?? const <AccordSpace>[]).upsertById(space, (s) => s.id);
   }
 
   void removeSpace(String spaceId) {
     final current = state;
     if (current == null) return;
-    state = current.where((s) => s.id != spaceId).toList();
+    state = current.removeById(spaceId, (s) => s.id);
   }
 
   /// Inserts or replaces a role within [spaceId]'s role list. Assigns a fresh

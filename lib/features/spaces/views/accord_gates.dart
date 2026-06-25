@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';

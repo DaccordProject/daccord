@@ -7,8 +7,9 @@
 /// these unconditionally.
 library;
 
-import 'web_update_stub.dart'
-    if (dart.library.js_interop) 'web_update_web.dart' as impl;
+import 'package:bonfire/features/updates/services/web_update_stub.dart'
+    if (dart.library.js_interop) 'package:bonfire/features/updates/services/web_update_web.dart'
+    as impl;
 
 /// Whether a freshly-deployed build is waiting to be loaded (web only).
 bool webUpdateAvailable() => impl.webUpdateAvailable();

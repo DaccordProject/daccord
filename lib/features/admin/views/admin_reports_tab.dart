@@ -1,5 +1,5 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -199,72 +199,59 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final s in _statuses)
-                      ChoiceChip(
-                        label: Text(s.label),
-                        selected: _status == s.value,
-                        onSelected: _loading
-                            ? null
-                            : (_) {
-                                setState(() => _status = s.value);
-                                _load();
-                              },
-                      ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh, size: 18),
-              ),
-            ],
-          ),
-        ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: InlineError(_error!, centered: false),
-          ),
-        Expanded(
-          child: _loading
-              ? const LoadingView()
-              : _reports.isEmpty
-                  ? Center(
-                      child: Text('No reports',
-                          style: theme.textTheme.bodyMedium))
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _reports.length,
-                      separatorBuilder: (_, _) =>
-                          Divider(height: 16, color: colors.background),
-                      itemBuilder: (context, i) => _ReportRow(
-                        report: _reports[i],
-                        busy: _busy,
-                        reportedUserId: _reportedUserId(_reports[i]),
-                        onDismiss: () => _resolve(_reports[i], 'dismissed'),
-                        onResolve: () =>
-                            _resolve(_reports[i], 'resolved', actionTaken: 'none'),
-                        onDeleteMessage: () => _deleteMessage(_reports[i]),
-                        onKick: () => _kick(_reports[i]),
-                        onBan: () => _ban(_reports[i]),
-                      ),
+    return AdminListScaffold(
+      error: _error,
+      loading: _loading,
+      isEmpty: _reports.isEmpty,
+      emptyMessage: 'No reports',
+      header: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  for (final s in _statuses)
+                    ChoiceChip(
+                      label: Text(s.label),
+                      selected: _status == s.value,
+                      onSelected: _loading
+                          ? null
+                          : (_) {
+                              setState(() => _status = s.value);
+                              _load();
+                            },
                     ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh, size: 18),
+            ),
+          ],
         ),
-      ],
+      ),
+      list: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: _reports.length,
+        separatorBuilder: (_, _) =>
+            Divider(height: 16, color: colors.background),
+        itemBuilder: (context, i) => _ReportRow(
+          report: _reports[i],
+          busy: _busy,
+          reportedUserId: _reportedUserId(_reports[i]),
+          onDismiss: () => _resolve(_reports[i], 'dismissed'),
+          onResolve: () =>
+              _resolve(_reports[i], 'resolved', actionTaken: 'none'),
+          onDeleteMessage: () => _deleteMessage(_reports[i]),
+          onKick: () => _kick(_reports[i]),
+          onBan: () => _ban(_reports[i]),
+        ),
+      ),
     );
   }
 }

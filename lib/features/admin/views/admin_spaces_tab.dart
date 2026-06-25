@@ -1,9 +1,9 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -175,73 +175,54 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final spaces = _spaces;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    prefixIcon: Icon(Icons.search, size: 18),
-                    hintText: 'Filter by name',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (v) => setState(() => _query = v),
+    final list = _filtered;
+    return AdminListScaffold(
+      error: _error,
+      loading: _busy && spaces == null,
+      isEmpty: list.isEmpty,
+      emptyMessage: 'No spaces found.',
+      header: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search, size: 18),
+                  hintText: 'Filter by name',
+                  border: OutlineInputBorder(),
                 ),
+                onChanged: (v) => setState(() => _query = v),
               ),
-              const SizedBox(width: 8),
-              FilledButton.icon(
-                onPressed: _busy ? null : _create,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Create'),
-              ),
-              IconButton(
-                tooltip: 'Refresh',
-                onPressed: _busy ? null : _load,
-                icon: const Icon(Icons.refresh, size: 18),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: _busy ? null : _create,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Create'),
+            ),
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: _busy ? null : _load,
+              icon: const Icon(Icons.refresh, size: 18),
+            ),
+          ],
         ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: InlineError(_error!, centered: false),
-          ),
-        Expanded(
-          child: _busy && spaces == null
-              ? const LoadingView()
-              : spaces == null
-                  ? const SizedBox.shrink()
-                  : Builder(builder: (context) {
-                      final list = _filtered;
-                      if (list.isEmpty) {
-                        return Center(
-                          child: Text('No spaces found.',
-                              style: theme.textTheme.bodyMedium),
-                        );
-                      }
-                      return ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        itemCount: list.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, i) => _SpaceRow(
-                          space: list[i],
-                          busy: _busy,
-                          onOpen: () => _open(list[i]),
-                          onDelete: () => _delete(list[i]),
-                          onTransfer: () => _transfer(list[i]),
-                        ),
-                      );
-                    }),
+      ),
+      list: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        itemCount: list.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, i) => _SpaceRow(
+          space: list[i],
+          busy: _busy,
+          onOpen: () => _open(list[i]),
+          onDelete: () => _delete(list[i]),
+          onTransfer: () => _transfer(list[i]),
         ),
-      ],
+      ),
     );
   }
 }

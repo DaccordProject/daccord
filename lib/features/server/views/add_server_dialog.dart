@@ -3,7 +3,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
-import 'package:bonfire/features/spaces/controllers/federation_join.dart';
+import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';

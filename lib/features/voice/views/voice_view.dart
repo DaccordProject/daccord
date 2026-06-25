@@ -9,7 +9,7 @@ import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/features/voice/views/voice_text_panel.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -358,16 +358,12 @@ class _LobbyAvatar extends StatelessWidget {
       width: 72,
       child: Column(
         children: [
-          CircleAvatar(
+          AccordMemberAvatar(
+            avatarUrl: avatarUrl,
+            initial: initial,
             radius: 24,
             backgroundColor: bg,
-            foregroundImage: avatarUrl == null
-                ? null
-                : CachedNetworkImageProvider(avatarUrl!),
-            child: Text(
-              initial,
-              style: TextStyle(color: accordOnColor(bg), fontSize: 18),
-            ),
+            initialStyle: const TextStyle(fontSize: 18),
           ),
           const SizedBox(height: 4),
           Text(
@@ -602,19 +598,12 @@ class _VideoTile extends StatelessWidget {
               )
             else
               Center(
-                child: CircleAvatar(
+                child: AccordMemberAvatar(
+                  avatarUrl: tile.avatarUrl,
+                  initial: initial,
                   radius: 28,
                   backgroundColor: tile.bg,
-                  foregroundImage: tile.avatarUrl == null
-                      ? null
-                      : CachedNetworkImageProvider(tile.avatarUrl!),
-                  child: Text(
-                    initial,
-                    style: TextStyle(
-                      color: accordOnColor(tile.bg),
-                      fontSize: 20,
-                    ),
-                  ),
+                  initialStyle: const TextStyle(fontSize: 20),
                 ),
               ),
             Positioned(

@@ -1,8 +1,8 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/models/accord_auth.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/list_ext.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_channels.g.dart';
@@ -15,10 +15,7 @@ part 'accord_channels.g.dart';
 class AccordChannelsController extends _$AccordChannelsController {
   @override
   List<AccordChannel>? build(String spaceId) {
-    final client = ref.watch(
-      accordAuthProvider
-          .select((s) => s is AccordAuthLoggedIn ? s.client : null),
-    );
+    final client = ref.watchAccordClient();
     if (client != null) {
       _load(client, spaceId);
     }
@@ -26,15 +23,9 @@ class AccordChannelsController extends _$AccordChannelsController {
   }
 
   Future<void> _load(AccordClient client, String spaceId) async {
-    final result = await client.spaces.listChannels(spaceId);
-    if (!result.ok) {
-      debugPrint('Failed to load channels for $spaceId: ${result.error}');
-      return;
-    }
-    final data = result.data;
-    if (data is List) {
-      state = _sorted(data.whereType<AccordChannel>().toList());
-    }
+    final channels = (await client.spaces.listChannels(spaceId))
+        .listOrLog<AccordChannel>('channels for $spaceId');
+    if (channels != null) state = _sorted(channels);
   }
 
   void setChannels(List<AccordChannel> channels) =>
@@ -42,37 +33,25 @@ class AccordChannelsController extends _$AccordChannelsController {
 
   /// Inserts [channel], or replaces it in place if already present.
   void upsertChannel(AccordChannel channel) {
-    final current = [...(state ?? const <AccordChannel>[])];
-    final index = current.indexWhere((c) => c.id == channel.id);
-    if (index >= 0) {
-      current[index] = channel;
-    } else {
-      current.add(channel);
-    }
-    state = _sorted(current);
+    state = _sorted(
+      (state ?? const <AccordChannel>[]).upsertById(channel, (c) => c.id),
+    );
   }
 
   void removeChannel(String channelId) {
     final current = state;
     if (current == null) return;
-    state = current.where((c) => c.id != channelId).toList();
+    state = current.removeById(channelId, (c) => c.id);
   }
 
   /// Creates a channel in this space. Returns the created channel on success,
   /// optimistically inserting it (the gateway create event is deduped by id).
   Future<AccordChannel?> createChannel(
       AccordClient client, Map<String, dynamic> data) async {
-    final result = await client.spaces.createChannel(spaceId, data);
-    if (!result.ok) {
-      debugPrint('Failed to create channel in $spaceId: ${result.error}');
-      return null;
-    }
-    final channel = result.data;
-    if (channel is AccordChannel) {
-      upsertChannel(channel);
-      return channel;
-    }
-    return null;
+    final channel = (await client.spaces.createChannel(spaceId, data))
+        .dataOrLog<AccordChannel>('create channel in $spaceId');
+    if (channel != null) upsertChannel(channel);
+    return channel;
   }
 
   /// Patches a channel's settings, replacing it in place on success.
