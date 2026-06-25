@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
@@ -289,16 +290,6 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     );
   }
 
-  String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) {
-    if (emoji.imageUrl.isNotEmpty) {
-      return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: cdnUrl ?? '');
-    }
-    final id = emoji.id;
-    if (id == null) return null;
-    return AccordCDN.emoji(
-      id,
-      format: emoji.animated ? 'gif' : 'png',
-      cdnUrl: cdnUrl ?? '',
-    );
-  }
+  String? _emojiUrl(AccordEmoji emoji, String? cdnUrl) =>
+      accordEmojiUrl(emoji, cdnUrl);
 }

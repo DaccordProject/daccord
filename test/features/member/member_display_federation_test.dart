@@ -65,6 +65,86 @@ void main() {
 
     test('cdnBaseForDomain mirrors per-server CDN derivation', () {
       expect(cdnBaseForDomain('b.example'), 'https://b.example/cdn');
+      expect(cdnBaseForDomain('b.example:8443'), 'https://b.example:8443/cdn');
+    });
+
+    test('cdnBaseForDomain rejects unsafe home domains', () {
+      // Loopback / link-local would turn an avatar fetch into an SSRF probe.
+      expect(cdnBaseForDomain('localhost'), isNull);
+      expect(cdnBaseForDomain('127.0.0.1'), isNull);
+      expect(cdnBaseForDomain('169.254.169.254'), isNull);
+      // Smuggled userinfo / path must not pass as a host.
+      expect(cdnBaseForDomain('b.example@evil.com'), isNull);
+      expect(cdnBaseForDomain('b.example/evil'), isNull);
+    });
+
+    test('an off-home absolute remote avatar URL is rejected (no fetch)', () {
+      final user = AccordUser(
+        id: '123@b.example',
+        username: 'a',
+        avatar: 'https://tracker.evil/pixel.png',
+        origin: 'b.example',
+      );
+      // Avatar points off the home server: render an initial rather than leak
+      // the viewer's IP to an attacker-controlled host.
+      expect(accordAvatarUrl(user, 'https://a.example/cdn'), isNull);
+    });
+
+    test('a remote user homed on a loopback origin is not fetched', () {
+      final user = AccordUser(
+        id: '123@localhost',
+        username: 'a',
+        avatar: 'abc',
+        origin: 'localhost',
+      );
+      expect(accordAvatarUrl(user, 'https://a.example/cdn'), isNull);
+    });
+
+    test('a remote member off-home avatar override falls back, not off-home',
+        () {
+      final member = AccordMember.fromJson({
+        'space_id': '7@b.example',
+        'user': {'id': '123@b.example', 'username': 'a', 'avatar': 'abc'},
+        'avatar': 'https://tracker.evil/x.png',
+      });
+      // The override is off-home, so we fall back to the user's home-CDN avatar.
+      expect(
+        accordMemberAvatarUrl(member, 'https://a.example/cdn'),
+        'https://b.example/cdn/avatars/123/abc.png',
+      );
+    });
+
+    test('a remote emoji resolves against its home CDN; off-home is rejected',
+        () {
+      final home = AccordEmoji.fromJson({
+        'id': '55@b.example',
+        'name': 'party',
+        'origin': 'b.example',
+        'image_url': 'https://b.example/cdn/emojis/55.png',
+      });
+      expect(
+        accordEmojiUrl(home, 'https://a.example/cdn'),
+        'https://b.example/cdn/emojis/55.png',
+      );
+
+      final offHome = AccordEmoji.fromJson({
+        'id': '55@b.example',
+        'name': 'party',
+        'origin': 'b.example',
+        'image_url': 'https://tracker.evil/e.png',
+      });
+      expect(accordEmojiUrl(offHome, 'https://a.example/cdn'), isNull);
+
+      // A remote emoji with no explicit imageUrl resolves by bare id on home.
+      final byId = AccordEmoji.fromJson({
+        'id': '55@b.example',
+        'name': 'party',
+        'origin': 'b.example',
+      });
+      expect(
+        accordEmojiUrl(byId, 'https://a.example/cdn'),
+        'https://b.example/cdn/emojis/55.png',
+      );
     });
 
     test('remote server-relative avatar path resolves against the home CDN', () {

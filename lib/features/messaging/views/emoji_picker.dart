@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
@@ -120,18 +121,7 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
     return EmojiPick(name: entry.name, char: token);
   }
 
-  String? _emojiImageUrl(AccordEmoji emoji) {
-    if (emoji.imageUrl.isNotEmpty) {
-      return AccordCDN.resolvePath(emoji.imageUrl, cdnUrl: _cdnUrl ?? '');
-    }
-    final id = emoji.id;
-    if (id == null) return null;
-    return AccordCDN.emoji(
-      id,
-      format: emoji.animated ? 'gif' : 'png',
-      cdnUrl: _cdnUrl ?? '',
-    );
-  }
+  String? _emojiImageUrl(AccordEmoji emoji) => accordEmojiUrl(emoji, _cdnUrl);
 
   @override
   Widget build(BuildContext context) {

@@ -1,3 +1,4 @@
+import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 
 /// A parsed "Add a Server" URL or `daccord://` deep link.
@@ -237,10 +238,12 @@ class ServerUri {
     return RegExp(r'^[A-Za-z0-9]+$').hasMatch(s);
   }
 
-  static bool _isValidHost(String host) {
-    if (host.isEmpty || host.contains(' ')) return false;
-    return !RegExp('''[<>;'"]''').hasMatch(host);
-  }
+  /// Validates a bare host (port already split off). Uses a strict hostname
+  /// allowlist rather than a denylist so userinfo (`@`), path separators
+  /// (`/`, `\`) and other URL metacharacters can't smuggle the auth-bearing
+  /// base URL onto a different host than the one shown. Loopback is allowed
+  /// here — a user may legitimately point at a self-hosted dev server.
+  static bool _isValidHost(String host) => isValidHost(host);
 
   static String? _blankToNull(String? v) =>
       (v == null || v.isEmpty) ? null : v;

@@ -78,5 +78,6 @@ export 'src/models/voice_state.dart';
 
 // Utils
 export 'src/utils/cdn.dart';
+export 'src/utils/host.dart';
 export 'src/utils/qualified_id.dart';
 export 'src/utils/snowflake.dart';

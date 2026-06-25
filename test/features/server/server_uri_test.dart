@@ -228,5 +228,20 @@ void main() {
       expect(parsed, isNotNull);
       expect(parsed!.server?.baseUrl, 'https://good.host:443');
     });
+
+    test('a host smuggling userinfo or a path is rejected', () {
+      // `trusted.example@evil.com` would authenticate against evil.com while
+      // appearing to target trusted.example; the strict allowlist rejects it.
+      for (final bad in [
+        'trusted.example@evil.com',
+        r'trusted.example\evil.com',
+      ]) {
+        expect(
+          ServerUri.parseDeepLink('daccord://connect/$bad'),
+          isNull,
+          reason: 'expected "$bad" to be rejected',
+        );
+      }
+    });
   });
 }
