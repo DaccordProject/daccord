@@ -8,7 +8,7 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
-import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';

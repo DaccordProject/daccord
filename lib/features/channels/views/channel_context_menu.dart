@@ -1,7 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
-import 'package:bonfire/features/channels/components/channel_management.dart';
+import 'package:bonfire/features/channels/views/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';

@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/messaging/components/box/accord_markdown_box.dart';
-import 'package:bonfire/features/messaging/components/box/accord_message_markup.dart';
+import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
+import 'package:bonfire/features/messaging/views/box/accord_message_markup.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

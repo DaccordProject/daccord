@@ -6,7 +6,7 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
-import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';

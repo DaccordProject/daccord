@@ -2,7 +2,7 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
-import 'package:bonfire/features/messaging/components/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';

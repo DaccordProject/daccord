@@ -1,6 +1,6 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/messaging/components/forum_view.dart';
-import 'package:bonfire/features/messaging/components/thread_view.dart';
+import 'package:bonfire/features/messaging/views/forum_view.dart';
+import 'package:bonfire/features/messaging/views/thread_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
