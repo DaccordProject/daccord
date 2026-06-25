@@ -120,7 +120,9 @@ jobs:
             path: build/linux/x64/release/bundle/
           - name: Windows
             platform: windows
-            os: windows-latest
+            # See release.yml: windows-latest's bundled CMake refuses to extract
+            # flutter_webrtc's libwebrtc zip through Flutter's plugin symlink.
+            os: windows-2022
             artifact: daccord-windows
             path: build/windows/x64/runner/Release/
 

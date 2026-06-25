@@ -97,7 +97,14 @@ jobs:
             artifact: daccord-linux-x86_64
           - name: Windows
             platform: windows
-            os: windows-latest
+            # Pinned off windows-latest: that image's bundled CMake (VS 2026,
+            # used by `flutter build windows`) enforces libarchive's secure-
+            # symlink check and refuses to extract flutter_webrtc's prebuilt
+            # libwebrtc zip through Flutter's `.plugin_symlinks/flutter_webrtc`
+            # symlink ("Cannot extract through symlink"). The same code built
+            # fine on 2026-06-15 and broke ~06-19 with no code change. The
+            # older bundled CMake on windows-2022 doesn't trip the check.
+            os: windows-2022
             artifact: daccord-windows-x86_64
           - name: macOS
             platform: macos
