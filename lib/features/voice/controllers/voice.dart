@@ -7,6 +7,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/services/voice_session.dart';
+import 'package:bonfire/features/voice/utils/voice_logic.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -325,10 +326,7 @@ class VoiceController extends _$VoiceController {
     final token = info.token;
     if (url == null || url.isEmpty || token == null || token.isEmpty) return;
     final sessionState = _session?.state;
-    final needsReconnect = sessionState == VoiceSessionState.disconnected ||
-        sessionState == VoiceSessionState.failed ||
-        sessionState == VoiceSessionState.reconnecting;
-    if (!needsReconnect) return;
+    if (sessionState == null || !needsReconnect(sessionState)) return;
     await _session?.connect(url, token,
         selfMute: state.selfMute, selfDeaf: state.selfDeaf);
   }
@@ -396,7 +394,13 @@ class VoiceController extends _$VoiceController {
   }
 
   void _onSessionDisconnected({required bool intentional}) {
-    if (intentional || !state.isConnected) return;
+    if (!shouldAutoReconnect(
+      intentional: intentional,
+      stillConnected: state.isConnected,
+      alreadyAttempted: _reconnectAttempted,
+    )) {
+      return;
+    }
     // LiveKit gave up its own retries (terminal RoomDisconnected). Don't just
     // sit in "reconnecting" waiting for a gateway push that may never come —
     // proactively refresh credentials and reconnect, like the reference's

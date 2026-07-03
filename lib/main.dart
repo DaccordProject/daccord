@@ -5,6 +5,7 @@ import 'package:app_links/app_links.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/hive.dart';
+import 'package:bonfire/features/notifications/controllers/background_connection.dart';
 import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
@@ -331,6 +332,10 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // Keep opt-in error reporting alive; it activates/deactivates with the
     // persisted consent toggle.
     ref.watch(errorReportingControllerProvider);
+    // Keep the Android background-connection service controller alive so the
+    // foreground service starts/stops with the "Background connection" setting
+    // and login state (a no-op on every other platform and on Play builds).
+    ref.watch(backgroundConnectionControllerProvider);
     soundManager.enabled = settings.soundsEnabled;
     soundManager.volume = settings.sfxVolume;
     final theme = buildAppTheme(
