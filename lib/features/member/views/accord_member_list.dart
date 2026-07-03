@@ -83,21 +83,29 @@ class _Roster extends ConsumerWidget {
 
     final sections = _buildSections(members.values.toList(), roles, presences);
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      children: [
-        for (final section in sections) ...[
-          _SectionHeader(label: section.label, count: section.members.length),
-          for (final member in section.members)
-            _MemberRow(
-              member: member,
-              roles: roles,
-              cdnUrl: cdnUrl,
-              spaceId: spaceId,
-              status: accordPresenceStatus(presences, member.userId),
+    // Flatten sections into one lazily-built row list so a large roster only
+    // materializes the rows on screen.
+    final rows = <Widget Function()>[
+      for (final section in sections) ...[
+        () => _SectionHeader(
+              label: section.label,
+              count: section.members.length,
             ),
-        ],
+        for (final member in section.members)
+          () => _MemberRow(
+                member: member,
+                roles: roles,
+                cdnUrl: cdnUrl,
+                spaceId: spaceId,
+                status: accordPresenceStatus(presences, member.userId),
+              ),
       ],
+    ];
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      itemCount: rows.length,
+      itemBuilder: (context, index) => rows[index](),
     );
   }
 }

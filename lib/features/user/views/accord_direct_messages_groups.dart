@@ -1,5 +1,7 @@
 part of 'accord_direct_messages.dart';
 
+/// Multi-select dialog to start a group DM. Searches users, lets the caller pick
+/// several recipients, then POSTs `{recipients: [...]}` to create the channel.
 class _CreateGroupDialog extends ConsumerStatefulWidget {
   const _CreateGroupDialog();
 
@@ -8,40 +10,18 @@ class _CreateGroupDialog extends ConsumerStatefulWidget {
 }
 
 class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
-  final _query = TextEditingController();
   final _name = TextEditingController();
   final _selected = <String, AccordUser>{};
-  List<AccordUser>? _results;
   bool _busy = false;
   String? _error;
 
   @override
   void dispose() {
-    _query.dispose();
     _name.dispose();
     super.dispose();
   }
 
   AccordClient? get _client => ref.accordClient;
-
-  Future<void> _search() async {
-    final client = _client;
-    final query = _query.text.trim();
-    if (client == null || query.isEmpty) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final result = await client.users.searchUsers(query);
-    if (!mounted) return;
-    final data = result.data;
-    setState(() {
-      _busy = false;
-      _results = data is List
-          ? data.whereType<AccordUser>().toList()
-          : <AccordUser>[];
-    });
-  }
 
   Future<void> _create() async {
     final client = _client;
@@ -69,7 +49,6 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final results = _results;
     return Dialog(
       child: ConstrainedBox(
         constraints: dialogConstraints(context, maxWidth: 460, maxHeight: 600),
@@ -91,83 +70,57 @@ class _CreateGroupDialogState extends ConsumerState<_CreateGroupDialog> {
                 ),
               ),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _query,
-                      enabled: !_busy,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'Search users to add',
-                        border: OutlineInputBorder(),
-                      ),
-                      onSubmitted: (_) => _search(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _busy ? null : _search,
-                    child: const Text('Search'),
-                  ),
-                ],
-              ),
-              if (_selected.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final user in _selected.values)
-                      InputChip(
-                        label: Text(_userName(user)),
-                        onDeleted: _busy
-                            ? null
-                            : () => setState(() => _selected.remove(user.id)),
-                      ),
-                  ],
-                ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                InlineError(_error!, centered: false),
-              ],
-              const SizedBox(height: 8),
               Flexible(
-                child: results == null
-                    ? const SizedBox.shrink()
-                    : results.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'No users found',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      )
-                    : ListView(
-                        shrinkWrap: true,
+                child: _UserSearchList(
+                  hintText: 'Search users to add',
+                  busy: _busy,
+                  onBusyChanged: (busy) => setState(() {
+                    _busy = busy;
+                    if (busy) _error = null;
+                  }),
+                  belowSearch: [
+                    if (_selected.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
-                          for (final user in results)
-                            CheckboxListTile(
-                              dense: true,
-                              value: _selected.containsKey(user.id),
-                              onChanged: _busy
+                          for (final user in _selected.values)
+                            InputChip(
+                              label: Text(_userName(user)),
+                              onDeleted: _busy
                                   ? null
-                                  : (checked) => setState(() {
-                                      if (checked == true) {
-                                        _selected[user.id] = user;
-                                      } else {
-                                        _selected.remove(user.id);
-                                      }
-                                    }),
-                              title: Text(
-                                _userName(user),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                  : () => setState(
+                                      () => _selected.remove(user.id),
+                                    ),
                             ),
                         ],
                       ),
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      InlineError(_error!, centered: false),
+                    ],
+                  ],
+                  tileBuilder: (user) => CheckboxListTile(
+                    dense: true,
+                    value: _selected.containsKey(user.id),
+                    onChanged: _busy
+                        ? null
+                        : (checked) => setState(() {
+                            if (checked == true) {
+                              _selected[user.id] = user;
+                            } else {
+                              _selected.remove(user.id);
+                            }
+                          }),
+                    title: Text(
+                      _userName(user),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               Row(
@@ -205,42 +158,11 @@ class _PickUserDialog extends ConsumerStatefulWidget {
 }
 
 class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
-  final _query = TextEditingController();
-  List<AccordUser>? _results;
   bool _busy = false;
-
-  @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
-  }
-
-  AccordClient? get _client => ref.accordClient;
-
-  Future<void> _search() async {
-    final client = _client;
-    final query = _query.text.trim();
-    if (client == null || query.isEmpty) return;
-    setState(() => _busy = true);
-    final result = await client.users.searchUsers(query);
-    if (!mounted) return;
-    final data = result.data;
-    setState(() {
-      _busy = false;
-      _results = data is List
-          ? data
-                .whereType<AccordUser>()
-                .where((u) => !widget.excludeIds.contains(u.id))
-                .toList()
-          : <AccordUser>[];
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
-    final results = _results;
     return Dialog(
       child: ConstrainedBox(
         constraints: dialogConstraints(context, maxWidth: 440, maxHeight: 520),
@@ -252,59 +174,23 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
             children: [
               Text(widget.title, style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _query,
-                      enabled: !_busy,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'Search by username',
-                        border: OutlineInputBorder(),
-                      ),
-                      onSubmitted: (_) => _search(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _busy ? null : _search,
-                    child: const Text('Search'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
               Flexible(
-                child: results == null
-                    ? const SizedBox.shrink()
-                    : results.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'No users found',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      )
-                    : ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final user in results)
-                            ListTile(
-                              dense: true,
-                              leading: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: colors.darkGray,
-                                child: Text(accordInitial(_userName(user))),
-                              ),
-                              title: Text(
-                                _userName(user),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () => Navigator.of(context).pop(user),
-                            ),
-                        ],
-                      ),
+                child: _UserSearchList(
+                  hintText: 'Search by username',
+                  busy: _busy,
+                  onBusyChanged: (busy) => setState(() => _busy = busy),
+                  excludeIds: widget.excludeIds,
+                  tileBuilder: (user) => ListTile(
+                    dense: true,
+                    leading: UserAvatar(_userName(user)),
+                    title: Text(
+                      _userName(user),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => Navigator.of(context).pop(user),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               Align(
@@ -318,55 +204,6 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Prompts for a new group name. Returns the trimmed name, or null on cancel.
-class _RenameGroupDialog extends StatefulWidget {
-  const _RenameGroupDialog({required this.initial});
-
-  final String initial;
-
-  @override
-  State<_RenameGroupDialog> createState() => _RenameGroupDialogState();
-}
-
-class _RenameGroupDialogState extends State<_RenameGroupDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Rename group'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          isDense: true,
-          labelText: 'Group name',
-          border: OutlineInputBorder(),
-        ),
-        onSubmitted: (_) => Navigator.of(context).pop(_controller.text.trim()),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }
@@ -416,11 +253,7 @@ class _GroupMembersDialog extends StatelessWidget {
                           for (final user in members)
                             ListTile(
                               dense: true,
-                              leading: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: colors.darkGray,
-                                child: Text(accordInitial(_userName(user))),
-                              ),
+                              leading: UserAvatar(_userName(user)),
                               title: Text(
                                 _userName(user),
                                 maxLines: 1,

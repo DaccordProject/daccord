@@ -485,88 +485,165 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
-
     if (_backupCodes != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '2FA is now enabled. Save these backup codes:',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.darkGray,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: SelectableText(
-              _backupCodes!.join('\n'),
-              style: theme.textTheme.bodyMedium!.copyWith(
-                fontFeatures: const [],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => Clipboard.setData(
-                ClipboardData(text: _backupCodes!.join('\n')),
-              ),
-              icon: const Icon(Icons.copy, size: 16),
-              label: const Text('Copy codes'),
-            ),
-          ),
-        ],
-      );
+      return _BackupCodesView(codes: _backupCodes!);
     }
 
     if (widget.enabled) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.verified_user, size: 18, color: colors.green),
-              const SizedBox(width: 8),
-              Text('2FA is enabled', style: theme.textTheme.bodyMedium),
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _password,
-            enabled: !_busy,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Password',
-              isDense: true,
-              border: OutlineInputBorder(),
-            ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            InlineError(_error!, centered: false),
-          ],
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _busy ? null : _disable,
-              style: TextButton.styleFrom(foregroundColor: colors.red),
-              child: const Text('Disable 2FA'),
-            ),
-          ),
-        ],
+      return _TwoFactorEnabledView(
+        password: _password,
+        busy: _busy,
+        error: _error,
+        onDisable: _disable,
       );
     }
 
-    // Not yet enabled: either prompt for password (start), or show the secret +
-    // verification field after enable() succeeded.
-    final setupStarted = _secret != null || _otpauth != null;
+    return _TwoFactorSetupView(
+      password: _password,
+      code: _code,
+      busy: _busy,
+      error: _error,
+      secret: _secret,
+      otpauth: _otpauth,
+      onEnable: _enable,
+      onVerify: _verify,
+    );
+  }
+}
+
+/// Shown right after verification succeeds: the one-time backup codes with a
+/// copy-to-clipboard shortcut.
+class _BackupCodesView extends StatelessWidget {
+  const _BackupCodesView({required this.codes});
+
+  final List<String> codes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '2FA is now enabled. Save these backup codes:',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.darkGray,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: SelectableText(
+            codes.join('\n'),
+            style: theme.textTheme.bodyMedium!.copyWith(
+              fontFeatures: const [],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => Clipboard.setData(
+              ClipboardData(text: codes.join('\n')),
+            ),
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Copy codes'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 2FA already on: password prompt + disable button.
+class _TwoFactorEnabledView extends StatelessWidget {
+  const _TwoFactorEnabledView({
+    required this.password,
+    required this.busy,
+    required this.error,
+    required this.onDisable,
+  });
+
+  final TextEditingController password;
+  final bool busy;
+  final String? error;
+  final VoidCallback onDisable;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.verified_user, size: 18, color: colors.green),
+            const SizedBox(width: 8),
+            Text('2FA is enabled', style: theme.textTheme.bodyMedium),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: password,
+          enabled: !busy,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Password',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 8),
+          InlineError(error!, centered: false),
+        ],
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: busy ? null : onDisable,
+            style: TextButton.styleFrom(foregroundColor: colors.red),
+            child: const Text('Disable 2FA'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Not yet enabled: either prompt for password (start), or show the secret +
+/// verification field after enable() succeeded.
+class _TwoFactorSetupView extends StatelessWidget {
+  const _TwoFactorSetupView({
+    required this.password,
+    required this.code,
+    required this.busy,
+    required this.error,
+    required this.secret,
+    required this.otpauth,
+    required this.onEnable,
+    required this.onVerify,
+  });
+
+  final TextEditingController password;
+  final TextEditingController code;
+  final bool busy;
+  final String? error;
+  final String? secret;
+  final String? otpauth;
+  final VoidCallback onEnable;
+  final VoidCallback onVerify;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    final setupStarted = secret != null || otpauth != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -577,8 +654,8 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           const SizedBox(height: 10),
           TextField(
-            controller: _password,
-            enabled: !_busy,
+            controller: password,
+            enabled: !busy,
             obscureText: true,
             decoration: const InputDecoration(
               labelText: 'Password',
@@ -586,15 +663,15 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               border: OutlineInputBorder(),
             ),
           ),
-          if (_error != null) ...[
+          if (error != null) ...[
             const SizedBox(height: 8),
-            InlineError(_error!, centered: false),
+            InlineError(error!, centered: false),
           ],
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
-              onPressed: _busy ? null : _enable,
+              onPressed: busy ? null : onEnable,
               child: const Text('Enable 2FA'),
             ),
           ),
@@ -604,7 +681,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
             'secret manually, then type the 6-digit code:',
             style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
           ),
-          if (_otpauth != null) ...[
+          if (otpauth != null) ...[
             const SizedBox(height: 12),
             Center(
               child: Container(
@@ -615,7 +692,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: QrImageView(
-                  data: _otpauth!,
+                  data: otpauth!,
                   size: 180,
                   backgroundColor: Colors.white,
                   errorCorrectionLevel: QrErrorCorrectLevel.M,
@@ -635,7 +712,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               children: [
                 Expanded(
                   child: SelectableText(
-                    _secret ?? extractTotpSecret(_otpauth) ?? '',
+                    secret ?? extractTotpSecret(otpauth) ?? '',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -644,7 +721,7 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
                   icon: const Icon(Icons.copy, size: 16),
                   onPressed: () => Clipboard.setData(
                     ClipboardData(
-                      text: _secret ?? extractTotpSecret(_otpauth) ?? '',
+                      text: secret ?? extractTotpSecret(otpauth) ?? '',
                     ),
                   ),
                 ),
@@ -653,12 +730,14 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
           ),
           const SizedBox(height: 10),
           TextField(
-            controller: _code,
-            enabled: !_busy,
+            controller: code,
+            enabled: !busy,
             keyboardType: TextInputType.number,
             maxLength: 6,
             textInputAction: TextInputAction.done,
-            onSubmitted: (_) { if (!_busy) _verify(); },
+            onSubmitted: (_) {
+              if (!busy) onVerify();
+            },
             decoration: const InputDecoration(
               labelText: '6-digit code',
               isDense: true,
@@ -666,15 +745,15 @@ class _TwoFactorSectionState extends ConsumerState<_TwoFactorSection> {
               counterText: '',
             ),
           ),
-          if (_error != null) ...[
+          if (error != null) ...[
             const SizedBox(height: 8),
-            InlineError(_error!, centered: false),
+            InlineError(error!, centered: false),
           ],
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
-              onPressed: _busy ? null : _verify,
+              onPressed: busy ? null : onVerify,
               child: const Text('Verify & activate'),
             ),
           ),

@@ -237,14 +237,9 @@ class _FriendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
     return ListTile(
       dense: true,
-      leading: CircleAvatar(
-        radius: 16,
-        backgroundColor: colors.darkGray,
-        child: Text(accordInitial(name)),
-      ),
+      leading: UserAvatar(name),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: trailing,
     );
@@ -259,37 +254,10 @@ class _AddFriendDialog extends ConsumerStatefulWidget {
 }
 
 class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
-  final _query = TextEditingController();
-  List<AccordUser>? _results;
   bool _busy = false;
   String? _message;
 
-  @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
-  }
-
   AccordClient? get _client => ref.accordClient;
-
-  Future<void> _search() async {
-    final client = _client;
-    final query = _query.text.trim();
-    if (client == null || query.isEmpty) return;
-    setState(() {
-      _busy = true;
-      _message = null;
-    });
-    final result = await client.users.searchUsers(query);
-    if (!mounted) return;
-    final data = result.data;
-    setState(() {
-      _busy = false;
-      _results = data is List
-          ? data.whereType<AccordUser>().toList()
-          : <AccordUser>[];
-    });
-  }
 
   Future<void> _request(AccordUser user) async {
     final client = _client;
@@ -311,7 +279,6 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final results = _results;
     return Dialog(
       child: ConstrainedBox(
         constraints: dialogConstraints(context, maxWidth: 440, maxHeight: 520),
@@ -323,76 +290,44 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
             children: [
               Text('Add friend', style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _query,
-                      enabled: !_busy,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'Search by username',
-                        border: OutlineInputBorder(),
+              Flexible(
+                child: _UserSearchList(
+                  hintText: 'Search by username',
+                  busy: _busy,
+                  onBusyChanged: (busy) => setState(() {
+                    _busy = busy;
+                    if (busy) _message = null;
+                  }),
+                  belowSearch: [
+                    if (_message != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _message!,
+                        style: theme.textTheme.bodySmall!.copyWith(
+                          color: colors.green,
+                        ),
                       ),
-                      onSubmitted: (_) => _search(),
+                    ],
+                  ],
+                  tileBuilder: (user) => ListTile(
+                    dense: true,
+                    leading: UserAvatar(_userName(user)),
+                    title: Text(
+                      _userName(user),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Send request',
+                      onPressed: _busy ? null : () => _request(user),
+                      icon: Icon(
+                        Icons.person_add,
+                        size: 18,
+                        color: colors.primary,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _busy ? null : _search,
-                    child: const Text('Search'),
-                  ),
-                ],
-              ),
-              if (_message != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _message!,
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    color: colors.green,
-                  ),
                 ),
-              ],
-              const SizedBox(height: 8),
-              Flexible(
-                child: results == null
-                    ? const SizedBox.shrink()
-                    : results.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          'No users found',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      )
-                    : ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final user in results)
-                            ListTile(
-                              dense: true,
-                              leading: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: colors.darkGray,
-                                child: Text(accordInitial(_userName(user))),
-                              ),
-                              title: Text(
-                                _userName(user),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: IconButton(
-                                tooltip: 'Send request',
-                                onPressed: _busy ? null : () => _request(user),
-                                icon: Icon(
-                                  Icons.person_add,
-                                  size: 18,
-                                  color: colors.primary,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
               ),
               const SizedBox(height: 12),
               Align(
@@ -409,6 +344,3 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
     );
   }
 }
-
-/// Multi-select dialog to start a group DM. Searches users, lets the caller pick
-/// several recipients, then POSTs `{recipients: [...]}` to create the channel.

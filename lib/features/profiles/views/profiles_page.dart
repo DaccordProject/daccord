@@ -1,6 +1,8 @@
 import 'package:bonfire/features/profiles/controllers/profiles_controller.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
+import 'package:bonfire/shared/components/label_pill.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/profiles/models/device_profile.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
@@ -84,7 +86,12 @@ class ProfilesScreen extends ConsumerWidget {
     WidgetRef ref,
     DeviceProfile p,
   ) async {
-    final name = await _promptText(context, 'Rename profile', p.name);
+    final name = await showTextPromptDialog(
+      context,
+      title: 'Rename profile',
+      initial: p.name,
+      confirmLabel: 'OK',
+    );
     if (name == null) return;
     ref.read(profilesControllerProvider.notifier).rename(p.id, name);
   }
@@ -115,12 +122,12 @@ class ProfilesScreen extends ConsumerWidget {
     final notifier = ref.read(profilesControllerProvider.notifier);
     if (p.hasPin) {
       // Require the current PIN before clearing it.
-      final pin = await _promptText(
+      final pin = await showTextPromptDialog(
         context,
-        'Enter current PIN to remove',
-        '',
-        obscure: true,
-        number: true,
+        title: 'Enter current PIN to remove',
+        obscureText: true,
+        keyboardType: TextInputType.number,
+        confirmLabel: 'OK',
       );
       if (pin == null) return;
       if (!notifier.verifyPin(p.id, pin)) {
@@ -132,48 +139,15 @@ class ProfilesScreen extends ConsumerWidget {
       notifier.setPin(p.id, null);
       return;
     }
-    final pin = await _promptText(
+    final pin = await showTextPromptDialog(
       context,
-      'Set a PIN',
-      '',
-      obscure: true,
-      number: true,
+      title: 'Set a PIN',
+      obscureText: true,
+      keyboardType: TextInputType.number,
+      confirmLabel: 'OK',
     );
     if (pin == null || pin.isEmpty) return;
     notifier.setPin(p.id, pin);
-  }
-
-  Future<String?> _promptText(
-    BuildContext context,
-    String title,
-    String initial, {
-    bool obscure = false,
-    bool number = false,
-  }) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          obscureText: obscure,
-          keyboardType: number ? TextInputType.number : null,
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -211,17 +185,7 @@ class _ProfileTile extends StatelessWidget {
           Flexible(child: Text(profile.name, overflow: TextOverflow.ellipsis)),
           if (isActive) ...[
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'Active',
-                style: TextStyle(color: Colors.white, fontSize: 10),
-              ),
-            ),
+            LabelPill('Active', color: colors.primary, filled: true),
           ],
         ],
       ),

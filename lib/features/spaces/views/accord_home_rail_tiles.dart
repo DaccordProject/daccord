@@ -409,7 +409,11 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
         label: 'Rename',
         icon: Icons.edit_outlined,
         onSelected: () async {
-          final name = await _promptName(context, folder.name);
+          final name = await showTextPromptDialog(
+            context,
+            title: 'Folder name',
+            initial: folder.name,
+          );
           if (name != null) ctl.renameFolder(folder.id, name);
         },
       ),
@@ -438,27 +442,6 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
     );
   }
 
-  Future<String?> _promptName(BuildContext context, String initial) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Folder name'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    ).whenComplete(controller.dispose);
-  }
-
   Future<int?> _pickColor(BuildContext context) {
     const palette = <int>[
       0, // default
@@ -479,19 +462,13 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
           runSpacing: 10,
           children: [
             for (final argb in palette)
-              GestureDetector(
+              ColorSwatchChip(
+                color: argb == 0 ? Colors.grey : Color(argb),
+                selected: false,
                 onTap: () => Navigator.of(ctx).pop(argb),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: argb == 0 ? Colors.grey : Color(argb),
-                    shape: BoxShape.circle,
-                  ),
-                  child: argb == 0
-                      ? const Icon(Icons.clear, size: 16, color: Colors.white)
-                      : null,
-                ),
+                icon: argb == 0 ? Icons.clear : null,
+                iconSize: 16,
+                iconColor: Colors.white,
               ),
           ],
         ),
@@ -682,20 +659,33 @@ class _SpaceIcon extends ConsumerWidget {
   }
 }
 
-/// The Direct Messages affordance pinned at the top of the rail, styled as a
-/// space-icon tile (Discord-style "home" button) rather than a small footer
-/// icon. Opens the DM/friends modal.
-class _DirectMessagesButton extends StatelessWidget {
-  const _DirectMessagesButton({required this.onTap});
+/// A 48×48 circular utility tile for the rail (Discord-style "home"-row
+/// button): a dark round background with a single icon and a tooltip. Backs
+/// the DM, add-server and hidden-servers affordances below, which differ only
+/// in tooltip, icon, icon size and icon color.
+class _RailIconTile extends StatelessWidget {
+  const _RailIconTile({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.iconSize,
+    this.iconColor,
+  });
 
+  final String tooltip;
+  final IconData icon;
   final VoidCallback onTap;
+  final double? iconSize;
+
+  /// Icon tint; defaults to the theme's `dirtyWhite`.
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     return Center(
       child: Tooltip(
-        message: 'Direct messages',
+        message: tooltip,
         child: GestureDetector(
           onTap: onTap,
           child: Container(
@@ -707,15 +697,32 @@ class _DirectMessagesButton extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Icon(
-              Icons.chat_bubble_outline,
-              size: 22,
-              color: colors.dirtyWhite,
+              icon,
+              size: iconSize,
+              color: iconColor ?? colors.dirtyWhite,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// The Direct Messages affordance pinned at the top of the rail, styled as a
+/// space-icon tile (Discord-style "home" button) rather than a small footer
+/// icon. Opens the DM/friends modal.
+class _DirectMessagesButton extends StatelessWidget {
+  const _DirectMessagesButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => _RailIconTile(
+        tooltip: 'Direct messages',
+        icon: Icons.chat_bubble_outline,
+        iconSize: 22,
+        onTap: onTap,
+      );
 }
 
 /// The "Add a Server" (+) affordance at the foot of the rail's space list.
@@ -725,27 +732,12 @@ class _AddServerButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Center(
-      child: Tooltip(
-        message: 'Add a server',
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: colors.darkGray,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.add, color: Color(0xFF43B581)),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _RailIconTile(
+        tooltip: 'Add a server',
+        icon: Icons.add,
+        iconColor: const Color(0xFF43B581),
+        onTap: onTap,
+      );
 }
 
 /// A small affordance at the foot of the rail showing how many servers are
@@ -757,29 +749,10 @@ class _HiddenServersButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Center(
-      child: Tooltip(
-        message: '$count hidden ${count == 1 ? 'server' : 'servers'}',
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: colors.darkGray,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              Icons.visibility_off_outlined,
-              size: 20,
-              color: colors.dirtyWhite,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _RailIconTile(
+        tooltip: '$count hidden ${count == 1 ? 'server' : 'servers'}',
+        icon: Icons.visibility_off_outlined,
+        iconSize: 20,
+        onTap: onTap,
+      );
 }

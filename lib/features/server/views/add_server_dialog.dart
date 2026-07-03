@@ -1,5 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/credential_validation.dart';
+import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
@@ -9,7 +11,6 @@ import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Opens the in-app "Add a Server" dialog. Mirrors the reference client's
 /// add-server flow: an **Enter URL** tab (paste a server URL or `daccord://`
@@ -205,42 +206,18 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   Future<void> _fetchTos() async {
     final server = _server;
     if (server == null || _tosFetchedServer == server.baseUrl) return;
-    final settings = await _auth.fetchServerSettings(server);
+    final tos = await fetchTosConfig(_auth, server);
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
-      _tosEnabled = settings?['tos_enabled'] == true;
-      _tosUrl = settings?['tos_url'] as String?;
-      _tosText = settings?['tos_text'] as String?;
+      _tosEnabled = tos.enabled;
+      _tosUrl = tos.url;
+      _tosText = tos.text;
       _tosAccepted = false;
     });
   }
 
-  Future<void> _openTos() async {
-    final url = _tosUrl?.trim();
-    if (url != null && url.isNotEmpty) {
-      final uri = Uri.tryParse(url);
-      if (uri != null) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        return;
-      }
-    }
-    final text = _tosText?.trim();
-    if (text == null || text.isEmpty || !mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Terms of Service'),
-        content: SingleChildScrollView(child: Text(text)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<void> _openTos() => openTos(context, url: _tosUrl, text: _tosText);
 
   Future<void> _submitCredentials() async {
     final server = _server;
@@ -251,17 +228,14 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
 
     final isRegister = _credMode == AuthMode.register;
     if (isRegister) {
-      // Usernames are the public login identifier; reject email-like input.
-      if (username.contains('@')) {
-        _fail("Username can't be an email address.");
-        return;
-      }
-      if (password.length < 8) {
-        _fail('Password must be at least 8 characters.');
-        return;
-      }
-      if (_tosEnabled && !_tosAccepted) {
-        _fail('You must accept the Terms of Service.');
+      final validationError = validateRegistrationCredentials(
+        username: username,
+        password: password,
+        tosRequired: _tosEnabled,
+        tosAccepted: _tosAccepted,
+      );
+      if (validationError != null) {
+        _fail(validationError);
         return;
       }
     }

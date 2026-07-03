@@ -105,16 +105,14 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                             ? null
                             : accordAvatarUrl(other, cdnUrl);
                         return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: colors.darkGray,
-                            foregroundImage: avatarUrl == null
-                                ? null
-                                : CachedNetworkImageProvider(avatarUrl),
-                            child: group
-                                ? Icon(Icons.group,
-                                    size: 18, color: colors.dirtyWhite)
-                                : Text(accordInitial(title)),
-                          ),
+                          leading: group
+                              ? CircleAvatar(
+                                  backgroundColor: colors.darkGray,
+                                  child: Icon(Icons.group,
+                                      size: 18, color: colors.dirtyWhite),
+                                )
+                              : UserAvatar(title,
+                                  imageUrl: avatarUrl, radius: 20),
                           title: Row(
                             children: [
                               Flexible(
@@ -273,9 +271,11 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   }
 
   Future<void> _rename() async {
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _RenameGroupDialog(initial: _channel.name ?? ''),
+    final name = await showTextPromptDialog(
+      context,
+      title: 'Rename group',
+      label: 'Group name',
+      initial: _channel.name ?? '',
     );
     if (name == null) return;
     final client = _client;

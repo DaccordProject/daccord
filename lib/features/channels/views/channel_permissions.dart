@@ -1,7 +1,9 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/string_ext.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -360,23 +362,11 @@ class _ChannelPermissionsDialogState
       Navigator.of(context).pop();
       return;
     }
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Unsaved Changes'),
-        content:
-            const Text('You have unsaved permission changes. Discard them?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    final discard = await showConfirmDialog(
+      context,
+      title: 'Unsaved Changes',
+      message: 'You have unsaved permission changes. Discard them?',
+      confirmLabel: 'Discard',
     );
     if (discard == true && mounted) Navigator.of(context).pop();
   }
@@ -404,9 +394,21 @@ class _ChannelPermissionsDialogState
 
   @override
   Widget build(BuildContext context) {
-    // Rebuild when roles/members change.
-    ref.watch(spacesControllerProvider);
-    ref.watch(accordMembersControllerProvider(widget.spaceId));
+    // Rebuild when this space's roles change — every role mutation assigns a
+    // fresh `roles` list to the space (see SpacesController._mutateRoles), so
+    // selecting the list identity catches all role changes without rebuilding
+    // for unrelated spaces.
+    ref.watch(spacesControllerProvider.select((spaces) =>
+        spaces?.firstWhereOrNull((s) => s.id == widget.spaceId)?.roles));
+    // Rebuild when a rendered member-overwrite name changes (member update or
+    // user backfill), joined so select() compares by value. The build reads
+    // nothing else from the cache; the watch also keeps the self-loading
+    // member controller alive for the read-at-tap member picker.
+    final memberIds = _memberOverwriteIds;
+    ref.watch(accordMembersControllerProvider(widget.spaceId).select(
+        (members) => memberIds
+            .map((id) => accordMemberName(members?[id], fallback: id))
+            .join('\u0000')));
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
 
@@ -720,7 +722,7 @@ class _OverwriteEditorPane extends StatelessWidget {
       ),
       for (final perm in perms)
         _PermissionRow(
-          label: _label(perm),
+          label: titleCaseFromToken(perm),
           description: AccordPermission.description(perm),
           state: data[perm] ?? _OverwriteState.neutral,
           enabled: enabled,
@@ -728,11 +730,6 @@ class _OverwriteEditorPane extends StatelessWidget {
         ),
     ];
   }
-
-  static String _label(String perm) => perm
-      .split('_')
-      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-      .join(' ');
 }
 
 class _PermissionRow extends StatelessWidget {

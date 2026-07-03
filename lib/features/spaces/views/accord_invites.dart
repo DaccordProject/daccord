@@ -3,6 +3,7 @@ import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -51,21 +52,14 @@ class _InvitesDialog extends ConsumerStatefulWidget {
   ConsumerState<_InvitesDialog> createState() => _InvitesDialogState();
 }
 
-class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
-  List<AccordInvite>? _invites;
+class _InvitesDialogState extends ConsumerState<_InvitesDialog>
+    with SelfLoadingListState<AccordInvite, _InvitesDialog> {
   bool _creating = false;
-  String? _error;
   int _expirySeconds = 86400;
   int _maxUses = 0;
   bool _temporary = false;
   String _query = '';
   final Set<String> _selected = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
 
   AccordClient? get _client => ref.accordClient;
 
@@ -75,18 +69,19 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     ),
   );
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    final result = await client.invites.listSpace(widget.spaceId);
-    if (!mounted) return;
+  @override
+  bool get canLoad => _client != null;
+
+  @override
+  Future<(List<AccordInvite>? items, String? error)> fetchItems() async {
+    final result = await _client!.invites.listSpace(widget.spaceId);
     final data = result.data;
-    setState(() {
-      _invites = result.ok && data is List
+    return (
+      result.ok && data is List
           ? data.whereType<AccordInvite>().toList()
-          : const [];
-      if (!result.ok) _error = 'Failed to load invites';
-    });
+          : const <AccordInvite>[],
+      result.ok ? null : 'Failed to load invites',
+    );
   }
 
   Future<void> _create() async {
@@ -94,7 +89,7 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     if (client == null) return;
     setState(() {
       _creating = true;
-      _error = null;
+      error = null;
     });
     final result = await client.invites.createSpace(
       widget.spaceId,
@@ -106,13 +101,13 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     );
     if (!mounted) return;
     if (result.ok) {
-      await _load();
+      await load();
       if (!mounted) return;
       setState(() => _creating = false);
     } else {
       setState(() {
         _creating = false;
-        _error = 'Failed to create invite';
+        error = 'Failed to create invite';
       });
     }
   }
@@ -124,10 +119,10 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     if (!mounted) return;
     if (result.ok) {
       setState(
-        () => _invites = _invites?.where((i) => i.code != invite.code).toList(),
+        () => items = items?.where((i) => i.code != invite.code).toList(),
       );
     } else {
-      setState(() => _error = 'Failed to revoke invite');
+      setState(() => error = 'Failed to revoke invite');
     }
   }
 
@@ -139,7 +134,7 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
     for (final code in codes) {
       final result = await client.invites.delete(code);
       if (result.ok) {
-        _invites = _invites?.where((i) => i.code != code).toList();
+        items = items?.where((i) => i.code != code).toList();
       }
     }
     if (!mounted) return;
@@ -169,7 +164,7 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final invites = _invites;
+    final invites = items;
     return Dialog(
       child: ConstrainedBox(
         constraints: dialogConstraints(context, maxWidth: 480, maxHeight: 600),
@@ -267,11 +262,11 @@ class _InvitesDialogState extends ConsumerState<_InvitesDialog> {
                 ],
               ),
             ),
-            if (_error != null)
+            if (error != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  _error!,
+                  error!,
                   style: theme.textTheme.bodySmall!.copyWith(
                     color: theme.colorScheme.error,
                   ),

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/load_more_footer.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
+import 'package:bonfire/shared/utils/string_ext.dart';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -34,20 +37,15 @@ class _AuditLogDialog extends ConsumerStatefulWidget {
   ConsumerState<_AuditLogDialog> createState() => _AuditLogDialogState();
 }
 
-class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
-  final List<AccordAuditLogEntry> _entries = [];
-  bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  String? _error;
+class _AuditLogDialogState extends ConsumerState<_AuditLogDialog>
+    with PaginatedListState<AccordAuditLogEntry, _AuditLogDialog> {
   String? _actionFilter; // null = all
   String _userQuery = '';
   StreamSubscription<Map<String, dynamic>>? _liveSub;
 
   @override
   void initState() {
-    super.initState();
-    _load();
+    super.initState(); // kicks off the mixin's initial load()
     _subscribeLive();
   }
 
@@ -67,70 +65,37 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
       final spaceId = (data['space_id'] ?? data['guild_id'])?.toString();
       if (spaceId != null && spaceId != widget.spaceId) return;
       final entry = AccordAuditLogEntry.fromJson(data);
-      if (entry.id.isNotEmpty && _entries.any((e) => e.id == entry.id)) return;
+      if (entry.id.isNotEmpty && items.any((e) => e.id == entry.id)) return;
       if (!mounted) return;
-      setState(() => _entries.insert(0, entry));
+      setState(() => items.insert(0, entry));
     });
   }
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    final result = await client.auditLogs.list(
-      widget.spaceId,
-      query: {'limit': _pageSize},
-    );
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _loading = false;
-        _error = 'Failed to load audit log';
-      });
-      return;
-    }
-    final parsed = _parse(result.data);
-    setState(() {
-      _loading = false;
-      _entries
-        ..clear()
-        ..addAll(parsed);
-      _hasMore = parsed.length >= _pageSize;
-    });
-  }
+  @override
+  int get pageSize => _pageSize;
 
-  Future<void> _loadMore() async {
-    final client = _client;
-    if (client == null || _loadingMore || !_hasMore || _entries.isEmpty) return;
-    setState(() => _loadingMore = true);
-    final result = await client.auditLogs.list(
-      widget.spaceId,
-      query: {'limit': _pageSize, 'before': _entries.last.id},
-    );
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _loadingMore = false;
-        _error = 'Failed to load more entries';
-      });
-      return;
-    }
-    final parsed = _parse(result.data);
-    final existing = _entries.map((e) => e.id).toSet();
-    final fresh = parsed.where((e) => !existing.contains(e.id)).toList();
-    setState(() {
-      _loadingMore = false;
-      _entries.addAll(fresh);
-      _hasMore = parsed.length >= _pageSize && fresh.isNotEmpty;
-    });
-  }
+  @override
+  bool get canLoad => _client != null;
+
+  @override
+  String? itemId(AccordAuditLogEntry item) => item.id;
+
+  @override
+  Future<RestResult> fetchPage({String? before}) => _client!.auditLogs.list(
+    widget.spaceId,
+    query: {'limit': _pageSize, if (before != null) 'before': before},
+  );
+
+  @override
+  String loadError(RestResult result) => 'Failed to load audit log';
+
+  @override
+  String loadMoreError(RestResult result) => 'Failed to load more entries';
 
   /// The endpoint returns raw JSON; entries may be a bare list or wrapped under
   /// `entries`/`audit_log_entries`.
-  List<AccordAuditLogEntry> _parse(Object? data) {
+  @override
+  List<AccordAuditLogEntry> parseItems(Object? data) {
     List<dynamic>? raw;
     if (data is List) {
       raw = data;
@@ -144,14 +109,8 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
     ];
   }
 
-  String _actionLabel(String actionType) {
-    if (actionType.isEmpty) return 'Action';
-    return actionType
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
+  String _actionLabel(String actionType) =>
+      actionType.isEmpty ? 'Action' : titleCaseFromToken(actionType);
 
   @override
   Widget build(BuildContext context) {
@@ -163,12 +122,12 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
 
     // Distinct action types present, for the filter dropdown.
     final actionTypes = <String>{
-      for (final e in _entries)
+      for (final e in items)
         if (e.actionType.isNotEmpty) e.actionType,
     }.toList()..sort();
 
     final query = _userQuery.trim().toLowerCase();
-    final visible = _entries.where((e) {
+    final visible = items.where((e) {
       if (_actionFilter != null && e.actionType != _actionFilter) return false;
       if (query.isNotEmpty) {
         final actor = accordAuthorName(
@@ -199,7 +158,7 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
                   const Spacer(),
                   IconButton(
                     tooltip: 'Refresh',
-                    onPressed: _loading ? null : _load,
+                    onPressed: loading ? null : load,
                     icon: const Icon(Icons.refresh, size: 18),
                   ),
                   IconButton(
@@ -253,14 +212,14 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
             ),
             const Divider(height: 1),
             Flexible(
-              child: _error != null && _entries.isEmpty
+              child: error != null && items.isEmpty
                   ? Padding(
                       padding: const EdgeInsets.all(32),
                       child: Center(
-                        child: Text(_error!, style: theme.textTheme.bodyMedium),
+                        child: Text(error!, style: theme.textTheme.bodyMedium),
                       ),
                     )
-                  : _loading
+                  : loading
                   ? const Padding(
                       padding: EdgeInsets.all(32),
                       child: LoadingView(),
@@ -277,26 +236,14 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog> {
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.all(8),
-                      itemCount: visible.length + (_hasMore ? 1 : 0),
+                      itemCount: visible.length + (hasMore ? 1 : 0),
                       separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         if (index >= visible.length) {
-                          return Padding(
+                          return LoadMoreFooter(
+                            loading: loadingMore,
+                            onPressed: loadMore,
                             padding: const EdgeInsets.all(12),
-                            child: Center(
-                              child: _loadingMore
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : TextButton(
-                                      onPressed: _loadMore,
-                                      child: const Text('Load more'),
-                                    ),
-                            ),
                           );
                         }
                         final entry = visible[index];

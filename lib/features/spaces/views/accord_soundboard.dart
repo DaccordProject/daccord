@@ -2,6 +2,8 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -32,31 +34,26 @@ class _SoundboardDialog extends ConsumerStatefulWidget {
   ConsumerState<_SoundboardDialog> createState() => _SoundboardDialogState();
 }
 
-class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
-  List<AccordSound>? _sounds;
+class _SoundboardDialogState extends ConsumerState<_SoundboardDialog>
+    with SelfLoadingListState<AccordSound, _SoundboardDialog> {
   bool _busy = false;
-  String? _error;
   String _query = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
 
   AccordClient? get _client => ref.accordClient;
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    final result = await client.soundboard.list(widget.spaceId);
-    if (!mounted) return;
+  @override
+  bool get canLoad => _client != null;
+
+  @override
+  Future<(List<AccordSound>? items, String? error)> fetchItems() async {
+    final result = await _client!.soundboard.list(widget.spaceId);
     final data = result.data;
-    setState(() {
-      _sounds = result.ok && data is List
+    return (
+      result.ok && data is List
           ? data.whereType<AccordSound>().toList()
-          : <AccordSound>[];
-    });
+          : <AccordSound>[],
+      null,
+    );
   }
 
   Future<void> _play(AccordSound sound) async {
@@ -65,7 +62,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (client == null || id == null) return;
     final result = await client.soundboard.play(widget.spaceId, id);
     if (!mounted || result.ok) return;
-    setState(() => _error = 'Failed to play (join a voice channel first)');
+    setState(() => error = 'Failed to play (join a voice channel first)');
   }
 
   Future<void> _add() async {
@@ -81,7 +78,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (client == null) return;
     setState(() {
       _busy = true;
-      _error = null;
+      error = null;
     });
     final result = await client.soundboard.create(widget.spaceId, {
       'name': name,
@@ -90,9 +87,9 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (result.ok) {
-      await _load();
+      await load();
     } else {
-      setState(() => _error = 'Failed to add sound');
+      setState(() => error = 'Failed to add sound');
     }
   }
 
@@ -100,24 +97,11 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     final id = sound.id;
     final client = _client;
     if (id == null || client == null) return;
-    final controller = TextEditingController(text: sound.name);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename sound'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    final name = (await showTextPromptDialog(
+      context,
+      title: 'Rename sound',
+      initial: sound.name,
+    ))?.trim();
     if (name == null || name.isEmpty || name == sound.name || !mounted) return;
     final result = await client.soundboard.update(widget.spaceId, id, {
       'name': name,
@@ -126,7 +110,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (result.ok) {
       setState(() => sound.name = name);
     } else {
-      setState(() => _error = 'Failed to rename sound');
+      setState(() => error = 'Failed to rename sound');
     }
   }
 
@@ -146,7 +130,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (result.ok) {
       setState(() => sound.volume = volume);
     } else {
-      setState(() => _error = 'Failed to set volume');
+      setState(() => error = 'Failed to set volume');
     }
   }
 
@@ -156,17 +140,17 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
     if (client == null || id == null) return;
     setState(() {
       _busy = true;
-      _error = null;
+      error = null;
     });
     final result = await client.soundboard.delete(widget.spaceId, id);
     if (!mounted) return;
     setState(() => _busy = false);
     if (result.ok) {
       setState(
-        () => _sounds = (_sounds ?? const []).where((s) => s.id != id).toList(),
+        () => items = (items ?? const []).where((s) => s.id != id).toList(),
       );
     } else {
-      setState(() => _error = 'Failed to remove sound');
+      setState(() => error = 'Failed to remove sound');
     }
   }
 
@@ -174,7 +158,7 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final sounds = _sounds;
+    final sounds = items;
     return Dialog(
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -283,9 +267,9 @@ class _SoundboardDialogState extends ConsumerState<_SoundboardDialog> {
                         },
                       ),
               ),
-              if (_error != null) ...[
+              if (error != null) ...[
                 const SizedBox(height: 10),
-                InlineError(_error!, centered: false),
+                InlineError(error!, centered: false),
               ],
             ],
           ),

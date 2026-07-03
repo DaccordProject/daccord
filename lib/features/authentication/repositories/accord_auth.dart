@@ -4,6 +4,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/controllers/ready.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
+import 'package:bonfire/features/authentication/repositories/accord_session_store.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
@@ -11,10 +12,8 @@ import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
-import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:flutter/foundation.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_auth.g.dart';
@@ -33,6 +32,20 @@ class _Conn {
   });
 }
 
+/// Neutral result of an auth REST call, before any state publication: exactly
+/// one of [data] (success payload), [mfaTicket], or [error] is meaningful.
+class _AuthAttempt {
+  final Object? data;
+  final String? mfaTicket;
+  final String? error;
+
+  const _AuthAttempt._({this.data, this.mfaTicket, this.error});
+
+  factory _AuthAttempt.success(Object? data) => _AuthAttempt._(data: data);
+  factory _AuthAttempt.mfa(String ticket) => _AuthAttempt._(mfaTicket: ticket);
+  factory _AuthAttempt.error(String message) => _AuthAttempt._(error: message);
+}
+
 /// Authentication + connection lifecycle against Accord servers. The Accord
 /// replacement for the Discord-specific `Auth` provider.
 ///
@@ -46,10 +59,7 @@ class _Conn {
 /// connection without re-authenticating.
 @Riverpod(keepAlive: true)
 class AccordAuth extends _$AccordAuth {
-  static const _sessionBoxName = 'accord-session';
-  static const _sessionKey = 'session';
-  static const _accountsKey = 'accounts';
-
+  final _store = AccordSessionStore();
   final Map<String, _Conn> _connections = {};
   String? _activeKey;
 
@@ -92,35 +102,21 @@ class AccordAuth extends _$AccordAuth {
     required String password,
   }) async {
     state = const AccordAuthInProgress();
-
-    // A throwaway client used only to reach the unauthenticated REST routes.
-    final authClient = _restClientFor(server);
-    try {
-      final result = await authClient.auth.login({
-        'username': username,
-        'password': password,
-      });
-
-      if (!result.ok) {
-        return _fail(result.error?.message ?? 'Login failed');
-      }
-
-      final data = result.data;
-      if (data is Map && data['mfa_required'] == true) {
-        final next = AccordAuthMfaRequired(
-          ticket: data['ticket']?.toString() ?? '',
-          server: server,
-        );
-        state = next;
-        return next;
-      }
-
-      return await _completeLogin(server, data);
-    } catch (e) {
-      return _fail(e.toString());
-    } finally {
-      await authClient.dispose();
+    final attempt = await _attemptLogin(
+      server,
+      username: username,
+      password: password,
+    );
+    if (attempt.error != null) return _fail(attempt.error!);
+    if (attempt.mfaTicket != null) {
+      final next = AccordAuthMfaRequired(
+        ticket: attempt.mfaTicket!,
+        server: server,
+      );
+      state = next;
+      return next;
     }
+    return await _completeLogin(server, attempt.data);
   }
 
   /// Registers a new account on [server] and logs straight in. [displayName]
@@ -138,26 +134,14 @@ class AccordAuth extends _$AccordAuth {
       return _fail("Username can't be an email address.");
     }
     state = const AccordAuthInProgress();
-
-    final authClient = _restClientFor(server);
-    try {
-      final dn = displayName?.trim();
-      final result = await authClient.auth.register({
-        'username': username,
-        'password': password,
-        'display_name': (dn == null || dn.isEmpty) ? username : dn,
-      });
-
-      if (!result.ok) {
-        return _fail(result.error?.message ?? 'Registration failed');
-      }
-
-      return await _completeLogin(server, result.data);
-    } catch (e) {
-      return _fail(e.toString());
-    } finally {
-      await authClient.dispose();
-    }
+    final attempt = await _attemptRegister(
+      server,
+      username: username,
+      password: password,
+      displayName: displayName,
+    );
+    if (attempt.error != null) return _fail(attempt.error!);
+    return await _completeLogin(server, attempt.data);
   }
 
   /// Connects to [server] as an anonymous guest (read-only). The guest token is
@@ -187,16 +171,7 @@ class AccordAuth extends _$AccordAuth {
         if (!me.ok || me.data is! AccordUser) {
           return _fail(me.error?.message ?? 'Guest connection failed');
         }
-        final user = me.data as AccordUser;
-        final session = AccordSession(
-          server: server,
-          token: token,
-          tokenType: 'Bearer',
-          userId: user.id,
-          username: user.displayName ?? user.username,
-          avatar: user.avatar,
-          isAdmin: user.isAdmin,
-        );
+        final session = _sessionFrom(server, token, me.data as AccordUser);
         // Intentionally not persisted: guest sessions are transient.
         return await _addConnection(session, makeActive: true);
       } finally {
@@ -236,22 +211,9 @@ class AccordAuth extends _$AccordAuth {
     }
     final server = current.server;
     state = const AccordAuthInProgress();
-
-    final authClient = _restClientFor(server);
-    try {
-      final result = await authClient.auth.loginMfa({
-        'ticket': current.ticket,
-        'code': code,
-      });
-      if (!result.ok) {
-        return _fail(result.error?.message ?? 'Invalid two-factor code');
-      }
-      return await _completeLogin(server, result.data);
-    } catch (e) {
-      return _fail(e.toString());
-    } finally {
-      await authClient.dispose();
-    }
+    final attempt = await _attemptMfa(server, ticket: current.ticket, code: code);
+    if (attempt.error != null) return _fail(attempt.error!);
+    return await _completeLogin(server, attempt.data);
   }
 
   /// Resolves an [AccordAuthPasswordResetRequired] challenge: changes the
@@ -283,7 +245,7 @@ class AccordAuth extends _$AccordAuth {
           error: result.error?.message ?? 'Password change failed',
         );
       }
-      await _persist(pending);
+      await _store.persist(pending);
       return await _addConnection(pending, makeActive: true);
     } catch (e) {
       return _resetRequired(pending, error: e.toString());
@@ -298,8 +260,7 @@ class AccordAuth extends _$AccordAuth {
   /// background so the rail can show every server's spaces. Returns
   /// [AccordAuthLoggedOut] when nothing is stored.
   Future<AccordAuthState> restoreSession() async {
-    final box = await Hive.openBox(_sessionBoxName);
-    final raw = box.get(_sessionKey);
+    final raw = await _store.readActiveRaw();
     if (raw == null) {
       return const AccordAuthLoggedOut();
     }
@@ -309,7 +270,7 @@ class AccordAuth extends _$AccordAuth {
       active = AccordSession.fromJson(Map<String, dynamic>.from(raw as Map));
     } catch (e) {
       debugPrint('Failed to restore Accord session: $e');
-      await box.delete(_sessionKey);
+      await _store.deleteActive();
       return _fail(e.toString());
     }
 
@@ -339,8 +300,7 @@ class AccordAuth extends _$AccordAuth {
     _connections.clear();
     _activeKey = null;
 
-    final box = await Hive.openBox(_sessionBoxName);
-    await box.delete(_sessionKey);
+    await _store.deleteActive();
 
     ref.read(connectionsControllerProvider.notifier).clear();
     ref.invalidate(readStateControllerProvider);
@@ -370,7 +330,7 @@ class AccordAuth extends _$AccordAuth {
     try {
       final session = await _sessionFromToken(server, token, tokenType);
       if (session == null) return 'Token rejected';
-      await _persist(session);
+      await _store.persist(session);
       await _addConnection(session, makeActive: true);
       return null;
     } catch (e) {
@@ -385,25 +345,16 @@ class AccordAuth extends _$AccordAuth {
     required String username,
     required String password,
   }) async {
-    final authClient = _restClientFor(server);
-    try {
-      final result = await authClient.auth.login({
-        'username': username,
-        'password': password,
-      });
-      if (!result.ok) {
-        return AddServerOutcome.error(result.error?.message ?? 'Login failed');
-      }
-      final data = result.data;
-      if (data is Map && data['mfa_required'] == true) {
-        return AddServerOutcome.mfa(data['ticket']?.toString() ?? '');
-      }
-      return await _completeAddServer(server, data);
-    } catch (e) {
-      return AddServerOutcome.error(e.toString());
-    } finally {
-      await authClient.dispose();
+    final attempt = await _attemptLogin(
+      server,
+      username: username,
+      password: password,
+    );
+    if (attempt.error != null) return AddServerOutcome.error(attempt.error!);
+    if (attempt.mfaTicket != null) {
+      return AddServerOutcome.mfa(attempt.mfaTicket!);
     }
+    return await _completeAddServer(server, attempt.data);
   }
 
   /// Registers a new account on [server] and connects it as an additional
@@ -420,25 +371,14 @@ class AccordAuth extends _$AccordAuth {
     if (username.contains('@')) {
       return AddServerOutcome.error("Username can't be an email address.");
     }
-    final authClient = _restClientFor(server);
-    try {
-      final dn = displayName?.trim();
-      final result = await authClient.auth.register({
-        'username': username,
-        'password': password,
-        'display_name': (dn == null || dn.isEmpty) ? username : dn,
-      });
-      if (!result.ok) {
-        return AddServerOutcome.error(
-          result.error?.message ?? 'Registration failed',
-        );
-      }
-      return await _completeAddServer(server, result.data);
-    } catch (e) {
-      return AddServerOutcome.error(e.toString());
-    } finally {
-      await authClient.dispose();
-    }
+    final attempt = await _attemptRegister(
+      server,
+      username: username,
+      password: password,
+      displayName: displayName,
+    );
+    if (attempt.error != null) return AddServerOutcome.error(attempt.error!);
+    return await _completeAddServer(server, attempt.data);
   }
 
   /// Completes an MFA challenge raised by [addServerWithCredentials].
@@ -447,46 +387,23 @@ class AccordAuth extends _$AccordAuth {
     String ticket,
     String code,
   ) async {
-    final authClient = _restClientFor(server);
-    try {
-      final result = await authClient.auth.loginMfa({
-        'ticket': ticket,
-        'code': code,
-      });
-      if (!result.ok) {
-        return AddServerOutcome.error(
-          result.error?.message ?? 'Invalid two-factor code',
-        );
-      }
-      return await _completeAddServer(server, result.data);
-    } catch (e) {
-      return AddServerOutcome.error(e.toString());
-    } finally {
-      await authClient.dispose();
-    }
+    final attempt = await _attemptMfa(server, ticket: ticket, code: code);
+    if (attempt.error != null) return AddServerOutcome.error(attempt.error!);
+    return await _completeAddServer(server, attempt.data);
   }
 
+  /// The add-a-server counterpart to [_completeLogin]: same `{ user, token }`
+  /// parsing and connect, but reports through [AddServerOutcome] and (by
+  /// design) ignores `force_password_reset` — the add-server dialog has no
+  /// reset flow.
   Future<AddServerOutcome> _completeAddServer(
     AccordServer server,
     Object? data,
   ) async {
-    if (data is! Map) return AddServerOutcome.error('Malformed auth response');
-    final token = data['token']?.toString();
-    final user = data['user'];
-    if (token == null || user is! AccordUser) {
-      return AddServerOutcome.error('Auth response missing token or user');
-    }
-    final session = AccordSession(
-      server: server,
-      token: token,
-      tokenType: 'Bearer',
-      userId: user.id,
-      username: user.displayName ?? user.username,
-      avatar: user.avatar,
-      isAdmin: user.isAdmin,
-    );
-    await _persist(session);
-    await _addConnection(session, makeActive: true);
+    final parsed = _sessionFromAuthData(server, data);
+    if (parsed.error != null) return AddServerOutcome.error(parsed.error!);
+    await _store.persist(parsed.session!);
+    await _addConnection(parsed.session!, makeActive: true);
     return AddServerOutcome.ok();
   }
 
@@ -522,6 +439,123 @@ class AccordAuth extends _$AccordAuth {
     cdnUrl: server.cdnUrl,
   );
 
+  // The shared REST cores behind both the primary-login and add-a-server
+  // flows, which were previously near-verbatim clones of each other. Each
+  // opens a throwaway unauthenticated client, maps failures/exceptions to an
+  // [_AuthAttempt], and leaves state publication to the caller (primary login
+  // publishes global [AccordAuthState]s; add-a-server returns
+  // [AddServerOutcome]s so the home screen isn't bounced to login).
+
+  Future<_AuthAttempt> _attemptLogin(
+    AccordServer server, {
+    required String username,
+    required String password,
+  }) async {
+    final authClient = _restClientFor(server);
+    try {
+      final result = await authClient.auth.login({
+        'username': username,
+        'password': password,
+      });
+      if (!result.ok) {
+        return _AuthAttempt.error(result.error?.message ?? 'Login failed');
+      }
+      final data = result.data;
+      if (data is Map && data['mfa_required'] == true) {
+        return _AuthAttempt.mfa(data['ticket']?.toString() ?? '');
+      }
+      return _AuthAttempt.success(data);
+    } catch (e) {
+      return _AuthAttempt.error(e.toString());
+    } finally {
+      await authClient.dispose();
+    }
+  }
+
+  Future<_AuthAttempt> _attemptRegister(
+    AccordServer server, {
+    required String username,
+    required String password,
+    String? displayName,
+  }) async {
+    final authClient = _restClientFor(server);
+    try {
+      final dn = displayName?.trim();
+      final result = await authClient.auth.register({
+        'username': username,
+        'password': password,
+        'display_name': (dn == null || dn.isEmpty) ? username : dn,
+      });
+      if (!result.ok) {
+        return _AuthAttempt.error(
+          result.error?.message ?? 'Registration failed',
+        );
+      }
+      return _AuthAttempt.success(result.data);
+    } catch (e) {
+      return _AuthAttempt.error(e.toString());
+    } finally {
+      await authClient.dispose();
+    }
+  }
+
+  Future<_AuthAttempt> _attemptMfa(
+    AccordServer server, {
+    required String ticket,
+    required String code,
+  }) async {
+    final authClient = _restClientFor(server);
+    try {
+      final result = await authClient.auth.loginMfa({
+        'ticket': ticket,
+        'code': code,
+      });
+      if (!result.ok) {
+        return _AuthAttempt.error(
+          result.error?.message ?? 'Invalid two-factor code',
+        );
+      }
+      return _AuthAttempt.success(result.data);
+    } catch (e) {
+      return _AuthAttempt.error(e.toString());
+    } finally {
+      await authClient.dispose();
+    }
+  }
+
+  /// Builds the client-local session record for [user] authenticated against
+  /// [server] with [token] — the one place the user→session field mapping
+  /// lives.
+  AccordSession _sessionFrom(
+    AccordServer server,
+    String token,
+    AccordUser user, {
+    String tokenType = 'Bearer',
+  }) => AccordSession(
+    server: server,
+    token: token,
+    tokenType: tokenType,
+    userId: user.id,
+    username: user.displayName ?? user.username,
+    avatar: user.avatar,
+    isAdmin: user.isAdmin,
+  );
+
+  /// Parses an `{ user, token }` auth payload into a session, or an error
+  /// message when malformed. Shared by the login and add-a-server completions.
+  ({AccordSession? session, String? error}) _sessionFromAuthData(
+    AccordServer server,
+    Object? data,
+  ) {
+    if (data is! Map) return (session: null, error: 'Malformed auth response');
+    final token = data['token']?.toString();
+    final user = data['user'];
+    if (token == null || user is! AccordUser) {
+      return (session: null, error: 'Auth response missing token or user');
+    }
+    return (session: _sessionFrom(server, token, user), error: null);
+  }
+
   /// Verifies [token] against [server] and mints a session, or null if the
   /// token is rejected.
   Future<AccordSession?> _sessionFromToken(
@@ -533,15 +567,11 @@ class AccordAuth extends _$AccordAuth {
     try {
       final me = await probe.users.getMe();
       if (!me.ok || me.data is! AccordUser) return null;
-      final user = me.data as AccordUser;
-      return AccordSession(
-        server: server,
-        token: token,
+      return _sessionFrom(
+        server,
+        token,
+        me.data as AccordUser,
         tokenType: tokenType,
-        userId: user.id,
-        username: user.displayName ?? user.username,
-        avatar: user.avatar,
-        isAdmin: user.isAdmin,
       );
     } finally {
       await probe.dispose();
@@ -553,27 +583,13 @@ class AccordAuth extends _$AccordAuth {
     AccordServer server,
     Object? data,
   ) async {
-    if (data is! Map) {
-      return _fail('Malformed auth response');
-    }
-    final token = data['token']?.toString();
-    final user = data['user'];
-    if (token == null || user is! AccordUser) {
-      return _fail('Auth response missing token or user');
-    }
-    final session = AccordSession(
-      server: server,
-      token: token,
-      tokenType: 'Bearer',
-      userId: user.id,
-      username: user.displayName ?? user.username,
-      avatar: user.avatar,
-      isAdmin: user.isAdmin,
-    );
-    if (data['force_password_reset'] == true) {
+    final parsed = _sessionFromAuthData(server, data);
+    if (parsed.error != null) return _fail(parsed.error!);
+    final session = parsed.session!;
+    if (data is Map && data['force_password_reset'] == true) {
       return _resetRequired(session);
     }
-    await _persist(session);
+    await _store.persist(session);
     return await _addConnection(session, makeActive: true);
   }
 
@@ -583,71 +599,22 @@ class AccordAuth extends _$AccordAuth {
     return next;
   }
 
-  /// Persists [session] as the active session and upserts it into the saved
-  /// account list (keyed by user + server) for the account switcher. Enforces
-  /// one account per server: any other saved account on the same server is
-  /// dropped, so signing in as a new user replaces the old one rather than
-  /// leaving a stale duplicate.
-  Future<void> _persist(AccordSession session) async {
-    final box = await Hive.openBox(_sessionBoxName);
-    await box.put(_sessionKey, session.toJson());
-    final accounts = _readAccounts(box);
-    final key = _accountKey(session);
-    accounts.removeWhere((k, v) {
-      if (k == key || v is! Map) return false;
-      try {
-        final other = AccordSession.fromJson(Map<String, dynamic>.from(v));
-        return other.server.baseUrl == session.server.baseUrl;
-      } catch (_) {
-        return false;
-      }
-    });
-    accounts[key] = session.toJson();
-    await box.put(_accountsKey, accounts);
-  }
-
-  /// Records [session] as the persisted *active* pointer without touching the
-  /// saved-accounts list (already persisted when first added).
-  Future<void> _persistActive(AccordSession session) async {
-    final box = await Hive.openBox(_sessionBoxName);
-    await box.put(_sessionKey, session.toJson());
-  }
-
   String _accountKey(AccordSession session) => session.key;
 
-  Map<String, dynamic> _readAccounts(Box box) {
-    final raw = box.get(_accountsKey);
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-    return <String, dynamic>{};
-  }
-
   /// All saved accounts, for the switcher UI.
-  Future<List<AccordSession>> listAccounts() async {
-    final box = await Hive.openBox(_sessionBoxName);
-    final accounts = _readAccounts(box);
-    final result = <AccordSession>[];
-    for (final raw in accounts.values) {
-      if (raw is! Map) continue;
-      try {
-        result.add(AccordSession.fromJson(Map<String, dynamic>.from(raw)));
-      } catch (_) {
-        // Skip malformed saved accounts.
-      }
-    }
-    return result;
-  }
+  Future<List<AccordSession>> listAccounts() => _store.listAccounts();
 
   /// Switches the active session to a previously saved [session]. If it is
   /// already connected this just flips active; otherwise it connects it.
   Future<AccordAuthState> switchTo(AccordSession session) async {
     final key = _accountKey(session);
     if (_connections.containsKey(key)) {
-      await _persistActive(session);
+      await _store.persistActive(session);
       return _makeActive(key);
     }
     state = const AccordAuthInProgress();
     try {
-      await _persist(session);
+      await _store.persist(session);
       return await _addConnection(session, makeActive: true);
     } catch (e) {
       return _fail(e.toString());
@@ -659,10 +626,7 @@ class AccordAuth extends _$AccordAuth {
   /// signs out when none remain.
   Future<void> removeAccount(AccordSession session) async {
     final key = _accountKey(session);
-    final box = await Hive.openBox(_sessionBoxName);
-    final accounts = _readAccounts(box);
-    accounts.remove(key);
-    await box.put(_accountsKey, accounts);
+    await _store.removeAccount(key);
 
     final conn = _connections.remove(key);
     if (conn != null) {
@@ -680,7 +644,7 @@ class AccordAuth extends _$AccordAuth {
           ? _connections.keys.first
           : null;
       if (next != null) {
-        await _persistActive(_connections[next]!.session);
+        await _store.persistActive(_connections[next]!.session);
         _makeActive(next);
       } else {
         await logout();
@@ -689,14 +653,14 @@ class AccordAuth extends _$AccordAuth {
     }
 
     // Clear a stale active pointer left behind by a logged-out removal.
-    final rawActive = box.get(_sessionKey);
+    final rawActive = await _store.readActiveRaw();
     if (rawActive is Map) {
       try {
         final stored = AccordSession.fromJson(
           Map<String, dynamic>.from(rawActive),
         );
         if (_accountKey(stored) == key) {
-          await box.delete(_sessionKey);
+          await _store.deleteActive();
         }
       } catch (_) {
         // Ignore an unreadable active pointer.
@@ -820,9 +784,6 @@ class AccordAuth extends _$AccordAuth {
     // panes have data immediately; the gateway READY refreshes it.
     final cached = connections.spacesFor(key);
     ref.read(spacesControllerProvider.notifier).setSpaces(cached);
-    for (final space in cached) {
-      ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
-    }
 
     final status =
         ref.read(connectionsControllerProvider).connectionFor(key)?.status ??
@@ -832,7 +793,7 @@ class AccordAuth extends _$AccordAuth {
 
     final next = AccordAuthLoggedIn(client: conn.client, session: conn.session);
     state = next;
-    unawaited(_persistActive(conn.session));
+    unawaited(_store.persistActive(conn.session));
     return next;
   }
 

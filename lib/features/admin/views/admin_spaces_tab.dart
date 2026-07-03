@@ -3,6 +3,7 @@ import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -82,13 +83,11 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
   }
 
   Future<void> _create() async {
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => const _TextPromptDialog(
-        title: 'Create space',
-        label: 'Space name',
-        action: 'Create',
-      ),
+    final name = await showTextPromptDialog(
+      context,
+      title: 'Create space',
+      label: 'Space name',
+      confirmLabel: 'Create',
     );
     if (name == null || name.trim().isEmpty) return;
     final client = _client;
@@ -131,14 +130,12 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
   }
 
   Future<void> _transfer(AccordSpace space) async {
-    final newOwnerId = await showDialog<String>(
-      context: context,
-      builder: (ctx) => _TextPromptDialog(
-        title: "Transfer '${space.name}'",
-        label: 'New owner user ID',
-        hint: 'Copy a user ID from the Users tab',
-        action: 'Transfer',
-      ),
+    final newOwnerId = await showTextPromptDialog(
+      context,
+      title: "Transfer '${space.name}'",
+      label: 'New owner user ID',
+      helperText: 'Copy a user ID from the Users tab',
+      confirmLabel: 'Transfer',
     );
     if (newOwnerId == null || newOwnerId.trim().isEmpty) return;
     final client = _client;
@@ -279,61 +276,6 @@ class _SpaceRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Small single-field prompt dialog returning the entered text (or null).
-class _TextPromptDialog extends StatefulWidget {
-  const _TextPromptDialog({
-    required this.title,
-    required this.label,
-    required this.action,
-    this.hint,
-  });
-
-  final String title;
-  final String label;
-  final String action;
-  final String? hint;
-
-  @override
-  State<_TextPromptDialog> createState() => _TextPromptDialogState();
-}
-
-class _TextPromptDialogState extends State<_TextPromptDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: InputDecoration(
-          labelText: widget.label,
-          hintText: widget.hint,
-          border: const OutlineInputBorder(),
-        ),
-        onSubmitted: (v) => Navigator.of(context).pop(v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: Text(widget.action),
-        ),
-      ],
     );
   }
 }

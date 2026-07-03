@@ -105,34 +105,19 @@ Future<void> _removeServer(
   final server = conn.session.server;
   final label =
       (server.name?.isNotEmpty ?? false) ? server.name! : server.homeDomain;
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text("Remove '$label'?"),
-      content: const Text(
+  final confirmed = await showConfirmDialog(
+    context,
+    title: "Remove '$label'?",
+    message:
         'This disconnects your account and removes the server from this app, '
         'including any of its spaces. Nothing is deleted on the server, and you '
         'can add it back later with its address or an invite.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(ctx).colorScheme.error,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Remove'),
-        ),
-      ],
-    ),
+    confirmLabel: 'Remove',
+    danger: true,
   );
   if (confirmed != true) return;
   await ref.read(accordAuthProvider.notifier).removeAccount(conn.session);
-  messenger?.showSnackBar(SnackBar(content: Text("Removed '$label'")));
+  if (context.mounted) showInfoSnack(context, "Removed '$label'");
 }
 
 /// Copies a shareable invite link for [space] to the clipboard, reusing an
@@ -148,7 +133,6 @@ Future<void> _copyServerLink(
   final conn = ref.read(connectionsControllerProvider).connectionFor(serverKey);
   final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
   final baseUrl = conn?.session.server.baseUrl;
-  final messenger = ScaffoldMessenger.maybeOf(context);
   if (client == null) return;
 
   String? code;
@@ -177,16 +161,14 @@ Future<void> _copyServerLink(
     }
   }
   if (code == null) {
-    messenger?.showSnackBar(
-      const SnackBar(content: Text('Could not create an invite link')),
-    );
+    if (context.mounted) {
+      showInfoSnack(context, 'Could not create an invite link');
+    }
     return;
   }
   final link = baseUrl == null ? code : '$baseUrl/invite/$code';
   await Clipboard.setData(ClipboardData(text: link));
-  messenger?.showSnackBar(
-    const SnackBar(content: Text('Server link copied')),
-  );
+  if (context.mounted) showInfoSnack(context, 'Server link copied');
 }
 
 /// Confirms then leaves [space] *and deletes all the user's data* on its own
@@ -199,49 +181,33 @@ Future<void> _leaveAndDeleteSpace(
   AccordSpace space,
   String serverKey,
 ) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Leave & delete data'),
-      content: Text(
-        "This will permanently leave '${space.name}' and delete all your "
+  final confirmed = await showConfirmDialog(
+    context,
+    title: 'Leave & delete data',
+    message: "This will permanently leave '${space.name}' and delete all your "
         'messages, reactions, and data from this server. Your account stays '
         'active. This cannot be undone.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(ctx).colorScheme.error,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Leave & delete'),
-        ),
-      ],
-    ),
+    confirmLabel: 'Leave & delete',
+    danger: true,
   );
   if (confirmed != true || !context.mounted) return;
 
   final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
   if (client == null) return;
-  final messenger = ScaffoldMessenger.maybeOf(context);
   final result = await client.members.leaveMe(space.id, deleteData: true);
   if (!result.ok) {
-    messenger?.showSnackBar(
-      SnackBar(content: Text('Failed to leave: ${result.errorOr('unknown error')}')),
-    );
+    if (context.mounted) {
+      showErrorSnack(context, result, prefix: 'Failed to leave');
+    }
     return;
   }
   ref
       .read(connectionsControllerProvider.notifier)
       .removeSpace(serverKey, space.id);
   ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
-  messenger?.showSnackBar(
-    SnackBar(content: Text("Left '${space.name}' and deleted your data")),
-  );
+  if (context.mounted) {
+    showInfoSnack(context, "Left '${space.name}' and deleted your data");
+  }
 }
 
 /// Confirms then leaves [space] on its own connection, without deleting any
@@ -253,44 +219,28 @@ Future<void> _leaveSpace(
   AccordSpace space,
   String serverKey,
 ) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text("Leave '${space.name}'?"),
-      content: const Text(
-        'You will lose access to this server until you rejoin with an '
+  final confirmed = await showConfirmDialog(
+    context,
+    title: "Leave '${space.name}'?",
+    message: 'You will lose access to this server until you rejoin with an '
         'invite. Your messages stay on the server.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(ctx).colorScheme.error,
-          ),
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Leave'),
-        ),
-      ],
-    ),
+    confirmLabel: 'Leave',
+    danger: true,
   );
   if (confirmed != true || !context.mounted) return;
 
   final client = ref.read(accordAuthProvider.notifier).clientForKey(serverKey);
   if (client == null) return;
-  final messenger = ScaffoldMessenger.maybeOf(context);
   final result = await client.members.leaveMe(space.id);
   if (!result.ok) {
-    messenger?.showSnackBar(
-      SnackBar(content: Text('Failed to leave: ${result.errorOr('unknown error')}')),
-    );
+    if (context.mounted) {
+      showErrorSnack(context, result, prefix: 'Failed to leave');
+    }
     return;
   }
   ref
       .read(connectionsControllerProvider.notifier)
       .removeSpace(serverKey, space.id);
   ref.read(spacesControllerProvider.notifier).removeSpace(space.id);
-  messenger?.showSnackBar(SnackBar(content: Text("Left '${space.name}'")));
+  if (context.mounted) showInfoSnack(context, "Left '${space.name}'");
 }

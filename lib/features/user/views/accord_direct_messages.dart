@@ -1,10 +1,12 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/user_avatar.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
@@ -12,13 +14,13 @@ import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 part 'accord_direct_messages_conversations.dart';
 part 'accord_direct_messages_friends.dart';
 part 'accord_direct_messages_groups.dart';
+part 'accord_direct_messages_user_search.dart';
 
 /// Relationship type enum mirrored from the server: 1 = friend, 2 = blocked,
 /// 3 = pending incoming, 4 = pending outgoing.

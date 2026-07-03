@@ -1,3 +1,5 @@
+import 'package:accordkit/accordkit.dart'
+    show AccordMember, AccordUser, AccordVoiceState;
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
@@ -5,6 +7,9 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
+import 'package:bonfire/features/voice/services/voice_session.dart'
+    show VoiceSession;
+import 'package:bonfire/features/voice/utils/participant_display.dart';
 import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/features/voice/views/voice_text_panel.dart';
@@ -303,24 +308,19 @@ class _LobbyBody extends ConsumerWidget {
               alignment: WrapAlignment.center,
               spacing: 12,
               runSpacing: 12,
-              children: [
-                for (final vs in states)
-                  _LobbyAvatar(
-                    name: members?[vs.userId] != null
-                        ? accordMemberName(
-                            members![vs.userId],
-                            fallback: vs.userId,
-                          )
-                        : accordUserName(users[vs.userId], fallback: vs.userId),
-                    avatarUrl: members?[vs.userId] != null
-                        ? accordMemberAvatarUrl(members![vs.userId], cdnUrl)
-                        : accordAvatarUrl(users[vs.userId], cdnUrl),
-                    bg: accordAvatarColor(
-                      members?[vs.userId]?.user ?? users[vs.userId],
-                      vs.userId,
-                    ),
-                  ),
-              ],
+              children: states.map((vs) {
+                final display = participantDisplay(
+                  vs.userId,
+                  members: members,
+                  users: users,
+                  cdnUrl: cdnUrl,
+                );
+                return _LobbyAvatar(
+                  name: display.name,
+                  avatarUrl: display.avatarUrl,
+                  bg: display.color,
+                );
+              }).toList(),
             ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -436,52 +436,14 @@ class _ConnectedBody extends ConsumerWidget {
     final myId = ref.watchUserId();
     final session = ref.read(voiceControllerProvider.notifier).session;
 
-    String nameOf(String userId) => members?[userId] != null
-        ? accordMemberName(members![userId], fallback: userId)
-        : accordUserName(users[userId], fallback: userId);
-    String? avatarOf(String userId) => members?[userId] != null
-        ? accordMemberAvatarUrl(members![userId], cdnUrl)
-        : accordAvatarUrl(users[userId], cdnUrl);
-    Color bgOf(String userId) =>
-        accordAvatarColor(members?[userId]?.user ?? users[userId], userId);
-
-    final tiles = <_Tile>[];
-    for (final vs in states) {
-      final isMe = vs.userId == myId;
-      VideoTrack? camera;
-      if (vs.selfVideo && session != null) {
-        camera = isMe
-            ? session.localCameraTrack
-            : session.remoteCameraTrack(vs.userId);
-      }
-      tiles.add(
-        _Tile(
-          userId: vs.userId,
-          name: nameOf(vs.userId),
-          avatarUrl: avatarOf(vs.userId),
-          bg: bgOf(vs.userId),
-          track: camera,
-          isScreen: false,
-          muted: vs.selfMute || vs.selfDeaf,
-        ),
-      );
-      if (vs.selfStream && session != null) {
-        final screen = isMe
-            ? session.localScreenTrack
-            : session.remoteScreenTrack(vs.userId);
-        tiles.add(
-          _Tile(
-            userId: vs.userId,
-            name: nameOf(vs.userId),
-            avatarUrl: avatarOf(vs.userId),
-            bg: bgOf(vs.userId),
-            track: screen,
-            isScreen: true,
-            muted: false,
-          ),
-        );
-      }
-    }
+    final tiles = _buildTiles(
+      states: states,
+      members: members,
+      users: users,
+      cdnUrl: cdnUrl,
+      myId: myId,
+      session: session,
+    );
 
     if (tiles.isEmpty) {
       return const Center(child: Text('Connecting…'));
@@ -500,41 +462,132 @@ class _ConnectedBody extends ConsumerWidget {
         ? tiles.indexWhere((t) => t.userId == spotlightUserId)
         : tiles.indexWhere((t) => t.isScreen);
     if (spotlightIdx >= 0 && tiles.length > 1) {
-      final rest = [
-        for (var i = 0; i < tiles.length; i++)
-          if (i != spotlightIdx) tiles[i],
-      ];
-      return Column(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: tileWidget(tiles[spotlightIdx]),
-            ),
-          ),
-          SizedBox(
-            height: 110,
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(
-                context,
-              ).copyWith(scrollbars: false),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: [
-                  for (final t in rest)
-                    Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: AspectRatio(aspectRatio: 1, child: tileWidget(t)),
-                    ),
-                ],
-              ),
-            ),
-          ),
+      return _SpotlightLayout(
+        spotlight: tiles[spotlightIdx],
+        rest: [
+          for (var i = 0; i < tiles.length; i++)
+            if (i != spotlightIdx) tiles[i],
         ],
+        tileBuilder: tileWidget,
       );
     }
 
+    return _GridLayout(tiles: tiles, tileBuilder: tileWidget);
+  }
+
+  /// Builds one [_Tile] per participant (plus one per active screen share) —
+  /// pure data assembly, no widgets.
+  List<_Tile> _buildTiles({
+    required List<AccordVoiceState> states,
+    required Map<String, AccordMember>? members,
+    required Map<String, AccordUser>? users,
+    required String? cdnUrl,
+    required String? myId,
+    required VoiceSession? session,
+  }) {
+    final tiles = <_Tile>[];
+    for (final vs in states) {
+      final isMe = vs.userId == myId;
+      final display = participantDisplay(
+        vs.userId,
+        members: members,
+        users: users,
+        cdnUrl: cdnUrl,
+      );
+      VideoTrack? camera;
+      if (vs.selfVideo && session != null) {
+        camera = isMe
+            ? session.localCameraTrack
+            : session.remoteCameraTrack(vs.userId);
+      }
+      tiles.add(
+        _Tile(
+          userId: vs.userId,
+          name: display.name,
+          avatarUrl: display.avatarUrl,
+          bg: display.color,
+          track: camera,
+          isScreen: false,
+          muted: vs.selfMute || vs.selfDeaf,
+        ),
+      );
+      if (vs.selfStream && session != null) {
+        final screen = isMe
+            ? session.localScreenTrack
+            : session.remoteScreenTrack(vs.userId);
+        tiles.add(
+          _Tile(
+            userId: vs.userId,
+            name: display.name,
+            avatarUrl: display.avatarUrl,
+            bg: display.color,
+            track: screen,
+            isScreen: true,
+            muted: false,
+          ),
+        );
+      }
+    }
+    return tiles;
+  }
+}
+
+/// One spotlighted tile filling the body above a horizontal strip of the
+/// remaining tiles.
+class _SpotlightLayout extends StatelessWidget {
+  const _SpotlightLayout({
+    required this.spotlight,
+    required this.rest,
+    required this.tileBuilder,
+  });
+
+  final _Tile spotlight;
+  final List<_Tile> rest;
+  final Widget Function(_Tile) tileBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: tileBuilder(spotlight),
+          ),
+        ),
+        SizedBox(
+          height: 110,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              children: [
+                for (final t in rest)
+                  Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: AspectRatio(aspectRatio: 1, child: tileBuilder(t)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The plain participant grid; the column count steps up with the tile count.
+class _GridLayout extends StatelessWidget {
+  const _GridLayout({required this.tiles, required this.tileBuilder});
+
+  final List<_Tile> tiles;
+  final Widget Function(_Tile) tileBuilder;
+
+  @override
+  Widget build(BuildContext context) {
     final columns = tiles.length <= 1
         ? 1
         : tiles.length <= 4
@@ -549,7 +602,7 @@ class _ConnectedBody extends ConsumerWidget {
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
         childAspectRatio: 16 / 10,
-        children: [for (final t in tiles) tileWidget(t)],
+        children: [for (final t in tiles) tileBuilder(t)],
       ),
     );
   }

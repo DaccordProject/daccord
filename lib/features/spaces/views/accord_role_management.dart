@@ -1,9 +1,11 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
+import 'package:bonfire/shared/utils/string_ext.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
@@ -657,6 +659,8 @@ class _RoleEditorPaneState extends State<_RoleEditorPane> {
   }
 }
 
+/// The role editor's 28px rounded-square variant of [ColorSwatchChip]; keeps
+/// the role-value → color mapping (0 = "no color") local to this screen.
 class _ColorSwatch extends StatelessWidget {
   const _ColorSwatch({
     required this.value,
@@ -672,26 +676,17 @@ class _ColorSwatch extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final color = accordRoleColor(value);
-    return InkWell(
+    return ColorSwatchChip(
+      color: color ?? colors.darkGray,
+      selected: selected,
       onTap: onTap,
+      size: 28,
       borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: color ?? colors.darkGray,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: selected ? colors.dirtyWhite : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: color == null
-            ? Icon(Icons.format_color_reset, size: 16, color: colors.gray)
-            : (selected
-                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : null),
-      ),
+      borderWidth: 2,
+      icon: color == null ? Icons.format_color_reset : null,
+      iconColor: color == null ? colors.gray : Colors.white,
+      iconSize: 16,
+      ink: true,
     );
   }
 }
@@ -709,10 +704,7 @@ class _PermissionTile extends StatelessWidget {
   final bool enabled;
   final ValueChanged<bool> onChanged;
 
-  String get _label => perm
-      .split('_')
-      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-      .join(' ');
+  String get _label => titleCaseFromToken(perm);
 
   @override
   Widget build(BuildContext context) {

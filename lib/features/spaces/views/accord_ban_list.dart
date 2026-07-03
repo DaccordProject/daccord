@@ -5,6 +5,7 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -32,16 +33,14 @@ class _BanList extends ConsumerStatefulWidget {
   ConsumerState<_BanList> createState() => _BanListState();
 }
 
-class _BanListState extends ConsumerState<_BanList> {
-  List<_Ban>? _bans;
-  String? _error;
-  bool _busy = false;
+class _BanListState extends ConsumerState<_BanList>
+    with SelfLoadingListState<_Ban, _BanList> {
   String _query = '';
   final Set<String> _selected = {};
 
   /// Bans matching the current search query (by name or reason).
   List<_Ban> get _filtered {
-    final all = _bans ?? const <_Ban>[];
+    final all = items ?? const <_Ban>[];
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return all;
     return all
@@ -56,27 +55,12 @@ class _BanListState extends ConsumerState<_BanList> {
   AccordClient? get _client => ref.accordClient;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  bool get canLoad => _client != null;
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final result = await client.bans.list(widget.spaceId);
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _busy = false;
-        _error = result.errorOr('Failed to load bans');
-      });
-      return;
-    }
+  @override
+  Future<(List<_Ban>? items, String? error)> fetchItems() async {
+    final result = await _client!.bans.list(widget.spaceId);
+    if (!result.ok) return (null, result.errorOr('Failed to load bans'));
     final raw = result.data;
     final parsed = <_Ban>[];
     if (raw is List) {
@@ -84,10 +68,7 @@ class _BanListState extends ConsumerState<_BanList> {
         if (entry is Map) parsed.add(_Ban.fromJson(entry));
       }
     }
-    setState(() {
-      _busy = false;
-      _bans = parsed;
-    });
+    return (parsed, null);
   }
 
   Future<void> _unban(_Ban ban) async {
@@ -100,20 +81,20 @@ class _BanListState extends ConsumerState<_BanList> {
       confirmLabel: 'Unban',
     );
     if (ok != true || !mounted) return;
-    setState(() => _busy = true);
+    setState(() => loading = true);
     final result = await client.bans.remove(widget.spaceId, ban.userId);
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
-        _busy = false;
-        _error = result.errorOr('Failed to unban');
+        loading = false;
+        error = result.errorOr('Failed to unban');
       });
       return;
     }
     setState(() {
-      _bans?.removeWhere((b) => b.userId == ban.userId);
+      items?.removeWhere((b) => b.userId == ban.userId);
       _selected.remove(ban.userId);
-      _busy = false;
+      loading = false;
     });
   }
 
@@ -128,23 +109,23 @@ class _BanListState extends ConsumerState<_BanList> {
       confirmLabel: 'Unban',
     );
     if (ok != true || !mounted) return;
-    setState(() => _busy = true);
+    setState(() => loading = true);
     final failed = <String>[];
     for (final id in ids) {
       final result = await client.bans.remove(widget.spaceId, id);
       if (result.ok) {
-        _bans?.removeWhere((b) => b.userId == id);
+        items?.removeWhere((b) => b.userId == id);
       } else {
         failed.add(id);
       }
     }
     if (!mounted) return;
     setState(() {
-      _busy = false;
+      loading = false;
       _selected
         ..clear()
         ..addAll(failed);
-      _error = failed.isEmpty ? null : 'Failed to unban ${failed.length}';
+      error = failed.isEmpty ? null : 'Failed to unban ${failed.length}';
     });
   }
 
@@ -152,7 +133,7 @@ class _BanListState extends ConsumerState<_BanList> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final bans = _bans;
+    final bans = items;
     // Ensure any bans the API returned with only a userId resolve their name
     // on the next rebuild via the on-demand user cache.
     final users = ref.watch(accordUsersControllerProvider);
@@ -188,7 +169,7 @@ class _BanListState extends ConsumerState<_BanList> {
                   const Spacer(),
                   IconButton(
                     tooltip: 'Refresh',
-                    onPressed: _busy ? null : _load,
+                    onPressed: loading ? null : load,
                     icon: const Icon(Icons.refresh, size: 18),
                   ),
                   IconButton(
@@ -219,11 +200,13 @@ class _BanListState extends ConsumerState<_BanList> {
                     ),
                     const Spacer(),
                     TextButton(
-                      onPressed: _busy ? null : () => setState(_selected.clear),
+                      onPressed: loading
+                          ? null
+                          : () => setState(_selected.clear),
                       child: const Text('Clear'),
                     ),
                     FilledButton.icon(
-                      onPressed: _busy ? null : _bulkUnban,
+                      onPressed: loading ? null : _bulkUnban,
                       icon: const Icon(Icons.lock_open, size: 16),
                       label: const Text('Unban selected'),
                     ),
@@ -231,13 +214,13 @@ class _BanListState extends ConsumerState<_BanList> {
                 ),
               ],
               const SizedBox(height: 8),
-              if (_error != null)
+              if (error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: InlineError(_error!, centered: false),
+                  child: InlineError(error!, centered: false),
                 ),
               Flexible(
-                child: _busy && bans == null
+                child: loading && bans == null
                     ? const LoadingView()
                     : bans == null || bans.isEmpty
                     ? Padding(
@@ -279,7 +262,7 @@ class _BanListState extends ConsumerState<_BanList> {
                                   children: [
                                     Checkbox(
                                       value: selected,
-                                      onChanged: _busy
+                                      onChanged: loading
                                           ? null
                                           : (v) => setState(() {
                                               if (v == true) {
@@ -307,7 +290,9 @@ class _BanListState extends ConsumerState<_BanList> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 trailing: TextButton.icon(
-                                  onPressed: _busy ? null : () => _unban(ban),
+                                  onPressed: loading
+                                      ? null
+                                      : () => _unban(ban),
                                   icon: const Icon(Icons.lock_open, size: 16),
                                   label: const Text('Unban'),
                                 ),
