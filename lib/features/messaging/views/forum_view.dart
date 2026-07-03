@@ -1,10 +1,10 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
-import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/messaging/controllers/forum_posts.dart';
+import 'package:bonfire/features/messaging/views/post_composer_dialog.dart';
 import 'package:bonfire/features/messaging/views/thread_view.dart';
 import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
@@ -30,6 +30,10 @@ extension on ForumSort {
 /// author, created/last-activity times, reply count, and pinned badge, and
 /// exposes per-post actions (reply / edit / pin / delete). Replaces the message
 /// stream for `forum`-type channels.
+///
+/// The post list itself lives in [ForumPostsController] (keyed by channel),
+/// which self-loads and is kept live by the gateway dispatcher; this widget
+/// only holds UI state (sort order, the inline-open post).
 class ForumChannelView extends ConsumerStatefulWidget {
   const ForumChannelView({
     super.key,
@@ -55,7 +59,6 @@ class ForumChannelView extends ConsumerStatefulWidget {
 }
 
 class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
-  List<AccordMessage>? _posts;
   ForumSort _sort = ForumSort.latestActivity;
 
   /// The post whose thread is open inline in the message area, or null when the
@@ -64,39 +67,29 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   AccordMessage? _openPostMessage;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
   void didUpdateWidget(ForumChannelView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.channelId != widget.channelId) {
-      _posts = null;
+      // The post list follows the channel automatically (the controller is a
+      // per-channel family); only the inline-open thread is local UI state.
       _openPostMessage = null;
-      _load();
     }
   }
 
   AccordClient? get _client => ref.accordClient;
 
-  Future<void> _load() async {
+  ForumPostsController get _postsNotifier =>
+      ref.read(forumPostsControllerProvider(widget.channelId).notifier);
+
+  Future<void> _reload() async {
     final client = _client;
     if (client == null) return;
-    final result = await client.messages.listPosts(widget.channelId);
-    if (!mounted) return;
-    final data = result.data;
-    setState(() {
-      _posts = result.ok && data is List
-          ? data.whereType<AccordMessage>().toList()
-          : const [];
-    });
+    await _postsNotifier.reload(client);
   }
 
   /// Posts ordered by the active sort. Pinned posts always float to the top.
-  List<AccordMessage> get _sorted {
-    final posts = [...?_posts];
+  List<AccordMessage> _sorted(List<AccordMessage> posts) {
+    final sorted = [...posts];
     int byNewest(AccordMessage a, AccordMessage b) =>
         _instant(b.timestamp).compareTo(_instant(a.timestamp));
     int cmp(AccordMessage a, AccordMessage b) {
@@ -112,18 +105,36 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
       }
     }
 
-    posts.sort(cmp);
-    return posts;
+    sorted.sort(cmp);
+    return sorted;
   }
 
   Future<void> _newPost() async {
     final created = await showDialog<AccordMessage>(
       context: context,
-      builder: (_) => _NewPostDialog(channelId: widget.channelId),
+      builder: (dialogContext) => PostComposerDialog(
+        title: 'New post',
+        submitLabel: 'Post',
+        bodyLabel: 'Body (optional)',
+        initialTitle: '',
+        autofocusTitle: true,
+        onSubmit: (client, title, body) async {
+          final result = await client.messages.create(widget.channelId, {
+            'title': title,
+            if (body.isNotEmpty) 'content': body,
+          });
+          if (!dialogContext.mounted) return null;
+          final message = result.data;
+          if (result.ok && message is AccordMessage) {
+            Navigator.of(dialogContext).pop(message);
+            return null;
+          }
+          return 'Failed to create post';
+        },
+      ),
     );
-    if (created != null && mounted) {
-      setState(() => _posts = [created, ...?_posts]);
-    }
+    // Optimistic add; the gateway echo is deduped by [ForumPostsController.addPost].
+    if (created != null && mounted) _postsNotifier.addPost(created);
   }
 
   void _openPost(AccordMessage post) {
@@ -134,19 +145,13 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   /// the thread surfaced so the row reflects it without a full reload.
   void _onThreadClosed(AccordMessage post, ThreadResult? result) {
     if (!mounted) return;
-    setState(() {
-      _openPostMessage = null;
-      if (result == null) return;
-      final list = [...?_posts];
-      final index = list.indexWhere((m) => m.id == post.id);
-      if (index < 0) return;
-      if (result.deleted) {
-        list.removeAt(index);
-      } else if (result.root != null) {
-        list[index] = result.root!;
-      }
-      _posts = list;
-    });
+    setState(() => _openPostMessage = null);
+    if (result == null) return;
+    if (result.deleted) {
+      _postsNotifier.removePost(post.id);
+    } else if (result.root != null) {
+      _postsNotifier.updatePost(result.root!);
+    }
   }
 
   bool _isOwn(AccordMessage post) =>
@@ -159,38 +164,21 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
       post: post,
       withTitle: true,
     );
-    if (updated == null || !mounted) return;
-    setState(() {
-      final list = [...?_posts];
-      final index = list.indexWhere((m) => m.id == post.id);
-      if (index >= 0) list[index] = updated;
-      _posts = list;
-    });
+    if (updated != null && mounted) _postsNotifier.updatePost(updated);
   }
 
   Future<void> _deletePost(AccordMessage post) async {
     final client = _client;
     if (client == null) return;
     final confirmed = await confirmDeletePost(context, isPost: true);
-    if (confirmed != true) return;
-    final result = await client.messages.delete(widget.channelId, post.id);
-    if (!mounted || !result.ok) return;
-    setState(() => _posts = [...?_posts]..removeWhere((m) => m.id == post.id));
+    if (confirmed != true || !mounted) return;
+    await _postsNotifier.delete(client, post.id);
   }
 
   Future<void> _togglePin(AccordMessage post) async {
     final client = _client;
     if (client == null) return;
-    final result = post.pinned
-        ? await client.messages.unpin(widget.channelId, post.id)
-        : await client.messages.pin(widget.channelId, post.id);
-    if (!mounted || !result.ok) return;
-    setState(() {
-      final list = [...?_posts];
-      final i = list.indexWhere((m) => m.id == post.id);
-      if (i >= 0) list[i].pinned = !post.pinned;
-      _posts = list;
-    });
+    await _postsNotifier.togglePin(client, post);
   }
 
   void _showPostMenu(AccordMessage post, [Offset? position]) {
@@ -242,17 +230,10 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
         onClose: (result) => _onThreadClosed(openPost, result),
       );
     }
-    final posts = _posts;
-    // Compute once and capture in the itemBuilder closure so _sorted is not
-    // invoked O(n) times as items scroll into view.
-    final sorted = _sorted;
-    final members = widget.spaceId == null
-        ? null
-        : ref.watch(accordMembersControllerProvider(widget.spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
-    final ensureUser =
-        ref.read(accordUsersControllerProvider.notifier).ensure;
-    final cdnUrl = ref.watchCdnUrl();
+    final posts = ref.watch(forumPostsControllerProvider(widget.channelId));
+    // Compute once and capture in the itemBuilder closure so the sort is not
+    // re-run O(n) times as items scroll into view.
+    final sorted = posts == null ? const <AccordMessage>[] : _sorted(posts);
     return Stack(
       children: [
         Column(
@@ -270,7 +251,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
                           child: Text('No posts yet',
                               style: theme.textTheme.bodyMedium))
                       : RefreshIndicator(
-                          onRefresh: _load,
+                          onRefresh: _reload,
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
                             itemCount: sorted.length,
@@ -281,19 +262,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
                               return _PostRow(
                                 post: post,
                                 colors: colors,
-                                author: accordAuthorName(post.authorId,
-                                    members: members,
-                                    users: users,
-                                    ensure: ensureUser),
-                                avatarUrl: accordAuthorAvatarUrl(post.authorId,
-                                    members: members,
-                                    users: users,
-                                    cdnUrl: cdnUrl),
-                                avatarBg: accordAvatarColor(
-                                  members?[post.authorId]?.user ??
-                                      users[post.authorId],
-                                  post.authorId,
-                                ),
+                                spaceId: widget.spaceId,
                                 onTap: () => _openPost(post),
                                 onMenu: (pos) => _showPostMenu(post, pos),
                               );
@@ -367,29 +336,41 @@ class _SortBar extends StatelessWidget {
 }
 
 /// A single forum post row: avatar, title (+ pinned badge), author and
-/// created/last-activity metadata, reply count, and an overflow menu.
-class _PostRow extends StatelessWidget {
+/// created/last-activity metadata, reply count, and an overflow menu. Resolves
+/// the author identity itself with per-author `select` watches so a change to
+/// an unrelated member/user doesn't rebuild every row on the board.
+class _PostRow extends ConsumerWidget {
   const _PostRow({
     required this.post,
     required this.colors,
-    required this.author,
-    required this.avatarUrl,
-    required this.avatarBg,
+    required this.spaceId,
     required this.onTap,
     required this.onMenu,
   });
 
   final AccordMessage post;
   final BonfireThemeExtension colors;
-  final String author;
-  final String? avatarUrl;
-  final Color avatarBg;
+  final String? spaceId;
   final VoidCallback onTap;
   final void Function(Offset position) onMenu;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final authorId = post.authorId;
+    final member = spaceId == null
+        ? null
+        : ref.watch(accordMembersControllerProvider(spaceId!)
+            .select((m) => m?[authorId]));
+    final user =
+        ref.watch(accordUsersControllerProvider.select((m) => m[authorId]));
+    final ensure = ref.read(accordUsersControllerProvider.notifier).ensure;
+    final cdnUrl = ref.watchCdnUrl();
+    final author =
+        accordAuthorNameOf(authorId, member: member, user: user, ensure: ensure);
+    final avatarUrl =
+        accordAuthorAvatarUrlOf(member: member, user: user, cdnUrl: cdnUrl);
+    final avatarBg = accordAvatarColor(member?.user ?? user, authorId);
     final initial = accordInitial(author);
     final replies = post.replyCount;
     return Card(
@@ -433,7 +414,7 @@ class _PostRow extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(_metaLine(),
+                      Text(_metaLine(author),
                           style: theme.textTheme.labelMedium!
                               .copyWith(color: colors.gray),
                           maxLines: 1,
@@ -491,7 +472,7 @@ class _PostRow extends StatelessWidget {
     );
   }
 
-  String _metaLine() {
+  String _metaLine(String author) {
     final created = _relativeOrDate(post.timestamp);
     final parts = <String>['by $author'];
     if (created.isNotEmpty) parts.add(created);
@@ -545,122 +526,4 @@ String _relativeOrDate(String iso) {
   final dt = DateTime.tryParse(iso);
   if (dt == null) return '';
   return messageTimeString(dt.toLocal());
-}
-
-class _NewPostDialog extends ConsumerStatefulWidget {
-  const _NewPostDialog({required this.channelId});
-
-  final String channelId;
-
-  @override
-  ConsumerState<_NewPostDialog> createState() => _NewPostDialogState();
-}
-
-class _NewPostDialogState extends ConsumerState<_NewPostDialog> {
-  final TextEditingController _title = TextEditingController();
-  final TextEditingController _body = TextEditingController();
-  bool _busy = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _title.dispose();
-    _body.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final title = _title.text.trim();
-    final body = _body.text.trim();
-    if (title.isEmpty) {
-      setState(() => _error = 'Title is required');
-      return;
-    }
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
-    if (client == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final result = await client.messages.create(widget.channelId, {
-      'title': title,
-      if (body.isNotEmpty) 'content': body,
-    });
-    if (!mounted) return;
-    final message = result.data;
-    if (result.ok && message is AccordMessage) {
-      Navigator.of(context).pop(message);
-    } else {
-      setState(() {
-        _busy = false;
-        _error = 'Failed to create post';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('New post', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _title,
-                autofocus: true,
-                enabled: !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _body,
-                enabled: !_busy,
-                minLines: 3,
-                maxLines: 8,
-                decoration: const InputDecoration(
-                  labelText: 'Body (optional)',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!,
-                    style: theme.textTheme.bodySmall!
-                        .copyWith(color: theme.colorScheme.error)),
-              ],
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed:
-                        _busy ? null : () => Navigator.of(context).maybePop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    child: const Text('Post'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

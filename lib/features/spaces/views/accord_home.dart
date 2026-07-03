@@ -1,10 +1,7 @@
-import 'dart:convert';
-
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:collection/collection.dart';
-import 'package:pasteboard/pasteboard.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/views/channel_context_menu.dart';
@@ -13,28 +10,15 @@ import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/models/open_tab.dart';
+import 'package:bonfire/features/channels/utils/channel_reorder.dart';
 import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/features/developer/services/mcp_home_bridge.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
-import 'package:bonfire/features/member/utils/member_display.dart';
-import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
-import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
-import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
-import 'package:bonfire/features/messaging/views/emoji_picker.dart';
-import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
-import 'package:bonfire/features/messaging/views/forum_view.dart';
 import 'package:bonfire/features/messaging/views/thread_view.dart';
-import 'package:bonfire/features/messaging/views/image_lightbox.dart';
-import 'package:bonfire/features/messaging/views/inline_audio_player.dart';
-import 'package:bonfire/features/messaging/views/inline_video_player.dart';
-import 'package:bonfire/features/messaging/views/pinned_messages.dart';
-import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
-import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
-import 'package:bonfire/features/notifications/services/sound.dart';
-import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
@@ -47,8 +31,6 @@ import 'package:bonfire/features/spaces/views/accord_discovery.dart';
 import 'package:bonfire/features/spaces/views/accord_gates.dart';
 import 'package:bonfire/features/spaces/views/accord_channel_reorder.dart';
 import 'package:bonfire/features/spaces/views/accord_invites.dart';
-import 'package:bonfire/features/spaces/views/accord_reports.dart';
-import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/features/spaces/views/accord_search.dart';
 import 'package:bonfire/features/user/views/self_status_button.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
@@ -58,23 +40,21 @@ import 'package:bonfire/features/spaces/views/accord_space_settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/views/update_banner.dart';
 import 'package:bonfire/features/updates/views/web_update_prompt.dart';
-import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/components/server_unreachable.dart';
-import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_bar.dart';
 import 'package:bonfire/features/voice/views/voice_participants.dart';
 import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
-import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -87,12 +67,6 @@ part 'accord_home_rail_tiles.dart';
 part 'accord_home_space_actions.dart';
 part 'accord_home_tabs.dart';
 part 'accord_home_channels.dart';
-part 'accord_home_messages.dart';
-part 'accord_home_message_row.dart';
-part 'accord_home_mute_button.dart';
-part 'accord_home_reactions.dart';
-part 'accord_home_composer.dart';
-part 'accord_home_attachments.dart';
 
 /// The primary Accord screen: a three-pane view (space rail → channel list →
 /// message history) wired to the Accord controllers.
@@ -516,7 +490,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       children: [
         _TabStrip(onSelect: _selectTab),
         Expanded(
-          child: _MessagePane(
+          child: MessagePane(
             channel: channels?.firstWhereOrNull((c) => c.id == shownChannelId),
             channelId: shownChannelId,
             spaceId: effectiveSpaceId,
@@ -657,7 +631,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                         ],
                       ),
                       Expanded(
-                        child: _MessagePane(
+                        child: MessagePane(
                           channel: channels?.firstWhereOrNull(
                             (c) => c.id == shownChannelId,
                           ),

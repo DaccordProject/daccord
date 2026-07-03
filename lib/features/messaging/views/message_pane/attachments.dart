@@ -1,15 +1,4 @@
-part of 'accord_home.dart';
-
-String? _spaceIconUrl(AccordSpace space, String? cdnUrl) {
-  final icon = space.icon;
-  if (icon is! String || icon.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
-  if (icon.contains('/') || icon.startsWith('http')) {
-    return AccordCDN.resolvePath(icon, cdnUrl: cdn);
-  }
-  return AccordCDN.spaceIcon(space.id, icon,
-      format: AccordCDN.autoFormat(icon), cdnUrl: cdn);
-}
+part of 'message_pane.dart';
 
 /// Resolves an attachment's server-returned URL/path to an absolute CDN URL.
 String _attachmentUrl(AccordAttachment attachment, String? cdnUrl) =>

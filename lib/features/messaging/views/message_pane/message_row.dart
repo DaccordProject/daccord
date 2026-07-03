@@ -1,4 +1,4 @@
-part of 'accord_home.dart';
+part of 'message_pane.dart';
 
 class _MessageRow extends ConsumerStatefulWidget {
   const _MessageRow({
@@ -217,22 +217,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   Future<void> _delete() async {
     final client = _client;
     if (client == null || _busy) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete message'),
-        content: const Text('This message will be permanently deleted.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete message',
+      message: 'This message will be permanently deleted.',
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);

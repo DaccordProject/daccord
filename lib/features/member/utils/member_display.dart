@@ -192,10 +192,26 @@ String accordAuthorName(
   Map<String, AccordUser>? users,
   void Function(String userId)? ensure,
   String fallback = 'Unknown',
+}) =>
+    accordAuthorNameOf(
+      authorId,
+      member: members?[authorId],
+      user: users?[authorId],
+      ensure: ensure,
+      fallback: fallback,
+    );
+
+/// Single-author variant of [accordAuthorName], for per-row widgets that scope
+/// their cache watches to one author (`.select((m) => m[authorId])`) instead of
+/// passing whole member/user maps down the tree.
+String accordAuthorNameOf(
+  String authorId, {
+  AccordMember? member,
+  AccordUser? user,
+  void Function(String userId)? ensure,
+  String fallback = 'Unknown',
 }) {
-  final member = members?[authorId];
   if (member != null) return accordMemberName(member, fallback: fallback);
-  final user = users?[authorId];
   if (user != null) return accordUserName(user, fallback: fallback);
   ensure?.call(authorId);
   return fallback;
@@ -209,10 +225,22 @@ String? accordAuthorAvatarUrl(
   Map<String, AccordMember>? members,
   Map<String, AccordUser>? users,
   String? cdnUrl,
+}) =>
+    accordAuthorAvatarUrlOf(
+      member: members?[authorId],
+      user: users?[authorId],
+      cdnUrl: cdnUrl,
+    );
+
+/// Single-author variant of [accordAuthorAvatarUrl]. Companion to
+/// [accordAuthorNameOf].
+String? accordAuthorAvatarUrlOf({
+  AccordMember? member,
+  AccordUser? user,
+  String? cdnUrl,
 }) {
-  final member = members?[authorId];
   if (member != null) return accordMemberAvatarUrl(member, cdnUrl);
-  return accordAvatarUrl(users?[authorId], cdnUrl);
+  return accordAvatarUrl(user, cdnUrl);
 }
 
 /// An Accord role color (RGB integer) as a [Color], or null when unset

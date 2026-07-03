@@ -10,6 +10,8 @@ import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/forum_posts.dart';
+import 'package:bonfire/features/messaging/controllers/thread_replies.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/notifications/services/notification.dart';
@@ -18,7 +20,6 @@ import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
-import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -116,6 +117,23 @@ VoidCallback handleAccordEvents(
         unawaited(
           container
               .read(accordMessagesControllerProvider(channelId).notifier)
+              .reload(client),
+        );
+      }
+      // Open thread views and forum boards are caches of the same kind — they
+      // also missed events while disconnected, so refetch them too.
+      for (final key in [...activeThreadReplies]) {
+        unawaited(
+          container
+              .read(threadRepliesControllerProvider(key.channelId, key.rootId)
+                  .notifier)
+              .reload(client),
+        );
+      }
+      for (final channelId in [...activeForumChannels]) {
+        unawaited(
+          container
+              .read(forumPostsControllerProvider(channelId).notifier)
               .reload(client),
         );
       }
@@ -225,7 +243,6 @@ VoidCallback handleAccordEvents(
         .upsertSpace(serverKey, space);
     if (!isActive()) return;
     ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-    ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
   }
 
   subs.add(client.onSpaceCreate.listen(cacheSpace));
@@ -278,22 +295,145 @@ VoidCallback handleAccordEvents(
         .removeChannel(channel.id);
   }));
 
-  // ── Message cache (per channel) ──────────────────────────────────────────
-  // Only touch channels the UI has actually opened (see [activeMessageChannels])
-  // so we don't history-load every channel that receives a message.
+  // ── Incoming messages ────────────────────────────────────────────────────
+  // One `message.create` subscription fans out to four independent concerns —
+  // channel cache, read-state badge, mention notification, SFX — run in that
+  // order (the order the standalone subscriptions used to fire in). Shared
+  // reads (self-authorship, self-mention, settings, active/visible checks) are
+  // computed once; each concern keeps its own skip conditions, so a guard that
+  // silences the chime never suppresses the badge, and vice versa.
   subs.add(client.onMessageCreate.listen((message) {
-    if (!isActive()) return;
-    if (!activeMessageChannels.contains(message.channelId)) return;
-    container
-        .read(accordMessagesControllerProvider(message.channelId).notifier)
-        .addMessage(message);
+    final active = isActive();
+    final isOwn = isSelf(message.authorId);
+    final mentionsMe = mentionsSelf(message.mentions);
+    final isVisibleChannel =
+        active && message.channelId == accordVisibleChannelId;
+    final settings = ref.read(settingsControllerProvider);
+    final spaceMuted =
+        message.spaceId != null && settings.isSpaceMuted(message.spaceId!);
+
+    // Channel cache: only touch channels the UI has actually opened (see
+    // [activeMessageChannels]) so we don't history-load every channel that
+    // receives a message. Active connection only — its channels own the panes.
+    if (active && activeMessageChannels.contains(message.channelId)) {
+      container
+          .read(accordMessagesControllerProvider(message.channelId).notifier)
+          .addMessage(message);
+    }
+
+    // Thread views: a message carrying `thread_id` is a reply — route it into
+    // the matching open thread's replies cache (the composer's optimistic
+    // append is deduped by `addReply`). Same opened-only rule as above, via
+    // [activeThreadReplies].
+    final threadId = message.threadId;
+    if (active &&
+        threadId != null &&
+        activeThreadReplies
+            .contains((channelId: message.channelId, rootId: threadId))) {
+      container
+          .read(threadRepliesControllerProvider(message.channelId, threadId)
+              .notifier)
+          .addReply(message);
+    }
+
+    // Forum boards: a top-level (no `thread_id`) message in a channel with a
+    // live forum controller is a new root post — surface it on the board live.
+    // Only forum channels ever build that controller, so membership in
+    // [activeForumChannels] is also the cheap "is this a forum?" test.
+    if (active &&
+        threadId == null &&
+        activeForumChannels.contains(message.channelId)) {
+      container
+          .read(forumPostsControllerProvider(message.channelId).notifier)
+          .addPost(message);
+    }
+
+    // Read state (unread + mention badges): independent of the channel cache —
+    // every message that arrives in a channel other than the visible one marks
+    // that channel unread (with a bumped mention count when the user is
+    // mentioned). Runs for *every* connection so background servers light up
+    // their rail icon too — state is keyed by [serverKey] so colliding
+    // snowflakes don't cross-contaminate. Only the active connection
+    // suppresses the on-screen channel (the visible-channel pointer belongs to
+    // the active session). Mirrors `client_unread.gd`.
+    if (!isOwn && !isVisibleChannel) {
+      ref
+          .read(readStateControllerProvider(serverKey).notifier)
+          .markUnread(
+            message.channelId,
+            spaceId: message.spaceId,
+            isMention: message.mentionEveryone || mentionsMe,
+          );
+    }
+
+    // Mention notifications: fire for *any* mentioning message, even in
+    // channels the UI hasn't opened and on servers that aren't currently
+    // active (so a message on server B still notifies while you're on server
+    // A). [currentUserId] is per-connection, so author matching is correct on
+    // every server; only the *visible-channel* skip is active-connection
+    // -scoped, since that pointer belongs to the on-screen session.
+    final notify = MessageNotificationGate.shouldNotify(
+      notificationsEnabled: settings.notificationsEnabled,
+      suppressEveryone: settings.suppressEveryone,
+      isOwnMessage: isOwn,
+      isVisibleChannel: isVisibleChannel,
+      mentionsMe: mentionsMe,
+      mentionEveryone: message.mentionEveryone,
+      spaceMuted: spaceMuted,
+      channelLevel: settings.channelNotificationLevel(message.channelId),
+    );
+    if (notify) {
+      final author = ref.read(accordUsersControllerProvider)[message.authorId];
+      final name = accordUserName(author, fallback: 'New mention');
+      final body = message.content.trim();
+      showMentionNotification(
+        title: name,
+        body: body.isEmpty ? 'mentioned you' : body,
+      );
+    }
+
+    // Message SFX (mirrors the reference `play_for_message`): plays for *any*
+    // incoming message on *any* connection, gated by sound prefs + window
+    // focus, and never chimes for our own messages, a muted space (which stays
+    // silent like its suppressed banner), or the channel that's on screen
+    // (only the active connection owns the visible-channel pointer).
+    if (settings.soundsEnabled && !spaceMuted && !isOwn) {
+      final everyone = message.mentionEveryone && !settings.suppressEveryone;
+      soundManager.playForMessage(
+        isMention: mentionsMe || everyone,
+        isVisibleChannel: isVisibleChannel,
+        isMemberJoin: message.type == 'member_join',
+      );
+    }
   }));
+
+  // ── Message cache (per channel) ──────────────────────────────────────────
+  // Edits and deletes follow the same opened-channels rule as the cache block
+  // above.
   subs.add(client.onMessageUpdate.listen((message) {
     if (!isActive()) return;
-    if (!activeMessageChannels.contains(message.channelId)) return;
-    container
-        .read(accordMessagesControllerProvider(message.channelId).notifier)
-        .updateMessage(message);
+    if (activeMessageChannels.contains(message.channelId)) {
+      container
+          .read(accordMessagesControllerProvider(message.channelId).notifier)
+          .updateMessage(message);
+    }
+    // Route edits into open thread views (replies) and forum boards (root
+    // posts) the same way creates are routed; both mutators no-op on ids they
+    // don't hold.
+    final threadId = message.threadId;
+    if (threadId != null &&
+        activeThreadReplies
+            .contains((channelId: message.channelId, rootId: threadId))) {
+      container
+          .read(threadRepliesControllerProvider(message.channelId, threadId)
+              .notifier)
+          .updateReply(message);
+    }
+    if (threadId == null && activeForumChannels.contains(message.channelId)) {
+      container
+          .read(forumPostsControllerProvider(message.channelId).notifier)
+          .updatePost(message);
+    }
   }));
   subs.add(client.onMessageDelete.listen((data) {
     if (!isActive()) return;
@@ -301,31 +441,26 @@ VoidCallback handleAccordEvents(
     final messageId =
         data['id']?.toString() ?? data['message_id']?.toString();
     if (channelId == null || messageId == null) return;
-    if (!activeMessageChannels.contains(channelId)) return;
-    container
-        .read(accordMessagesControllerProvider(channelId).notifier)
-        .removeMessage(messageId);
-  }));
-
-  // ── Read state (unread + mention badges) ─────────────────────────────────
-  // Independent of the channel cache: every message that arrives in a channel
-  // other than the visible one marks that channel unread (with a bumped
-  // mention count when the user is mentioned). Runs for *every* connection so
-  // background servers light up their rail icon too — state is keyed by
-  // [serverKey] so colliding snowflakes don't cross-contaminate. Only the
-  // active connection suppresses the on-screen channel (the visible-channel
-  // pointer belongs to the active session). Mirrors `client_unread.gd`.
-  subs.add(client.onMessageCreate.listen((message) {
-    if (isSelf(message.authorId)) return;
-    if (isActive() && message.channelId == accordVisibleChannelId) return;
-    final mentionsMe = message.mentionEveryone || mentionsSelf(message.mentions);
-    ref
-        .read(readStateControllerProvider(serverKey).notifier)
-        .markUnread(
-          message.channelId,
-          spaceId: message.spaceId,
-          isMention: mentionsMe,
-        );
+    if (activeMessageChannels.contains(channelId)) {
+      container
+          .read(accordMessagesControllerProvider(channelId).notifier)
+          .removeMessage(messageId);
+    }
+    // The delete payload carries no `thread_id`, so fan the removal out to
+    // every open thread on this channel (usually at most one) and to an open
+    // forum board; removeReply/removePost no-op when the id isn't theirs.
+    for (final key in [...activeThreadReplies]) {
+      if (key.channelId != channelId) continue;
+      container
+          .read(threadRepliesControllerProvider(key.channelId, key.rootId)
+              .notifier)
+          .removeReply(messageId);
+    }
+    if (activeForumChannels.contains(channelId)) {
+      container
+          .read(forumPostsControllerProvider(channelId).notifier)
+          .removePost(messageId);
+    }
   }));
 
   // ── Read-state sync (multi-device) ───────────────────────────────────────
@@ -338,64 +473,6 @@ VoidCallback handleAccordEvents(
     ref
         .read(readStateControllerProvider(serverKey).notifier)
         .markRead(channelId);
-  }));
-
-  // ── Mention notifications ────────────────────────────────────────────────
-  // Independent of the channel cache: fire for *any* mentioning message, even
-  // in channels the UI hasn't opened and on servers that aren't currently
-  // active (so a message on server B still notifies while you're on server A).
-  // [currentUserId] is per-connection, so author matching is correct on every
-  // server; only the *visible-channel* skip is active-connection-scoped, since
-  // that pointer belongs to the on-screen session.
-  subs.add(client.onMessageCreate.listen((message) {
-    final settings = ref.read(settingsControllerProvider);
-
-    final notify = MessageNotificationGate.shouldNotify(
-      notificationsEnabled: settings.notificationsEnabled,
-      suppressEveryone: settings.suppressEveryone,
-      isOwnMessage: isSelf(message.authorId),
-      isVisibleChannel:
-          isActive() && message.channelId == accordVisibleChannelId,
-      mentionsMe: mentionsSelf(message.mentions),
-      mentionEveryone: message.mentionEveryone,
-      spaceMuted:
-          message.spaceId != null && settings.isSpaceMuted(message.spaceId!),
-      channelLevel: settings.channelNotificationLevel(message.channelId),
-    );
-    if (!notify) return;
-
-    final author = ref.read(accordUsersControllerProvider)[message.authorId];
-    final name = accordUserName(author, fallback: 'New mention');
-    final body = message.content.trim();
-    showMentionNotification(
-      title: name,
-      body: body.isEmpty ? 'mentioned you' : body,
-    );
-  }));
-
-  // ── Message SFX ──────────────────────────────────────────────────────────
-  // Independent of the channel cache (mirrors the reference `play_for_message`).
-  // Plays for *any* incoming message on *any* connection, gated by sound prefs
-  // + window focus, and never chimes for our own messages or the channel that's
-  // on screen (only the active connection owns the visible-channel pointer).
-  subs.add(client.onMessageCreate.listen((message) {
-    final settings = ref.read(settingsControllerProvider);
-    if (!settings.soundsEnabled) return;
-    // A muted space stays silent — no chime, mirroring the suppressed banner.
-    if (message.spaceId != null && settings.isSpaceMuted(message.spaceId!)) {
-      return;
-    }
-
-    if (isSelf(message.authorId)) return;
-
-    final everyone = message.mentionEveryone && !settings.suppressEveryone;
-    final isMention = mentionsSelf(message.mentions) || everyone;
-    soundManager.playForMessage(
-      isMention: isMention,
-      isVisibleChannel:
-          isActive() && message.channelId == accordVisibleChannelId,
-      isMemberJoin: message.type == 'member_join',
-    );
   }));
 
   // ── Reactions (per channel) ──────────────────────────────────────────────
@@ -650,9 +727,6 @@ Future<void> _loadSpaces(
   unawaited(SpaceCache.save(serverKey, spaces));
   if (!isActive()) return;
   ref.read(spacesControllerProvider.notifier).setSpaces(spaces);
-  for (final space in spaces) {
-    ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
-  }
 }
 
 /// Fetches each space's roles over REST (`GET /spaces/{id}/roles`) and populates

@@ -1,4 +1,4 @@
-part of 'accord_home.dart';
+part of 'message_pane.dart';
 
 class _Composer extends ConsumerStatefulWidget {
   const _Composer({

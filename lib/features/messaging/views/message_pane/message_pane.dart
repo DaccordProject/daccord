@@ -1,7 +1,67 @@
-part of 'accord_home.dart';
+/// The message pane shown for the selected channel on the home screen: channel
+/// header, scrolling message history (with paging, grouping, bulk selection),
+/// typing indicator, and composer — plus the voice/forum channel views it
+/// delegates to. Extracted from the spaces feature's `accord_home.dart` part
+/// cluster; [MessagePane] is the sole public entry point, everything else in
+/// the `part` files stays private to this library.
+library;
 
-class _MessagePane extends ConsumerStatefulWidget {
-  const _MessagePane({
+import 'dart:convert';
+
+import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
+import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/member/controllers/accord_members.dart';
+import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/member/utils/permissions.dart';
+import 'package:bonfire/features/member/views/accord_member_avatar.dart';
+import 'package:bonfire/features/member/views/accord_member_popout.dart';
+import 'package:bonfire/features/member/views/remote_origin_badge.dart';
+import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
+import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
+import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
+import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/views/emoji_picker.dart';
+import 'package:bonfire/features/messaging/views/forum_view.dart';
+import 'package:bonfire/features/messaging/views/image_lightbox.dart';
+import 'package:bonfire/features/messaging/views/inline_audio_player.dart';
+import 'package:bonfire/features/messaging/views/inline_video_player.dart';
+import 'package:bonfire/features/messaging/views/pinned_messages.dart';
+import 'package:bonfire/features/messaging/views/thread_view.dart';
+import 'package:bonfire/features/notifications/services/sound.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
+import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/utils/message_time.dart';
+import 'package:bonfire/features/spaces/views/accord_reports.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/voice/views/voice_view.dart';
+import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/context_menu.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/platform.dart';
+import 'package:bonfire/theme/theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:collection/collection.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pasteboard/pasteboard.dart';
+
+part 'attachments.dart';
+part 'composer.dart';
+part 'message_row.dart';
+part 'mute_button.dart';
+part 'reactions.dart';
+
+class MessagePane extends ConsumerStatefulWidget {
+  const MessagePane({
+    super.key,
     required this.channel,
     required this.channelId,
     required this.spaceId,
@@ -12,10 +72,10 @@ class _MessagePane extends ConsumerStatefulWidget {
   final String? spaceId;
 
   @override
-  ConsumerState<_MessagePane> createState() => _MessagePaneState();
+  ConsumerState<MessagePane> createState() => _MessagePaneState();
 }
 
-class _MessagePaneState extends ConsumerState<_MessagePane> {
+class _MessagePaneState extends ConsumerState<MessagePane> {
   AccordMessage? _replyTo;
   final ScrollController _scroll = ScrollController();
 
@@ -33,7 +93,7 @@ class _MessagePaneState extends ConsumerState<_MessagePane> {
   }
 
   @override
-  void didUpdateWidget(_MessagePane oldWidget) {
+  void didUpdateWidget(MessagePane oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Clear any pending reply or selection when switching channels.
     if (oldWidget.channelId != widget.channelId) {

@@ -1,5 +1,18 @@
 part of 'accord_home.dart';
 
+/// Resolves a space's icon (a bare hash, path, or absolute URL) to a CDN URL.
+/// Used by the rail's space tiles and the tab strip's space icons.
+String? _spaceIconUrl(AccordSpace space, String? cdnUrl) {
+  final icon = space.icon;
+  if (icon is! String || icon.isEmpty) return null;
+  final cdn = cdnUrl ?? '';
+  if (icon.contains('/') || icon.startsWith('http')) {
+    return AccordCDN.resolvePath(icon, cdnUrl: cdn);
+  }
+  return AccordCDN.spaceIcon(space.id, icon,
+      format: AccordCDN.autoFormat(icon), cdnUrl: cdn);
+}
+
 /// Payload carried while dragging a rail item, so a drop target can tell a
 /// space drag (reorder / move between folders) from a folder drag (reorder the
 /// whole folder) without overloading a bare id string.

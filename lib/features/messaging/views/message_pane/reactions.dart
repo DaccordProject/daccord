@@ -1,4 +1,4 @@
-part of 'accord_home.dart';
+part of 'message_pane.dart';
 
 /// Opens the full emoji picker to add a reaction to the message.
 class _ReactButton extends StatelessWidget {
