@@ -7,14 +7,12 @@ void main() {
     test('local user has no origin and is not remote', () {
       final user = AccordUser(id: '123', username: 'alice');
       expect(accordUserOrigin(user), isNull);
-      expect(accordIsRemoteUser(user), isFalse);
     });
 
     test('remote user origin comes from the field or a qualified id', () {
       final byField =
           AccordUser(id: '123@b.example', username: 'a', origin: 'b.example');
       expect(accordUserOrigin(byField), 'b.example');
-      expect(accordIsRemoteUser(byField), isTrue);
 
       final byId = AccordUser(id: '123@c.example', username: 'a');
       expect(accordUserOrigin(byId), 'c.example');
@@ -25,7 +23,7 @@ void main() {
         'space_id': '7@b.example',
         'user': {'id': '123@b.example', 'username': 'alice@b.example'},
       });
-      expect(accordIsRemoteMember(member), isTrue);
+      expect(member.isRemote, isTrue);
       expect(accordMemberOrigin(member), 'b.example');
     });
   });

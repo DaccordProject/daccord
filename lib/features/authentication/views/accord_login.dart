@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Server-URL + credentials login against an Accord server. The Daccord
@@ -454,7 +453,11 @@ class _Loading extends StatelessWidget {
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 30),
-        LoadingAnimationWidget.fourRotatingDots(color: color, size: 50),
+        SizedBox(
+          width: 50,
+          height: 50,
+          child: CircularProgressIndicator(color: color),
+        ),
       ],
     );
   }

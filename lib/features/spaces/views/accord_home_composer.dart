@@ -483,9 +483,11 @@ class _ComposerState extends ConsumerState<_Composer> {
   }
 }
 
-/// Resolves a space's `icon` reference to an absolute CDN URL, or null when the
-/// space has no icon. The field is either a bare asset hash or a
-/// server-relative/absolute path; both are handled.
+/// Compact "@" autocomplete popup rendered above the composer. Lists
+/// members of [spaceId] (and mentionable roles) whose name starts with —
+/// or contains — [query]; tapping inserts the handle into the composer via
+/// [onPick]. Hidden automatically by the composer when [query] becomes
+/// empty of matches.
 class _MentionPopup extends ConsumerWidget {
   const _MentionPopup({
     required this.spaceId,

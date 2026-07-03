@@ -69,7 +69,7 @@ final class AccordEmojisControllerProvider
 }
 
 String _$accordEmojisControllerHash() =>
-    r'fc3505875425b86155d0c763aad5f2f3492ff66f';
+    r'1a2bf9fa82c85e0db7e5d683d066facaf95fcc9b';
 
 /// A space's custom emoji, keyed by space ID. Self-loads via `emojis.list` the
 /// first time it's watched (once logged in). `null` means "not loaded yet";

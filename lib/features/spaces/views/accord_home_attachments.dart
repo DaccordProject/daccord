@@ -240,9 +240,3 @@ class _OlderHistoryHeader extends ConsumerWidget {
     return const SizedBox(height: 12);
   }
 }
-
-/// Compact "@" autocomplete popup rendered above the composer. Lists
-/// members of [spaceId] (and mentionable roles) whose name starts with —
-/// or contains — [query]; tapping inserts the handle into the composer via
-/// [onPick]. Hidden automatically by the composer when [query] becomes
-/// empty of matches.

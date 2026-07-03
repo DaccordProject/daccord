@@ -23,7 +23,6 @@ import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_keyboard_size/flutter_keyboard_size.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 
@@ -341,35 +340,20 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           : Color(settings.accentColor!),
     );
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              Flexible(
-                child: KeyboardSizeProvider(
-                  child: MaterialApp.router(
-                    title: 'Daccord',
-                    theme: theme,
-                    darkTheme: theme,
-                    routerConfig: routerController,
-                    // Apply accessibility prefs app-wide: scale all text by the
-                    // UI scale and honour reduced-motion. Done in the router
-                    // app's builder so the override sits above every route.
-                    builder: (context, child) => MediaQuery(
-                      data: MediaQuery.of(context).copyWith(
-                        textScaler: TextScaler.linear(settings.uiScale),
-                        disableAnimations: settings.reducedMotion,
-                      ),
-                      child: child ?? const SizedBox.shrink(),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+    return MaterialApp.router(
+      title: 'Daccord',
+      theme: theme,
+      darkTheme: theme,
+      routerConfig: routerController,
+      // Apply accessibility prefs app-wide: scale all text by the UI scale and
+      // honour reduced-motion. Done in the router app's builder so the
+      // override sits above every route.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(settings.uiScale),
+          disableAnimations: settings.reducedMotion,
+        ),
+        child: child ?? const SizedBox.shrink(),
       ),
     );
   }

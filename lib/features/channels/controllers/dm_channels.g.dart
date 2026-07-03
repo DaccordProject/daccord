@@ -72,7 +72,7 @@ final class DmChannelsControllerProvider
 }
 
 String _$dmChannelsControllerHash() =>
-    r'a23e172bac560a85818be5f89f881df08c9ea1ba';
+    r'2272e666774b594969d7e941a07de1fe86a8d7a9';
 
 /// Global cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a

@@ -88,12 +88,6 @@ String? accordUserOrigin(AccordUser? user) {
 /// The home domain of a remote (federated) member, or null when local.
 String? accordMemberOrigin(AccordMember? member) => member?.homeDomain;
 
-/// Whether [user] is homed on a remote (federated) server.
-bool accordIsRemoteUser(AccordUser? user) => accordUserOrigin(user) != null;
-
-/// Whether [member] is homed on a remote (federated) server.
-bool accordIsRemoteMember(AccordMember? member) => member?.isRemote ?? false;
-
 /// Resolves a user's `avatar` reference to an absolute CDN URL, or null when
 /// unset (callers fall back to an initial). The field is either a bare asset
 /// hash or a server-relative/absolute path; both are handled. For a remote
