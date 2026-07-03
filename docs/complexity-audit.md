@@ -1,5 +1,12 @@
 # Flutter complexity audit
 
+> **Status: implemented.** All four phases were executed on this branch (see the
+> commit series `refactor: …(audit phase N)`). An implementation record —
+> including every finding's outcome and the deliberate skips with rationale —
+> is in [Appendix: implementation record](#appendix-implementation-record) at
+> the bottom of this document. Gate held throughout: analyzer identical to the
+> pre-audit baseline (23 pre-existing infos), 431/431 tests green.
+
 Audit of `lib/` (193 Dart files, ~42k non-generated lines) and `pubspec.yaml` for
 overengineering: reinvented wheels, over-abstraction, duplication, dead code, god
 widgets, and state-management misuse. `packages/` internals (vendored accordkit,
@@ -206,3 +213,106 @@ Notes:
 20. E4 retire `SpaceController`; F1 move messaging parts out of `spaces/`;
     F2 optional `accord_` prefix rename (last, mechanical).
 21. D7 emoji data from package; E6 theme-token consolidation (optional, broad).
+
+## Appendix: implementation record
+
+Executed on this branch, 2026-07-03. Every change was gated on `flutter
+analyze` staying identical to the pre-audit baseline (23 pre-existing infos)
+and the full test suite (431 tests) staying green.
+
+### Implemented
+
+- **A1–A4 / B3–B4 / D4** — 21 unused dependencies removed (including the
+  `flutter_keyboard_size` wrapper with zero consumers and the whole
+  freezed / json_serializable / dart_mappable codegen stacks); dead federation
+  helpers and the swapped `_MentionPopup` doc comment fixed; `main.dart`'s
+  single-child wrapper chain collapsed.
+- **C1–C13, C17–C18** — the shared-helper adoption wave: `showConfirmDialog`
+  (8 sites), new `showTextPromptDialog` (7 sites), new `UserAvatar` /
+  `LabelPill` components, `SectionHeader` color param, `titleCaseFromToken`,
+  snack helpers (7 sites), `TosGate`, `participantDisplay`, `_RailIconTile`,
+  session factory + `AccordSessionStore`, shared `_UserSearchList` (3 DM
+  dialogs), shared `PostComposerDialog`, `SelfLoadingListState` /
+  `PaginatedListState` mixins + `LoadMoreFooter` (5 moderation screens),
+  `InlineError` adoption.
+- **C14** — `ColorSwatchChip` gained size/shape/icon/ink params; both bespoke
+  swatch pickers now render through it (palettes kept verbatim — they
+  deliberately differ from `avatarColorPalette`).
+- **C15** — channel drag-reorder flatten/diff extracted to
+  `channels/utils/channel_reorder.dart`, shared by the sidebar drag list and
+  the reorder dialog (their differing mid-drag reparenting semantics stay
+  per-surface, by design).
+- **C16/G4** — shared author-header/action-entry extraction between the main
+  message row and the thread reply row (see final commit).
+- **D1 (adjusted)** — the three copies of the registration rules collapsed
+  into `credential_validation.dart`. Deliberately NOT converted to
+  `Form`/`TextFormField.validator`: that would move errors from the existing
+  banner to inline field decorations — a visual behavior change.
+- **D3** — `ListView.builder` for the member roster and thread replies.
+- **D5** — already-logged-in redirect moved from a `build()` post-frame
+  callback into go_router's `redirect` (micro-difference: no one-frame login
+  flash when landing already-authenticated).
+- **E1** — `accord_auth.dart`: add-server flows deduplicated with the login
+  flows behind shared `_attempt*` cores; Hive persistence extracted to
+  `AccordSessionStore`. The connection-registry extraction the original
+  audit floated was NOT done — a registry object would still need `ref` and
+  the state setter, i.e. a manager wrapping a manager, the exact anti-pattern
+  this audit exists to remove.
+- **E2 [Δ]** — thread replies / forum posts migrated to keepAlive Riverpod
+  family controllers mirroring `AccordMessagesController`. **Intended
+  behavior improvement:** open threads/forums now receive live gateway
+  updates and reload on re-identify; previously they were static until
+  reopened.
+- **E3** — the four `onMessageCreate` gateway subscriptions merged into one
+  handler computing shared values once.
+- **E4** — `SpaceController` retired (six dual-write sites, one reader).
+- **E5** — whole-provider watches narrowed with `select()` in
+  `channel_permissions`, developer settings, and per-row author selects in
+  the thread/forum rows.
+- **B1 [Δ edge case]** — `voice_logic.dart` wired into
+  `voice_session.dart`/`voice.dart` as the single source of truth, so its
+  tests now cover production. One called-out edge: a double-fired disconnect
+  after a failed reconnect attempt now keeps the terminal `failed` state
+  instead of flipping to a stuck `reconnecting`.
+- **B2 [Δ fix]** — `backgroundConnectionControllerProvider` wired into
+  `MainWindow` per its own doc comment; the Android "Background connection"
+  settings toggle previously did nothing.
+- **F1** — the message-pane cluster (list/row/composer/reactions/attachments/
+  mute button) moved out of `spaces/views/` into
+  `messaging/views/message_pane/` as one library with `MessagePane` as its
+  only public symbol (pure move; git history preserved).
+- **G1–G7** — all seven god `build()` methods decomposed into per-section
+  private widgets (state stays in the State classes, watch scope unchanged).
+
+### Deliberately skipped, with rationale
+
+- **D2 (`server_uri` → `Uri.parse`)** — the hand-rolled parser is
+  *intentionally* non-standard for reference-client compatibility: it accepts
+  query-after-fragment (`host#name?token=x`), scheme-less input, and performs
+  no percent-decoding of `token`/`invite`. `Uri.parse` differs on all three,
+  so the swap fails this audit's own "genuinely covers the same cases"
+  constraint. ~30 test-locked lines; kept.
+- **D6 (forum overflow menu)** — the manual `RenderBox` anchor computation
+  feeds `showAccordContextMenu`, whose desktop-menu/mobile-bottom-sheet split
+  a `PopupMenuButton` cannot reproduce. Kept.
+- **D7 (emoji data from a package)** — would add a dependency to replace a
+  zero-dependency reviewed const table, against the supply-chain direction of
+  phase 1; the gap to the reference client's ~340 emoji is content, not code.
+  Extend `kEmojiCatalog` instead.
+- **C5 partially (3 SectionHeader sites)** — `SectionHeader`'s fixed
+  labelMedium/padding metrics cannot reproduce those sites' labelSmall+bold
+  at their insets without visual drift; left pixel-faithful. Mechanical
+  follow-ups if `SectionHeader` ever grows style knobs.
+- **A5 (`universal_io`)** — its two uses provide web-compilable `Directory`;
+  replacing it needs conditional-import scaffolding for two files — added
+  complexity, not removed.
+- **E6 (theme-token consolidation)** — mapping `colors.red` → 
+  `colorScheme.error` etc. across ~158 call sites changes rendered colors
+  (the values differ); a product/design decision, not a refactor.
+- **F2 (`accord_` filename prefix rename)** — a ~58-file pure-mechanical
+  rename would double this branch's review surface for a naming win; the
+  audit itself rated it "last, in isolation, or not at all". Recommended as a
+  standalone follow-up PR if wanted.
+- **E2 for the DM tabs** — their one-shot `setState` loads are the accepted
+  app-wide norm for static lists and were already reworked this branch
+  (`_UserSearchList`, `UserAvatar`); no live-update gap exists there.
