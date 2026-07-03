@@ -283,6 +283,17 @@ and the full test suite (431 tests) staying green.
   only public symbol (pure move; git history preserved).
 - **G1–G7** — all seven god `build()` methods decomposed into per-section
   private widgets (state stays in the State classes, watch scope unchanged).
+- **G1 follow-up (post-review)** — `accord_space_settings.dart`'s `build()`
+  decomposition (G1) kept every extracted section widget in the same file, so
+  the file itself grew past 1000 lines (935 → 1231) instead of shrinking.
+  Split into a `part`-file library — `accord_space_settings.dart` (entry
+  point + state, 573 lines), `accord_space_settings_form.dart` (banner/
+  overview/moderation/channels sections, 438 lines),
+  `accord_space_settings_management.dart` (membership/management/danger-zone
+  sections, 154 lines), `accord_space_settings_layout.dart` (the adaptive
+  two-column body, 73 lines) — mirroring the `accord_home.dart` /
+  `message_pane/` `part`-file pattern already used elsewhere in this branch.
+  Pure move, no behavior change.
 
 ### Deliberately skipped, with rationale
 
