@@ -10,6 +10,7 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/messaging/controllers/thread_replies.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
+import 'package:bonfire/features/messaging/views/message_author_header.dart';
 import 'package:bonfire/features/messaging/views/post_composer_dialog.dart';
 import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
@@ -458,28 +459,13 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
         : ref.read(accordMembersControllerProvider(widget.spaceId!))?[authorId];
     final user = ref.read(accordUsersControllerProvider)[authorId];
     final name = accordAuthorNameOf(authorId, member: member, user: user);
-    final entries = <AccordMenuEntry>[
-      if (_message.content.isNotEmpty)
-        AccordMenuEntry(
-          label: 'Copy text',
-          icon: Icons.copy_outlined,
-          onSelected: () =>
-              Clipboard.setData(ClipboardData(text: _message.content)),
-        ),
-      if (widget.isOwn)
-        AccordMenuEntry(
-          label: 'Edit',
-          icon: Icons.edit_outlined,
-          onSelected: _edit,
-        ),
-      if (_canDelete)
-        AccordMenuEntry(
-          label: 'Delete',
-          icon: Icons.delete_outline,
-          destructive: true,
-          onSelected: _delete,
-        ),
-    ];
+    final entries = buildMessageActionEntries(
+      content: _message.content,
+      canEdit: widget.isOwn,
+      canDelete: _canDelete,
+      onEdit: _edit,
+      onDelete: _delete,
+    );
     if (entries.isEmpty) return;
     showAccordContextMenu(context,
         entries: entries, globalPosition: position, title: name);
@@ -487,7 +473,6 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     // Per-row identity lookups, scoped to this author: watching just the one
     // cache entry means a change to an unrelated member/user doesn't rebuild
@@ -529,24 +514,12 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(name,
-                              style: theme.textTheme.titleSmall,
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_time,
-                            style: theme.textTheme.labelSmall!
-                                .copyWith(color: colors.gray)),
-                        if (_message.editedAt != null) ...[
-                          const SizedBox(width: 6),
-                          Text('(edited)',
-                              style: theme.textTheme.labelSmall!
-                                  .copyWith(color: colors.gray)),
-                        ],
-                      ],
+                    MessageAuthorHeader(
+                      name: name,
+                      ellipsizeName: true,
+                      time: _time,
+                      smallTime: true,
+                      edited: _message.editedAt != null,
                     ),
                     const SizedBox(height: 2),
                     if (_message.content.isNotEmpty)
