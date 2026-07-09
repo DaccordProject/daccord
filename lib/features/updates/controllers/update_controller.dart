@@ -158,6 +158,9 @@ class UpdateController extends _$UpdateController {
     // App Store builds update through the store; never check GitHub or arm the
     // periodic timer (see [kAppStoreBuild]).
     if (kAppStoreBuild) return;
+    // The web build ships whatever the server serves — there's nothing to
+    // download or install, so never check for releases or show the banner.
+    if (UniversalPlatform.isWeb) return;
     _timer ??= Timer.periodic(_throttle, (_) {
       if (ref.read(settingsControllerProvider).autoUpdateCheck) check();
     });
@@ -254,17 +257,34 @@ class UpdateController extends _$UpdateController {
   /// platform, in priority order. Kept in lockstep with [UpdateInstaller]: it
   /// extracts a `.tar.gz`/`.zip` bundle on Linux/Windows, mounts a `.dmg` on
   /// macOS, and hands a `.apk` to the system installer on Android. Package
-  /// formats the swap helper can't apply (`.deb`/`.rpm`/`.appimage`, setup
-  /// `.exe`/`.msi`) are deliberately excluded — they're download-only.
+  /// formats the swap helper can't apply (`.rpm`/`.appimage`, setup `.exe`/
+  /// `.msi`) are download-only.
+  ///
+  /// Desktop swaps need a writable install root (the helper renames it): a
+  /// package-manager install (root-owned `/opt`, `Program Files`,
+  /// `/Applications`) yields no swap asset. The one exception is a Linux `.deb`
+  /// install where `pkexec` is available — there the `.deb` *is* installable, by
+  /// reinstalling the package with elevated rights ([UpdateInstaller] routes a
+  /// `.deb` through `pkexec dpkg -i`).
   ///
   /// Windows uses the more-specific `windows-x86_64.zip` suffix before the
   /// generic `.zip` so the web build bundle (`daccord-web.zip`) is never
   /// mistakenly selected ahead of the actual Windows installer.
   List<String> get _installableExts {
     if (UniversalPlatform.isAndroid) return const ['.apk'];
-    if (UniversalPlatform.isWindows) return const ['windows-x86_64.zip', '.zip'];
-    if (UniversalPlatform.isMacOS) return const ['.dmg'];
-    if (UniversalPlatform.isLinux) return const ['.tar.gz'];
+    if (UniversalPlatform.isWindows) {
+      return UpdateInstaller.isInstallRootWritable
+          ? const ['windows-x86_64.zip', '.zip']
+          : const [];
+    }
+    if (UniversalPlatform.isMacOS) {
+      return UpdateInstaller.isInstallRootWritable ? const ['.dmg'] : const [];
+    }
+    if (UniversalPlatform.isLinux) {
+      if (UpdateInstaller.isInstallRootWritable) return const ['.tar.gz'];
+      // System install: update the package itself when we can elevate.
+      return UpdateInstaller.hasPrivilegedInstaller ? const ['.deb'] : const [];
+    }
     return const [];
   }
 
@@ -279,7 +299,13 @@ class UpdateController extends _$UpdateController {
     }
     if (UniversalPlatform.isMacOS) return const ['.dmg', '.pkg', '.zip'];
     if (UniversalPlatform.isLinux) {
-      return const ['.tar.gz', '.deb', '.rpm', '.appimage'];
+      // A non-writable (package-manager) install can't be swapped in place, so
+      // hand the user the package their manager applies (`.deb`) rather than the
+      // portable tarball they'd have to extract themselves. A writable install
+      // prefers the tarball — it's also the in-place asset.
+      return UpdateInstaller.isInstallRootWritable
+          ? const ['.tar.gz', '.deb', '.rpm', '.appimage']
+          : const ['.deb', '.rpm', '.appimage', '.tar.gz'];
     }
     return const [];
   }
@@ -312,10 +338,21 @@ class UpdateController extends _$UpdateController {
   /// platform, or null when none applies (the UI then offers a plain download).
   AppReleaseAsset? platformAsset() => _assetForExts(_installableExts);
 
-  /// Whether the running platform supports an in-place download-and-install
-  /// (desktop binary swap or Android APK install), and a matching asset exists.
+  /// Whether the running platform can download-and-install in place (desktop
+  /// binary swap, Android APK install, or Linux `.deb` reinstall via pkexec) and
+  /// a matching asset exists. [_installableExts] already encodes the
+  /// writability / privilege gating, so a package-manager install with no
+  /// applicable path yields no asset here and the UI offers a manual download.
   bool get canInstallInPlace =>
       !kAppStoreBuild && UpdateInstaller.isSupported && platformAsset() != null;
+
+  /// Whether applying the staged update will prompt for administrator
+  /// authentication — a Linux system-package (`.deb`) reinstall via pkexec. Lets
+  /// the UI warn before the polkit dialog appears.
+  bool get requiresPrivilegedInstall =>
+      UniversalPlatform.isLinux &&
+      !UpdateInstaller.isInstallRootWritable &&
+      (platformAsset()?.name.toLowerCase().endsWith('.deb') ?? false);
 
   /// Downloads and verifies the matching platform asset in the background,
   /// leaving it staged at [UpdatePhase.ready] for a one-click [applyUpdate].

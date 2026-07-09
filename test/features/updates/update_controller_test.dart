@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
+import 'package:bonfire/features/updates/services/update_installer.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,9 +80,15 @@ void main() {
     _tempDir = Directory.systemTemp.createTempSync('update-controller-test');
     Hive.init(_tempDir.path);
     await Hive.openBox('accord-settings');
+    // In tests `resolvedExecutable` is the Dart SDK binary, whose directory
+    // writability is host-dependent; pin it writable so asset-selection tests
+    // stay deterministic. Non-writable behaviour is exercised explicitly below.
+    UpdateInstaller.debugInstallRootWritable = true;
   });
 
   tearDown(() async {
+    UpdateInstaller.debugInstallRootWritable = null;
+    UpdateInstaller.debugHasPrivilegedInstaller = null;
     await Hive.deleteBoxFromDisk('accord-settings');
     await Hive.close();
     if (_tempDir.existsSync()) _tempDir.deleteSync(recursive: true);
@@ -116,6 +123,53 @@ void main() {
       // Sanity-check: the compile-time constant is off for normal test runs.
       // Store-build CI compiles with --dart-define=APP_STORE=true.
       expect(kAppStoreBuild, isFalse);
+    });
+
+    test('is false on a non-writable install with no privileged installer', () {
+      // A package-manager install (e.g. the Linux .deb under root-owned /opt)
+      // can't be swapped in place, and without pkexec there's no privileged
+      // path either — so the UI must fall back to a manual download.
+      if (_hostInstallableExt == null) return; // web/iOS: never in-place anyway
+      final c = makeContainer();
+      setLatest(c, _fullReleaseAssets);
+      expect(controllerOf(c).canInstallInPlace, isTrue); // writable (setUp)
+      UpdateInstaller.debugInstallRootWritable = false;
+      UpdateInstaller.debugHasPrivilegedInstaller = false;
+      expect(controllerOf(c).canInstallInPlace, isFalse);
+      // …but a manual download is still offered so the user isn't stuck.
+      expect(controllerOf(c).platformAssetUrl(), isNotNull);
+    });
+
+    test('non-writable Linux install prefers the .deb for manual download', () {
+      // With no privileged path, the manual fallback should hand over the
+      // package the user's manager applies (.deb), not the portable tarball.
+      if (!UniversalPlatform.isLinux) return;
+      final c = makeContainer();
+      UpdateInstaller.debugInstallRootWritable = false;
+      UpdateInstaller.debugHasPrivilegedInstaller = false;
+      setLatest(c, [
+        _asset('daccord-linux-x86_64.deb'),
+        _asset('daccord-linux-x86_64.tar.gz'),
+      ]);
+      expect(controllerOf(c).platformAssetUrl(), endsWith('.deb'));
+    });
+
+    test('non-writable Linux + pkexec installs the .deb in place (admin)', () {
+      // The one Linux exception: a system .deb install CAN self-update when
+      // pkexec is present — by reinstalling the package with elevated rights.
+      if (!UniversalPlatform.isLinux) return;
+      final c = makeContainer();
+      UpdateInstaller.debugInstallRootWritable = false;
+      UpdateInstaller.debugHasPrivilegedInstaller = true;
+      setLatest(c, [
+        _asset('daccord-linux-x86_64.deb'),
+        _asset('daccord-linux-x86_64.tar.gz'),
+      ]);
+      expect(controllerOf(c).canInstallInPlace, isTrue);
+      // The in-place asset is the package, not the tarball…
+      expect(controllerOf(c).platformAsset()!.name, endsWith('.deb'));
+      // …and the UI is told to warn about the admin prompt.
+      expect(controllerOf(c).requiresPrivilegedInstall, isTrue);
     });
   });
 

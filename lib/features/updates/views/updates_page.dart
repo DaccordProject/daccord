@@ -144,7 +144,12 @@ class UpdatesScreen extends ConsumerWidget {
                                       ? Icons.restart_alt
                                       : Icons.download,
                                 ),
-                          label: Text(_installLabel(update)),
+                          label: Text(
+                            _installLabel(
+                              update,
+                              notifier.requiresPrivilegedInstall,
+                            ),
+                          ),
                         );
                       }
                       // Prefer the matching platform asset (one-click download
@@ -204,8 +209,9 @@ class UpdatesScreen extends ConsumerWidget {
   }
 }
 
-/// Button label reflecting the current install phase.
-String _installLabel(UpdateState update) {
+/// Button label reflecting the current install phase. [needsAdmin] marks a
+/// Linux system-package reinstall that will prompt for administrator rights.
+String _installLabel(UpdateState update, bool needsAdmin) {
   switch (update.phase) {
     case UpdatePhase.downloading:
       final pct = (update.progress * 100).round();
@@ -213,12 +219,12 @@ String _installLabel(UpdateState update) {
     case UpdatePhase.verifying:
       return 'Verifying…';
     case UpdatePhase.ready:
-      return 'Restart & install';
+      return needsAdmin ? 'Install (admin)' : 'Restart & install';
     case UpdatePhase.installing:
       return 'Installing…';
     case UpdatePhase.failed:
       return 'Retry update';
     case UpdatePhase.idle:
-      return 'Download & install';
+      return needsAdmin ? 'Download & install (admin)' : 'Download & install';
   }
 }
