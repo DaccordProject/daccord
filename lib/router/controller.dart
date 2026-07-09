@@ -26,8 +26,15 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// Attached to the `/` route, so it also runs for every sub-route match; the
 /// location guard keeps `/switcher`, `/spaces`, `/settings`, and `/admin`
 /// reachable while logged in.
+///
+/// Guard on the full destination (`state.uri.path`), not `state.matchedLocation`:
+/// this redirect lives on the `/` route, and for a parent-route redirect
+/// go_router sets `matchedLocation` to that route's own matched segment (`/`),
+/// not the full incoming location. Using `matchedLocation` here would treat
+/// every sub-route (`/settings`, `/admin`, `/switcher`) as `/` and bounce it
+/// home while logged in.
 String? _redirectLoggedInToHome(BuildContext context, GoRouterState state) {
-  final location = state.matchedLocation;
+  final location = state.uri.path;
   if (location != '/' && location != '/login' && location != '/register') {
     return null;
   }
