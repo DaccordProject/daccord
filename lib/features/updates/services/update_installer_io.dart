@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -43,6 +44,77 @@ class UpdateInstaller {
       UniversalPlatform.isMacOS ||
       UniversalPlatform.isLinux ||
       UniversalPlatform.isAndroid;
+
+  /// Cached result of [isInstallRootWritable] — the install location can't
+  /// change while the app runs, so the probe is done at most once.
+  static bool? _installRootWritable;
+
+  /// Overrides the writability probe in tests, where `resolvedExecutable` is the
+  /// Dart/Flutter SDK binary and its directory's writability is both irrelevant
+  /// and host-dependent. Null in production (the real probe runs).
+  @visibleForTesting
+  static bool? debugInstallRootWritable;
+
+  /// Whether the (unprivileged) swap helper could actually replace the running
+  /// bundle in place — i.e. the install root's *parent* directory is writable,
+  /// so `mv "$root" "$root.old"` and the move-into-place can succeed.
+  ///
+  /// A package-manager install is not: the Linux `.deb` lands under root-owned
+  /// `/opt`, a macOS build may sit in `/Applications`, a Windows setup installs
+  /// to `Program Files`. There the helper's `mv`/`cp` silently fails and it
+  /// relaunches the *old* build — the update appears to apply but nothing
+  /// changes. Callers gate the one-click apply on this and fall back to a manual
+  /// download instead. Always true on Android (the system installer applies the
+  /// APK, not this helper).
+  static bool get isInstallRootWritable {
+    final override = debugInstallRootWritable;
+    if (override != null) return override;
+    if (UniversalPlatform.isAndroid) return true;
+    return _installRootWritable ??= _probeInstallRootWritable();
+  }
+
+  static bool _probeInstallRootWritable() {
+    try {
+      final probe = File(
+        p.join(p.dirname(_installRoot), '.daccord-update-probe'),
+      );
+      probe.writeAsStringSync('');
+      probe.deleteSync();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Cached result of [hasPrivilegedInstaller].
+  static bool? _hasPrivilegedInstaller;
+
+  /// Overrides the privileged-installer probe in tests. Null in production.
+  @visibleForTesting
+  static bool? debugHasPrivilegedInstaller;
+
+  /// Whether a privileged package install is available — i.e. Linux with
+  /// `pkexec` (polkit) present. Used to update a non-writable system install
+  /// (the `.deb` under root-owned `/opt`) by reinstalling the package with an
+  /// admin-authentication prompt, rather than the unprivileged binary swap.
+  /// Always false off Linux. Cheap + cached (called from widget builds).
+  static bool get hasPrivilegedInstaller {
+    final override = debugHasPrivilegedInstaller;
+    if (override != null) return override;
+    if (!UniversalPlatform.isLinux) return false;
+    return _hasPrivilegedInstaller ??= _probePkexec();
+  }
+
+  static bool _probePkexec() {
+    for (final path in const [
+      '/usr/bin/pkexec',
+      '/bin/pkexec',
+      '/usr/local/bin/pkexec',
+    ]) {
+      if (File(path).existsSync()) return true;
+    }
+    return false;
+  }
 
   /// Streams [url] to a temp file, reporting fractional progress (0..1) when the
   /// server sends a Content-Length. Returns the downloaded file's path.
@@ -169,7 +241,7 @@ class UpdateInstaller {
 
   /// The directory that holds the running desktop bundle (everything the swap
   /// must replace). On macOS this is the `.app` bundle itself.
-  String get _installRoot {
+  static String get _installRoot {
     final exe = Platform.resolvedExecutable;
     if (UniversalPlatform.isMacOS) {
       // …/Daccord.app/Contents/MacOS/daccord → …/Daccord.app
@@ -234,10 +306,16 @@ del "%~f0"
     ], mode: ProcessStartMode.detached);
   }
 
-  Future<void> _installLinux(File tarball) async {
+  Future<void> _installLinux(File asset) async {
+    // A system-package (`.deb`) install can't be swapped in place; reinstall the
+    // package with elevated rights instead (see [_installLinuxDeb]).
+    if (asset.path.toLowerCase().endsWith('.deb')) {
+      await _installLinuxDeb(asset);
+      return;
+    }
     final dir = await getTemporaryDirectory();
     final staged = await _extract(
-      tarball,
+      asset,
       Directory(p.join(dir.path, 'daccord-update', 'staged')),
     );
     final dst = _installRoot;
@@ -255,6 +333,50 @@ if mv "$dst" "$dst.old" 2>/dev/null; then
     rm -rf "$dst"; mv "$dst.old" "$dst"
   fi
 fi
+nohup "$dst/daccord" >/dev/null 2>&1 &
+rm -f "\$0"
+''');
+    await Process.start('bash', [
+      sh.path,
+    ], mode: ProcessStartMode.detached);
+  }
+
+  /// Updates a system-package install by reinstalling the downloaded [deb] with
+  /// `pkexec dpkg -i` — polkit shows an admin-authentication dialog, then dpkg
+  /// overwrites the running bundle under root-owned `/opt` (safe: Linux keeps a
+  /// running executable's inode until it exits). On success a detached helper
+  /// relaunches the freshly-installed binary once this process quits; on failure
+  /// or a cancelled prompt it throws so the app stays on the current version
+  /// with a clear message (and never quits). Requires an interactive polkit
+  /// agent — the desktop session provides one.
+  Future<void> _installLinuxDeb(File deb) async {
+    final ProcessResult result;
+    try {
+      result = await Process.run('pkexec', ['dpkg', '-i', deb.path]);
+    } on ProcessException {
+      throw UpdateInstallException(
+        'Could not start the privileged installer (pkexec).',
+      );
+    }
+    if (result.exitCode != 0) {
+      // pkexec: 126 = dialog dismissed, 127 = not authorized. Anything else is
+      // a dpkg failure — surface its stderr, trimmed, to help diagnose.
+      if (result.exitCode == 126 || result.exitCode == 127) {
+        throw UpdateInstallException('Update needs administrator approval.');
+      }
+      final err = (result.stderr as String? ?? '').trim();
+      throw UpdateInstallException(
+        err.isEmpty ? 'Package install failed.' : 'Package install failed: $err',
+      );
+    }
+    // dpkg has replaced the bundle in place; relaunch the new binary after we
+    // exit (same detached-waiter pattern as the swap helper).
+    final dst = _installRoot;
+    final pid = _pid;
+    final sh = await _writeHelper('relaunch.sh', '''
+#!/usr/bin/env bash
+set -u
+while kill -0 $pid 2>/dev/null; do sleep 0.5; done
 nohup "$dst/daccord" >/dev/null 2>&1 &
 rm -f "\$0"
 ''');

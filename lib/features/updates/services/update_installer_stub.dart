@@ -18,6 +18,19 @@ class UpdateInstaller {
   /// No in-place install path off a native platform.
   static bool get isSupported => false;
 
+  /// No in-place install off a native platform, so the install root is never
+  /// writable in the swap sense (the web build updates via the service worker).
+  static bool get isInstallRootWritable => false;
+
+  /// API parity with the native installer's test seam; unused off native.
+  static bool? debugInstallRootWritable;
+
+  /// No privileged package installer off a native platform.
+  static bool get hasPrivilegedInstaller => false;
+
+  /// API parity with the native installer's test seam; unused off native.
+  static bool? debugHasPrivilegedInstaller;
+
   Future<String> download(
     String url, {
     String? fileName,

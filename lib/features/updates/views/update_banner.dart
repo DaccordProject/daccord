@@ -30,11 +30,15 @@ class UpdateBanner extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    // A verified build is staged → offer the one-click apply.
+    // A verified build is staged → offer the one-click apply. A system-package
+    // install applies via pkexec, so warn that an admin prompt will appear.
     if (update.updateReady) {
+      final tail = notifier.requiresPrivilegedInstall
+          ? 'Tap to install (admin required).'
+          : 'Tap to restart & install.';
       return AppBanner(
         icon: Icons.system_update,
-        message: 'Update ready — ${release.name}. Tap to restart & install.',
+        message: 'Update ready — ${release.name}. $tail',
         onTap: update.installing ? () {} : () => notifier.applyUpdate(),
         onDismiss: () => notifier.dismissCurrent(),
       );

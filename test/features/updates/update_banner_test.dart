@@ -10,10 +10,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeUpdateController extends UpdateController {
-  _FakeUpdateController(this._state);
+  _FakeUpdateController(this._state, {bool requiresPrivilegedInstall = false})
+      : _requiresPrivilegedInstall = requiresPrivilegedInstall;
   final UpdateState _state;
+  final bool _requiresPrivilegedInstall;
   @override
   UpdateState build() => _state;
+  @override
+  bool get requiresPrivilegedInstall => _requiresPrivilegedInstall;
 }
 
 class _FakeSettingsController extends SettingsController {
@@ -32,11 +36,18 @@ const _newerRelease = AppRelease(
   publishedAt: '',
 );
 
-Widget _host({required UpdateState update, AccordSettings? settings}) =>
+Widget _host({
+  required UpdateState update,
+  AccordSettings? settings,
+  bool requiresPrivilegedInstall = false,
+}) =>
     ProviderScope(
       overrides: [
         updateControllerProvider.overrideWith(
-          () => _FakeUpdateController(update),
+          () => _FakeUpdateController(
+            update,
+            requiresPrivilegedInstall: requiresPrivilegedInstall,
+          ),
         ),
         settingsControllerProvider.overrideWith(
           () => _FakeSettingsController(settings ?? const AccordSettings()),
@@ -125,6 +136,26 @@ void main() {
 
       expect(find.textContaining('restart'), findsOneWidget);
       expect(find.textContaining('Update available'), findsNothing);
+    });
+
+    testWidgets(
+        'shows "admin required" text when updateReady and '
+        'requiresPrivilegedInstall (Linux system-package reinstall)',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(
+          update: const UpdateState(
+            latest: _newerRelease,
+            phase: UpdatePhase.ready,
+            stagedArchivePath: '/tmp/daccord.deb',
+          ),
+          requiresPrivilegedInstall: true,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('admin required'), findsOneWidget);
+      expect(find.textContaining('restart & install'), findsNothing);
     });
 
     testWidgets(
