@@ -726,9 +726,10 @@ jobs:
           PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
           ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
           ANDROID_AAB_PATH: build/app/outputs/bundle/playRelease/app-play-release.aab
-          # Default: push live to the internal testing track so testers get the
-          # build immediately. Override via repo variables for a different
-          # rollout (e.g. PLAY_RELEASE_STATUS=draft to upload without releasing).
-          PLAY_TRACK: ${{ vars.PLAY_TRACK || 'internal' }}
+          # Default: push live to the production track so a tagged release ships
+          # to all users. Override via repo variables for a different rollout
+          # (e.g. PLAY_TRACK=internal to stage to testers, or
+          # PLAY_RELEASE_STATUS=draft to upload without releasing).
+          PLAY_TRACK: ${{ vars.PLAY_TRACK || 'production' }}
           PLAY_RELEASE_STATUS: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
         run: bundle exec fastlane android play
