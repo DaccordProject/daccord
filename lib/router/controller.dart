@@ -33,7 +33,12 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// not the full incoming location. Using `matchedLocation` here would treat
 /// every sub-route (`/settings`, `/admin`, `/switcher`) as `/` and bounce it
 /// home while logged in.
-String? _redirectLoggedInToHome(BuildContext context, GoRouterState state) {
+///
+/// Public (not `_`-prefixed) and [visibleForTesting] so tests can exercise it
+/// against a real [GoRouter] instance without depending on the app's actual
+/// screen widgets.
+@visibleForTesting
+String? redirectLoggedInToHome(BuildContext context, GoRouterState state) {
   final location = state.uri.path;
   if (location != '/' && location != '/login' && location != '/register') {
     return null;
@@ -52,7 +57,7 @@ final routerController = GoRouter(
         routes: [
           GoRoute(
             path: '/',
-            redirect: _redirectLoggedInToHome,
+            redirect: redirectLoggedInToHome,
             builder: (context, state) => const AccordLoginScreen(),
             routes: [
               GoRoute(
