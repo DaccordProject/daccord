@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// Consolidates the identical private `_SectionHeader`/`_Header` widgets that
 /// were copy-pasted across the settings, developer, voice and privacy screens.
 class SectionHeader extends StatelessWidget {
-  const SectionHeader(this.title, {super.key, this.trailing});
+  const SectionHeader(this.title, {super.key, this.trailing, this.color});
 
   final String title;
 
@@ -14,13 +14,17 @@ class SectionHeader extends StatelessWidget {
   /// action). When present the title flexes and the right padding tightens.
   final Widget? trailing;
 
+  /// Overrides the label color (defaults to the theme's gray) — e.g. the
+  /// theme red for a "Danger zone" section.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final label = Text(
       title.toUpperCase(),
       style: Theme.of(context).textTheme.labelMedium!.copyWith(
-            color: colors.gray,
+            color: color ?? colors.gray,
             letterSpacing: 0.6,
           ),
     );

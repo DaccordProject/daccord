@@ -1,15 +1,4 @@
-part of 'accord_home.dart';
-
-String? _spaceIconUrl(AccordSpace space, String? cdnUrl) {
-  final icon = space.icon;
-  if (icon is! String || icon.isEmpty) return null;
-  final cdn = cdnUrl ?? '';
-  if (icon.contains('/') || icon.startsWith('http')) {
-    return AccordCDN.resolvePath(icon, cdnUrl: cdn);
-  }
-  return AccordCDN.spaceIcon(space.id, icon,
-      format: AccordCDN.autoFormat(icon), cdnUrl: cdn);
-}
+part of 'message_pane.dart';
 
 /// Resolves an attachment's server-returned URL/path to an absolute CDN URL.
 String _attachmentUrl(AccordAttachment attachment, String? cdnUrl) =>
@@ -240,9 +229,3 @@ class _OlderHistoryHeader extends ConsumerWidget {
     return const SizedBox(height: 12);
   }
 }
-
-/// Compact "@" autocomplete popup rendered above the composer. Lists
-/// members of [spaceId] (and mentionable roles) whose name starts with —
-/// or contains — [query]; tapping inserts the handle into the composer via
-/// [onPick]. Hidden automatically by the composer when [query] becomes
-/// empty of matches.

@@ -34,7 +34,12 @@ class DeveloperSettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final settings = ref.watch(settingsControllerProvider);
+    // The page only reads these two settings fields; select them so unrelated
+    // settings changes (theme, notifications, …) don't rebuild the page.
+    final mcpEnabled = ref
+        .watch(settingsControllerProvider.select((s) => s.mcpEnabled));
+    final mcpAllowedGroups = ref
+        .watch(settingsControllerProvider.select((s) => s.mcpAllowedGroups));
     final controller = ref.read(settingsControllerProvider.notifier);
     final server = ref.watch(mcpServerControllerProvider);
 
@@ -62,10 +67,10 @@ class DeveloperSettingsPage extends ConsumerWidget {
             subtitle: Text(server.listening
                 ? 'Listening on 127.0.0.1:${server.port}'
                 : 'Stopped'),
-            value: settings.mcpEnabled,
+            value: mcpEnabled,
             onChanged: (v) => controller.setMcpEnabled(v),
           ),
-          if (settings.mcpEnabled) ...[
+          if (mcpEnabled) ...[
             const _PortField(),
             const _TokenTile(),
             const Divider(height: 24),
@@ -74,7 +79,7 @@ class DeveloperSettingsPage extends ConsumerWidget {
               CheckboxListTile(
                 dense: true,
                 title: Text(_groupLabels[group] ?? group),
-                value: settings.mcpAllowedGroups.contains(group),
+                value: mcpAllowedGroups.contains(group),
                 onChanged: (v) =>
                     controller.setMcpGroupAllowed(group, v ?? false),
               ),

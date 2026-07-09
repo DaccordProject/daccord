@@ -5,6 +5,7 @@ import 'package:app_links/app_links.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/hive.dart';
+import 'package:bonfire/features/notifications/controllers/background_connection.dart';
 import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
@@ -23,7 +24,6 @@ import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_keyboard_size/flutter_keyboard_size.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 
@@ -332,6 +332,10 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // Keep opt-in error reporting alive; it activates/deactivates with the
     // persisted consent toggle.
     ref.watch(errorReportingControllerProvider);
+    // Keep the Android background-connection service controller alive so the
+    // foreground service starts/stops with the "Background connection" setting
+    // and login state (a no-op on every other platform and on Play builds).
+    ref.watch(backgroundConnectionControllerProvider);
     soundManager.enabled = settings.soundsEnabled;
     soundManager.volume = settings.sfxVolume;
     final theme = buildAppTheme(
@@ -341,35 +345,20 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           : Color(settings.accentColor!),
     );
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              Flexible(
-                child: KeyboardSizeProvider(
-                  child: MaterialApp.router(
-                    title: 'Daccord',
-                    theme: theme,
-                    darkTheme: theme,
-                    routerConfig: routerController,
-                    // Apply accessibility prefs app-wide: scale all text by the
-                    // UI scale and honour reduced-motion. Done in the router
-                    // app's builder so the override sits above every route.
-                    builder: (context, child) => MediaQuery(
-                      data: MediaQuery.of(context).copyWith(
-                        textScaler: TextScaler.linear(settings.uiScale),
-                        disableAnimations: settings.reducedMotion,
-                      ),
-                      child: child ?? const SizedBox.shrink(),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+    return MaterialApp.router(
+      title: 'Daccord',
+      theme: theme,
+      darkTheme: theme,
+      routerConfig: routerController,
+      // Apply accessibility prefs app-wide: scale all text by the UI scale and
+      // honour reduced-motion. Done in the router app's builder so the
+      // override sits above every route.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(settings.uiScale),
+          disableAnimations: settings.reducedMotion,
+        ),
+        child: child ?? const SizedBox.shrink(),
       ),
     );
   }

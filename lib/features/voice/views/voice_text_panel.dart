@@ -8,6 +8,7 @@ import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/utils/participant_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
@@ -100,13 +101,6 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final users = ref.watch(accordUsersControllerProvider);
     final cdnUrl = ref.watchCdnUrl();
 
-    String nameOf(String userId) => members?[userId] != null
-        ? accordMemberName(members![userId], fallback: userId)
-        : accordUserName(users[userId], fallback: userId);
-    String? avatarOf(String userId) => members?[userId] != null
-        ? accordMemberAvatarUrl(members![userId], cdnUrl)
-        : accordAvatarUrl(users[userId], cdnUrl);
-
     return Container(
       decoration: BoxDecoration(
         color: colors.background,
@@ -145,13 +139,16 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
                                 .read(accordUsersControllerProvider.notifier)
                                 .ensure(message.authorId);
                           }
+                          final display = participantDisplay(
+                            message.authorId,
+                            members: members,
+                            users: users,
+                            cdnUrl: cdnUrl,
+                          );
                           return _VoiceTextMessage(
-                            authorName: nameOf(message.authorId),
-                            avatarUrl: avatarOf(message.authorId),
-                            avatarBg: accordAvatarColor(
-                                members?[message.authorId]?.user ??
-                                    users[message.authorId],
-                                message.authorId),
+                            authorName: display.name,
+                            avatarUrl: display.avatarUrl,
+                            avatarBg: display.color,
                             content: message.content,
                             spaceId: widget.spaceId,
                             grouped: grouped,

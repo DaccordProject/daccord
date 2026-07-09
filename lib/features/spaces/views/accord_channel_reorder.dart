@@ -2,7 +2,8 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/channels/utils/channel_sort.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/features/channels/utils/channel_reorder.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -36,11 +37,11 @@ class _ChannelReorder extends ConsumerStatefulWidget {
 }
 
 class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
-  /// A flat ordering of `_Entry`s for the ReorderableListView. Categories carry
-  /// a parentId of null; channels carry the parent's id (or null when
-  /// uncategorized). Drag-reorder swaps the `_Entry` in the list; on save we
-  /// walk the list and PATCH any entry whose (parent, position) changed.
-  late List<_Entry> _items;
+  /// A flat ordering of [ChannelReorderEntry]s for the ReorderableListView.
+  /// Categories carry a parentId of null; channels carry the parent's id (or
+  /// null when uncategorized). Drag-reorder swaps the entry in the list; on
+  /// save we PATCH any entry whose (parent, position) changed.
+  late List<ChannelReorderEntry> _items;
   bool _busy = false;
   String? _error;
   bool _selecting = false;
@@ -51,32 +52,8 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
   @override
   void initState() {
     super.initState();
-    _items = _flatten(widget.channels);
-  }
-
-  static int _pos(AccordChannel c) => parseChannelPosition(c);
-
-  /// Builds the flat list: each category followed by its children, then
-  /// uncategorized channels at the end. Order within each group follows `position`.
-  static List<_Entry> _flatten(List<AccordChannel> channels) {
-    final sorted = [...channels]..sort((a, b) => _pos(a).compareTo(_pos(b)));
-    final categories = sorted.where((c) => c.type == 'category').toList();
-    final leaves = sorted.where((c) => c.type != 'category').toList();
-    final byParent = <String?, List<AccordChannel>>{};
-    for (final c in leaves) {
-      byParent.putIfAbsent(c.parentId, () => []).add(c);
-    }
-    final out = <_Entry>[];
-    for (final category in categories) {
-      out.add(_Entry.category(category));
-      for (final child in byParent[category.id] ?? const <AccordChannel>[]) {
-        out.add(_Entry.channel(child, parentId: category.id));
-      }
-    }
-    for (final channel in byParent[null] ?? const <AccordChannel>[]) {
-      out.add(_Entry.channel(channel, parentId: null));
-    }
-    return out;
+    _items = flattenChannelsForReorder(widget.channels,
+        uncategorizedFirst: false);
   }
 
   void _onReorder(int oldIndex, int newIndex) {
@@ -109,42 +86,12 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
       _busy = true;
       _error = null;
     });
-    // Walk the new ordering and PATCH any channel whose (parent, position)
-    // differs from the original. Position counts within each category bucket
-    // so siblings stay coherent (categories share a top-level bucket).
+    // PATCH any channel whose (parent, position) differs from the original.
     final updated = <AccordChannel>[];
-    final updates = <_Update>[];
-    int categoryPos = 0;
-    final childPos = <String?, int>{};
-    for (final entry in _items) {
-      final channel = entry.channel;
-      if (entry.isCategory) {
-        if (_pos(channel) != categoryPos) {
-          updates.add(_Update(channel.id, position: categoryPos));
-        }
-        categoryPos++;
-      } else {
-        final pos = childPos[entry.parentId] ?? 0;
-        childPos[entry.parentId] = pos + 1;
-        final parentChanged = channel.parentId != entry.parentId;
-        final positionChanged = _pos(channel) != pos;
-        if (parentChanged || positionChanged) {
-          updates.add(
-            _Update(
-              channel.id,
-              position: pos,
-              parentId: parentChanged ? entry.parentId : null,
-              includeParent: parentChanged,
-            ),
-          );
-        }
-      }
-    }
+    final updates = diffChannelPositions(_items);
 
     for (final u in updates) {
-      final body = <String, dynamic>{'position': u.position};
-      if (u.includeParent) body['parent_id'] = u.parentId;
-      final result = await client.channels.update(u.channelId, body);
+      final result = await client.channels.update(u.channelId, u.toBody());
       if (!result.ok) {
         if (!mounted) return;
         setState(() {
@@ -172,27 +119,12 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     final client = _client;
     if (client == null || _selected.isEmpty) return;
     final ids = _selected.toList();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete channels'),
-        content: Text(
-          'Delete ${ids.length} channel(s)? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete channels',
+      message: 'Delete ${ids.length} channel(s)? This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (ok != true || !mounted) return;
     setState(() {
@@ -420,25 +352,3 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
   }
 }
 
-class _Entry {
-  _Entry.category(this.channel) : isCategory = true, parentId = null;
-  _Entry.channel(this.channel, {required this.parentId}) : isCategory = false;
-
-  final AccordChannel channel;
-  final bool isCategory;
-  String? parentId;
-}
-
-class _Update {
-  const _Update(
-    this.channelId, {
-    required this.position,
-    this.parentId,
-    this.includeParent = false,
-  });
-
-  final String channelId;
-  final int position;
-  final String? parentId;
-  final bool includeParent;
-}

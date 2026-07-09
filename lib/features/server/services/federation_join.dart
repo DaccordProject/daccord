@@ -1,5 +1,4 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +43,6 @@ Future<FederatedJoinResult> joinFederatedSpace(
   final space = fetched.data;
   if (fetched.ok && space is AccordSpace) {
     ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-    ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
   }
   return (spaceId: mirrored, error: null);
 }

@@ -4,8 +4,6 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_linux
-  file_selector_linux
-  flutter_localization
   flutter_webrtc
   gtk
   livekit_client
@@ -14,7 +12,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   pasteboard
   screen_retriever_linux
   url_launcher_linux
-  webcrypto
   window_manager
 )
 

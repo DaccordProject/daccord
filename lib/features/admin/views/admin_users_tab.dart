@@ -4,6 +4,7 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/shared/components/label_pill.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -308,10 +309,10 @@ class _UserRow extends StatelessWidget {
           ),
           if (user.disabled) ...[
             const SizedBox(width: 6),
-            _Badge('Disabled', colors.gray),
+            LabelPill('Disabled', color: colors.gray),
           ] else if (user.isAdmin) ...[
             const SizedBox(width: 6),
-            _Badge('Admin', colors.primary),
+            LabelPill('Admin', color: colors.primary),
           ],
         ],
       ),
@@ -350,29 +351,6 @@ class _UserRow extends StatelessWidget {
             child: Text('Delete user', style: TextStyle(color: colors.red)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge(this.label, this.color);
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-            fontSize: 10, color: color, fontWeight: FontWeight.w600),
       ),
     );
   }

@@ -1,4 +1,4 @@
-part of 'accord_home.dart';
+part of 'message_pane.dart';
 
 /// A bell toggle in the channel header that mutes/unmutes notifications for the
 /// channel. Loads the user's muted-channel list once per channel and flips it

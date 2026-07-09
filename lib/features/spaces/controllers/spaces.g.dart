@@ -53,7 +53,7 @@ final class SpacesControllerProvider
   }
 }
 
-String _$spacesControllerHash() => r'cf2723d2eaf7e592c5b16e0fafc916d19c8583a0';
+String _$spacesControllerHash() => r'1845af5b427770ccb699dfba5a1f3168763e296b';
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space

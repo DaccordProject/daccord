@@ -5,7 +5,6 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
-import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -61,7 +60,6 @@ class _TransferOwnershipDialogState
     final space = result.data;
     if (result.ok && space is AccordSpace) {
       ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-      ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
       Navigator.of(context).pop();
     } else {
       setState(() {

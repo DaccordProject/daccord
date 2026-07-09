@@ -224,7 +224,6 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
     // Categories the new channel can be nested under (edit keeps the channel's
     // own category fixed for simplicity).
@@ -245,157 +244,52 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
               Text(_isEdit ? 'Edit channel' : 'Create channel',
                   style: theme.textTheme.titleMedium),
               const SizedBox(height: 16),
-              TextField(
+              _ChannelNameField(
                 controller: _name,
-                autofocus: true,
                 enabled: !_busy,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => _submit(),
+                onSubmitted: _submit,
               ),
               const SizedBox(height: 12),
-              if (!_isEdit) ...[
-                DropdownButtonFormField<String>(
-                  initialValue: _type,
-                  decoration: const InputDecoration(
-                    labelText: 'Type',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (final t in _channelTypes)
-                      DropdownMenuItem(
-                        value: t.value,
-                        child: Row(
-                          children: [
-                            Icon(t.icon, size: 16, color: colors.dirtyWhite),
-                            const SizedBox(width: 8),
-                            Text(t.label),
-                          ],
-                        ),
-                      ),
-                  ],
-                  onChanged:
-                      _busy ? null : (v) => setState(() => _type = v ?? 'text'),
+              if (!_isEdit)
+                _CreateTypeSelector(
+                  type: _type,
+                  parentId: _parentId,
+                  categories: categories,
+                  busy: _busy,
+                  onTypeChanged: (v) => setState(() => _type = v ?? 'text'),
+                  onParentChanged: (v) => setState(() => _parentId = v),
                 ),
-                const SizedBox(height: 12),
-                if (_type != 'category' && categories.isNotEmpty)
-                  DropdownButtonFormField<String?>(
-                    initialValue: _parentId,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      isDense: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('None')),
-                      for (final c in categories)
-                        DropdownMenuItem(
-                            value: c.id, child: Text(c.name ?? c.id)),
-                    ],
-                    onChanged:
-                        _busy ? null : (v) => setState(() => _parentId = v),
-                  ),
-                if (_type != 'category' && categories.isNotEmpty)
-                  const SizedBox(height: 12),
-              ],
               // Edit mode: allow switching between non-destructive (text-like)
               // types only. Voice/category/forum channels show no selector since
               // no safe conversion exists.
-              if (_isEdit && _textLikeTypes.contains(widget.channel!.type)) ...[
-                DropdownButtonFormField<String>(
-                  initialValue:
-                      _textLikeTypes.contains(_type) ? _type : widget.channel!.type,
-                  decoration: const InputDecoration(
-                    labelText: 'Type',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (final t in _channelTypes)
-                      if (_textLikeTypes.contains(t.value))
-                        DropdownMenuItem(
-                          value: t.value,
-                          child: Row(
-                            children: [
-                              Icon(t.icon, size: 16, color: colors.dirtyWhite),
-                              const SizedBox(width: 8),
-                              Text(t.label),
-                            ],
-                          ),
-                        ),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (v) => setState(
-                          () => _type = v ?? widget.channel!.type),
+              if (_isEdit && _textLikeTypes.contains(widget.channel!.type))
+                _EditTypeSelector(
+                  type: _type,
+                  originalType: widget.channel!.type,
+                  busy: _busy,
+                  onChanged: (v) =>
+                      setState(() => _type = v ?? widget.channel!.type),
                 ),
-                const SizedBox(height: 12),
-              ],
               if (_type != 'category')
-                TextField(
-                  controller: _topic,
+                _ChannelTopicField(controller: _topic, enabled: !_busy),
+              if (_type != 'category')
+                _ChannelModerationFields(
+                  nsfw: _nsfw,
+                  rateLimit: _rateLimit,
+                  busy: _busy,
+                  onNsfwChanged: (v) => setState(() => _nsfw = v),
+                  onRateLimitChanged: (v) =>
+                      setState(() => _rateLimit = v ?? 0),
+                ),
+              if (_isEdit && _type != 'category')
+                _PermissionsButtonRow(
                   enabled: !_busy,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Topic (optional)',
-                    isDense: true,
-                    border: OutlineInputBorder(),
+                  onShowPermissions: () => showChannelPermissionsDialog(
+                    context,
+                    spaceId: widget.spaceId,
+                    channel: widget.channel!,
                   ),
                 ),
-              if (_type != 'category') ...[
-                const SizedBox(height: 4),
-                SwitchListTile(
-                  value: _nsfw,
-                  onChanged:
-                      _busy ? null : (v) => setState(() => _nsfw = v),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('Age-restricted (NSFW)'),
-                  subtitle: Text('Users must confirm before viewing',
-                      style: theme.textTheme.bodySmall),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int>(
-                  initialValue: _slowmodePresets.any((p) => p.seconds == _rateLimit)
-                      ? _rateLimit
-                      : 0,
-                  decoration: const InputDecoration(
-                    labelText: 'Slowmode',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (final p in _slowmodePresets)
-                      DropdownMenuItem(value: p.seconds, child: Text(p.label)),
-                  ],
-                  onChanged: _busy
-                      ? null
-                      : (v) => setState(() => _rateLimit = v ?? 0),
-                ),
-              ],
-              if (_isEdit && _type != 'category') ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _busy
-                        ? null
-                        : () => showChannelPermissionsDialog(
-                              context,
-                              spaceId: widget.spaceId,
-                              channel: widget.channel!,
-                            ),
-                    icon: Icon(Icons.lock_outline,
-                        size: 18, color: colors.dirtyWhite),
-                    label: const Text('Permissions'),
-                  ),
-                ),
-              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!,
@@ -403,34 +297,318 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
                         .copyWith(color: theme.colorScheme.error)),
               ],
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  if (_isEdit)
-                    TextButton.icon(
-                      onPressed: _busy ? null : _delete,
-                      icon: Icon(Icons.delete_outline,
-                          size: 18, color: theme.colorScheme.error),
-                      label: Text('Delete',
-                          style:
-                              TextStyle(color: theme.colorScheme.error)),
-                    ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed:
-                        _busy ? null : () => Navigator.of(context).maybePop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    child: Text(_isEdit ? 'Save' : 'Create'),
-                  ),
-                ],
+              _EditorActionsRow(
+                isEdit: _isEdit,
+                busy: _busy,
+                onDelete: _delete,
+                onSubmit: _submit,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The channel name text field (autofocused; Enter submits).
+class _ChannelNameField extends StatelessWidget {
+  const _ChannelNameField({
+    required this.controller,
+    required this.enabled,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final VoidCallback onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      autofocus: true,
+      enabled: enabled,
+      decoration: const InputDecoration(
+        labelText: 'Name',
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
+      onSubmitted: (_) => onSubmitted(),
+    );
+  }
+}
+
+/// Create mode: the channel-type dropdown plus (for leaf channels, when
+/// categories exist) the parent-category picker, with their trailing spacers.
+class _CreateTypeSelector extends StatelessWidget {
+  const _CreateTypeSelector({
+    required this.type,
+    required this.parentId,
+    required this.categories,
+    required this.busy,
+    required this.onTypeChanged,
+    required this.onParentChanged,
+  });
+
+  final String type;
+  final String? parentId;
+  final List<AccordChannel> categories;
+  final bool busy;
+  final ValueChanged<String?> onTypeChanged;
+  final ValueChanged<String?> onParentChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: type,
+          decoration: const InputDecoration(
+            labelText: 'Type',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final t in _channelTypes)
+              DropdownMenuItem(
+                value: t.value,
+                child: Row(
+                  children: [
+                    Icon(t.icon, size: 16, color: colors.dirtyWhite),
+                    const SizedBox(width: 8),
+                    Text(t.label),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: busy ? null : onTypeChanged,
+        ),
+        const SizedBox(height: 12),
+        if (type != 'category' && categories.isNotEmpty)
+          DropdownButtonFormField<String?>(
+            initialValue: parentId,
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('None')),
+              for (final c in categories)
+                DropdownMenuItem(value: c.id, child: Text(c.name ?? c.id)),
+            ],
+            onChanged: busy ? null : onParentChanged,
+          ),
+        if (type != 'category' && categories.isNotEmpty)
+          const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+/// Edit mode: the type switcher limited to non-destructive (text-like) types,
+/// with its trailing spacer.
+class _EditTypeSelector extends StatelessWidget {
+  const _EditTypeSelector({
+    required this.type,
+    required this.originalType,
+    required this.busy,
+    required this.onChanged,
+  });
+
+  final String type;
+  final String originalType;
+  final bool busy;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: _textLikeTypes.contains(type) ? type : originalType,
+          decoration: const InputDecoration(
+            labelText: 'Type',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final t in _channelTypes)
+              if (_textLikeTypes.contains(t.value))
+                DropdownMenuItem(
+                  value: t.value,
+                  child: Row(
+                    children: [
+                      Icon(t.icon, size: 16, color: colors.dirtyWhite),
+                      const SizedBox(width: 8),
+                      Text(t.label),
+                    ],
+                  ),
+                ),
+          ],
+          onChanged: busy ? null : onChanged,
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+/// The optional topic text field (leaf channels only).
+class _ChannelTopicField extends StatelessWidget {
+  const _ChannelTopicField({required this.controller, required this.enabled});
+
+  final TextEditingController controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      minLines: 1,
+      maxLines: 3,
+      decoration: const InputDecoration(
+        labelText: 'Topic (optional)',
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
+    );
+  }
+}
+
+/// Moderation block (leaf channels only): NSFW toggle plus the slowmode
+/// preset picker, with the spacers around them.
+class _ChannelModerationFields extends StatelessWidget {
+  const _ChannelModerationFields({
+    required this.nsfw,
+    required this.rateLimit,
+    required this.busy,
+    required this.onNsfwChanged,
+    required this.onRateLimitChanged,
+  });
+
+  final bool nsfw;
+  final int rateLimit;
+  final bool busy;
+  final ValueChanged<bool> onNsfwChanged;
+  final ValueChanged<int?> onRateLimitChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 4),
+        SwitchListTile(
+          value: nsfw,
+          onChanged: busy ? null : onNsfwChanged,
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Age-restricted (NSFW)'),
+          subtitle: Text('Users must confirm before viewing',
+              style: theme.textTheme.bodySmall),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int>(
+          initialValue: _slowmodePresets.any((p) => p.seconds == rateLimit)
+              ? rateLimit
+              : 0,
+          decoration: const InputDecoration(
+            labelText: 'Slowmode',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final p in _slowmodePresets)
+              DropdownMenuItem(value: p.seconds, child: Text(p.label)),
+          ],
+          onChanged: busy ? null : onRateLimitChanged,
+        ),
+      ],
+    );
+  }
+}
+
+/// Edit mode: the row with the button opening the per-channel permission
+/// overrides dialog, with its leading spacer.
+class _PermissionsButtonRow extends StatelessWidget {
+  const _PermissionsButtonRow({
+    required this.enabled,
+    required this.onShowPermissions,
+  });
+
+  final bool enabled;
+  final VoidCallback onShowPermissions;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: enabled ? onShowPermissions : null,
+            icon: Icon(Icons.lock_outline, size: 18, color: colors.dirtyWhite),
+            label: const Text('Permissions'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Bottom action row: Delete (edit mode only), Cancel, and Save/Create.
+class _EditorActionsRow extends StatelessWidget {
+  const _EditorActionsRow({
+    required this.isEdit,
+    required this.busy,
+    required this.onDelete,
+    required this.onSubmit,
+  });
+
+  final bool isEdit;
+  final bool busy;
+  final VoidCallback onDelete;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        if (isEdit)
+          TextButton.icon(
+            onPressed: busy ? null : onDelete,
+            icon: Icon(Icons.delete_outline,
+                size: 18, color: theme.colorScheme.error),
+            label: Text('Delete',
+                style: TextStyle(color: theme.colorScheme.error)),
+          ),
+        const Spacer(),
+        TextButton(
+          onPressed: busy ? null : () => Navigator.of(context).maybePop(),
+          child: const Text('Cancel'),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          onPressed: busy ? null : onSubmit,
+          child: Text(isEdit ? 'Save' : 'Create'),
+        ),
+      ],
     );
   }
 }

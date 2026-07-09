@@ -70,7 +70,7 @@ final class BackgroundConnectionControllerProvider
 }
 
 String _$backgroundConnectionControllerHash() =>
-    r'8430eb8e85f11ec016f7145f5c9e8188dfd22f5a';
+    r'95f84c977258b1d1ed5f24ab7f6fbc7afb7e1732';
 
 /// Starts/stops the Android foreground service (`BackgroundConnectionService`)
 /// that exempts the app process from Android's cached-app freezer while

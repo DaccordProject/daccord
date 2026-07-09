@@ -254,7 +254,6 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
 
     final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
@@ -351,121 +350,31 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  AccordMemberAvatar(
-                    avatarUrl: avatarUrl,
-                    initial: accordInitial(name),
-                    status: status,
-                    radius: 28,
-                    backgroundColor: accordAvatarColor(
-                      member?.user,
-                      widget.userId,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: theme.textTheme.titleMedium!.copyWith(
-                            color: nameColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (username != null)
-                          Text(
-                            '@$username',
-                            style: theme.textTheme.bodySmall!.copyWith(
-                              color: colors.gray,
-                            ),
-                          ),
-                        Text(
-                          _statusLabel(status),
-                          style: theme.textTheme.bodySmall!.copyWith(
-                            color: colors.gray,
-                          ),
-                        ),
-                        if (customStatus != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            customStatus,
-                            style: theme.textTheme.bodyMedium!.copyWith(
-                              color: colors.dirtyWhite,
-                            ),
-                          ),
-                        ],
-                        if (isRemote) ...[
-                          const SizedBox(height: 4),
-                          RemoteOriginBadge(domain: remoteDomain),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+              _ProfileHeader(
+                name: name,
+                username: username,
+                avatarUrl: avatarUrl,
+                avatarBackgroundColor: accordAvatarColor(
+                  member?.user,
+                  widget.userId,
+                ),
+                status: status,
+                nameColor: nameColor,
+                customStatus: customStatus,
+                remoteDomain: remoteDomain,
               ),
               if (timedOut) ...[
                 const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFAA81A).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.timer_outlined,
-                        size: 16,
-                        color: Color(0xFFFAA81A),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Timed out until ${member.timedOutUntil}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
+                _TimeoutBanner(
+                  label: 'Timed out until ${member.timedOutUntil}',
                 ),
               ],
-              if (member != null && member.joinedAt.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Member since ${_date(member.joinedAt)}',
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    color: colors.gray,
-                  ),
+              if (member != null)
+                _MembershipInfo(
+                  member: member,
+                  roles: roles,
+                  memberRoleIds: memberRoleIds,
                 ),
-              ],
-              if (member != null && memberRoleIds.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  'ROLES',
-                  style: theme.textTheme.labelSmall!.copyWith(
-                    color: colors.gray,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final id in memberRoleIds)
-                      if (roles.firstWhereOrNull((r) => r.id == id)
-                          case final role?)
-                        _RoleChip(role: role),
-                  ],
-                ),
-              ],
               if (canManageRoles &&
                   member != null &&
                   assignableRoles.isNotEmpty)
@@ -542,6 +451,90 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
   }
 
+}
+
+/// The top row of the popout: avatar with presence dot, display name (in the
+/// member's color role), @username, presence label, custom status, and the
+/// remote-origin badge for federated users.
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.name,
+    required this.username,
+    required this.avatarUrl,
+    required this.avatarBackgroundColor,
+    required this.status,
+    required this.nameColor,
+    required this.customStatus,
+    required this.remoteDomain,
+  });
+
+  final String name;
+  final String? username;
+  final String? avatarUrl;
+  final Color avatarBackgroundColor;
+  final String status;
+  final Color? nameColor;
+  final String? customStatus;
+  final String? remoteDomain;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Row(
+      children: [
+        AccordMemberAvatar(
+          avatarUrl: avatarUrl,
+          initial: accordInitial(name),
+          status: status,
+          radius: 28,
+          backgroundColor: avatarBackgroundColor,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: theme.textTheme.titleMedium!.copyWith(
+                  color: nameColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (username != null)
+                Text(
+                  '@$username',
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.gray,
+                  ),
+                ),
+              Text(
+                _statusLabel(status),
+                style: theme.textTheme.bodySmall!.copyWith(
+                  color: colors.gray,
+                ),
+              ),
+              if (customStatus != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  customStatus!,
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    color: colors.dirtyWhite,
+                  ),
+                ),
+              ],
+              if (remoteDomain != null) ...[
+                const SizedBox(height: 4),
+                RemoteOriginBadge(domain: remoteDomain!),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   String _statusLabel(String status) {
     switch (status) {
       case 'online':
@@ -553,6 +546,101 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       default:
         return 'Offline';
     }
+  }
+}
+
+/// The amber "Timed out until …" pill shown while a member is timed out.
+class _TimeoutBanner extends StatelessWidget {
+  const _TimeoutBanner({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAA81A).withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.timer_outlined,
+            size: 16,
+            color: Color(0xFFFAA81A),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The read-only membership facts: "Member since" date and the member's
+/// current role chips.
+class _MembershipInfo extends StatelessWidget {
+  const _MembershipInfo({
+    required this.member,
+    required this.roles,
+    required this.memberRoleIds,
+  });
+
+  final AccordMember member;
+  final List<AccordRole> roles;
+  final List<String> memberRoleIds;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (member.joinedAt.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Member since ${_date(member.joinedAt)}',
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: colors.gray,
+            ),
+          ),
+        ],
+        if (memberRoleIds.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text(
+            'ROLES',
+            style: theme.textTheme.labelSmall!.copyWith(
+              color: colors.gray,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final id in memberRoleIds)
+                if (roles.firstWhereOrNull((r) => r.id == id)
+                    case final role?)
+                  _RoleChip(role: role),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 
   String _date(String iso) {

@@ -1,4 +1,4 @@
-part of 'accord_home.dart';
+part of 'message_pane.dart';
 
 class _MessageRow extends ConsumerStatefulWidget {
   const _MessageRow({
@@ -217,22 +217,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   Future<void> _delete() async {
     final client = _client;
     if (client == null || _busy) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete message'),
-        content: const Text('This message will be permanently deleted.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete message',
+      message: 'This message will be permanently deleted.',
+      confirmLabel: 'Delete',
+      danger: true,
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
@@ -300,24 +290,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 const SizedBox(width: 4),
               ],
               if (widget.grouped)
-                SizedBox(
+                _GutterTimestamp(
                   width: avatarRadius * 2,
-                  child: Opacity(
-                    opacity: _hovered ? 1 : 0,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Tooltip(
-                        message: _fullTime,
-                        child: Text(
-                          _clock,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.labelSmall!.copyWith(
-                            color: colors.gray,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  visible: _hovered,
+                  clock: _clock,
+                  fullTime: _fullTime,
                 )
               else
                 _MaybeTappable(
@@ -338,46 +315,15 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   children: [
                     if (_message.replyTo != null) _buildReplyPreview(colors),
                     if (!widget.grouped)
-                      Row(
-                        children: [
-                          if (_message.pinned) ...[
-                            Icon(Icons.push_pin, size: 12, color: colors.gray),
-                            const SizedBox(width: 4),
-                          ],
-                          _MaybeTappable(
-                            enabled: tappable,
-                            onTap: _openPopout,
-                            child: Text(
-                              _authorName,
-                              style: theme.textTheme.titleSmall!.copyWith(
-                                color: widget.nameColor,
-                              ),
-                            ),
-                          ),
-                          if (_authorOrigin != null) ...[
-                            const SizedBox(width: 5),
-                            RemoteOriginBadge(domain: _authorOrigin),
-                          ],
-                          const SizedBox(width: 8),
-                          Tooltip(
-                            message: _fullTime,
-                            child: Text(
-                              _time,
-                              style: theme.textTheme.labelMedium!.copyWith(
-                                color: colors.gray,
-                              ),
-                            ),
-                          ),
-                          if (_message.editedAt != null) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              '(edited)',
-                              style: theme.textTheme.labelSmall!.copyWith(
-                                color: colors.gray,
-                              ),
-                            ),
-                          ],
-                        ],
+                      MessageAuthorHeader(
+                        name: _authorName,
+                        nameColor: widget.nameColor,
+                        onNameTap: tappable ? _openPopout : null,
+                        pinned: _message.pinned,
+                        origin: _authorOrigin,
+                        time: _time,
+                        timeTooltip: _fullTime,
+                        edited: _message.editedAt != null,
                       ),
                     if (_editing)
                       _buildEditor(theme, colors)
@@ -410,41 +356,20 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
               if (!_editing &&
                   !widget.selecting &&
                   shouldUseDesktopLayout(context))
-                Opacity(
-                  opacity: _hovered ? 1 : 0,
-                  child: Row(
-                    children: [
-                      _ReactButton(onPressed: _openReactionPicker),
-                      IconButton(
-                        tooltip: 'Reply',
-                        onPressed: widget.onReply,
-                        icon: Icon(Icons.reply, size: 18, color: colors.gray),
-                      ),
-                      IconButton(
-                        tooltip: 'Thread',
-                        onPressed: _openThread,
-                        icon: Icon(
-                          Icons.forum_outlined,
-                          size: 18,
-                          color: colors.gray,
-                        ),
-                      ),
-                      if (widget.isOwn ||
-                          widget.canManageMessages ||
-                          (!widget.isOwn && widget.spaceId != null))
-                        _MessageActions(
-                          canEdit: widget.isOwn,
-                          canDelete: widget.isOwn || widget.canManageMessages,
-                          canPin: widget.canManageMessages,
-                          canReport: !widget.isOwn && widget.spaceId != null,
-                          pinned: _message.pinned,
-                          onEdit: _startEdit,
-                          onDelete: _delete,
-                          onTogglePin: _togglePin,
-                          onReport: _report,
-                        ),
-                    ],
-                  ),
+                _HoverActions(
+                  visible: _hovered,
+                  onReact: _openReactionPicker,
+                  onReply: widget.onReply,
+                  onThread: _openThread,
+                  canEdit: widget.isOwn,
+                  canDelete: widget.isOwn || widget.canManageMessages,
+                  canPin: widget.canManageMessages,
+                  canReport: !widget.isOwn && widget.spaceId != null,
+                  pinned: _message.pinned,
+                  onEdit: _startEdit,
+                  onDelete: _delete,
+                  onTogglePin: _togglePin,
+                  onReport: _report,
                 ),
             ],
           ),
@@ -496,32 +421,23 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         icon: Icons.forum_outlined,
         onSelected: _openThread,
       ),
-      if (_message.content.isNotEmpty)
-        AccordMenuEntry(
-          label: 'Copy text',
-          icon: Icons.copy_outlined,
-          onSelected: () =>
-              Clipboard.setData(ClipboardData(text: _message.content)),
-        ),
-      if (widget.isOwn)
-        AccordMenuEntry(
-          label: 'Edit',
-          icon: Icons.edit_outlined,
-          onSelected: _startEdit,
-        ),
-      if (widget.canManageMessages)
-        AccordMenuEntry(
-          label: _message.pinned ? 'Unpin' : 'Pin',
-          icon: _message.pinned ? Icons.push_pin_outlined : Icons.push_pin,
-          onSelected: _togglePin,
-        ),
-      if (canDelete)
-        AccordMenuEntry(
-          label: 'Delete',
-          icon: Icons.delete_outline,
-          destructive: true,
-          onSelected: _delete,
-        ),
+      ...buildMessageActionEntries(
+        content: _message.content,
+        canEdit: widget.isOwn,
+        canDelete: canDelete,
+        onEdit: _startEdit,
+        onDelete: _delete,
+        // Pin sits between Edit and Delete in this menu; it's site-specific
+        // (the thread view has no pinning) so it slots in via [beforeDelete].
+        beforeDelete: [
+          if (widget.canManageMessages)
+            AccordMenuEntry(
+              label: _message.pinned ? 'Unpin' : 'Pin',
+              icon: _message.pinned ? Icons.push_pin_outlined : Icons.push_pin,
+              onSelected: _togglePin,
+            ),
+        ],
+      ),
       if (canReport)
         AccordMenuEntry(
           label: 'Report',
@@ -769,6 +685,119 @@ class _MaybeTappable extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(onTap: onTap, child: child),
+    );
+  }
+}
+
+/// The hover-only timestamp shown in the avatar gutter of a grouped row (which
+/// has no author header of its own). Bare HH:MM in a fixed-width slot, with the
+/// full date in a tooltip.
+class _GutterTimestamp extends StatelessWidget {
+  const _GutterTimestamp({
+    required this.width,
+    required this.visible,
+    required this.clock,
+    required this.fullTime,
+  });
+
+  final double width;
+  final bool visible;
+  final String clock;
+  final String fullTime;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = BonfireThemeExtension.of(context);
+    return SizedBox(
+      width: width,
+      child: Opacity(
+        opacity: visible ? 1 : 0,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Tooltip(
+            message: fullTime,
+            child: Text(
+              clock,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall!.copyWith(color: colors.gray),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The desktop hover-action cluster at a row's trailing edge: react, reply,
+/// thread, and (when any moderation/authorship applies) the overflow
+/// [_MessageActions] menu. Revealed by hover via [visible]; the row omits it
+/// entirely on touch layouts.
+class _HoverActions extends StatelessWidget {
+  const _HoverActions({
+    required this.visible,
+    required this.onReact,
+    required this.onReply,
+    required this.onThread,
+    required this.canEdit,
+    required this.canDelete,
+    required this.canPin,
+    required this.canReport,
+    required this.pinned,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTogglePin,
+    required this.onReport,
+  });
+
+  final bool visible;
+  final VoidCallback onReact;
+  final VoidCallback onReply;
+  final VoidCallback onThread;
+  final bool canEdit;
+  final bool canDelete;
+  final bool canPin;
+  final bool canReport;
+  final bool pinned;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onTogglePin;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Opacity(
+      opacity: visible ? 1 : 0,
+      child: Row(
+        children: [
+          _ReactButton(onPressed: onReact),
+          IconButton(
+            tooltip: 'Reply',
+            onPressed: onReply,
+            icon: Icon(Icons.reply, size: 18, color: colors.gray),
+          ),
+          IconButton(
+            tooltip: 'Thread',
+            onPressed: onThread,
+            icon: Icon(Icons.forum_outlined, size: 18, color: colors.gray),
+          ),
+          // canEdit implies canDelete, so this matches the original
+          // isOwn || canManageMessages || canReport gate.
+          if (canDelete || canReport)
+            _MessageActions(
+              canEdit: canEdit,
+              canDelete: canDelete,
+              canPin: canPin,
+              canReport: canReport,
+              pinned: pinned,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              onTogglePin: onTogglePin,
+              onReport: onReport,
+            ),
+        ],
+      ),
     );
   }
 }

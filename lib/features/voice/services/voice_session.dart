@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bonfire/features/voice/utils/voice_logic.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:livekit_client/livekit_client.dart';
@@ -147,13 +148,10 @@ class VoiceSession {
     int inputVolume = 100,
   }) async {
     _deafened = selfDeaf;
-    _outputGain = (outputVolume / 100).clamp(0, 2).toDouble();
-    _inputGain = (inputVolume / 100).clamp(0, 2).toDouble();
+    _outputGain = voiceGain(outputVolume);
+    _inputGain = voiceGain(inputVolume);
 
-    final captureDeviceId =
-        (audioInputDeviceId != null && audioInputDeviceId.isNotEmpty)
-            ? audioInputDeviceId
-            : null;
+    final captureDeviceId = normalizeDeviceId(audioInputDeviceId);
     final room = _ensureRoom();
 
     // Channel swap / reconnect: release the prior connection's media and drop
@@ -275,7 +273,7 @@ class VoiceSession {
     CameraCaptureOptions? options;
     if (enabled && width != null && height != null) {
       options = CameraCaptureOptions(
-        deviceId: (deviceId != null && deviceId.isNotEmpty) ? deviceId : null,
+        deviceId: normalizeDeviceId(deviceId),
         params: VideoParameters(
           dimensions: VideoDimensions(width, height),
           encoding: VideoEncoding(
@@ -342,7 +340,7 @@ class VoiceSession {
       await participant.setMicrophoneEnabled(
         wasEnabled,
         audioCaptureOptions: AudioCaptureOptions(
-          deviceId: deviceId.isEmpty ? null : deviceId,
+          deviceId: normalizeDeviceId(deviceId),
         ),
       );
       await _applyInputGain();
@@ -355,13 +353,13 @@ class VoiceSession {
 
   /// Sets the remote-audio output volume from a 0–200 percentage.
   Future<void> setOutputVolume(int percent) async {
-    _outputGain = (percent / 100).clamp(0, 2).toDouble();
+    _outputGain = voiceGain(percent);
     await _applyOutputGain();
   }
 
   /// Sets the microphone input volume from a 0–200 percentage (best-effort).
   Future<void> setInputVolume(int percent) async {
-    _inputGain = (percent / 100).clamp(0, 2).toDouble();
+    _inputGain = voiceGain(percent);
     await _applyInputGain();
   }
 
@@ -485,8 +483,10 @@ class VoiceSession {
       ..on<ParticipantConnectedEvent>((_) => _onTracksChanged())
       ..on<ParticipantDisconnectedEvent>((_) => _onTracksChanged())
       ..on<RoomDisconnectedEvent>((e) {
-        final intentional = _intentionalDisconnect ||
-            e.reason == DisconnectReason.clientInitiated;
+        final intentional = !isUnintentionalDisconnect(
+          intentional: _intentionalDisconnect,
+          clientInitiated: e.reason == DisconnectReason.clientInitiated,
+        );
         _setState(VoiceSessionState.disconnected);
         onDisconnected?.call(intentional: intentional);
       })
@@ -503,7 +503,7 @@ class VoiceSession {
   void _onTracksChanged() => onTracksChanged?.call();
 
   void _setState(VoiceSessionState next) {
-    if (_state == next) return;
+    if (!shouldEmitStateChange(_state, next)) return;
     _state = next;
     onStateChanged?.call(next);
   }

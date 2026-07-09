@@ -1,4 +1,5 @@
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
+import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -53,290 +54,514 @@ class AccordSettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          SectionHeader('Appearance'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final preset in AppThemePreset.values)
-                  ChoiceChip(
-                    label: Text(preset.label),
-                    selected: settings.themePreset == preset,
-                    onSelected: (_) => controller.setThemePreset(preset),
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: Text(
-              'Accent colour',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                ColorSwatchChip(
-                  color: defaultAccentFor(settings.themePreset),
-                  selected: settings.accentColor == null,
-                  label: 'Default',
-                  onTap: () => controller.setAccentColor(null),
-                ),
-                for (final (argb, name) in avatarColorPalette)
-                  ColorSwatchChip(
-                    color: Color(argb),
-                    selected: settings.accentColor == argb,
-                    label: name,
-                    onTap: () => controller.setAccentColor(argb),
-                  ),
-              ],
-            ),
-          ),
-          SwitchListTile(
-            title: const Text('Compact mode'),
-            subtitle: const Text('Denser message layout (smaller spacing)'),
-            value: settings.compactMode,
-            onChanged: controller.setCompactMode,
-          ),
-          SwitchListTile(
-            title: const Text('Reduced motion'),
-            subtitle: const Text('Minimise UI animations'),
-            value: settings.reducedMotion,
-            onChanged: controller.setReducedMotion,
-          ),
-          ListTile(
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('UI scale'),
-                Text('${(settings.uiScale * 100).round()}%'),
-              ],
-            ),
-            subtitle: Slider(
-              value: settings.uiScale.clamp(
-                AccordSettings.minUiScale,
-                AccordSettings.maxUiScale,
-              ),
-              min: AccordSettings.minUiScale,
-              max: AccordSettings.maxUiScale,
-              divisions:
-                  ((AccordSettings.maxUiScale - AccordSettings.minUiScale) /
-                          0.1)
-                      .round(),
-              label: '${(settings.uiScale * 100).round()}%',
-              onChanged: controller.setUiScale,
-            ),
+          _AppearanceSection(settings: settings, controller: controller),
+          const Divider(height: 24),
+          _NotificationsSection(settings: settings, controller: controller),
+          const Divider(height: 24),
+          _ErrorReportingSection(
+            settings: settings,
+            controller: controller,
+            onReportProblem: () => _showReportProblemDialog(context, ref),
           ),
           const Divider(height: 24),
-          SectionHeader('Notifications'),
-          SwitchListTile(
-            title: const Text('Enable notifications'),
-            subtitle: const Text('Show a system notification when mentioned'),
-            value: settings.notificationsEnabled,
-            onChanged: controller.setNotificationsEnabled,
-          ),
-          SwitchListTile(
-            title: const Text('Suppress @everyone'),
-            subtitle: const Text('Never notify for @everyone / @here mentions'),
-            value: settings.suppressEveryone,
-            onChanged: settings.notificationsEnabled
-                ? controller.setSuppressEveryone
-                : null,
+          _SoundsSection(settings: settings, controller: controller),
+          const Divider(height: 24),
+          const _VoiceVideoSection(),
+          const Divider(height: 24),
+          _AccountSection(
+            session: session,
+            hasMultipleConnections: ref
+                .watch(connectionsControllerProvider)
+                .hasMultiple,
+            onPickServerProfile: () => _pickServerProfile(context, ref),
           ),
           const Divider(height: 24),
-          SectionHeader('Error Reporting'),
-          SwitchListTile(
-            title: const Text('Send error reports'),
-            subtitle: const Text(
-              'Anonymous crash and error reports. No personal data or '
-              'message content is included',
-            ),
-            value: settings.errorReportingEnabled,
-            onChanged: controller.setErrorReportingEnabled,
-          ),
-          ListTile(
-            leading: Icon(Icons.bug_report_outlined, color: colors.dirtyWhite),
-            title: const Text('Report a problem'),
-            subtitle: const Text(
-              'Describe a bug and send it to the developers',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            enabled: settings.errorReportingEnabled,
-            onTap: settings.errorReportingEnabled
-                ? () => _showReportProblemDialog(context, ref)
-                : null,
-          ),
+          const _ServerDirectorySection(),
           const Divider(height: 24),
-          SectionHeader('Sounds'),
-          SwitchListTile(
-            title: const Text('Enable sounds'),
-            subtitle: const Text('Play SFX for messages and mentions'),
-            value: settings.soundsEnabled,
-            onChanged: controller.setSoundsEnabled,
-          ),
-          ListTile(
-            title: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Volume'),
-                Text('${(settings.sfxVolume * 100).round()}%'),
-              ],
-            ),
-            subtitle: Slider(
-              value: settings.sfxVolume,
-              onChanged: settings.soundsEnabled
-                  ? controller.setSfxVolume
-                  : null,
-            ),
-          ),
+          const _UpdatesSection(),
           const Divider(height: 24),
-          SectionHeader('Voice & Video'),
-          ListTile(
-            leading: Icon(Icons.mic_none, color: colors.dirtyWhite),
-            title: const Text('Voice & video settings'),
-            subtitle: const Text(
-              'Microphone, speaker, sensitivity, camera, mic test',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showVoiceSettings(context),
-          ),
+          const _BackupSection(),
           const Divider(height: 24),
-          SectionHeader('Account'),
-          if (session != null)
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: colors.primary,
-                child: Text(
-                  accordInitial(session.username),
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-              title: Text(session.username),
-              subtitle: Text(session.server.baseUrl),
-            ),
-          ListTile(
-            leading: Icon(Icons.edit_outlined, color: colors.dirtyWhite),
-            title: const Text('Edit profile'),
-            subtitle: const Text('Display name, bio, avatar'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showAccordProfileEdit(context),
-          ),
-          ListTile(
-            leading: Icon(Icons.lock_outline, color: colors.dirtyWhite),
-            title: const Text('Password & Security'),
-            subtitle: const Text(
-              'Password, two-factor authentication, delete account',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showAccordAccountSettings(context),
-          ),
-          if (ref.watch(connectionsControllerProvider).hasMultiple)
-            ListTile(
-              leading: Icon(Icons.dns_outlined, color: colors.dirtyWhite),
-              title: const Text('Per-server profile'),
-              subtitle: const Text("Override name/bio/avatar on one server"),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _pickServerProfile(context, ref),
-            ),
-          ListTile(
-            leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
-            title: const Text('Switch account'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/switcher'),
-          ),
-          ListTile(
-            leading: Icon(Icons.devices, color: colors.dirtyWhite),
-            title: const Text('Device profiles'),
-            subtitle: const Text('Isolated, PIN-lockable local profiles'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showProfilesSettings(context),
-          ),
-          ListTile(
-            leading: Icon(Icons.link, color: colors.dirtyWhite),
-            title: const Text('Connections'),
-            subtitle: const Text('Linked third-party (OAuth) accounts'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showConnectionsSettings(context),
-          ),
-          ListTile(
-            leading: Icon(Icons.privacy_tip_outlined, color: colors.dirtyWhite),
-            title: const Text('Privacy & Data'),
-            subtitle: const Text('Data export, leave & delete data, retention'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showPrivacySettings(context),
-          ),
-          if (session?.isAdmin ?? false)
-            ListTile(
-              leading: Icon(
-                Icons.admin_panel_settings,
-                color: colors.dirtyWhite,
-              ),
-              title: const Text('Server administration'),
-              subtitle: const Text('Spaces, users, reports, settings'),
-              onTap: () => context.go('/admin'),
-            ),
+          _DeveloperSection(settings: settings, controller: controller),
           const Divider(height: 24),
-          SectionHeader('Server Directory'),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: _MasterServerField(),
-          ),
+          const _AboutSection(),
           const Divider(height: 24),
-          SectionHeader('Updates'),
-          ListTile(
-            leading: Icon(Icons.system_update, color: colors.dirtyWhite),
-            title: const Text('Updates'),
-            subtitle: const Text('Current version, check for new releases'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showUpdatesSettings(context),
-          ),
-          const Divider(height: 24),
-          SectionHeader('Backup'),
-          const SettingsBackupSection(),
-          const Divider(height: 24),
-          SectionHeader('Developer'),
-          SwitchListTile(
-            title: const Text('Developer Mode'),
-            subtitle: const Text(
-              'Unlock the local Client MCP server for AI agents',
-            ),
-            value: settings.developerMode,
-            onChanged: controller.setDeveloperMode,
-          ),
-          if (settings.developerMode)
-            ListTile(
-              leading: Icon(Icons.terminal, color: colors.dirtyWhite),
-              title: const Text('Client MCP server'),
-              subtitle: const Text('Token, port, tool groups, activity'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => showDeveloperSettings(context),
-            ),
-          const Divider(height: 24),
-          SectionHeader('About'),
-          ListTile(
-            title: const Text('Daccord'),
-            subtitle: const Text(
-              'A native multi-platform Daccord client (GPLv3).',
-            ),
-            trailing: Text('v$kAppVersion'),
-          ),
-          const Divider(height: 24),
-          ListTile(
-            leading: Icon(Icons.logout, color: colors.red),
-            title: Text('Log out', style: TextStyle(color: colors.red)),
-            onTap: () {
+          _LogOutTile(
+            onLogOut: () {
               ref.read(accordAuthProvider.notifier).logout();
               if (context.mounted) context.go('/');
             },
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Theme preset chips, accent-colour swatches, compact mode, reduced motion,
+/// and the UI scale slider.
+class _AppearanceSection extends StatelessWidget {
+  const _AppearanceSection({required this.settings, required this.controller});
+
+  final AccordSettings settings;
+  final SettingsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Appearance'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final preset in AppThemePreset.values)
+                ChoiceChip(
+                  label: Text(preset.label),
+                  selected: settings.themePreset == preset,
+                  onSelected: (_) => controller.setThemePreset(preset),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Text(
+            'Accent colour',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              ColorSwatchChip(
+                color: defaultAccentFor(settings.themePreset),
+                selected: settings.accentColor == null,
+                label: 'Default',
+                onTap: () => controller.setAccentColor(null),
+              ),
+              for (final (argb, name) in avatarColorPalette)
+                ColorSwatchChip(
+                  color: Color(argb),
+                  selected: settings.accentColor == argb,
+                  label: name,
+                  onTap: () => controller.setAccentColor(argb),
+                ),
+            ],
+          ),
+        ),
+        SwitchListTile(
+          title: const Text('Compact mode'),
+          subtitle: const Text('Denser message layout (smaller spacing)'),
+          value: settings.compactMode,
+          onChanged: controller.setCompactMode,
+        ),
+        SwitchListTile(
+          title: const Text('Reduced motion'),
+          subtitle: const Text('Minimise UI animations'),
+          value: settings.reducedMotion,
+          onChanged: controller.setReducedMotion,
+        ),
+        ListTile(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('UI scale'),
+              Text('${(settings.uiScale * 100).round()}%'),
+            ],
+          ),
+          subtitle: Slider(
+            value: settings.uiScale.clamp(
+              AccordSettings.minUiScale,
+              AccordSettings.maxUiScale,
+            ),
+            min: AccordSettings.minUiScale,
+            max: AccordSettings.maxUiScale,
+            divisions:
+                ((AccordSettings.maxUiScale - AccordSettings.minUiScale) / 0.1)
+                    .round(),
+            label: '${(settings.uiScale * 100).round()}%',
+            onChanged: controller.setUiScale,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Mention-notification toggles.
+class _NotificationsSection extends StatelessWidget {
+  const _NotificationsSection({
+    required this.settings,
+    required this.controller,
+  });
+
+  final AccordSettings settings;
+  final SettingsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Notifications'),
+        SwitchListTile(
+          title: const Text('Enable notifications'),
+          subtitle: const Text('Show a system notification when mentioned'),
+          value: settings.notificationsEnabled,
+          onChanged: controller.setNotificationsEnabled,
+        ),
+        SwitchListTile(
+          title: const Text('Suppress @everyone'),
+          subtitle: const Text('Never notify for @everyone / @here mentions'),
+          value: settings.suppressEveryone,
+          onChanged: settings.notificationsEnabled
+              ? controller.setSuppressEveryone
+              : null,
+        ),
+      ],
+    );
+  }
+}
+
+/// Opt-in anonymous error reporting + user-initiated problem reports.
+class _ErrorReportingSection extends StatelessWidget {
+  const _ErrorReportingSection({
+    required this.settings,
+    required this.controller,
+    required this.onReportProblem,
+  });
+
+  final AccordSettings settings;
+  final SettingsController controller;
+  final VoidCallback onReportProblem;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Error Reporting'),
+        SwitchListTile(
+          title: const Text('Send error reports'),
+          subtitle: const Text(
+            'Anonymous crash and error reports. No personal data or '
+            'message content is included',
+          ),
+          value: settings.errorReportingEnabled,
+          onChanged: controller.setErrorReportingEnabled,
+        ),
+        ListTile(
+          leading: Icon(Icons.bug_report_outlined, color: colors.dirtyWhite),
+          title: const Text('Report a problem'),
+          subtitle: const Text(
+            'Describe a bug and send it to the developers',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          enabled: settings.errorReportingEnabled,
+          onTap: settings.errorReportingEnabled ? onReportProblem : null,
+        ),
+      ],
+    );
+  }
+}
+
+/// SFX toggle + volume slider.
+class _SoundsSection extends StatelessWidget {
+  const _SoundsSection({required this.settings, required this.controller});
+
+  final AccordSettings settings;
+  final SettingsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Sounds'),
+        SwitchListTile(
+          title: const Text('Enable sounds'),
+          subtitle: const Text('Play SFX for messages and mentions'),
+          value: settings.soundsEnabled,
+          onChanged: controller.setSoundsEnabled,
+        ),
+        ListTile(
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Volume'),
+              Text('${(settings.sfxVolume * 100).round()}%'),
+            ],
+          ),
+          subtitle: Slider(
+            value: settings.sfxVolume,
+            onChanged: settings.soundsEnabled ? controller.setSfxVolume : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Entry point into the dedicated voice & video settings screen.
+class _VoiceVideoSection extends StatelessWidget {
+  const _VoiceVideoSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Voice & Video'),
+        ListTile(
+          leading: Icon(Icons.mic_none, color: colors.dirtyWhite),
+          title: const Text('Voice & video settings'),
+          subtitle: const Text(
+            'Microphone, speaker, sensitivity, camera, mic test',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showVoiceSettings(context),
+        ),
+      ],
+    );
+  }
+}
+
+/// Current session summary plus profile, security, account-switching,
+/// connections, privacy, and (for admins) server administration entries.
+class _AccountSection extends StatelessWidget {
+  const _AccountSection({
+    required this.session,
+    required this.hasMultipleConnections,
+    required this.onPickServerProfile,
+  });
+
+  final AccordSession? session;
+  final bool hasMultipleConnections;
+  final VoidCallback onPickServerProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    final session = this.session;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Account'),
+        if (session != null)
+          ListTile(
+            leading: CircleAvatar(
+              backgroundColor: colors.primary,
+              child: Text(
+                accordInitial(session.username),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            title: Text(session.username),
+            subtitle: Text(session.server.baseUrl),
+          ),
+        ListTile(
+          leading: Icon(Icons.edit_outlined, color: colors.dirtyWhite),
+          title: const Text('Edit profile'),
+          subtitle: const Text('Display name, bio, avatar'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showAccordProfileEdit(context),
+        ),
+        ListTile(
+          leading: Icon(Icons.lock_outline, color: colors.dirtyWhite),
+          title: const Text('Password & Security'),
+          subtitle: const Text(
+            'Password, two-factor authentication, delete account',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showAccordAccountSettings(context),
+        ),
+        if (hasMultipleConnections)
+          ListTile(
+            leading: Icon(Icons.dns_outlined, color: colors.dirtyWhite),
+            title: const Text('Per-server profile'),
+            subtitle: const Text("Override name/bio/avatar on one server"),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: onPickServerProfile,
+          ),
+        ListTile(
+          leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
+          title: const Text('Switch account'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.go('/switcher'),
+        ),
+        ListTile(
+          leading: Icon(Icons.devices, color: colors.dirtyWhite),
+          title: const Text('Device profiles'),
+          subtitle: const Text('Isolated, PIN-lockable local profiles'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showProfilesSettings(context),
+        ),
+        ListTile(
+          leading: Icon(Icons.link, color: colors.dirtyWhite),
+          title: const Text('Connections'),
+          subtitle: const Text('Linked third-party (OAuth) accounts'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showConnectionsSettings(context),
+        ),
+        ListTile(
+          leading: Icon(Icons.privacy_tip_outlined, color: colors.dirtyWhite),
+          title: const Text('Privacy & Data'),
+          subtitle: const Text('Data export, leave & delete data, retention'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showPrivacySettings(context),
+        ),
+        if (session?.isAdmin ?? false)
+          ListTile(
+            leading: Icon(
+              Icons.admin_panel_settings,
+              color: colors.dirtyWhite,
+            ),
+            title: const Text('Server administration'),
+            subtitle: const Text('Spaces, users, reports, settings'),
+            onTap: () => context.go('/admin'),
+          ),
+      ],
+    );
+  }
+}
+
+/// Master-server directory URL used to browse public spaces.
+class _ServerDirectorySection extends StatelessWidget {
+  const _ServerDirectorySection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Server Directory'),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: _MasterServerField(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Entry point into the updates / release-check page.
+class _UpdatesSection extends StatelessWidget {
+  const _UpdatesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Updates'),
+        ListTile(
+          leading: Icon(Icons.system_update, color: colors.dirtyWhite),
+          title: const Text('Updates'),
+          subtitle: const Text('Current version, check for new releases'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showUpdatesSettings(context),
+        ),
+      ],
+    );
+  }
+}
+
+/// Settings export/import.
+class _BackupSection extends StatelessWidget {
+  const _BackupSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Backup'),
+        const SettingsBackupSection(),
+      ],
+    );
+  }
+}
+
+/// Developer-mode toggle and the Client MCP server page it unlocks.
+class _DeveloperSection extends StatelessWidget {
+  const _DeveloperSection({required this.settings, required this.controller});
+
+  final AccordSettings settings;
+  final SettingsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('Developer'),
+        SwitchListTile(
+          title: const Text('Developer Mode'),
+          subtitle: const Text(
+            'Unlock the local Client MCP server for AI agents',
+          ),
+          value: settings.developerMode,
+          onChanged: controller.setDeveloperMode,
+        ),
+        if (settings.developerMode)
+          ListTile(
+            leading: Icon(Icons.terminal, color: colors.dirtyWhite),
+            title: const Text('Client MCP server'),
+            subtitle: const Text('Token, port, tool groups, activity'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showDeveloperSettings(context),
+          ),
+      ],
+    );
+  }
+}
+
+/// App name, licence, and version.
+class _AboutSection extends StatelessWidget {
+  const _AboutSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader('About'),
+        ListTile(
+          title: const Text('Daccord'),
+          subtitle: const Text(
+            'A native multi-platform Daccord client (GPLv3).',
+          ),
+          trailing: Text('v$kAppVersion'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Signs the current account out and returns to the entry route.
+class _LogOutTile extends StatelessWidget {
+  const _LogOutTile({required this.onLogOut});
+
+  final VoidCallback onLogOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return ListTile(
+      leading: Icon(Icons.logout, color: colors.red),
+      title: Text('Log out', style: TextStyle(color: colors.red)),
+      onTap: onLogOut,
     );
   }
 }
@@ -485,4 +710,3 @@ class _MasterServerFieldState extends ConsumerState<_MasterServerField> {
     );
   }
 }
-

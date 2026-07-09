@@ -1,6 +1,8 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/credential_validation.dart';
+import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/authentication/views/welcome_view.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
@@ -12,8 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:loading_animation_widget/loading_animation_widget.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Server-URL + credentials login against an Accord server. The Daccord
 /// replacement for the Discord `LoginScreen`: it drives [accordAuthProvider]
@@ -138,15 +138,16 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (raw.isEmpty) return;
     final server = AccordServer.fromBaseUrl(raw);
     if (_tosFetchedServer == server.baseUrl) return;
-    final settings = await ref
-        .read(accordAuthProvider.notifier)
-        .fetchServerSettings(server);
+    final tos = await fetchTosConfig(
+      ref.read(accordAuthProvider.notifier),
+      server,
+    );
     if (!mounted) return;
     setState(() {
       _tosFetchedServer = server.baseUrl;
-      _tosEnabled = settings?['tos_enabled'] == true;
-      _tosUrl = settings?['tos_url'] as String?;
-      _tosText = settings?['tos_text'] as String?;
+      _tosEnabled = tos.enabled;
+      _tosUrl = tos.url;
+      _tosText = tos.text;
       _tosAccepted = false;
     });
   }
@@ -155,31 +156,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     _passwordController.text = generateAuthPassword();
   }
 
-  Future<void> _openTos() async {
-    final url = _tosUrl?.trim();
-    if (url != null && url.isNotEmpty) {
-      final uri = Uri.tryParse(url);
-      if (uri != null) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        return;
-      }
-    }
-    final text = _tosText?.trim();
-    if (text == null || text.isEmpty || !mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Terms of Service'),
-        content: SingleChildScrollView(child: Text(text)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<void> _openTos() => openTos(context, url: _tosUrl, text: _tosText);
 
   /// Discovery (the embedded browser while signed out) needs auth against
   /// `serverUrl` before joining `spaceId`: switch to the credentials form,
@@ -216,23 +193,14 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (username.isEmpty || password.isEmpty) return;
 
     if (_mode == AuthMode.register) {
-      // Usernames are the public login identifier (login looks up by username,
-      // not email), so reject email-like input rather than silently accepting
-      // a misleading account name. The server enforces this authoritatively too.
-      if (username.contains('@')) {
-        setState(() => _authLocalError = "Username can't be an email address.");
-        return;
-      }
-      if (password.length < 8) {
-        setState(
-          () => _authLocalError = 'Password must be at least 8 characters.',
-        );
-        return;
-      }
-      if (_tosEnabled && !_tosAccepted) {
-        setState(
-          () => _authLocalError = 'You must accept the Terms of Service.',
-        );
+      final validationError = validateRegistrationCredentials(
+        username: username,
+        password: password,
+        tosRequired: _tosEnabled,
+        tosAccepted: _tosAccepted,
+      );
+      if (validationError != null) {
+        setState(() => _authLocalError = validationError);
         return;
       }
       setState(() => _authLocalError = null);
@@ -298,6 +266,11 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(accordAuthProvider);
 
+    // This only covers a login that completes *while this screen is showing*.
+    // Landing on a login route while *already* logged in (e.g. tapping "back"
+    // out of /admin or /settings, whose router parent is this screen) never
+    // reaches build: the router redirects it straight home (see
+    // `_redirectLoggedInToHome` in `lib/router/controller.dart`).
     ref.listen(accordAuthProvider, (previous, next) {
       if (next is AccordAuthLoggedIn) {
         final spaceId = _pendingJoinSpaceId;
@@ -308,16 +281,6 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
         });
       }
     });
-
-    // Handle landing on the login route while *already* logged in (e.g. tapping
-    // "back" out of /admin or /settings, whose router parent is this screen).
-    // `ref.listen` only fires on a state *change*, so without this the screen
-    // would sit on the "Signing in…" loader forever. Redirect straight home.
-    if (state is AccordAuthLoggedIn) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _navigateToHome();
-      });
-    }
 
     // Loading / MFA / forced-password-change: simple centered forms with no
     // onboarding chrome.
@@ -454,7 +417,11 @@ class _Loading extends StatelessWidget {
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 30),
-        LoadingAnimationWidget.fourRotatingDots(color: color, size: 50),
+        SizedBox(
+          width: 50,
+          height: 50,
+          child: CircularProgressIndicator(color: color),
+        ),
       ],
     );
   }

@@ -7,7 +7,6 @@ import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
-import 'package:bonfire/features/spaces/controllers/space.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
 import 'package:bonfire/features/spaces/views/accord_ban_list.dart';
@@ -23,6 +22,10 @@ import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+part 'accord_space_settings_form.dart';
+part 'accord_space_settings_management.dart';
+part 'accord_space_settings_layout.dart';
 
 /// Opens the space settings screen for [spaceId]. Mirrors the client
 /// [AccordSettingsScreen]: a full-screen route with section-grouped tiles.
@@ -188,7 +191,6 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final space = result.data;
     if (result.ok && space is AccordSpace) {
       ref.read(spacesControllerProvider.notifier).upsertSpace(space);
-      ref.read(spaceControllerProvider(space.id).notifier).setSpace(space);
     }
   }
 
@@ -410,28 +412,8 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     }
   }
 
-  Widget _dropdown<T>({
-    required String label,
-    required T value,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-  }) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: const OutlineInputBorder(),
-      ),
-      items: items,
-      onChanged: _busy ? null : onChanged,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final space = ref.watch(
       spacesControllerProvider.select(
@@ -502,352 +484,80 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
       ),
       body: _AdaptiveSettingsBody(
         form: [
-          SectionHeader('Banner'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 130,
-                    width: double.infinity,
-                    color: colors.darkGray,
-                    child: bannerUrl == null
-                        ? Center(
-                            child: Icon(
-                              Icons.image_outlined,
-                              color: colors.gray,
-                              size: 32,
-                            ),
-                          )
-                        : CachedNetworkImage(
-                            imageUrl: bannerUrl,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, _, _) => Center(
-                              child: Icon(
-                                Icons.broken_image_outlined,
-                                color: colors.gray,
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-                if (canManageSpace) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _busy ? null : _pickBanner,
-                        icon: const Icon(Icons.upload, size: 18),
-                        label: Text(bannerUrl == null ? 'Upload' : 'Change'),
-                      ),
-                      const SizedBox(width: 8),
-                      if (bannerUrl != null)
-                        TextButton(
-                          onPressed: _busy ? null : _removeBanner,
-                          style: TextButton.styleFrom(
-                            foregroundColor: colors.red,
-                          ),
-                          child: const Text('Remove'),
-                        ),
-                    ],
-                  ),
-                ] else
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'You need Manage Space to edit the banner.',
-                      style: theme.textTheme.bodySmall!.copyWith(
-                        color: colors.gray,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          _BannerSection(
+            bannerUrl: bannerUrl,
+            canManage: canManageSpace,
+            busy: _busy,
+            onPick: _pickBanner,
+            onRemove: _removeBanner,
           ),
           if (canManageSpace) ...[
             const Divider(height: 24),
-            SectionHeader('Overview'),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: colors.darkGray,
-                        backgroundImage: _pendingIconDataUri != null
-                            ? null
-                            : (_iconRemoved || iconUrl == null
-                                  ? null
-                                  : CachedNetworkImageProvider(iconUrl)),
-                        child:
-                            (_pendingIconDataUri != null ||
-                                (!_iconRemoved && iconUrl != null))
-                            ? null
-                            : Icon(Icons.image_outlined, color: colors.gray),
-                      ),
-                      const SizedBox(height: 4),
-                      TextButton(
-                        onPressed: _busy ? null : _pickIcon,
-                        child: Text(iconUrl == null ? 'Upload' : 'Change'),
-                      ),
-                      if (iconUrl != null || _pendingIconDataUri != null)
-                        TextButton(
-                          onPressed: _busy ? null : _markIconRemoved,
-                          style: TextButton.styleFrom(
-                            foregroundColor: colors.red,
-                          ),
-                          child: const Text('Remove'),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: _name,
-                          enabled: !_busy,
-                          decoration: const InputDecoration(
-                            labelText: 'Name',
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _description,
-                          enabled: !_busy,
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: 'Description',
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            _OverviewSection(
+              nameController: _name,
+              descriptionController: _description,
+              iconUrl: iconUrl,
+              pendingIconDataUri: _pendingIconDataUri,
+              iconRemoved: _iconRemoved,
+              busy: _busy,
+              onPickIcon: _pickIcon,
+              onRemoveIcon: _markIconRemoved,
             ),
             const Divider(height: 24),
-            SectionHeader('Moderation'),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              child: Column(
-                children: [
-                  _dropdown<String>(
-                    label: 'Verification level',
-                    value: _verification,
-                    items: [
-                      for (final v in _verificationLevels)
-                        DropdownMenuItem(value: v.value, child: Text(v.label)),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _verification = v ?? 'none'),
-                  ),
-                  const SizedBox(height: 8),
-                  _dropdown<String>(
-                    label: 'Default notifications',
-                    value: _notifications,
-                    items: [
-                      for (final v in _notificationLevels)
-                        DropdownMenuItem(value: v.value, child: Text(v.label)),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _notifications = v ?? 'all'),
-                  ),
-                  const SizedBox(height: 8),
-                  _dropdown<String>(
-                    label: 'NSFW level',
-                    value: _nsfw,
-                    items: [
-                      for (final v in _nsfwLevels)
-                        DropdownMenuItem(value: v.value, child: Text(v.label)),
-                    ],
-                    onChanged: (v) => setState(() => _nsfw = v ?? 'default'),
-                  ),
-                  const SizedBox(height: 8),
-                  _dropdown<String>(
-                    label: 'Explicit content filter',
-                    value: _contentFilter,
-                    items: [
-                      for (final v in _contentFilters)
-                        DropdownMenuItem(value: v.value, child: Text(v.label)),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _contentFilter = v ?? 'disabled'),
-                  ),
-                ],
-              ),
-            ),
-            SwitchListTile(
-              value: _public,
-              onChanged: _busy ? null : (v) => setState(() => _public = v),
-              title: const Text('Public space'),
-              subtitle: const Text('Discoverable and joinable by anyone'),
-            ),
-            SwitchListTile(
-              value: _guestAccess,
-              onChanged: _busy ? null : (v) => setState(() => _guestAccess = v),
-              title: const Text('Allow guest access'),
-              subtitle: const Text('Let unauthenticated users browse'),
+            _ModerationSection(
+              verification: _verification,
+              notifications: _notifications,
+              nsfw: _nsfw,
+              contentFilter: _contentFilter,
+              isPublic: _public,
+              guestAccess: _guestAccess,
+              busy: _busy,
+              onVerificationChanged: (v) =>
+                  setState(() => _verification = v ?? 'none'),
+              onNotificationsChanged: (v) =>
+                  setState(() => _notifications = v ?? 'all'),
+              onNsfwChanged: (v) => setState(() => _nsfw = v ?? 'default'),
+              onContentFilterChanged: (v) =>
+                  setState(() => _contentFilter = v ?? 'disabled'),
+              onPublicChanged: (v) => setState(() => _public = v),
+              onGuestAccessChanged: (v) => setState(() => _guestAccess = v),
             ),
             const Divider(height: 24),
-            SectionHeader('Channels'),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              child: Column(
-                children: [
-                  _dropdown<String?>(
-                    label: 'Rules channel',
-                    value: rulesValue,
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('None')),
-                      for (final c in textChannels)
-                        DropdownMenuItem(
-                          value: c.id,
-                          child: Text('# ${c.name ?? c.id}'),
-                        ),
-                    ],
-                    onChanged: (v) => setState(() => _rulesChannelId = v),
-                  ),
-                  const SizedBox(height: 8),
-                  _dropdown<String?>(
-                    label: 'System messages channel',
-                    value: systemValue,
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('None')),
-                      for (final c in textChannels)
-                        DropdownMenuItem(
-                          value: c.id,
-                          child: Text('# ${c.name ?? c.id}'),
-                        ),
-                    ],
-                    onChanged: (v) => setState(() => _systemChannelId = v),
-                  ),
-                ],
-              ),
+            _ChannelsSection(
+              textChannels: textChannels,
+              rulesValue: rulesValue,
+              systemValue: systemValue,
+              busy: _busy,
+              onRulesChanged: (v) => setState(() => _rulesChannelId = v),
+              onSystemChanged: (v) => setState(() => _systemChannelId = v),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: _busy ? null : _saveSettings,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save, size: 18),
-                  label: const Text('Save settings'),
-                ),
-              ),
-            ),
+            _SaveSettingsButton(busy: _busy, onSave: _saveSettings),
           ],
         ],
         actions: [
-          SectionHeader('Membership'),
-          ListTile(
-            leading: Icon(Icons.badge_outlined, color: colors.dirtyWhite),
-            title: const Text('Change your nickname'),
-            subtitle: const Text('How you appear in this space'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _editOwnNickname(),
-          ),
+          _MembershipSection(onEditNickname: _editOwnNickname),
           if (canManageRoles ||
               canViewAuditLog ||
               canModerate ||
               canManageEmojis ||
               canUseSoundboard) ...[
             const Divider(height: 24),
-            SectionHeader('Management'),
-            if (canManageRoles)
-              ListTile(
-                leading: Icon(Icons.shield_outlined, color: colors.dirtyWhite),
-                title: const Text('Roles'),
-                subtitle: const Text('Create, edit, and order roles'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    showAccordRoleManagement(context, spaceId: widget.spaceId),
-              ),
-            if (canViewAuditLog)
-              ListTile(
-                leading: Icon(Icons.history, color: colors.dirtyWhite),
-                title: const Text('Audit log'),
-                subtitle: const Text('Recent moderation and admin actions'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    showAccordAuditLog(context, spaceId: widget.spaceId),
-              ),
-            if (canModerate) ...[
-              ListTile(
-                leading: Icon(Icons.gavel, color: colors.dirtyWhite),
-                title: const Text('Banned members'),
-                subtitle: const Text('Review and unban members'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    showAccordBanList(context, spaceId: widget.spaceId),
-              ),
-              ListTile(
-                leading: Icon(Icons.flag_outlined, color: colors.dirtyWhite),
-                title: const Text('Reports'),
-                subtitle: const Text('Review and resolve member reports'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => showReportsPanel(context, spaceId: widget.spaceId),
-              ),
-            ],
-            if (canManageEmojis)
-              ListTile(
-                leading: Icon(
-                  Icons.emoji_emotions_outlined,
-                  color: colors.dirtyWhite,
-                ),
-                title: const Text('Custom emoji'),
-                subtitle: const Text('Upload, rename, and delete emoji'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    showAccordEmojiManagement(context, spaceId: widget.spaceId),
-              ),
-            if (canUseSoundboard)
-              ListTile(
-                leading: Icon(Icons.graphic_eq, color: colors.dirtyWhite),
-                title: const Text('Soundboard'),
-                subtitle: const Text('Play and manage soundboard clips'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => showAccordSoundboard(
-                  context,
-                  spaceId: widget.spaceId,
-                  canManage: canManageSoundboard,
-                ),
-              ),
+            _ManagementSection(
+              spaceId: widget.spaceId,
+              canManageRoles: canManageRoles,
+              canViewAuditLog: canViewAuditLog,
+              canModerate: canModerate,
+              canManageEmojis: canManageEmojis,
+              canUseSoundboard: canUseSoundboard,
+              canManageSoundboard: canManageSoundboard,
+            ),
           ],
           if (isOwner) ...[
             const Divider(height: 24),
-            SectionHeader('Danger zone'),
-            ListTile(
-              leading: Icon(Icons.swap_horiz, color: colors.dirtyWhite),
-              title: const Text('Transfer ownership'),
-              subtitle: const Text('Hand this space to another member'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () =>
-                  showTransferOwnership(context, spaceId: widget.spaceId),
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_forever, color: colors.red),
-              title: Text('Delete space', style: TextStyle(color: colors.red)),
-              subtitle: const Text('Permanently remove this space'),
-              onTap: _busy ? null : () => _deleteSpace(space.name),
+            _DangerZoneSection(
+              spaceId: widget.spaceId,
+              busy: _busy,
+              onDeleteSpace: () => _deleteSpace(space.name),
             ),
           ],
         ],
@@ -861,75 +571,3 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     );
   }
 }
-
-/// Lays out the space-settings sections in one scrolling page. On wide
-/// (desktop) viewports the editable [form] and the [actions] tiles sit in two
-/// side-by-side columns constrained to a readable max width; on narrow
-/// viewports they stack into a single column (the mobile layout).
-class _AdaptiveSettingsBody extends StatelessWidget {
-  const _AdaptiveSettingsBody({
-    required this.form,
-    required this.actions,
-    this.error,
-  });
-
-  final List<Widget> form;
-  final List<Widget> actions;
-  final Widget? error;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Below this the two columns would be too cramped, so stack them.
-        final twoColumn = constraints.maxWidth >= 880;
-        if (!twoColumn) {
-          return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [
-              ...form,
-              const Divider(height: 24),
-              ...actions,
-              if (error != null) error!,
-            ],
-          );
-        }
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1100),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: form,
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: actions,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (error != null) error!,
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// Section headers use the shared SectionHeader from
-// shared/components/section_header.dart.

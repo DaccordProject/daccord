@@ -1,7 +1,10 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/load_more_footer.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -232,24 +235,34 @@ const _reportStatuses = <({String label, String? value})>[
 
 const _reportPageSize = 25;
 
-class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
-  final List<Map<String, dynamic>> _reports = [];
-  bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
+class _ReportsPanelState extends ConsumerState<_ReportsPanel>
+    with PaginatedListState<Map<String, dynamic>, _ReportsPanel> {
   bool _busy = false;
-  String? _error;
   String? _status = 'pending';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
 
   AccordClient? get _client => ref.accordClient;
 
-  List<Map<String, dynamic>> _parse(Object? data) {
+  @override
+  int get pageSize => _reportPageSize;
+
+  @override
+  bool get canLoad => _client != null;
+
+  @override
+  String? itemId(Map<String, dynamic> item) => item['id']?.toString();
+
+  @override
+  Future<RestResult> fetchPage({String? before}) => _client!.reports.list(
+    widget.spaceId,
+    query: {
+      if (_status != null) 'status': _status,
+      'limit': _reportPageSize,
+      if (before != null) 'before': before,
+    },
+  );
+
+  @override
+  List<Map<String, dynamic>> parseItems(Object? data) {
     final raw = data is List
         ? data
         : (data is Map && data['reports'] is List
@@ -258,68 +271,12 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     return [for (final e in raw) _asMap(e)];
   }
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    final result = await client.reports.list(
-      widget.spaceId,
-      query: {if (_status != null) 'status': _status, 'limit': _reportPageSize},
-    );
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _loading = false;
-        _error = result.errorOr('Failed to load');
-      });
-      return;
-    }
-    final parsed = _parse(result.data);
-    setState(() {
-      _loading = false;
-      _reports
-        ..clear()
-        ..addAll(parsed);
-      _hasMore = parsed.length >= _reportPageSize;
-    });
-  }
+  @override
+  String loadError(RestResult result) => result.errorOr('Failed to load');
 
-  Future<void> _loadMore() async {
-    final client = _client;
-    if (client == null || _loadingMore || !_hasMore || _reports.isEmpty) return;
-    final lastId = _reports.last['id']?.toString();
-    if (lastId == null) return;
-    setState(() => _loadingMore = true);
-    final result = await client.reports.list(
-      widget.spaceId,
-      query: {
-        if (_status != null) 'status': _status,
-        'limit': _reportPageSize,
-        'before': lastId,
-      },
-    );
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _loadingMore = false;
-        _error = result.errorOr('Failed to load more');
-      });
-      return;
-    }
-    final parsed = _parse(result.data);
-    final existing = _reports.map((r) => r['id']?.toString()).toSet();
-    final fresh = parsed
-        .where((r) => !existing.contains(r['id']?.toString()))
-        .toList();
-    setState(() {
-      _loadingMore = false;
-      _reports.addAll(fresh);
-      _hasMore = parsed.length >= _reportPageSize && fresh.isNotEmpty;
-    });
-  }
+  @override
+  String loadMoreError(RestResult result) =>
+      result.errorOr('Failed to load more');
 
   Map<String, dynamic> _asMap(dynamic entry) {
     if (entry is Map<String, dynamic>) return entry;
@@ -354,33 +311,10 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     });
     if (!mounted) return;
     if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to resolve'));
+      setState(() => error = result.errorOr('Failed to resolve'));
       return;
     }
-    setState(
-      () => _reports.removeWhere((r) => r['id']?.toString() == reportId),
-    );
-  }
-
-  Future<bool> _confirm(String title, String message, String action) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(action),
-          ),
-        ],
-      ),
-    );
-    return ok == true;
+    setState(() => items.removeWhere((r) => r['id']?.toString() == reportId));
   }
 
   Future<void> _deleteMessage(Map<String, dynamic> r) async {
@@ -389,21 +323,19 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final messageId = r['target_id']?.toString();
     final id = r['id']?.toString() ?? '';
     if (client == null || channelId == null || messageId == null) return;
-    if (!await _confirm(
-      'Delete message',
-      'Delete the reported message and action this report?',
-      'Delete',
-    )) {
-      return;
-    }
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete message',
+      message: 'Delete the reported message and action this report?',
+      confirmLabel: 'Delete',
+    );
+    if (ok != true) return;
     setState(() => _busy = true);
     final result = await client.messages.delete(channelId, messageId);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(
-        () => _error = result.errorOr('Failed to delete message'),
-      );
+      setState(() => error = result.errorOr('Failed to delete message'));
       return;
     }
     await _resolve(id, 'actioned', actionTaken: 'delete_message');
@@ -414,19 +346,19 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final userId = _reportedUserId(r);
     final id = r['id']?.toString() ?? '';
     if (client == null || userId == null) return;
-    if (!await _confirm(
-      'Kick member',
-      'Kick the reported member and action this report?',
-      'Kick',
-    )) {
-      return;
-    }
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Kick member',
+      message: 'Kick the reported member and action this report?',
+      confirmLabel: 'Kick',
+    );
+    if (ok != true) return;
     setState(() => _busy = true);
     final result = await client.members.kick(widget.spaceId, userId);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to kick'));
+      setState(() => error = result.errorOr('Failed to kick'));
       return;
     }
     await _resolve(id, 'actioned', actionTaken: 'kick_member');
@@ -437,19 +369,19 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
     final userId = _reportedUserId(r);
     final id = r['id']?.toString() ?? '';
     if (client == null || userId == null) return;
-    if (!await _confirm(
-      'Ban member',
-      'Ban the reported member and action this report?',
-      'Ban',
-    )) {
-      return;
-    }
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Ban member',
+      message: 'Ban the reported member and action this report?',
+      confirmLabel: 'Ban',
+    );
+    if (ok != true) return;
     setState(() => _busy = true);
     final result = await client.bans.create(widget.spaceId, userId);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() => _error = result.errorOr('Failed to ban'));
+      setState(() => error = result.errorOr('Failed to ban'));
       return;
     }
     await _resolve(id, 'actioned', actionTaken: 'ban_member');
@@ -496,20 +428,20 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
                     ChoiceChip(
                       label: Text(s.label),
                       selected: _status == s.value,
-                      onSelected: _loading
+                      onSelected: loading
                           ? null
                           : (_) {
                               setState(() => _status = s.value);
-                              _load();
+                              load();
                             },
                     ),
                 ],
               ),
             ),
             Expanded(
-              child: _loading
+              child: loading
                   ? const LoadingView()
-                  : _reports.isEmpty
+                  : items.isEmpty
                   ? Center(
                       child: Text(
                         'No reports',
@@ -518,33 +450,21 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _reports.length + (_hasMore ? 1 : 0),
+                      itemCount: items.length + (hasMore ? 1 : 0),
                       separatorBuilder: (_, _) =>
                           Divider(height: 12, color: colors.background),
                       itemBuilder: (context, index) {
-                        if (index >= _reports.length) {
-                          return Center(
-                            child: _loadingMore
-                                ? const Padding(
-                                    padding: EdgeInsets.all(8),
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  )
-                                : TextButton(
-                                    onPressed: _loadMore,
-                                    child: const Text('Load more'),
-                                  ),
+                        if (index >= items.length) {
+                          return LoadMoreFooter(
+                            loading: loadingMore,
+                            onPressed: loadMore,
+                            spinnerPadding: const EdgeInsets.all(8),
                           );
                         }
                         return _ReportRow(
-                          report: _reports[index],
+                          report: items[index],
                           busy: _busy,
-                          reportedUserId: _reportedUserId(_reports[index]),
+                          reportedUserId: _reportedUserId(items[index]),
                           onDismiss: (id) => _resolve(id, 'dismissed'),
                           onResolve: (id) =>
                               _resolve(id, 'resolved', actionTaken: 'none'),
@@ -555,10 +475,10 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel> {
                       },
                     ),
             ),
-            if (_error != null)
+            if (error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: InlineError(_error!, centered: false),
+                child: InlineError(error!, centered: false),
               ),
           ],
         ),

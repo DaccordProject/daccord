@@ -19,7 +19,6 @@ dependencies:
   # Promoted from transitive (pulled in by markdown_viewer) so message rendering
   # can define custom inline markdown syntaxes for Accord mentions/channels/emoji.
   dart_markdown: 3.1.7
-  source_span: ^1.10.1
 
   # Accord protocol SDK — the networking layer that replaced firebridge.
   # Vendored in-tree (packages/accordkit) and maintained here.
@@ -29,10 +28,6 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_riverpod: ^3.0.3
   riverpod_annotation: ^3.0.3
-
-  flutter_keyboard_size: ^1.0.1
-  freezed_annotation: ^3.1.0
-  json_serializable: ^6.7.1
 
   go_router: ^17.0.0
   flutter_prism: ^0.2.2
@@ -61,18 +56,11 @@ dependencies:
 
   url_launcher: ^6.2.6
   app_links: ^6.3.0
-  sticky_headers: ^0.3.0+2
-  flutter_svg: ^2.0.10+1
   collection: ^1.18.0
   http: ^1.2.1
   audioplayers: ^6.0.0
-  file_icon: ^1.0.0
-  internet_file: ^1.2.0
-  file_selector: ^1.0.3
-  permission_handler: ^12.0.1
   path_provider: ^2.1.3
   universal_platform: ^1.1.0
-  loading_animation_widget: ^1.2.1
   hive_ce: ^2.5.0
   universal_io: ^2.2.2
   # Single source of truth for the app version: reads the version Flutter bakes
@@ -84,28 +72,14 @@ dependencies:
   # Desktop window control — restore/persist last window size & position.
   window_manager: ^0.4.3
 
-  flutter_thumbhash: ^0.1.0+1
-  flutter_cache_manager: ^3.4.0
   file_picker: ^10.3.6
   path: ^1.9.0
-  flutter_localization: ^0.3.3
-  # flutter_webrtc: ^0.12.11
   crypto: ^3.0.6
-  shimmer: ^3.0.0
-  rubber: ^1.1.0
   flutter_local_notifications: ^19.5.0
   flutter_webrtc: ^1.2.0
-  sdp_transform: ^0.3.2
   livekit_client: ^2.8.0
-  logging: ^1.3.0 # TEMP (#68 ICE probe) — used by the livekit log tap in voice.dart
-  webcrypto:
-    git:
-      url: https://github.com/OpenBonfire/webcrypto.dart
-  web_socket_channel: ^3.0.2
   qr_flutter: ^4.1.0
   cached_network_image: ^3.4.1
-  webview_flutter: ^4.10.0
-  dart_mappable: ^4.6.1
   pasteboard: ^0.5.0
   # Self-update: extract downloaded desktop bundles (zip / tar.gz) before the
   # in-place binary swap. Pure Dart, used only by features/updates. Pinned to the
@@ -174,9 +148,7 @@ dev_dependencies:
   riverpod_generator: ^3.0.3
   riverpod_lint: ^3.0.3
   flutter_lints: ^6.0.0
-  freezed: ^3.2.3
   flutter_launcher_icons: ^0.14.4
-  dart_mappable_builder: ^4.6.1
 
 flutter_launcher_icons:
   ios: true
