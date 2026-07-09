@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/confirm_logout.dart';
 import 'package:bonfire/features/developer/views/developer_settings_page.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/profiles/views/profiles_page.dart';
@@ -87,7 +88,9 @@ class AccordSettingsScreen extends ConsumerWidget {
           const _AboutSection(),
           const Divider(height: 24),
           _LogOutTile(
-            onLogOut: () {
+            onLogOut: () async {
+              if (!await confirmLogout(context)) return;
+              if (!context.mounted) return;
               ref.read(accordAuthProvider.notifier).logout();
               if (context.mounted) context.go('/');
             },

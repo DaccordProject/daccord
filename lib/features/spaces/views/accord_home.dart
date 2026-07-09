@@ -4,6 +4,7 @@ import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:collection/collection.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/authentication/utils/confirm_logout.dart';
 import 'package:bonfire/features/channels/views/channel_context_menu.dart';
 import 'package:bonfire/features/channels/views/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
@@ -466,7 +467,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       onAddServer: () => showAddServerDialog(context),
       onSwitchAccount: () => context.go('/switcher'),
       onOpenSettings: () => context.push('/settings'),
-      onLogout: () => ref.read(accordAuthProvider.notifier).logout(),
+      onLogout: () async {
+        if (!await confirmLogout(context)) return;
+        if (!context.mounted) return;
+        ref.read(accordAuthProvider.notifier).logout();
+      },
     );
 
     Widget channelList({required bool inDrawer}) => _ChannelList(
