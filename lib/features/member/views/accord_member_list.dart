@@ -71,8 +71,8 @@ class _Roster extends ConsumerWidget {
 
     if (members == null) {
       // The roster fetch itself failed (timeout / non-2xx / network) — surface
-      // a retry instead of spinning forever. Retrying re-runs the controller's
-      // load, which clears the failed flag on the way in.
+      // a retry instead of spinning forever. onRetry clears the failed flag
+      // itself, then invalidates the controller to re-run `_load`.
       if (ref.watch(membersLoadFailedProvider(spaceId))) {
         return ServerUnreachable(
           title: "Couldn't load members",

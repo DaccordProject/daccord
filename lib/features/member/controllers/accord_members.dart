@@ -23,8 +23,9 @@ const int _maxConcurrentUserFetches = 8;
 
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
-/// of spinning forever when `members.list` never yields a list. Reset to false
-/// whenever a load (re)starts; set true only after the retries are exhausted.
+/// of spinning forever when `members.list` never yields a list. Cleared on a
+/// successful load, and by the roster's Retry button before it re-triggers
+/// `_load`; set true only after the retries are exhausted.
 @Riverpod(keepAlive: true)
 class MembersLoadFailed extends _$MembersLoadFailed {
   @override
