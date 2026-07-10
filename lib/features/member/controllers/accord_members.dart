@@ -21,6 +21,20 @@ final Set<String> activeMemberSpaces = <String>{};
 /// without tripping the limiter.
 const int _maxConcurrentUserFetches = 8;
 
+/// Whether the initial roster fetch for a space failed (a non-2xx response, a
+/// network error, or a timeout). Lets the roster show a retry affordance instead
+/// of spinning forever when `members.list` never yields a list. Cleared on a
+/// successful load, and by the roster's Retry button before it re-triggers
+/// `_load`; set true only after the retries are exhausted.
+@Riverpod(keepAlive: true)
+class MembersLoadFailed extends _$MembersLoadFailed {
+  @override
+  bool build(String spaceId) => false;
+
+  // ignore: use_setters_to_change_properties
+  void set(bool value) => state = value;
+}
+
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
 /// logged in) and is kept in sync by member join/update/leave gateway events.
@@ -40,16 +54,41 @@ class AccordMembersController extends _$AccordMembersController {
   }
 
   Future<void> _load(AccordClient client, String spaceId) async {
-    // `withUser` asks the server to embed each member's user object, so
-    // `_resolveUsers` finds them already populated and skips the per-member
-    // fetch. Older servers ignore the flag; the fallback fetch still runs then.
-    final list = (await client.members
-            .list(spaceId, query: {'limit': 100}, withUser: true))
-        .listOrLog<AccordMember>('members for $spaceId');
-    if (list == null) return;
-    final members = {for (final member in list) member.userId: member};
-    state = members;
-    await _resolveUsers(client, members);
+    // Retry a few times so a transient network blip or a still-warming server
+    // doesn't strand the roster on a permanent spinner. The `timeout` guards a
+    // hung socket, since the underlying HTTP client has no timeout of its own —
+    // without it a stalled request would leave `state` null (a forever spinner)
+    // that never recovers, even across navigation or an app restart.
+    //
+    // Every write to `membersLoadFailedProvider` happens after the first
+    // `await` below: `build` calls `_load` synchronously, and Riverpod forbids
+    // a provider mutating another during initialization.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      List<AccordMember>? list;
+      try {
+        // `withUser` asks the server to embed each member's user object, so
+        // `_resolveUsers` finds them already populated and skips the per-member
+        // fetch. Older servers ignore the flag; the fallback fetch runs then.
+        list = (await client.members
+                .list(spaceId, query: {'limit': 100}, withUser: true)
+                .timeout(const Duration(seconds: 20)))
+            .listOrLog<AccordMember>('members for $spaceId');
+      } catch (e) {
+        debugPrint('Failed to load members for $spaceId: $e');
+      }
+      if (list != null) {
+        final members = {for (final member in list) member.userId: member};
+        state = members;
+        ref.read(membersLoadFailedProvider(spaceId).notifier).set(false);
+        await _resolveUsers(client, members);
+        return;
+      }
+      // Back off before retrying (1s, then 2s); no wait after the final try.
+      if (attempt < 2) {
+        await Future.delayed(Duration(seconds: attempt + 1));
+      }
+    }
+    ref.read(membersLoadFailedProvider(spaceId).notifier).set(true);
   }
 
   /// The members endpoint returns only `user_id` per member — no embedded user

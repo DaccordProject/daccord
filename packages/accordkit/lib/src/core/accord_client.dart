@@ -86,6 +86,7 @@ class AccordClient {
     String? baseUrl,
     String? gatewayUrl,
     String? cdnUrl,
+    void Function()? onUnauthorized,
     http.Client? httpClient,
     GatewayConnectionFactory? connectionFactory,
     Future<void> Function(Duration)? sleep,
@@ -99,6 +100,7 @@ class AccordClient {
       config.apiUrl(),
       token: token,
       tokenType: tokenType,
+      onUnauthorized: onUnauthorized,
       client: httpClient,
       sleep: sleep,
     );

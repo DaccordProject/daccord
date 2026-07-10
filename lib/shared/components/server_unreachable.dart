@@ -8,9 +8,14 @@ import 'package:flutter/material.dart';
 class ServerUnreachable extends StatelessWidget {
   const ServerUnreachable({
     super.key,
+    this.title = 'Server unreachable',
     this.message = 'Trying to reconnect…',
     this.onRetry,
   });
+
+  /// The headline (e.g. 'Server unreachable', or 'Couldn't load members' for a
+  /// pane whose own fetch failed while the connection is otherwise up).
+  final String title;
 
   /// The secondary line under the headline (e.g. a hint about retrying).
   final String message;
@@ -31,7 +36,7 @@ class ServerUnreachable extends StatelessWidget {
             Icon(Icons.cloud_off_outlined, size: 40, color: colors.gray),
             const SizedBox(height: 12),
             Text(
-              'Server unreachable',
+              title,
               textAlign: TextAlign.center,
               style: textTheme.titleSmall?.copyWith(color: colors.dirtyWhite),
             ),

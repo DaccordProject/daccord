@@ -163,6 +163,41 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.error!.code, 'INTERNAL');
     });
+
+    test('fires onUnauthorized on a 401 response', () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        responder: (_) => jsonError('UNAUTHORIZED', 'nope', status: 401),
+        onUnauthorized: () => calls++,
+      );
+      final result = await rest.makeRequest('GET', '/x');
+      expect(result.ok, isFalse);
+      expect(result.statusCode, 401);
+      expect(calls, 1);
+    });
+
+    test('does not fire onUnauthorized on non-401 failures', () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        responder: (_) => jsonError('FORBIDDEN', 'no', status: 403),
+        onUnauthorized: () => calls++,
+      );
+      await rest.makeRequest('GET', '/x');
+      expect(calls, 0);
+    });
+
+    test('does not fire onUnauthorized on success', () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        responder: (_) => jsonData({'ok': true}),
+        onUnauthorized: () => calls++,
+      );
+      await rest.makeRequest('GET', '/x');
+      expect(calls, 0);
+    });
   });
 
   group('AccordRest.makeRawRequest', () {
@@ -208,6 +243,20 @@ void main() {
       expect(body, contains('filename="a.txt"'));
       expect(body, contains('hello'));
       expect(body.trimRight().endsWith('--BOUND--'), isTrue);
+    });
+
+    test('fires onUnauthorized on a 401 response', () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        responder: (_) => jsonError('UNAUTHORIZED', 'nope', status: 401),
+        onUnauthorized: () => calls++,
+      );
+      final form = MultipartForm(boundary: 'BOUND')..addField('a', 'b');
+      final result =
+          await rest.makeMultipartRequest('POST', '/upload', form);
+      expect(result.ok, isFalse);
+      expect(calls, 1);
     });
   });
 

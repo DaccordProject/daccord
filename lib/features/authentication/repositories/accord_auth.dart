@@ -63,6 +63,11 @@ class AccordAuth extends _$AccordAuth {
   final Map<String, _Conn> _connections = {};
   String? _activeKey;
 
+  /// Connection keys currently being torn down after a 401, so the burst of
+  /// simultaneous unauthorized responses (spaces, members, emojis, …) triggers
+  /// exactly one sign-out per connection.
+  final Set<String> _signingOut = {};
+
   /// The active connection's client, or null when signed out. Repositories
   /// should obtain this via the logged-in [AccordAuthLoggedIn] state rather than
   /// reaching in here.
@@ -312,6 +317,30 @@ class AccordAuth extends _$AccordAuth {
         .set(ConnectionStatus.disconnected);
     ref.read(readyControllerProvider.notifier).setReady(false);
     state = const AccordAuthLoggedOut();
+  }
+
+  /// Reacts to a `401 Unauthorized` from connection [key]: its token is invalid
+  /// or expired and accordkit exposes no refresh path, so the session can't be
+  /// recovered silently. Sign the affected account out via [removeAccount],
+  /// which switches to another live server if one exists or otherwise
+  /// [logout]s to the login screen — matching "log me back in" rather than
+  /// leaving cached spaces/channels rendered behind a dead token.
+  ///
+  /// Guarded by [_signingOut] so the burst of simultaneous 401s (spaces,
+  /// members, emojis, …) tears the connection down exactly once; a no-op once
+  /// the connection is already gone.
+  Future<void> _handleUnauthorized(String key) async {
+    if (_signingOut.contains(key)) return;
+    final conn = _connections[key];
+    if (conn == null) return;
+    _signingOut.add(key);
+    debugPrint('Session $key is unauthorized (token invalid/expired); '
+        'signing it out.');
+    try {
+      await removeAccount(conn.session);
+    } finally {
+      _signingOut.remove(key);
+    }
   }
 
   // ── Add-a-server (multi-connection) ────────────────────────────────────────
@@ -728,6 +757,7 @@ class AccordAuth extends _$AccordAuth {
       baseUrl: session.server.baseUrl,
       gatewayUrl: session.server.gatewayUrl,
       cdnUrl: session.server.cdnUrl,
+      onUnauthorized: () => _handleUnauthorized(key),
       intents: [
         GatewayIntents.spaces,
         GatewayIntents.messages,
