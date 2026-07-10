@@ -70,6 +70,19 @@ class _Roster extends ConsumerWidget {
     final presences = ref.watch(presenceControllerProvider);
 
     if (members == null) {
+      // The roster fetch itself failed (timeout / non-2xx / network) — surface
+      // a retry instead of spinning forever. Retrying re-runs the controller's
+      // load, which clears the failed flag on the way in.
+      if (ref.watch(membersLoadFailedProvider(spaceId))) {
+        return ServerUnreachable(
+          title: "Couldn't load members",
+          message: 'Something went wrong fetching the member list.',
+          onRetry: () {
+            ref.read(membersLoadFailedProvider(spaceId).notifier).set(false);
+            ref.invalidate(accordMembersControllerProvider(spaceId));
+          },
+        );
+      }
       if (ref.watch(connectionControllerProvider).isUnreachable) {
         return ServerUnreachable(onRetry: () {
           final auth = ref.read(accordAuthProvider);

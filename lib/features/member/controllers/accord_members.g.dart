@@ -8,6 +8,125 @@ part of 'accord_members.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Whether the initial roster fetch for a space failed (a non-2xx response, a
+/// network error, or a timeout). Lets the roster show a retry affordance instead
+/// of spinning forever when `members.list` never yields a list. Reset to false
+/// whenever a load (re)starts; set true only after the retries are exhausted.
+
+@ProviderFor(MembersLoadFailed)
+const membersLoadFailedProvider = MembersLoadFailedFamily._();
+
+/// Whether the initial roster fetch for a space failed (a non-2xx response, a
+/// network error, or a timeout). Lets the roster show a retry affordance instead
+/// of spinning forever when `members.list` never yields a list. Reset to false
+/// whenever a load (re)starts; set true only after the retries are exhausted.
+final class MembersLoadFailedProvider
+    extends $NotifierProvider<MembersLoadFailed, bool> {
+  /// Whether the initial roster fetch for a space failed (a non-2xx response, a
+  /// network error, or a timeout). Lets the roster show a retry affordance instead
+  /// of spinning forever when `members.list` never yields a list. Reset to false
+  /// whenever a load (re)starts; set true only after the retries are exhausted.
+  const MembersLoadFailedProvider._({
+    required MembersLoadFailedFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'membersLoadFailedProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$membersLoadFailedHash();
+
+  @override
+  String toString() {
+    return r'membersLoadFailedProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  MembersLoadFailed create() => MembersLoadFailed();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is MembersLoadFailedProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$membersLoadFailedHash() => r'13daffe42918003e1b2b4dcdaf0e5120feadfc47';
+
+/// Whether the initial roster fetch for a space failed (a non-2xx response, a
+/// network error, or a timeout). Lets the roster show a retry affordance instead
+/// of spinning forever when `members.list` never yields a list. Reset to false
+/// whenever a load (re)starts; set true only after the retries are exhausted.
+
+final class MembersLoadFailedFamily extends $Family
+    with $ClassFamilyOverride<MembersLoadFailed, bool, bool, bool, String> {
+  const MembersLoadFailedFamily._()
+    : super(
+        retry: null,
+        name: r'membersLoadFailedProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Whether the initial roster fetch for a space failed (a non-2xx response, a
+  /// network error, or a timeout). Lets the roster show a retry affordance instead
+  /// of spinning forever when `members.list` never yields a list. Reset to false
+  /// whenever a load (re)starts; set true only after the retries are exhausted.
+
+  MembersLoadFailedProvider call(String spaceId) =>
+      MembersLoadFailedProvider._(argument: spaceId, from: this);
+
+  @override
+  String toString() => r'membersLoadFailedProvider';
+}
+
+/// Whether the initial roster fetch for a space failed (a non-2xx response, a
+/// network error, or a timeout). Lets the roster show a retry affordance instead
+/// of spinning forever when `members.list` never yields a list. Reset to false
+/// whenever a load (re)starts; set true only after the retries are exhausted.
+
+abstract class _$MembersLoadFailed extends $Notifier<bool> {
+  late final _$args = ref.$arg as String;
+  String get spaceId => _$args;
+
+  bool build(String spaceId);
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build(_$args);
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
+
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
 /// logged in) and is kept in sync by member join/update/leave gateway events.
@@ -73,7 +192,7 @@ final class AccordMembersControllerProvider
 }
 
 String _$accordMembersControllerHash() =>
-    r'd8db4fd898bfb79e1fcaf114445b2fce95ce42d5';
+    r'b31efa98ebbf57dc6e172572b36863d15d9a571e';
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once

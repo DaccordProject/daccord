@@ -20,6 +20,13 @@ class AccordRest {
   String tokenType; // "Bot" or "Bearer"
   String baseUrl;
 
+  /// Invoked whenever an authenticated request comes back `401 Unauthorized`
+  /// (an invalid, revoked, or expired token). Lets the owner react centrally —
+  /// e.g. sign the session out — instead of every call site handling it. Not
+  /// fired for the login/register routes on a throwaway unauthenticated client,
+  /// which simply leave this null.
+  void Function()? onUnauthorized;
+
   final http.Client _client;
   final Future<void> Function(Duration) _sleep;
 
@@ -27,6 +34,7 @@ class AccordRest {
     this.baseUrl, {
     this.token = '',
     this.tokenType = 'Bot',
+    this.onUnauthorized,
     http.Client? client,
     Future<void> Function(Duration)? sleep,
   })  : _client = client ?? http.Client(),
@@ -77,6 +85,7 @@ class AccordRest {
         );
       }
 
+      if (response.statusCode == 401) onUnauthorized?.call();
       return _parseResponse(
           response.statusCode, utf8.decode(response.bodyBytes));
     }
@@ -187,6 +196,7 @@ class AccordRest {
         );
       }
 
+      if (response.statusCode == 401) onUnauthorized?.call();
       return _parseResponse(
           response.statusCode, utf8.decode(response.bodyBytes));
     }
