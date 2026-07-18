@@ -285,6 +285,10 @@ class GatewaySocket {
   /// Current resumable session ID (empty when none).
   String get sessionId => _sessionId;
 
+  /// The effective heartbeat interval in ms, after capping the server-advertised
+  /// value at [AccordConfig.heartbeatIntervalMax]. Set on HELLO.
+  int get heartbeatIntervalMs => _heartbeatIntervalMs;
+
   /// Configures the socket before connecting.
   void setup(
     AccordConfig config,
@@ -597,8 +601,15 @@ class GatewaySocket {
     switch (op) {
       case GatewayOpcodes.hello:
         final dataMap = asMap(data) ?? const {};
-        _heartbeatIntervalMs = asInt(dataMap['heartbeat_interval'],
-            AccordConfig.heartbeatIntervalDefault);
+        // Cap the advertised interval: the heartbeat is our only keepalive on an
+        // idle socket, and intervals longer than a middlebox's idle timeout let
+        // the connection get culled (close 1006) before a beat fires. See
+        // [AccordConfig.heartbeatIntervalMax].
+        _heartbeatIntervalMs = min(
+          asInt(dataMap['heartbeat_interval'],
+              AccordConfig.heartbeatIntervalDefault),
+          AccordConfig.heartbeatIntervalMax,
+        );
         _heartbeatAckReceived = true;
         _startHeartbeat();
         if (_sessionId.isNotEmpty && _state == GatewayState.resuming) {
