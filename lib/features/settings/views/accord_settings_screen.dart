@@ -399,7 +399,7 @@ class _AccountSection extends StatelessWidget {
           leading: Icon(Icons.switch_account, color: colors.dirtyWhite),
           title: const Text('Switch account'),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.go('/switcher'),
+          onTap: () => context.push('/switcher'),
         ),
         ListTile(
           leading: Icon(Icons.devices, color: colors.dirtyWhite),
@@ -430,7 +430,7 @@ class _AccountSection extends StatelessWidget {
             ),
             title: const Text('Server administration'),
             subtitle: const Text('Spaces, users, reports, settings'),
-            onTap: () => context.go('/admin'),
+            onTap: () => context.push('/admin'),
           ),
       ],
     );

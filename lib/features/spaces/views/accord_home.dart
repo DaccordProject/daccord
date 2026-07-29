@@ -465,7 +465,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       selectedSpaceId: effectiveSpaceId,
       onSelect: _selectSpace,
       onAddServer: () => showAddServerDialog(context),
-      onSwitchAccount: () => context.go('/switcher'),
+      onSwitchAccount: () => context.push('/switcher'),
       onOpenSettings: () => context.push('/settings'),
       onLogout: () async {
         if (!await confirmLogout(context)) return;
@@ -564,10 +564,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         //
         // Wrap in [PopScope] so Android's left-edge back swipe (which shares the
         // same edge as the swipe-to-open-sidebar gesture) steps through / opens
-        // the drawers instead of popping the route. The home (`/spaces`) is a
-        // child of the login route (`/`), so an un-intercepted system back would
-        // pop down to the sign-in screen — the cause of the "swiping left
-        // re-prompts for sign in" bug.
+        // the drawers instead of popping the route (#125).
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, _) {

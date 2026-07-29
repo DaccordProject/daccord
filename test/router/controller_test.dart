@@ -9,43 +9,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-// Regression test for #179: a redirect attached to a parent route (here `/`)
-// sees `state.matchedLocation` pinned to that route's own segment for every
-// sub-route match, not the full incoming location — only `state.uri.path`
-// reflects where the user actually navigated. Reproduces the app's real route
-// nesting (see lib/router/controller.dart) with placeholder screens instead of
-// the real ones, so it doesn't drag in their provider dependencies.
+// Covers the two ways the "Settings does nothing" bug got in:
+//
+// * #179 — the logged-in redirect guarded on `state.matchedLocation`, which a
+//   parent-route redirect sees pinned to its own matched segment (`/`) rather
+//   than the full incoming location, so every signed-in sub-route was bounced
+//   home. Only `state.uri.path` reflects where the user actually navigated.
+// * The nesting that made that possible: `/spaces`, `/settings`, `/admin`, and
+//   `/switcher` used to be children of `/`, which both subjected them to the
+//   sign-in route's redirect and left the sign-in screen sitting in the
+//   navigator stack underneath the whole app.
+//
+// Mirrors the app's real route shape (see lib/router/controller.dart) with
+// placeholder screens instead of the real ones, so it doesn't drag in their
+// provider dependencies.
 
 GoRouter _buildTestRouter() => GoRouter(
       initialLocation: '/',
       routes: [
-        GoRoute(
-          path: '/',
-          redirect: redirectLoggedInToHome,
-          builder: (context, state) => const Text('login'),
+        ShellRoute(
+          builder: (context, state, child) => Scaffold(body: child),
           routes: [
             GoRoute(
-              path: 'login',
+              path: '/',
+              redirect: redirectLoggedInToHome,
               builder: (context, state) => const Text('login'),
             ),
             GoRoute(
-              path: 'switcher',
-              builder: (context, state) => const Text('switcher'),
+              path: '/login',
+              redirect: redirectLoggedInToHome,
+              builder: (context, state) => const Text('login'),
             ),
             GoRoute(
-              path: 'register',
+              path: '/register',
+              redirect: redirectLoggedInToHome,
               builder: (context, state) => const Text('register'),
             ),
             GoRoute(
-              path: 'spaces',
+              path: '/switcher',
+              builder: (context, state) => const Text('switcher'),
+            ),
+            GoRoute(
+              path: '/spaces',
               builder: (context, state) => const Text('spaces'),
             ),
             GoRoute(
-              path: 'settings',
+              path: '/settings',
               builder: (context, state) => const Text('settings'),
             ),
             GoRoute(
-              path: 'admin',
+              path: '/admin',
               builder: (context, state) => const Text('admin'),
             ),
           ],
@@ -107,5 +120,55 @@ void main() {
       expect(find.text('login'), findsOneWidget);
       expect(find.text('spaces'), findsNothing);
     });
+  });
+
+  group('signed-in destinations', () {
+    testWidgets('home does not stack on the sign-in screen', (tester) async {
+      final router = await _pumpAt(tester, '/spaces', auth: _loggedIn());
+
+      expect(find.text('spaces'), findsOneWidget);
+      // The sign-in screen used to sit underneath as `/spaces`' parent route,
+      // which is what let a system back swipe pop the user down to it (#125).
+      expect(find.text('login'), findsNothing);
+      expect(router.canPop(), isFalse);
+    });
+
+    // The rail's gear button is the only `push` in the app: this is the exact
+    // sequence the bug report describes ("clicking settings does nothing other
+    // than seemingly refresh the app").
+    testWidgets('pushing /settings from home opens it and pops back', (
+      tester,
+    ) async {
+      final router = await _pumpAt(tester, '/spaces', auth: _loggedIn());
+
+      router.push('/settings');
+      await tester.pumpAndSettle();
+
+      expect(find.text('settings'), findsOneWidget);
+      expect(find.text('login'), findsNothing);
+      expect(router.canPop(), isTrue);
+
+      router.pop();
+      await tester.pumpAndSettle();
+
+      expect(find.text('spaces'), findsOneWidget);
+      expect(find.text('settings'), findsNothing);
+    });
+
+    for (final path in ['/switcher', '/admin']) {
+      testWidgets('pushing $path from home pops back to it', (tester) async {
+        final router = await _pumpAt(tester, '/spaces', auth: _loggedIn());
+
+        router.push(path);
+        await tester.pumpAndSettle();
+
+        expect(find.text(path.substring(1)), findsOneWidget);
+
+        router.pop();
+        await tester.pumpAndSettle();
+
+        expect(find.text('spaces'), findsOneWidget);
+      });
+    }
   });
 }
