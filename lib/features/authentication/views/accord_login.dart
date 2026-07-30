@@ -266,11 +266,12 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(accordAuthProvider);
 
-    // This only covers a login that completes *while this screen is showing*.
-    // Landing on a login route while *already* logged in (e.g. tapping "back"
-    // out of /admin or /settings, whose router parent is this screen) never
-    // reaches build: the router redirects it straight home (see
-    // `_redirectLoggedInToHome` in `lib/router/controller.dart`).
+    // Covers a login that completes *while this screen is showing* — a state
+    // change doesn't re-run router redirects. Landing on a sign-in route while
+    // *already* logged in never reaches build: the router redirects it straight
+    // home (see `redirectLoggedInToHome` in `lib/router/controller.dart`), and
+    // the signed-in screens are siblings of these routes, so this screen is not
+    // mounted underneath them.
     ref.listen(accordAuthProvider, (previous, next) {
       if (next is AccordAuthLoggedIn) {
         final spaceId = _pendingJoinSpaceId;
@@ -322,7 +323,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           onBrowse: () => setState(() => _view = _LoggedOutView.browse),
           onManualConnect: () =>
               setState(() => _view = _LoggedOutView.credentials),
-          onSwitchAccount: _hasAccounts ? () => context.go('/switcher') : null,
+          onSwitchAccount: _hasAccounts
+              ? () => context.push('/switcher')
+              : null,
         ),
         maxWidth: 480,
       ),
@@ -344,7 +347,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           tosAccepted: _tosAccepted,
           onBack: _atFlowRoot ? null : _goBack,
           onModeChanged: _onModeChanged,
-          onSwitchAccount: () => context.go('/switcher'),
+          onSwitchAccount: () => context.push('/switcher'),
           onGeneratePassword: _generatePassword,
           onTosChanged: (v) => setState(() => _tosAccepted = v),
           onTosLinkTap: _openTos,

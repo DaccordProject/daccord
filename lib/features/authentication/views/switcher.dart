@@ -116,7 +116,11 @@ class _AccountSwitcherScreenState extends ConsumerState<AccountSwitcherScreen> {
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () => context.go('/spaces'),
+                // Pushed from the home screen or the sign-in screen, so pop
+                // back to whichever opened it; fall back to home for a cold
+                // deep link that has nothing beneath it.
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/spaces'),
                 child: Text('Back', style: theme.textTheme.bodyMedium),
               ),
             ],

@@ -375,19 +375,23 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
     logger.fine('Video layers: ${layers.map((e) => e)}');
 
     Future<lk_models.TrackInfo> negotiate() async {
-      track.transceiver = await room.engine.createTransceiverRTCRtpSender(track, publishOptions!, encodings);
+      // `publishOptions` is captured from the enclosing scope, where it's
+      // reassigned after this closure is defined (see below) — that makes it
+      // ineligible for null-promotion in here, so pin a non-null local.
+      final options = publishOptions!;
+      track.transceiver = await room.engine.createTransceiverRTCRtpSender(track, options, encodings);
 
-      track.codec = publishOptions.videoCodec;
+      track.codec = options.videoCodec;
       if (lkBrowser() != BrowserType.firefox) {
         await room.engine.setPreferredCodec(
           track.transceiver!,
           'video',
-          publishOptions.videoCodec,
+          options.videoCodec,
         );
       }
 
       if ([TrackSource.camera, TrackSource.screenShareVideo].contains(track.source)) {
-        final degradationPreference = publishOptions.degradationPreference ??
+        final degradationPreference = options.degradationPreference ??
             getDefaultDegradationPreference(
               track,
             );
@@ -396,11 +400,11 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
 
       if (kIsWeb && lkBrowser() == BrowserType.firefox && track.kind == TrackType.AUDIO) {
         //TOOD:
-      } else if (isSVCCodec(publishOptions.videoCodec) && encodings?.first.maxBitrate != null) {
+      } else if (isSVCCodec(options.videoCodec) && encodings?.first.maxBitrate != null) {
         room.engine.publisher?.setTrackBitrateInfo(TrackBitrateInfo(
             cid: track.getCid(),
             transceiver: track.transceiver,
-            codec: publishOptions.videoCodec,
+            codec: options.videoCodec,
             maxbr: encodings![0].maxBitrate! ~/ 1000));
       }
 
