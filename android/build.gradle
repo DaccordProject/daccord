@@ -13,6 +13,33 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Raise stale plugin subprojects to the app's compileSdk.
+//
+// media_kit_video pulls volume_controller 2.0.8, which hard-codes
+// `compileSdkVersion 31`, but androidx artifacts on its classpath
+// (androidx.arch.core:core-runtime:2.2.0, androidx.window.extensions.core:core:1.0.0)
+// declare a minCompileSdk of 33. AGP 8.9 let that slide; from AGP 8.11+
+// checkAarMetadata fails the build on it, so `:volume_controller:checkReleaseAarMetadata`
+// breaks every release build. media_kit is pinned to a git ref here, so the
+// plugin can't simply be upgraded out of the way.
+//
+// Read the target from :app (evaluated first, just above) rather than hard-coding,
+// so this tracks flutter.compileSdkVersion automatically.
+subprojects {
+    // :app is already evaluated by the evaluationDependsOn above, so afterEvaluate
+    // would throw on it — and it is the project we read the target from anyway.
+    if (project.path != ":app") {
+        project.afterEvaluate { sub ->
+            if (sub.hasProperty("android")) {
+                def appCompileSdk = rootProject.project(":app").android.compileSdk
+                if (appCompileSdk != null && (sub.android.compileSdk == null || sub.android.compileSdk < appCompileSdk)) {
+                    sub.android.compileSdk = appCompileSdk
+                }
+            }
+        }
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
