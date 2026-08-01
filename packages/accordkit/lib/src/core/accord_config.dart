@@ -13,6 +13,17 @@ class AccordConfig {
 
   static const int heartbeatIntervalDefault = 45000;
 
+  /// Upper bound applied to the server-advertised `heartbeat_interval`.
+  ///
+  /// The heartbeat doubles as the only keepalive traffic on an otherwise-idle
+  /// gateway socket. Many network intermediaries (home NATs, VPNs, corporate
+  /// firewalls, some CDN edges) silently drop idle WebSockets after ~30s — and
+  /// the server's default 45s interval is longer than that, so the socket is
+  /// culled (close 1006) before the first heartbeat ever fires, causing an
+  /// endless connect→drop flap. Capping the effective interval keeps a beat on
+  /// the wire well inside a 30s idle timeout so the connection survives.
+  static const int heartbeatIntervalMax = 15000;
+
   String baseUrl;
   String gatewayUrl;
   String cdnUrl;

@@ -377,6 +377,9 @@ class _PostRow extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
       child: GestureDetector(
+        // Opaque so the whole card is hit-testable for long-press, matching
+        // the message pane and thread rows.
+        behavior: HitTestBehavior.opaque,
         onLongPressStart: (d) => onMenu(d.globalPosition),
         onSecondaryTapUp: (d) => onMenu(d.globalPosition),
         child: InkWell(

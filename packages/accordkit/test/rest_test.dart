@@ -221,6 +221,18 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.statusCode, 404);
     });
+
+    test('401 invokes onUnauthorized', () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        responder: (_) => http.Response.bytes([], 401),
+        onUnauthorized: () => calls++,
+      );
+      final result = await rest.makeRawRequest('/plugins/1/bundle');
+      expect(result.ok, isFalse);
+      expect(calls, 1);
+    });
   });
 
   group('AccordRest.makeMultipartRequest', () {

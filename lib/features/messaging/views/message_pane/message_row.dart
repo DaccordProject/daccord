@@ -260,6 +260,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
+        // Opaque so the whole row is hit-testable: on mobile a plain-text
+        // message renders as a bare RichText with no recognisers, and the
+        // surrounding Container is transparent, so with the default
+        // `deferToChild` a long-press over the text hits nothing and never
+        // fires. Only the avatar (which paints a background) responded before.
+        behavior: HitTestBehavior.opaque,
         onLongPressStart:
             widget.selecting ? null : (d) => _showActionsMenu(d.globalPosition),
         onSecondaryTapUp:

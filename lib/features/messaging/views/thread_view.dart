@@ -496,6 +496,10 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
+        // Opaque so a long-press anywhere on the row (not just the avatar)
+        // opens the menu; plain-text content is a transparent RichText that
+        // wouldn't register a hit under the default `deferToChild`.
+        behavior: HitTestBehavior.opaque,
         onLongPressStart: (d) => _showMenu(d.globalPosition),
         onSecondaryTapUp: (d) => _showMenu(d.globalPosition),
         child: Padding(

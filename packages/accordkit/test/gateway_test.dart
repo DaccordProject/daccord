@@ -89,6 +89,41 @@ void main() {
       expect(sent['data'], 7);
       await socket.dispose();
     });
+
+    test('caps a too-long server heartbeat interval', () async {
+      // A 45s interval is longer than a typical ~30s middlebox idle timeout,
+      // which culls the idle socket (close 1006) before the first beat fires.
+      // The effective interval must be capped so a beat lands inside that window.
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 45000},
+      }));
+      await pump();
+
+      expect(socket.heartbeatIntervalMs, AccordConfig.heartbeatIntervalMax);
+      await socket.dispose();
+    });
+
+    test('keeps a server heartbeat interval already under the cap', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 10000},
+      }));
+      await pump();
+
+      expect(socket.heartbeatIntervalMs, 10000);
+      await socket.dispose();
+    });
   });
 
   group('dispatch', () {

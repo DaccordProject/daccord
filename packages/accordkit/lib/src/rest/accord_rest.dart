@@ -138,6 +138,7 @@ class AccordRest {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return RestResult.success(response.statusCode, response.bodyBytes);
       }
+      if (response.statusCode == 401) onUnauthorized?.call();
       return RestResult.failure(
         response.statusCode,
         _internalError('HTTP ${response.statusCode}'),
