@@ -46,17 +46,21 @@ void setLatest(ProviderContainer c, List<AppReleaseAsset> assets) {
 AppReleaseAsset _asset(String name) =>
     AppReleaseAsset(name: name, url: 'https://example/download/$name');
 
-/// The full asset set the release workflow publishes (mirrors the real v0.2.4
-/// release). Crucially this lists BOTH a `.deb` and a `.tar.gz` for Linux, and
-/// because GitHub returns assets in upload/alphabetical order the unextractable
-/// `.deb` sorts *before* the `.tar.gz` — the exact trap behind the recurring
-/// "Unsupported archive: daccord-linux-x86_64.deb" failure (#99).
+/// The full asset set the release workflow publishes. Crucially this lists BOTH
+/// a `.deb` and a portable bundle for Linux, and because GitHub returns assets
+/// in upload/alphabetical order the unextractable `.deb` sorts *before* the
+/// bundle — the exact trap behind the recurring "Unsupported archive:
+/// daccord-linux-x86_64.deb" failure (#99).
+///
+/// The Linux bundle is `.tgz`: releases must never publish a `.tar.gz` again,
+/// because clients ≤ v0.2.6 select that suffix even on a `.deb` install they
+/// can't swap, and fail silently. See `_installableExts`.
 final _fullReleaseAssets = [
   _asset('SHA256SUMS.txt'),
   _asset('app-release.aab'),
   _asset('daccord-android.apk'),
   _asset('daccord-linux-x86_64.deb'),
-  _asset('daccord-linux-x86_64.tar.gz'),
+  _asset('daccord-linux-x86_64.tgz'),
   _asset('daccord-macos-universal.dmg'),
   _asset('daccord-web.zip'),
   _asset('daccord-windows-x86_64-setup.exe'),
@@ -71,7 +75,7 @@ String? get _hostInstallableExt {
   if (UniversalPlatform.isAndroid) return '.apk';
   if (UniversalPlatform.isWindows) return '.zip';
   if (UniversalPlatform.isMacOS) return '.dmg';
-  if (UniversalPlatform.isLinux) return '.tar.gz';
+  if (UniversalPlatform.isLinux) return '.tgz';
   return null;
 }
 
@@ -149,7 +153,7 @@ void main() {
       UpdateInstaller.debugHasPrivilegedInstaller = false;
       setLatest(c, [
         _asset('daccord-linux-x86_64.deb'),
-        _asset('daccord-linux-x86_64.tar.gz'),
+        _asset('daccord-linux-x86_64.tgz'),
       ]);
       expect(controllerOf(c).platformAssetUrl(), endsWith('.deb'));
     });
@@ -163,13 +167,40 @@ void main() {
       UpdateInstaller.debugHasPrivilegedInstaller = true;
       setLatest(c, [
         _asset('daccord-linux-x86_64.deb'),
-        _asset('daccord-linux-x86_64.tar.gz'),
+        _asset('daccord-linux-x86_64.tgz'),
       ]);
       expect(controllerOf(c).canInstallInPlace, isTrue);
       // The in-place asset is the package, not the tarball…
       expect(controllerOf(c).platformAsset()!.name, endsWith('.deb'));
       // …and the UI is told to warn about the admin prompt.
       expect(controllerOf(c).requiresPrivilegedInstall, isTrue);
+    });
+
+    test('writable Linux install applies the .tgz portable bundle', () {
+      // The release workflow ships the portable bundle as `.tgz` (never
+      // `.tar.gz`, which silently breaks clients <= v0.2.6 — see
+      // `_installableExts`), so a writable install root must still self-update.
+      if (!UniversalPlatform.isLinux) return;
+      final c = makeContainer();
+      setLatest(c, _fullReleaseAssets);
+      expect(controllerOf(c).canInstallInPlace, isTrue);
+      expect(controllerOf(c).platformAsset()!.name, endsWith('.tgz'));
+      // No polkit prompt for a user-writable swap.
+      expect(controllerOf(c).requiresPrivilegedInstall, isFalse);
+    });
+
+    test('legacy .tar.gz bundles stay applicable on a writable install', () {
+      // Withholding `.tar.gz` from *new* releases is a publishing rule, not a
+      // capability we dropped: an older release that still carries one must
+      // remain installable rather than silently offering nothing.
+      if (!UniversalPlatform.isLinux) return;
+      final c = makeContainer();
+      setLatest(c, [
+        _asset('daccord-linux-x86_64.deb'),
+        _asset('daccord-linux-x86_64.tar.gz'),
+      ]);
+      expect(controllerOf(c).canInstallInPlace, isTrue);
+      expect(controllerOf(c).platformAsset()!.name, endsWith('.tar.gz'));
     });
   });
 

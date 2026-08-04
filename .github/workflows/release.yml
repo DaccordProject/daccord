@@ -278,9 +278,17 @@ jobs:
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'
+        # `.tgz`, NOT `.tar.gz` — this suffix is load-bearing. Clients at v0.2.6
+        # and earlier pick a `.tar.gz` asset unconditionally on Linux and try to
+        # swap it into a `.deb` install's root-owned /opt, which silently fails
+        # and relaunches the old build; those clients are frozen, so withholding
+        # the suffix is the only way to break them out of the loop. With no
+        # `.tar.gz` present they fall back to offering the `.deb` as a manual
+        # download. See update_controller._installableExts and the guard in the
+        # release job below.
         run: |
           cd build/linux/x64/release/bundle
-          tar czf "$GITHUB_WORKSPACE/${{ matrix.artifact }}.tar.gz" .
+          tar czf "$GITHUB_WORKSPACE/${{ matrix.artifact }}.tgz" .
 
       - name: Build .deb (Linux)
         if: matrix.platform == 'linux'
@@ -359,7 +367,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             ${{ matrix.artifact }}.zip
-            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.tgz
             ${{ matrix.artifact }}.apk
             ${{ matrix.artifact }}.deb
             daccord-windows-x86_64-setup.exe
@@ -378,6 +386,21 @@ jobs:
           pattern: daccord-*
           merge-multiple: true
 
+      - name: Guard against a .tar.gz asset
+        # Publishing any asset whose name ends in `.tar.gz` re-arms the broken
+        # self-updater in clients ≤ v0.2.6: on Linux they select it regardless of
+        # whether the install root is writable, so a `.deb` install downloads it,
+        # runs a swap against root-owned /opt that can't succeed, and relaunches
+        # the old build with no error shown. The Linux bundle ships as `.tgz` so
+        # those clients find nothing installable and offer the `.deb` instead.
+        run: |
+          cd artifacts
+          if ls | grep -q '\.tar\.gz$'; then
+            echo "::error::Refusing to publish a .tar.gz asset — it silently breaks self-update on clients <= v0.2.6. Ship the Linux bundle as .tgz."
+            ls
+            exit 1
+          fi
+
       - name: Generate checksums
         # SHA256SUMS.txt lets the in-app self-updater verify a downloaded bundle
         # before swapping it in (see update_controller._expectedSha), and gives
@@ -391,6 +414,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
+          # Prepended to the auto-generated notes. The in-app Updates page renders
+          # this body (AppRelease.notes), so it's the one channel that reaches
+          # users stranded on a build whose self-updater can't apply anything.
+          # Drop this notice once ≤ v0.2.6 installs have aged out.
+          body: |
+            > **Linux `.deb` users on v0.2.6 or earlier:** update once by hand —
+            > download `daccord-linux-x86_64.deb` below and install it
+            > (`sudo dpkg -i daccord-linux-x86_64.deb`). Self-update could not
+            > replace a system install in those builds and failed silently; from
+            > v0.2.7 onward it updates the package for you (with an admin prompt).
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
