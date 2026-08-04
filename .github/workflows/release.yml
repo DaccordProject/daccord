@@ -28,6 +28,18 @@ on:
         description: "Build + upload the Android App Bundle to Google Play"
         type: boolean
         default: true
+      promote_version_code:
+        description: "Promote an existing Play versionCode between tracks (leave blank to skip). Set the deploy_* toggles off to promote without rebuilding."
+        type: string
+        default: ""
+      promote_from_track:
+        description: "Track the build to promote currently sits on"
+        type: string
+        default: "alpha"
+      promote_to_track:
+        description: "Track to promote it to"
+        type: string
+        default: "production"
 
 permissions:
   contents: write
@@ -759,10 +771,47 @@ jobs:
           PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
           ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
           ANDROID_AAB_PATH: build/app/outputs/bundle/playRelease/app-play-release.aab
-          # Default: push live to the production track so a tagged release ships
-          # to all users. Override via repo variables for a different rollout
-          # (e.g. PLAY_TRACK=internal to stage to testers, or
-          # PLAY_RELEASE_STATUS=draft to upload without releasing).
-          PLAY_TRACK: ${{ vars.PLAY_TRACK || 'production' }}
-          PLAY_RELEASE_STATUS: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+          # A tagged release always ships live to all users: production track,
+          # rollout completed. Deliberately not overridable by repo variables —
+          # a stale PLAY_TRACK/PLAY_RELEASE_STATUS silently parked 0.2.7 as an
+          # alpha draft that nobody noticed until it was missing from Play.
+          PLAY_TRACK: production
+          PLAY_RELEASE_STATUS: completed
         run: bundle exec fastlane android play
+
+  # ---------------------------------------------------------------------------
+  # Promote a build that is already in Play from one track to another, without
+  # rebuilding — so the exact binary that was tested is the one that ships.
+  # Manual-only: pass promote_version_code (and turn the deploy_* toggles off).
+  # Needs no Flutter/Java/Gradle and no CI gate; it uploads nothing, it just
+  # repoints a track at an existing versionCode.
+  # ---------------------------------------------------------------------------
+  android-promote:
+    name: Promote on Google Play
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.promote_version_code != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Write Play service-account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Promote on Google Play
+        env:
+          PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
+          ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
+          PLAY_VERSION_CODE: ${{ inputs.promote_version_code }}
+          PLAY_FROM_TRACK: ${{ inputs.promote_from_track }}
+          PLAY_TO_TRACK: ${{ inputs.promote_to_track }}
+          PLAY_RELEASE_STATUS: completed
+        run: bundle exec fastlane android promote

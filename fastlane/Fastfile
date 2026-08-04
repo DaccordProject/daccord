@@ -66,6 +66,28 @@ platform :android do
       skip_upload_changelogs: true,
     )
   end
+
+  desc "Promote an already-uploaded build from one Play track to another"
+  # Rescue hatch for a build that landed on the wrong track (or as a draft):
+  # moves an existing versionCode between tracks without rebuilding, so the
+  # exact binary that was tested is the one that ships. Uploads nothing —
+  # the AAB is already in Play, we only edit which track points at it.
+  lane :promote do
+    upload_to_play_store(
+      package_name: ENV.fetch("ANDROID_PACKAGE_NAME", "com.daccord_projects.daccord"),
+      json_key: ENV.fetch("PLAY_JSON_KEY_PATH"),
+      version_code: Integer(ENV.fetch("PLAY_VERSION_CODE")),
+      track: ENV.fetch("PLAY_FROM_TRACK"),
+      track_promote_to: ENV.fetch("PLAY_TO_TRACK", "production"),
+      track_promote_release_status: ENV.fetch("PLAY_RELEASE_STATUS", "completed"),
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+    )
+  end
 end
 
 platform :ios do

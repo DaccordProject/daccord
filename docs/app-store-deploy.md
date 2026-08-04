@@ -18,12 +18,13 @@ or 2FA in CI.
 
 The Play build is signed with the **upload key** (from secrets); Google's
 **Play App Signing** re-signs it with the app signing key for delivery. It's
-released to the **`production`** track by default (`completed`), so a tagged
-release ships to all users immediately — change the `PLAY_TRACK` /
-`PLAY_RELEASE_STATUS` repo variables for a different rollout (e.g.
-`PLAY_TRACK=internal` to stage to testers, or `PLAY_RELEASE_STATUS=draft` to
-upload without distributing). Listing metadata and graphics live in the Play
-Console and are not touched by the upload.
+released to the **`production`** track with the rollout **`completed`**, so a
+tagged release always ships to all users immediately. The track and release
+status are hardcoded in the workflow and cannot be overridden by repo
+variables — staging a build to testers is a deliberate edit to
+`.github/workflows/release.yml`, not a setting someone can leave switched on by
+accident. Listing metadata and graphics live in the Play Console and are not
+touched by the upload.
 
 The store builds (`ios-appstore`, `mac-appstore`, `android-play`) are compiled
 with `--dart-define=APP_STORE=true`, which sets `kAppStoreBuild` and disables
@@ -62,10 +63,11 @@ generates the certs/profiles and prints the `gh secret set` commands.
 | `ANDROID_KEY_ALIAS` | the upload key alias inside the keystore |
 | `ANDROID_KEY_PASSWORD` | the key password (often the same as the store password) |
 
-Optional repo **variables** (Settings → Secrets and variables → Actions →
-Variables) tune the rollout: `PLAY_TRACK` (default `production`) and
-`PLAY_RELEASE_STATUS` (default `completed`, releasing to that track immediately;
-set `draft` to upload without distributing).
+No repo variables affect the rollout: the workflow pins `PLAY_TRACK=production`
+and `PLAY_RELEASE_STATUS=completed`. (Older revisions read these from repo
+variables; any `PLAY_TRACK` / `PLAY_RELEASE_STATUS` still defined under Settings
+→ Secrets and variables → Actions → Variables is now ignored and can be
+deleted.)
 
 ## One-time human steps
 
@@ -106,7 +108,7 @@ set `draft` to upload without distributing).
    the Play Console listing). Note the **first-ever** AAB for a brand-new app
    must be uploaded by hand in the Play Console (the API rejects it until an
    initial release exists); once past that, tagged releases go straight to the
-   `production` track (override with `PLAY_TRACK` to stage to a testing track).
+   `production` track.
 
 ## Triggering
 
@@ -122,6 +124,5 @@ CI uploads the **build**. Promoting it to public release is a human step:
   *Submit* in App Store Connect (screenshots, App Privacy questionnaire, and age
   rating are also manual there).
 - **Google Play:** the AAB is released to the **`production`** track and goes
-  live once Google finishes its review (no manual promotion needed). Set
-  `PLAY_TRACK=internal` to route a build to testers instead. The store listing,
-  content rating, and Data safety declarations are already complete.
+  live once Google finishes its review — no manual promotion needed. The store
+  listing, content rating, and Data safety declarations are already complete.
