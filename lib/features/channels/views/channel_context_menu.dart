@@ -3,7 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/views/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
-import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:flutter/material.dart';
@@ -66,16 +66,15 @@ Future<void> showChannelContextMenu(
           .read(readStateControllerProvider(activeKey))
           .isUnread(channel.id);
 
-  void markRead() {
-    if (activeKey != null) {
-      ref
-          .read(readStateControllerProvider(activeKey).notifier)
-          .markRead(channel.id);
-    }
-    final messages = ref.read(accordMessagesControllerProvider(channel.id));
-    final lastId = messages?.isNotEmpty == true ? messages!.last.id : null;
-    if (lastId != null) client?.channels.ack(channel.id, lastId);
-  }
+  // Falls back to the channel's `last_message_id` so acking a channel whose
+  // history was never opened (any voice channel, or one only ever seen as a
+  // badge) still moves the server's read position — otherwise the badge returns
+  // on the next connect.
+  void markRead() => markChannelRead(
+        ref,
+        channel.id,
+        fallbackMessageId: channel.lastMessageId,
+      );
 
   final entries = <AccordMenuEntry>[
     if (unread)

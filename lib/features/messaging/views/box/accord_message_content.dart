@@ -2,7 +2,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
-import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/channels/models/open_tab.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
@@ -138,7 +138,8 @@ class AccordMessageContent extends ConsumerWidget {
             name: channel?.name ?? channelId,
           ),
         );
-    ref.read(readStateControllerProvider(activeKey).notifier).markRead(channelId);
+    markChannelRead(ref, channelId,
+        fallbackMessageId: channel?.lastMessageId);
     ref.read(settingsControllerProvider.notifier).setLastSelection(
           spaceId,
           channelId,

@@ -1,5 +1,6 @@
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/channels/controllers/accord_channels.dart';
+import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
@@ -11,6 +12,7 @@ import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/utils/participant_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
+import 'package:collection/collection.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,20 +53,32 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
   void initState() {
     super.initState();
     // Opening the panel clears the voice channel's unread state, mirroring the
-    // reference's `Client.clear_channel_unread`.
+    // reference's `Client.clear_channel_unread`. This acks to the server too —
+    // a local-only clear comes back on the next connect via READY's `unread`.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        // The panel's channel lives on whichever server the call is pinned to,
-        // which may not be the active one.
-        final serverKey = ref.read(voiceControllerProvider).serverKey ??
-            ref.read(connectionsControllerProvider).activeKey;
-        if (serverKey != null) {
-          ref
-              .read(readStateControllerProvider(serverKey).notifier)
-              .markRead(widget.channelId);
-        }
-      }
+      if (!mounted) return;
+      // The panel's channel lives on whichever server the call is pinned to,
+      // which may not be the active one.
+      final serverKey = ref.read(voiceControllerProvider).serverKey ??
+          ref.read(connectionsControllerProvider).activeKey;
+      markChannelRead(
+        ref,
+        widget.channelId,
+        serverKey: serverKey,
+        fallbackMessageId: _lastMessageId(),
+      );
     });
+  }
+
+  /// The channel's `last_message_id` from the space's channel cache — the ack
+  /// position to use before this panel's own history has loaded.
+  String? _lastMessageId() {
+    final spaceId = widget.spaceId;
+    if (spaceId == null) return null;
+    return ref
+        .read(accordChannelsControllerProvider(spaceId))
+        ?.firstWhereOrNull((c) => c.id == widget.channelId)
+        ?.lastMessageId;
   }
 
   @override
