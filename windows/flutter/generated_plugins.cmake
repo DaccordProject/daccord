@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   audioplayers_windows
   connectivity_plus
+  desktop_drop
   flutter_webrtc
   livekit_client
   media_kit_libs_windows_video

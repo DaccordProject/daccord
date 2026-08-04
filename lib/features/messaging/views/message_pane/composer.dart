@@ -29,6 +29,10 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// Files the user has attached but not yet sent.
   final List<PlatformFile> _attachments = [];
 
+  /// True while a file drag is hovering the composer, which swaps the hint for
+  /// a drop prompt and outlines the box.
+  bool _dragging = false;
+
   /// Why the last attach or send didn't work, shown above the composer.
   /// Cleared when the user attaches again or retries the send.
   String? _error;
@@ -282,14 +286,87 @@ class _ComposerState extends ConsumerState<_Composer> {
     _addFiles(result.files);
   }
 
+  /// Attaches the files dragged onto the composer. Directories aren't
+  /// attachable, and files are size-checked before being read so a dropped
+  /// 4 GB video is rejected rather than pulled into memory first.
+  Future<void> _onDrop(DropDoneDetails details) async {
+    setState(() => _dragging = false);
+    if (_sending) return;
+    final picked = <PlatformFile>[];
+    final rejections = <String>[];
+    for (final item in details.files) {
+      // `DropItemDirectory` only comes back on macOS and web; Linux and Windows
+      // share a handler that types every dropped path as a file, so the path
+      // itself has to be checked or a folder reads as an unreadable file.
+      if (item is DropItemDirectory || isDroppedDirectory(item.path)) {
+        rejections.add(
+          '${item.name} is a folder — drop the files inside it instead.',
+        );
+        continue;
+      }
+      // macOS sandbox: a file dragged in from outside the container is only
+      // readable while its security-scoped bookmark is held open.
+      final bookmark = item.extraAppleBookmark;
+      final scoped = await _startScopedAccess(bookmark);
+      try {
+        final size = await item.length();
+        if (size > kMaxAttachmentBytes) {
+          rejections.add(oversizeAttachmentMessage(item.name, size));
+          continue;
+        }
+        final bytes = await item.readAsBytes();
+        picked.add(
+          PlatformFile(
+            name: item.name,
+            size: bytes.length,
+            bytes: bytes,
+            path: item.path.isEmpty ? null : item.path,
+          ),
+        );
+      } catch (_) {
+        rejections.add(unreadableAttachmentMessage(item.name));
+      } finally {
+        if (scoped) await _stopScopedAccess(bookmark!);
+      }
+    }
+    if (!mounted) return;
+    _addFiles(picked, alsoRejected: rejections);
+  }
+
+  Future<bool> _startScopedAccess(Uint8List? bookmark) async {
+    if (bookmark == null || bookmark.isEmpty) return false;
+    try {
+      return await DesktopDrop.instance.startAccessingSecurityScopedResource(
+        bookmark: bookmark,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _stopScopedAccess(Uint8List bookmark) async {
+    try {
+      await DesktopDrop.instance.stopAccessingSecurityScopedResource(
+        bookmark: bookmark,
+      );
+    } catch (_) {
+      // Access lapses with the drop anyway; nothing useful to tell the user.
+    }
+  }
+
   /// Attaches every file in [files] that passes screening, and reports the ones
-  /// that don't. Unreadable and oversize files used to be dropped in silence,
+  /// that don't, along with any [alsoRejected] lines the caller screened out
+  /// itself. Unreadable and oversize files used to be dropped in silence,
   /// which is indistinguishable from the attach button doing nothing.
-  void _addFiles(Iterable<PlatformFile> files) {
+  void _addFiles(
+    Iterable<PlatformFile> files, {
+    List<String> alsoRejected = const [],
+  }) {
     final screened = screenAttachments(files);
+    final rejections = [...alsoRejected, ...screened.rejections];
     setState(() {
       _attachments.addAll(screened.accepted);
-      _error = screened.error;
+      _error = rejections.isEmpty ? null : rejections.join('\n');
     });
   }
 
@@ -374,134 +451,148 @@ class _ComposerState extends ConsumerState<_Composer> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final hint = widget.channelName != null
+    final hint = _dragging
+        ? 'Drop files to attach'
+        : widget.channelName != null
         ? 'Message #${widget.channelName}'
         : 'Message';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: colors.darkGray,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.replyingTo != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 4, 0),
-                child: Row(
-                  children: [
-                    Icon(Icons.reply, size: 14, color: colors.gray),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Replying to ${widget.replyName ?? 'message'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelMedium!.copyWith(color: colors.gray),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Cancel reply',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: widget.onCancelReply,
-                      icon: Icon(Icons.close, size: 14, color: colors.gray),
-                    ),
-                  ],
-                ),
-              ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 4, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: InlineError(_error!, centered: false)),
-                    IconButton(
-                      tooltip: 'Dismiss',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => setState(() => _error = null),
-                      icon: Icon(Icons.close, size: 14, color: colors.gray),
-                    ),
-                  ],
-                ),
-              ),
-            if (_attachments.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final file in _attachments)
-                      _AttachmentChip(
-                        file: file,
-                        onRemove: _sending
-                            ? null
-                            : () => _removeAttachment(file),
-                      ),
-                  ],
-                ),
-              ),
-            if (_mentionQuery != null && widget.spaceId != null)
-              _MentionPopup(
-                spaceId: widget.spaceId!,
-                query: _mentionQuery!,
-                onPick: _pickMention,
-              ),
-            Row(
-              children: [
-                IconButton(
-                  tooltip: 'Attach files',
-                  onPressed: _sending ? null : _pickFiles,
-                  icon: Icon(
-                    Icons.add_circle_outline,
-                    size: 20,
-                    color: colors.dirtyWhite,
-                  ),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    enabled: !_sending,
-                    minLines: 1,
-                    maxLines: 6,
-                    textInputAction: TextInputAction.send,
-                    onChanged: _onChanged,
-                    onSubmitted: (_) => _send(),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: hint,
-                      hintStyle: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge!.copyWith(color: colors.gray),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Emoji',
-                  onPressed: _sending ? null : _pickEmoji,
-                  icon: Icon(
-                    Icons.emoji_emotions_outlined,
-                    size: 20,
-                    color: colors.dirtyWhite,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Send',
-                  onPressed: _sending ? null : _send,
-                  icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
-                ),
-              ],
+    // A DropTarget keeps receiving drags even when covered, so it's disabled
+    // while a dialog/sheet (emoji picker, lightbox, …) is on top of the pane.
+    final onTop = ModalRoute.of(context)?.isCurrent ?? true;
+    return DropTarget(
+      enable: !_sending && onTop,
+      onDragEntered: (_) => setState(() => _dragging = true),
+      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: _onDrop,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: colors.darkGray,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _dragging ? colors.primary : Colors.transparent,
             ),
-          ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.replyingTo != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 4, 0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.reply, size: 14, color: colors.gray),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Replying to ${widget.replyName ?? 'message'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelMedium!.copyWith(color: colors.gray),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Cancel reply',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: widget.onCancelReply,
+                        icon: Icon(Icons.close, size: 14, color: colors.gray),
+                      ),
+                    ],
+                  ),
+                ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 4, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: InlineError(_error!, centered: false)),
+                      IconButton(
+                        tooltip: 'Dismiss',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => setState(() => _error = null),
+                        icon: Icon(Icons.close, size: 14, color: colors.gray),
+                      ),
+                    ],
+                  ),
+                ),
+              if (_attachments.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final file in _attachments)
+                        _AttachmentChip(
+                          file: file,
+                          onRemove: _sending
+                              ? null
+                              : () => _removeAttachment(file),
+                        ),
+                    ],
+                  ),
+                ),
+              if (_mentionQuery != null && widget.spaceId != null)
+                _MentionPopup(
+                  spaceId: widget.spaceId!,
+                  query: _mentionQuery!,
+                  onPick: _pickMention,
+                ),
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Attach files',
+                    onPressed: _sending ? null : _pickFiles,
+                    icon: Icon(
+                      Icons.add_circle_outline,
+                      size: 20,
+                      color: colors.dirtyWhite,
+                    ),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      enabled: !_sending,
+                      minLines: 1,
+                      maxLines: 6,
+                      textInputAction: TextInputAction.send,
+                      onChanged: _onChanged,
+                      onSubmitted: (_) => _send(),
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: hint,
+                        hintStyle: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge!.copyWith(color: colors.gray),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Emoji',
+                    onPressed: _sending ? null : _pickEmoji,
+                    icon: Icon(
+                      Icons.emoji_emotions_outlined,
+                      size: 20,
+                      color: colors.dirtyWhite,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Send',
+                    onPressed: _sending ? null : _send,
+                    icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
