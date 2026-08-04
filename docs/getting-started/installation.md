@@ -17,19 +17,28 @@ Choose the right file for your platform:
 
 | Platform | File |
 |----------|------|
-| Linux (x86_64) | `daccord-linux-x86_64.zip` |
-| Linux (ARM64) | `daccord-linux-arm64.zip` |
+| Linux (x86_64, recommended) | `daccord-linux-x86_64.deb` |
+| Linux (x86_64, portable) | `daccord-linux-x86_64.tgz` |
 | Windows (installer) | `daccord-windows-x86_64-setup.exe` |
 | Windows (portable) | `daccord-windows-x86_64.zip` |
-| macOS | `daccord-macos.dmg` |
+| macOS | `daccord-macos-universal.dmg` |
 | Android | `daccord-android.apk` |
 | Web | `daccord-web.zip` |
 
 ## Linux
 
-1. Extract the downloaded archive.
+**Package (recommended):** download `daccord-linux-x86_64.deb` and install it with `sudo dpkg -i daccord-linux-x86_64.deb` (or open it in your software centre). This is the build that keeps working with the in-app updater.
+
+**Portable:**
+
+1. Extract `daccord-linux-x86_64.tgz`.
 2. Run the `daccord` executable.
 3. On some distributions you may need to mark it as executable first: right-click the file, open Properties, and enable "Allow executing file as program".
+
+> **Already on v0.2.6 or earlier?** Those builds could not replace a system
+> (`.deb`) install and failed silently, so the app never updated itself. Install
+> the `.deb` above by hand once; from v0.2.7 onward the in-app updater handles it
+> for you.
 
 ## Windows
 
