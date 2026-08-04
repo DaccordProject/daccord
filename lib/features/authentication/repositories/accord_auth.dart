@@ -9,6 +9,7 @@ import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
+import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
@@ -311,6 +312,9 @@ class AccordAuth extends _$AccordAuth {
     ref.read(connectionsControllerProvider.notifier).clear();
     ref.invalidate(readStateControllerProvider);
     ref.invalidate(presenceControllerProvider);
+    // Missed calls are session-only and in-memory, so without this they would
+    // survive a sign-out that doesn't restart the app.
+    ref.read(missedCallsControllerProvider.notifier).clearAll();
     ref.read(openTabsControllerProvider.notifier).clear();
     unawaited(SpaceCache.clear());
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);

@@ -60,6 +60,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     final colors = BonfireThemeExtension.of(context);
     final channels = ref.watch(dmChannelsControllerProvider);
     final cdnUrl = ref.watchCdnUrl();
+    final missed = ref.watch(missedCallsControllerProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -104,6 +105,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                         final avatarUrl = other == null
                             ? null
                             : accordAvatarUrl(other, cdnUrl);
+                        final missedCall = missed[channel.id];
                         return ListTile(
                           leading: group
                               ? CircleAvatar(
@@ -126,15 +128,56 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
                               ],
                             ],
                           ),
-                          subtitle: group
-                              ? Text(
-                                  '${_others(channel, widget.selfId).length + 1} members',
-                                  style: theme.textTheme.bodySmall)
-                              : null,
+                          subtitle: missedCall != null
+                              ? _MissedCallLabel(missed: missedCall)
+                              : group
+                                  ? Text(
+                                      '${_others(channel, widget.selfId).length + 1} members',
+                                      style: theme.textTheme.bodySmall)
+                                  : null,
+                          trailing: missedCall == null
+                              ? null
+                              : Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
                           onTap: () => widget.onOpen(channel),
                         );
                       },
                     ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The "Missed call" line under a DM row: an unanswered incoming call the user
+/// hasn't opened the conversation for yet. Cleared by opening the conversation.
+class _MissedCallLabel extends StatelessWidget {
+  const _MissedCallLabel({required this.missed});
+
+  final MissedCall missed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    final style = Theme.of(context)
+        .textTheme
+        .bodySmall
+        ?.copyWith(color: colors.red, fontWeight: FontWeight.w600);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(missed.video ? Icons.missed_video_call : Icons.call_missed,
+            size: 14, color: colors.red),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(missed.label,
+              style: style, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ],
     );
@@ -167,6 +210,13 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   void initState() {
     super.initState();
     _load();
+    // Opening the conversation is the acknowledgement: drop any missed-call
+    // indicator for it. Deferred a frame — `initState` runs during a build, and
+    // Riverpod forbids mutating a provider from inside one.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(missedCallsControllerProvider.notifier).clear(_channel.id);
+    });
   }
 
   @override

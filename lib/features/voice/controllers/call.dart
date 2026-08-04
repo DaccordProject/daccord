@@ -1,9 +1,10 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show Timer, unawaited;
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -33,6 +34,22 @@ class IncomingCall {
   /// Whether the caller started with video (a hint from the ring metadata).
   final bool video;
 }
+
+/// The call ring/ringback tone, delegating to the app-wide [soundManager].
+///
+/// Sits behind [callRingtoneProvider] so the signaling transitions can be driven
+/// in tests (and, later, by a platform ringer) without the audio plugin.
+class CallRingtone {
+  const CallRingtone();
+
+  void start({bool outgoing = false}) =>
+      unawaited(soundManager.startRingtone(outgoing: outgoing));
+
+  void stop() => unawaited(soundManager.stopRingtone());
+}
+
+@Riverpod(keepAlive: true)
+CallRingtone callRingtone(Ref ref) => const CallRingtone();
 
 /// DM call signaling state: at most one pending incoming ring and, for the
 /// caller, the channel we're currently ringing (before the callee answers).
@@ -82,8 +99,35 @@ class CallState {
 /// (accordserver #32).
 @Riverpod(keepAlive: true)
 class CallController extends _$CallController {
+  /// How long an unanswered ring stays on screen before we give up and log it
+  /// as missed. accordserver runs no ring timer (accordserver #32), so without
+  /// this a caller who force-quits leaves the banner up forever.
+  static const ringTimeout = Duration(seconds: 45);
+
+  Timer? _ringTimer;
+
   @override
-  CallState build() => const CallState();
+  CallState build() {
+    ref.onDispose(_cancelRingTimer);
+    return const CallState();
+  }
+
+  CallRingtone get _ringtone => ref.read(callRingtoneProvider);
+
+  void _cancelRingTimer() {
+    _ringTimer?.cancel();
+    _ringTimer = null;
+  }
+
+  /// Logs [call] as an unanswered incoming call (see [MissedCallsController]).
+  void _recordMissed(IncomingCall call) {
+    ref.read(missedCallsControllerProvider.notifier).record(
+          channelId: call.channelId,
+          callerId: call.callerId,
+          serverKey: call.serverKey,
+          video: call.video,
+        );
+  }
 
   /// The client for [serverKey], or the active connection's client when null.
   AccordClient? _clientFor(String? serverKey) {
@@ -117,7 +161,7 @@ class CallController extends _$CallController {
     }
 
     if (video) await voice.toggleVideo();
-    unawaited(soundManager.startRingtone(outgoing: true));
+    _ringtone.start(outgoing: true);
     await client.voice.ring(channel.id, metadata: {'video': video});
   }
 
@@ -127,8 +171,11 @@ class CallController extends _$CallController {
   Future<String?> acceptIncoming() async {
     final incoming = state.incoming;
     if (incoming == null) return null;
-    unawaited(soundManager.stopRingtone());
+    _ringtone.stop();
+    _cancelRingTimer();
     state = state.copyWith(clearIncoming: true);
+    // Answering acknowledges any earlier miss on the same conversation.
+    ref.read(missedCallsControllerProvider.notifier).clear(incoming.channelId);
     await ref
         .read(voiceControllerProvider.notifier)
         .join(incoming.channelId, null);
@@ -141,10 +188,14 @@ class CallController extends _$CallController {
   }
 
   /// Declines the pending incoming call, telling the caller over `call/decline`.
+  ///
+  /// A declined call is **not** recorded as missed — the user saw the ring and
+  /// answered it (with "no"), so there's nothing left to catch up on.
   Future<void> declineIncoming() async {
     final incoming = state.incoming;
     if (incoming == null) return;
-    unawaited(soundManager.stopRingtone());
+    _ringtone.stop();
+    _cancelRingTimer();
     state = state.copyWith(clearIncoming: true);
     await _clientFor(incoming.serverKey)?.voice.declineCall(incoming.channelId);
   }
@@ -155,7 +206,7 @@ class CallController extends _$CallController {
     final channelId = state.outgoingChannelId;
     if (channelId == null) return;
     final client = _clientFor(ref.read(voiceControllerProvider).serverKey);
-    unawaited(soundManager.stopRingtone());
+    _ringtone.stop();
     state = state.copyWith(clearOutgoing: true);
     await ref.read(voiceControllerProvider.notifier).leave();
     await client?.voice.cancelCall(channelId);
@@ -173,8 +224,13 @@ class CallController extends _$CallController {
   void handleRing(AccordCallSignal sig, String serverKey, String myUserId) {
     if (sig.callerId == myUserId) return;
     if (ref.read(voiceControllerProvider).channelId == sig.channelId) return;
-    // Already ringing for this channel — keep the existing prompt.
+    // Already ringing for this channel — keep the existing prompt (and its
+    // running expiry timer).
     if (state.incoming?.channelId == sig.channelId) return;
+    // A ring for another conversation displaces the one on screen; the one we
+    // drop was never answered, so it counts as missed.
+    final displaced = state.incoming;
+    if (displaced != null) _recordMissed(displaced);
     state = state.copyWith(
       incoming: IncomingCall(
         channelId: sig.channelId,
@@ -184,31 +240,51 @@ class CallController extends _$CallController {
         video: sig.metadata?['video'] == true,
       ),
     );
-    unawaited(soundManager.startRingtone());
+    _cancelRingTimer();
+    _ringTimer = Timer(ringTimeout, expireRing);
+    _ringtone.start();
+  }
+
+  /// Gives up on the ring that's currently on screen: dismisses it and logs a
+  /// missed call. Fired by the [ringTimeout] timer; exposed so the timeout can
+  /// be exercised without waiting on wall-clock time.
+  @visibleForTesting
+  void expireRing() {
+    final incoming = state.incoming;
+    _cancelRingTimer();
+    if (incoming == null) return;
+    _ringtone.stop();
+    state = state.copyWith(clearIncoming: true);
+    _recordMissed(incoming);
   }
 
   /// A `call.decline` arrived. If it's for our outgoing call, end it locally and
   /// surface a "declined" banner.
   void handleDecline(AccordCallSignal sig) {
     if (state.outgoingChannelId != sig.channelId) return;
-    unawaited(soundManager.stopRingtone());
+    _ringtone.stop();
     unawaited(ref.read(voiceControllerProvider.notifier).leave());
     state = state.copyWith(clearOutgoing: true, endedMessage: 'Call declined');
   }
 
   /// A `call.cancel` or `call.end` arrived — the caller hung up before we
-  /// answered (or the room emptied). Dismiss any incoming ring for that channel.
+  /// answered (or the room emptied). Dismiss any incoming ring for that channel
+  /// and log it as missed: it rang here and we never accepted it. Ends for a
+  /// call we *did* accept carry no `incoming`, so they log nothing.
   void handleCancelOrEnd(AccordCallSignal sig) {
-    if (state.incoming?.channelId != sig.channelId) return;
-    unawaited(soundManager.stopRingtone());
+    final incoming = state.incoming;
+    if (incoming == null || incoming.channelId != sig.channelId) return;
+    _ringtone.stop();
+    _cancelRingTimer();
     state = state.copyWith(clearIncoming: true);
+    _recordMissed(incoming);
   }
 
   /// A peer joined the channel we're ringing — the call connected, so drop the
   /// "Calling…" state and stop the outgoing ringback tone.
   void markAnswered(String channelId) {
     if (state.outgoingChannelId != channelId) return;
-    unawaited(soundManager.stopRingtone());
+    _ringtone.stop();
     state = state.copyWith(clearOutgoing: true);
   }
 }

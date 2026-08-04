@@ -8,6 +8,48 @@ part of 'call.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+
+@ProviderFor(callRingtone)
+const callRingtoneProvider = CallRingtoneProvider._();
+
+final class CallRingtoneProvider
+    extends $FunctionalProvider<CallRingtone, CallRingtone, CallRingtone>
+    with $Provider<CallRingtone> {
+  const CallRingtoneProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'callRingtoneProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$callRingtoneHash();
+
+  @$internal
+  @override
+  $ProviderElement<CallRingtone> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  CallRingtone create(Ref ref) {
+    return callRingtone(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(CallRingtone value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<CallRingtone>(value),
+    );
+  }
+}
+
+String _$callRingtoneHash() => r'ea4321143cf6dbd77936e59a484393163e432a1a';
+
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or
 /// declining an incoming ring. The actual media session is owned by
@@ -59,7 +101,7 @@ final class CallControllerProvider
   }
 }
 
-String _$callControllerHash() => r'902b2e31ef83b9a26f39830be1255a29ca79c205';
+String _$callControllerHash() => r'91b94d8aa746fad76d61b42b5f590267c579df22';
 
 /// Orchestrates DM voice/video calls: placing an outgoing call (join voice +
 /// `call/ring`), reacting to the `call.*` gateway events, and accepting or

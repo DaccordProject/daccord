@@ -14,6 +14,7 @@ import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
+import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
