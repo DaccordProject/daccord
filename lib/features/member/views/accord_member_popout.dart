@@ -273,12 +273,12 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
     final roles = space?.roles ?? const <AccordRole>[];
     final status = ref.watch(
-      presenceControllerProvider.select(
+      activePresencesProvider.select(
         (p) => accordPresenceStatus(p, widget.userId),
       ),
     );
     final customStatus = ref.watch(
-      presenceControllerProvider.select(
+      activePresencesProvider.select(
         (p) => accordCustomStatus(p, widget.userId),
       ),
     );

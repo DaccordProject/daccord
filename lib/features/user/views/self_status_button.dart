@@ -25,12 +25,12 @@ class SelfStatusButton extends ConsumerWidget {
     final colors = BonfireThemeExtension.of(context);
     final userId = ref.watchUserId();
     final status = ref.watch(
-      presenceControllerProvider.select(
+      activePresencesProvider.select(
         (p) => userId == null ? 'offline' : accordPresenceStatus(p, userId),
       ),
     );
     final customStatus = ref.watch(
-      presenceControllerProvider.select(
+      activePresencesProvider.select(
         (p) => userId == null ? null : accordCustomStatus(p, userId),
       ),
     );
@@ -127,17 +127,15 @@ class SelfStatusButton extends ConsumerWidget {
           : {'name': trimmed, 'type': 'custom'},
     );
     if (userId != null) {
-      ref
-          .read(presenceControllerProvider.notifier)
-          .upsert(
-            AccordPresence(
-              userId: userId,
-              status: status,
-              activities: trimmed.isEmpty
-                  ? []
-                  : [AccordActivity(name: trimmed, type: 'custom')],
-            ),
-          );
+      activePresenceNotifier(ref)?.upsert(
+        AccordPresence(
+          userId: userId,
+          status: status,
+          activities: trimmed.isEmpty
+              ? []
+              : [AccordActivity(name: trimmed, type: 'custom')],
+        ),
+      );
     }
   }
 
@@ -147,23 +145,21 @@ class SelfStatusButton extends ConsumerWidget {
     // Preserve any custom status when only the status dot changes.
     final custom = userId == null
         ? null
-        : accordCustomStatus(ref.read(presenceControllerProvider), userId);
+        : accordCustomStatus(ref.read(activePresencesProvider), userId);
     client.gateway.updatePresence(
       status,
       activity: custom == null ? const {} : {'name': custom, 'type': 'custom'},
     );
     if (userId != null) {
-      ref
-          .read(presenceControllerProvider.notifier)
-          .upsert(
-            AccordPresence(
-              userId: userId,
-              status: status,
-              activities: custom == null
-                  ? []
-                  : [AccordActivity(name: custom, type: 'custom')],
-            ),
-          );
+      activePresenceNotifier(ref)?.upsert(
+        AccordPresence(
+          userId: userId,
+          status: status,
+          activities: custom == null
+              ? []
+              : [AccordActivity(name: custom, type: 'custom')],
+        ),
+      );
     }
   }
 }

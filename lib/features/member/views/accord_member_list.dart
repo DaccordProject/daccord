@@ -67,7 +67,7 @@ class _Roster extends ConsumerWidget {
       ),
     );
     final cdnUrl = ref.watchCdnUrl();
-    final presences = ref.watch(presenceControllerProvider);
+    final presences = ref.watch(activePresencesProvider);
 
     if (members == null) {
       // The roster fetch itself failed (timeout / non-2xx / network) — surface

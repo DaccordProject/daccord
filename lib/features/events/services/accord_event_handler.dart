@@ -102,8 +102,12 @@ VoidCallback handleAccordEvents(
     // and on every reconnect — this is what persists badges across a cold
     // start and what lights up servers the user hasn't opened yet.
     _hydrateReadState(ref, data, serverKey: serverKey);
+    // Presence is keyed by [serverKey] like read state, so seed it for every
+    // connection too — a background server that READYs while you're looking at
+    // another one used to be left permanently showing its whole roster as
+    // offline, with no re-seed on switch (#191).
+    seedPresencesFromReady(ref, data, serverKey: serverKey);
     if (isActive()) {
-      _seedPresences(ref, data);
       _seedVoiceStates(ref, data);
     }
     await _loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
@@ -141,10 +145,44 @@ VoidCallback handleAccordEvents(
     hadReady = true;
   }));
 
-  // ── Presence (active server only) ────────────────────────────────────────
+  // ── Presence (every connection) ──────────────────────────────────────────
+  // Unlike the caches below, presence is keyed by [serverKey], so a background
+  // connection has its own map and can't clobber the visible one. Dropping
+  // these while inactive is what made a user who was demonstrably online read
+  // as offline after a server switch (#191) — there is no re-request path, the
+  // gateway only re-sends presence in READY.
   subs.add(client.onPresenceUpdate.listen((presence) {
+    ref.read(presenceControllerProvider(serverKey).notifier).upsert(presence);
+  }));
+
+  // ── User cache (profile changes) ─────────────────────────────────────────
+  // `user.update` carries a user's new avatar / display name / username, for
+  // themselves or anyone we can see. Two caches hold an `AccordUser` and both
+  // need it: the global one (message authors, popouts, the self surfaces) and
+  // each open space's member records, which embed their own copy. Mirrors what
+  // the profile editor already does after `users.updateMe`.
+  //
+  // Only `AccordMember.user` is replaced — the per-space `nickname`/`avatar`
+  // overrides live on the member itself and keep winning in
+  // `accordMemberName`/`accordMemberAvatarUrl`.
+  //
+  // Gated on [isActive] unlike presence above: the user cache is global and
+  // *unscoped*, so IDs from two servers would collide. That matches how the
+  // cache is filled (`AccordUsersController.ensure` fetches through the active
+  // client) and the neighbouring member handlers. Keying it by `serverKey`, as
+  // presence now is, is the real fix — see #193.
+  //
+  // NOTE: accordserver does not emit `user.update` today, so this is inert
+  // until the server broadcasts on `PATCH /users/@me` (#193).
+  subs.add(client.onUserUpdate.listen((user) {
     if (!isActive()) return;
-    ref.read(presenceControllerProvider.notifier).upsert(presence);
+    if (user.id.isEmpty) return;
+    ref.read(accordUsersControllerProvider.notifier).upsert(user);
+    for (final spaceId in [...activeMemberSpaces]) {
+      container
+          .read(accordMembersControllerProvider(spaceId).notifier)
+          .applyUserUpdate(user);
+    }
   }));
 
   // ── Voice state cache ────────────────────────────────────────────────────
@@ -691,17 +729,26 @@ void _hydrateReadState(
   ref.read(readStateControllerProvider(serverKey).notifier).hydrate(entries);
 }
 
-/// Seeds the global presence cache from the gateway READY payload's
+/// Seeds a connection's presence cache from the gateway READY payload's
 /// `presences` array (matches the reference client's `_apply_presences`).
-void _seedPresences(Ref ref, Map<String, dynamic> ready) {
+///
+/// Runs for every connection, keyed by [serverKey], so two servers READYing in
+/// sequence no longer overwrite each other. An *empty* `presences` array is a
+/// real answer ("nobody visible is online") and clears the server's map; a
+/// missing/malformed field leaves the previous seed alone.
+@visibleForTesting
+void seedPresencesFromReady(
+  Ref ref,
+  Map<String, dynamic> ready, {
+  required String serverKey,
+}) {
   final raw = ready['presences'];
   if (raw is! List) return;
   final presences = [
     for (final entry in raw)
       if (entry is Map<String, dynamic>) AccordPresence.fromJson(entry),
   ];
-  if (presences.isEmpty) return;
-  ref.read(presenceControllerProvider.notifier).seed(presences);
+  ref.read(presenceControllerProvider(serverKey).notifier).seed(presences);
 }
 
 /// Fetches the connection's spaces over REST and seeds its rail cache. The

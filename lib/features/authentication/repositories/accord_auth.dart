@@ -8,6 +8,7 @@ import 'package:bonfire/features/authentication/repositories/accord_session_stor
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
@@ -309,6 +310,7 @@ class AccordAuth extends _$AccordAuth {
 
     ref.read(connectionsControllerProvider.notifier).clear();
     ref.invalidate(readStateControllerProvider);
+    ref.invalidate(presenceControllerProvider);
     ref.read(openTabsControllerProvider.notifier).clear();
     unawaited(SpaceCache.clear());
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);
@@ -664,6 +666,7 @@ class AccordAuth extends _$AccordAuth {
       ref.read(connectionsControllerProvider.notifier).remove(key);
     }
     ref.invalidate(readStateControllerProvider(key));
+    ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
 
@@ -710,6 +713,7 @@ class AccordAuth extends _$AccordAuth {
     if (_activeKey == key) _activeKey = null;
     ref.read(connectionsControllerProvider.notifier).remove(key);
     ref.invalidate(readStateControllerProvider(key));
+    ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
   }
