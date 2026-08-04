@@ -46,3 +46,12 @@ const String kGithubRepo = 'DaccordProject/daccord';
 /// GitHub REST endpoint for the latest published release of [kGithubRepo].
 const String kGithubLatestReleaseUrl =
     'https://api.github.com/repos/$kGithubRepo/releases/latest';
+
+/// GitHub REST endpoint for the release tagged `v[version]` of [kGithubRepo].
+///
+/// Used to fetch the notes for the build that is *currently running* (see the
+/// release-notes controller): after a self-update the staged release object is
+/// gone with the old process, and `/releases/latest` may already have moved on
+/// to a newer build.
+String kGithubReleaseByTagUrl(String version) =>
+    'https://api.github.com/repos/$kGithubRepo/releases/tags/v$version';

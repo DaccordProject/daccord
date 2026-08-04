@@ -8,6 +8,8 @@ import 'package:bonfire/features/authentication/utils/hive.dart';
 import 'package:bonfire/features/notifications/controllers/background_connection.dart';
 import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
+import 'package:bonfire/features/notifications/services/taskbar_badge.dart';
+import 'package:bonfire/features/updates/views/release_notes_dialog.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
@@ -15,6 +17,7 @@ import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
@@ -181,6 +184,11 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _maybeShowErrorReportingConsent(),
     );
+    // Post-update "What's new" notes (#183): shown once per new version, after
+    // sign-in. A no-op on a first install or an unchanged version.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => maybeShowReleaseNotesOnStartup(ref),
+    );
   }
 
   @override
@@ -336,6 +344,9 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // foreground service starts/stops with the "Background connection" setting
     // and login state (a no-op on every other platform and on Play builds).
     ref.watch(backgroundConnectionControllerProvider);
+    // Keep the desktop taskbar/dock unread badge alive so it tracks unread
+    // state live, including while the window is minimised (no-op on web/mobile).
+    ref.watch(taskbarBadgeControllerProvider);
     soundManager.enabled = settings.soundsEnabled;
     soundManager.volume = settings.sfxVolume;
     final theme = buildAppTheme(
@@ -353,12 +364,15 @@ class _MainWindowState extends ConsumerState<MainWindow> {
       // Apply accessibility prefs app-wide: scale all text by the UI scale and
       // honour reduced-motion. Done in the router app's builder so the
       // override sits above every route.
+      // The incoming-call banner is hosted here too, above every route, so a
+      // ring stays answerable from inside a dialog or the full-screen call
+      // view (#139).
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(settings.uiScale),
           disableAnimations: settings.reducedMotion,
         ),
-        child: child ?? const SizedBox.shrink(),
+        child: withIncomingCallOverlay(child),
       ),
     );
   }

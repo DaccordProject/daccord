@@ -1,7 +1,10 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
+import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
+import 'package:bonfire/features/updates/controllers/release_notes_controller.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
+import 'package:bonfire/features/updates/views/release_notes_dialog.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -46,6 +49,23 @@ class UpdatesScreen extends ConsumerWidget {
               'v$kAppVersion',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+          ),
+          // Re-open the post-update "What's new" notes on demand, so dismissing
+          // the startup dialog isn't the only chance to read them (#183).
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text("What's new in this version"),
+            subtitle: const Text("Release notes for the build you're running"),
+            trailing: ref.watch(
+              releaseNotesControllerProvider.select((s) => s.loading),
+            )
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: () => openCurrentReleaseNotes(context, ref),
           ),
           SwitchListTile(
             title: const Text('Check for updates on startup'),
@@ -107,13 +127,12 @@ class UpdatesScreen extends ConsumerWidget {
                 ).textTheme.titleSmall!.copyWith(color: colors.primary),
               ),
             ),
+            // GitHub release bodies are markdown — render them with the app's
+            // own viewer rather than dumping the raw source (#183).
             if (release.notes.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  release.notes,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                child: AccordMarkdownBox(content: release.notes),
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
