@@ -407,22 +407,33 @@ class _ComposerState extends ConsumerState<_Composer> {
     );
     if (client == null) return;
 
-    setState(() {
-      _sending = true;
-      _error = null;
-    });
     final controller = ref.read(
       accordMessagesControllerProvider(widget.channelId).notifier,
     );
     final replyTo = widget.replyingTo?.id;
+    final attachments = List<PlatformFile>.of(_attachments);
     final files = [
-      for (final file in _attachments)
+      for (final file in attachments)
         {
           'filename': file.name,
           'content': file.bytes!,
           'content_type': _mimeType(file.extension),
         },
     ];
+    // Empty the composer up front rather than after the round-trip. The field
+    // is never disabled (that would drop focus and the mobile keyboard for the
+    // whole send), so it has to be free for the next message straight away;
+    // everything cleared here comes back if the send fails.
+    _controller.clear();
+    _saveDraft(widget.channelId, '');
+    _lastTypingSent = null;
+    setState(() {
+      _sending = true;
+      _error = null;
+      _attachments.clear();
+      _mentionQuery = null;
+    });
+
     final error = await controller.sendWithAttachments(
       client,
       text,
@@ -430,22 +441,21 @@ class _ComposerState extends ConsumerState<_Composer> {
       replyTo: replyTo,
     );
     if (!mounted) return;
-    final ok = error == null;
+    if (error == null) {
+      setState(() => _sending = false);
+      soundManager.play('message_sent');
+      widget.onCancelReply?.call();
+      return;
+    }
+    // Failed: hand the message back so it can be fixed and retried, keeping any
+    // attachments ahead of ones added while this send was in flight.
     setState(() {
       _sending = false;
       _error = error;
-      if (ok) _attachments.clear();
+      _attachments.insertAll(0, attachments);
     });
-    if (ok) {
-      soundManager.play('message_sent');
-      _controller.clear();
-      _saveDraft(widget.channelId, '');
-      _lastTypingSent = null;
-      widget.onCancelReply?.call();
-      // After the frame that re-enables the field: the send disabled it, and a
-      // disabled TextField refuses focus requests outright.
-      refocusAfterFrame(_focusNode);
-    }
+    restoreFailedSend(_controller, text);
+    _saveDraft(widget.channelId, _controller.text);
   }
 
   @override
@@ -558,12 +568,21 @@ class _ComposerState extends ConsumerState<_Composer> {
                     child: TextField(
                       controller: _controller,
                       focusNode: _focusNode,
-                      enabled: !_sending,
+                      // Deliberately never disabled while sending: a disabled
+                      // TextField gives up focus (and the mobile keyboard) for
+                      // the whole round-trip. The buttons below and the guard
+                      // in _send() are what stop a double-send.
                       minLines: 1,
                       maxLines: 6,
                       textInputAction: TextInputAction.send,
                       onChanged: _onChanged,
-                      onSubmitted: (_) => _send(),
+                      onSubmitted: (_) {
+                        // EditableText unfocuses on a `send` action just before
+                        // onSubmitted runs; the field is enabled, so asking for
+                        // focus straight back lands in the same frame.
+                        _focusNode.requestFocus();
+                        _send();
+                      },
                       style: Theme.of(context).textTheme.bodyLarge,
                       decoration: InputDecoration(
                         isDense: true,

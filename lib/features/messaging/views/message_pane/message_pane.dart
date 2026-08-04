@@ -46,7 +46,7 @@ import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/platform.dart';
-import 'package:bonfire/shared/utils/refocus.dart';
+import 'package:bonfire/shared/utils/restore_failed_send.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';

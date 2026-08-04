@@ -221,19 +221,27 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (text.isEmpty || _sending) return;
     final client = _client;
     if (client == null) return;
+    // Clear up front rather than after the round-trip. The field is never
+    // disabled (that would drop focus and the mobile keyboard for the whole
+    // send), so it has to be free for the next message straight away; the text
+    // comes back if the send fails.
+    _input.clear();
     setState(() => _sending = true);
     final result =
         await client.messages.create(_channel.id, {'content': text});
     if (!mounted) return;
-    setState(() => _sending = false);
     final message = result.data;
     if (result.ok && message is AccordMessage) {
-      _input.clear();
-      // Submitting drops focus, so restore it for the next message — after the
-      // frame that re-enables the field, or the request is dropped.
-      refocusAfterFrame(_inputFocus);
-      setState(() => _messages = [...?_messages, message]);
+      setState(() {
+        _sending = false;
+        _messages = [...?_messages, message];
+      });
+      return;
     }
+    // Hand the message back so it can be retried instead of retyped.
+    setState(() => _sending = false);
+    restoreFailedSend(_input, text);
+    _snack('Failed to send message');
   }
 
   Future<void> _addMember() async {
@@ -492,7 +500,9 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
                 child: TextField(
                   controller: _input,
                   focusNode: _inputFocus,
-                  enabled: !_sending,
+                  // Never disabled while sending: a disabled TextField gives up
+                  // focus (and the mobile keyboard) for the whole round-trip.
+                  // The send button and the guard in _send() stop double-sends.
                   minLines: 1,
                   maxLines: 4,
                   // A multiline field defaults to TextInputAction.newline, which
@@ -504,7 +514,13 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
                     hintText: 'Message',
                     border: OutlineInputBorder(),
                   ),
-                  onSubmitted: (_) => _send(),
+                  onSubmitted: (_) {
+                    // EditableText unfocuses on a `send` action just before
+                    // onSubmitted runs; the field is enabled, so asking for
+                    // focus straight back lands in the same frame.
+                    _inputFocus.requestFocus();
+                    _send();
+                  },
                 ),
               ),
               IconButton(

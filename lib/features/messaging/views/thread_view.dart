@@ -16,7 +16,8 @@ import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
-import 'package:bonfire/shared/utils/refocus.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/restore_failed_send.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -128,6 +129,11 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     if (text.isEmpty || _sending) return;
     final client = _client;
     if (client == null) return;
+    // Clear up front rather than after the round-trip. The field is never
+    // disabled (that would drop focus and the mobile keyboard for the whole
+    // send), so it has to be free for the next reply straight away; the text
+    // comes back if the send fails.
+    _input.clear();
     setState(() => _sending = true);
     final ok = await ref
         .read(threadRepliesControllerProvider(widget.channelId, widget.root.id)
@@ -135,11 +141,10 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         .send(client, text);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (ok) {
-      _input.clear();
-      // Submitting drops focus, so restore it for the next reply — after the
-      // frame that re-enables the field, or the request is dropped.
-      refocusAfterFrame(_inputFocus);
+    if (!ok) {
+      // Hand the reply back so it can be retried instead of retyped.
+      restoreFailedSend(_input, text);
+      showInfoSnack(context, 'Failed to send reply');
     }
   }
 
@@ -341,7 +346,9 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
                 child: TextField(
                   controller: _input,
                   focusNode: _inputFocus,
-                  enabled: !_sending,
+                  // Never disabled while sending: a disabled TextField gives up
+                  // focus (and the mobile keyboard) for the whole round-trip.
+                  // The send button and the guard in _send() stop double-sends.
                   minLines: 1,
                   maxLines: 4,
                   // Without an explicit action a multiline field defaults to
@@ -353,7 +360,13 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
                     hintText: 'Reply to thread',
                     border: OutlineInputBorder(),
                   ),
-                  onSubmitted: (_) => _send(),
+                  onSubmitted: (_) {
+                    // EditableText unfocuses on a `send` action just before
+                    // onSubmitted runs; the field is enabled, so asking for
+                    // focus straight back lands in the same frame.
+                    _inputFocus.requestFocus();
+                    _send();
+                  },
                 ),
               ),
               IconButton(
