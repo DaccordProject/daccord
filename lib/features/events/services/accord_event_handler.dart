@@ -356,6 +356,11 @@ VoidCallback handleAccordEvents(
     // snowflakes don't cross-contaminate. Only the active connection
     // suppresses the on-screen channel (the visible-channel pointer belongs to
     // the active session). Mirrors `client_unread.gd`.
+    //
+    // Intentionally *not* filtered by mutes: the stored state stays truthful
+    // and the rail/channel indicators apply [UnreadIndicatorGate] when they
+    // render (see `ReadStateSnapshot.spaceShowsUnread`), so unmuting a space
+    // reveals what arrived while it was muted without waiting for a reconnect.
     if (!isOwn && !isVisibleChannel) {
       ref
           .read(readStateControllerProvider(serverKey).notifier)
@@ -644,6 +649,9 @@ void _seedVoiceStates(Ref ref, Map<String, dynamic> ready) {
 /// roll a server-level badge up) `space_id`; when the server omits `space_id`
 /// we recover it from the READY `channels` array. This is the durable source of
 /// truth that survives restarts — the live message handler only adds deltas.
+/// Unfiltered by mutes for the same reason [markUnread] is: the indicators
+/// apply [UnreadIndicatorGate] at render time, so a reconnect can't resurrect a
+/// muted space's dot and unmuting doesn't need one.
 void _hydrateReadState(
   Ref ref,
   Map<String, dynamic> ready, {

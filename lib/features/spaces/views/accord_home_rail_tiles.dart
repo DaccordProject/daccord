@@ -594,8 +594,30 @@ class _SpaceIcon extends ConsumerWidget {
     // unread; driven by the READY-hydrated + live read state (no channel fetch
     // needed, so background servers light up without opening them).
     final readState = ref.watch(readStateControllerProvider(serverKey));
-    final hasUnread = !selected && readState.anyUnreadInSpace(space.id);
-    final mentions = readState.mentionsInSpace(space.id);
+    // …filtered by the user's mute settings, so the rail agrees with the
+    // notification gate: a muted space (or a channel set to `nothing`) keeps
+    // its truthful read state but stays dark here. Filtering on this side
+    // rather than in `markUnread` means unmuting reveals what arrived while
+    // muted immediately, with no reconnect. Watch only the two slices that
+    // matter so an unrelated settings write (a draft keystroke) can't rebuild
+    // every rail icon.
+    final spaceMuted = ref.watch(
+      settingsControllerProvider.select((s) => s.isSpaceMuted(space.id)),
+    );
+    final channelLevels = ref.watch(
+      settingsControllerProvider.select((s) => s.channelNotifications),
+    );
+    final hasUnread = !selected &&
+        readState.spaceShowsUnread(
+          space.id,
+          spaceMuted: spaceMuted,
+          channelLevels: channelLevels,
+        );
+    final mentions = readState.visibleMentionsInSpace(
+      space.id,
+      spaceMuted: spaceMuted,
+      channelLevels: channelLevels,
+    );
     // Dim the icon while its server's gateway is down, so an unreachable space
     // reads as offline rather than just unselected.
     final unreachable = serverKey.isNotEmpty &&

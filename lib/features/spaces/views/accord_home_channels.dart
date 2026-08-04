@@ -501,8 +501,18 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
     final readState = activeKey == null
         ? const ReadStateSnapshot()
         : ref.watch(readStateControllerProvider(activeKey));
-    final unread = readState.isUnread(channel.id) && !widget.selected;
-    final mentions = readState.mentionCount(channel.id);
+    // A channel set to `nothing` is silenced outright: no pip, no badge, no
+    // bold name (its unread state is kept, so restoring the level restores the
+    // indicator). A muted *space* still shows unread inside itself — that mute
+    // only suppresses the rail roll-up.
+    final channelLevels = ref.watch(
+      settingsControllerProvider.select((s) => s.channelNotifications),
+    );
+    final unread =
+        readState.isUnreadVisible(channel.id, channelLevels: channelLevels) &&
+            !widget.selected;
+    final mentions =
+        readState.visibleMentionCount(channel.id, channelLevels: channelLevels);
 
     // Voice extras: green tint + count when anyone is present / we're connected.
     final connectedHere = isVoice &&

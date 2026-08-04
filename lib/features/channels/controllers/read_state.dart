@@ -1,6 +1,40 @@
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'read_state.g.dart';
+
+/// Pure policy deciding whether truthful unread state may light a *visible*
+/// indicator, given the user's mute settings. The notification analogue is
+/// [MessageNotificationGate]; the two must agree, so a space you muted never
+/// lights its rail icon either.
+///
+/// Deliberately applied on the *read* side ([ReadStateSnapshot]'s mute-aware
+/// getters) rather than in [ReadStateController.markUnread] / the READY
+/// hydrate: the stored state stays truthful, so unmuting immediately reveals
+/// unread that arrived while muted without waiting for a reconnect.
+class UnreadIndicatorGate {
+  const UnreadIndicatorGate._();
+
+  /// Whether an unread channel contributes to its space's rail dot / mention
+  /// badge. [spaceMuted] mirrors `AccordSettings.isSpaceMuted` and silences the
+  /// whole roll-up; [channelLevel] mirrors
+  /// `AccordSettings.channelNotificationLevel` — `'nothing'` never contributes,
+  /// `'mentions'` (the default, also `null`) and `'all'` do.
+  static bool countsTowardSpace({
+    required bool spaceMuted,
+    String? channelLevel,
+  }) {
+    if (spaceMuted) return false;
+    return channelLevel != AccordSettings.channelNotifNothing;
+  }
+
+  /// Whether an unread channel shows its pip in the channel list. Only the
+  /// per-channel level applies: a muted *space* still shows unread state
+  /// *inside* the space (muting greys the rail roll-up, it doesn't hide which
+  /// channels moved on), matching Discord.
+  static bool showsChannelPip({String? channelLevel}) =>
+      channelLevel != AccordSettings.channelNotifNothing;
+}
 
 /// One unread channel: which space it belongs to (so the rail can roll a
 /// server-level badge up from per-channel state) and how many pending mentions
@@ -49,6 +83,75 @@ class ReadStateSnapshot {
     var total = 0;
     for (final e in entries.values) {
       if (e.spaceId == spaceId) total += e.mentions;
+    }
+    return total;
+  }
+
+  // --- Mute-aware variants (what the UI actually renders) -------------------
+  //
+  // [channelLevels] mirrors `AccordSettings.channelNotifications` (channel ID →
+  // `'all' | 'mentions' | 'nothing'`, missing = the mention default) and
+  // [spaceMuted] mirrors `AccordSettings.isSpaceMuted(spaceId)`. Callers watch
+  // those two slices of settings rather than the whole object, so a draft
+  // keystroke doesn't rebuild the rail.
+
+  /// [isUnread], minus channels the user silenced — the channel-list pip.
+  bool isUnreadVisible(
+    String channelId, {
+    Map<String, String> channelLevels = const <String, String>{},
+  }) =>
+      isUnread(channelId) &&
+      UnreadIndicatorGate.showsChannelPip(
+        channelLevel: channelLevels[channelId],
+      );
+
+  /// [mentionCount], zeroed for channels the user silenced.
+  int visibleMentionCount(
+    String channelId, {
+    Map<String, String> channelLevels = const <String, String>{},
+  }) =>
+      UnreadIndicatorGate.showsChannelPip(
+        channelLevel: channelLevels[channelId],
+      )
+          ? mentionCount(channelId)
+          : 0;
+
+  /// [anyUnreadInSpace], minus muted spaces and silenced channels — the rail
+  /// dot.
+  bool spaceShowsUnread(
+    String spaceId, {
+    required bool spaceMuted,
+    Map<String, String> channelLevels = const <String, String>{},
+  }) {
+    if (spaceMuted) return false;
+    return entries.values.any(
+      (e) =>
+          e.spaceId == spaceId &&
+          UnreadIndicatorGate.countsTowardSpace(
+            spaceMuted: spaceMuted,
+            channelLevel: channelLevels[e.channelId],
+          ),
+    );
+  }
+
+  /// [mentionsInSpace], minus muted spaces and silenced channels — the rail's
+  /// mention badge.
+  int visibleMentionsInSpace(
+    String spaceId, {
+    required bool spaceMuted,
+    Map<String, String> channelLevels = const <String, String>{},
+  }) {
+    if (spaceMuted) return 0;
+    var total = 0;
+    for (final e in entries.values) {
+      if (e.spaceId != spaceId) continue;
+      if (!UnreadIndicatorGate.countsTowardSpace(
+        spaceMuted: spaceMuted,
+        channelLevel: channelLevels[e.channelId],
+      )) {
+        continue;
+      }
+      total += e.mentions;
     }
     return total;
   }
