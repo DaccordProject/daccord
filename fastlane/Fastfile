@@ -88,6 +88,24 @@ platform :android do
       skip_upload_changelogs: true,
     )
   end
+
+  desc "Print the versionCodes and release names currently on each Play track"
+  # Read-only: the Play Console shows a release's *name* (free text) rather than
+  # the versionName baked into the bundle, so the two can disagree and hide
+  # which binary a track actually points at. Dump both before promoting.
+  lane :tracks do
+    package = ENV.fetch("ANDROID_PACKAGE_NAME", "com.daccord_projects.daccord")
+    key = ENV.fetch("PLAY_JSON_KEY_PATH")
+    %w[internal alpha beta production].each do |track|
+      codes = google_play_track_version_codes(
+        package_name: package, json_key: key, track: track,
+      )
+      names = google_play_track_release_names(
+        package_name: package, json_key: key, track: track,
+      )
+      UI.important("#{track}: versionCodes=#{codes.inspect} releaseNames=#{names.inspect}")
+    end
+  end
 end
 
 platform :ios do

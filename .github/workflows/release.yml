@@ -28,6 +28,10 @@ on:
         description: "Build + upload the Android App Bundle to Google Play"
         type: boolean
         default: true
+      inspect_play_tracks:
+        description: "Print the versionCodes + release names on every Play track (read-only)"
+        type: boolean
+        default: false
       promote_version_code:
         description: "Promote an existing Play versionCode between tracks (leave blank to skip). Set the deploy_* toggles off to promote without rebuilding."
         type: string
@@ -815,3 +819,33 @@ jobs:
           PLAY_TO_TRACK: ${{ inputs.promote_to_track }}
           PLAY_RELEASE_STATUS: completed
         run: bundle exec fastlane android promote
+
+  # ---------------------------------------------------------------------------
+  # Read-only dump of what is on each Play track. Changes nothing; exists so a
+  # promotion can be aimed at the right versionCode instead of a guess.
+  # ---------------------------------------------------------------------------
+  android-tracks:
+    name: Inspect Google Play tracks
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.inspect_play_tracks }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Write Play service-account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      - name: Dump tracks
+        env:
+          PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
+          ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
+        run: bundle exec fastlane android tracks
