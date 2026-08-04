@@ -52,7 +52,7 @@ Architecture: $ARCH
 Installed-Size: $INSTALLED_SIZE
 Depends: libgtk-3-0, libstdc++6, libmpv2 | libmpv1
 Maintainer: The Daccord Project <noreply@daccord-projects.dev>
-Homepage: https://github.com/DaccordProject/daccord-app
+Homepage: https://github.com/DaccordProject/daccord
 Description: Daccord desktop client
  A fast, cross-platform Flutter client for Daccord communities.
 EOF
