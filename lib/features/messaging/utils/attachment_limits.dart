@@ -21,6 +21,23 @@ String formatFileSize(int bytes) {
   return '$bytes bytes';
 }
 
+/// Message for a file that couldn't be read into memory (a cloud- or
+/// provider-backed file the platform declined to hand over bytes for).
+/// Shared by the picker and drag-and-drop paths so the wording never drifts
+/// between the two.
+String unreadableAttachmentMessage(String name) =>
+    "$name couldn't be read. Copy it to local storage and try again.";
+
+/// Message for a file that exceeds [maxBytes]. Shared by the picker and
+/// drag-and-drop paths so the wording never drifts between the two.
+String oversizeAttachmentMessage(
+  String name,
+  int size, {
+  int maxBytes = kMaxAttachmentBytes,
+}) =>
+    '$name is ${formatFileSize(size)} — the limit is '
+    '${formatFileSize(maxBytes)}.';
+
 /// The outcome of screening picked files: the ones that can be attached, plus a
 /// line per file that can't be, naming it and why.
 class AttachmentScreening {
@@ -53,15 +70,12 @@ AttachmentScreening screenAttachments(
   for (final file in files) {
     final bytes = file.bytes;
     if (bytes == null) {
-      rejections.add(
-        "${file.name} couldn't be read. Copy it to local storage and try again.",
-      );
+      rejections.add(unreadableAttachmentMessage(file.name));
       continue;
     }
     if (bytes.length > maxBytes) {
       rejections.add(
-        '${file.name} is ${formatFileSize(bytes.length)} — the limit is '
-        '${formatFileSize(maxBytes)}.',
+        oversizeAttachmentMessage(file.name, bytes.length, maxBytes: maxBytes),
       );
       continue;
     }

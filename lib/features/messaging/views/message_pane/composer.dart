@@ -308,10 +308,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       try {
         final size = await item.length();
         if (size > kMaxAttachmentBytes) {
-          rejections.add(
-            '${item.name} is ${formatFileSize(size)} — the limit is '
-            '${formatFileSize(kMaxAttachmentBytes)}.',
-          );
+          rejections.add(oversizeAttachmentMessage(item.name, size));
           continue;
         }
         final bytes = await item.readAsBytes();
@@ -324,10 +321,7 @@ class _ComposerState extends ConsumerState<_Composer> {
           ),
         );
       } catch (_) {
-        rejections.add(
-          "${item.name} couldn't be read. Copy it to local storage and try "
-          'again.',
-        );
+        rejections.add(unreadableAttachmentMessage(item.name));
       } finally {
         if (scoped) await _stopScopedAccess(bookmark!);
       }

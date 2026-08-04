@@ -63,4 +63,35 @@ void main() {
       expect(formatFileSize(kMaxAttachmentBytes), '25 MB');
     });
   });
+
+  group('unreadableAttachmentMessage', () {
+    test('names the file', () {
+      expect(
+        unreadableAttachmentMessage('video.mov'),
+        "video.mov couldn't be read. Copy it to local storage and try again.",
+      );
+    });
+  });
+
+  group('oversizeAttachmentMessage', () {
+    test('names the file and both sizes, using the default limit', () {
+      final message = oversizeAttachmentMessage('movie.mp4', 30 * 1024 * 1024);
+      expect(message, contains('movie.mp4'));
+      expect(message, contains('30 MB'));
+      expect(message, contains('25 MB'));
+    });
+
+    test('honors an explicit maxBytes, matching screenAttachments wording', () {
+      final direct = oversizeAttachmentMessage(
+        'album.mp3',
+        2048,
+        maxBytes: 1024,
+      );
+      final viaScreening = screenAttachments(
+        [_file('album.mp3', bytes: 2048)],
+        maxBytes: 1024,
+      ).error;
+      expect(direct, viaScreening);
+    });
+  });
 }
