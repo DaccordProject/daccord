@@ -458,8 +458,14 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
             replyingTo: _replyTo,
             replyName: _replyTo == null
                 ? null
-                : accordMemberName(members?[_replyTo!.authorId],
-                    fallback: _replyTo!.authorId),
+                : accordAuthorName(
+                    _replyTo!.authorId,
+                    members: members,
+                    users: userCache,
+                    ensure: ref
+                        .read(accordUsersControllerProvider.notifier)
+                        .ensure,
+                  ),
             onCancelReply: () => setState(() => _replyTo = null),
           ),
         ],

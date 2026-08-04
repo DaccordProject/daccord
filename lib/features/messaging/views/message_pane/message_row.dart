@@ -563,12 +563,24 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     String name = 'Unknown';
     String preview = '';
     if (referenced != null) {
-      final members = widget.spaceId == null
+      // Same resolution order as the row header: member nickname → on-demand
+      // user cache → "Unknown" while the fetch lands. Never the raw snowflake.
+      final authorId = referenced.authorId;
+      final member = widget.spaceId == null
           ? null
-          : ref.read(accordMembersControllerProvider(widget.spaceId!));
-      name = accordMemberName(
-        members?[referenced.authorId],
-        fallback: referenced.authorId,
+          : ref.watch(
+              accordMembersControllerProvider(
+                widget.spaceId!,
+              ).select((m) => m?[authorId]),
+            );
+      final user = ref.watch(
+        accordUsersControllerProvider.select((u) => u[authorId]),
+      );
+      name = accordAuthorNameOf(
+        authorId,
+        member: member,
+        user: user,
+        ensure: ref.read(accordUsersControllerProvider.notifier).ensure,
       );
       preview = referenced.content.isEmpty
           ? '(attachment)'
