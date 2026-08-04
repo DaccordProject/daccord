@@ -158,6 +158,7 @@ class _DmConversation extends ConsumerStatefulWidget {
 
 class _DmConversationState extends ConsumerState<_DmConversation> {
   final _input = TextEditingController();
+  final _inputFocus = FocusNode();
   List<AccordMessage>? _messages;
   late AccordChannel _channel = widget.channel;
   bool _sending = false;
@@ -171,6 +172,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -227,6 +229,9 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final message = result.data;
     if (result.ok && message is AccordMessage) {
       _input.clear();
+      // Submitting drops focus, so restore it for the next message — after the
+      // frame that re-enables the field, or the request is dropped.
+      refocusAfterFrame(_inputFocus);
       setState(() => _messages = [...?_messages, message]);
     }
   }
@@ -486,9 +491,14 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
               Expanded(
                 child: TextField(
                   controller: _input,
+                  focusNode: _inputFocus,
                   enabled: !_sending,
                   minLines: 1,
                   maxLines: 4,
+                  // A multiline field defaults to TextInputAction.newline, which
+                  // swallows Enter instead of submitting; match the main
+                  // composer so Enter sends.
+                  textInputAction: TextInputAction.send,
                   decoration: const InputDecoration(
                     isDense: true,
                     hintText: 'Message',

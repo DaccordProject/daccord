@@ -365,7 +365,9 @@ class _ComposerState extends ConsumerState<_Composer> {
       _saveDraft(widget.channelId, '');
       _lastTypingSent = null;
       widget.onCancelReply?.call();
-      _focusNode.requestFocus();
+      // After the frame that re-enables the field: the send disabled it, and a
+      // disabled TextField refuses focus requests outright.
+      refocusAfterFrame(_focusNode);
     }
   }
 

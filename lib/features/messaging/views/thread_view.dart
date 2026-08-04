@@ -16,6 +16,7 @@ import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/refocus.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -107,12 +108,14 @@ class AccordThreadPane extends ConsumerStatefulWidget {
 
 class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   final TextEditingController _input = TextEditingController();
+  final FocusNode _inputFocus = FocusNode();
   late AccordMessage _root = widget.root;
   bool _sending = false;
 
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -132,7 +135,12 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         .send(client, text);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (ok) _input.clear();
+    if (ok) {
+      _input.clear();
+      // Submitting drops focus, so restore it for the next reply — after the
+      // frame that re-enables the field, or the request is dropped.
+      refocusAfterFrame(_inputFocus);
+    }
   }
 
   void _close() {
@@ -332,9 +340,14 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
               Expanded(
                 child: TextField(
                   controller: _input,
+                  focusNode: _inputFocus,
                   enabled: !_sending,
                   minLines: 1,
                   maxLines: 4,
+                  // Without an explicit action a multiline field defaults to
+                  // TextInputAction.newline, so Enter only inserts a line break
+                  // and never reaches onSubmitted. Matches the main composer.
+                  textInputAction: TextInputAction.send,
                   decoration: const InputDecoration(
                     isDense: true,
                     hintText: 'Reply to thread',
