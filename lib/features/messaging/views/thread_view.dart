@@ -107,12 +107,14 @@ class AccordThreadPane extends ConsumerStatefulWidget {
 
 class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   final TextEditingController _input = TextEditingController();
+  final FocusNode _inputFocus = FocusNode();
   late AccordMessage _root = widget.root;
   bool _sending = false;
 
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -132,7 +134,11 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         .send(client, text);
     if (!mounted) return;
     setState(() => _sending = false);
-    if (ok) _input.clear();
+    if (ok) {
+      _input.clear();
+      // Submitting drops focus, so restore it for the next reply.
+      _inputFocus.requestFocus();
+    }
   }
 
   void _close() {
@@ -332,9 +338,14 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
               Expanded(
                 child: TextField(
                   controller: _input,
+                  focusNode: _inputFocus,
                   enabled: !_sending,
                   minLines: 1,
                   maxLines: 4,
+                  // Without an explicit action a multiline field defaults to
+                  // TextInputAction.newline, so Enter only inserts a line break
+                  // and never reaches onSubmitted. Matches the main composer.
+                  textInputAction: TextInputAction.send,
                   decoration: const InputDecoration(
                     isDense: true,
                     hintText: 'Reply to thread',
