@@ -10,6 +10,10 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // Unread dock badge (see TaskbarBadge.swift) — registered here because it
+    // needs the engine's messenger and nothing else.
+    TaskbarBadge.register(with: flutterViewController.engine.binaryMessenger)
+
     super.awakeFromNib()
   }
 }

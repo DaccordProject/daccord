@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "taskbar_badge.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +26,9 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  // Unread taskbar overlay icon (see taskbar_badge.cpp) — registered here
+  // because it needs both the engine and this window's HWND.
+  TaskbarBadgeRegister(flutter_controller_->engine(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -59,6 +63,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (result) {
       return *result;
     }
+  }
+
+  // The shell drops overlay icons when it (re)creates the taskbar button — at
+  // first show, and after an explorer.exe restart — so re-push the last badge.
+  const UINT taskbar_button_created = TaskbarBadgeButtonCreatedMessage();
+  if (taskbar_button_created != 0 && message == taskbar_button_created) {
+    TaskbarBadgeReapply();
   }
 
   switch (message) {

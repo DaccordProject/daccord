@@ -7,6 +7,7 @@
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
+#include "taskbar_badge.h"
 // #include <webview_cef/webview_cef_plugin.h>
 
 struct _MyApplication
@@ -69,6 +70,10 @@ static void my_application_activate(GApplication *application)
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  // Unread taskbar/dock badge over the Unity Launcher API. Lives in the runner
+  // rather than a plugin because it needs nothing but the session bus.
+  taskbar_badge_register(view);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
