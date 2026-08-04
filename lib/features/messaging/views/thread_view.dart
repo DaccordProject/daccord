@@ -16,6 +16,7 @@ import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
+import 'package:bonfire/shared/utils/refocus.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -136,8 +137,9 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     setState(() => _sending = false);
     if (ok) {
       _input.clear();
-      // Submitting drops focus, so restore it for the next reply.
-      _inputFocus.requestFocus();
+      // Submitting drops focus, so restore it for the next reply — after the
+      // frame that re-enables the field, or the request is dropped.
+      refocusAfterFrame(_inputFocus);
     }
   }
 

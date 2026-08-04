@@ -229,8 +229,9 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final message = result.data;
     if (result.ok && message is AccordMessage) {
       _input.clear();
-      // Submitting drops focus, so restore it for the next message.
-      _inputFocus.requestFocus();
+      // Submitting drops focus, so restore it for the next message — after the
+      // frame that re-enables the field, or the request is dropped.
+      refocusAfterFrame(_inputFocus);
       setState(() => _messages = [...?_messages, message]);
     }
   }
