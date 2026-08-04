@@ -56,7 +56,6 @@ import 'package:bonfire/features/voice/utils/voice_logic.dart'
     show isVoiceDoubleTap;
 import 'package:bonfire/features/voice/views/voice_bar.dart';
 import 'package:bonfire/features/voice/views/voice_participants.dart';
-import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -546,7 +545,6 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                 ],
               ),
               pip,
-              const IncomingCallOverlay(),
             ],
           );
         }
@@ -637,7 +635,6 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                   ),
                 ),
                 pip,
-                const IncomingCallOverlay(),
               ],
             ),
           ),

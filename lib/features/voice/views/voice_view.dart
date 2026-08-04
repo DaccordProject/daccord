@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:accordkit/accordkit.dart'
     show AccordMember, AccordUser, AccordVoiceState;
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -845,6 +847,22 @@ class _ControlBar extends ConsumerWidget {
   final String channelId;
   final String? spaceId;
 
+  /// Hangs up. Leaving voice is enough for a space channel, but a DM call we're
+  /// still *ringing* has to tell the callee explicitly: the call controller's
+  /// `cancelOutgoing` sends `call/cancel` (and then leaves + clears the
+  /// outgoing state). Without it, dismissing the callee's ring would depend
+  /// entirely on the server noticing the room emptied (#140).
+  void _hangUp(WidgetRef ref) {
+    final ringingDmCall =
+        spaceId == null &&
+        ref.read(callControllerProvider).outgoingChannelId == channelId;
+    if (ringingDmCall) {
+      unawaited(ref.read(callControllerProvider.notifier).cancelOutgoing());
+    } else {
+      unawaited(ref.read(voiceControllerProvider.notifier).leave());
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
@@ -902,7 +920,7 @@ class _ControlBar extends ConsumerWidget {
             tooltip: 'Disconnect',
             active: true,
             activeColor: colors.red,
-            onPressed: notifier.leave,
+            onPressed: () => _hangUp(ref),
           ),
         ],
       ),
