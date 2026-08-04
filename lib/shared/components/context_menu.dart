@@ -2,6 +2,19 @@ import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 
+/// Context menus open and close a third faster than Material's defaults, which
+/// feel sluggish for a menu you flick open dozens of times a session. Each
+/// constant is ~⅔ of the framework value it overrides.
+
+/// Open *and* close duration of the anchored desktop menu (Material: 300ms).
+const _kAnchoredMenuDuration = Duration(milliseconds: 200);
+
+/// Enter duration of the mobile bottom sheet (Material: 250ms).
+const _kSheetEnterDuration = Duration(milliseconds: 167);
+
+/// Exit duration of the mobile bottom sheet (Material: 200ms).
+const _kSheetExitDuration = Duration(milliseconds: 133);
+
 /// One row in an Accord context menu. A null [onSelected] (or [enabled] false)
 /// renders the entry disabled. Use [AccordMenuEntry.divider] for a separator.
 class AccordMenuEntry {
@@ -107,6 +120,7 @@ Future<void> _showAnchored(
       Offset.zero & overlay.size,
     ),
     items: items,
+    popUpAnimationStyle: AnimationStyle(duration: _kAnchoredMenuDuration),
   );
   if (selected != null) entries[selected].onSelected?.call();
 }
@@ -120,6 +134,10 @@ Future<void> _showSheet(
   final colors = BonfireThemeExtension.of(context);
   return showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: AnimationStyle(
+      duration: _kSheetEnterDuration,
+      reverseDuration: _kSheetExitDuration,
+    ),
     builder: (sheetCtx) {
       final theme = Theme.of(sheetCtx);
       return SafeArea(
