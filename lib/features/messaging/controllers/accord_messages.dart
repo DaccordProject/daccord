@@ -134,22 +134,32 @@ class AccordMessagesController extends _$AccordMessagesController {
     AccordClient client,
     String content, {
     String? replyTo,
+  }) async => await _createMessage(client, content, replyTo: replyTo) == null;
+
+  /// Sends [content] via `messages.create`. Returns null on success, or the
+  /// server's own failure message — shared by [send] and the no-attachments
+  /// path of [sendWithAttachments] so both surface the same reason instead of
+  /// [send]'s bool swallowing it.
+  Future<String?> _createMessage(
+    AccordClient client,
+    String content, {
+    String? replyTo,
   }) async {
     final trimmed = content.trim();
-    if (trimmed.isEmpty) return false;
+    if (trimmed.isEmpty) return 'Message is empty.';
     final data = <String, dynamic>{'content': trimmed};
     if (replyTo != null) data['reply_to'] = replyTo;
     final result = await client.messages.create(channelId, data);
     if (!result.ok) {
       debugPrint('Failed to send message to $channelId: ${result.error}');
-      return false;
+      return result.errorMessageOr('Failed to send message.');
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
     // Action breadcrumb for opt-in error reporting — the fact a message was
     // sent, never its content.
     ref.read(errorReportingControllerProvider.notifier).messageSent();
-    return true;
+    return null;
   }
 
   /// Pins [messageId] in this channel, optimistically flipping its `pinned`
@@ -242,8 +252,8 @@ class AccordMessagesController extends _$AccordMessagesController {
 
   /// Sends [content] plus file [files] to this channel via
   /// `messages.createWithAttachments`. Each file is a map with `filename`,
-  /// `content` (bytes) and optional `content_type`. Falls back to a plain
-  /// [send] when there are no files.
+  /// `content` (bytes) and optional `content_type`. Falls back to
+  /// `messages.create` (the same call [send] makes) when there are no files.
   ///
   /// Returns null on success, or the failure message to show the user. The
   /// server's own reason is passed through — a rejected upload (too large, no
@@ -256,9 +266,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     String? replyTo,
   }) async {
     if (files.isEmpty) {
-      return await send(client, content, replyTo: replyTo)
-          ? null
-          : 'Failed to send message.';
+      return _createMessage(client, content, replyTo: replyTo);
     }
     final data = <String, dynamic>{'content': content.trim()};
     if (replyTo != null) data['reply_to'] = replyTo;

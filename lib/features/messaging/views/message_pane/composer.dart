@@ -338,27 +338,20 @@ class _ComposerState extends ConsumerState<_Composer> {
       accordMessagesControllerProvider(widget.channelId).notifier,
     );
     final replyTo = widget.replyingTo?.id;
-    final String? error;
-    if (_attachments.isEmpty) {
-      error = await controller.send(client, text, replyTo: replyTo)
-          ? null
-          : 'Failed to send message.';
-    } else {
-      final files = [
-        for (final file in _attachments)
-          {
-            'filename': file.name,
-            'content': file.bytes!,
-            'content_type': _mimeType(file.extension),
-          },
-      ];
-      error = await controller.sendWithAttachments(
-        client,
-        text,
-        files,
-        replyTo: replyTo,
-      );
-    }
+    final files = [
+      for (final file in _attachments)
+        {
+          'filename': file.name,
+          'content': file.bytes!,
+          'content_type': _mimeType(file.extension),
+        },
+    ];
+    final error = await controller.sendWithAttachments(
+      client,
+      text,
+      files,
+      replyTo: replyTo,
+    );
     if (!mounted) return;
     final ok = error == null;
     setState(() {
