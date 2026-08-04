@@ -9,6 +9,7 @@
 #include <app_links/app_links_plugin_c_api.h>
 #include <audioplayers_windows/audioplayers_windows_plugin.h>
 #include <connectivity_plus/connectivity_plus_windows_plugin.h>
+#include <desktop_drop/desktop_drop_plugin.h>
 #include <flutter_webrtc/flutter_web_r_t_c_plugin.h>
 #include <livekit_client/live_kit_plugin.h>
 #include <media_kit_libs_windows_video/media_kit_libs_windows_video_plugin_c_api.h>
@@ -25,6 +26,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("AudioplayersWindowsPlugin"));
   ConnectivityPlusWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("ConnectivityPlusWindowsPlugin"));
+  DesktopDropPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("DesktopDropPlugin"));
   FlutterWebRTCPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FlutterWebRTCPlugin"));
   LiveKitPluginRegisterWithRegistrar(

@@ -49,6 +49,7 @@ import 'package:bonfire/shared/utils/refocus.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
