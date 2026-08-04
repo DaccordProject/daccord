@@ -129,4 +129,41 @@ void main() {
       expect(needsReconnect(VoiceSessionState.connecting), isFalse);
     });
   });
+
+  group('isVoiceDoubleTap', () {
+    final now = DateTime(2026, 1, 1, 12);
+
+    test('a first click on a row is never a join', () {
+      expect(isVoiceDoubleTap(null, now), isFalse);
+    });
+
+    test('a second click inside the window joins', () {
+      expect(
+        isVoiceDoubleTap(now.subtract(const Duration(milliseconds: 150)), now),
+        isTrue,
+      );
+      expect(isVoiceDoubleTap(now.subtract(voiceDoubleTapWindow), now), isTrue);
+    });
+
+    test('a slow second click only re-selects', () {
+      expect(
+        isVoiceDoubleTap(
+          now.subtract(voiceDoubleTapWindow + const Duration(milliseconds: 1)),
+          now,
+        ),
+        isFalse,
+      );
+      expect(
+        isVoiceDoubleTap(now.subtract(const Duration(seconds: 5)), now),
+        isFalse,
+      );
+    });
+
+    test('ignores a clock that jumped backwards', () {
+      expect(
+        isVoiceDoubleTap(now.add(const Duration(milliseconds: 100)), now),
+        isFalse,
+      );
+    });
+  });
 }

@@ -52,6 +52,8 @@ import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
+import 'package:bonfire/features/voice/utils/voice_logic.dart'
+    show isVoiceDoubleTap;
 import 'package:bonfire/features/voice/views/voice_bar.dart';
 import 'package:bonfire/features/voice/views/voice_participants.dart';
 import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
@@ -171,6 +173,10 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       showAccordThread(context, channelId: channelId, root: root);
       return {'ok': true};
     },
+    // Reveals the *current* call's channel; it never joins one (matching the
+    // rest of the app after #202 — navigation is never a connect). It stays an
+    // error when nothing is connected rather than silently joining something:
+    // `select_channel` already opens any voice channel's lobby.
     'open_voice_view': (args) async {
       if (!mounted) return _mcpUnmounted;
       final voice = ref.read(voiceControllerProvider);
@@ -258,15 +264,12 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       );
       if (!ok || !mounted) return;
     }
-    // Tapping a voice channel joins it (unless already connected); the message
-    // pane renders the voice view for the opened tab.
-    if (channel?.type == 'voice') {
-      final connected =
-          ref.read(voiceControllerProvider).channelId == channelId;
-      if (!connected) {
-        ref.read(voiceControllerProvider.notifier).join(channelId, spaceId);
-      }
-    }
+    // Opening a voice channel never connects: the message pane renders the voice
+    // view, which shows the lobby (participants + chat + a "Join Voice" button)
+    // until the user explicitly joins. An accidental click used to be an
+    // unmuted, audible join — see issue #202. The explicit join affordances are
+    // the lobby button, the channel row's hover button / double-click, and the
+    // row's context menu.
     ref
         .read(openTabsControllerProvider.notifier)
         .open(

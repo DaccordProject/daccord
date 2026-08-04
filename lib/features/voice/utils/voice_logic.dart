@@ -55,3 +55,22 @@ bool needsReconnect(VoiceSessionState state) =>
     state == VoiceSessionState.disconnected ||
     state == VoiceSessionState.failed ||
     state == VoiceSessionState.reconnecting;
+
+/// How long after a click on a voice channel row a second click still counts as
+/// a double-click (Discord's fast path: double-click joins). Deliberately a
+/// touch longer than Material's 300ms so the gesture is forgiving — it's the
+/// only join affordance that costs no extra pointer travel.
+const Duration voiceDoubleTapWindow = Duration(milliseconds: 400);
+
+/// Whether a click at [now] following a previous click at [lastTapAt] on the
+/// same row should be treated as the join gesture.
+///
+/// The channel row detects this itself instead of adding an `onDoubleTap` to its
+/// `InkWell`: with a double-tap recognizer in the arena Flutter delays every
+/// single tap until the double-tap timer expires, which would make simply
+/// *selecting* a channel feel laggy. Selection stays instant; the second click
+/// joins.
+bool isVoiceDoubleTap(DateTime? lastTapAt, DateTime now) =>
+    lastTapAt != null &&
+    !now.isBefore(lastTapAt) &&
+    now.difference(lastTapAt) <= voiceDoubleTapWindow;

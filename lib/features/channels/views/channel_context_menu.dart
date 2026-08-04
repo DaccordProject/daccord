@@ -32,7 +32,9 @@ AccordClient? _clientOf(WidgetRef ref) => ref.read(
 /// desktop it anchors next to [globalPosition]; on touch it opens a bottom
 /// sheet. [hostContext] is the launching tile's context (kept distinct so
 /// dialogs opened after the menu closes still have a live ancestor).
-/// Management actions are gated on [canManageChannels].
+/// Management actions are gated on [canManageChannels]. [leadingEntries] are
+/// prepended verbatim, for actions only the caller knows about (the channel
+/// list's voice join/disconnect).
 Future<void> showChannelContextMenu(
   BuildContext hostContext,
   WidgetRef ref, {
@@ -40,6 +42,7 @@ Future<void> showChannelContextMenu(
   required String spaceId,
   required bool canManageChannels,
   Offset? globalPosition,
+  List<AccordMenuEntry> leadingEntries = const [],
 }) async {
   final client = _clientOf(ref);
 
@@ -77,6 +80,7 @@ Future<void> showChannelContextMenu(
       );
 
   final entries = <AccordMenuEntry>[
+    ...leadingEntries,
     if (unread)
       AccordMenuEntry(
         label: 'Mark as read',

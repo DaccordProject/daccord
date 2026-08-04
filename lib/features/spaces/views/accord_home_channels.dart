@@ -460,9 +460,42 @@ class _ChannelTile extends ConsumerStatefulWidget {
 class _ChannelTileState extends ConsumerState<_ChannelTile> {
   bool _hovered = false;
 
+  /// When this row was last clicked, for the double-click-to-join fast path
+  /// (see [isVoiceDoubleTap]). Per-tile, so clicking two rows in quick
+  /// succession can't be mistaken for a double-click.
+  DateTime? _lastTapAt;
+
+  bool get _isVoice => widget.channel.type == 'voice';
+
+  bool get _connectedHere =>
+      ref.read(voiceControllerProvider).channelId == widget.channel.id;
+
+  /// Explicitly connects to this voice channel. Selecting the channel never
+  /// does this any more (#202) — only the row's hover button, its double-click,
+  /// its context menu, and the lobby's Join button do.
+  void _joinVoice() {
+    final spaceId = widget.spaceId;
+    if (!_isVoice || spaceId == null || _connectedHere) return;
+    ref.read(voiceControllerProvider.notifier).join(widget.channel.id, spaceId);
+  }
+
+  /// Selects the channel; a second click inside the double-click window joins it
+  /// instead of re-selecting (the first click already opened the tab).
+  void _handleTap() {
+    final now = DateTime.now();
+    if (_isVoice && isVoiceDoubleTap(_lastTapAt, now)) {
+      _lastTapAt = null;
+      _joinVoice();
+      return;
+    }
+    _lastTapAt = now;
+    widget.onTap();
+  }
+
   void _showMenu([Offset? position]) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
+    final connected = _connectedHere;
     showChannelContextMenu(
       context,
       ref,
@@ -470,6 +503,23 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
       spaceId: spaceId,
       canManageChannels: widget.canManageChannels,
       globalPosition: position,
+      // Touch has no hover, so the sheet carries the join/disconnect action.
+      leadingEntries: [
+        if (_isVoice && !connected)
+          AccordMenuEntry(
+            label: 'Join Voice',
+            icon: Icons.call,
+            onSelected: _joinVoice,
+          ),
+        if (_isVoice && connected)
+          AccordMenuEntry(
+            label: 'Disconnect',
+            icon: Icons.call_end,
+            destructive: true,
+            onSelected: () => ref.read(voiceControllerProvider.notifier).leave(),
+          ),
+        if (_isVoice) const AccordMenuEntry.divider(),
+      ],
     );
   }
 
@@ -536,7 +586,7 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
-            onTap: enabled ? widget.onTap : null,
+            onTap: enabled ? _handleTap : null,
             onLongPress: () => _showMenu(null),
             onSecondaryTapUp: (d) => _showMenu(d.globalPosition),
             child: Padding(
@@ -575,6 +625,23 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
                         shape: BoxShape.circle,
                       ),
                     ),
+                  // Selecting a voice channel only opens its lobby, so the row
+                  // carries an explicit join (#202). Hover-only to keep the
+                  // list quiet; touch users get the same action from the
+                  // long-press menu, or by double-tapping the row.
+                  if (isVoice &&
+                      !connectedHere &&
+                      _hovered &&
+                      widget.spaceId != null) ...[
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: 'Join Voice',
+                      child: InkWell(
+                        onTap: _joinVoice,
+                        child: Icon(Icons.call, size: 14, color: colors.green),
+                      ),
+                    ),
+                  ],
                   if (widget.onEdit != null && _hovered) ...[
                     const SizedBox(width: 4),
                     InkWell(
