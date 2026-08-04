@@ -4,6 +4,7 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -343,21 +344,24 @@ class _TabBar extends StatelessWidget {
       height: 40,
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          children: [
-            if (hasRecent) _tab(colors, _Tab.recent, Icons.history, 'Recent'),
-            if (hasCustom)
-              _tab(
-                colors,
-                _Tab.custom,
-                Icons.workspace_premium_outlined,
-                'Custom',
-              ),
-            for (final c in EmojiCategory.values)
-              _tab(colors, c, c.icon, c.label),
-          ],
+        child: HorizontalWheelScroll(
+          builder: (context, controller) => ListView(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            children: [
+              if (hasRecent) _tab(colors, _Tab.recent, Icons.history, 'Recent'),
+              if (hasCustom)
+                _tab(
+                  colors,
+                  _Tab.custom,
+                  Icons.workspace_premium_outlined,
+                  'Custom',
+                ),
+              for (final c in EmojiCategory.values)
+                _tab(colors, c, c.icon, c.label),
+            ],
+          ),
         ),
       ),
     );

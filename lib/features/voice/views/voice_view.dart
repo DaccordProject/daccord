@@ -13,6 +13,7 @@ import 'package:bonfire/features/voice/utils/participant_display.dart';
 import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
 import 'package:bonfire/features/voice/views/voice_text_panel.dart';
+import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -561,16 +562,19 @@ class _SpotlightLayout extends StatelessWidget {
             behavior: ScrollConfiguration.of(
               context,
             ).copyWith(scrollbars: false),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              children: [
-                for (final t in rest)
-                  Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: AspectRatio(aspectRatio: 1, child: tileBuilder(t)),
-                  ),
-              ],
+            child: HorizontalWheelScroll(
+              builder: (context, controller) => ListView(
+                controller: controller,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  for (final t in rest)
+                    Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: AspectRatio(aspectRatio: 1, child: tileBuilder(t)),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
