@@ -20,6 +20,7 @@ import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
+import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';

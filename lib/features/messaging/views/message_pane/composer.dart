@@ -295,7 +295,10 @@ class _ComposerState extends ConsumerState<_Composer> {
     final picked = <PlatformFile>[];
     final rejections = <String>[];
     for (final item in details.files) {
-      if (item is DropItemDirectory) {
+      // `DropItemDirectory` only comes back on macOS and web; Linux and Windows
+      // share a handler that types every dropped path as a file, so the path
+      // itself has to be checked or a folder reads as an unreadable file.
+      if (item is DropItemDirectory || isDroppedDirectory(item.path)) {
         rejections.add(
           '${item.name} is a folder — drop the files inside it instead.',
         );
