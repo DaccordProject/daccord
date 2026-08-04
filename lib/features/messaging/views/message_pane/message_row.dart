@@ -2,6 +2,7 @@ part of 'message_pane.dart';
 
 class _MessageRow extends ConsumerStatefulWidget {
   const _MessageRow({
+    super.key,
     required this.message,
     required this.channelId,
     required this.spaceId,
@@ -78,6 +79,19 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   bool _busy = false;
   TextEditingController? _editController;
 
+  /// The message the inline editor was opened on. The edit is committed against
+  /// this id rather than the currently-bound one, so an in-progress edit can
+  /// never be saved onto a neighbouring message.
+  String? _editingMessageId;
+
+  /// The message this row is currently bound to.
+  ///
+  /// Only ever read synchronously — during `build`, or at the very top of a
+  /// handler. **Never read it after an `await`**: a [State] outlives the widget
+  /// it was built from, so while a dialog/picker is open this row can be re-bound
+  /// to a different message (the `mounted` guard does not catch that, the State
+  /// really is still mounted). Every async handler therefore takes the id it
+  /// captured up front. See #198.
   AccordMessage get _message => widget.message;
 
   @override
@@ -136,16 +150,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   AccordClient? get _client => ref.accordClient;
 
-  void _startEdit() {
+  void _startEdit(AccordMessage message) {
     setState(() {
       _editing = true;
-      _editController = TextEditingController(text: _message.content);
+      _editingMessageId = message.id;
+      _editController = TextEditingController(text: message.content);
     });
   }
 
   void _cancelEdit() {
     setState(() {
       _editing = false;
+      _editingMessageId = null;
       _editController?.dispose();
       _editController = null;
     });
@@ -153,68 +169,77 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   Future<void> _saveEdit() async {
     final client = _client;
-    final text = _editController?.text ?? '';
+    final raw = _editController?.text ?? '';
+    // Edits convert emoticons too, matching the send path — otherwise fixing a
+    // typo would silently downgrade an already-converted glyph back to ASCII.
+    final text =
+        ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
+        ? applyEmoticons(raw)
+        : raw;
+    // Commit against the message the editor was opened on, captured before the
+    // round-trip.
+    final messageId = _editingMessageId ?? _message.id;
     if (client == null || text.trim().isEmpty || _busy) return;
     setState(() => _busy = true);
     final ok = await ref
         .read(accordMessagesControllerProvider(widget.channelId).notifier)
-        .edit(client, _message.id, text);
+        .edit(client, messageId, text);
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) _cancelEdit();
   }
 
-  void _openPopout() {
+  void _openPopout(String authorId) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
-    showAccordMemberPopout(
-      context,
-      spaceId: spaceId,
-      userId: _message.authorId,
-    );
+    showAccordMemberPopout(context, spaceId: spaceId, userId: authorId);
   }
 
   /// Opens a popup listing the users who added [reaction], lazy-loaded.
-  void _showReactors(AccordReaction reaction) {
+  void _showReactors(String messageId, AccordReaction reaction) {
     showDialog<void>(
       context: context,
       builder: (_) => _ReactorsDialog(
         channelId: widget.channelId,
-        messageId: _message.id,
+        messageId: messageId,
         emojiName: reaction.emoji['name']?.toString() ?? '',
         emojiId: reaction.emoji['id']?.toString(),
       ),
     );
   }
 
-  void _toggleReaction(String emojiName, {String? emojiId}) {
+  void _toggleReaction(
+    String messageId,
+    String emojiName, {
+    String? emojiId,
+  }) {
     final client = _client;
     if (client == null) return;
     ref
         .read(accordMessagesControllerProvider(widget.channelId).notifier)
-        .toggleReaction(client, _message.id, emojiName, emojiId: emojiId);
+        .toggleReaction(client, messageId, emojiName, emojiId: emojiId);
   }
 
-  Future<void> _openReactionPicker() async {
+  Future<void> _openReactionPicker(String messageId) async {
     final pick = await showAccordEmojiPicker(context, spaceId: widget.spaceId);
     if (pick == null || !mounted) return;
-    _toggleReaction(pick.name, emojiId: pick.id);
+    _toggleReaction(messageId, pick.name, emojiId: pick.id);
   }
 
-  Future<void> _togglePin() async {
+  Future<void> _togglePin(String messageId, {required bool pinned}) async {
     final client = _client;
     if (client == null) return;
     final controller = ref.read(
       accordMessagesControllerProvider(widget.channelId).notifier,
     );
-    if (_message.pinned) {
-      await controller.unpin(client, _message.id);
+    if (pinned) {
+      await controller.unpin(client, messageId);
     } else {
-      await controller.pin(client, _message.id);
+      await controller.pin(client, messageId);
     }
   }
 
-  Future<void> _delete() async {
+  Future<void> _delete(String messageId) async {
     final client = _client;
     if (client == null || _busy) return;
     final confirmed = await showConfirmDialog(
@@ -228,7 +253,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     setState(() => _busy = true);
     await ref
         .read(accordMessagesControllerProvider(widget.channelId).notifier)
-        .delete(client, _message.id);
+        .delete(client, messageId);
     // Row disappears on success; if it failed we just re-enable.
     if (mounted) setState(() => _busy = false);
   }
@@ -237,6 +262,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
+    // Captured once so every callback this build hands out targets the message
+    // that was rendered, never whatever `widget.message` happens to be by the
+    // time the callback runs.
+    final message = _message;
     // Compact density tightens vertical spacing and shrinks the avatar gutter.
     final compact = ref.watch(
       settingsControllerProvider.select((s) => s.compactMode),
@@ -253,9 +282,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         : accordAvatarUrl(widget.authorUser, cdnUrl);
     final avatarBg = accordAvatarColor(
       widget.author?.user ?? widget.authorUser,
-      _message.authorId,
+      message.authorId,
     );
     final tappable = widget.spaceId != null;
+    void openPopout() => _openPopout(message.authorId);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -266,10 +296,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         // `deferToChild` a long-press over the text hits nothing and never
         // fires. Only the avatar (which paints a background) responded before.
         behavior: HitTestBehavior.opaque,
-        onLongPressStart:
-            widget.selecting ? null : (d) => _showActionsMenu(d.globalPosition),
-        onSecondaryTapUp:
-            widget.selecting ? null : (d) => _showActionsMenu(d.globalPosition),
+        onLongPressStart: widget.selecting
+            ? null
+            : (d) => _showActionsMenu(message, d.globalPosition),
+        onSecondaryTapUp: widget.selecting
+            ? null
+            : (d) => _showActionsMenu(message, d.globalPosition),
         onTap: widget.selecting ? widget.onToggleSelected : null,
         child: Container(
           padding: widget.mentionsMe
@@ -305,7 +337,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
               else
                 _MaybeTappable(
                   enabled: tappable,
-                  onTap: _openPopout,
+                  onTap: openPopout,
                   child: AccordMemberAvatar(
                     avatarUrl: avatarUrl,
                     initial: _initial,
@@ -319,39 +351,40 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_message.replyTo != null) _buildReplyPreview(colors),
+                    if (message.replyTo != null)
+                      _buildReplyPreview(message, colors),
                     if (!widget.grouped)
                       MessageAuthorHeader(
                         name: _authorName,
                         nameColor: widget.nameColor,
-                        onNameTap: tappable ? _openPopout : null,
-                        pinned: _message.pinned,
+                        onNameTap: tappable ? openPopout : null,
+                        pinned: message.pinned,
                         origin: _authorOrigin,
                         time: _time,
                         timeTooltip: _fullTime,
-                        edited: _message.editedAt != null,
+                        edited: message.editedAt != null,
                       ),
                     if (_editing)
                       _buildEditor(theme, colors)
-                    else if (_message.content.isNotEmpty)
+                    else if (message.content.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: AccordMessageContent(
-                          content: _message.content,
+                          content: message.content,
                           spaceId: widget.spaceId,
                         ),
                       ),
-                    for (final attachment in _message.attachments)
+                    for (final attachment in message.attachments)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: _buildAttachment(attachment, cdnUrl, theme),
                       ),
-                    for (final embed in _message.embeds)
+                    for (final embed in message.embeds)
                       AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
-                    if ((_message.reactions ?? const []).isNotEmpty)
-                      _buildReactions(theme, colors, cdnUrl),
-                    if (_message.replyCount > 0)
-                      _buildThreadChip(theme, colors),
+                    if ((message.reactions ?? const []).isNotEmpty)
+                      _buildReactions(message, theme, colors, cdnUrl),
+                    if (message.replyCount > 0)
+                      _buildThreadChip(message, theme, colors),
                   ],
                 ),
               ),
@@ -364,18 +397,19 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   shouldUseDesktopLayout(context))
                 _HoverActions(
                   visible: _hovered,
-                  onReact: _openReactionPicker,
+                  onReact: () => _openReactionPicker(message.id),
                   onReply: widget.onReply,
-                  onThread: _openThread,
+                  onThread: () => _openThread(message),
                   canEdit: widget.isOwn,
                   canDelete: widget.isOwn || widget.canManageMessages,
                   canPin: widget.canManageMessages,
                   canReport: !widget.isOwn && widget.spaceId != null,
-                  pinned: _message.pinned,
-                  onEdit: _startEdit,
-                  onDelete: _delete,
-                  onTogglePin: _togglePin,
-                  onReport: _report,
+                  pinned: message.pinned,
+                  onEdit: () => _startEdit(message),
+                  onDelete: () => _delete(message.id),
+                  onTogglePin: () =>
+                      _togglePin(message.id, pinned: message.pinned),
+                  onReport: () => _report(message.id),
                 ),
             ],
           ),
@@ -384,22 +418,22 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
   }
 
-  void _openThread() => showAccordThread(
+  void _openThread(AccordMessage message) => showAccordThread(
     context,
     channelId: widget.channelId,
     spaceId: widget.spaceId,
-    root: _message,
+    root: message,
     canManageMessages: widget.canManageMessages,
   );
 
-  void _report() {
+  void _report(String messageId) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
     showReportDialog(
       context,
       spaceId: spaceId,
       targetType: 'message',
-      targetId: _message.id,
+      targetId: messageId,
       channelId: widget.channelId,
     );
   }
@@ -407,7 +441,11 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   /// The long-press (mobile) / right-click (desktop) message menu. Bulk-select
   /// lives here as one entry rather than being the long-press itself, so the
   /// per-message actions stay reachable on touch.
-  void _showActionsMenu([Offset? position]) {
+  ///
+  /// [message] is captured when the menu opens: the entries' callbacks only run
+  /// once the menu has closed (an await), by which point the row may already be
+  /// bound to a different message.
+  void _showActionsMenu(AccordMessage message, [Offset? position]) {
     if (_editing) return;
     final canDelete = widget.isOwn || widget.canManageMessages;
     final canReport = !widget.isOwn && widget.spaceId != null;
@@ -415,7 +453,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       AccordMenuEntry(
         label: 'Add reaction',
         icon: Icons.add_reaction_outlined,
-        onSelected: _openReactionPicker,
+        onSelected: () => _openReactionPicker(message.id),
       ),
       AccordMenuEntry(
         label: 'Reply',
@@ -425,22 +463,23 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       AccordMenuEntry(
         label: 'Thread',
         icon: Icons.forum_outlined,
-        onSelected: _openThread,
+        onSelected: () => _openThread(message),
       ),
       ...buildMessageActionEntries(
-        content: _message.content,
+        content: message.content,
         canEdit: widget.isOwn,
         canDelete: canDelete,
-        onEdit: _startEdit,
-        onDelete: _delete,
+        onEdit: () => _startEdit(message),
+        onDelete: () => _delete(message.id),
         // Pin sits between Edit and Delete in this menu; it's site-specific
         // (the thread view has no pinning) so it slots in via [beforeDelete].
         beforeDelete: [
           if (widget.canManageMessages)
             AccordMenuEntry(
-              label: _message.pinned ? 'Unpin' : 'Pin',
-              icon: _message.pinned ? Icons.push_pin_outlined : Icons.push_pin,
-              onSelected: _togglePin,
+              label: message.pinned ? 'Unpin' : 'Pin',
+              icon: message.pinned ? Icons.push_pin_outlined : Icons.push_pin,
+              onSelected: () =>
+                  _togglePin(message.id, pinned: message.pinned),
             ),
         ],
       ),
@@ -448,7 +487,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         AccordMenuEntry(
           label: 'Report',
           icon: Icons.flag_outlined,
-          onSelected: _report,
+          onSelected: () => _report(message.id),
         ),
       if (widget.onLongPressSelect != null) ...[
         const AccordMenuEntry.divider(),
@@ -468,13 +507,17 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
   }
 
-  Widget _buildThreadChip(ThemeData theme, BonfireThemeExtension colors) {
-    final count = _message.replyCount;
+  Widget _buildThreadChip(
+    AccordMessage message,
+    ThemeData theme,
+    BonfireThemeExtension colors,
+  ) {
+    final count = message.replyCount;
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
-        onTap: _openThread,
+        onTap: () => _openThread(message),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           child: Row(
@@ -496,10 +539,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 
   Widget _buildReactions(
+    AccordMessage message,
     ThemeData theme,
     BonfireThemeExtension colors,
     String? cdnUrl,
   ) {
+    final messageId = message.id;
     final spaceId = widget.spaceId;
     final customEmoji = spaceId == null
         ? const <AccordEmoji>[]
@@ -511,15 +556,16 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         spacing: 4,
         runSpacing: 4,
         children: [
-          for (final reaction in _message.reactions!)
+          for (final reaction in message.reactions!)
             _ReactionPill(
               reaction: reaction,
               imageUrl: _reactionEmojiUrl(reaction, customEmoji, cdnUrl),
               onTap: () => _toggleReaction(
+                messageId,
                 reaction.emoji['name']?.toString() ?? '',
                 emojiId: reaction.emoji['id']?.toString(),
               ),
-              onShowReactors: () => _showReactors(reaction),
+              onShowReactors: () => _showReactors(messageId, reaction),
             ),
         ],
       ),
@@ -552,13 +598,16 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   /// A compact "↩ Name preview" line above a reply message, resolving the
   /// referenced message from the loaded channel cache when available.
-  Widget _buildReplyPreview(BonfireThemeExtension colors) {
+  Widget _buildReplyPreview(
+    AccordMessage message,
+    BonfireThemeExtension colors,
+  ) {
     final theme = Theme.of(context);
     final messages = ref.read(
       accordMessagesControllerProvider(widget.channelId),
     );
     final referenced = messages?.firstWhereOrNull(
-      (m) => m.id == _message.replyTo,
+      (m) => m.id == message.replyTo,
     );
     String name = 'Unknown';
     String preview = '';

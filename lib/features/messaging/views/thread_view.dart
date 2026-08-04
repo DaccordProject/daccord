@@ -1,6 +1,8 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/messaging/utils/emoticons.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -125,7 +127,13 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   String? get _currentUserId => ref.readUserId();
 
   Future<void> _send() async {
-    final text = _input.text.trim();
+    final raw = _input.text.trim();
+    // Same conversion as the main composer — emoticons resolve on send so every
+    // client stores and renders the identical glyph.
+    final text =
+        ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
+        ? applyEmoticons(raw)
+        : raw;
     if (text.isEmpty || _sending) return;
     final client = _client;
     if (client == null) return;
@@ -260,9 +268,22 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final list = ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: 2 + replyCount,
+      // Moves a keyed row to its new index instead of rebuilding it there, so
+      // a row's State (and any dialog it has open) survives replies being
+      // inserted or removed above it. See #198.
+      findChildIndexCallback: (key) {
+        if (key is! ValueKey<String>) return null;
+        if (key.value == _root.id) return 0;
+        final index = replies?.indexWhere((m) => m.id == key.value) ?? -1;
+        return index < 0 ? null : index + 2;
+      },
       itemBuilder: (context, index) {
         if (index == 0) {
           return _MessageLine(
+            // Keyed by message id so a row's State (and any dialog it has
+            // open) follows its message rather than its list slot as replies
+            // arrive or are deleted. See #198.
+            key: ValueKey(_root.id),
             message: _root,
             isRoot: true,
             spaceId: widget.spaceId,
@@ -291,6 +312,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         }
         final reply = replies[index - 2];
         return _MessageLine(
+          key: ValueKey(reply.id),
           message: reply,
           isRoot: false,
           spaceId: widget.spaceId,
@@ -400,6 +422,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
 /// [ThreadRepliesController] (addressed by [channelId] + [rootId]).
 class _MessageLine extends ConsumerStatefulWidget {
   const _MessageLine({
+    super.key,
     required this.message,
     required this.isRoot,
     required this.spaceId,
@@ -433,6 +456,10 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
   bool _hovered = false;
   bool _busy = false;
 
+  /// The message this row is currently bound to. Only safe to read
+  /// synchronously — never after an `await`, since the State can be re-bound to
+  /// a different reply while a dialog is open (see #198). Async handlers take
+  /// the message they captured up front instead.
   AccordMessage get _message => widget.message;
 
   AccordClient? get _client => ref.accordClient;
@@ -449,7 +476,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     return messageTimeString(dt.toLocal());
   }
 
-  Future<void> _edit() async {
+  Future<void> _edit(AccordMessage message) async {
     if (widget.isRoot) {
       widget.onEdit?.call();
       return;
@@ -457,13 +484,13 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final updated = await showPostEditor(
       context,
       channelId: widget.channelId,
-      post: _message,
+      post: message,
       withTitle: false,
     );
     if (updated != null && mounted) _replies.updateReply(updated);
   }
 
-  Future<void> _delete() async {
+  Future<void> _delete(String messageId) async {
     if (widget.isRoot) {
       widget.onDelete?.call();
       return;
@@ -473,24 +500,26 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final confirmed = await confirmDeletePost(context, isPost: false);
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
-    await _replies.delete(client, _message.id);
+    await _replies.delete(client, messageId);
     if (!mounted) return;
     setState(() => _busy = false);
   }
 
-  void _showMenu([Offset? position]) {
-    final authorId = _message.authorId;
+  /// [message] is captured when the menu opens: its entries only run once the
+  /// menu has closed, by which point this row may be bound to another reply.
+  void _showMenu(AccordMessage message, [Offset? position]) {
+    final authorId = message.authorId;
     final member = widget.spaceId == null
         ? null
         : ref.read(accordMembersControllerProvider(widget.spaceId!))?[authorId];
     final user = ref.read(accordUsersControllerProvider)[authorId];
     final name = accordAuthorNameOf(authorId, member: member, user: user);
     final entries = buildMessageActionEntries(
-      content: _message.content,
+      content: message.content,
       canEdit: widget.isOwn,
       canDelete: _canDelete,
-      onEdit: _edit,
-      onDelete: _delete,
+      onEdit: () => _edit(message),
+      onDelete: () => _delete(message.id),
     );
     if (entries.isEmpty) return;
     showAccordContextMenu(context,
@@ -500,10 +529,13 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    // Captured once so the callbacks handed out by this build target the
+    // message that was rendered.
+    final message = _message;
     // Per-row identity lookups, scoped to this author: watching just the one
     // cache entry means a change to an unrelated member/user doesn't rebuild
     // every row in the thread.
-    final authorId = _message.authorId;
+    final authorId = message.authorId;
     final member = widget.spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(widget.spaceId!)
@@ -526,8 +558,8 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
         // opens the menu; plain-text content is a transparent RichText that
         // wouldn't register a hit under the default `deferToChild`.
         behavior: HitTestBehavior.opaque,
-        onLongPressStart: (d) => _showMenu(d.globalPosition),
-        onSecondaryTapUp: (d) => _showMenu(d.globalPosition),
+        onLongPressStart: (d) => _showMenu(message, d.globalPosition),
+        onSecondaryTapUp: (d) => _showMenu(message, d.globalPosition),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
@@ -549,12 +581,12 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                       ellipsizeName: true,
                       time: _time,
                       smallTime: true,
-                      edited: _message.editedAt != null,
+                      edited: message.editedAt != null,
                     ),
                     const SizedBox(height: 2),
-                    if (_message.content.isNotEmpty)
+                    if (message.content.isNotEmpty)
                       AccordMessageContent(
-                          content: _message.content, spaceId: widget.spaceId),
+                          content: message.content, spaceId: widget.spaceId),
                   ],
                 ),
               ),
@@ -563,7 +595,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                   opacity: _hovered ? 1 : 0,
                   child: IconButton(
                     tooltip: 'Actions',
-                    onPressed: _busy ? null : () => _showMenu(),
+                    onPressed: _busy ? null : () => _showMenu(message),
                     icon: Icon(Icons.more_horiz, size: 18, color: colors.gray),
                   ),
                 ),

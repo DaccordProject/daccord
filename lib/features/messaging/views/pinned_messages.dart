@@ -138,6 +138,11 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                           users: users,
                           ensure: ensureUser);
                       return ListTile(
+                        // Keyed by message id so rows track their message, not
+                        // their slot, when the list reloads after an unpin
+                        // (see #198). The unpin handler already captures its
+                        // message rather than reading it back from the row.
+                        key: ValueKey(message.id),
                         title: Text(name,
                             style: Theme.of(context).textTheme.titleSmall),
                         subtitle: Text(

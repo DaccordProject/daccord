@@ -26,6 +26,7 @@ import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/messaging/views/emoji_picker.dart';
 import 'package:bonfire/features/messaging/views/forum_view.dart';
+import 'package:bonfire/features/messaging/utils/emoticons.dart';
 import 'package:bonfire/features/messaging/views/image_lightbox.dart';
 import 'package:bonfire/features/messaging/views/inline_audio_player.dart';
 import 'package:bonfire/features/messaging/views/inline_video_player.dart';
@@ -384,6 +385,21 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                         // pages load and a "Beginning of channel" hint once we
                         // hit the start of history.
                         itemCount: messages.length + 1,
+                        // Lets the sliver *move* a keyed row to its new index
+                        // rather than tearing its element down and rebuilding
+                        // it there. Without this the ValueKeys below only stop
+                        // rows adopting each other's state — every row would
+                        // still be recreated (losing an open editor, and
+                        // unmounting a row mid-dialog) each time the list
+                        // shifted. See #198.
+                        findChildIndexCallback: (key) {
+                          if (key is! ValueKey<String>) return null;
+                          final index = messages.indexWhere(
+                              (m) => m.id == key.value);
+                          if (index < 0) return null;
+                          // `reverse: true`: index 0 is the newest message.
+                          return messages.length - 1 - index;
+                        },
                         itemBuilder: (context, index) {
                           if (index == messages.length) {
                             return _OlderHistoryHeader(channelId: channelId);
@@ -424,6 +440,13 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                                   _mentionsSelf(message, uid, homeDomain,
                                       myRoles));
                           return _MessageRow(
+                            // Keyed by message id, not list position. Under
+                            // `reverse: true` every index shifts when a message
+                            // arrives, so without a key Flutter re-binds a live
+                            // _MessageRowState to a *different* message — and
+                            // any dialog it had open (delete confirm, emoji
+                            // picker) would then act on the wrong one. See #198.
+                            key: ValueKey(message.id),
                             message: message,
                             grouped: grouped,
                             author: author,

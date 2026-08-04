@@ -260,6 +260,11 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
                             itemBuilder: (context, index) {
                               final post = sorted[index];
                               return _PostRow(
+                                // Keyed by post id so rows follow their post
+                                // across re-sorts and insertions rather than
+                                // their list slot (see #198). The row's
+                                // callbacks already capture [post] explicitly.
+                                key: ValueKey(post.id),
                                 post: post,
                                 colors: colors,
                                 spaceId: widget.spaceId,
@@ -341,6 +346,7 @@ class _SortBar extends StatelessWidget {
 /// an unrelated member/user doesn't rebuild every row on the board.
 class _PostRow extends ConsumerWidget {
   const _PostRow({
+    super.key,
     required this.post,
     required this.colors,
     required this.spaceId,
