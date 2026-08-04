@@ -40,10 +40,18 @@ updater in a "bridge" Godot release. We skip all of that and announce manually.
 |----------|-------|------------------|
 | Windows  | `daccord-windows-x86_64.zip`, `daccord-windows-x86_64-setup.exe` | in-place binary swap (#87) |
 | macOS    | `daccord-macos-universal.dmg` | replace `.app`, strip quarantine (#87) |
-| Linux    | `daccord-linux-x86_64.tar.gz`, `daccord-linux-x86_64.deb` | replace bundle tree (#87) |
+| Linux    | `daccord-linux-x86_64.tgz`, `daccord-linux-x86_64.deb` | replace bundle tree (#87), or `pkexec dpkg -i` for a system install (#178) |
 | Android  | `daccord-android.apk` | system installer (#88) |
 | Web      | `daccord-web.zip` | service-worker reload (#91) |
 | All      | `SHA256SUMS.txt` | integrity check before swap (#87) |
+
+The Linux portable bundle ships as `.tgz` and releases must **never** publish an
+asset ending in `.tar.gz` (the release workflow fails if one appears). Clients at
+v0.2.6 and earlier select a `.tar.gz` on Linux without checking that the install
+root is writable, so a `.deb` install downloads it, attempts a swap into
+root-owned `/opt` that cannot succeed, and relaunches the old build with nothing
+shown to the user. Those clients can't be fixed in code — withholding the suffix
+they key on is what routes them to the `.deb` download instead.
 
 Code signing / notarization (#90) and an iOS distribution path (#89) are tracked
 separately and are **not** part of this cutover.

@@ -270,6 +270,18 @@ class UpdateController extends _$UpdateController {
   /// Windows uses the more-specific `windows-x86_64.zip` suffix before the
   /// generic `.zip` so the web build bundle (`daccord-web.zip`) is never
   /// mistakenly selected ahead of the actual Windows installer.
+  ///
+  /// The Linux portable bundle is matched as `.tgz`, and releases must **never**
+  /// publish an asset ending in `.tar.gz` again (the release workflow enforces
+  /// this). Clients at v0.2.6 and earlier picked `.tar.gz` unconditionally on
+  /// Linux, with no writable-root check — so a `.deb` install under root-owned
+  /// `/opt` silently downloaded the portable tarball and ran a swap that could
+  /// never succeed, then relaunched the old build. Those clients are frozen and
+  /// can't be fixed in code; withholding the suffix they key on is what breaks
+  /// them out of it. With no `.tar.gz` asset they find nothing installable, fall
+  /// back to their "Update available — tap to view" banner, and offer the `.deb`
+  /// as a manual download — a working recovery path instead of a silent no-op.
+  /// `.tar.gz` stays *accepted* here so an older release is still applicable.
   List<String> get _installableExts {
     if (UniversalPlatform.isAndroid) return const ['.apk'];
     if (UniversalPlatform.isWindows) {
@@ -281,7 +293,9 @@ class UpdateController extends _$UpdateController {
       return UpdateInstaller.isInstallRootWritable ? const ['.dmg'] : const [];
     }
     if (UniversalPlatform.isLinux) {
-      if (UpdateInstaller.isInstallRootWritable) return const ['.tar.gz'];
+      if (UpdateInstaller.isInstallRootWritable) {
+        return const ['.tgz', '.tar.gz'];
+      }
       // System install: update the package itself when we can elevate.
       return UpdateInstaller.hasPrivilegedInstaller ? const ['.deb'] : const [];
     }
@@ -304,8 +318,8 @@ class UpdateController extends _$UpdateController {
       // portable tarball they'd have to extract themselves. A writable install
       // prefers the tarball — it's also the in-place asset.
       return UpdateInstaller.isInstallRootWritable
-          ? const ['.tar.gz', '.deb', '.rpm', '.appimage']
-          : const ['.deb', '.rpm', '.appimage', '.tar.gz'];
+          ? const ['.tgz', '.tar.gz', '.deb', '.rpm', '.appimage']
+          : const ['.deb', '.rpm', '.appimage', '.tgz', '.tar.gz'];
     }
     return const [];
   }
