@@ -397,7 +397,13 @@ class _ComposerState extends ConsumerState<_Composer> {
   }
 
   Future<void> _send() async {
-    final text = _controller.text;
+    // Emoticons convert on send, not on render, so the stored content holds the
+    // real glyph for every other client (and for edit/copy here).
+    final raw = _controller.text;
+    final text =
+        ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
+        ? applyEmoticons(raw)
+        : raw;
     if ((text.trim().isEmpty && _attachments.isEmpty) || _sending) return;
 
     final client = ref.read(

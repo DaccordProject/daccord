@@ -217,7 +217,13 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   }
 
   Future<void> _send() async {
-    final text = _input.text.trim();
+    final raw = _input.text.trim();
+    // Same conversion as the main composer — emoticons resolve on send so every
+    // client stores and renders the identical glyph.
+    final text =
+        ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
+        ? applyEmoticons(raw)
+        : raw;
     if (text.isEmpty || _sending) return;
     final client = _client;
     if (client == null) return;

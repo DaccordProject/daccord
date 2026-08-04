@@ -41,16 +41,18 @@ void main() {
       expect(stateOf(c).recentEmoji, ['🎉', '😀']);
     });
 
-    test('re-adding an existing token moves it to the front without duplicating',
-        () {
-      final c = makeContainer();
-      controllerOf(c)
-        ..addRecentEmoji('a')
-        ..addRecentEmoji('b')
-        ..addRecentEmoji('c')
-        ..addRecentEmoji('a');
-      expect(stateOf(c).recentEmoji, ['a', 'c', 'b']);
-    });
+    test(
+      're-adding an existing token moves it to the front without duplicating',
+      () {
+        final c = makeContainer();
+        controllerOf(c)
+          ..addRecentEmoji('a')
+          ..addRecentEmoji('b')
+          ..addRecentEmoji('c')
+          ..addRecentEmoji('a');
+        expect(stateOf(c).recentEmoji, ['a', 'c', 'b']);
+      },
+    );
 
     test('caps the list at 24 — the 25th add drops the oldest', () {
       final c = makeContainer();
@@ -188,6 +190,17 @@ void main() {
     });
   });
 
+  group('setConvertEmoticons', () {
+    test('defaults to on', () {
+      expect(stateOf(makeContainer()).convertEmoticons, isTrue);
+    });
+
+    test('turning it off persists across a controller rebuild', () {
+      controllerOf(makeContainer()).setConvertEmoticons(false);
+      expect(stateOf(makeContainer()).convertEmoticons, isFalse);
+    });
+  });
+
   group('voice settings', () {
     test('input/output volume clamps to 0–200', () {
       final c = makeContainer();
@@ -271,16 +284,21 @@ void main() {
       expect(stateOf(c).spaceFolders.first.id, id);
     });
 
-    test('removes the given spaces from any existing folder they belong to', () {
-      final c = makeContainer();
-      controllerOf(c).createFolder(name: 'old', spaceIds: ['s1', 's3']);
-      controllerOf(c).createFolder(name: 'new', spaceIds: ['s1', 's2']);
-      final folders = stateOf(c).spaceFolders;
-      final old = folders.firstWhere((f) => f.name == 'old');
-      final newF = folders.firstWhere((f) => f.name == 'new');
-      expect(old.spaceIds, ['s3'], reason: 's1 should have been stripped from old');
-      expect(newF.spaceIds, ['s1', 's2']);
-    });
+    test(
+      'removes the given spaces from any existing folder they belong to',
+      () {
+        final c = makeContainer();
+        controllerOf(c).createFolder(name: 'old', spaceIds: ['s1', 's3']);
+        controllerOf(c).createFolder(name: 'new', spaceIds: ['s1', 's2']);
+        final folders = stateOf(c).spaceFolders;
+        final old = folders.firstWhere((f) => f.name == 'old');
+        final newF = folders.firstWhere((f) => f.name == 'new');
+        expect(old.spaceIds, [
+          's3',
+        ], reason: 's1 should have been stripped from old');
+        expect(newF.spaceIds, ['s1', 's2']);
+      },
+    );
 
     test('merge via drop-onto creates folder with target first then dragged', () {
       // Simulates the onMergeSpace callback: createFolder(spaceIds: [target, dragged])
@@ -293,7 +311,9 @@ void main() {
       final c = makeContainer();
       controllerOf(c).createFolder(name: 'existing', spaceIds: ['s1', 's3']);
       controllerOf(c).createFolder(spaceIds: ['s1', 's2']);
-      final existing = stateOf(c).spaceFolders.firstWhere((f) => f.name == 'existing');
+      final existing = stateOf(
+        c,
+      ).spaceFolders.firstWhere((f) => f.name == 'existing');
       expect(existing.spaceIds, ['s3'], reason: 's1 must leave the old folder');
       expect(stateOf(c).spaceFolders.last.spaceIds, ['s1', 's2']);
     });
@@ -309,7 +329,9 @@ void main() {
 
     test('inserts before a given member when before is specified', () {
       final c = makeContainer();
-      final fId = controllerOf(c).createFolder(name: 'f', spaceIds: ['s1', 's2']);
+      final fId = controllerOf(
+        c,
+      ).createFolder(name: 'f', spaceIds: ['s1', 's2']);
       controllerOf(c).moveSpaceToFolder('s3', fId, before: 's2');
       expect(stateOf(c).spaceFolders.first.spaceIds, ['s1', 's3', 's2']);
     });
@@ -330,17 +352,18 @@ void main() {
 
     test('moving across folders leaves the source folder intact', () {
       final c = makeContainer();
-      final src = controllerOf(c).createFolder(name: 'src', spaceIds: ['s1', 's2']);
+      final src = controllerOf(
+        c,
+      ).createFolder(name: 'src', spaceIds: ['s1', 's2']);
       final dst = controllerOf(c).createFolder(name: 'dst', spaceIds: ['s3']);
       controllerOf(c).moveSpaceToFolder('s1', dst);
-      expect(
-        stateOf(c).spaceFolders.firstWhere((f) => f.id == src).spaceIds,
-        ['s2'],
-      );
-      expect(
-        stateOf(c).spaceFolders.firstWhere((f) => f.id == dst).spaceIds,
-        ['s3', 's1'],
-      );
+      expect(stateOf(c).spaceFolders.firstWhere((f) => f.id == src).spaceIds, [
+        's2',
+      ]);
+      expect(stateOf(c).spaceFolders.firstWhere((f) => f.id == dst).spaceIds, [
+        's3',
+        's1',
+      ]);
     });
   });
 }

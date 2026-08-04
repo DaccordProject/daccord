@@ -53,6 +53,21 @@ void main() {
       expect(settings.sfxVolume, 1.0);
       expect(settings.recentEmoji, isEmpty);
       expect(settings.masterServerUrl, AccordSettings.defaultMasterServerUrl);
+      expect(settings.convertEmoticons, isTrue);
+    });
+
+    test('convertEmoticons round-trips when turned off', () {
+      const settings = AccordSettings(convertEmoticons: false);
+      expect(settings.toJson()['convertEmoticons'], isFalse);
+      expect(
+        AccordSettings.fromJson(settings.toJson()).convertEmoticons,
+        isFalse,
+      );
+    });
+
+    test('convertEmoticons defaults to true for settings saved before it '
+        'existed', () {
+      expect(AccordSettings.fromJson(const {}).convertEmoticons, isTrue);
     });
 
     test('a partial map keeps provided values and defaults the rest', () {
@@ -70,7 +85,9 @@ void main() {
 
     test('a blank/whitespace masterServerUrl falls back to the default', () {
       expect(
-        AccordSettings.fromJson(const {'masterServerUrl': '   '}).masterServerUrl,
+        AccordSettings.fromJson(const {
+          'masterServerUrl': '   ',
+        }).masterServerUrl,
         AccordSettings.defaultMasterServerUrl,
       );
       expect(
@@ -87,13 +104,15 @@ void main() {
   });
 
   group('AccordSettings themePreset parsing', () {
-    test('a null themePreset falls back to dark via AppThemePreset.fromName',
-        () {
-      expect(
-        AccordSettings.fromJson(const {'themePreset': null}).themePreset,
-        AppThemePreset.dark,
-      );
-    });
+    test(
+      'a null themePreset falls back to dark via AppThemePreset.fromName',
+      () {
+        expect(
+          AccordSettings.fromJson(const {'themePreset': null}).themePreset,
+          AppThemePreset.dark,
+        );
+      },
+    );
 
     test('an unknown themePreset name falls back to dark', () {
       expect(
@@ -223,12 +242,16 @@ void main() {
       expect(base.copyWith(accentColor: 0xFFAABBCC).accentColor, 0xFFAABBCC);
     });
 
-    test('clearAccentColor takes precedence over accentColor when both given',
-        () {
-      final result =
-          base.copyWith(accentColor: 0xFFAABBCC, clearAccentColor: true);
-      expect(result.accentColor, isNull);
-    });
+    test(
+      'clearAccentColor takes precedence over accentColor when both given',
+      () {
+        final result = base.copyWith(
+          accentColor: 0xFFAABBCC,
+          clearAccentColor: true,
+        );
+        expect(result.accentColor, isNull);
+      },
+    );
 
     test('omitting accent fields preserves the existing accent', () {
       expect(base.copyWith(soundsEnabled: false).accentColor, 0xFF112233);

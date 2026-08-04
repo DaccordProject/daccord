@@ -62,6 +62,7 @@ const List<EmojiEntry> kEmojiCatalog = [
   EmojiEntry('🤩', 'star_struck', EmojiCategory.smileys, 'wow amazed'),
   EmojiEntry('😘', 'kissing_heart', EmojiCategory.smileys, 'kiss love'),
   EmojiEntry('😋', 'yum', EmojiCategory.smileys, 'tasty tongue'),
+  EmojiEntry('😛', 'stuck_out_tongue', EmojiCategory.smileys, 'silly cheeky'),
   EmojiEntry('😜', 'stuck_out_tongue_wink', EmojiCategory.smileys, 'silly'),
   EmojiEntry('🤪', 'zany', EmojiCategory.smileys, 'crazy goofy'),
   EmojiEntry('🤔', 'thinking', EmojiCategory.smileys, 'hmm consider'),

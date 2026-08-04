@@ -132,6 +132,10 @@ class SettingsController extends _$SettingsController {
   void setCompactMode(bool enabled) =>
       _update(state.copyWith(compactMode: enabled));
 
+  /// Enables/disables converting text emoticons (`:)`, `<3`) to emoji on send.
+  void setConvertEmoticons(bool enabled) =>
+      _update(state.copyWith(convertEmoticons: enabled));
+
   /// Enables/disables reduced motion (fewer UI animations).
   void setReducedMotion(bool enabled) =>
       _update(state.copyWith(reducedMotion: enabled));

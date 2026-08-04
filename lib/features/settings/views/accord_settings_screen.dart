@@ -101,8 +101,8 @@ class AccordSettingsScreen extends ConsumerWidget {
   }
 }
 
-/// Theme preset chips, accent-colour swatches, compact mode, reduced motion,
-/// and the UI scale slider.
+/// Theme preset chips, accent-colour swatches, compact mode, emoticon
+/// conversion, reduced motion, and the UI scale slider.
 class _AppearanceSection extends StatelessWidget {
   const _AppearanceSection({required this.settings, required this.controller});
 
@@ -164,6 +164,12 @@ class _AppearanceSection extends StatelessWidget {
           subtitle: const Text('Denser message layout (smaller spacing)'),
           value: settings.compactMode,
           onChanged: controller.setCompactMode,
+        ),
+        SwitchListTile(
+          title: const Text('Convert emoticons to emoji'),
+          subtitle: const Text('Turn :) and <3 into 🙂 and ❤️ as you send'),
+          value: settings.convertEmoticons,
+          onChanged: controller.setConvertEmoticons,
         ),
         SwitchListTile(
           title: const Text('Reduced motion'),
@@ -264,9 +270,7 @@ class _ErrorReportingSection extends StatelessWidget {
         ListTile(
           leading: Icon(Icons.bug_report_outlined, color: colors.dirtyWhite),
           title: const Text('Report a problem'),
-          subtitle: const Text(
-            'Describe a bug and send it to the developers',
-          ),
+          subtitle: const Text('Describe a bug and send it to the developers'),
           trailing: const Icon(Icons.chevron_right),
           enabled: settings.errorReportingEnabled,
           onTap: settings.errorReportingEnabled ? onReportProblem : null,
@@ -424,10 +428,7 @@ class _AccountSection extends StatelessWidget {
         ),
         if (session?.isAdmin ?? false)
           ListTile(
-            leading: Icon(
-              Icons.admin_panel_settings,
-              color: colors.dirtyWhite,
-            ),
+            leading: Icon(Icons.admin_panel_settings, color: colors.dirtyWhite),
             title: const Text('Server administration'),
             subtitle: const Text('Spaces, users, reports, settings'),
             onTap: () => context.push('/admin'),
@@ -487,10 +488,7 @@ class _BackupSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader('Backup'),
-        const SettingsBackupSection(),
-      ],
+      children: [SectionHeader('Backup'), const SettingsBackupSection()],
     );
   }
 }

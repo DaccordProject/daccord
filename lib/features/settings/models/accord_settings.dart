@@ -76,6 +76,7 @@ class AccordSettings {
     this.lastSpaceId = '',
     this.lastChannelId = '',
     this.compactMode = false,
+    this.convertEmoticons = true,
     this.reducedMotion = false,
     this.uiScale = 1.0,
     this.spaceOrder = const <String>[],
@@ -226,6 +227,11 @@ class AccordSettings {
   /// cozy density. Mirrors the reference's layout-density setting.
   final bool compactMode;
 
+  /// Whether text emoticons (`:)`, `<3`, `xD`, …) are replaced with the
+  /// matching emoji when a message is sent or edited. On by default, matching
+  /// Discord; see `applyEmoticons` in the messaging feature.
+  final bool convertEmoticons;
+
   /// Reduces/disables UI animations (route transitions etc.). Mirrors
   /// `accessibility.reduced_motion`.
   final bool reducedMotion;
@@ -302,6 +308,7 @@ class AccordSettings {
     String? lastSpaceId,
     String? lastChannelId,
     bool? compactMode,
+    bool? convertEmoticons,
     bool? reducedMotion,
     double? uiScale,
     List<String>? spaceOrder,
@@ -349,6 +356,7 @@ class AccordSettings {
       lastSpaceId: lastSpaceId ?? this.lastSpaceId,
       lastChannelId: lastChannelId ?? this.lastChannelId,
       compactMode: compactMode ?? this.compactMode,
+      convertEmoticons: convertEmoticons ?? this.convertEmoticons,
       reducedMotion: reducedMotion ?? this.reducedMotion,
       uiScale: uiScale ?? this.uiScale,
       spaceOrder: spaceOrder ?? this.spaceOrder,
@@ -455,6 +463,7 @@ class AccordSettings {
     'lastSpaceId': lastSpaceId,
     'lastChannelId': lastChannelId,
     'compactMode': compactMode,
+    'convertEmoticons': convertEmoticons,
     'reducedMotion': reducedMotion,
     'uiScale': uiScale,
     'spaceOrder': spaceOrder,
@@ -532,6 +541,7 @@ class AccordSettings {
       lastSpaceId: (json['lastSpaceId'] as String?) ?? '',
       lastChannelId: (json['lastChannelId'] as String?) ?? '',
       compactMode: json['compactMode'] as bool? ?? false,
+      convertEmoticons: json['convertEmoticons'] as bool? ?? true,
       reducedMotion: json['reducedMotion'] as bool? ?? false,
       uiScale:
           (json['uiScale'] as num?)?.toDouble().clamp(minUiScale, maxUiScale) ??

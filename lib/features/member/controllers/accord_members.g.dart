@@ -10,22 +10,25 @@ part of 'accord_members.dart';
 // ignore_for_file: type=lint, type=warning
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
-/// of spinning forever when `members.list` never yields a list. Reset to false
-/// whenever a load (re)starts; set true only after the retries are exhausted.
+/// of spinning forever when `members.list` never yields a list. Cleared on a
+/// successful load, and by the roster's Retry button before it re-triggers
+/// `_load`; set true only after the retries are exhausted.
 
 @ProviderFor(MembersLoadFailed)
 const membersLoadFailedProvider = MembersLoadFailedFamily._();
 
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
-/// of spinning forever when `members.list` never yields a list. Reset to false
-/// whenever a load (re)starts; set true only after the retries are exhausted.
+/// of spinning forever when `members.list` never yields a list. Cleared on a
+/// successful load, and by the roster's Retry button before it re-triggers
+/// `_load`; set true only after the retries are exhausted.
 final class MembersLoadFailedProvider
     extends $NotifierProvider<MembersLoadFailed, bool> {
   /// Whether the initial roster fetch for a space failed (a non-2xx response, a
   /// network error, or a timeout). Lets the roster show a retry affordance instead
-  /// of spinning forever when `members.list` never yields a list. Reset to false
-  /// whenever a load (re)starts; set true only after the retries are exhausted.
+  /// of spinning forever when `members.list` never yields a list. Cleared on a
+  /// successful load, and by the roster's Retry button before it re-triggers
+  /// `_load`; set true only after the retries are exhausted.
   const MembersLoadFailedProvider._({
     required MembersLoadFailedFamily super.from,
     required String super.argument,
@@ -74,8 +77,9 @@ String _$membersLoadFailedHash() => r'13daffe42918003e1b2b4dcdaf0e5120feadfc47';
 
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
-/// of spinning forever when `members.list` never yields a list. Reset to false
-/// whenever a load (re)starts; set true only after the retries are exhausted.
+/// of spinning forever when `members.list` never yields a list. Cleared on a
+/// successful load, and by the roster's Retry button before it re-triggers
+/// `_load`; set true only after the retries are exhausted.
 
 final class MembersLoadFailedFamily extends $Family
     with $ClassFamilyOverride<MembersLoadFailed, bool, bool, bool, String> {
@@ -90,8 +94,9 @@ final class MembersLoadFailedFamily extends $Family
 
   /// Whether the initial roster fetch for a space failed (a non-2xx response, a
   /// network error, or a timeout). Lets the roster show a retry affordance instead
-  /// of spinning forever when `members.list` never yields a list. Reset to false
-  /// whenever a load (re)starts; set true only after the retries are exhausted.
+  /// of spinning forever when `members.list` never yields a list. Cleared on a
+  /// successful load, and by the roster's Retry button before it re-triggers
+  /// `_load`; set true only after the retries are exhausted.
 
   MembersLoadFailedProvider call(String spaceId) =>
       MembersLoadFailedProvider._(argument: spaceId, from: this);
@@ -102,8 +107,9 @@ final class MembersLoadFailedFamily extends $Family
 
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
-/// of spinning forever when `members.list` never yields a list. Reset to false
-/// whenever a load (re)starts; set true only after the retries are exhausted.
+/// of spinning forever when `members.list` never yields a list. Cleared on a
+/// successful load, and by the roster's Retry button before it re-triggers
+/// `_load`; set true only after the retries are exhausted.
 
 abstract class _$MembersLoadFailed extends $Notifier<bool> {
   late final _$args = ref.$arg as String;
@@ -192,7 +198,7 @@ final class AccordMembersControllerProvider
 }
 
 String _$accordMembersControllerHash() =>
-    r'b31efa98ebbf57dc6e172572b36863d15d9a571e';
+    r'26a07ce430b92b393cbaf3379e7d1555a76eea6f';
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once

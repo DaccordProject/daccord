@@ -1,5 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/messaging/utils/emoticons.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/user_avatar.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';

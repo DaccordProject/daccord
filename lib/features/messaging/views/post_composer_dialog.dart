@@ -1,6 +1,8 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/messaging/utils/emoticons.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -64,7 +66,13 @@ class _PostComposerDialogState extends ConsumerState<PostComposerDialog> {
 
   Future<void> _submit() async {
     final title = _title.text.trim();
-    final body = _body.text.trim();
+    final rawBody = _body.text.trim();
+    // Bodies convert emoticons like every other send path. Titles deliberately
+    // don't: they're short plain-text labels, not markdown.
+    final body =
+        ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
+        ? applyEmoticons(rawBody)
+        : rawBody;
     if (_hasTitleField && title.isEmpty) {
       setState(() => _error = 'Title is required');
       return;
