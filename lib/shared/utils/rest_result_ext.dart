@@ -15,7 +15,7 @@ extension RestResultErrorText on RestResult {
   /// `AccordError(code: …)` wrapper — fine in an admin screen, noise in the
   /// message composer. Falls back to [fallback] when the error has no message.
   String errorMessageOr(String fallback) {
-    final message = error?.message ?? '';
+    final message = (error?.message ?? '').trim();
     return message.isEmpty ? fallback : message;
   }
 }

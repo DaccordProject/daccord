@@ -58,6 +58,15 @@ void main() {
       expect(result.errorMessageOr('default'), 'default');
     });
 
+    test('returns fallback when the message is whitespace only', () {
+      final result = RestResult(
+        ok: false,
+        statusCode: 500,
+        error: AccordError(code: 'INTERNAL', message: '   '),
+      );
+      expect(result.errorMessageOr('default'), 'default');
+    });
+
     test('returns fallback when error is null', () {
       expect(_ok().errorMessageOr('default'), 'default');
     });
