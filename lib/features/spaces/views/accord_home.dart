@@ -12,6 +12,7 @@ import 'package:bonfire/features/channels/controllers/open_tabs.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/channels/models/open_tab.dart';
 import 'package:bonfire/features/channels/utils/channel_reorder.dart';
+import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/channels/utils/channel_sort.dart';
 import 'package:bonfire/features/developer/services/mcp_home_bridge.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
@@ -274,9 +275,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
             name: channel?.name ?? channelId,
           ),
         );
-    if (channel?.type != 'voice') {
-      _markChannelRead(channelId, fallbackMessageId: channel?.lastMessageId);
-    }
+    // Voice channels carry a text chat and so carry unread state like any other
+    // channel; opening one clears it exactly the same way (the ack matters most
+    // here — a voice channel's messages are rarely cached, so without the
+    // `last_message_id` fallback the badge would come back on every connect).
+    _markChannelRead(channelId, fallbackMessageId: channel?.lastMessageId);
     setState(() => _pendingOpenSpaceId = null);
     ref
         .read(settingsControllerProvider.notifier)
@@ -312,27 +315,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     });
   }
 
-  /// Marks [channelId] read locally and POSTs `channels.ack` with the latest
-  /// known message ID so the server's read position catches up too. Prefers the
-  /// newest cached message; when the cache is empty it falls back to
-  /// [fallbackMessageId] (the channel's `last_message_id`). That fallback is
-  /// what clears a *phantom* unread: if the message that lit the channel was
-  /// since deleted, the cache loads empty but the server still lists the channel
-  /// in its READY `unread` array — without acking the channel's last_message_id
-  /// the badge would re-light on every cold start.
-  void _markChannelRead(String channelId, {String? fallbackMessageId}) {
-    final activeKey = ref.read(connectionsControllerProvider).activeKey;
-    if (activeKey != null) {
-      ref
-          .read(readStateControllerProvider(activeKey).notifier)
-          .markRead(channelId);
-    }
-    final messages = ref.read(accordMessagesControllerProvider(channelId));
-    final lastId =
-        messages?.isNotEmpty == true ? messages!.last.id : fallbackMessageId;
-    if (lastId == null) return;
-    ref.accordClient?.channels.ack(channelId, lastId);
-  }
+  /// Marks [channelId] read locally and POSTs `channels.ack` on the active
+  /// connection. See [markChannelRead] for why the ack (and its
+  /// [fallbackMessageId]) is what makes the badge stay gone.
+  void _markChannelRead(String channelId, {String? fallbackMessageId}) =>
+      markChannelRead(ref, channelId, fallbackMessageId: fallbackMessageId);
 
   /// Shows the rules interstitial once when a space with a rules channel is
   /// first opened this session.
