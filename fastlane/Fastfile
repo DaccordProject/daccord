@@ -56,6 +56,12 @@ platform :android do
       package_name: ENV.fetch("ANDROID_PACKAGE_NAME", "com.daccord_projects.daccord"),
       json_key: ENV.fetch("PLAY_JSON_KEY_PATH"),
       aab: ENV.fetch("ANDROID_AAB_PATH", "build/app/outputs/bundle/playRelease/app-play-release.aab"),
+      # Names the release in the Play Console. Without it supply looks for a
+      # versionName in build.gradle, finds only Flutter's `flutter.versionName`
+      # indirection (resolved from a gitignored local.properties that CI never
+      # has), and falls back to a stale label — which is how versionCode 144,
+      # built as 0.2.7, ended up shown as "0.2.6". Pass the real value.
+      version_name: ENV.fetch("PLAY_VERSION_NAME"),
       track: ENV.fetch("PLAY_TRACK", "production"),
       # "completed" releases the build to the track's testers immediately; set
       # PLAY_RELEASE_STATUS=draft to upload without distributing.

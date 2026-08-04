@@ -751,6 +751,9 @@ jobs:
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "Play version: $BUILD_NAME (build ${{ github.run_number }})"
+          # Reused by the upload step to name the release in the Play Console,
+          # so the console label can't drift from the binary's versionName.
+          echo "PLAY_VERSION_NAME=$BUILD_NAME" >> "$GITHUB_ENV"
           flutter build appbundle --release --flavor play \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
@@ -775,6 +778,7 @@ jobs:
           PLAY_JSON_KEY_PATH: ${{ runner.temp }}/play-service-account.json
           ANDROID_PACKAGE_NAME: com.daccord_projects.daccord
           ANDROID_AAB_PATH: build/app/outputs/bundle/playRelease/app-play-release.aab
+          # PLAY_VERSION_NAME is exported by the build step above.
           # A tagged release always ships live to all users: production track,
           # rollout completed. Deliberately not overridable by repo variables —
           # a stale PLAY_TRACK/PLAY_RELEASE_STATUS silently parked 0.2.7 as an
