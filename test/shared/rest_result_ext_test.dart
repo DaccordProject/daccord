@@ -35,6 +35,43 @@ void main() {
     });
   });
 
+  group('RestResult.errorMessageOr', () {
+    test('returns the bare message, without the AccordError wrapper', () {
+      final result = RestResult(
+        ok: false,
+        statusCode: 413,
+        error: AccordError(
+          code: 'FILE_TOO_LARGE',
+          message: 'File exceeds 25 MB',
+        ),
+      );
+      expect(result.errorMessageOr('default'), 'File exceeds 25 MB');
+      expect(result.errorMessageOr('default'), isNot(contains('AccordError')));
+    });
+
+    test('returns fallback when the error carries no message', () {
+      final result = RestResult(
+        ok: false,
+        statusCode: 500,
+        error: AccordError(code: 'INTERNAL'),
+      );
+      expect(result.errorMessageOr('default'), 'default');
+    });
+
+    test('returns fallback when the message is whitespace only', () {
+      final result = RestResult(
+        ok: false,
+        statusCode: 500,
+        error: AccordError(code: 'INTERNAL', message: '   '),
+      );
+      expect(result.errorMessageOr('default'), 'default');
+    });
+
+    test('returns fallback when error is null', () {
+      expect(_ok().errorMessageOr('default'), 'default');
+    });
+  });
+
   group('showErrorSnack', () {
     testWidgets('shows snack bar with prefix and error', (tester) async {
       final err = AccordError(message: 'server error');

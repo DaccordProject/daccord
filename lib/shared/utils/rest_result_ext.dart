@@ -9,6 +9,15 @@ import 'package:flutter/material.dart';
 extension RestResultErrorText on RestResult {
   /// The error rendered as text, or [fallback] when there is none.
   String errorOr(String fallback) => error?.toString() ?? fallback;
+
+  /// The server's own explanation, for surfaces shown to end users rather than
+  /// to operators. [errorOr] renders `AccordError.toString()`, which carries the
+  /// `AccordError(code: …)` wrapper — fine in an admin screen, noise in the
+  /// message composer. Falls back to [fallback] when the error has no message.
+  String errorMessageOr(String fallback) {
+    final message = (error?.message ?? '').trim();
+    return message.isEmpty ? fallback : message;
+  }
 }
 
 /// Payload-parsing helpers for the self-loading cache controllers.

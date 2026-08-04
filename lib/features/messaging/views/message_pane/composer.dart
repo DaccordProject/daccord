@@ -29,6 +29,10 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// Files the user has attached but not yet sent.
   final List<PlatformFile> _attachments = [];
 
+  /// Why the last attach or send didn't work, shown above the composer.
+  /// Cleared when the user attaches again or retries the send.
+  String? _error;
+
   /// The server's typing indicator lasts ~10s, so we re-trigger at most once
   /// every 8s while the user keeps typing rather than on every keystroke.
   DateTime? _lastTypingSent;
@@ -87,15 +91,13 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (!mounted) return;
     if (image != null && image.isNotEmpty) {
       final bytes = image;
-      setState(
-        () => _attachments.add(
-          PlatformFile(
-            name: 'pasted-${DateTime.now().millisecondsSinceEpoch}.png',
-            size: bytes.length,
-            bytes: bytes,
-          ),
+      _addFiles([
+        PlatformFile(
+          name: 'pasted-${DateTime.now().millisecondsSinceEpoch}.png',
+          size: bytes.length,
+          bytes: bytes,
         ),
-      );
+      ]);
       return;
     }
 
@@ -112,11 +114,9 @@ class _ComposerState extends ConsumerState<_Composer> {
       if (!mounted || asFile == null) return;
       if (asFile) {
         final bytes = Uint8List.fromList(utf8.encode(text));
-        setState(
-          () => _attachments.add(
-            PlatformFile(name: 'message.txt', size: bytes.length, bytes: bytes),
-          ),
-        );
+        _addFiles([
+          PlatformFile(name: 'message.txt', size: bytes.length, bytes: bytes),
+        ]);
         return;
       }
     }
@@ -279,10 +279,17 @@ class _ComposerState extends ConsumerState<_Composer> {
       withData: true,
     );
     if (result == null || !mounted) return;
+    _addFiles(result.files);
+  }
+
+  /// Attaches every file in [files] that passes screening, and reports the ones
+  /// that don't. Unreadable and oversize files used to be dropped in silence,
+  /// which is indistinguishable from the attach button doing nothing.
+  void _addFiles(Iterable<PlatformFile> files) {
+    final screened = screenAttachments(files);
     setState(() {
-      for (final file in result.files) {
-        if (file.bytes != null) _attachments.add(file);
-      }
+      _attachments.addAll(screened.accepted);
+      _error = screened.error;
     });
   }
 
@@ -323,33 +330,33 @@ class _ComposerState extends ConsumerState<_Composer> {
     );
     if (client == null) return;
 
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
     final controller = ref.read(
       accordMessagesControllerProvider(widget.channelId).notifier,
     );
     final replyTo = widget.replyingTo?.id;
-    final bool ok;
-    if (_attachments.isEmpty) {
-      ok = await controller.send(client, text, replyTo: replyTo);
-    } else {
-      final files = [
-        for (final file in _attachments)
-          {
-            'filename': file.name,
-            'content': file.bytes!,
-            'content_type': _mimeType(file.extension),
-          },
-      ];
-      ok = await controller.sendWithAttachments(
-        client,
-        text,
-        files,
-        replyTo: replyTo,
-      );
-    }
+    final files = [
+      for (final file in _attachments)
+        {
+          'filename': file.name,
+          'content': file.bytes!,
+          'content_type': _mimeType(file.extension),
+        },
+    ];
+    final error = await controller.sendWithAttachments(
+      client,
+      text,
+      files,
+      replyTo: replyTo,
+    );
     if (!mounted) return;
+    final ok = error == null;
     setState(() {
       _sending = false;
+      _error = error;
       if (ok) _attachments.clear();
     });
     if (ok) {
@@ -400,6 +407,22 @@ class _ComposerState extends ConsumerState<_Composer> {
                       tooltip: 'Cancel reply',
                       visualDensity: VisualDensity.compact,
                       onPressed: widget.onCancelReply,
+                      icon: Icon(Icons.close, size: 14, color: colors.gray),
+                    ),
+                  ],
+                ),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 4, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: InlineError(_error!, centered: false)),
+                    IconButton(
+                      tooltip: 'Dismiss',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => setState(() => _error = null),
                       icon: Icon(Icons.close, size: 14, color: colors.gray),
                     ),
                   ],

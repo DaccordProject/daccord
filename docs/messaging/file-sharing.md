@@ -11,9 +11,11 @@ You can share files and images directly in any text channel or DM.
 
 ## Uploading Files
 
-Attach a file to your message using the attachment button in the composer. You can also **drag and drop** files into the message area.
+Attach a file to your message using the attachment button in the composer. Drag and drop is not supported yet.
 
-The maximum file size is **25 MB**. Files larger than this will show an error and will not be uploaded.
+The maximum file size is **25 MB** per file. Larger files are rejected as soon as you pick them, with the file's size shown next to the limit -- nothing is uploaded. Music and video files are the ones that most often run into this; a 320 kbps MP3 passes 25 MB at around ten minutes.
+
+If the server refuses an upload for another reason -- you don't have the **Attach Files** permission in that channel, for example -- the reason it gives is shown above the composer.
 
 ## Pasting Images
 
