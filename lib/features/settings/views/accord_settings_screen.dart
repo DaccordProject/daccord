@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
@@ -27,6 +29,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Client settings: appearance (theme preset + accent), notifications, account.
+///
+/// Two layouts share the same section widgets:
+///
+/// * **Narrow** (< [kSettingsWideBreakpoint]) — the original single flat
+///   `ListView` of all eleven sections. Unchanged.
+/// * **Wide** — a left category sidebar (Account / App / System / Advanced)
+///   plus a content pane that lays that category's sections out as width-capped
+///   cards in one to three columns. See [_DesktopSettings].
 class AccordSettingsScreen extends ConsumerWidget {
   const AccordSettingsScreen({super.key});
 
@@ -41,6 +51,13 @@ class AccordSettingsScreen extends ConsumerWidget {
       ),
     );
 
+    Future<void> logOut() async {
+      if (!await confirmLogout(context)) return;
+      if (!context.mounted) return;
+      ref.read(accordAuthProvider.notifier).logout();
+      if (context.mounted) context.go('/');
+    }
+
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
@@ -52,51 +69,352 @@ class AccordSettingsScreen extends ConsumerWidget {
               context.canPop() ? context.pop() : context.go('/spaces'),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          _AppearanceSection(settings: settings, controller: controller),
-          const Divider(height: 24),
-          _NotificationsSection(settings: settings, controller: controller),
-          const Divider(height: 24),
-          _ErrorReportingSection(
-            settings: settings,
-            controller: controller,
-            onReportProblem: () => _showReportProblemDialog(context, ref),
-          ),
-          const Divider(height: 24),
-          _SoundsSection(settings: settings, controller: controller),
-          const Divider(height: 24),
-          const _VoiceVideoSection(),
-          const Divider(height: 24),
-          _AccountSection(
-            session: session,
-            hasMultipleConnections: ref
-                .watch(connectionsControllerProvider)
-                .hasMultiple,
-            onPickServerProfile: () => _pickServerProfile(context, ref),
-          ),
-          const Divider(height: 24),
-          const _ServerDirectorySection(),
-          const Divider(height: 24),
-          const _UpdatesSection(),
-          const Divider(height: 24),
-          const _BackupSection(),
-          const Divider(height: 24),
-          _DeveloperSection(settings: settings, controller: controller),
-          const Divider(height: 24),
-          const _AboutSection(),
-          const Divider(height: 24),
-          _LogOutTile(
-            onLogOut: () async {
-              if (!await confirmLogout(context)) return;
-              if (!context.mounted) return;
-              ref.read(accordAuthProvider.notifier).logout();
-              if (context.mounted) context.go('/');
-            },
-          ),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= kSettingsWideBreakpoint) {
+            return _DesktopSettings(
+              width: constraints.maxWidth,
+              onLogOut: logOut,
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [
+              _AppearanceSection(settings: settings, controller: controller),
+              const Divider(height: 24),
+              _NotificationsSection(settings: settings, controller: controller),
+              const Divider(height: 24),
+              _ErrorReportingSection(
+                settings: settings,
+                controller: controller,
+                onReportProblem: () => _showReportProblemDialog(context, ref),
+              ),
+              const Divider(height: 24),
+              _SoundsSection(settings: settings, controller: controller),
+              const Divider(height: 24),
+              const _VoiceVideoSection(),
+              const Divider(height: 24),
+              _AccountSection(
+                session: session,
+                hasMultipleConnections: ref
+                    .watch(connectionsControllerProvider)
+                    .hasMultiple,
+                onPickServerProfile: () => _pickServerProfile(context, ref),
+              ),
+              const Divider(height: 24),
+              const _ServerDirectorySection(),
+              const Divider(height: 24),
+              const _UpdatesSection(),
+              const Divider(height: 24),
+              const _BackupSection(),
+              const Divider(height: 24),
+              _DeveloperSection(settings: settings, controller: controller),
+              const Divider(height: 24),
+              const _AboutSection(),
+              const Divider(height: 24),
+              _LogOutTile(onLogOut: logOut),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wide (desktop) layout
+// ---------------------------------------------------------------------------
+
+/// Width at which the settings screen swaps the flat scroll for the sidebar +
+/// multi-column pane.
+///
+/// Deliberately *not* `shouldUseDesktopLayout`: that helper also requires
+/// height > 1000, so it is false on short-but-wide desktop windows — exactly
+/// the shape that needs a multi-column settings layout most. Column count is a
+/// pure function of width, so it is measured with a width-only breakpoint.
+const double kSettingsWideBreakpoint = 1000;
+
+/// Widths at which a second / third column of section cards appears.
+const double kSettingsTwoColumnBreakpoint = 1200;
+const double kSettingsThreeColumnBreakpoint = 1700;
+
+/// Maximum width of one section card. Caps every control row so a label and
+/// its switch stay visually paired instead of sitting at opposite ends of an
+/// ultrawide window.
+const double kSettingsCardMaxWidth = 520;
+
+const double _kSidebarWidth = 232;
+const double _kCardGap = 16;
+const double _kPanePadding = 16;
+
+/// How many card columns the content pane uses at a given window [width].
+///
+/// The UI scale setting only scales *text* (`main.dart` sets a
+/// `TextScaler`), so these logical-pixel breakpoints hold at any UI scale; the
+/// cards simply grow taller as text does.
+int settingsColumnCount(double width) {
+  if (width >= kSettingsThreeColumnBreakpoint) return 3;
+  if (width >= kSettingsTwoColumnBreakpoint) return 2;
+  return 1;
+}
+
+/// The four sidebar categories the eleven settings sections group into.
+enum SettingsCategory {
+  account('Account', Icons.person_outline),
+  app('App', Icons.tune),
+  system('System', Icons.settings_applications_outlined),
+  advanced('Advanced', Icons.code);
+
+  const SettingsCategory(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+}
+
+/// Sidebar + content pane. Owns which category is selected.
+class _DesktopSettings extends StatefulWidget {
+  const _DesktopSettings({required this.width, required this.onLogOut});
+
+  /// Full width of the settings body, used for the column-count breakpoints.
+  final double width;
+  final VoidCallback onLogOut;
+
+  @override
+  State<_DesktopSettings> createState() => _DesktopSettingsState();
+}
+
+class _DesktopSettingsState extends State<_DesktopSettings> {
+  SettingsCategory _selected = SettingsCategory.account;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CategorySidebar(
+          selected: _selected,
+          onSelect: (category) => setState(() => _selected = category),
+          onLogOut: widget.onLogOut,
+        ),
+        VerticalDivider(width: 1, thickness: 1, color: colors.background),
+        Expanded(
+          child: _CategoryPane(category: _selected, windowWidth: widget.width),
+        ),
+      ],
+    );
+  }
+}
+
+/// Fixed-width category list, with Log out pinned to the bottom so it stays
+/// reachable from every category.
+class _CategorySidebar extends StatelessWidget {
+  const _CategorySidebar({
+    required this.selected,
+    required this.onSelect,
+    required this.onLogOut,
+  });
+
+  final SettingsCategory selected;
+  final ValueChanged<SettingsCategory> onSelect;
+  final VoidCallback onLogOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Material(
+      key: const ValueKey('settings-sidebar'),
+      color: colors.foreground,
+      child: SizedBox(
+        width: _kSidebarWidth,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final category in SettingsCategory.values)
+                    _SidebarTile(
+                      category: category,
+                      selected: category == selected,
+                      onTap: () => onSelect(category),
+                    ),
+                ],
+              ),
+            ),
+            Divider(height: 1, thickness: 1, color: colors.background),
+            _LogOutTile(onLogOut: onLogOut),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarTile extends StatelessWidget {
+  const _SidebarTile({
+    required this.category,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SettingsCategory category;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: ListTile(
+        dense: true,
+        selected: selected,
+        selectedTileColor: colors.primary.withValues(alpha: 0.18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        leading: Icon(
+          category.icon,
+          size: 20,
+          color: selected ? colors.primary : colors.dirtyWhite,
+        ),
+        title: Text(
+          category.label,
+          style: TextStyle(color: selected ? colors.primary : null),
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// The selected category's sections, laid out as width-capped cards spread
+/// across one to three columns.
+///
+/// Sections vary hugely in height (Appearance is ~7 rows, About is one), so the
+/// cards are distributed down independent columns rather than into a `Wrap` —
+/// a `Wrap` row is as tall as its tallest child and would leave a ragged gap
+/// under every short card.
+class _CategoryPane extends ConsumerWidget {
+  const _CategoryPane({required this.category, required this.windowWidth});
+
+  final SettingsCategory category;
+  final double windowWidth;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsControllerProvider);
+    final controller = ref.read(settingsControllerProvider.notifier);
+    final session = ref.watch(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session : null,
+      ),
+    );
+
+    final sections = switch (category) {
+      SettingsCategory.account => <Widget>[
+        _AccountSection(
+          session: session,
+          hasMultipleConnections: ref
+              .watch(connectionsControllerProvider)
+              .hasMultiple,
+          onPickServerProfile: () => _pickServerProfile(context, ref),
+          // Connections and Privacy & Data are cards in this same pane, so
+          // their "push a sub-page" tiles would be redundant here.
+          showSubPageTiles: false,
+        ),
+        const ConnectionsScreen(embedded: true),
+        const PrivacySettingsScreen(embedded: true),
+        const _ServerDirectorySection(),
+      ],
+      SettingsCategory.app => <Widget>[
+        _AppearanceSection(settings: settings, controller: controller),
+        _NotificationsSection(settings: settings, controller: controller),
+        _SoundsSection(settings: settings, controller: controller),
+        const _VoiceVideoSection(),
+      ],
+      SettingsCategory.system => <Widget>[
+        const _UpdatesSection(),
+        const _BackupSection(),
+        _ErrorReportingSection(
+          settings: settings,
+          controller: controller,
+          onReportProblem: () => _showReportProblemDialog(context, ref),
+        ),
+      ],
+      SettingsCategory.advanced => <Widget>[
+        _DeveloperSection(settings: settings, controller: controller),
+        const _AboutSection(),
+      ],
+    };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = settingsColumnCount(windowWidth);
+        final available =
+            constraints.maxWidth -
+            _kPanePadding * 2 -
+            _kCardGap * (columns - 1);
+        final cardWidth = math.max(
+          240.0,
+          math.min(kSettingsCardMaxWidth, available / columns),
+        );
+
+        final buckets = List.generate(columns, (_) => <Widget>[]);
+        for (var i = 0; i < sections.length; i++) {
+          buckets[i % columns].add(sections[i]);
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            _kPanePadding,
+            _kPanePadding,
+            _kPanePadding,
+            32,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var column = 0; column < columns; column++) ...[
+                if (column > 0) const SizedBox(width: _kCardGap),
+                SizedBox(
+                  key: ValueKey('settings-column-$column'),
+                  width: cardWidth,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final section in buckets[column])
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: _kCardGap),
+                          child: _SettingsCard(child: section),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A single section rendered as a bounded, rounded surface instead of a
+/// full-bleed slice of one long list.
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = BonfireThemeExtension.of(context);
+    return Material(
+      clipBehavior: Clip.antiAlias,
+      color: colors.foreground,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: child),
     );
   }
 }
@@ -349,11 +667,17 @@ class _AccountSection extends StatelessWidget {
     required this.session,
     required this.hasMultipleConnections,
     required this.onPickServerProfile,
+    this.showSubPageTiles = true,
   });
 
   final AccordSession? session;
   final bool hasMultipleConnections;
   final VoidCallback onPickServerProfile;
+
+  /// Whether to include the Connections / Privacy & Data tiles that push their
+  /// own sub-page. The wide layout renders both as sibling cards in the same
+  /// pane instead, so it turns these off.
+  final bool showSubPageTiles;
 
   @override
   Widget build(BuildContext context) {
@@ -412,20 +736,22 @@ class _AccountSection extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => showProfilesSettings(context),
         ),
-        ListTile(
-          leading: Icon(Icons.link, color: colors.dirtyWhite),
-          title: const Text('Connections'),
-          subtitle: const Text('Linked third-party (OAuth) accounts'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => showConnectionsSettings(context),
-        ),
-        ListTile(
-          leading: Icon(Icons.privacy_tip_outlined, color: colors.dirtyWhite),
-          title: const Text('Privacy & Data'),
-          subtitle: const Text('Data export, leave & delete data, retention'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => showPrivacySettings(context),
-        ),
+        if (showSubPageTiles) ...[
+          ListTile(
+            leading: Icon(Icons.link, color: colors.dirtyWhite),
+            title: const Text('Connections'),
+            subtitle: const Text('Linked third-party (OAuth) accounts'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showConnectionsSettings(context),
+          ),
+          ListTile(
+            leading: Icon(Icons.privacy_tip_outlined, color: colors.dirtyWhite),
+            title: const Text('Privacy & Data'),
+            subtitle: const Text('Data export, leave & delete data, retention'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showPrivacySettings(context),
+          ),
+        ],
         if (session?.isAdmin ?? false)
           ListTile(
             leading: Icon(Icons.admin_panel_settings, color: colors.dirtyWhite),

@@ -23,7 +23,12 @@ Future<void> showPrivacySettings(BuildContext context) {
 }
 
 class PrivacySettingsScreen extends ConsumerStatefulWidget {
-  const PrivacySettingsScreen({super.key});
+  const PrivacySettingsScreen({super.key, this.embedded = false});
+
+  /// When true, renders the privacy content on its own — no [SettingsScaffold]
+  /// chrome and no internal scroll view — so the wide settings layout can
+  /// inline it as a card in the Account pane instead of pushing a route.
+  final bool embedded;
 
   @override
   ConsumerState<PrivacySettingsScreen> createState() =>
@@ -122,95 +127,110 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final spaces = ref.watch(spacesControllerProvider) ?? const <AccordSpace>[];
-    final userId = ref.watchUserId();
-
+    if (widget.embedded) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [SectionHeader('Privacy & Data'), ..._content()],
+      );
+    }
     return SettingsScaffold(
       title: 'Privacy & Data',
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          SectionHeader('Data export'),
-          _Body(
-            'Download a copy of your personal data stored on this server, '
-            'including your profile, messages, and relationships. The export '
-            'is provided as a JSON file.',
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: Row(
-              children: [
-                FilledButton.icon(
-                  onPressed: _exporting ? null : _requestExport,
-                  icon: _exporting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.download),
-                  label: Text(
-                    _exporting ? 'Exporting…' : 'Request Data Export',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_exportStatus != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                _exportStatus!,
-                style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                  color: _exportFailed ? colors.red : colors.green,
-                ),
-              ),
-            ),
-          const Divider(height: 24),
-          SectionHeader('Leave & delete data'),
-          _Body(
-            'Leave a server and permanently delete all your data from it, '
-            'including messages, reactions, and read states. Your account on '
-            'that instance remains active. This action cannot be undone.',
-          ),
-          if (spaces.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(
-                'You are not in any spaces.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall!.copyWith(color: colors.gray),
-              ),
-            )
-          else
-            for (final space in spaces)
-              _SpaceLeaveTile(
-                name: space.name,
-                isOwner: userId != null && space.ownerId == userId,
-                busy: _leaving.contains(space.id),
-                onLeave: () => _leaveAndDelete(space),
-              ),
-          const Divider(height: 24),
-          SectionHeader('Data deletion'),
-          _Body(
-            'When you delete your account, all personal data is permanently '
-            'removed from the server. This includes your profile, messages, '
-            'reactions, memberships, tokens, and applications. This action '
-            'cannot be undone. Account deletion lives under Account settings.',
-          ),
-          const Divider(height: 24),
-          SectionHeader('Data retention'),
-          _Body(
-            'Data is retained for as long as your account exists. There is no '
-            'automatic expiration of messages or attachments. Server '
-            'administrators may configure their own retention policies.',
-          ),
-          const SizedBox(height: 12),
-        ],
+        children: _content(),
       ),
     );
+  }
+
+  /// The page body, as a flat child list so it can be poured into either a
+  /// [ListView] (pushed page) or a [Column] (embedded card).
+  List<Widget> _content() {
+    final colors = BonfireThemeExtension.of(context);
+    final spaces = ref.watch(spacesControllerProvider) ?? const <AccordSpace>[];
+    final userId = ref.watchUserId();
+
+    return [
+      SectionHeader('Data export'),
+      _Body(
+        'Download a copy of your personal data stored on this server, '
+        'including your profile, messages, and relationships. The export '
+        'is provided as a JSON file.',
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        child: Row(
+          children: [
+            // Flexible so the label wraps rather than overflowing inside a
+            // narrow settings card (notably at 150% UI scale).
+            Flexible(
+              child: FilledButton.icon(
+                onPressed: _exporting ? null : _requestExport,
+                icon: _exporting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download),
+                label: Text(_exporting ? 'Exporting…' : 'Request Data Export'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (_exportStatus != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            _exportStatus!,
+            style: Theme.of(context).textTheme.bodySmall!.copyWith(
+              color: _exportFailed ? colors.red : colors.green,
+            ),
+          ),
+        ),
+      const Divider(height: 24),
+      SectionHeader('Leave & delete data'),
+      _Body(
+        'Leave a server and permanently delete all your data from it, '
+        'including messages, reactions, and read states. Your account on '
+        'that instance remains active. This action cannot be undone.',
+      ),
+      if (spaces.isEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Text(
+            'You are not in any spaces.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall!.copyWith(color: colors.gray),
+          ),
+        )
+      else
+        for (final space in spaces)
+          _SpaceLeaveTile(
+            name: space.name,
+            isOwner: userId != null && space.ownerId == userId,
+            busy: _leaving.contains(space.id),
+            onLeave: () => _leaveAndDelete(space),
+          ),
+      const Divider(height: 24),
+      SectionHeader('Data deletion'),
+      _Body(
+        'When you delete your account, all personal data is permanently '
+        'removed from the server. This includes your profile, messages, '
+        'reactions, memberships, tokens, and applications. This action '
+        'cannot be undone. Account deletion lives under Account settings.',
+      ),
+      const Divider(height: 24),
+      SectionHeader('Data retention'),
+      _Body(
+        'Data is retained for as long as your account exists. There is no '
+        'automatic expiration of messages or attachments. Server '
+        'administrators may configure their own retention policies.',
+      ),
+      const SizedBox(height: 12),
+    ];
   }
 }
 

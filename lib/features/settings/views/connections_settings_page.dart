@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -28,7 +29,12 @@ class _Connection {
 }
 
 class ConnectionsScreen extends ConsumerStatefulWidget {
-  const ConnectionsScreen({super.key});
+  const ConnectionsScreen({super.key, this.embedded = false});
+
+  /// When true, renders the connection list on its own — no [SettingsScaffold]
+  /// chrome and no internal scroll view — so the wide settings layout can
+  /// inline it as a card in the Account pane instead of pushing a route.
+  final bool embedded;
 
   @override
   ConsumerState<ConnectionsScreen> createState() => _ConnectionsScreenState();
@@ -127,6 +133,25 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    if (widget.embedded) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionHeader(
+            'Connections',
+            trailing: IconButton(
+              tooltip: 'Refresh',
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ),
+          ..._embeddedChildren(colors),
+        ],
+      );
+    }
     return SettingsScaffold(
       title: 'Connections',
       actions: [
@@ -152,40 +177,71 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No connections linked.\n\nLinked third-party accounts (OAuth) will '
-            'appear here.',
+            _emptyMessage,
             textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium!.copyWith(color: colors.gray),
+            style: _hint(colors),
           ),
         ),
       );
     }
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        for (final conn in _connections)
-          ListTile(
-            leading: Icon(Icons.link, color: colors.dirtyWhite),
-            title: Text(conn.type),
-            subtitle: conn.name.isEmpty ? null : Text(conn.name),
-            trailing: _disconnecting.contains(conn.id)
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colors.red,
-                      side: BorderSide(color: colors.red),
-                    ),
-                    onPressed: () => _disconnect(conn),
-                    child: const Text('Disconnect'),
-                  ),
-          ),
-      ],
+      children: _connectionTiles(colors),
     );
   }
+
+  /// Same state machine as [_body], but every arm is intrinsically sized so it
+  /// can sit inside the Account pane's card column.
+  List<Widget> _embeddedChildren(BonfireThemeExtension colors) {
+    if (_loading) {
+      return const [SizedBox(height: 72, child: LoadingView())];
+    }
+    if (_error != null) {
+      return [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: InlineError(_error!, centered: false),
+        ),
+      ];
+    }
+    if (_connections.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(_emptyMessage, style: _hint(colors)),
+        ),
+      ];
+    }
+    return _connectionTiles(colors);
+  }
+
+  static const _emptyMessage =
+      'No connections linked.\n\nLinked third-party accounts (OAuth) will '
+      'appear here.';
+
+  TextStyle _hint(BonfireThemeExtension colors) =>
+      Theme.of(context).textTheme.bodyMedium!.copyWith(color: colors.gray);
+
+  List<Widget> _connectionTiles(BonfireThemeExtension colors) => [
+    for (final conn in _connections)
+      ListTile(
+        leading: Icon(Icons.link, color: colors.dirtyWhite),
+        title: Text(conn.type),
+        subtitle: conn.name.isEmpty ? null : Text(conn.name),
+        trailing: _disconnecting.contains(conn.id)
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.red,
+                  side: BorderSide(color: colors.red),
+                ),
+                onPressed: () => _disconnect(conn),
+                child: const Text('Disconnect'),
+              ),
+      ),
+  ];
 }
