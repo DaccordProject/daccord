@@ -62,61 +62,22 @@ if ([string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_USER) -or
 
 $timeoutSec = 180
 if (-not [string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_TIMEOUT_SEC)) {
-    [int]::TryParse($env:SIMPLYSIGN_TIMEOUT_SEC, [ref]$timeoutSec) | Out-Null
-}
-
-# --- TOTP ------------------------------------------------------------------
-# The enrolment QR code is a standard otpauth:// URI, so accept either the URI
-# (what you get by revealing the QR in a password manager) or the bare base32
-# secret. Pasting the whole URI is the easier thing to do correctly.
-function Get-Base32Secret([string]$Value) {
-    $v = $Value.Trim()
-    if ($v -match '^otpauth://') {
-        # secret=... is required by the spec; other params (issuer, digits) are
-        # ignored here because Certum uses the SHA1/6-digit/30s defaults.
-        if ($v -match '[?&]secret=([^&]+)') { return $Matches[1] }
-        throw "otpauth:// URI has no secret= parameter"
+    # TryParse's out parameter is reset to 0 on failure (not left at the
+    # default), so an unparsable value must be checked and discarded rather
+    # than trusted — otherwise a typo silently collapses the wait to 0s and
+    # the login is reported as failed before the card can ever mount.
+    $parsedTimeoutSec = 0
+    if ([int]::TryParse($env:SIMPLYSIGN_TIMEOUT_SEC, [ref]$parsedTimeoutSec)) {
+        $timeoutSec = $parsedTimeoutSec
+    } else {
+        Write-Warn "SIMPLYSIGN_TIMEOUT_SEC ('$env:SIMPLYSIGN_TIMEOUT_SEC') is not a valid integer - using the default ${timeoutSec}s."
     }
-    return $v
 }
 
-function ConvertFrom-Base32([string]$Value) {
-    $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-    $clean = ($Value -replace '[=\s-]', '').ToUpperInvariant()
-    if ($clean.Length -eq 0) { throw "TOTP secret is empty" }
-
-    $bits = New-Object System.Text.StringBuilder
-    foreach ($ch in $clean.ToCharArray()) {
-        $idx = $alphabet.IndexOf($ch)
-        if ($idx -lt 0) { throw "TOTP secret is not valid base32 (bad character '$ch')" }
-        [void]$bits.Append([Convert]::ToString($idx, 2).PadLeft(5, '0'))
-    }
-
-    # Base32 packs 5 bits per character, so the tail is padding unless the total
-    # lands on a byte boundary; drop whatever doesn't fill a full byte.
-    $s = $bits.ToString()
-    $bytes = New-Object System.Collections.Generic.List[byte]
-    for ($i = 0; $i + 8 -le $s.Length; $i += 8) {
-        $bytes.Add([Convert]::ToByte($s.Substring($i, 8), 2))
-    }
-    return $bytes.ToArray()
-}
-
-function Get-Totp([byte[]]$Secret, [int]$Digits = 6, [int]$Period = 30) {
-    # RFC 6238 with the defaults Certum uses (HMAC-SHA1, 6 digits, 30s window).
-    $counter = [BitConverter]::GetBytes([long][Math]::Floor([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() / $Period))
-    if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($counter) }
-
-    $hmac = [System.Security.Cryptography.HMACSHA1]::new($Secret)
-    try { $hash = $hmac.ComputeHash($counter) } finally { $hmac.Dispose() }
-
-    $offset = $hash[$hash.Length - 1] -band 0x0F
-    $binary = ((($hash[$offset] -band 0x7F) -shl 24) -bor
-               (($hash[$offset + 1] -band 0xFF) -shl 16) -bor
-               (($hash[$offset + 2] -band 0xFF) -shl 8) -bor
-                ($hash[$offset + 3] -band 0xFF))
-    return ($binary % [int][Math]::Pow(10, $Digits)).ToString().PadLeft($Digits, '0')
-}
+# TOTP/base32 helpers live in totp.ps1 so they can be unit-tested (see
+# totp.Tests.ps1) independently of the GUI automation below, which needs a
+# real SimplySign install and an interactive desktop to run at all.
+. "$PSScriptRoot/lib/totp.ps1"
 
 # --- SimplySign Desktop ----------------------------------------------------
 function Find-SimplySign {
