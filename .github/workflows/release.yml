@@ -6,6 +6,29 @@ name: Release
 #   1. run the full CI workflow as a gate,
 #   2. build + package release artifacts for every platform,
 #   3. publish a GitHub Release with those artifacts attached.
+#
+# ---------------------------------------------------------------------------
+# Code signing (see docs/release-signing.md for the full runbook)
+# ---------------------------------------------------------------------------
+# Every signing step is OPTIONAL and gated on its secrets being present. With no
+# signing secrets configured this workflow behaves exactly as it did before
+# signing existed: unsigned artifacts, release still published. A missing secret
+# must never fail a tagged release.
+#
+#   macOS   DEVELOPER_ID_CERT_P12 + CERT_P12_PASSWORD + ASC_KEY_* + APPLE_TEAM_ID
+#           → `fastlane mac dmg` signs the .app (Developer ID + hardened
+#             runtime), signs the .dmg, notarizes it with notarytool and staples
+#             the ticket. Absent → plain unsigned .dmg (Gatekeeper warns).
+#   Windows WINDOWS_CERT_PFX_BASE64 (+ WINDOWS_CERT_PASSWORD)
+#           → Authenticode-signs daccord.exe, the bundled DLLs and the Inno
+#             Setup installer via dist/sign-windows.ps1. Absent → unsigned
+#             binaries (SmartScreen warns).
+#   All     GPG_PRIVATE_KEY (+ GPG_PASSPHRASE)
+#           → detached signature (checksums.asc) over SHA256SUMS.txt. Absent →
+#             checksums are still published, just unsigned.
+#
+# SHA256SUMS.txt is always generated and needs no secrets; the in-app updater
+# verifies downloads against it.
 
 on:
   push:
@@ -91,10 +114,22 @@ jobs:
     # also caches that ~hundreds-of-MB binary — the thing that 504'd before.
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
+      # Secret-presence flags. `secrets` can't be referenced from a job-level
+      # `if:`, but it CAN be referenced from job-level `env:` — so the presence
+      # test is resolved once here into a plain string ('true'/'false') and the
+      # individual steps gate on `env.*` instead. Every signing step is
+      # conditional on one of these: with none of the secrets set the build
+      # produces the same unsigned artifacts it always did.
+      #
       # The Developer ID Application cert can only be created by the account
       # holder (not the App Store Connect API key), so it may be absent. When it
       # is, the DMG is built unsigned (previous behaviour) instead of failing.
-      DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' }}
+      # Notarization also needs the App Store Connect API key, so require both —
+      # otherwise the lane starts, fails on a missing ENV.fetch, and we take the
+      # slow path to the same unsigned DMG.
+      DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' && secrets.ASC_KEY_P8_BASE64 != '' }}
+      # Authenticode signing of the Windows .exe / DLLs / installer.
+      WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -356,6 +391,42 @@ jobs:
             "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
           rm -rf "$TMP"
 
+      - name: Verify signature & notarization (macOS)
+        # Purely diagnostic, and never fatal: the DMG has already been built by
+        # this point, so the only thing failing here would achieve is losing the
+        # release. It exists so the log says plainly whether the artifact users
+        # are about to download will clear Gatekeeper — including when the
+        # fastlane lane fell back to an unsigned DMG.
+        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
+        continue-on-error: true
+        run: |
+          DMG="$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
+          codesign -dv --verbose=4 "$DMG" 2>&1 || echo "::warning::$DMG is not code-signed"
+          xcrun stapler validate "$DMG" || echo "::warning::$DMG has no stapled notarization ticket"
+          spctl -a -t open --context context:primary-signature -v "$DMG" \
+            || echo "::warning::Gatekeeper would reject $DMG"
+
+      - name: Sign binaries (Windows)
+        # Authenticode-sign the app and the DLLs we build BEFORE they are zipped
+        # or swept into the installer, so every shipped copy carries the
+        # signature. Skipped entirely when WINDOWS_CERT_PFX_BASE64 is unset, and
+        # `continue-on-error` keeps even a hard signing failure (expired cert,
+        # timestamp server down) from sinking a tagged release — it degrades to
+        # today's unsigned artifacts with a warning on the step.
+        if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          # Optional repo variable; the script defaults to DigiCert's public
+          # RFC-3161 server. Some CAs require their own timestamp endpoint.
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          ./dist/sign-windows.ps1 `
+            build/windows/x64/runner/Release/daccord.exe `
+            build/windows/x64/runner/Release/*.dll
+
       - name: Package (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -377,6 +448,23 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
             "/DMyAppVersion=${{ steps.version.outputs.APP_VERSION }}" dist\installer.iss
 
+      - name: Sign installer (Windows)
+        # The installer is a fresh .exe produced by ISCC, so it needs its own
+        # signature — the signed payload inside it doesn't cover the wrapper,
+        # and the wrapper is what SmartScreen judges on download. Same gating
+        # and same never-fail-the-release policy as the binaries step above.
+        # (The uninstaller Inno generates at install time is NOT signed; that
+        # needs Inno's SignTool/SignedUninstaller directives — see
+        # docs/release-signing.md.)
+        if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: ./dist/sign-windows.ps1 daccord-windows-x86_64-setup.exe
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -394,6 +482,11 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # As in the build job: `secrets` is unavailable in a step `if:`, so resolve
+      # the presence test into a plain string here and gate the step on env.
+      # Unset → checksums still ship, just without a detached signature.
+      GPG_AVAILABLE: ${{ secrets.GPG_PRIVATE_KEY != '' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -421,10 +514,63 @@ jobs:
         # SHA256SUMS.txt lets the in-app self-updater verify a downloaded bundle
         # before swapping it in (see update_controller._expectedSha), and gives
         # manual downloaders an integrity check. Format: "<sha256>  <filename>".
+        # Covers every published artifact on every platform; needs no secrets, so
+        # it always runs. Signature/checksum ordering matters: this runs after
+        # the build jobs, so the hashes are of the *signed* .dmg / .exe.
         run: |
           cd artifacts
-          sha256sum $(find . -maxdepth 1 -type f -printf '%P\n' | sort) > SHA256SUMS.txt
+          # Exclude the checksum file and any signature from the list it hashes:
+          # the command substitution is expanded before the redirect truncates
+          # SHA256SUMS.txt, so a re-run would otherwise hash a stale copy of it.
+          mapfile -t files < <(
+            find . -maxdepth 1 -type f \
+              ! -name 'SHA256SUMS.txt' ! -name '*.asc' -printf '%P\n' | sort
+          )
+          if [ "${#files[@]}" -eq 0 ]; then
+            # Fail loudly rather than let sha256sum fall through to reading
+            # stdin and hang the job until the 6h timeout.
+            echo "::error::No artifacts were downloaded — nothing to checksum."
+            exit 1
+          fi
+          sha256sum "${files[@]}" > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      - name: Sign checksums (GPG)
+        # Detached, ASCII-armoured signature over SHA256SUMS.txt — hashing every
+        # artifact and signing just the manifest is the usual distro pattern, and
+        # it means one signature covers all platforms.
+        #
+        # The file is `checksums.asc`, NOT `SHA256SUMS.txt.asc`: the in-app
+        # updater picks the checksum manifest with
+        # `assets.firstWhere(name.toUpperCase().contains('SHA256SUMS'))`
+        # (update_controller._expectedSha), and GitHub does not promise an asset
+        # order. A signature named `SHA256SUMS.txt.asc` could therefore be picked
+        # instead of the manifest, and every self-update would silently skip
+        # checksum verification. Keeping the token out of the name makes the
+        # match unambiguous. Shipped clients can't be fixed, so the filename is
+        # load-bearing — same reasoning as the `.tgz` suffix above.
+        if: env.GPG_AVAILABLE == 'true'
+        continue-on-error: true
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')
+          if [ -z "$KEY" ]; then
+            echo "::warning::GPG_PRIVATE_KEY imported no secret key — publishing unsigned checksums."
+            exit 0
+          fi
+          echo "Signing SHA256SUMS.txt with key $KEY"
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "${GPG_PASSPHRASE:-}" \
+            --local-user "$KEY" --armor --detach-sign \
+            --output artifacts/checksums.asc artifacts/SHA256SUMS.txt
+          gpg --verify artifacts/checksums.asc artifacts/SHA256SUMS.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -228,11 +228,27 @@ platform :mac do
          "-ov", "-format", "UDZO", out)
     end
 
+    # Sign the disk image itself with the same Developer ID identity. The .app
+    # inside is already signed by gym; signing the container too is what Apple's
+    # notarization guidance asks for and is what lets Gatekeeper assess the
+    # downloaded .dmg directly rather than only the app once it's copied out.
+    # Non-fatal: a notarized-but-unsigned image still installs fine, so a hiccup
+    # here shouldn't cost us the notarization.
+    begin
+      sh("codesign", "--sign", "Developer ID Application", "--timestamp", "--force", out)
+    rescue StandardError => e
+      UI.important("Could not sign the DMG container (#{e.message}); notarizing it unsigned.")
+    end
+
     # Submit to Apple's notary service and staple the ticket into the DMG so it
-    # passes Gatekeeper offline.
+    # passes Gatekeeper offline. `use_notarytool` is explicit because altool's
+    # notarization endpoint was switched off in November 2023 — notarytool is the
+    # only route, and pinning it here stops a fastlane default flip from silently
+    # putting us back on a dead API.
     notarize(
       package: out,
       api_key: api_key,
+      use_notarytool: true,
       print_log: true,
     )
   end

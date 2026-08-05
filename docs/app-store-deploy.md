@@ -10,6 +10,11 @@ signed store builds to Apple's App Store Connect and to Google Play:
 | Notarized DMG | `build` (macOS) | `fastlane mac dmg` | GitHub Release (direct download) |
 | Google Play | `android-play` | `fastlane android play` | Play Console (AAB → `production` track) |
 
+Direct-download (non-store) signing — the notarized DMG, Windows Authenticode
+and the release checksums/GPG signature — is covered separately in
+[release-signing.md](release-signing.md), including what happens when those
+secrets are absent.
+
 These run on a **tag push** (`v*`) and on **workflow_dispatch** (with
 `deploy_ios` / `deploy_mac` / `deploy_android` toggles, handy for testing
 without cutting a real release). Apple auth uses an **App Store Connect API

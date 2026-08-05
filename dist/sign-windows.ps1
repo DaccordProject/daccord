@@ -1,0 +1,154 @@
+<#
+.SYNOPSIS
+  Authenticode-signs Windows release binaries (the app .exe, its DLLs and the
+  Inno Setup installer) with a PFX/PKCS#12 certificate supplied through the
+  environment.
+
+.DESCRIPTION
+  Called by .github/workflows/release.yml. Everything is driven by env vars so
+  no secret ever appears on a command line (and therefore never in a log):
+
+    WINDOWS_CERT_PFX_BASE64   base64 of the code-signing .pfx      (required)
+    WINDOWS_CERT_PASSWORD     password protecting that .pfx        (optional)
+    WINDOWS_TIMESTAMP_URL     RFC-3161 timestamp server            (optional,
+                              defaults to http://timestamp.digicert.com)
+
+  **Never fails the release.** If WINDOWS_CERT_PFX_BASE64 is unset the script
+  prints a warning and exits 0, leaving the artifacts unsigned exactly as they
+  were before signing existed. The workflow additionally marks the signing steps
+  `continue-on-error: true`, so even a hard signing failure (expired cert,
+  timestamp server down) degrades to an unsigned-but-published release rather
+  than a broken tag.
+
+  Timestamping is not optional: without it every signature stops validating the
+  day the certificate expires. The timestamp server is the flakiest part of the
+  process, so it is retried a few times before giving up.
+
+.PARAMETER Path
+  One or more files to sign. Wildcards are allowed
+  (e.g. `build\windows\x64\runner\Release\*.dll`). Files that already carry a
+  valid signature (bundled, vendor-signed DLLs) are left alone.
+
+.EXAMPLE
+  ./dist/sign-windows.ps1 build/windows/x64/runner/Release/daccord.exe
+#>
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
+    [string[]]$Path
+)
+
+$ErrorActionPreference = 'Stop'
+# PowerShell 7.4+ turns a non-zero exit code from a native command into a
+# terminating error while $ErrorActionPreference is 'Stop'. We want to inspect
+# $LASTEXITCODE ourselves (retry the timestamp, treat `verify` as advisory), so
+# opt out. Harmless on Windows PowerShell 5.1, where the variable is unused.
+$PSNativeCommandUseErrorActionPreference = $false
+
+if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_PFX_BASE64)) {
+    Write-Host "::warning::WINDOWS_CERT_PFX_BASE64 is not set - shipping UNSIGNED Windows binaries."
+    exit 0
+}
+
+$timestampUrl = $env:WINDOWS_TIMESTAMP_URL
+if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
+    $timestampUrl = 'http://timestamp.digicert.com'
+}
+
+# signtool.exe ships with the Windows SDK; its path is version-stamped and the
+# runner image can carry several SDKs at once, so pick the newest x64 build
+# rather than hardcoding a version that a future image bump would break.
+function Find-SignTool {
+    $cmd = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+
+    $roots = @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+        "$env:ProgramFiles\Windows Kits\10\bin"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    $found = foreach ($root in $roots) {
+        Get-ChildItem -Path $root -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' }
+    }
+    # Sort on the parsed SDK version (…\bin\10.0.22621.0\x64\signtool.exe), not
+    # on the string: lexically "10.0.9" beats "10.0.22621".
+    $best = $found | Sort-Object -Property @{ Expression = {
+        $name = $_.Directory.Parent.Name
+        $parsed = $null
+        if ([version]::TryParse($name, [ref]$parsed)) { $parsed } else { [version]'0.0.0.0' }
+    } } -Descending | Select-Object -First 1
+    if (-not $best) { throw "signtool.exe not found (is the Windows SDK installed on this runner?)" }
+    return $best.FullName
+}
+
+# Resolve the requested paths (wildcards included) down to concrete files, and
+# drop anything that is already validly signed so we don't strip a third-party
+# vendor's signature off a prebuilt DLL we merely redistribute.
+$targets = @()
+foreach ($pattern in $Path) {
+    $items = @(Get-Item -Path $pattern -ErrorAction SilentlyContinue)
+    if ($items.Count -eq 0) {
+        Write-Host "::warning::No file matched '$pattern' - nothing to sign for that pattern."
+        continue
+    }
+    foreach ($item in $items) {
+        if ($item.PSIsContainer) { continue }
+        $existing = Get-AuthenticodeSignature -FilePath $item.FullName -ErrorAction SilentlyContinue
+        if ($existing -and $existing.Status -eq 'Valid') {
+            Write-Host "Already signed, skipping: $($item.Name)"
+            continue
+        }
+        $targets += $item.FullName
+    }
+}
+
+if ($targets.Count -eq 0) {
+    Write-Host "::warning::Nothing to sign (all requested files were missing or already signed)."
+    exit 0
+}
+
+$signtool = Find-SignTool
+Write-Host "Using signtool: $signtool"
+
+$pfxPath = Join-Path ([System.IO.Path]::GetTempPath()) ("daccord-codesign-{0}.pfx" -f ([guid]::NewGuid()))
+try {
+    [System.IO.File]::WriteAllBytes(
+        $pfxPath,
+        [System.Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64.Trim())
+    )
+
+    $signArgs = @('sign', '/fd', 'sha256', '/f', $pfxPath)
+    if (-not [string]::IsNullOrEmpty($env:WINDOWS_CERT_PASSWORD)) {
+        # Passed as an argument to signtool only; the value comes from the
+        # environment so it is never written into the workflow file or the log.
+        $signArgs += @('/p', $env:WINDOWS_CERT_PASSWORD)
+    }
+    $signArgs += @('/tr', $timestampUrl, '/td', 'sha256', '/v')
+    $signArgs += $targets
+
+    $maxAttempts = 3
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        & $signtool @signArgs
+        if ($LASTEXITCODE -eq 0) { break }
+        if ($attempt -eq $maxAttempts) {
+            throw "signtool failed after $maxAttempts attempts (exit $LASTEXITCODE)"
+        }
+        $delay = $attempt * 15
+        Write-Host "::warning::signtool attempt $attempt failed (exit $LASTEXITCODE); retrying in ${delay}s - usually a flaky timestamp server."
+        Start-Sleep -Seconds $delay
+    }
+
+    # Verification is informational: /pa fails for a self-signed test cert that
+    # doesn't chain to a trusted root, which is a perfectly valid thing to be
+    # rehearsing the pipeline with. A real CA-issued cert should pass.
+    & $signtool verify /pa /v @targets
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "::warning::signtool verify failed - the signature was applied but does not chain to a trusted root on this machine (expected for a self-signed test certificate)."
+    }
+
+    Write-Host "Signed $($targets.Count) file(s)."
+}
+finally {
+    if (Test-Path $pfxPath) { Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue }
+}
