@@ -177,6 +177,13 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
           ),
           const Divider(height: 24),
           SectionHeader('Camera'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            child: Text(
+              'Quality of your webcam when you turn on video.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+          ),
           _DeviceDropdown(
             devices: _videoInputs,
             loading: _loadingDevices,
@@ -185,7 +192,8 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             onChanged: controller.setVideoInputDevice,
           ),
           ListTile(
-            title: const Text('Resolution'),
+            key: const Key('camera-resolution-dropdown'),
+            title: const Text('Camera resolution'),
             trailing: DropdownButton<int>(
               value: settings.videoResolution,
               underline: const SizedBox.shrink(),
@@ -204,7 +212,8 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             ),
           ),
           ListTile(
-            title: const Text('Frame rate'),
+            key: const Key('camera-fps-dropdown'),
+            title: const Text('Camera frame rate'),
             trailing: DropdownButton<int>(
               value: settings.videoFps,
               underline: const SizedBox.shrink(),
@@ -216,6 +225,70 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
                   DropdownMenuItem(value: fps, child: Text('$fps fps')),
               ],
             ),
+          ),
+          const Divider(height: 24),
+          SectionHeader('Screen share'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            child: Text(
+              'Separate from the camera settings above — these apply when you '
+              'share a screen or window.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+          ),
+          ListTile(
+            key: const Key('screen-share-resolution-dropdown'),
+            title: const Text('Screen share resolution'),
+            subtitle: Text(
+              'Higher resolutions need more upload and CPU.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+            trailing: DropdownButton<int>(
+              value: settings.screenShareResolution,
+              underline: const SizedBox.shrink(),
+              onChanged: (value) {
+                if (value != null) controller.setScreenShareResolution(value);
+              },
+              items: [
+                for (var i = 0;
+                    i < AccordSettings.screenShareResolutionLabels.length;
+                    i++)
+                  DropdownMenuItem(
+                    value: i,
+                    child: Text(AccordSettings.screenShareResolutionLabels[i]),
+                  ),
+              ],
+            ),
+          ),
+          ListTile(
+            key: const Key('screen-share-fps-dropdown'),
+            title: const Text('Screen share frame rate'),
+            subtitle: Text(
+              '60 fps for games and video; 30 or 15 is plenty for slides.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+            trailing: DropdownButton<int>(
+              value: settings.screenShareFps,
+              underline: const SizedBox.shrink(),
+              onChanged: (value) {
+                if (value != null) controller.setScreenShareFps(value);
+              },
+              items: [
+                for (final fps in AccordSettings.screenShareFpsOptions)
+                  DropdownMenuItem(value: fps, child: Text('$fps fps')),
+              ],
+            ),
+          ),
+          SwitchListTile(
+            key: const Key('screen-share-motion-switch'),
+            title: const Text('Prioritise smooth motion'),
+            subtitle: Text(
+              'Keeps the frame rate up on a slow connection by softening the '
+              'picture. Turn off to keep text sharp instead.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+            value: settings.screenShareMotionPriority,
+            onChanged: controller.setScreenShareMotionPriority,
           ),
         ],
       ),

@@ -120,6 +120,126 @@ void main() {
     });
   });
 
+  group('AccordSettings screen-share quality', () {
+    test('defaults are motion-friendly and independent of the camera', () {
+      const settings = AccordSettings();
+      // Camera stays where it was: 720p30.
+      expect(settings.videoDimensions, (1280, 720));
+      expect(settings.videoFps, 30);
+      // Screen share gets its own, 60 fps ladder.
+      expect(settings.screenShareResolution, 0);
+      expect(settings.screenShareDimensions, (1280, 720));
+      expect(settings.screenShareFps, 60);
+      expect(settings.screenShareMotionPriority, isTrue);
+    });
+
+    test('installs saved before the setting existed get the new defaults, '
+        'not the camera values', () {
+      // A pre-#151 settings blob: camera tuned down, no screen-share keys.
+      final settings = AccordSettings.fromJson(const {
+        'videoResolution': 0,
+        'videoFps': 15,
+      });
+      expect(settings.videoResolution, 0);
+      expect(settings.videoFps, 15);
+      expect(
+        settings.screenShareResolution,
+        AccordSettings.defaultScreenShareResolution,
+      );
+      expect(settings.screenShareFps, AccordSettings.defaultScreenShareFps);
+      expect(settings.screenShareMotionPriority, isTrue);
+    });
+
+    test('round-trips through toJson/fromJson', () {
+      const settings = AccordSettings(
+        screenShareResolution: 2,
+        screenShareFps: 30,
+        screenShareMotionPriority: false,
+      );
+      final restored = AccordSettings.fromJson(settings.toJson());
+      expect(restored.screenShareResolution, 2);
+      expect(restored.screenShareFps, 30);
+      expect(restored.screenShareMotionPriority, isFalse);
+    });
+
+    test('an out-of-range persisted resolution is clamped', () {
+      expect(
+        AccordSettings.fromJson(const {
+          'screenShareResolution': 99,
+        }).screenShareResolution,
+        AccordSettings.screenShareResolutionLabels.length - 1,
+      );
+      expect(
+        AccordSettings.fromJson(const {
+          'screenShareResolution': -3,
+        }).screenShareResolution,
+        0,
+      );
+    });
+
+    test('an unsupported persisted frame rate falls back to the default', () {
+      expect(
+        AccordSettings.fromJson(const {'screenShareFps': 7}).screenShareFps,
+        AccordSettings.defaultScreenShareFps,
+      );
+      expect(
+        AccordSettings.fromJson(const {'screenShareFps': 30}).screenShareFps,
+        30,
+      );
+    });
+
+    test('dimensions follow the resolution index', () {
+      expect(
+        const AccordSettings(screenShareResolution: 0).screenShareDimensions,
+        (1280, 720),
+      );
+      expect(
+        const AccordSettings(screenShareResolution: 1).screenShareDimensions,
+        (1920, 1080),
+      );
+      expect(
+        const AccordSettings(screenShareResolution: 2).screenShareDimensions,
+        (2560, 1440),
+      );
+    });
+
+    test('bitrate ceilings sit in the live-streaming range for 60 fps', () {
+      const p720 = AccordSettings(screenShareResolution: 0);
+      const p1080 = AccordSettings(screenShareResolution: 1);
+      const p1440 = AccordSettings(screenShareResolution: 2);
+      expect(p720.screenShareBitrate, 3000000);
+      expect(p1080.screenShareBitrate, 6000000);
+      expect(p1440.screenShareBitrate, 9000000);
+      // And well clear of the camera presets they used to inherit.
+      expect(p720.screenShareBitrate, greaterThan(p720.videoBitrate));
+    });
+
+    test('bitrate scales down sub-linearly with frame rate', () {
+      const base = AccordSettings(screenShareResolution: 0);
+      const at30 = AccordSettings(screenShareResolution: 0, screenShareFps: 30);
+      const at15 = AccordSettings(screenShareResolution: 0, screenShareFps: 15);
+      expect(at30.screenShareBitrate, 2100000);
+      expect(at15.screenShareBitrate, 1500000);
+      // Halving fps must not halve the budget.
+      expect(at30.screenShareBitrate, greaterThan(base.screenShareBitrate ~/ 2));
+    });
+
+    test('copyWith updates the screen-share fields independently', () {
+      const base = AccordSettings();
+      final next = base.copyWith(
+        screenShareResolution: 1,
+        screenShareFps: 30,
+        screenShareMotionPriority: false,
+      );
+      expect(next.screenShareResolution, 1);
+      expect(next.screenShareFps, 30);
+      expect(next.screenShareMotionPriority, isFalse);
+      // Camera untouched.
+      expect(next.videoResolution, base.videoResolution);
+      expect(next.videoFps, base.videoFps);
+    });
+  });
+
   group('AccordSettings themePreset parsing', () {
     test(
       'a null themePreset falls back to dark via AppThemePreset.fromName',

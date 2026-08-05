@@ -274,6 +274,55 @@ void main() {
     });
   });
 
+  group('screen-share quality settings', () {
+    test('resolution clamps to the available options', () {
+      final c = makeContainer();
+      controllerOf(c).setScreenShareResolution(99);
+      expect(
+        stateOf(c).screenShareResolution,
+        AccordSettings.screenShareResolutionLabels.length - 1,
+      );
+      controllerOf(c).setScreenShareResolution(-1);
+      expect(stateOf(c).screenShareResolution, 0);
+    });
+
+    test('an unsupported frame rate is ignored', () {
+      final c = makeContainer();
+      controllerOf(c).setScreenShareFps(24);
+      expect(stateOf(c).screenShareFps, AccordSettings.defaultScreenShareFps);
+      controllerOf(c).setScreenShareFps(15);
+      expect(stateOf(c).screenShareFps, 15);
+    });
+
+    test('the selection survives a controller rebuild', () {
+      final c1 = makeContainer();
+      controllerOf(c1)
+        ..setScreenShareResolution(1)
+        ..setScreenShareFps(30)
+        ..setScreenShareMotionPriority(false);
+
+      final s = stateOf(makeContainer());
+      expect(s.screenShareResolution, 1);
+      expect(s.screenShareFps, 30);
+      expect(s.screenShareMotionPriority, isFalse);
+    });
+
+    test('changing screen-share quality leaves the camera alone', () {
+      final c = makeContainer();
+      controllerOf(c)
+        ..setVideoResolution(2)
+        ..setVideoFps(30)
+        ..setScreenShareResolution(0)
+        ..setScreenShareFps(60);
+      final s = stateOf(c);
+      expect(s.videoResolution, 2);
+      expect(s.videoFps, 30);
+      expect(s.videoDimensions, (1920, 1080));
+      expect(s.screenShareDimensions, (1280, 720));
+      expect(s.screenShareFps, 60);
+    });
+  });
+
   group('setSpaceOrder', () {
     test('persists the ordering across a controller rebuild', () {
       final c1 = makeContainer();

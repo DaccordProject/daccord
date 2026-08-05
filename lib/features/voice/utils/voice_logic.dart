@@ -20,6 +20,16 @@ double voiceGain(num volumePercent) =>
 String? normalizeDeviceId(String? deviceId) =>
     (deviceId == null || deviceId.isEmpty) ? null : deviceId;
 
+/// Frame rate used for a screen share when the caller doesn't pass one (the
+/// settings-derived value normally does). Matches
+/// `AccordSettings.defaultScreenShareFps`: an unspecified rate means "the
+/// motion-friendly default", never LiveKit's 15 fps slideshow preset.
+const int defaultScreenShareFps = 60;
+
+/// Send-bitrate ceiling used for a screen share when the caller doesn't pass
+/// one. Matches `AccordSettings.screenShareBitrate` at its 720p60 default.
+const int defaultScreenShareBitrate = 3000000;
+
 /// Whether a `RoomDisconnected` should be treated as an *unintentional* drop
 /// (so the controller proactively reconnects), versus an intentional teardown
 /// (leave / channel-swap / dispose) which must NOT auto-reconnect.

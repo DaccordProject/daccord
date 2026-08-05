@@ -76,6 +76,29 @@ class SettingsController extends _$SettingsController {
     _update(state.copyWith(videoFps: fps));
   }
 
+  /// Sets the screen-share capture resolution index (0 = 720p, 1 = 1080p,
+  /// 2 = 1440p). Independent of the camera resolution.
+  void setScreenShareResolution(int index) => _update(
+    state.copyWith(
+      screenShareResolution: index.clamp(
+        0,
+        AccordSettings.screenShareResolutionLabels.length - 1,
+      ),
+    ),
+  );
+
+  /// Sets the screen-share frame rate; ignored when not one of
+  /// [AccordSettings.screenShareFpsOptions].
+  void setScreenShareFps(int fps) {
+    if (!AccordSettings.screenShareFpsOptions.contains(fps)) return;
+    _update(state.copyWith(screenShareFps: fps));
+  }
+
+  /// Toggles "prioritise smooth motion" for screen share (frame rate protected
+  /// over resolution when the encoder runs short).
+  void setScreenShareMotionPriority(bool enabled) =>
+      _update(state.copyWith(screenShareMotionPriority: enabled));
+
   /// Sets the microphone device ID (empty = system default).
   void setAudioInputDevice(String deviceId) =>
       _update(state.copyWith(audioInputDeviceId: deviceId));

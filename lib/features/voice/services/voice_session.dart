@@ -293,9 +293,18 @@ class VoiceSession {
   /// Enables (or disables) screen sharing. When enabling, [sourceId] selects a
   /// specific screen or window (from the desktop source picker); a null/empty
   /// id falls back to the platform's own capture prompt (web `getDisplayMedia`,
-  /// mobile system capture). [width]/[height]/[fps]/[bitrate] shape the capture
-  /// via [ScreenShareCaptureOptions] so the configured video-quality settings
-  /// apply, mirroring [setCameraEnabled].
+  /// mobile system capture). [width]/[height]/[fps]/[bitrate] shape both the
+  /// capture and the *published encoding* from the screen-share quality
+  /// settings; [motionPriority] decides what the encoder sacrifices first when
+  /// it runs short of CPU/bandwidth.
+  ///
+  /// Capture options alone are not enough: LiveKit computes the send encoding
+  /// from `VideoPublishOptions`, and when we leave that unset it falls back to
+  /// its own screen-share presets, which are picked for slides — 720p caps at
+  /// 800 kbps @ 5 fps, 1080p at 2.5 Mbps @ 15 fps — no matter what we asked the
+  /// capturer for. That mismatch is why shared gameplay ran at a fraction of
+  /// the configured frame rate (issue #151), so we publish the track ourselves
+  /// with an explicit `screenShareEncoding`.
   Future<void> setScreenShareEnabled(
     bool enabled, {
     String? sourceId,
@@ -303,28 +312,111 @@ class VoiceSession {
     int? height,
     int? fps,
     int? bitrate,
+    bool motionPriority = true,
   }) async {
-    ScreenShareCaptureOptions? options;
-    if (enabled) {
-      options = ScreenShareCaptureOptions(
-        sourceId: (sourceId != null && sourceId.isNotEmpty) ? sourceId : null,
-        maxFrameRate: (fps ?? 30).toDouble(),
-        params: (width != null && height != null)
-            ? VideoParameters(
-                dimensions: VideoDimensions(width, height),
-                encoding: VideoEncoding(
-                  maxBitrate: bitrate ?? 8000000,
-                  maxFramerate: fps ?? 30,
-                ),
-              )
-            : VideoParametersPresets.screenShareH1080FPS15,
+    final participant = _room?.localParticipant;
+    if (participant == null) return;
+
+    if (!enabled) {
+      await _guardMedia(
+        'screen share',
+        () => participant.setScreenShareEnabled(false),
       );
+      return;
     }
+
+    // No more hardcoded 15 fps fallback: an unspecified size/rate means the
+    // screen-share defaults (720p60), not a slideshow.
+    final resolvedFps = fps ?? defaultScreenShareFps;
+    final resolvedBitrate = bitrate ?? defaultScreenShareBitrate;
+    final dimensions = (width != null && height != null)
+        ? VideoDimensions(width, height)
+        : const VideoDimensions(1280, 720);
+    final encoding = VideoEncoding(
+      maxBitrate: resolvedBitrate,
+      maxFramerate: resolvedFps,
+    );
+    final options = ScreenShareCaptureOptions(
+      sourceId: (sourceId != null && sourceId.isNotEmpty) ? sourceId : null,
+      maxFrameRate: resolvedFps.toDouble(),
+      params: VideoParameters(dimensions: dimensions, encoding: encoding),
+    );
+
     await _guardMedia(
       'screen share',
-      () => _room?.localParticipant
-          ?.setScreenShareEnabled(enabled, screenShareCaptureOptions: options),
+      () => _publishScreenShare(
+        participant,
+        options: options,
+        encoding: encoding,
+        motionPriority: motionPriority,
+      ),
     );
+  }
+
+  /// Publishes the screen-share track with an explicit encoding.
+  ///
+  /// `LocalParticipant.setScreenShareEnabled` takes no publish options, so we
+  /// create and publish the track directly to pass them. Two exceptions fall
+  /// back to the SDK helper:
+  ///  * iOS, where starting a share means activating the broadcast extension
+  ///    (`BroadcastManager`) — logic that only lives inside the helper;
+  ///  * an already-published share, where the helper's unmute path is correct.
+  ///
+  /// On the fallback paths we still tune the live sender afterwards, which is
+  /// the one knob reachable post-publish.
+  Future<void> _publishScreenShare(
+    LocalParticipant participant, {
+    required ScreenShareCaptureOptions options,
+    required VideoEncoding encoding,
+    required bool motionPriority,
+  }) async {
+    // Games want frames; slides/code want pixels. LiveKit's own default for a
+    // screen-share track is `maintainResolution`, i.e. exactly the wrong half
+    // of that trade for the case this setting exists to fix.
+    final degradation = motionPriority
+        ? DegradationPreference.maintainFramerate
+        : DegradationPreference.maintainResolution;
+
+    final existing = participant.getTrackPublicationBySource(
+      TrackSource.screenShareVideo,
+    );
+    final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+    if (existing != null || isIOS) {
+      await participant.setScreenShareEnabled(
+        true,
+        screenShareCaptureOptions: options,
+      );
+      await _applyScreenShareDegradation(participant, degradation);
+      return;
+    }
+
+    final track = await LocalVideoTrack.createScreenShareTrack(options);
+    await participant.publishVideoTrack(
+      track,
+      publishOptions: VideoPublishOptions(
+        screenShareEncoding: encoding,
+        // One layer, all of the budget. Simulcast would split the bitrate
+        // across a half-resolution duplicate and double the encode cost — a
+        // bad trade when the whole point is sustaining 60 fps at full detail.
+        simulcast: false,
+        degradationPreference: degradation,
+      ),
+    );
+  }
+
+  /// Applies [preference] to the published screen-share sender, for the paths
+  /// where the track was published by the SDK helper rather than by us.
+  Future<void> _applyScreenShareDegradation(
+    LocalParticipant participant,
+    DegradationPreference preference,
+  ) async {
+    final track = participant
+        .getTrackPublicationBySource(TrackSource.screenShareVideo)
+        ?.track;
+    if (track is LocalVideoTrack) {
+      await track.setDegradationPreference(preference);
+    }
   }
 
   /// Switches the active microphone to [deviceId] (empty = system default).

@@ -116,6 +116,11 @@ class VoiceController extends _$VoiceController {
   /// Null whenever we're not connected.
   VoiceSession? get session => _session;
 
+  /// Installs a stand-in session so tests can exercise the media toggles
+  /// (mute/camera/screen share) without a native LiveKit room.
+  @visibleForTesting
+  set debugSession(VoiceSession? session) => _session = session;
+
   /// The local microphone level (0–1), for the mic-activity meter.
   double get localAudioLevel => _session?.localAudioLevel ?? 0;
 
@@ -337,20 +342,25 @@ class VoiceController extends _$VoiceController {
 
   /// Toggles screen sharing. When starting, [sourceId] selects a specific
   /// screen/window chosen from the desktop source picker (null = let the
-  /// platform prompt). Capture quality follows the configured video settings.
+  /// platform prompt).
+  ///
+  /// Quality comes from the *screen-share* settings, not the camera ones: a
+  /// webcam preset (720p30 @ 1.7 Mbps) is the wrong shape for gameplay, which
+  /// is what people actually share (issue #151).
   Future<void> toggleScreenShare({String? sourceId}) async {
     if (!state.isConnected) return;
     final enable = !state.selfStream;
     if (enable) {
       final settings = ref.read(settingsControllerProvider);
-      final (width, height) = settings.videoDimensions;
+      final (width, height) = settings.screenShareDimensions;
       await _session?.setScreenShareEnabled(
         true,
         sourceId: sourceId,
         width: width,
         height: height,
-        fps: settings.videoFps,
-        bitrate: settings.videoBitrate,
+        fps: settings.screenShareFps,
+        bitrate: settings.screenShareBitrate,
+        motionPriority: settings.screenShareMotionPriority,
       );
     } else {
       await _session?.setScreenShareEnabled(false);

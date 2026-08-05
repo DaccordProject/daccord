@@ -24,6 +24,31 @@ class AccordSettings {
   /// Selectable camera frame rates, matching `config_voice.gd` `FPS_OPTIONS`.
   static const List<int> videoFpsOptions = [15, 30, 60];
 
+  /// Screen-share capture resolution labels, indexed by [screenShareResolution].
+  /// A separate ladder from the camera's: 480p is useless for sharing a desktop
+  /// (UI text is unreadable), and sharing benefits from resolutions above what
+  /// a webcam ever produces.
+  static const List<String> screenShareResolutionLabels = [
+    '720p',
+    '1080p',
+    '1440p',
+  ];
+
+  /// Selectable screen-share frame rates. Unlike the camera, this defaults to
+  /// the top of the range — the common case for sharing is gameplay/video,
+  /// where frame rate is what makes it look right.
+  static const List<int> screenShareFpsOptions = [15, 30, 60];
+
+  /// Default screen-share resolution index (720p). 720p60 costs roughly half
+  /// the pixels/second of 1080p60, so it is the setting most machines and
+  /// connections can actually sustain at 60 fps; users on better links can move
+  /// up in Voice & Video settings.
+  static const int defaultScreenShareResolution = 0;
+
+  /// Default screen-share frame rate. Motion-friendly by default — see
+  /// [screenShareFps].
+  static const int defaultScreenShareFps = 60;
+
   /// Default port for the local Client MCP server. Mirrors the reference
   /// client's `config_developer.gd` `mcp_port` (39101).
   static const int defaultMcpPort = 39101;
@@ -52,6 +77,9 @@ class AccordSettings {
     this.sfxVolume = 1.0,
     this.videoResolution = 1,
     this.videoFps = 30,
+    this.screenShareResolution = defaultScreenShareResolution,
+    this.screenShareFps = defaultScreenShareFps,
+    this.screenShareMotionPriority = true,
     this.audioInputDeviceId = '',
     this.audioOutputDeviceId = '',
     this.videoInputDeviceId = '',
@@ -130,6 +158,24 @@ class AccordSettings {
 
   /// Camera capture frame rate (one of [videoFpsOptions]).
   final int videoFps;
+
+  /// Screen-share capture resolution index into [screenShareResolutionLabels]
+  /// (0 = 720p, 1 = 1080p, 2 = 1440p). Independent of [videoResolution]: a
+  /// webcam and a shared game screen have nothing in common as encoder input.
+  final int screenShareResolution;
+
+  /// Screen-share capture frame rate (one of [screenShareFpsOptions]).
+  /// Defaults to 60 — screen share is overwhelmingly used for games and video,
+  /// and 30 fps is what made game streams look choppy (issue #151).
+  final int screenShareFps;
+
+  /// Whether the screen-share encoder should protect frame rate over
+  /// resolution when it runs short of CPU or bandwidth (WebRTC's
+  /// `maintainFramerate` degradation preference, plus a single non-simulcast
+  /// layer). On = smooth motion for games/video; off = keeps every pixel sharp
+  /// and drops frames instead, which is what you want for slides, code or
+  /// anything mostly-static. Mirrors Discord's smoothness-vs-clarity choice.
+  final bool screenShareMotionPriority;
 
   /// Selected microphone device ID (empty = system default). Applied to the
   /// LiveKit audio capture options. Mirrors `config_voice.gd` `input_device`.
@@ -298,6 +344,9 @@ class AccordSettings {
     double? sfxVolume,
     int? videoResolution,
     int? videoFps,
+    int? screenShareResolution,
+    int? screenShareFps,
+    bool? screenShareMotionPriority,
     String? audioInputDeviceId,
     String? audioOutputDeviceId,
     String? videoInputDeviceId,
@@ -346,6 +395,10 @@ class AccordSettings {
       sfxVolume: sfxVolume ?? this.sfxVolume,
       videoResolution: videoResolution ?? this.videoResolution,
       videoFps: videoFps ?? this.videoFps,
+      screenShareResolution: screenShareResolution ?? this.screenShareResolution,
+      screenShareFps: screenShareFps ?? this.screenShareFps,
+      screenShareMotionPriority:
+          screenShareMotionPriority ?? this.screenShareMotionPriority,
       audioInputDeviceId: audioInputDeviceId ?? this.audioInputDeviceId,
       audioOutputDeviceId: audioOutputDeviceId ?? this.audioOutputDeviceId,
       videoInputDeviceId: videoInputDeviceId ?? this.videoInputDeviceId,
@@ -424,6 +477,19 @@ class AccordSettings {
     }
   }
 
+  /// Screen-share capture dimensions (width, height) for the selected
+  /// [screenShareResolution].
+  (int, int) get screenShareDimensions {
+    switch (screenShareResolution) {
+      case 1:
+        return (1920, 1080);
+      case 2:
+        return (2560, 1440);
+      default:
+        return (1280, 720);
+    }
+  }
+
   /// Voice-activity speaking threshold (0–1, compared against the LiveKit
   /// audio level) derived from [inputSensitivity]. Logarithmic mapping matching
   /// `config_voice.gd`: 0% → 0.1, 50% → ~0.003, 100% → 0.0001.
@@ -443,6 +509,42 @@ class AccordSettings {
     }
   }
 
+  /// Suggested max send bitrate (bits/sec) for the current screen-share
+  /// resolution + frame rate.
+  ///
+  /// Deliberately far above [videoBitrate]. Those are LiveKit's *camera*
+  /// presets (720p → 1.7 Mbps), tuned for a soft, low-detail, slow-moving
+  /// talking head; gameplay is full-frame motion with hard edges, and the same
+  /// bitrate turns it into a blocky smear. LiveKit's built-in *screen-share*
+  /// presets are no help either — they assume slides and IDEs, so they cap
+  /// 720p at 800 kbps @ 5 fps and 1080p at 2.5 Mbps @ 15 fps.
+  ///
+  /// The 60 fps numbers below are the low end of what the live-streaming
+  /// industry publishes for high-motion content: Twitch recommends 3,000–4,500
+  /// kbps for 720p60 and 4,500–6,000 kbps for 1080p60; YouTube recommends
+  /// 4,500 and 7,500 kbps respectively; Discord's screen-share tiers span
+  /// roughly 2.5–8 Mbps over the same resolutions. We take the bottom of those
+  /// ranges rather than the top because WebRTC encodes live (no lookahead or
+  /// two-pass to spend the extra bits well) and the SFU has to relay the stream
+  /// to every viewer in the channel.
+  ///
+  /// Frame rate scales the ceiling sub-linearly — halving the frame rate does
+  /// not halve the bits needed, since consecutive frames are then less
+  /// correlated and each costs more.
+  int get screenShareBitrate {
+    final base = switch (screenShareResolution) {
+      1 => 6000000, // 1080p60
+      2 => 9000000, // 1440p60
+      _ => 3000000, // 720p60
+    };
+    final scale = screenShareFps <= 15
+        ? 0.5
+        : screenShareFps <= 30
+        ? 0.7
+        : 1.0;
+    return (base * scale).round();
+  }
+
   /// Returns the level set for [channelId], or null when the user hasn't
   /// overridden it (callers fall back to the default mention-only behaviour).
   String? channelNotificationLevel(String channelId) =>
@@ -458,6 +560,9 @@ class AccordSettings {
     'sfxVolume': sfxVolume,
     'videoResolution': videoResolution,
     'videoFps': videoFps,
+    'screenShareResolution': screenShareResolution,
+    'screenShareFps': screenShareFps,
+    'screenShareMotionPriority': screenShareMotionPriority,
     'audioInputDeviceId': audioInputDeviceId,
     'audioOutputDeviceId': audioOutputDeviceId,
     'videoInputDeviceId': videoInputDeviceId,
@@ -509,6 +614,23 @@ class AccordSettings {
       sfxVolume: (json['sfxVolume'] as num?)?.toDouble() ?? 1.0,
       videoResolution: (json['videoResolution'] as num?)?.toInt() ?? 1,
       videoFps: (json['videoFps'] as num?)?.toInt() ?? 30,
+      // Screen-share quality landed after these settings shipped, so existing
+      // installs have no keys here. They fall back to the motion-friendly
+      // defaults rather than inheriting the camera values that made game
+      // streams choppy in the first place (issue #151).
+      screenShareResolution:
+          (json['screenShareResolution'] as num?)?.toInt().clamp(
+            0,
+            screenShareResolutionLabels.length - 1,
+          ) ??
+          defaultScreenShareResolution,
+      screenShareFps: screenShareFpsOptions.contains(
+        (json['screenShareFps'] as num?)?.toInt(),
+      )
+          ? (json['screenShareFps'] as num).toInt()
+          : defaultScreenShareFps,
+      screenShareMotionPriority:
+          json['screenShareMotionPriority'] as bool? ?? true,
       audioInputDeviceId: (json['audioInputDeviceId'] as String?) ?? '',
       audioOutputDeviceId: (json['audioOutputDeviceId'] as String?) ?? '',
       videoInputDeviceId: (json['videoInputDeviceId'] as String?) ?? '',
