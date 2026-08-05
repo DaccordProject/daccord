@@ -60,24 +60,18 @@ if ([string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_USER) -or
     exit 0
 }
 
-$timeoutSec = 180
-if (-not [string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_TIMEOUT_SEC)) {
-    # TryParse's out parameter is reset to 0 on failure (not left at the
-    # default), so an unparsable value must be checked and discarded rather
-    # than trusted — otherwise a typo silently collapses the wait to 0s and
-    # the login is reported as failed before the card can ever mount.
-    $parsedTimeoutSec = 0
-    if ([int]::TryParse($env:SIMPLYSIGN_TIMEOUT_SEC, [ref]$parsedTimeoutSec)) {
-        $timeoutSec = $parsedTimeoutSec
-    } else {
-        Write-Warn "SIMPLYSIGN_TIMEOUT_SEC ('$env:SIMPLYSIGN_TIMEOUT_SEC') is not a valid integer - using the default ${timeoutSec}s."
-    }
-}
-
-# TOTP/base32 helpers live in totp.ps1 so they can be unit-tested (see
-# totp.Tests.ps1) independently of the GUI automation below, which needs a
-# real SimplySign install and an interactive desktop to run at all.
+# Timeout parsing and TOTP/base32 helpers live in dist/lib so they can be
+# unit-tested (see dist/lib/*.Tests.ps1) independently of the GUI automation
+# below, which needs a real SimplySign install and an interactive desktop to
+# run at all.
+. "$PSScriptRoot/lib/timeout.ps1"
 . "$PSScriptRoot/lib/totp.ps1"
+
+$timeoutResult = Resolve-TimeoutSeconds -Value $env:SIMPLYSIGN_TIMEOUT_SEC -Default 180
+$timeoutSec = $timeoutResult.Seconds
+if ($timeoutResult.UsedDefault) {
+    Write-Warn "SIMPLYSIGN_TIMEOUT_SEC ('$env:SIMPLYSIGN_TIMEOUT_SEC') is not a valid positive integer - using the default ${timeoutSec}s."
+}
 
 # --- SimplySign Desktop ----------------------------------------------------
 function Find-SimplySign {

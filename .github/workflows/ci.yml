@@ -112,8 +112,8 @@ jobs:
   powershell-tests:
     name: PowerShell unit tests
     runs-on: ubuntu-latest
-    # Only the pure TOTP/base32 math (dist/lib/totp.ps1) is covered here — the
-    # GUI automation in dist/simplysign-login.ps1 needs a real SimplySign
+    # Only the pure, dependency-free helpers under dist/lib are covered here —
+    # the GUI automation in dist/simplysign-login.ps1 needs a real SimplySign
     # install and an interactive desktop, so it isn't exercised in CI.
     steps:
       - name: Checkout
@@ -128,7 +128,9 @@ jobs:
         run: |
           Import-Module Pester -MinimumVersion 5.0.0
           $config = New-PesterConfiguration
-          $config.Run.Path = 'dist/lib/totp.Tests.ps1'
+          # Discovers every *.Tests.ps1 under dist/lib, so new lib modules get
+          # CI coverage automatically instead of needing this path updated.
+          $config.Run.Path = 'dist/lib'
           $config.Run.Exit = $true
           $config.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $config
