@@ -5,6 +5,7 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,10 +60,10 @@ class _FakeAccordAuth extends AccordAuth {
 class _DmConnectedVoiceController extends VoiceController {
   @override
   VoiceConnection build() => const VoiceConnection(
-        channelId: 'dm-channel',
-        spaceId: null,
-        serverKey: 'server-key',
-      );
+    channelId: 'dm-channel',
+    spaceId: null,
+    serverKey: 'server-key',
+  );
 }
 
 /// A [VoiceController] connected to a space (non-DM) voice channel, for
@@ -70,10 +71,10 @@ class _DmConnectedVoiceController extends VoiceController {
 class _SpaceConnectedVoiceController extends VoiceController {
   @override
   VoiceConnection build() => const VoiceConnection(
-        channelId: 'space-channel',
-        spaceId: 'space-1',
-        serverKey: 'server-key',
-      );
+    channelId: 'space-channel',
+    spaceId: 'space-1',
+    serverKey: 'server-key',
+  );
 }
 
 Future<void> pump() => Future<void>.delayed(Duration.zero);
@@ -86,9 +87,32 @@ void main() {
   // constructs an AudioPlayer that needs ServicesBinding.instance.
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // ...and that AudioPlayer talks to audioplayers' platform channels, which
+  // have no implementation under `flutter test`. The resulting
+  // MissingPluginException surfaces asynchronously — often after the test
+  // body has finished, failing the run with "failed after it had already
+  // completed" — so answer the channels with a no-op instead.
+  const audioChannels = [
+    MethodChannel('xyz.luan/audioplayers.global'),
+    MethodChannel('xyz.luan/audioplayers'),
+  ];
+
+  setUp(() {
+    for (final channel in audioChannels) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => null);
+    }
+  });
+
+  tearDown(() {
+    for (final channel in audioChannels) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    }
+  });
+
   group('mid-call self-state broadcast (#135)', () {
-    test('setMute broadcasts over a DM call, where spaceId is null',
-        () async {
+    test('setMute broadcasts over a DM call, where spaceId is null', () async {
       final factory = _FakeConnectionFactory();
       final client = AccordClient(
         baseUrl: 'https://test.example',
@@ -102,9 +126,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
-          voiceControllerProvider.overrideWith(
-            _DmConnectedVoiceController.new,
-          ),
+          voiceControllerProvider.overrideWith(_DmConnectedVoiceController.new),
         ],
       );
       addTearDown(container.dispose);
@@ -122,34 +144,36 @@ void main() {
       expect(sent['data']['self_mute'], isTrue);
     });
 
-    test('setMute still carries the space id for a space voice channel',
-        () async {
-      final factory = _FakeConnectionFactory();
-      final client = AccordClient(
-        baseUrl: 'https://test.example',
-        gatewayUrl: 'wss://test.example/ws',
-        connectionFactory: factory.call,
-      );
-      addTearDown(client.dispose);
-      client.login();
-      await pump();
+    test(
+      'setMute still carries the space id for a space voice channel',
+      () async {
+        final factory = _FakeConnectionFactory();
+        final client = AccordClient(
+          baseUrl: 'https://test.example',
+          gatewayUrl: 'wss://test.example/ws',
+          connectionFactory: factory.call,
+        );
+        addTearDown(client.dispose);
+        client.login();
+        await pump();
 
-      final container = ProviderContainer(
-        overrides: [
-          accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
-          voiceControllerProvider.overrideWith(
-            _SpaceConnectedVoiceController.new,
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+        final container = ProviderContainer(
+          overrides: [
+            accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
+            voiceControllerProvider.overrideWith(
+              _SpaceConnectedVoiceController.new,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      container.read(voiceControllerProvider.notifier).setMute(true);
-      await pump();
+        container.read(voiceControllerProvider.notifier).setMute(true);
+        await pump();
 
-      final sent = _lastSent(factory.connection);
-      expect(sent['data']['space_id'], 'space-1');
-      expect(sent['data']['channel_id'], 'space-channel');
-    });
+        final sent = _lastSent(factory.connection);
+        expect(sent['data']['space_id'], 'space-1');
+        expect(sent['data']['channel_id'], 'space-channel');
+      },
+    );
   });
 }
