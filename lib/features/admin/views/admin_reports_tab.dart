@@ -53,8 +53,8 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     final raw = data is List
         ? data
         : (data is Map && data['reports'] is List
-            ? data['reports'] as List
-            : const []);
+              ? data['reports'] as List
+              : const []);
     return [for (final e in raw) _asMap(e)];
   }
 
@@ -70,10 +70,10 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     String? firstError;
     for (final space in spaces) {
       if (space.id.isEmpty) continue;
-      final result = await client.reports.list(space.id, query: {
-        if (_status != null) 'status': _status,
-        'limit': 25,
-      });
+      final result = await client.reports.list(
+        space.id,
+        query: {if (_status != null) 'status': _status, 'limit': 25},
+      );
       if (!result.ok) {
         firstError ??= result.error?.toString();
         continue;
@@ -84,8 +84,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
       }
     }
     if (!mounted) return;
-    merged.sort((a, b) => (b['created_at']?.toString() ?? '')
-        .compareTo(a['created_at']?.toString() ?? ''));
+    merged.sort(
+      (a, b) => (b['created_at']?.toString() ?? '').compareTo(
+        a['created_at']?.toString() ?? '',
+      ),
+    );
     setState(() {
       _loading = false;
       _reports
@@ -108,8 +111,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     return null;
   }
 
-  Future<void> _resolve(Map<String, dynamic> r, String status,
-      {String? actionTaken}) async {
+  Future<void> _resolve(
+    Map<String, dynamic> r,
+    String status, {
+    String? actionTaken,
+  }) async {
     final client = _client;
     final spaceId = r['_space_id']?.toString();
     final id = r['id']?.toString();
@@ -141,8 +147,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     final spaceId = r['_space_id']?.toString();
     final userId = _reportedUserId(r);
     if (client == null || spaceId == null || userId == null) return;
-    if (!await _confirm('Kick member',
-        'Kick the reported member and action this report?', 'Kick')) {
+    if (!await _confirm(
+      'Kick member',
+      'Kick the reported member and action this report?',
+      'Kick',
+    )) {
       return;
     }
     setState(() => _busy = true);
@@ -161,8 +170,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     final spaceId = r['_space_id']?.toString();
     final userId = _reportedUserId(r);
     if (client == null || spaceId == null || userId == null) return;
-    if (!await _confirm('Ban member',
-        'Ban the reported member and action this report?', 'Ban')) {
+    if (!await _confirm(
+      'Ban member',
+      'Ban the reported member and action this report?',
+      'Ban',
+    )) {
       return;
     }
     setState(() => _busy = true);
@@ -181,8 +193,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     final channelId = r['channel_id']?.toString();
     final messageId = r['target_id']?.toString();
     if (client == null || channelId == null || messageId == null) return;
-    if (!await _confirm('Delete message',
-        'Delete the reported message and action this report?', 'Delete')) {
+    if (!await _confirm(
+      'Delete message',
+      'Delete the reported message and action this report?',
+      'Delete',
+    )) {
       return;
     }
     setState(() => _busy = true);
@@ -190,8 +205,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.errorOr('Failed to delete message'));
+      setState(() => _error = result.errorOr('Failed to delete message'));
       return;
     }
     await _resolve(r, 'actioned', actionTaken: 'delete_message');
@@ -281,7 +295,10 @@ class _ReportRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final category = report['category']?.toString() ?? 'report';
+    final category = AccordReportCategory.labelFor(
+      report['category']?.toString(),
+    );
+    final categoryLabel = category.isEmpty ? 'report' : category;
     final description = report['description']?.toString() ?? '';
     final targetType = report['target_type']?.toString() ?? '';
     final channelId = report['channel_id']?.toString();
@@ -295,10 +312,12 @@ class _ReportRow extends StatelessWidget {
           children: [
             Icon(Icons.flag_outlined, size: 16, color: colors.red),
             const SizedBox(width: 6),
-            Text(category, style: theme.textTheme.titleSmall),
+            Text(categoryLabel, style: theme.textTheme.titleSmall),
             const SizedBox(width: 6),
-            Text('· $targetType',
-                style: theme.textTheme.bodySmall!.copyWith(color: colors.gray)),
+            Text(
+              '· $targetType',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
           ],
         ),
         if (description.isNotEmpty) ...[

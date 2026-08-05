@@ -12,17 +12,6 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Report categories offered in the report dialog. Mirrors the reference
-/// client's `report_dialog` reasons.
-const _reportCategories = <({String value, String label})>[
-  (value: 'spam', label: 'Spam'),
-  (value: 'harassment', label: 'Harassment'),
-  (value: 'hate_speech', label: 'Hate speech'),
-  (value: 'nsfw', label: 'Inappropriate content'),
-  (value: 'violence', label: 'Violence or threats'),
-  (value: 'other', label: 'Other'),
-];
-
 /// Opens a dialog to report [targetType]/[targetId] (e.g. a message or member)
 /// to the space's moderators.
 Future<void> showReportDialog(
@@ -61,11 +50,56 @@ class _ReportDialog extends ConsumerStatefulWidget {
 }
 
 class _ReportDialogState extends ConsumerState<_ReportDialog> {
-  String _category = _reportCategories.first.value;
+  /// Offered reasons. Seeded from accordkit's canonical list, then replaced by
+  /// whatever `GET /reports/categories` reports so a server that adds or drops
+  /// a category doesn't leave us offering reasons it will reject.
+  List<({String value, String label})> _categories = [
+    for (final c in AccordReportCategory.values)
+      (value: c.value, label: c.label),
+  ];
+  String? _category;
   final _description = TextEditingController();
   bool _busy = false;
   String? _error;
   bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
+    if (client == null) return;
+    final result = await client.reports.categories();
+    if (!mounted || !result.ok) return;
+    final raw = result.data;
+    final list = raw is Map ? raw['data'] : raw;
+    if (list is! List) return;
+    final parsed = <({String value, String label})>[];
+    for (final entry in list) {
+      if (entry is! Map) continue;
+      final value = entry['value']?.toString();
+      if (value == null || value.isEmpty) continue;
+      final label = entry['label']?.toString();
+      parsed.add((
+        value: value,
+        label: (label == null || label.isEmpty)
+            ? AccordReportCategory.labelFor(value)
+            : label,
+      ));
+    }
+    if (parsed.isEmpty) return;
+    setState(() {
+      _categories = parsed;
+      if (!parsed.any((c) => c.value == _category)) _category = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -80,6 +114,11 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
       ),
     );
     if (client == null) return;
+    final category = _category;
+    if (category == null) {
+      setState(() => _error = 'Choose a reason for this report.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -87,7 +126,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     final result = await client.reports.create(widget.spaceId, {
       'target_type': widget.targetType,
       'target_id': widget.targetId,
-      'category': _category,
+      'category': category,
       if (widget.channelId != null) 'channel_id': widget.channelId,
       if (_description.text.trim().isNotEmpty)
         'description': _description.text.trim(),
@@ -150,13 +189,15 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _category,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Reason',
+                        hintText: 'Choose a reason',
                         isDense: true,
                         border: OutlineInputBorder(),
                       ),
                       items: [
-                        for (final c in _reportCategories)
+                        for (final c in _categories)
                           DropdownMenuItem(
                             value: c.value,
                             child: Text(c.label),
@@ -194,7 +235,9 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                         ),
                         const SizedBox(width: 8),
                         FilledButton(
-                          onPressed: _busy ? null : _submit,
+                          onPressed: _busy || _category == null
+                              ? null
+                              : _submit,
                           child: const Text('Submit report'),
                         ),
                       ],
@@ -513,7 +556,10 @@ class _ReportRow extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final id = report['id']?.toString() ?? '';
-    final category = report['category']?.toString() ?? 'report';
+    final category = AccordReportCategory.labelFor(
+      report['category']?.toString(),
+    );
+    final categoryLabel = category.isEmpty ? 'report' : category;
     final description = report['description']?.toString() ?? '';
     final targetType = report['target_type']?.toString() ?? '';
     final channelId = report['channel_id']?.toString();
@@ -527,7 +573,7 @@ class _ReportRow extends StatelessWidget {
           children: [
             Icon(Icons.flag_outlined, size: 16, color: colors.red),
             const SizedBox(width: 6),
-            Text(category, style: theme.textTheme.titleSmall),
+            Text(categoryLabel, style: theme.textTheme.titleSmall),
             const SizedBox(width: 6),
             Text(
               '· $targetType',

@@ -5,6 +5,12 @@ import '../rest_result.dart';
 class ReportsApi extends EndpointBase {
   ReportsApi(super.rest);
 
+  /// Lists the report categories this server accepts, as `{value, label}`
+  /// entries in the order clients should offer them. Unauthenticated.
+  Future<RestResult> categories() {
+    return rest.makeRequest('GET', '/reports/categories');
+  }
+
   /// Creates a report. [data] should include `target_type`, `target_id`,
   /// `category`, and optionally `channel_id`/`description`.
   Future<RestResult> create(String spaceId, Map<String, dynamic> data) {

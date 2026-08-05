@@ -69,6 +69,7 @@ export 'src/models/permission_overwrite.dart';
 export 'src/models/plugin_manifest.dart';
 export 'src/models/presence.dart';
 export 'src/models/reaction.dart';
+export 'src/models/report_category.dart';
 export 'src/models/role.dart';
 export 'src/models/sound.dart';
 export 'src/models/space.dart';
