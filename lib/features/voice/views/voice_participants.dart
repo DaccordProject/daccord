@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -39,6 +40,16 @@ class VoiceParticipantList extends ConsumerWidget {
     final speaking = ref.watch(voiceControllerProvider.select((v) =>
         v.channelId == channelId ? v.speakingUserIds : const <String>{}));
 
+    // AFK, for #112. Remote members are read from presence (`idle`) — the
+    // Accord voice state carries no AFK field, so an idle presence is the only
+    // away signal that crosses the wire. Our own row uses the voice
+    // controller's flag directly so it flips the instant we go away, without
+    // waiting on the presence round-trip.
+    final presences = ref.watch(activePresencesProvider);
+    final selfAfk = ref.watch(voiceControllerProvider
+        .select((v) => v.channelId == channelId && v.isAfk));
+    final selfUserId = ref.watchUserId();
+
     final members = spaceId == null
         ? null
         : ref.watch(accordMembersControllerProvider(spaceId!));
@@ -65,6 +76,8 @@ class VoiceParticipantList extends ConsumerWidget {
             roles: roles,
             cdnUrl: cdnUrl,
             speaking: speaking.contains(vs.userId),
+            afk: (selfAfk && vs.userId == selfUserId) ||
+                accordPresenceStatus(presences, vs.userId) == 'idle',
             indent: indent,
           ),
       ],
@@ -90,6 +103,7 @@ class _ParticipantRow extends StatelessWidget {
     required this.roles,
     required this.cdnUrl,
     required this.speaking,
+    required this.afk,
     required this.indent,
   });
 
@@ -99,6 +113,9 @@ class _ParticipantRow extends StatelessWidget {
   final List<AccordRole> roles;
   final String? cdnUrl;
   final bool speaking;
+
+  /// Away from keyboard: dims the row and adds a moon badge.
+  final bool afk;
   final double indent;
 
   @override
@@ -122,22 +139,27 @@ class _ParticipantRow extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(indent, 1, 8, 1),
       child: Row(
         children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: speaking
-                  ? Border.all(color: colors.green, width: 2)
-                  : null,
-            ),
-            padding: const EdgeInsets.all(1),
-            child: AccordMemberAvatar(
-              avatarUrl: avatarUrl,
-              initial: initial,
-              radius: 9,
-              backgroundColor: avatarBg,
-              initialStyle: const TextStyle(fontSize: 9),
+          Opacity(
+            // Dimmed avatar for an away member, matching how every other chat
+            // client signals "present but not here".
+            opacity: afk ? 0.4 : 1,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: speaking
+                    ? Border.all(color: colors.green, width: 2)
+                    : null,
+              ),
+              padding: const EdgeInsets.all(1),
+              child: AccordMemberAvatar(
+                avatarUrl: avatarUrl,
+                initial: initial,
+                radius: 9,
+                backgroundColor: avatarBg,
+                initialStyle: const TextStyle(fontSize: 9),
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -145,9 +167,24 @@ class _ParticipantRow extends StatelessWidget {
             child: Text(
               name,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall!.copyWith(color: nameColor),
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: afk ? nameColor.withValues(alpha: 0.5) : nameColor,
+              ),
             ),
           ),
+          if (afk)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Tooltip(
+                message: 'Away',
+                child: Icon(
+                  Icons.nightlight_round,
+                  size: 11,
+                  color: colors.gray,
+                  key: const Key('voice-participant-afk'),
+                ),
+              ),
+            ),
           ..._flags(colors),
         ],
       ),

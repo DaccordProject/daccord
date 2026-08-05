@@ -3,6 +3,7 @@ import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/features/voice/views/mic_level_meter.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -59,6 +60,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    final theme = Theme.of(context);
     final settings = ref.watch(settingsControllerProvider);
     final controller = ref.read(settingsControllerProvider.notifier);
     final connected = ref.watch(
@@ -128,6 +130,50 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
             label: 'Output volume',
             value: settings.outputVolume,
             onChanged: controller.setOutputVolume,
+          ),
+          const Divider(height: 24),
+          SectionHeader('Away'),
+          ListTile(
+            title: const Text('Mark me away after'),
+            subtitle: Text(
+              'While in a voice channel, with no input, mic activity or window '
+              'focus. Shown to other members as an idle status.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+            trailing: DropdownButton<int>(
+              key: const Key('afk-timeout-dropdown'),
+              value: afkTimeoutOptionsMinutes.contains(
+                settings.voiceAfkTimeoutMinutes,
+              )
+                  ? settings.voiceAfkTimeoutMinutes
+                  : defaultAfkTimeoutMinutes,
+              underline: const SizedBox.shrink(),
+              onChanged: (value) {
+                if (value != null) {
+                  controller.setVoiceAfkTimeoutMinutes(value);
+                }
+              },
+              items: [
+                for (final minutes in afkTimeoutOptionsMinutes)
+                  DropdownMenuItem(
+                    value: minutes,
+                    child: Text(afkTimeoutLabel(minutes)),
+                  ),
+              ],
+            ),
+          ),
+          SwitchListTile(
+            key: const Key('afk-auto-move-switch'),
+            title: const Text('Move me to the AFK channel'),
+            subtitle: Text(
+              "When the space has one set. You'll be moved back by rejoining "
+              'the channel you want.',
+              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
+            ),
+            value: settings.voiceAfkAutoMove,
+            onChanged: settings.voiceAfkTimeoutMinutes > 0
+                ? controller.setVoiceAfkAutoMove
+                : null,
           ),
           const Divider(height: 24),
           SectionHeader('Camera'),

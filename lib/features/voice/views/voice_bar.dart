@@ -226,6 +226,11 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
     String? channelName,
   ) {
     if (voice.error != null) return (voice.error!, colors.red);
+    // Tell the user *why* they've dimmed out in the participant list — an AFK
+    // badge nobody explains is just a mystery.
+    if (voice.isAfk && voice.sessionState == VoiceSessionState.connected) {
+      return ('Away — ${channelName ?? 'Voice'}', colors.yellow);
+    }
     switch (voice.sessionState) {
       case VoiceSessionState.connected:
         return (channelName ?? 'Voice connected', colors.green);

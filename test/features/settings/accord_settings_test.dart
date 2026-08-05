@@ -1,5 +1,6 @@
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
+import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,6 +55,22 @@ void main() {
       expect(settings.recentEmoji, isEmpty);
       expect(settings.masterServerUrl, AccordSettings.defaultMasterServerUrl);
       expect(settings.convertEmoticons, isTrue);
+    });
+
+    test('voice AFK settings default on, at the documented timeout', () {
+      final settings = AccordSettings.fromJson(const {});
+      expect(settings.voiceAfkTimeoutMinutes, defaultAfkTimeoutMinutes);
+      expect(settings.voiceAfkAutoMove, isTrue);
+    });
+
+    test('voice AFK settings round-trip', () {
+      const settings = AccordSettings(
+        voiceAfkTimeoutMinutes: 0,
+        voiceAfkAutoMove: false,
+      );
+      final restored = AccordSettings.fromJson(settings.toJson());
+      expect(restored.voiceAfkTimeoutMinutes, 0);
+      expect(restored.voiceAfkAutoMove, isFalse);
     });
 
     test('convertEmoticons round-trips when turned off', () {

@@ -2,12 +2,16 @@ import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
+import 'package:bonfire/features/voice/services/afk_monitor.dart';
 import 'package:bonfire/features/voice/services/voice_session.dart';
+import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/features/voice/utils/voice_logic.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -28,6 +32,7 @@ class VoiceConnection {
     this.selfVideo = false,
     this.selfStream = false,
     this.speakingUserIds = const {},
+    this.isAfk = false,
     this.error,
     this.tick = 0,
   });
@@ -51,6 +56,12 @@ class VoiceConnection {
   final bool selfStream;
   final Set<String> speakingUserIds;
 
+  /// Whether *we* have been idle long enough to count as away. Purely a
+  /// client-side determination (see `AfkMonitor`): the Accord voice state has
+  /// no AFK field, so this is surfaced to other members by flipping our
+  /// presence to `idle`.
+  final bool isAfk;
+
   /// Transient error message for the voice bar (auto-dismissed by the UI).
   final String? error;
 
@@ -71,6 +82,7 @@ class VoiceConnection {
     bool? selfVideo,
     bool? selfStream,
     Set<String>? speakingUserIds,
+    bool? isAfk,
     String? error,
     bool clearError = false,
     int? tick,
@@ -85,6 +97,7 @@ class VoiceConnection {
       selfVideo: selfVideo ?? this.selfVideo,
       selfStream: selfStream ?? this.selfStream,
       speakingUserIds: speakingUserIds ?? this.speakingUserIds,
+      isAfk: isAfk ?? this.isAfk,
       error: clearError ? null : (error ?? this.error),
       tick: tick ?? this.tick,
     );
@@ -109,11 +122,35 @@ class VoiceController extends _$VoiceController {
   /// Whether the local mic is currently registering as speaking.
   bool get localIsSpeaking => _session?.localIsSpeaking ?? false;
 
+  /// Idle detection for the local user. Created lazily so tests that override
+  /// [build] (and so never join) don't install global input hooks.
+  AfkMonitor? _afkMonitor;
+
+  AfkMonitor _ensureAfkMonitor() {
+    final existing = _afkMonitor;
+    if (existing != null) return existing;
+    final monitor = AfkMonitor()
+      ..onAfkChanged = _onAfkChanged
+      ..micActive = _micActive;
+    return _afkMonitor = monitor;
+  }
+
+  /// The presence status we had before AFK flipped us to `idle`, so returning
+  /// restores exactly what the user chose. Null when we didn't touch it.
+  String? _presenceBeforeAfk;
+
+  /// The connection key we published the `idle` status on, so it can be undone
+  /// even after the voice session (and its `serverKey`) has gone away.
+  String? _afkPresenceKey;
+
   @override
   VoiceConnection build() {
     // Push live audio device/volume changes to the active session so the voice
     // settings page takes effect without a reconnect.
     ref.listen(settingsControllerProvider, (prev, next) {
+      if (prev?.voiceAfkTimeoutMinutes != next.voiceAfkTimeoutMinutes) {
+        _syncAfk();
+      }
       final session = _session;
       if (session == null || !state.isConnected) return;
       if (prev?.audioInputDeviceId != next.audioInputDeviceId) {
@@ -130,6 +167,8 @@ class VoiceController extends _$VoiceController {
       }
     });
     ref.onDispose(() {
+      _afkMonitor?.dispose();
+      _afkMonitor = null;
       _session?.dispose();
       _session = null;
     });
@@ -172,8 +211,12 @@ class VoiceController extends _$VoiceController {
   /// Joins the voice [channelId] in [spaceId]. Leaves any current channel
   /// first, fetches LiveKit credentials over REST, then connects the session.
   /// [spaceId] is null for DM/group-DM calls, which have no parent space.
-  Future<void> join(String channelId, String? spaceId) =>
-      _serialize(() => _joinLocked(channelId, spaceId));
+  Future<void> join(String channelId, String? spaceId) async {
+    // Joining is itself activity — never land in a channel already AFK.
+    _ensureAfkMonitor().markActivity();
+    await _serialize(() => _joinLocked(channelId, spaceId));
+    _syncAfk();
+  }
 
   Future<void> _joinLocked(String channelId, String? spaceId) async {
     if (state.channelId == channelId) return;
@@ -234,7 +277,10 @@ class VoiceController extends _$VoiceController {
   }
 
   /// Leaves the current voice channel and tears the session down.
-  Future<void> leave() => _serialize(_leaveLocked);
+  Future<void> leave() async {
+    await _serialize(_leaveLocked);
+    _syncAfk();
+  }
 
   Future<void> _leaveLocked() async {
     final channelId = state.channelId;
@@ -249,6 +295,7 @@ class VoiceController extends _$VoiceController {
   void toggleMute() => setMute(!state.selfMute);
 
   void setMute(bool muted) {
+    _afkMonitor?.markActivity();
     if (!state.isConnected) return;
     _session?.setMicEnabled(!muted);
     state = state.copyWith(selfMute: muted);
@@ -259,6 +306,7 @@ class VoiceController extends _$VoiceController {
   void toggleDeafen() => setDeafen(!state.selfDeaf);
 
   void setDeafen(bool deafened) {
+    _afkMonitor?.markActivity();
     if (!state.isConnected) return;
     _session?.setDeafened(deafened);
     state = state.copyWith(selfDeaf: deafened);
@@ -349,6 +397,7 @@ class VoiceController extends _$VoiceController {
     _reconnectAttempted = false;
     await _session?.disconnect();
     state = const VoiceConnection();
+    _syncAfk();
   }
 
   VoiceSession _buildSession() {
@@ -464,6 +513,136 @@ class VoiceController extends _$VoiceController {
     ref
         .read(voiceStatesControllerProvider.notifier)
         .seedChannel(channelId, data);
+  }
+
+  // ---------------------------------------------------------------------
+  // AFK (#112)
+  //
+  // Detection is entirely client-side. The Accord protocol has no AFK concept
+  // in voice: `AccordVoiceState` carries no `afk` field and gateway op 9
+  // (`updateVoiceState`) accepts only the four self_* flags, so there is no way
+  // to publish "I am away" *as voice state*. What we can do is flip our
+  // presence to `idle` — a status the server accepts and rebroadcasts — which
+  // is what makes the AFK badge visible to other members rather than being a
+  // local-only decoration.
+  // ---------------------------------------------------------------------
+
+  /// Re-points the idle monitor at the current connection + timeout setting.
+  void _syncAfk() {
+    final minutes = ref.read(settingsControllerProvider).voiceAfkTimeoutMinutes;
+    _ensureAfkMonitor().update(
+      connected: state.isConnected,
+      timeout: effectiveAfkTimeout(minutes),
+    );
+  }
+
+  /// Whether the mic is picking us up right now — talking counts as activity
+  /// even with no keyboard/mouse input. Muted means no input by definition.
+  bool _micActive() {
+    final session = _session;
+    if (session == null || state.selfMute) return false;
+    if (session.localIsSpeaking) return true;
+    final threshold = ref.read(settingsControllerProvider).speakingThreshold;
+    return session.localAudioLevel >= threshold;
+  }
+
+  void _onAfkChanged(bool afk) {
+    if (state.isAfk == afk) return;
+    state = state.copyWith(isAfk: afk);
+    _publishAfkPresence(afk);
+    if (afk) unawaited(_moveToAfkChannel());
+  }
+
+  /// Mirrors AFK onto our presence so *other* members can see it. Only ever
+  /// touches a plain `online` status: a user who deliberately picked DND or
+  /// Invisible keeps it, and we restore whatever they had on return.
+  void _publishAfkPresence(bool afk) {
+    // On the way back, use the connection we *published on* rather than the
+    // current one: leaving voice clears `serverKey` before the AFK flag is
+    // cleared, and a stranded `idle` status would never be restored.
+    final key = afk ? state.serverKey : _afkPresenceKey;
+    if (key == null) return;
+    final client = ref.read(accordAuthProvider.notifier).clientForKey(key);
+    final userId = ref
+        .read(connectionsControllerProvider)
+        .connectionFor(key)
+        ?.session
+        .userId;
+    if (client == null || userId == null) return;
+    final presences = ref.read(presenceControllerProvider(key));
+    final current = accordPresenceStatus(presences, userId);
+
+    if (afk) {
+      if (current != 'online') return;
+      _presenceBeforeAfk = current;
+      _afkPresenceKey = key;
+      _setPresence(client, key, userId, 'idle', presences);
+    } else {
+      final restore = _presenceBeforeAfk;
+      _presenceBeforeAfk = null;
+      _afkPresenceKey = null;
+      // Don't stomp a status the user changed by hand while away.
+      if (restore == null || current != 'idle') return;
+      _setPresence(client, key, userId, restore, presences);
+    }
+  }
+
+  void _setPresence(
+    AccordClient client,
+    String serverKey,
+    String userId,
+    String status,
+    Map<String, AccordPresence> presences,
+  ) {
+    final custom = accordCustomStatus(presences, userId);
+    client.gateway.updatePresence(
+      status,
+      activity: custom == null ? const {} : {'name': custom, 'type': 'custom'},
+    );
+    ref
+        .read(presenceControllerProvider(serverKey).notifier)
+        .upsert(AccordPresence(
+          userId: userId,
+          status: status,
+          activities: custom == null
+              ? []
+              : [AccordActivity(name: custom, type: 'custom')],
+        ));
+  }
+
+  /// Moves us into the space's designated AFK channel, when it has one.
+  ///
+  /// There is no server-side move: Accord exposes no "move participant" route
+  /// and never acts on `AccordSpace.afkChannelId` itself. Moving *ourselves*
+  /// is possible though — re-joining another channel implicitly leaves the old
+  /// one — so this is a plain re-join, and it only ever moves the local user.
+  Future<void> _moveToAfkChannel() async {
+    if (!ref.read(settingsControllerProvider).voiceAfkAutoMove) return;
+    final spaceId = state.spaceId;
+    final serverKey = state.serverKey;
+    if (spaceId == null || serverKey == null) return;
+    // `_joinLocked` pins to whichever connection is *active*, so only auto-move
+    // when the call is on that connection — otherwise we'd rejoin on the wrong
+    // server.
+    final connections = ref.read(connectionsControllerProvider);
+    if (connections.activeKey != serverKey) return;
+    final space = connections
+        .connectionFor(serverKey)
+        ?.spaces
+        .firstWhereOrNull((s) => s.id == spaceId);
+    final afkChannelId = space?.afkChannelId;
+    if (afkChannelId == null ||
+        afkChannelId.isEmpty ||
+        afkChannelId == state.channelId) {
+      return;
+    }
+
+    // Deliberately the private join: the public one marks activity and
+    // re-syncs, which would immediately un-AFK us again.
+    await _serialize(() => _joinLocked(afkChannelId, spaceId));
+    if (state.isConnected && (_afkMonitor?.isAfk ?? false)) {
+      state = state.copyWith(isAfk: true);
+    }
   }
 
   void _sendVoiceStateUpdate() {

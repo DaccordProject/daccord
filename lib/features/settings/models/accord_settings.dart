@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:bonfire/features/spaces/models/space_folder.dart';
+import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
 /// User-facing client preferences, persisted in the `accord-settings` Hive box.
@@ -57,6 +58,8 @@ class AccordSettings {
     this.inputVolume = 100,
     this.outputVolume = 100,
     this.inputSensitivity = 50,
+    this.voiceAfkTimeoutMinutes = defaultAfkTimeoutMinutes,
+    this.voiceAfkAutoMove = true,
     this.recentEmoji = const [],
     this.masterServerUrl = defaultMasterServerUrl,
     this.channelNotifications = const <String, String>{},
@@ -151,6 +154,18 @@ class AccordSettings {
   /// Voice-activity sensitivity, 0–100. Higher = more sensitive (lower
   /// threshold). Mirrors `config_voice.gd` `input_sensitivity`.
   final int inputSensitivity;
+
+  /// Minutes of inactivity (no keyboard/pointer input, no mic activity, app
+  /// unfocused) before we mark ourselves AFK while connected to a voice
+  /// channel. `0` turns AFK detection off. See
+  /// `lib/features/voice/utils/afk_logic.dart`.
+  final int voiceAfkTimeoutMinutes;
+
+  /// Whether going AFK moves us into the space's designated AFK channel
+  /// (`AccordSpace.afkChannelId`), when it defines one. The move is performed
+  /// client-side by re-joining that channel — the Accord server has no
+  /// move-participant route and never enforces `afk_channel_id` itself.
+  final bool voiceAfkAutoMove;
 
   /// Most-recently-used emoji tokens (unicode chars or `name:id` custom refs),
   /// most-recent first.
@@ -289,6 +304,8 @@ class AccordSettings {
     int? inputVolume,
     int? outputVolume,
     int? inputSensitivity,
+    int? voiceAfkTimeoutMinutes,
+    bool? voiceAfkAutoMove,
     List<String>? recentEmoji,
     String? masterServerUrl,
     Map<String, String>? channelNotifications,
@@ -335,6 +352,9 @@ class AccordSettings {
       inputVolume: inputVolume ?? this.inputVolume,
       outputVolume: outputVolume ?? this.outputVolume,
       inputSensitivity: inputSensitivity ?? this.inputSensitivity,
+      voiceAfkTimeoutMinutes:
+          voiceAfkTimeoutMinutes ?? this.voiceAfkTimeoutMinutes,
+      voiceAfkAutoMove: voiceAfkAutoMove ?? this.voiceAfkAutoMove,
       recentEmoji: recentEmoji ?? this.recentEmoji,
       masterServerUrl: masterServerUrl ?? this.masterServerUrl,
       channelNotifications: channelNotifications ?? this.channelNotifications,
@@ -444,6 +464,8 @@ class AccordSettings {
     'inputVolume': inputVolume,
     'outputVolume': outputVolume,
     'inputSensitivity': inputSensitivity,
+    'voiceAfkTimeoutMinutes': voiceAfkTimeoutMinutes,
+    'voiceAfkAutoMove': voiceAfkAutoMove,
     'recentEmoji': recentEmoji,
     'masterServerUrl': masterServerUrl,
     'channelNotifications': channelNotifications,
@@ -493,6 +515,10 @@ class AccordSettings {
       inputVolume: (json['inputVolume'] as num?)?.toInt() ?? 100,
       outputVolume: (json['outputVolume'] as num?)?.toInt() ?? 100,
       inputSensitivity: (json['inputSensitivity'] as num?)?.toInt() ?? 50,
+      voiceAfkTimeoutMinutes:
+          (json['voiceAfkTimeoutMinutes'] as num?)?.toInt() ??
+          defaultAfkTimeoutMinutes,
+      voiceAfkAutoMove: json['voiceAfkAutoMove'] as bool? ?? true,
       recentEmoji: [
         for (final e in (json['recentEmoji'] as List? ?? const []))
           e.toString(),

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -246,6 +247,30 @@ void main() {
       expect(s.inputVolume, 150);
       expect(s.outputVolume, 80);
       expect(s.inputSensitivity, 70);
+    });
+
+    test('the AFK timeout is settable and survives a controller rebuild', () {
+      final c1 = makeContainer();
+      controllerOf(c1)
+        ..setVoiceAfkTimeoutMinutes(5)
+        ..setVoiceAfkAutoMove(false);
+
+      final s = stateOf(makeContainer());
+      expect(s.voiceAfkTimeoutMinutes, 5);
+      expect(s.voiceAfkAutoMove, isFalse);
+    });
+
+    test('setting the AFK timeout to 0 turns detection off', () {
+      final c = makeContainer();
+      controllerOf(c).setVoiceAfkTimeoutMinutes(0);
+      expect(stateOf(c).voiceAfkTimeoutMinutes, 0);
+      expect(effectiveAfkTimeout(stateOf(c).voiceAfkTimeoutMinutes), isNull);
+    });
+
+    test('a negative AFK timeout clamps to off rather than going negative', () {
+      final c = makeContainer();
+      controllerOf(c).setVoiceAfkTimeoutMinutes(-30);
+      expect(stateOf(c).voiceAfkTimeoutMinutes, 0);
     });
   });
 

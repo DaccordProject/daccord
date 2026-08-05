@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
+import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -98,6 +99,15 @@ class SettingsController extends _$SettingsController {
   /// Sets the voice-activity sensitivity, clamped to 0–100.
   void setInputSensitivity(int sensitivity) =>
       _update(state.copyWith(inputSensitivity: sensitivity.clamp(0, 100)));
+
+  /// Sets the voice AFK idle timeout in minutes (0 = off). Clamped to
+  /// non-negative; the UI only offers [afkTimeoutOptionsMinutes].
+  void setVoiceAfkTimeoutMinutes(int minutes) =>
+      _update(state.copyWith(voiceAfkTimeoutMinutes: max(0, minutes)));
+
+  /// Whether going AFK should move us into the space's AFK channel.
+  void setVoiceAfkAutoMove(bool enabled) =>
+      _update(state.copyWith(voiceAfkAutoMove: enabled));
 
   /// Sets the master-server directory URL, falling back to the default when
   /// cleared/blank.
