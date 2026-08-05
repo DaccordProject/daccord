@@ -659,12 +659,15 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
     );
 
     if (!isVoice) return tileRow;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        tileRow,
-        VoiceParticipantList(channelId: channel.id, spaceId: widget.spaceId),
-      ],
+    return OnboardingAnchor(
+      anchor: OnboardingAnchorId.voiceChannel,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          tileRow,
+          VoiceParticipantList(channelId: channel.id, spaceId: widget.spaceId),
+        ],
+      ),
     );
   }
 }

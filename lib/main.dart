@@ -9,6 +9,7 @@ import 'package:bonfire/features/notifications/controllers/background_connection
 import 'package:bonfire/features/notifications/services/notification.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/notifications/services/taskbar_badge.dart';
+import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
 import 'package:bonfire/features/updates/views/release_notes_dialog.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/features/profiles/views/profile_gate.dart';
@@ -181,6 +182,14 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // Every route change becomes an error-reporting breadcrumb (a no-op until
     // the user opts in).
     routerController.routerDelegate.addListener(_onRouteChanged);
+    // First-launch walkthrough (#175). Registered first so it snapshots "is
+    // this a fresh install?" before sign-in persists a session; it then waits
+    // for sign-in *and* for the consent dialog below to be answered before
+    // showing anything. A no-op on every later launch, and on installs that
+    // predate it.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => maybeShowOnboardingOnStartup(ref),
+    );
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _maybeShowErrorReportingConsent(),
     );

@@ -18,6 +18,8 @@ import 'package:bonfire/features/developer/services/mcp_home_bridge.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/views/accord_member_list.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
+import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
+import 'package:bonfire/features/onboarding/views/onboarding_anchors.dart';
 import 'package:bonfire/features/messaging/views/thread_view.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart';
@@ -452,34 +454,40 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     final shownSpaceId = effectiveSpaceId;
     final colors = BonfireThemeExtension.of(context);
 
-    final rail = _SpaceRail(
-      selectedSpaceId: effectiveSpaceId,
-      onSelect: _selectSpace,
-      onAddServer: () => showAddServerDialog(context),
-      onSwitchAccount: () => context.push('/switcher'),
-      onOpenSettings: () => context.push('/settings'),
-      onLogout: () async {
-        if (!await confirmLogout(context)) return;
-        if (!context.mounted) return;
-        ref.read(accordAuthProvider.notifier).logout();
-      },
+    final rail = OnboardingAnchor(
+      anchor: OnboardingAnchorId.spaceRail,
+      child: _SpaceRail(
+        selectedSpaceId: effectiveSpaceId,
+        onSelect: _selectSpace,
+        onAddServer: () => showAddServerDialog(context),
+        onSwitchAccount: () => context.push('/switcher'),
+        onOpenSettings: () => context.push('/settings'),
+        onLogout: () async {
+          if (!await confirmLogout(context)) return;
+          if (!context.mounted) return;
+          ref.read(accordAuthProvider.notifier).logout();
+        },
+      ),
     );
 
-    Widget channelList({required bool inDrawer}) => _ChannelList(
-      spaceId: effectiveSpaceId,
-      spaceName: spaces
-          ?.firstWhereOrNull((s) => s.id == effectiveSpaceId)
-          ?.name,
-      channels: channels,
-      selectedChannelId: shownChannelId,
-      onSelect: shownSpaceId == null
-          ? (_) {}
-          : (channelId) {
-              _openChannel(channelId, spaceId: shownSpaceId);
-              // On narrow layouts the list is a drawer — close it so the
-              // freshly-opened channel is visible.
-              if (inDrawer) _scaffoldKey.currentState?.closeDrawer();
-            },
+    Widget channelList({required bool inDrawer}) => OnboardingAnchor(
+      anchor: OnboardingAnchorId.channelList,
+      child: _ChannelList(
+        spaceId: effectiveSpaceId,
+        spaceName: spaces
+            ?.firstWhereOrNull((s) => s.id == effectiveSpaceId)
+            ?.name,
+        channels: channels,
+        selectedChannelId: shownChannelId,
+        onSelect: shownSpaceId == null
+            ? (_) {}
+            : (channelId) {
+                _openChannel(channelId, spaceId: shownSpaceId);
+                // On narrow layouts the list is a drawer — close it so the
+                // freshly-opened channel is visible.
+                if (inDrawer) _scaffoldKey.currentState?.closeDrawer();
+              },
+      ),
     );
 
     final messageArea = Column(
@@ -603,11 +611,14 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
                     children: [
                       Row(
                         children: [
-                          IconButton(
-                            tooltip: 'Channels',
-                            icon: Icon(Icons.menu, color: colors.dirtyWhite),
-                            onPressed: () =>
-                                _scaffoldKey.currentState?.openDrawer(),
+                          OnboardingAnchor(
+                            anchor: OnboardingAnchorId.navMenu,
+                            child: IconButton(
+                              tooltip: 'Channels',
+                              icon: Icon(Icons.menu, color: colors.dirtyWhite),
+                              onPressed: () =>
+                                  _scaffoldKey.currentState?.openDrawer(),
+                            ),
                           ),
                           Expanded(child: _TabStrip(onSelect: _selectTab)),
                           if (hasMembers)

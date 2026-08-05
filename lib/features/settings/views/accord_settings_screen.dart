@@ -15,6 +15,7 @@ import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
 import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_account_settings.dart';
@@ -109,6 +110,8 @@ class AccordSettingsScreen extends ConsumerWidget {
               const _BackupSection(),
               const Divider(height: 24),
               _DeveloperSection(settings: settings, controller: controller),
+              const Divider(height: 24),
+              const OnboardingHelpSection(),
               const Divider(height: 24),
               const _AboutSection(),
               const Divider(height: 24),
@@ -344,6 +347,7 @@ class _CategoryPane extends ConsumerWidget {
       ],
       SettingsCategory.advanced => <Widget>[
         _DeveloperSection(settings: settings, controller: controller),
+        const OnboardingHelpSection(),
         const _AboutSection(),
       ],
     };
