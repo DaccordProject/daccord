@@ -82,6 +82,10 @@ Map<String, dynamic> _lastSent(_FakeGatewayConnection c) =>
     jsonDecode(c.sent.last) as Map<String, dynamic>;
 
 void main() {
+  // setMute()/setDeafen() touch the global `soundManager` singleton, which
+  // constructs an AudioPlayer that needs ServicesBinding.instance.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('mid-call self-state broadcast (#135)', () {
     test('setMute broadcasts over a DM call, where spaceId is null',
         () async {
