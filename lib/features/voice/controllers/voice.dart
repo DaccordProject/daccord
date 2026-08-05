@@ -657,10 +657,13 @@ class VoiceController extends _$VoiceController {
 
   void _sendVoiceStateUpdate() {
     final channelId = state.channelId;
-    final spaceId = state.spaceId;
-    if (channelId == null || spaceId == null) return;
+    if (channelId == null) return;
+    // `spaceId` is null during a DM call. That used to mean bailing out — the
+    // gateway op was space-scoped, so peers saw the mute/deafen state we opened
+    // the call with and nothing after it (#135). The server now resolves the
+    // scope from the channel and routes DM updates to the call's participants.
     _client?.updateVoiceState(
-      spaceId,
+      state.spaceId,
       channelId,
       selfMute: state.selfMute,
       selfDeaf: state.selfDeaf,

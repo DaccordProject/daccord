@@ -152,9 +152,10 @@ class AccordClient {
           {Map<String, dynamic> activity = const {}}) =>
       gateway.updatePresence(status, activity: activity);
 
-  /// Sends a voice state update through the gateway.
+  /// Sends a voice state update through the gateway. [spaceId] is null for DM
+  /// and group DM calls, which have no parent space.
   void updateVoiceState(
-    String spaceId,
+    String? spaceId,
     String? channelId, {
     bool selfMute = false,
     bool selfDeaf = false,
