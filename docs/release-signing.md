@@ -14,7 +14,7 @@ always did — unsigned, but published. A missing secret can never fail a releas
 | Artifact | Signing | Secrets needed | Without them |
 |----------|---------|----------------|--------------|
 | `daccord-macos-universal.dmg` | Developer ID + hardened runtime, notarized (`notarytool`) + stapled | `DEVELOPER_ID_CERT_P12`, `CERT_P12_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, `APPLE_TEAM_ID` | Unsigned `.dmg`; Gatekeeper says *"can't be opened because Apple cannot check it"* |
-| `daccord-windows-x86_64-setup.exe`, `daccord-windows-x86_64.zip` | Authenticode (SHA-256, RFC-3161 timestamped) on `daccord.exe`, the bundled DLLs and the installer | `WINDOWS_CERT_PFX_BASE64`, `WINDOWS_CERT_PASSWORD` | Unsigned binaries; SmartScreen shows *"Windows protected your PC — unrecognized app"* |
+| `daccord-windows-x86_64-setup.exe`, `daccord-windows-x86_64.zip` | Authenticode (SHA-256, RFC-3161 timestamped) on `daccord.exe`, the bundled DLLs and the installer | `SIMPLYSIGN_USER` + `SIMPLYSIGN_TOTP_SECRET` (Certum cloud), **or** `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` (exportable `.pfx`) | Unsigned binaries; SmartScreen shows *"Windows protected your PC — unrecognized app"* |
 | `daccord-linux-x86_64.tgz` / `.deb` | none needed | — | — |
 | `SHA256SUMS.txt` | always generated | none | always present |
 | `checksums.asc` (detached GPG signature of `SHA256SUMS.txt`) | OpenPGP | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | Checksums ship unsigned |
@@ -34,7 +34,7 @@ plain `'true'`/`'false'` string, and the steps gate on that:
 jobs:
   build:
     env:
-      WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+      WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || (secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '') }}
     steps:
       - name: Sign binaries (Windows)
         if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
@@ -56,7 +56,8 @@ The flags live at the top of each job:
 | Flag | Job | True when |
 |------|-----|-----------|
 | `DEVID_AVAILABLE` | `build` | `DEVELOPER_ID_CERT_P12` **and** `ASC_KEY_P8_BASE64` are set |
-| `WINDOWS_SIGN_AVAILABLE` | `build` | `WINDOWS_CERT_PFX_BASE64` is set |
+| `WINDOWS_SIGN_AVAILABLE` | `build` | `WINDOWS_CERT_PFX_BASE64` is set, **or** both `SIMPLYSIGN_*` secrets are |
+| `SIMPLYSIGN_AVAILABLE` | `build` | `SIMPLYSIGN_USER` **and** `SIMPLYSIGN_TOTP_SECRET` are set |
 | `GPG_AVAILABLE` | `release` | `GPG_PRIVATE_KEY` is set |
 
 ## macOS — Developer ID + notarization
@@ -122,11 +123,26 @@ retries a few times because timestamp servers are the flakiest part of signing.
 Without a timestamp every signature would stop validating the day the
 certificate expires.
 
+`sign-windows.ps1` takes its credential from **either** of two modes, checked in
+this order:
+
+| Mode | Variable | When to use |
+|------|----------|-------------|
+| **store** | `WINDOWS_CERT_SHA1` — thumbprint of a cert in `Cert:\CurrentUser\My` | The private key is non-exportable: a cloud key mounted by `dist/simplysign-login.ps1`, or a USB token on a self-hosted runner. Signs with `/sha1`; no key material touches the disk. |
+| **pfx** | `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` | An exportable PKCS#12. In practice this means a self-signed rehearsal cert or a pre-2023 certificate — see below. Signs with `/f`. |
+
 | Secret / variable | What it is |
 |-------------------|------------|
+| `SIMPLYSIGN_USER` (secret) | Certum SimplySign account ID / e-mail |
+| `SIMPLYSIGN_TOTP_SECRET` (secret) | the enrolment `otpauth://` URI, or just its base32 `secret=` value |
 | `WINDOWS_CERT_PFX_BASE64` (secret) | base64 of the code-signing `.pfx`/PKCS#12 |
 | `WINDOWS_CERT_PASSWORD` (secret) | password protecting that `.pfx` (omit if none) |
-| `WINDOWS_TIMESTAMP_URL` (repo **variable**, optional) | RFC-3161 timestamp server; defaults to `http://timestamp.digicert.com`. Some CAs require their own. |
+| `WINDOWS_TIMESTAMP_URL` (repo **variable**, optional) | RFC-3161 timestamp server; defaults to `http://timestamp.digicert.com`. **Set this to `http://time.certum.pl` when signing with a Certum certificate.** |
+
+`WINDOWS_CERT_SHA1` is not a secret and is not configured by hand — it is derived
+from the public certificate by `simplysign-login.ps1` and passed to the signing
+steps through `$GITHUB_ENV`, so renewing the certificate needs no secret
+rotation.
 
 ```bash
 base64 -w0 daccord-codesign.pfx | gh secret set WINDOWS_CERT_PFX_BASE64
@@ -166,9 +182,60 @@ Options, cheapest first:
 
 | Option | Cost | Notes |
 |--------|------|-------|
-| **SignPath Foundation** | free for OSS | Purpose-built for open-source projects (GPLv3 qualifies). Application + review required; signing runs through their service/GitHub Action. Best first thing to try for this project. |
-| **Azure Trusted Signing** | ~$10/month (Basic) | Microsoft-operated, keys in Microsoft's HSM — see below. |
-| **DigiCert KeyLocker / SSL.com eSigner / Certum** | ~$200–600/year | Traditional CA + their cloud HSM. Most portable, most expensive. |
+| **SignPath Foundation** | free for OSS | Purpose-built for open-source projects (GPLv3 qualifies). ~~Best first thing to try for this project.~~ **Applied — declined.** Their bar is a project with an established public track record, so it is worth re-applying once Daccord has one. |
+| **Certum Open Source Code Signing in the Cloud** | **€49/year** | **What we use.** OSS-specific product, far cheaper than Certum's commercial OV cert. Issued to an individual (`Open Source Developer, <name>`), needs identity-document verification. Automation is awkward — see below. |
+| **Azure Trusted Signing** | ~$10/month (Basic) | Microsoft-operated, keys in Microsoft's HSM — see below. Eligibility is the blocker, not price. |
+| **DigiCert KeyLocker / SSL.com eSigner / Certum (commercial OV)** | ~$200–600/year | Traditional CA + their cloud HSM. Proper CI APIs, no GUI automation, but ~10× the cost. |
+
+### Certum SimplySign — how the cloud key is actually reached
+
+Certum publish **no signing API and no login CLI**. The cloud key is reachable
+only through **SimplySign Desktop**, which mounts it as a *virtual smart card*;
+once a session is open the certificate appears in `Cert:\CurrentUser\My` and
+`signtool` signs with it by thumbprint exactly as it would with a physical
+token. So unlike DigiCert/SSL.com there is no `/dlib` to point at — the store
+mode described above is the integration.
+
+Opening that session unattended is the hard part, and `dist/simplysign-login.ps1`
+does it the only way anyone has documented:
+
+1. installs SimplySign Desktop (`winget install Certum.SmartSignSimplySignDesktop`),
+2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, the
+   SHA1/6-digit/30s defaults Certum use),
+3. launches the app and **types the credentials into its GUI via `SendKeys`**,
+4. polls `Cert:\CurrentUser\My` until a new code-signing cert appears,
+5. exports its thumbprint as `WINDOWS_CERT_SHA1`.
+
+Step 3 is exactly as fragile as it sounds. It depends on the runner having an
+interactive desktop and on Certum not rearranging the login dialog's tab order,
+and it will break without warning at some point. Two things make that
+acceptable rather than reckless:
+
+- the script exits 0 on **every** failure path, so a broken login leaves
+  `WINDOWS_CERT_SHA1` unset and the release ships unsigned — the same outcome as
+  owning no certificate;
+- the signing steps are already `continue-on-error: true`, so a tagged release
+  can never be lost to it.
+
+Two caveats worth stating plainly:
+
+- **It collapses 2FA to 1FA.** `SIMPLYSIGN_TOTP_SECRET` is the second factor;
+  storing it next to the account ID means anyone with repo-secret access can
+  sign as you. That is inherent to unattended signing with this product, not
+  something the script introduces.
+- **Session lifetime is unverified.** Certum do not document how long a
+  SimplySign session stays open. The login runs once per job and both signing
+  steps reuse it, which is fine if sessions outlive a build; if they turn out to
+  be shorter, the installer-signing step is the one that will start failing
+  first, and the fix is to re-run the login before it.
+
+The Linux alternative ([hpvb/certum-container](https://github.com/hpvb/certum-container)
+— SimplySign under Xvnc, `p11-kit` socket, `osslsigncode`) is more robust but
+needs a human to enter the OTP over VNC per session, so it only suits a
+persistent self-hosted runner, not GitHub-hosted ones.
+
+Certum certificates should be timestamped against Certum's own server: set the
+`WINDOWS_TIMESTAMP_URL` repo variable to `http://time.certum.pl`.
 
 ### Azure Trusted Signing — evaluation
 

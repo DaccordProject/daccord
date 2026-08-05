@@ -19,7 +19,8 @@ name: Release
 #           → `fastlane mac dmg` signs the .app (Developer ID + hardened
 #             runtime), signs the .dmg, notarizes it with notarytool and staples
 #             the ticket. Absent → plain unsigned .dmg (Gatekeeper warns).
-#   Windows WINDOWS_CERT_PFX_BASE64 (+ WINDOWS_CERT_PASSWORD)
+#   Windows SIMPLYSIGN_USER + SIMPLYSIGN_TOTP_SECRET  (Certum cloud key), or
+#           WINDOWS_CERT_PFX_BASE64 (+ WINDOWS_CERT_PASSWORD)  (exportable .pfx)
 #           → Authenticode-signs daccord.exe, the bundled DLLs and the Inno
 #             Setup installer via dist/sign-windows.ps1. Absent → unsigned
 #             binaries (SmartScreen warns).
@@ -128,8 +129,12 @@ jobs:
       # otherwise the lane starts, fails on a missing ENV.fetch, and we take the
       # slow path to the same unsigned DMG.
       DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' && secrets.ASC_KEY_P8_BASE64 != '' }}
-      # Authenticode signing of the Windows .exe / DLLs / installer.
-      WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+      # Authenticode signing of the Windows .exe / DLLs / installer. Either
+      # credential will do: an exportable .pfx, or a Certum cloud key mounted by
+      # dist/simplysign-login.ps1 (which exports WINDOWS_CERT_SHA1 for the
+      # signing steps to pick up).
+      WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || (secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '') }}
+      SIMPLYSIGN_AVAILABLE: ${{ secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -421,11 +426,30 @@ jobs:
           spctl -a -t open --context context:primary-signature -v "$DMG" \
             || echo "::warning::Gatekeeper would reject $DMG"
 
+      - name: Open SimplySign session (Windows)
+        # Certum's cloud key can't be exported, so it has to be mounted as a
+        # virtual smart card before signtool can see it. This runs once and
+        # exports WINDOWS_CERT_SHA1 through $GITHUB_ENV; both signing steps
+        # below then pick it up automatically. The session stays open for the
+        # rest of the job.
+        #
+        # It drives a GUI with SendKeys because Certum ship no login CLI, so it
+        # is the least reliable step in this workflow by some margin. It exits 0
+        # on every failure path, which leaves WINDOWS_CERT_SHA1 unset and lands
+        # us on the usual unsigned-artifacts fallback.
+        if: matrix.platform == 'windows' && env.SIMPLYSIGN_AVAILABLE == 'true'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
+          SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
+        run: ./dist/simplysign-login.ps1
+
       - name: Sign binaries (Windows)
         # Authenticode-sign the app and the DLLs we build BEFORE they are zipped
         # or swept into the installer, so every shipped copy carries the
-        # signature. Skipped entirely when WINDOWS_CERT_PFX_BASE64 is unset, and
-        # `continue-on-error` keeps even a hard signing failure (expired cert,
+        # signature. Skipped entirely when no signing credential is configured,
+        # and `continue-on-error` keeps even a hard signing failure (expired cert,
         # timestamp server down) from sinking a tagged release — it degrades to
         # today's unsigned artifacts with a warning on the step.
         if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
