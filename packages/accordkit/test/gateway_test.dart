@@ -244,6 +244,16 @@ void main() {
       socket.updateVoiceState('7', null);
       expect(lastSent(conn)['data']['channel_id'], isNull);
 
+      // DM/group DM calls have no parent space. The server resolves the scope
+      // from the channel, so a null space_id is the payload for a DM call —
+      // not a reason to withhold the update.
+      socket.updateVoiceState(null, '5', selfMute: true, selfDeaf: true);
+      expect(lastSent(conn)['op'], GatewayOpcodes.voiceStateUpdate);
+      expect(lastSent(conn)['data']['space_id'], isNull);
+      expect(lastSent(conn)['data']['channel_id'], '5');
+      expect(lastSent(conn)['data']['self_mute'], true);
+      expect(lastSent(conn)['data']['self_deaf'], true);
+
       socket.requestMembers('7', query: 'al', limit: 5);
       expect(lastSent(conn)['op'], GatewayOpcodes.requestMembers);
       expect(lastSent(conn)['data']['limit'], 5);

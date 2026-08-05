@@ -389,8 +389,13 @@ class GatewaySocket {
   }
 
   /// Sends a voice state update. [channelId] may be null to disconnect.
+  ///
+  /// [spaceId] is null for DM and group DM calls, which have no parent space —
+  /// the server resolves the scope from the channel and routes the update to
+  /// the call's participants. When non-null it must be the channel's own space;
+  /// the server ignores an update that claims a different one.
   void updateVoiceState(
-    String spaceId,
+    String? spaceId,
     String? channelId, {
     bool selfMute = false,
     bool selfDeaf = false,
