@@ -269,7 +269,22 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
+        # download); a reset connection there is a transient failure, not a
+        # broken build, so retry before giving up.
+        run: |
+          set -uo pipefail
+          n=0
+          max=3
+          until flutter pub get; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::flutter pub get failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::flutter pub get attempt $n failed; retrying in $((n * 15))s"
+            sleep $((n * 15))
+          done
 
       - name: Update CocoaPods spec repo (macOS)
         # media_kit's mpv pods need a fresh spec repo; the runner's cache is
@@ -645,7 +660,22 @@ jobs:
           bundler-cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
+        # download); a reset connection there is a transient failure, not a
+        # broken build, so retry before giving up.
+        run: |
+          set -uo pipefail
+          n=0
+          max=3
+          until flutter pub get; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::flutter pub get failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::flutter pub get attempt $n failed; retrying in $((n * 15))s"
+            sleep $((n * 15))
+          done
 
       - name: Update CocoaPods spec repo
         run: pod repo update
@@ -740,7 +770,22 @@ jobs:
           bundler-cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
+        # download); a reset connection there is a transient failure, not a
+        # broken build, so retry before giving up.
+        run: |
+          set -uo pipefail
+          n=0
+          max=3
+          until flutter pub get; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::flutter pub get failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::flutter pub get attempt $n failed; retrying in $((n * 15))s"
+            sleep $((n * 15))
+          done
 
       - name: Update CocoaPods spec repo
         run: pod repo update
@@ -864,7 +909,22 @@ jobs:
           bundler-cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
+        # download); a reset connection there is a transient failure, not a
+        # broken build, so retry before giving up.
+        run: |
+          set -uo pipefail
+          n=0
+          max=3
+          until flutter pub get; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::flutter pub get failed after $max attempts" >&2
+              exit 1
+            fi
+            echo "::warning::flutter pub get attempt $n failed; retrying in $((n * 15))s"
+            sleep $((n * 15))
+          done
 
       - name: Code generation (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
