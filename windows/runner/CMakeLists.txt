@@ -33,7 +33,10 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
-target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
+# flutter_wrapper_plugin supplies flutter::PluginRegistrar, which
+# taskbar_badge.cpp needs for its PluginRegistrarWindows method channel — it is
+# not part of flutter_wrapper_app, so without it the runner fails to link.
+target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app flutter_wrapper_plugin)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 # GDI+ draws the taskbar overlay badge (taskbar_badge.cpp); the ITaskbarList3
 # COM object it feeds comes from the default ole32/uuid libs.
