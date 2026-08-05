@@ -20,6 +20,7 @@ import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
+import 'package:bonfire/features/messaging/utils/attachment_types.dart';
 import 'package:bonfire/features/messaging/utils/dropped_entity.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
@@ -34,6 +35,9 @@ import 'package:bonfire/features/messaging/views/message_author_header.dart';
 import 'package:bonfire/features/messaging/views/pinned_messages.dart';
 import 'package:bonfire/features/messaging/views/thread_view.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
+import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
+import 'package:bonfire/features/onboarding/views/onboarding_anchors.dart';
+import 'package:bonfire/features/server/controllers/server_limits.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
@@ -474,22 +478,25 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       ),
           ),
           _TypingIndicator(channelId: channelId, spaceId: spaceId),
-          _Composer(
-            channelId: channelId,
-            channelName: channel?.name,
-            spaceId: spaceId,
-            replyingTo: _replyTo,
-            replyName: _replyTo == null
-                ? null
-                : accordAuthorName(
-                    _replyTo!.authorId,
-                    members: members,
-                    users: userCache,
-                    ensure: ref
-                        .read(accordUsersControllerProvider.notifier)
-                        .ensure,
-                  ),
-            onCancelReply: () => setState(() => _replyTo = null),
+          OnboardingAnchor(
+            anchor: OnboardingAnchorId.messageComposer,
+            child: _Composer(
+              channelId: channelId,
+              channelName: channel?.name,
+              spaceId: spaceId,
+              replyingTo: _replyTo,
+              replyName: _replyTo == null
+                  ? null
+                  : accordAuthorName(
+                      _replyTo!.authorId,
+                      members: members,
+                      users: userCache,
+                      ensure: ref
+                          .read(accordUsersControllerProvider.notifier)
+                          .ensure,
+                    ),
+              onCancelReply: () => setState(() => _replyTo = null),
+            ),
           ),
         ],
       ),

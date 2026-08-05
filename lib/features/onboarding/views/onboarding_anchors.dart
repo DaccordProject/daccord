@@ -110,9 +110,8 @@ class _OnboardingAnchorState extends State<OnboardingAnchor> {
 /// handles. Delete an entry the moment its surface registers a real anchor.
 const Map<OnboardingAnchorId, List<String>> kOnboardingAnchorTypeProbes =
     <OnboardingAnchorId, List<String>>{
-      // spaceRail, channelList, navMenu and voiceChannel now register real
-      // OnboardingAnchors at their surfaces, so their probes are gone.
-      OnboardingAnchorId.messageComposer: <String>['_Composer'],
+      // Every anchor except the message list now registers a real
+      // OnboardingAnchor at its surface, so only this probe remains.
       OnboardingAnchorId.messageList: <String>['MessagePane'],
     };
 

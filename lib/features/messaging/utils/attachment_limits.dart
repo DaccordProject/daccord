@@ -1,13 +1,21 @@
-import 'package:file_picker/file_picker.dart';
+import 'package:bonfire/features/messaging/utils/attachment_types.dart';
 
-/// Maximum size of a single attachment, mirroring the limit documented in
-/// `docs/messaging/file-sharing.md`.
+/// Fallback maximum size of a single attachment, mirroring the limit documented
+/// in `docs/messaging/file-sharing.md` and the accordserver default
+/// (`max_attachment_size`, 26214400).
 ///
-/// Enforced client-side so an oversize file is rejected at pick time with a
-/// clear message, rather than being read into memory, assembled into a
-/// multipart body and uploaded in full only to come back as an opaque server
-/// error.
+/// This is only the fallback: the live limit comes from the server's
+/// `GET /settings` via `AccordServerLimits`, because it is per-deployment
+/// configuration. Enforced client-side so an oversize file is rejected at pick
+/// time with a clear message, rather than being read into memory, assembled
+/// into a multipart body and uploaded in full only to come back as an opaque
+/// server error.
 const int kMaxAttachmentBytes = 25 * 1024 * 1024;
+
+/// Fallback maximum number of files on one message, matching the accordserver
+/// default (`max_attachments_per_message`, 10). As with [kMaxAttachmentBytes]
+/// the live value comes from `GET /settings`.
+const int kMaxAttachmentsPerMessage = 10;
 
 /// Renders a byte count for user-facing messages ("41.2 MB", "812 KB").
 String formatFileSize(int bytes) {
@@ -38,12 +46,17 @@ String oversizeAttachmentMessage(
     '$name is ${formatFileSize(size)} — the limit is '
     '${formatFileSize(maxBytes)}.';
 
+/// Message for a file dropped past the server's per-message file count.
+String tooManyAttachmentsMessage(String name, int maxCount) =>
+    "$name wasn't attached — you can send at most $maxCount "
+    '${maxCount == 1 ? 'file' : 'files'} per message.';
+
 /// The outcome of screening picked files: the ones that can be attached, plus a
 /// line per file that can't be, naming it and why.
 class AttachmentScreening {
   const AttachmentScreening({required this.accepted, required this.rejections});
 
-  final List<PlatformFile> accepted;
+  final List<PendingAttachment> accepted;
 
   /// One human-readable line per rejected file.
   final List<String> rejections;
@@ -54,19 +67,30 @@ class AttachmentScreening {
 
 /// Screens [files] for attachability.
 ///
-/// Two things disqualify a file, and both used to be dropped silently — the
-/// composer kept any file with bytes and said nothing about the rest:
+/// Three things disqualify a file, and the first two used to be dropped
+/// silently — the composer kept any file with bytes and said nothing about the
+/// rest:
 ///
 /// - the picker returned no bytes (a cloud- or provider-backed file the
 ///   platform couldn't read into memory);
 /// - the file exceeds [maxBytes], which music and video routinely do where the
-///   images this flow was built around never did.
+///   images this flow was built around never did;
+/// - it would push the message past [maxCount] files, counting the
+///   [alreadyAttached] ones already on the composer. The server rejects the
+///   whole upload in that case, so catching it here saves losing the rest of
+///   the batch too.
+///
+/// Both limits default to the compiled-in fallbacks; callers pass the connected
+/// server's own values (see `AccordServerLimits`).
 AttachmentScreening screenAttachments(
-  Iterable<PlatformFile> files, {
+  Iterable<PendingAttachment> files, {
   int maxBytes = kMaxAttachmentBytes,
+  int maxCount = kMaxAttachmentsPerMessage,
+  int alreadyAttached = 0,
 }) {
-  final accepted = <PlatformFile>[];
+  final accepted = <PendingAttachment>[];
   final rejections = <String>[];
+  var count = alreadyAttached;
   for (final file in files) {
     final bytes = file.bytes;
     if (bytes == null) {
@@ -79,6 +103,11 @@ AttachmentScreening screenAttachments(
       );
       continue;
     }
+    if (count >= maxCount) {
+      rejections.add(tooManyAttachmentsMessage(file.name, maxCount));
+      continue;
+    }
+    count += 1;
     accepted.add(file);
   }
   return AttachmentScreening(accepted: accepted, rejections: rejections);

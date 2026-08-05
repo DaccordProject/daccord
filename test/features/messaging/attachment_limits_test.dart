@@ -1,13 +1,16 @@
 import 'dart:typed_data';
 
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
+import 'package:bonfire/features/messaging/utils/attachment_types.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-PlatformFile _file(String name, {int? bytes}) => PlatformFile(
-  name: name,
-  size: bytes ?? 0,
-  bytes: bytes == null ? null : Uint8List(bytes),
+PendingAttachment _file(String name, {int? bytes}) => PendingAttachment(
+  PlatformFile(
+    name: name,
+    size: bytes ?? 0,
+    bytes: bytes == null ? null : Uint8List(bytes),
+  ),
 );
 
 void main() {
@@ -61,6 +64,57 @@ void main() {
     test('the documented limit is 25 MB', () {
       expect(kMaxAttachmentBytes, 25 * 1024 * 1024);
       expect(formatFileSize(kMaxAttachmentBytes), '25 MB');
+    });
+
+    test('the fallback per-message count matches the accordserver default', () {
+      expect(kMaxAttachmentsPerMessage, 10);
+    });
+  });
+
+  group('screenAttachments per-message count', () {
+    test('rejects files past maxCount, keeping the first ones', () {
+      final result = screenAttachments([
+        _file('a.png', bytes: 8),
+        _file('b.png', bytes: 8),
+        _file('c.png', bytes: 8),
+      ], maxCount: 2);
+      expect(result.accepted.map((f) => f.name), ['a.png', 'b.png']);
+      expect(result.rejections, hasLength(1));
+      expect(result.error, contains('c.png'));
+      expect(result.error, contains('at most 2 files per message'));
+    });
+
+    test('counts files already on the composer', () {
+      final result = screenAttachments([
+        _file('third.png', bytes: 8),
+      ], maxCount: 2, alreadyAttached: 2);
+      expect(result.accepted, isEmpty);
+      expect(result.error, contains('third.png'));
+    });
+
+    test('singularises the message at a limit of one', () {
+      final result = screenAttachments([
+        _file('a.png', bytes: 8),
+        _file('b.png', bytes: 8),
+      ], maxCount: 1);
+      expect(result.error, contains('at most 1 file per message'));
+    });
+
+    test('an oversize file does not consume a slot', () {
+      final result = screenAttachments([
+        _file('huge.mp3', bytes: 4096),
+        _file('ok.png', bytes: 8),
+      ], maxBytes: 1024, maxCount: 1);
+      expect(result.accepted.map((f) => f.name), ['ok.png']);
+    });
+
+    test('defaults to the fallback count when none is given', () {
+      final result = screenAttachments([
+        for (var i = 0; i < kMaxAttachmentsPerMessage + 1; i++)
+          _file('f$i.png', bytes: 8),
+      ]);
+      expect(result.accepted, hasLength(kMaxAttachmentsPerMessage));
+      expect(result.rejections, hasLength(1));
     });
   });
 

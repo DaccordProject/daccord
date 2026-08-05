@@ -27,7 +27,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   bool _sending = false;
 
   /// Files the user has attached but not yet sent.
-  final List<PlatformFile> _attachments = [];
+  final List<PendingAttachment> _attachments = [];
 
   /// True while a file drag is hovering the composer, which swaps the hint for
   /// a drop prompt and outlines the box.
@@ -95,10 +95,11 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (!mounted) return;
     if (image != null && image.isNotEmpty) {
       final bytes = image;
+      // The clipboard image isn't necessarily a PNG (it used to be named one
+      // unconditionally); sniff the bytes so the name matches the content.
       _addFiles([
-        PlatformFile(
-          name: 'pasted-${DateTime.now().millisecondsSinceEpoch}.png',
-          size: bytes.length,
+        PendingAttachment.fromBytes(
+          name: pastedImageFilename(bytes),
           bytes: bytes,
         ),
       ]);
@@ -119,7 +120,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       if (asFile) {
         final bytes = Uint8List.fromList(utf8.encode(text));
         _addFiles([
-          PlatformFile(name: 'message.txt', size: bytes.length, bytes: bytes),
+          PendingAttachment.fromBytes(name: 'message.txt', bytes: bytes),
         ]);
         return;
       }
@@ -277,13 +278,35 @@ class _ComposerState extends ConsumerState<_Composer> {
     _focusNode.requestFocus();
   }
 
+  /// Opens the system file picker.
+  ///
+  /// No `allowedExtensions` filter: the Accord server enforces no type
+  /// allow-list on message attachments (only size and count — see
+  /// `AccordServerLimits`), so filtering here would make the client stricter
+  /// than the protocol and hide legitimate files. Unrecognised types attach and
+  /// upload; they simply don't preview inline.
+  ///
+  /// The picker call is guarded because it can throw rather than return null —
+  /// Windows' legacy `GetOpenFileNameW` path in particular fails outright on a
+  /// cloud placeholder or an over-MAX_PATH selection. Unguarded, that threw out
+  /// of an unawaited `onPressed` callback and the user saw the attach button do
+  /// nothing at all.
   Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      withData: true,
-    );
+    final FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: true,
+      );
+    } catch (e) {
+      debugPrint('File picker failed: $e');
+      if (mounted) {
+        setState(() => _error = "Couldn't open the file picker: $e");
+      }
+      return;
+    }
     if (result == null || !mounted) return;
-    _addFiles(result.files);
+    _addFiles([for (final file in result.files) PendingAttachment(file)]);
   }
 
   /// Attaches the files dragged onto the composer. Directories aren't
@@ -292,8 +315,9 @@ class _ComposerState extends ConsumerState<_Composer> {
   Future<void> _onDrop(DropDoneDetails details) async {
     setState(() => _dragging = false);
     if (_sending) return;
-    final picked = <PlatformFile>[];
+    final picked = <PendingAttachment>[];
     final rejections = <String>[];
+    final maxBytes = ref.read(serverLimitsControllerProvider).maxAttachmentBytes;
     for (final item in details.files) {
       // `DropItemDirectory` only comes back on macOS and web; Linux and Windows
       // share a handler that types every dropped path as a file, so the path
@@ -310,17 +334,21 @@ class _ComposerState extends ConsumerState<_Composer> {
       final scoped = await _startScopedAccess(bookmark);
       try {
         final size = await item.length();
-        if (size > kMaxAttachmentBytes) {
-          rejections.add(oversizeAttachmentMessage(item.name, size));
+        if (size > maxBytes) {
+          rejections.add(
+            oversizeAttachmentMessage(item.name, size, maxBytes: maxBytes),
+          );
           continue;
         }
         final bytes = await item.readAsBytes();
         picked.add(
-          PlatformFile(
+          PendingAttachment.fromBytes(
             name: item.name,
-            size: bytes.length,
             bytes: bytes,
             path: item.path.isEmpty ? null : item.path,
+            // Drag-and-drop is the one path where the platform tells us what
+            // the file is; prefer that over guessing from the extension.
+            platformMimeType: item.mimeType,
           ),
         );
       } catch (_) {
@@ -356,13 +384,22 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   /// Attaches every file in [files] that passes screening, and reports the ones
   /// that don't, along with any [alsoRejected] lines the caller screened out
-  /// itself. Unreadable and oversize files used to be dropped in silence,
-  /// which is indistinguishable from the attach button doing nothing.
+  /// itself. Unreadable, oversize and over-the-count files used to be dropped
+  /// in silence, which is indistinguishable from the attach button doing
+  /// nothing.
+  ///
+  /// Screened against the connected server's own limits, not compiled-in ones.
   void _addFiles(
-    Iterable<PlatformFile> files, {
+    Iterable<PendingAttachment> files, {
     List<String> alsoRejected = const [],
   }) {
-    final screened = screenAttachments(files);
+    final limits = ref.read(serverLimitsControllerProvider);
+    final screened = screenAttachments(
+      files,
+      maxBytes: limits.maxAttachmentBytes,
+      maxCount: limits.maxAttachmentsPerMessage,
+      alreadyAttached: _attachments.length,
+    );
     final rejections = [...alsoRejected, ...screened.rejections];
     setState(() {
       _attachments.addAll(screened.accepted);
@@ -370,7 +407,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     });
   }
 
-  void _removeAttachment(PlatformFile file) {
+  void _removeAttachment(PendingAttachment file) {
     setState(() => _attachments.remove(file));
   }
 
@@ -417,15 +454,10 @@ class _ComposerState extends ConsumerState<_Composer> {
       accordMessagesControllerProvider(widget.channelId).notifier,
     );
     final replyTo = widget.replyingTo?.id;
-    final attachments = List<PlatformFile>.of(_attachments);
-    final files = [
-      for (final file in attachments)
-        {
-          'filename': file.name,
-          'content': file.bytes!,
-          'content_type': _mimeType(file.extension),
-        },
-    ];
+    final attachments = List<PendingAttachment>.of(_attachments);
+    // Content type resolved when the file was attached (magic bytes → platform
+    // MIME → extension table), not re-guessed from the extension here.
+    final files = [for (final file in attachments) file.toUploadPart()];
     // Empty the composer up front rather than after the round-trip. The field
     // is never disabled (that would drop focus and the mobile keyboard for the
     // whole send), so it has to be free for the next message straight away;
@@ -440,12 +472,32 @@ class _ComposerState extends ConsumerState<_Composer> {
       _mentionQuery = null;
     });
 
-    final error = await controller.sendWithAttachments(
-      client,
-      text,
-      files,
-      replyTo: replyTo,
-    );
+    // A throw here (rather than a returned error string) would otherwise escape
+    // an unawaited callback: the composer would stay stuck with `_sending`
+    // true — no spinner, no message, buttons dead — and the user's text and
+    // attachments would be gone. Anything that goes wrong has to end up in
+    // `_error` where it's on screen.
+    final String? error;
+    try {
+      error = await controller.sendWithAttachments(
+        client,
+        text,
+        files,
+        replyTo: replyTo,
+      );
+    } catch (e) {
+      debugPrint('Send failed: $e');
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _error = 'Failed to send: $e';
+          _attachments.insertAll(0, attachments);
+        });
+        restoreFailedSend(_controller, text);
+        _saveDraft(widget.channelId, _controller.text);
+      }
+      return;
+    }
     if (!mounted) return;
     if (error == null) {
       setState(() => _sending = false);
@@ -467,6 +519,11 @@ class _ComposerState extends ConsumerState<_Composer> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    // Watched, not read: the limits arrive a round-trip after connect, and the
+    // attach button's enabled state depends on the count limit.
+    final limits = ref.watch(serverLimitsControllerProvider);
+    final atAttachmentLimit =
+        _attachments.length >= limits.maxAttachmentsPerMessage;
     final hint = _dragging
         ? 'Drop files to attach'
         : widget.channelName != null
@@ -545,7 +602,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                     children: [
                       for (final file in _attachments)
                         _AttachmentChip(
-                          file: file,
+                          attachment: file,
                           onRemove: _sending
                               ? null
                               : () => _removeAttachment(file),
@@ -562,12 +619,17 @@ class _ComposerState extends ConsumerState<_Composer> {
               Row(
                 children: [
                   IconButton(
-                    tooltip: 'Attach files',
-                    onPressed: _sending ? null : _pickFiles,
+                    tooltip: atAttachmentLimit
+                        ? 'Attachment limit reached '
+                            '(${limits.maxAttachmentsPerMessage} per message)'
+                        : 'Attach files',
+                    onPressed: _sending || atAttachmentLimit ? null : _pickFiles,
                     icon: Icon(
                       Icons.add_circle_outline,
                       size: 20,
-                      color: colors.dirtyWhite,
+                      color: atAttachmentLimit
+                          ? colors.gray
+                          : colors.dirtyWhite,
                     ),
                   ),
                   Expanded(

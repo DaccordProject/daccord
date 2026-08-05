@@ -662,31 +662,34 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     ThemeData theme,
   ) {
     final url = _attachmentUrl(attachment, cdnUrl);
-    if (_isImageAttachment(attachment)) {
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: () => showImageLightbox(context, url),
-          child: _ImageAttachment(
-            url: url,
-            width: _asDouble(attachment.width),
-            height: _asDouble(attachment.height),
+    switch (_previewOf(attachment)) {
+      case AttachmentPreview.image:
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => showImageLightbox(context, url),
+            child: _ImageAttachment(
+              url: url,
+              width: _asDouble(attachment.width),
+              height: _asDouble(attachment.height),
+            ),
           ),
-        ),
-      );
+        );
+      case AttachmentPreview.video:
+        return InlineVideoPlayer(
+          url: url,
+          filename: attachment.filename,
+          width: _asDouble(attachment.width),
+          height: _asDouble(attachment.height),
+        );
+      case AttachmentPreview.audio:
+        return InlineAudioPlayer(url: url, filename: attachment.filename);
+      case AttachmentPreview.none:
+        return Text(
+          '📎 ${attachment.filename}',
+          style: theme.textTheme.bodyMedium,
+        );
     }
-    if (_isVideoAttachment(attachment)) {
-      return InlineVideoPlayer(
-        url: url,
-        filename: attachment.filename,
-        width: _asDouble(attachment.width),
-        height: _asDouble(attachment.height),
-      );
-    }
-    if (_isAudioAttachment(attachment)) {
-      return InlineAudioPlayer(url: url, filename: attachment.filename);
-    }
-    return Text('📎 ${attachment.filename}', style: theme.textTheme.bodyMedium);
   }
 
   Widget _buildEditor(ThemeData theme, BonfireThemeExtension colors) {

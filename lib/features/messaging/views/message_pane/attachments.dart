@@ -4,41 +4,19 @@ part of 'message_pane.dart';
 String _attachmentUrl(AccordAttachment attachment, String? cdnUrl) =>
     AccordCDN.resolvePath(attachment.url, cdnUrl: cdnUrl ?? '');
 
-/// Whether an attachment should render as an inline image (by content type,
-/// falling back to the filename extension).
-bool _isImageAttachment(AccordAttachment attachment) {
-  final type = attachment.contentType;
-  if (type != null && type.startsWith('image/')) return true;
-  final name = attachment.filename.toLowerCase();
-  return name.endsWith('.png') ||
-      name.endsWith('.jpg') ||
-      name.endsWith('.jpeg') ||
-      name.endsWith('.gif') ||
-      name.endsWith('.webp');
-}
-
-/// Whether an attachment should render with the inline video player.
-bool _isVideoAttachment(AccordAttachment attachment) {
-  final type = attachment.contentType;
-  if (type != null && type.startsWith('video/')) return true;
-  final name = attachment.filename.toLowerCase();
-  return name.endsWith('.mp4') ||
-      name.endsWith('.webm') ||
-      name.endsWith('.mov') ||
-      name.endsWith('.mkv');
-}
-
-/// Whether an attachment should render with the inline audio player.
-bool _isAudioAttachment(AccordAttachment attachment) {
-  final type = attachment.contentType;
-  if (type != null && type.startsWith('audio/')) return true;
-  final name = attachment.filename.toLowerCase();
-  return name.endsWith('.mp3') ||
-      name.endsWith('.ogg') ||
-      name.endsWith('.wav') ||
-      name.endsWith('.m4a') ||
-      name.endsWith('.flac');
-}
+/// How an attachment renders inline, resolved through the shared extension →
+/// MIME → preview table so it can't drift from the type we upload it with.
+///
+/// This used to be three near-identical predicates, each with its own hardcoded
+/// extension list maintained separately from `_mimeType()`; the lists disagreed
+/// (`.mov`/`.mkv`/`.m4a`/`.flac` previewed but had no MIME mapping, so they
+/// uploaded as `application/octet-stream`) and `image/*` matched SVG and TIFF,
+/// which Flutter can't decode and which therefore rendered as a broken image.
+AttachmentPreview _previewOf(AccordAttachment attachment) =>
+    attachmentPreviewFor(
+      contentType: attachment.contentType,
+      filename: attachment.filename,
+    );
 
 /// Best-effort conversion of an attachment's loosely-typed width/height to a
 /// double for sizing hints.
@@ -48,84 +26,77 @@ double? _asDouble(Object? value) {
   return null;
 }
 
-/// Maps a file extension to a MIME type for attachment uploads, falling back to
-/// a generic binary type when unknown.
-String _mimeType(String? extension) {
-  switch (extension?.toLowerCase()) {
-    case 'png':
-      return 'image/png';
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'gif':
-      return 'image/gif';
-    case 'webp':
-      return 'image/webp';
-    case 'svg':
-      return 'image/svg+xml';
-    case 'mp4':
-      return 'video/mp4';
-    case 'webm':
-      return 'video/webm';
-    case 'mp3':
-      return 'audio/mpeg';
-    case 'ogg':
-      return 'audio/ogg';
-    case 'wav':
-      return 'audio/wav';
-    case 'pdf':
-      return 'application/pdf';
-    case 'txt':
-      return 'text/plain';
-    case 'json':
-      return 'application/json';
-    case 'zip':
-      return 'application/zip';
-    default:
-      return 'application/octet-stream';
+/// The icon that stands for [preview] on a composer chip.
+IconData _attachmentIcon(AttachmentPreview preview, {required bool unknown}) {
+  switch (preview) {
+    case AttachmentPreview.image:
+      return Icons.image_outlined;
+    case AttachmentPreview.video:
+      return Icons.movie_outlined;
+    case AttachmentPreview.audio:
+      return Icons.audiotrack_outlined;
+    case AttachmentPreview.none:
+      return unknown
+          ? Icons.help_outline
+          : Icons.insert_drive_file_outlined;
   }
 }
 
 /// A removable chip representing one pending attachment in the composer.
+///
+/// Shows what the file resolved to rather than a uniform paperclip: the icon
+/// reflects how it will render once sent, and the tooltip names the MIME type
+/// and size. That's the audit's answer to the silent `application/octet-stream`
+/// fallback — an unidentified file is still attachable (the server accepts any
+/// type), but it no longer looks identical to a recognised one.
 class _AttachmentChip extends StatelessWidget {
-  const _AttachmentChip({required this.file, this.onRemove});
+  const _AttachmentChip({required this.attachment, this.onRemove});
 
-  final PlatformFile file;
+  final PendingAttachment attachment;
   final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-      decoration: BoxDecoration(
-        color: colors.foreground.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.insert_drive_file_outlined,
-              size: 16, color: colors.dirtyWhite),
-          const SizedBox(width: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 160),
-            child: Text(
-              file.name,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall!
-                  .copyWith(color: colors.dirtyWhite),
+    final unknown = attachment.isUnrecognised;
+    return Tooltip(
+      message: '${attachment.name}\n'
+          '${unknown ? 'Unrecognised type' : attachment.contentType} · '
+          '${formatFileSize(attachment.size)}',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+        decoration: BoxDecoration(
+          color: colors.foreground.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _attachmentIcon(attachment.preview, unknown: unknown),
+              size: 16,
+              color: unknown ? colors.gray : colors.dirtyWhite,
             ),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: onRemove,
-            borderRadius: BorderRadius.circular(12),
-            child: Icon(Icons.close, size: 16, color: colors.gray),
-          ),
-        ],
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                attachment.name,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall!
+                    .copyWith(color: colors.dirtyWhite),
+              ),
+            ),
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: onRemove,
+              borderRadius: BorderRadius.circular(12),
+              child: Icon(Icons.close, size: 16, color: colors.gray),
+            ),
+          ],
+        ),
       ),
     );
   }
