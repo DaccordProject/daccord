@@ -276,7 +276,9 @@ jobs:
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a
-        # broken build, so retry before giving up.
+        # broken build, so retry before giving up. `shell: bash` is required —
+        # the Windows runner would otherwise run this under PowerShell.
+        shell: bash
         run: |
           set -uo pipefail
           n=0
@@ -686,7 +688,9 @@ jobs:
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a
-        # broken build, so retry before giving up.
+        # broken build, so retry before giving up. `shell: bash` is required —
+        # the Windows runner would otherwise run this under PowerShell.
+        shell: bash
         run: |
           set -uo pipefail
           n=0
@@ -796,7 +800,9 @@ jobs:
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a
-        # broken build, so retry before giving up.
+        # broken build, so retry before giving up. `shell: bash` is required —
+        # the Windows runner would otherwise run this under PowerShell.
+        shell: bash
         run: |
           set -uo pipefail
           n=0
@@ -935,7 +941,9 @@ jobs:
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a
-        # broken build, so retry before giving up.
+        # broken build, so retry before giving up. `shell: bash` is required —
+        # the Windows runner would otherwise run this under PowerShell.
+        shell: bash
         run: |
           set -uo pipefail
           n=0
