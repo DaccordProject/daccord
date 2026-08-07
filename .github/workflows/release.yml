@@ -633,6 +633,42 @@ jobs:
           files: artifacts/*
 
   # ---------------------------------------------------------------------------
+  # Rebuild daccord.gg. The website image bakes in the `daccord-web.zip` asset
+  # from *this* repo's latest release and serves it at daccord.gg/chat/, so a new
+  # release does nothing for web users until accordwebsite rebuilds. Its workflow
+  # already listens for a `web-export-updated` repository_dispatch; nothing was
+  # sending one, so /chat/ sat on v0.2.6 for the whole v0.2.7–v0.2.9 window and
+  # only ever refreshed when someone happened to push to accordwebsite.
+  #
+  # Needs ACCORDWEBSITE_DISPATCH_TOKEN: a PAT (or GitHub App token) with
+  # `contents: write` on DaccordProject/accordwebsite. GITHUB_TOKEN can't be used
+  # — it's scoped to this repo and can't dispatch to another one.
+  # ---------------------------------------------------------------------------
+  website-rebuild:
+    name: Rebuild daccord.gg /chat/
+    needs: release
+    runs-on: ubuntu-latest
+    # As elsewhere in this workflow, a missing secret must never fail a tagged
+    # release: without the token this job is skipped, and the website just keeps
+    # serving the previous client until someone rebuilds it by hand.
+    if: ${{ success() && github.event_name == 'push' && github.repository == 'DaccordProject/daccord' }}
+    steps:
+      - name: Notify accordwebsite of the new web export
+        env:
+          GH_TOKEN: ${{ secrets.ACCORDWEBSITE_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::ACCORDWEBSITE_DISPATCH_TOKEN not set — skipping the daccord.gg rebuild. Trigger accordwebsite's 'Build and publish Docker image' workflow by hand to ship ${{ github.ref_name }} to /chat/."
+            exit 0
+          fi
+          gh api --method POST \
+            repos/DaccordProject/accordwebsite/dispatches \
+            -f event_type=web-export-updated \
+            -f 'client_payload[tag]=${{ github.ref_name }}'
+          echo "Dispatched web-export-updated for ${{ github.ref_name }}."
+
+  # ---------------------------------------------------------------------------
   # App Store deploys. These run on a tag push and on workflow_dispatch (gated
   # by the deploy_ios / deploy_mac inputs). They build the *store* variants
   # (App Sandbox / no self-updater via --dart-define=APP_STORE=true) and upload
