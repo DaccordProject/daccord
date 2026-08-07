@@ -1,0 +1,9 @@
+# actionlint config.
+#
+# `flutter` is the label carried by the two org-level self-hosted runners
+# (portainer-daccord-1/2) in the `git-runners` Portainer stack on Proxmox
+# CT 102. Declaring it here stops actionlint flagging `runs-on: [self-hosted,
+# flutter]` as an unknown runner label. See the notes at the top of ci.yml.
+self-hosted-runner:
+  labels:
+    - flutter

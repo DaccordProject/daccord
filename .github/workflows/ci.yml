@@ -31,14 +31,40 @@ env:
   # both beta and stable (see strategy.matrix.channel), so it ignores this.
   # Keep in sync with .fvmrc and release.yml.
   FLUTTER_CHANNEL: beta
-  # Workspace-local pub cache so actions/cache can persist it (incl. the
-  # flutter_webrtc git checkout + its downloaded libwebrtc binary).
-  PUB_CACHE: ${{ github.workspace }}/.pub-cache
+
+# ---------------------------------------------------------------------------
+# Self-hosted runners
+# ---------------------------------------------------------------------------
+# The Linux-capable jobs run on the two org-level self-hosted runners
+# (`portainer-daccord-1/2`, label `flutter`) hosted in the `git-runners`
+# Portainer stack on Proxmox CT 102. They exist to escape GitHub's 10 GB
+# per-repo Actions cache quota, which this project blew through: the pub cache
+# alone is ~1.1 GB per platform, so caches were being evicted before they could
+# ever be reused.
+#
+# On those runners `/tmp/runner` is a persistent Docker volume, so:
+#   - PUB_CACHE (/tmp/runner/cache/pub) and GRADLE_USER_HOME are set in the
+#     container env and survive between jobs. They live OUTSIDE the job
+#     workspace on purpose — actions/checkout runs `git clean -ffdx`, which
+#     would delete a workspace-local cache every run.
+#   - The Flutter SDK is pinned to a persistent cache-path, and flutter-action
+#     skips the download when the SDK is already there (setup.sh: `if [ ! -x
+#     "$CACHE_PATH/flutter/bin/flutter" ]`).
+# So the actions/cache steps and flutter-action's own caching are DISABLED on
+# self-hosted: the cache is already local, and uploading it would put us back
+# under the quota we left. They stay enabled on GitHub-hosted (Windows/macOS).
+#
+# Only 2 runners exist, so self-hosted jobs queue two at a time.
+# NOTE: this is a PUBLIC repo. Keep "Require approval for all external
+# contributors" set under Settings → Actions → Fork pull request workflows —
+# without it a fork PR can execute arbitrary code on this hardware.
 
 jobs:
   analyze:
     name: Analyze & Test (${{ matrix.channel }})
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, flutter]
+    env:
+      PUB_CACHE: /tmp/runner/cache/pub
     strategy:
       # Run every channel even if one fails, so a stable-only break and a
       # beta-only break are both reported in the same run.
@@ -53,29 +79,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Cache pub + native deps
-        uses: actions/cache@v4
         with:
-          # Channel in the key so beta/stable don't clobber each other's cache.
-          key: pub-${{ runner.os }}-${{ matrix.channel }}-${{ hashFiles('pubspec.lock') }}
-          path: ${{ github.workspace }}/.pub-cache
-          restore-keys: |
-            pub-${{ runner.os }}-${{ matrix.channel }}-
-
-      - name: Cache codegen (build_runner)
-        uses: actions/cache@v4
-        with:
-          path: .dart_tool/build
-          key: codegen-${{ runner.os }}-${{ matrix.channel }}-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            codegen-${{ runner.os }}-${{ matrix.channel }}-
+          # Keep the workspace between jobs. The runner's work dir is a
+          # persistent volume, so leaving untracked files in place preserves
+          # .dart_tool/build (build_runner's incremental state) and turns the
+          # clone into an incremental fetch. This replaces the actions/cache
+          # step that used to carry .dart_tool/build. Codegen below passes
+          # --delete-conflicting-outputs, so stale generated files can't wedge
+          # it.
+          clean: false
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ matrix.channel }}
-          cache: true
+          # No GitHub cache: the SDK lives on the runner's persistent volume and
+          # flutter-action skips the download when it is already there. Channel
+          # is in the path so beta/stable don't clobber each other.
+          cache: false
+          cache-path: '/tmp/runner/cache/flutter-sdk/:channel:-:version:-:arch:'
 
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
@@ -115,39 +137,56 @@ jobs:
     # Smoke-test artifacts only — run on demand, never automatically on push/PR
     # (analyze is the merge gate) or workflow_call (release.yml builds its own).
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: ${{ matrix.os }}
+    # `os` is a JSON array so a single entry can carry a label list for the
+    # self-hosted runners (see the header comment) and a plain image name for
+    # the GitHub-hosted ones.
+    runs-on: ${{ fromJSON(matrix.os) }}
+    env:
+      PUB_CACHE: ${{ matrix.self_hosted && '/tmp/runner/cache/pub' || format('{0}/.pub-cache', github.workspace) }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Web
             platform: web
-            os: ubuntu-latest
+            os: '["self-hosted","flutter"]'
+            self_hosted: true
             artifact: daccord-web
             path: build/web/
           - name: Android
             platform: android
-            os: ubuntu-latest
+            os: '["self-hosted","flutter"]'
+            self_hosted: true
             artifact: daccord-android
             path: build/app/outputs/flutter-apk/*.apk
           - name: Linux
             platform: linux
-            os: ubuntu-latest
+            os: '["self-hosted","flutter"]'
+            self_hosted: true
             artifact: daccord-linux
             path: build/linux/x64/release/bundle/
           - name: Windows
             platform: windows
             # See release.yml: windows-latest's bundled CMake refuses to extract
             # flutter_webrtc's libwebrtc zip through Flutter's plugin symlink.
-            os: windows-2022
+            os: '["windows-2022"]'
+            self_hosted: false
             artifact: daccord-windows
             path: build/windows/x64/runner/Release/
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Self-hosted: keep the workspace so .dart_tool/build survives (see
+          # the analyze job). GitHub-hosted runners start clean anyway.
+          clean: ${{ !matrix.self_hosted }}
 
       - name: Cache pub + native deps
+        # Self-hosted runners keep PUB_CACHE on a persistent volume, so this
+        # would only burn the GitHub cache quota re-uploading what is already
+        # on local disk.
+        if: ${{ !matrix.self_hosted }}
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.pub-cache
@@ -156,6 +195,7 @@ jobs:
             pub-${{ runner.os }}-
 
       - name: Cache codegen (build_runner)
+        if: ${{ !matrix.self_hosted }}
         uses: actions/cache@v4
         with:
           path: .dart_tool/build
@@ -170,8 +210,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK (self-hosted)
+        # GitHub's ubuntu images ship the Android SDK preinstalled; the
+        # myoung34/github-runner container does not, so `flutter build apk`
+        # would fail with no ANDROID_HOME. Installs into the runner's tool
+        # cache, which is on the persistent volume, so this is a one-off cost.
+        if: matrix.platform == 'android' && matrix.self_hosted
+        uses: android-actions/setup-android@v3
+
       - name: Cache Gradle (Android)
-        if: matrix.platform == 'android'
+        # GRADLE_USER_HOME is a persistent path on the self-hosted runners.
+        if: matrix.platform == 'android' && !matrix.self_hosted
         uses: actions/cache@v4
         with:
           path: |
@@ -201,7 +250,10 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
-          cache: true
+          # Self-hosted: SDK persists on the runner's volume, so skip the
+          # GitHub cache entirely. Hosted (Windows): cache as before.
+          cache: ${{ !matrix.self_hosted }}
+          cache-path: "${{ matrix.self_hosted && '/tmp/runner/cache/flutter-sdk/:channel:-:version:-:arch:' || '' }}"
 
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
