@@ -656,17 +656,23 @@ jobs:
       - name: Notify accordwebsite of the new web export
         env:
           GH_TOKEN: ${{ secrets.ACCORDWEBSITE_DISPATCH_TOKEN }}
+          # Routed through env rather than interpolated into the script below —
+          # github.ref_name is attacker-influenceable (whoever can push a tag
+          # controls its value) and untrusted expressions must never be spliced
+          # directly into a run: block. See GitHub's script-injection hardening
+          # guidance.
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning::ACCORDWEBSITE_DISPATCH_TOKEN not set — skipping the daccord.gg rebuild. Trigger accordwebsite's 'Build and publish Docker image' workflow by hand to ship ${{ github.ref_name }} to /chat/."
+            echo "::warning::ACCORDWEBSITE_DISPATCH_TOKEN not set — skipping the daccord.gg rebuild. Trigger accordwebsite's 'Build and publish Docker image' workflow by hand to ship $TAG to /chat/."
             exit 0
           fi
           gh api --method POST \
             repos/DaccordProject/accordwebsite/dispatches \
             -f event_type=web-export-updated \
-            -f 'client_payload[tag]=${{ github.ref_name }}'
-          echo "Dispatched web-export-updated for ${{ github.ref_name }}."
+            -f "client_payload[tag]=$TAG"
+          echo "Dispatched web-export-updated for $TAG."
 
   # ---------------------------------------------------------------------------
   # App Store deploys. These run on a tag push and on workflow_dispatch (gated
