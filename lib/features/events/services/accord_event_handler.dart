@@ -106,7 +106,12 @@ VoidCallback handleAccordEvents(
     // connection too — a background server that READYs while you're looking at
     // another one used to be left permanently showing its whole roster as
     // offline, with no re-seed on switch (#191).
-    seedPresencesFromReady(ref, data, serverKey: serverKey);
+    seedPresencesFromReady(
+      ref,
+      data,
+      serverKey: serverKey,
+      homeDomain: selfDomain,
+    );
     if (isActive()) {
       _seedVoiceStates(ref, data);
     }
@@ -151,8 +156,13 @@ VoidCallback handleAccordEvents(
   // these while inactive is what made a user who was demonstrably online read
   // as offline after a server switch (#191) — there is no re-request path, the
   // gateway only re-sends presence in READY.
+  // The `user_id` on the wire is bare; a member seen through a federated space
+  // is qualified. [selfDomain] is what lets the cache key both the same way
+  // (#209).
   subs.add(client.onPresenceUpdate.listen((presence) {
-    ref.read(presenceControllerProvider(serverKey).notifier).upsert(presence);
+    ref
+        .read(presenceControllerProvider(serverKey).notifier)
+        .upsert(presence, homeDomain: selfDomain);
   }));
 
   // ── User cache (profile changes) ─────────────────────────────────────────
@@ -741,6 +751,7 @@ void seedPresencesFromReady(
   Ref ref,
   Map<String, dynamic> ready, {
   required String serverKey,
+  String homeDomain = '',
 }) {
   final raw = ready['presences'];
   if (raw is! List) return;
@@ -748,7 +759,9 @@ void seedPresencesFromReady(
     for (final entry in raw)
       if (entry is Map<String, dynamic>) AccordPresence.fromJson(entry),
   ];
-  ref.read(presenceControllerProvider(serverKey).notifier).seed(presences);
+  ref
+      .read(presenceControllerProvider(serverKey).notifier)
+      .seed(presences, homeDomain: homeDomain);
 }
 
 /// Fetches the connection's spaces over REST and seeds its rail cache. The

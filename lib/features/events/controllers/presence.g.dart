@@ -8,10 +8,10 @@ part of 'presence.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// One connection's per-user presence cache, keyed by user ID and scoped to
-/// [serverKey] (`userId@baseUrl`) — the same scoping [ReadStateController]
-/// uses, and for the same reason: snowflake IDs are minted per server, so a
-/// single global map lets two servers' users collide.
+/// One connection's per-user presence cache, scoped to [serverKey]
+/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
+/// same reason: snowflake IDs are minted per server, so a single global map lets
+/// two servers' users collide.
 ///
 /// Every connection (active *or* background) seeds this from its gateway READY
 /// payload's `presences` array and keeps it current from `presence.update`
@@ -19,6 +19,14 @@ part of 'presence.dart';
 /// connection being the active one: with the cache keyed per server there is
 /// nothing for a background connection to clobber, and gating was what left a
 /// backgrounded server permanently showing everyone as offline (#191).
+///
+/// Offline transitions are held for [offlineGrace] before they reach the state
+/// (#210). Presence is purely socket-lifetime driven server-side — one socket
+/// drop on a peer's client is one visible offline/online flip for everyone — so
+/// without smoothing a momentary blip re-buckets that member into the roster's
+/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
+/// never delayed, and a pending offline is cancelled the moment the user comes
+/// back, so a blip shorter than the window is never rendered at all.
 ///
 /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
 /// an absent entry means "offline" (the gateway only pushes presence for
@@ -28,10 +36,10 @@ part of 'presence.dart';
 @ProviderFor(PresenceController)
 const presenceControllerProvider = PresenceControllerFamily._();
 
-/// One connection's per-user presence cache, keyed by user ID and scoped to
-/// [serverKey] (`userId@baseUrl`) — the same scoping [ReadStateController]
-/// uses, and for the same reason: snowflake IDs are minted per server, so a
-/// single global map lets two servers' users collide.
+/// One connection's per-user presence cache, scoped to [serverKey]
+/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
+/// same reason: snowflake IDs are minted per server, so a single global map lets
+/// two servers' users collide.
 ///
 /// Every connection (active *or* background) seeds this from its gateway READY
 /// payload's `presences` array and keeps it current from `presence.update`
@@ -40,16 +48,24 @@ const presenceControllerProvider = PresenceControllerFamily._();
 /// nothing for a background connection to clobber, and gating was what left a
 /// backgrounded server permanently showing everyone as offline (#191).
 ///
+/// Offline transitions are held for [offlineGrace] before they reach the state
+/// (#210). Presence is purely socket-lifetime driven server-side — one socket
+/// drop on a peer's client is one visible offline/online flip for everyone — so
+/// without smoothing a momentary blip re-buckets that member into the roster's
+/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
+/// never delayed, and a pending offline is cancelled the moment the user comes
+/// back, so a blip shorter than the window is never rendered at all.
+///
 /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
 /// an absent entry means "offline" (the gateway only pushes presence for
 /// non-offline users). Read the active connection's map through
 /// [activePresencesProvider] rather than picking a key by hand.
 final class PresenceControllerProvider
-    extends $NotifierProvider<PresenceController, Map<String, AccordPresence>> {
-  /// One connection's per-user presence cache, keyed by user ID and scoped to
-  /// [serverKey] (`userId@baseUrl`) — the same scoping [ReadStateController]
-  /// uses, and for the same reason: snowflake IDs are minted per server, so a
-  /// single global map lets two servers' users collide.
+    extends $NotifierProvider<PresenceController, PresenceMap> {
+  /// One connection's per-user presence cache, scoped to [serverKey]
+  /// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
+  /// same reason: snowflake IDs are minted per server, so a single global map lets
+  /// two servers' users collide.
   ///
   /// Every connection (active *or* background) seeds this from its gateway READY
   /// payload's `presences` array and keeps it current from `presence.update`
@@ -57,6 +73,14 @@ final class PresenceControllerProvider
   /// connection being the active one: with the cache keyed per server there is
   /// nothing for a background connection to clobber, and gating was what left a
   /// backgrounded server permanently showing everyone as offline (#191).
+  ///
+  /// Offline transitions are held for [offlineGrace] before they reach the state
+  /// (#210). Presence is purely socket-lifetime driven server-side — one socket
+  /// drop on a peer's client is one visible offline/online flip for everyone — so
+  /// without smoothing a momentary blip re-buckets that member into the roster's
+  /// "Offline" section and back, and rows visibly jump. Going *non*-offline is
+  /// never delayed, and a pending offline is cancelled the moment the user comes
+  /// back, so a blip shorter than the window is never rendered at all.
   ///
   /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
   /// an absent entry means "offline" (the gateway only pushes presence for
@@ -88,10 +112,10 @@ final class PresenceControllerProvider
   PresenceController create() => PresenceController();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(Map<String, AccordPresence> value) {
+  Override overrideWithValue(PresenceMap value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<Map<String, AccordPresence>>(value),
+      providerOverride: $SyncValueProvider<PresenceMap>(value),
     );
   }
 
@@ -107,12 +131,12 @@ final class PresenceControllerProvider
 }
 
 String _$presenceControllerHash() =>
-    r'8f6150eb46df1eaf7ffa212ab7d6fd5fa0e9b464';
+    r'e788b9684a26aede0da70e56346c6f6a94e92345';
 
-/// One connection's per-user presence cache, keyed by user ID and scoped to
-/// [serverKey] (`userId@baseUrl`) — the same scoping [ReadStateController]
-/// uses, and for the same reason: snowflake IDs are minted per server, so a
-/// single global map lets two servers' users collide.
+/// One connection's per-user presence cache, scoped to [serverKey]
+/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
+/// same reason: snowflake IDs are minted per server, so a single global map lets
+/// two servers' users collide.
 ///
 /// Every connection (active *or* background) seeds this from its gateway READY
 /// payload's `presences` array and keeps it current from `presence.update`
@@ -120,6 +144,14 @@ String _$presenceControllerHash() =>
 /// connection being the active one: with the cache keyed per server there is
 /// nothing for a background connection to clobber, and gating was what left a
 /// backgrounded server permanently showing everyone as offline (#191).
+///
+/// Offline transitions are held for [offlineGrace] before they reach the state
+/// (#210). Presence is purely socket-lifetime driven server-side — one socket
+/// drop on a peer's client is one visible offline/online flip for everyone — so
+/// without smoothing a momentary blip re-buckets that member into the roster's
+/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
+/// never delayed, and a pending offline is cancelled the moment the user comes
+/// back, so a blip shorter than the window is never rendered at all.
 ///
 /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
 /// an absent entry means "offline" (the gateway only pushes presence for
@@ -130,9 +162,9 @@ final class PresenceControllerFamily extends $Family
     with
         $ClassFamilyOverride<
           PresenceController,
-          Map<String, AccordPresence>,
-          Map<String, AccordPresence>,
-          Map<String, AccordPresence>,
+          PresenceMap,
+          PresenceMap,
+          PresenceMap,
           String
         > {
   const PresenceControllerFamily._()
@@ -144,10 +176,10 @@ final class PresenceControllerFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// One connection's per-user presence cache, keyed by user ID and scoped to
-  /// [serverKey] (`userId@baseUrl`) — the same scoping [ReadStateController]
-  /// uses, and for the same reason: snowflake IDs are minted per server, so a
-  /// single global map lets two servers' users collide.
+  /// One connection's per-user presence cache, scoped to [serverKey]
+  /// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
+  /// same reason: snowflake IDs are minted per server, so a single global map lets
+  /// two servers' users collide.
   ///
   /// Every connection (active *or* background) seeds this from its gateway READY
   /// payload's `presences` array and keeps it current from `presence.update`
@@ -155,6 +187,14 @@ final class PresenceControllerFamily extends $Family
   /// connection being the active one: with the cache keyed per server there is
   /// nothing for a background connection to clobber, and gating was what left a
   /// backgrounded server permanently showing everyone as offline (#191).
+  ///
+  /// Offline transitions are held for [offlineGrace] before they reach the state
+  /// (#210). Presence is purely socket-lifetime driven server-side — one socket
+  /// drop on a peer's client is one visible offline/online flip for everyone — so
+  /// without smoothing a momentary blip re-buckets that member into the roster's
+  /// "Offline" section and back, and rows visibly jump. Going *non*-offline is
+  /// never delayed, and a pending offline is cancelled the moment the user comes
+  /// back, so a blip shorter than the window is never rendered at all.
   ///
   /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
   /// an absent entry means "offline" (the gateway only pushes presence for
@@ -168,10 +208,10 @@ final class PresenceControllerFamily extends $Family
   String toString() => r'presenceControllerProvider';
 }
 
-/// One connection's per-user presence cache, keyed by user ID and scoped to
-/// [serverKey] (`userId@baseUrl`) — the same scoping [ReadStateController]
-/// uses, and for the same reason: snowflake IDs are minted per server, so a
-/// single global map lets two servers' users collide.
+/// One connection's per-user presence cache, scoped to [serverKey]
+/// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the
+/// same reason: snowflake IDs are minted per server, so a single global map lets
+/// two servers' users collide.
 ///
 /// Every connection (active *or* background) seeds this from its gateway READY
 /// payload's `presences` array and keeps it current from `presence.update`
@@ -180,32 +220,34 @@ final class PresenceControllerFamily extends $Family
 /// nothing for a background connection to clobber, and gating was what left a
 /// backgrounded server permanently showing everyone as offline (#191).
 ///
+/// Offline transitions are held for [offlineGrace] before they reach the state
+/// (#210). Presence is purely socket-lifetime driven server-side — one socket
+/// drop on a peer's client is one visible offline/online flip for everyone — so
+/// without smoothing a momentary blip re-buckets that member into the roster's
+/// "Offline" section and back, and rows visibly jump. Going *non*-offline is
+/// never delayed, and a pending offline is cancelled the moment the user comes
+/// back, so a blip shorter than the window is never rendered at all.
+///
 /// Consumers resolve a member's status by user ID via [accordPresenceStatus];
 /// an absent entry means "offline" (the gateway only pushes presence for
 /// non-offline users). Read the active connection's map through
 /// [activePresencesProvider] rather than picking a key by hand.
 
-abstract class _$PresenceController
-    extends $Notifier<Map<String, AccordPresence>> {
+abstract class _$PresenceController extends $Notifier<PresenceMap> {
   late final _$args = ref.$arg as String;
   String get serverKey => _$args;
 
-  Map<String, AccordPresence> build(String serverKey);
+  PresenceMap build(String serverKey);
   @$mustCallSuper
   @override
   void runBuild() {
     final created = build(_$args);
-    final ref =
-        this.ref
-            as $Ref<Map<String, AccordPresence>, Map<String, AccordPresence>>;
+    final ref = this.ref as $Ref<PresenceMap, PresenceMap>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<
-                Map<String, AccordPresence>,
-                Map<String, AccordPresence>
-              >,
-              Map<String, AccordPresence>,
+              AnyNotifier<PresenceMap, PresenceMap>,
+              PresenceMap,
               Object?,
               Object?
             >;
@@ -227,13 +269,8 @@ const activePresencesProvider = ActivePresencesProvider._();
 /// correct immediately on a switch with no reconnect.
 
 final class ActivePresencesProvider
-    extends
-        $FunctionalProvider<
-          Map<String, AccordPresence>,
-          Map<String, AccordPresence>,
-          Map<String, AccordPresence>
-        >
-    with $Provider<Map<String, AccordPresence>> {
+    extends $FunctionalProvider<PresenceMap, PresenceMap, PresenceMap>
+    with $Provider<PresenceMap> {
   /// The presence map of the connection currently driving the panes, or an empty
   /// map when no server is active. Switching servers re-reads the new
   /// connection's own (already-seeded, already-live) cache, so presence is
@@ -254,22 +291,21 @@ final class ActivePresencesProvider
 
   @$internal
   @override
-  $ProviderElement<Map<String, AccordPresence>> $createElement(
-    $ProviderPointer pointer,
-  ) => $ProviderElement(pointer);
+  $ProviderElement<PresenceMap> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
 
   @override
-  Map<String, AccordPresence> create(Ref ref) {
+  PresenceMap create(Ref ref) {
     return activePresences(ref);
   }
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(Map<String, AccordPresence> value) {
+  Override overrideWithValue(PresenceMap value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<Map<String, AccordPresence>>(value),
+      providerOverride: $SyncValueProvider<PresenceMap>(value),
     );
   }
 }
 
-String _$activePresencesHash() => r'f9e957be30d12be3772e383f81b825fddd90e29a';
+String _$activePresencesHash() => r'cf19e8f8ef668b7b0bade324eaea6e93682c21d8';

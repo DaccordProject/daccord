@@ -146,7 +146,7 @@ const int _offlinePosition = -2;
 List<_RosterSection> _buildSections(
   List<AccordMember> members,
   List<AccordRole> roles,
-  Map<String, AccordPresence> presences,
+  PresenceMap presences,
 ) {
   final byKey = <String, _RosterSection>{};
   final defaultSection =

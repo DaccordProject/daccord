@@ -72,7 +72,7 @@ Widget _host({
           _channelId: {for (final id in userIds) id: _state(id)},
         }),
       ),
-      activePresencesProvider.overrideWithValue(presences),
+      activePresencesProvider.overrideWithValue(PresenceMap(byUser: presences)),
     ],
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),
