@@ -602,7 +602,7 @@ class VoiceController extends _$VoiceController {
     String serverKey,
     String userId,
     String status,
-    Map<String, AccordPresence> presences,
+    PresenceMap presences,
   ) {
     final custom = accordCustomStatus(presences, userId);
     client.gateway.updatePresence(

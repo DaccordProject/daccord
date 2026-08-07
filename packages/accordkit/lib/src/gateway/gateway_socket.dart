@@ -36,12 +36,17 @@ class GatewaySocket {
   final GatewayConnectionFactory _factory;
   final Future<void> Function(Duration) _sleep;
   final double Function() _random;
+  final DateTime Function() _now;
   final String _osName;
   final int maxReconnectAttempts;
 
   /// How long [ensureConnected] waits for a heartbeat ACK before declaring a
   /// nominally-connected socket dead and forcing a reconnect.
   final Duration probeTimeout;
+
+  /// How long a session must survive past READY before it counts as *stable*
+  /// and earns back a fresh reconnect budget. See [_creditStableSession].
+  final Duration stableSessionThreshold;
 
   AccordConfig? _config;
   GatewayConnection? _conn;
@@ -58,20 +63,25 @@ class GatewaySocket {
   bool _reconnectCancelled = false;
   bool _resumePending = false;
   bool _probePending = false;
+  bool _resumeSupported = false;
+  DateTime? _sessionStartedAt;
 
   GatewaySocket({
     GatewayConnectionFactory? connectionFactory,
     Future<void> Function(Duration)? sleep,
     double Function()? random,
+    DateTime Function()? now,
     String osName = 'dart',
     this.maxReconnectAttempts = 10,
     this.probeTimeout = const Duration(seconds: 5),
+    this.stableSessionThreshold = const Duration(seconds: 30),
     this.token = '',
     this.tokenType = 'Bot',
     List<String>? intents,
   })  : _factory = connectionFactory ?? WebSocketGatewayConnection.connect,
         _sleep = sleep ?? Future.delayed,
         _random = random ?? Random().nextDouble,
+        _now = now ?? DateTime.now,
         _osName = osName,
         intents = intents ?? [];
 
@@ -285,6 +295,15 @@ class GatewaySocket {
   /// Current resumable session ID (empty when none).
   String get sessionId => _sessionId;
 
+  /// Whether the connected server has advertised RESUME (op 3) support.
+  ///
+  /// Off until a HELLO or READY says otherwise: accordserver's pre-identify
+  /// loop only inspects `op == IDENTIFY` and silently drops everything else, so
+  /// a speculative RESUME just idles until the server's 30-second identify
+  /// timeout fires — during which we are broadcast offline to everyone who can
+  /// see us (#208).
+  bool get resumeSupported => _resumeSupported;
+
   /// The effective heartbeat interval in ms, after capping the server-advertised
   /// value at [AccordConfig.heartbeatIntervalMax]. Set on HELLO.
   int get heartbeatIntervalMs => _heartbeatIntervalMs;
@@ -334,7 +353,8 @@ class GatewaySocket {
   ///
   /// - Disconnected: reconnects immediately with a fresh backoff budget, even
   ///   when earlier automatic reconnects exhausted [maxReconnectAttempts].
-  ///   Resumes the previous session when one is held, else re-identifies.
+  ///   Resumes the previous session when one is held *and* the server supports
+  ///   resuming ([resumeSupported]), else re-identifies.
   /// - Nominally connected: the socket may be dead without a close frame ever
   ///   having been delivered, so send an out-of-band heartbeat and force-close
   ///   (triggering the normal reconnect path) if no ACK arrives within
@@ -346,9 +366,7 @@ class GatewaySocket {
     if (_reconnectCancelled || _gatewayUrl.isEmpty) return;
     if (_state == GatewayState.disconnected) {
       _reconnectAttempts = 0;
-      _openConnection(_sessionId.isNotEmpty
-          ? GatewayState.resuming
-          : GatewayState.connecting);
+      _openConnection(_handshakeState());
       return;
     }
     // Only probe a fully-established connection; if we're mid-handshake
@@ -484,9 +502,49 @@ class GatewaySocket {
     _conn = null;
   }
 
+  /// The state to open a (re)connect in.
+  ///
+  /// RESUME is only attempted against a server that advertised support for it;
+  /// otherwise the held session is dropped up front so the handshake goes
+  /// straight to IDENTIFY rather than stalling on a RESUME the server never
+  /// answers (#208).
+  GatewayState _handshakeState() {
+    if (_sessionId.isEmpty) return GatewayState.connecting;
+    if (_resumeSupported) return GatewayState.resuming;
+    _sessionId = '';
+    _sequence = 0;
+    return GatewayState.connecting;
+  }
+
+  /// Whether [data] (a HELLO or READY payload) advertises RESUME support,
+  /// either as `resumable: true` or via a `capabilities` entry.
+  bool _advertisesResume(Map<String, dynamic> data) {
+    if (asBool(data['resumable'])) return true;
+    final caps = asList(data['capabilities']) ?? const [];
+    return caps.any((c) => asString(c) == 'resume');
+  }
+
+  /// Returns the reconnect budget to full when the session that just ended had
+  /// been up for at least [stableSessionThreshold].
+  ///
+  /// Resetting on READY itself (as this used to) meant a connect → READY → die
+  /// loop reconnected at the 1–2s base delay forever: the backoff never
+  /// escalated and the budget was never spent, so a broken socket hammered the
+  /// server and broadcast an offline+online pair to every observer every few
+  /// seconds (#208).
+  void _creditStableSession() {
+    final startedAt = _sessionStartedAt;
+    _sessionStartedAt = null;
+    if (startedAt == null) return;
+    if (_now().difference(startedAt) >= stableSessionThreshold) {
+      _reconnectAttempts = 0;
+    }
+  }
+
   void _onClosed() {
     final code = _conn?.closeCode ?? 1006;
     final reason = _conn?.closeReason ?? '';
+    _creditStableSession();
     if (_resumePending) {
       _sessionId = '';
       _sequence = 0;
@@ -518,9 +576,7 @@ class GatewaySocket {
         baseDelay * pow(2.0, min(_reconnectAttempts - 1, 5)) + _random();
     await _sleep(Duration(milliseconds: (delay * 1000).round()));
     if (_reconnectCancelled) return;
-    final initial =
-        _sessionId.isNotEmpty ? GatewayState.resuming : GatewayState.connecting;
-    _openConnection(initial);
+    _openConnection(_handshakeState());
   }
 
   // ── Heartbeat ────────────────────────────────────────────────────────────
@@ -617,9 +673,17 @@ class GatewaySocket {
         );
         _heartbeatAckReceived = true;
         _startHeartbeat();
-        if (_sessionId.isNotEmpty && _state == GatewayState.resuming) {
+        if (_advertisesResume(dataMap)) _resumeSupported = true;
+        if (_sessionId.isNotEmpty &&
+            _state == GatewayState.resuming &&
+            _resumeSupported) {
           _sendResume();
         } else {
+          // Never speculatively RESUME: a server without a handler for op 3
+          // drops it silently and we sit dead until its identify timeout (#208).
+          _sessionId = '';
+          _sequence = 0;
+          if (_state == GatewayState.resuming) _state = GatewayState.connected;
           _sendIdentify();
         }
         break;
@@ -670,12 +734,15 @@ class GatewaySocket {
     switch (eventType) {
       case 'ready':
         _sessionId = asString(data['session_id']);
-        _reconnectAttempts = 0;
+        if (_advertisesResume(data)) _resumeSupported = true;
+        // The backoff budget is credited on *close*, once the session has
+        // proven it can stay up (see [_creditStableSession]) — not here.
+        _sessionStartedAt = _now();
         _resumePending = false;
         _readyReceived.add(data);
         break;
       case 'resumed':
-        _reconnectAttempts = 0;
+        _sessionStartedAt = _now();
         _resumePending = false;
         _resumed.add(null);
         break;

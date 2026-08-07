@@ -273,13 +273,15 @@ void main() {
       socket.connectToGateway('ws://x');
       await pump();
 
-      // Establish a session.
+      // Establish a session. `resumable` is what licenses the RESUME below —
+      // without it the socket re-identifies instead (#208).
       factory.last.receive(jsonEncode({
         'op': GatewayOpcodes.event,
         'type': 'ready',
-        'data': {'session_id': 'S1'},
+        'data': {'session_id': 'S1', 'resumable': true},
       }));
       await pump();
+      expect(socket.resumeSupported, isTrue);
 
       // Unexpected drop.
       factory.last.simulateClose(1006);
@@ -298,6 +300,76 @@ void main() {
       final sent = lastSent(factory.last);
       expect(sent['op'], GatewayOpcodes.resume);
       expect(sent['data']['session_id'], 'S1');
+      await socket.dispose();
+    });
+
+    test('re-identifies against a server that never advertised resume',
+        () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      // A plain READY — no `resumable`, no `capabilities`. accordserver's
+      // pre-identify loop ignores op 3 entirely, so a speculative RESUME would
+      // idle until its 30-second identify timeout with us broadcast offline
+      // the whole time (#208).
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'ready',
+        'data': {'session_id': 'S1'},
+      }));
+      await pump();
+      expect(socket.resumeSupported, isFalse);
+
+      factory.last.simulateClose(1006);
+      await pump();
+
+      // The stale session is dropped up front rather than gambled on, so the
+      // reconnect opens as a plain connect (never `resuming`).
+      expect(socket.sessionId, '');
+      expect(socket.state, isNot(GatewayState.resuming));
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 60000},
+      }));
+      await pump();
+
+      expect(lastSent(factory.last)['op'], GatewayOpcodes.identify);
+      await socket.dispose();
+    });
+
+    test('a HELLO capability list also enables resuming', () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {
+          'heartbeat_interval': 60000,
+          'capabilities': ['resume'],
+        },
+      }));
+      await pump();
+      expect(socket.resumeSupported, isTrue);
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.event,
+        'type': 'ready',
+        'data': {'session_id': 'S1'},
+      }));
+      await pump();
+
+      factory.last.simulateClose(1006);
+      await pump();
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 60000},
+      }));
+      await pump();
+
+      expect(lastSent(factory.last)['op'], GatewayOpcodes.resume);
       await socket.dispose();
     });
 
@@ -355,6 +427,66 @@ void main() {
       expect(socket.sessionId, '');
       expect(factory.connections.length, 2);
       await socket.dispose();
+    });
+  });
+
+  group('backoff', () {
+    /// Drives [rounds] connect → READY → die cycles, holding each session up
+    /// for [sessionLifetime] on the injected clock, and returns the delay the
+    /// socket waited before each reconnect.
+    Future<List<int>> flap({
+      required int rounds,
+      required Duration sessionLifetime,
+    }) async {
+      final delays = <Duration>[];
+      var clock = DateTime.utc(2024);
+      final factory = FakeConnectionFactory();
+      final socket = GatewaySocket(
+        connectionFactory: factory.call,
+        sleep: (d) async {
+          delays.add(d);
+        },
+        random: () => 0.0,
+        now: () => clock,
+        token: 'tok',
+        tokenType: 'Bot',
+      );
+      socket.setup(AccordConfig(), 'tok', intentList: ['messages']);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      for (var i = 0; i < rounds; i++) {
+        factory.last.receive(jsonEncode({
+          'op': GatewayOpcodes.event,
+          'type': 'ready',
+          'data': {'session_id': 'S$i'},
+        }));
+        await pump();
+        clock = clock.add(sessionLifetime);
+        factory.last.simulateClose(1006);
+        await pump();
+      }
+      await socket.dispose();
+      return [for (final d in delays) d.inMilliseconds];
+    }
+
+    test('escalates when the session keeps dying before it is stable',
+        () async {
+      // The #208 cadence: READY, alive for five seconds, dead. The budget used
+      // to be reset on READY, so this looped at 1–2s forever — one visible
+      // offline/online flip per cycle for everyone watching the roster.
+      expect(
+        await flap(rounds: 4, sessionLifetime: const Duration(seconds: 5)),
+        [1000, 2000, 4000, 8000],
+      );
+    });
+
+    test('a session that stays up past the threshold earns the budget back',
+        () async {
+      expect(
+        await flap(rounds: 3, sessionLifetime: const Duration(seconds: 45)),
+        [1000, 1000, 1000],
+      );
     });
   });
 
@@ -445,7 +577,7 @@ void main() {
         'op': GatewayOpcodes.event,
         'type': 'ready',
         'seq': 3,
-        'data': {'session_id': 'S1'},
+        'data': {'session_id': 'S1', 'resumable': true},
       }));
       await pump();
 
