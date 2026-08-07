@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/notifications/services/sound.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,26 +90,45 @@ void main() {
 
   // ...and that AudioPlayer talks to audioplayers' platform channels, which
   // have no implementation under `flutter test`. The resulting
-  // MissingPluginException surfaces asynchronously — often after the test
-  // body has finished, failing the run with "failed after it had already
-  // completed" — so answer the channels with a no-op instead.
+  // MissingPluginException surfaces asynchronously — often after the test body
+  // has finished, failing the run with "failed after it had already
+  // completed".
+  //
+  // Two things are needed to make that deterministic, and both matter:
+  //
+  //  1. Stub the channels for the WHOLE file, not per-test. `soundManager`'s
+  //     AudioPlayer init is async, so with a per-test setUp/tearDown pair the
+  //     handler could be torn down before the init callback lands — which is
+  //     exactly the "failed after completion" flake. It shows up on a loaded
+  //     machine and hides on a fast one, so CI caught it and local runs did
+  //     not.
+  //  2. Touch `soundManager` HERE, inside the stubbed window. It is a
+  //     top-level `final` whose field initializers eagerly construct five
+  //     AudioPlayers, so the first read is what triggers the channel calls.
+  //     Reading it later (e.g. to set `enabled` in a setUp) is already too
+  //     late: construction happens on that read.
   const audioChannels = [
     MethodChannel('xyz.luan/audioplayers.global'),
     MethodChannel('xyz.luan/audioplayers'),
   ];
 
-  setUp(() {
+  setUpAll(() {
     for (final channel in audioChannels) {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async => null);
     }
+    // Forces construction while the stubs are live; also stops these tests
+    // reaching the playback path at all, since they are about the gateway
+    // frame rather than the SFX.
+    soundManager.enabled = false;
   });
 
-  tearDown(() {
+  tearDownAll(() {
     for (final channel in audioChannels) {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);
     }
+    soundManager.enabled = true;
   });
 
   group('mid-call self-state broadcast (#135)', () {
