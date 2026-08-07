@@ -84,7 +84,7 @@ Run your own. **AccordServer** is the open-source, Rust-powered backend that pow
 
 Daccord stands on the shoulders of giants. It's a fork of **[Bonfire](https://github.com/OpenBonfire/bonfire)** — a mature, fast, cross-platform Discord client written in Flutter. We reuse Bonfire's polished UI, theming, routing, and caching, and **replace its Discord networking layer entirely** with the **Accord protocol** via **[accordkit-dart](https://github.com/DaccordProject/accordkit-dart)**.
 
-The result: Bonfire's battle-tested experience, pointed at a platform that's actually free and open. It aims for feature parity with the Godot-based reference client, [`daccord`](https://github.com/DaccordProject/daccord).
+The result: Bonfire's battle-tested experience, pointed at a platform that's actually free and open — with feature parity against the Godot-based client it succeeds.
 
 A thin repository layer subscribes to Accord gateway streams, updates a local cache, and exposes Riverpod providers to the UI.
 
@@ -181,6 +181,7 @@ Daccord grows because people like you show up. It's open source and community-dr
 - 🐛 **Report bugs** — open an [issue](https://github.com/DaccordProject/daccord/issues) and help us improve.
 - 💻 **Contribute code** — pull requests are welcome.
 - 🚀 **Launch a server** — host your own [AccordServer](https://github.com/DaccordProject/accordserver) and grow a community.
+- 💖 **Sponsor the project** — [back it on Ko-fi](https://ko-fi.com/krazyjakee) and keep development moving.
 
 If you're contributing code, a few house rules keep this a port rather than a rewrite:
 
@@ -192,14 +193,24 @@ If you're contributing code, a few house rules keep this a port rather than a re
 
 ---
 
+## 💖 Support the project
+
+Hi! I'm **Jacob Cattrall** 🎮 — creator and maintainer of the **Daccord Project**: the Accord protocol, [AccordServer](https://github.com/DaccordProject/accordserver), and this cross-platform client. Together they give communities chat, voice, and video that they actually own — free, ad-free, and self-hosted.
+
+I'm looking for sponsors to help sustain and grow it: more development time, better documentation, more features, and deeper support for the people running their own servers. Sponsorship is what keeps Daccord independent — no ads, no paywalled features, no investor deciding what your community gets to keep.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/krazyjakee)
+
+Every contribution — however small — goes straight into maintaining and improving the project. Thank you. 🙏
+
+---
+
 ## Related repositories
 
 | Repo | What it is | Language | License |
 |---|---|---|---|
 | **this repo** | Flutter client (what you ship) | Dart / Flutter | GPL-3.0 |
-| [`accordkit-dart`](https://github.com/DaccordProject/accordkit-dart) | Accord protocol SDK (networking layer) | Dart | MIT |
 | [`accordserver`](https://github.com/DaccordProject/accordserver) | Accord server backend | Rust | — |
-| [`daccord`](https://github.com/DaccordProject/daccord) | Godot reference client (feature/UX reference) | GDScript | MIT |
 
 `accordkit`, `livekit_client`, and `markdown_viewer` are vendored in-tree under `packages/` and maintained in this repository.
 
@@ -207,4 +218,4 @@ If you're contributing code, a few house rules keep this a port rather than a re
 
 ## 📄 License
 
-Licensed under the **[GNU General Public License v3.0](LICENSE)** (GPLv3), inherited from Bonfire. AccordKit-Dart and the Godot reference client are MIT-licensed; GPLv3 may incorporate MIT-licensed code, so depending on `accordkit` is fine.
+Licensed under the **[GNU General Public License v3.0](LICENSE)** (GPLv3), inherited from Bonfire. AccordKit-Dart is MIT-licensed; GPLv3 may incorporate MIT-licensed code, so depending on `accordkit` is fine.
