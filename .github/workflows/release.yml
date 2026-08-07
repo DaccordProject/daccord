@@ -110,8 +110,9 @@ jobs:
     needs: [verify, ci]
     # `os` is a JSON array so one entry can carry either a self-hosted label
     # list or a GitHub-hosted image name. See the self-hosted runner notes at
-    # the top of ci.yml — Linux/Web/Android run on the Proxmox CT 102 runners;
-    # Windows and macOS cannot (those runners are Linux/x64) and stay hosted.
+    # the top of ci.yml — Web/Android run on the Proxmox CT 102 runners.
+    # Windows and macOS cannot (those runners are Linux/x64), and Linux is
+    # hosted too for the toolchain reasons noted on its matrix entry below.
     runs-on: ${{ fromJSON(matrix.os) }}
     env:
       # Hosted: workspace-local pub cache so actions/cache can persist it.
@@ -157,8 +158,14 @@ jobs:
             artifact: daccord-android
           - name: Linux
             platform: linux
-            os: '["self-hosted","flutter"]'
-            self_hosted: true
+            # NOT self-hosted: the runner container is Ubuntu 20.04, whose CMake
+            # (3.16) predates the file(ARCHIVE_EXTRACT) that flutter_webrtc's
+            # libwebrtc extraction needs (3.18+), and whose libmpv is far older
+            # than media_kit expects. Focal is also EOL, so `apt-get install` of
+            # the build deps took ~100 minutes there against the archived repos.
+            # Revisit if the runner image is ever rebuilt on 24.04.
+            os: '["ubuntu-latest"]'
+            self_hosted: false
             artifact: daccord-linux-x86_64
           - name: Windows
             platform: windows

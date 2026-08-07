@@ -220,8 +220,14 @@ jobs:
             path: build/app/outputs/flutter-apk/*.apk
           - name: Linux
             platform: linux
-            os: '["self-hosted","flutter"]'
-            self_hosted: true
+            # NOT self-hosted: the runner container is Ubuntu 20.04, whose CMake
+            # (3.16) predates the file(ARCHIVE_EXTRACT) that flutter_webrtc's
+            # libwebrtc extraction needs (3.18+), and whose libmpv is far older
+            # than media_kit expects. Focal is also EOL, so `apt-get install` of
+            # the build deps took ~100 minutes there against the archived repos.
+            # Revisit if the runner image is ever rebuilt on 24.04.
+            os: '["ubuntu-latest"]'
+            self_hosted: false
             artifact: daccord-linux
             path: build/linux/x64/release/bundle/
           - name: Windows
