@@ -306,6 +306,12 @@ jobs:
           cache: ${{ !matrix.self_hosted }}
           cache-path: "${{ matrix.self_hosted && '/tmp/runner/cache/flutter-sdk/:channel:-:version:-:arch:' || '' }}"
 
+      - name: Trust root-owned git checkouts (self-hosted)
+        # The runner executes as root and Flutter's tarball ships uid 1000, so
+        # git otherwise aborts with "detected dubious ownership". See ci.yml.
+        if: ${{ matrix.self_hosted }}
+        run: git config --global --add safe.directory '*'
+
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a
@@ -958,6 +964,11 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: false
           cache-path: '/tmp/runner/cache/flutter-sdk/:channel:-:version:-:arch:'
+
+      - name: Trust root-owned git checkouts
+        # The runner executes as root and Flutter's tarball ships uid 1000, so
+        # git otherwise aborts with "detected dubious ownership". See ci.yml.
+        run: git config --global --add safe.directory '*'
 
       - name: Set up Ruby
         # fastlane supply (upload_to_play_store) does the Play upload.

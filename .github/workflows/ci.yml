@@ -143,6 +143,21 @@ jobs:
           cache: ${{ github.event.pull_request.head.repo.fork == true }}
           cache-path: "${{ github.event.pull_request.head.repo.fork && '' || '/tmp/runner/cache/flutter-sdk/:channel:-:version:-:arch:' }}"
 
+      - name: Trust root-owned git checkouts (self-hosted)
+        # The runner executes as root, but Flutter's release tarball ships uid
+        # 1000 and tar-as-root preserves it — so the SDK lands owned by 1000 and
+        # git aborts with "detected dubious ownership". Flutter shells out to
+        # git on nearly every command, so this has to happen before `pub get`.
+        # GitHub-hosted runners never hit this: they extract as a non-root user,
+        # which cannot preserve the uid.
+        # `*` rather than just the SDK path because pub clones the git
+        # dependencies (media_kit, flutter_webrtc) into PUB_CACHE too. It is
+        # safe here specifically because fork code never runs on these runners
+        # (see the header) — the check exists to guard against other users on a
+        # shared machine, and this container is single-tenant.
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        run: git config --global --add safe.directory '*'
+
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a
@@ -298,6 +313,11 @@ jobs:
           # GitHub cache entirely. Hosted (Windows): cache as before.
           cache: ${{ !matrix.self_hosted }}
           cache-path: "${{ matrix.self_hosted && '/tmp/runner/cache/flutter-sdk/:channel:-:version:-:arch:' || '' }}"
+
+      - name: Trust root-owned git checkouts (self-hosted)
+        # See the analyze job for why this is needed.
+        if: ${{ matrix.self_hosted }}
+        run: git config --global --add safe.directory '*'
 
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
