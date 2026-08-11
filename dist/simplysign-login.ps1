@@ -187,14 +187,11 @@ try {
     }
     Write-Host "Using SimplySign Desktop: $exe"
 
+    # Parse (and so validate) the enrolment URI before launching anything - a
+    # malformed secret should fail here, not after a 20-second GUI dance.
     $totp = Get-TotpParams $env:SIMPLYSIGN_TOTP_SECRET
-    $otp = Get-Totp (ConvertFrom-Base32 $totp.Secret) $totp.Algorithm $totp.Digits $totp.Period
-    # Log the parameters but never the value - a wrong algorithm is otherwise
-    # indistinguishable from a wrong password in the failure log.
-    Write-Host "Generated a $($otp.Length)-digit TOTP (HMAC-$($totp.Algorithm), $($totp.Period)s)."
 
     Start-Process -FilePath $exe | Out-Null
-    Start-Sleep -Seconds 20   # the tray app takes a while to paint its window
 
     # There is no supported way to script this. AppActivate + SendKeys against
     # the login dialog is what the community does; it depends on the runner
@@ -202,14 +199,39 @@ try {
     # If it breaks, the certificate simply never appears and we ship unsigned.
     $shell = New-Object -ComObject WScript.Shell
 
-    $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
-        Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    # Poll for the window rather than sleeping a fixed 20s: the tray app's paint
+    # time varies with runner load, and a fixed wait is either too short (no
+    # window to type into) or wastes TOTP validity.
+    $proc = $null
+    $windowDeadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $windowDeadline) {
+        $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+        if ($proc -and $shell.AppActivate($proc.Id)) { break }
+        $proc = $null
+        Start-Sleep -Seconds 2
+    }
     if ($proc) {
-        $shell.AppActivate($proc.Id) | Out-Null
+        Write-Host "Activated SimplySign window (pid $($proc.Id))."
     } else {
-        Write-Warn "No SimplySign window found to activate; typing into the foreground window instead."
+        Write-Warn "No SimplySign window could be activated in 60s; typing into the foreground window instead."
     }
     Start-Sleep -Seconds 2
+
+    # Only now derive the code, and only from a window with enough validity left
+    # to survive the ~2s of typing below. Generating it before the GUI wait -
+    # which is what the obvious ordering does - can submit a code that expired
+    # while the app was still painting, which looks exactly like a wrong secret.
+    $elapsed = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() % $totp.Period
+    if (($totp.Period - $elapsed) -lt 10) {
+        $wait = $totp.Period - $elapsed
+        Write-Host "TOTP window has ${wait}s left; waiting for the next one."
+        Start-Sleep -Seconds ($wait + 1)
+    }
+    $otp = Get-Totp (ConvertFrom-Base32 $totp.Secret) $totp.Algorithm $totp.Digits $totp.Period
+    # Log the parameters but never the value - a wrong algorithm is otherwise
+    # indistinguishable from a wrong password in the failure log.
+    Write-Host "Generated a $($otp.Length)-digit TOTP (HMAC-$($totp.Algorithm), $($totp.Period)s)."
 
     # SendKeys treats these as control characters, so anything appearing in an
     # account ID has to be escaped by wrapping it in braces.
