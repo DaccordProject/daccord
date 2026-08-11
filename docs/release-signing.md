@@ -134,7 +134,7 @@ this order:
 | Secret / variable | What it is |
 |-------------------|------------|
 | `SIMPLYSIGN_USER` (secret) | Certum SimplySign account ID / e-mail |
-| `SIMPLYSIGN_TOTP_SECRET` (secret) | the enrolment `otpauth://` URI, or just its base32 `secret=` value |
+| `SIMPLYSIGN_TOTP_SECRET` (secret) | the enrolment `otpauth://` URI. The bare base32 `secret=` value also parses, but then the algorithm defaults to SHA1 and Certum's code-signing accounts are SHA256 — store the whole URI. |
 | `WINDOWS_CERT_PFX_BASE64` (secret) | base64 of the code-signing `.pfx`/PKCS#12 |
 | `WINDOWS_CERT_PASSWORD` (secret) | password protecting that `.pfx` (omit if none) |
 | `WINDOWS_TIMESTAMP_URL` (repo **variable**, optional) | RFC-3161 timestamp server; defaults to `http://timestamp.digicert.com`. **Set this to `http://time.certum.pl` when signing with a Certum certificate.** |
@@ -200,8 +200,11 @@ Opening that session unattended is the hard part, and `dist/simplysign-login.ps1
 does it the only way anyone has documented:
 
 1. installs SimplySign Desktop (`winget install Certum.SmartSignSimplySignDesktop`),
-2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, the
-   SHA1/6-digit/30s defaults Certum use),
+2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, reading the
+   algorithm/digits/period from the `otpauth://` URI — Certum's code-signing
+   enrolment uses **HMAC-SHA256**, *not* the SHA1 default, and a SHA1 code is
+   six plausible digits that Certum silently rejects, so store the whole URI
+   rather than the bare base32 secret),
 3. launches the app and **types the credentials into its GUI via `SendKeys`**,
 4. polls `Cert:\CurrentUser\My` until a new code-signing cert appears,
 5. exports its thumbprint as `WINDOWS_CERT_SHA1`.
