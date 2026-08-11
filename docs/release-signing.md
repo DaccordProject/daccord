@@ -347,10 +347,14 @@ ASC_ISSUER_ID              App Store Connect issuer id
 ASC_KEY_P8_BASE64          base64 of AuthKey_<id>.p8
 APPLE_TEAM_ID              10-char team id
 
-# Windows Authenticode
+# Windows Authenticode — Certum cloud key (what this project uses)
+SIMPLYSIGN_USER            SimplySign account ID / e-mail
+SIMPLYSIGN_TOTP_SECRET     enrolment otpauth:// URI, or its base32 secret= value
+
+# Windows Authenticode — exportable .pfx (alternative to the two above)
 WINDOWS_CERT_PFX_BASE64    base64 of the code-signing .pfx
 WINDOWS_CERT_PASSWORD      password for the .pfx (optional)
-WINDOWS_TIMESTAMP_URL      repo *variable*, optional; defaults to DigiCert
+WINDOWS_TIMESTAMP_URL      repo *variable*; set to http://time.certum.pl (done)
 
 # Release checksum signature (any platform)
 GPG_PRIVATE_KEY            armoured private key block
@@ -364,13 +368,14 @@ on a tag push.
 
 ## What is still blocked
 
-The pipeline is complete and inert. Two purchases/enrolments are the only
-remaining blockers, and neither can be done from this repository:
-
-- **Apple Developer Program membership** ($99/yr) to obtain a Developer ID
-  Application certificate and notarization credentials.
-- **A Windows code-signing certificate** — SignPath Foundation (free for OSS),
-  Azure Trusted Signing, or a CA's cloud-HSM product.
-
-Until both exist, macOS and Windows downloads still trip Gatekeeper and
-SmartScreen, which is the acceptance criterion of the signing issue.
+- **Windows** — **unblocked.** The Certum *Open Source Code Signing in the Cloud*
+  certificate was issued on 11 Aug 2026 to `Open Source Developer Jacob
+  Cattrall` (issuer `Certum Code Signing 2021 CA`, valid until 11 Aug 2027).
+  The `WINDOWS_TIMESTAMP_URL` repo variable is set to `http://time.certum.pl`.
+  Signing switches on as soon as `SIMPLYSIGN_USER` and `SIMPLYSIGN_TOTP_SECRET`
+  are added as repo secrets — the private key stays in Certum's HSM, so there is
+  no `.pfx` to upload and `WINDOWS_CERT_SHA1` is derived at build time by
+  `dist/simplysign-login.ps1`. Renewing the certificate needs no secret rotation.
+- **macOS** — still blocked on an **Apple Developer Program membership**
+  ($99/yr) for a Developer ID Application certificate and notarization
+  credentials.
