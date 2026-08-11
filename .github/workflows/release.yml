@@ -688,7 +688,11 @@ jobs:
   ios-appstore:
     name: iOS App Store
     needs: ci
-    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_ios) }}
+    # A prerelease tag (one containing '-', e.g. v0.2.10-rc.1) is a pipeline
+    # rehearsal, not something to put in front of reviewers, so the store
+    # deploys skip it. The check is scoped to push because on workflow_dispatch
+    # ref_name is a branch, and branch names routinely contain '-'.
+    if: ${{ success() && ((github.event_name == 'push' && !contains(github.ref_name, '-')) || inputs.deploy_ios) }}
     runs-on: macos-15
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
@@ -800,7 +804,8 @@ jobs:
   mac-appstore:
     name: Mac App Store
     needs: ci
-    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_mac) }}
+    # Prerelease tags skip the store deploys — see ios-appstore above.
+    if: ${{ success() && ((github.event_name == 'push' && !contains(github.ref_name, '-')) || inputs.deploy_mac) }}
     runs-on: macos-15
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
@@ -939,7 +944,8 @@ jobs:
   android-play:
     name: Google Play
     needs: ci
-    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_android) }}
+    # Prerelease tags skip the store deploys — see ios-appstore above.
+    if: ${{ success() && ((github.event_name == 'push' && !contains(github.ref_name, '-')) || inputs.deploy_android) }}
     runs-on: [self-hosted, flutter]
     env:
       # Persistent path on the runner's volume — no actions/cache round-trip.
