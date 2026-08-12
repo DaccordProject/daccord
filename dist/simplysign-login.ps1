@@ -148,15 +148,45 @@ function Find-SimplySign {
     return $null
 }
 
+# Pinned to a specific MSI rather than "latest": the URL is version-stamped, so
+# there is no floating one to use, and pinning means the hash below can be
+# checked. Both values are copied from Certum's own winget manifest
+# (microsoft/winget-pkgs, manifests/c/Certum/SmartSignSimplySignDesktop). To
+# bump, take the InstallerUrl + InstallerSha256 for the new version from there.
+$script:SimplySignMsiUrl = 'https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi'
+$script:SimplySignMsiSha256 = '8EC420FC27798B86078B7BD02FE7152097E1B3005BAB51820EACA8E57DF84DA3'
+
 function Install-SimplySign {
-    # winget is present on the GitHub windows-latest image and Certum publish a
-    # package there, which is far less brittle than scraping their download page
-    # for a version-stamped MSI URL.
-    Write-Host "Installing SimplySign Desktop via winget..."
-    winget install --id Certum.SmartSignSimplySignDesktop --exact --silent `
-        --accept-package-agreements --accept-source-agreements --disable-interactivity
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "winget install returned $LASTEXITCODE; continuing in case the app is already present."
+    # winget looks like the obvious installer, and it is what this script used
+    # to do, but it is NOT usable on the GitHub windows-latest image: winget is
+    # provisioned per-user for an interactive desktop user and the runner
+    # service account has no such install, so the call dies with "the term
+    # 'winget' is not recognized". Use it when it happens to be there (a
+    # self-hosted runner may well have it) and fall back to the MSI otherwise.
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "Installing SimplySign Desktop via winget..."
+        winget install --id Certum.SmartSignSimplySignDesktop --exact --silent `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity
+        if ($LASTEXITCODE -eq 0) { return }
+        Write-Warn "winget install returned $LASTEXITCODE; falling back to the MSI."
+    }
+
+    $msi = Join-Path $env:TEMP 'SimplySignDesktop.msi'
+    Write-Host "Downloading $script:SimplySignMsiUrl"
+    $ProgressPreference = 'SilentlyContinue'   # the progress bar is very slow over a CI pipe
+    Invoke-WebRequest -Uri $script:SimplySignMsiUrl -OutFile $msi -UseBasicParsing
+
+    # An unsigned installer for the tool that holds our signing key would be an
+    # absurd link in the chain, so the download is pinned by hash.
+    $actual = (Get-FileHash -Path $msi -Algorithm SHA256).Hash
+    if ($actual -ne $script:SimplySignMsiSha256) {
+        throw "SimplySign MSI hash mismatch: expected $script:SimplySignMsiSha256, got $actual"
+    }
+    Write-Host "MSI hash verified; installing silently..."
+
+    $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/norestart' -Wait -PassThru
+    if ($p.ExitCode -ne 0) {
+        Write-Warn "msiexec returned $($p.ExitCode); continuing in case the app is already present."
     }
 }
 

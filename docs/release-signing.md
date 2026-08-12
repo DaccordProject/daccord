@@ -199,7 +199,12 @@ mode described above is the integration.
 Opening that session unattended is the hard part, and `dist/simplysign-login.ps1`
 does it the only way anyone has documented:
 
-1. installs SimplySign Desktop (`winget install Certum.SmartSignSimplySignDesktop`),
+1. installs SimplySign Desktop — from a hash-pinned MSI (`files.certum.eu`,
+   URL and SHA-256 taken from Certum's winget manifest), because `winget`
+   itself is **not available** on the GitHub `windows-latest` image: it is
+   provisioned per-user for an interactive desktop user and the runner service
+   account has no such install. `winget` is still used when present, for
+   self-hosted runners that have it,
 2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, reading the
    algorithm/digits/period from the `otpauth://` URI — Certum's code-signing
    enrolment uses **HMAC-SHA256**, *not* the SHA1 default, and a SHA1 code is
