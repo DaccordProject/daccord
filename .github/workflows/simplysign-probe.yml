@@ -1,0 +1,53 @@
+name: SimplySign probe
+
+# A throwaway diagnostic, not part of any release. It answers one question:
+# can a self-hosted Linux runner open a Certum SimplySign session under Xvfb
+# and expose the cloud key as a PKCS#11 token?
+#
+# The GitHub-hosted Windows runner cannot (v0.2.10-rc.2: "No SimplySign window
+# could be activated in 60s" - no interactive desktop). If this probe goes
+# green, the release pipeline moves Windows Authenticode signing to Linux via
+# osslsigncode; if it goes red, the answer is a self-hosted Windows runner with
+# an autologon session, and this file gets deleted either way.
+#
+# Manual dispatch only - it holds a signing session open and must never run on
+# a push.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe SimplySign on Linux
+    runs-on: [self-hosted, flutter]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+          $SUDO apt-get update -qq
+          # xvfb: the X server the Qt app needs. xdotool: types into it.
+          # opensc: pkcs11-tool, to prove the token is really there.
+          # osslsigncode: what will actually sign the PE files.
+          $SUDO apt-get install -y -qq --no-install-recommends \
+            xvfb xdotool opensc osslsigncode curl python3 ca-certificates
+          osslsigncode --version | head -2 || true
+
+      - name: Open SimplySign session
+        env:
+          SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
+          SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
+        run: ./dist/simplysign-login-linux.sh
+
+      - name: Sign a throwaway PE to prove the key works
+        # The real proof is not that a token appeared but that osslsigncode can
+        # drive it end to end, timestamp included. Any PE will do, so use one
+        # that is already on the runner rather than building Flutter for it.
+        run: |
+          if [ -z "${SIMPLYSIGN_PKCS11_MODULE:-}" ]; then
+            echo "::warning::No session was opened - nothing to sign. See the step above."
+            exit 0
+          fi
+          echo "PKCS#11 module: $SIMPLYSIGN_PKCS11_MODULE"
+          pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-objects | head -30
