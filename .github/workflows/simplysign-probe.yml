@@ -10,10 +10,19 @@ name: SimplySign probe
 # osslsigncode; if it goes red, the answer is a self-hosted Windows runner with
 # an autologon session, and this file gets deleted either way.
 #
-# Manual dispatch only - it holds a signing session open and must never run on
-# a push.
+# Triggering is deliberately narrow: it holds a signing session open, so it
+# must not fire on ordinary pushes. workflow_dispatch alone would be ideal, but
+# GitHub only registers dispatchable workflows from the DEFAULT branch, and
+# this file only exists on ci/self-hosted-runners - so it is unreachable that
+# way until merged. Hence the push trigger, pinned to this branch and to the
+# two files the probe consists of.
 on:
   workflow_dispatch:
+  push:
+    branches: [ci/self-hosted-runners]
+    paths:
+      - .github/workflows/simplysign-probe.yml
+      - dist/simplysign-login-linux.sh
 
 jobs:
   probe:
