@@ -52,7 +52,7 @@ jobs:
           # rest are the usual transitive set for a Qt5 XCB app running against
           # a bare Xvfb (no desktop session, so nothing else pulls them in).
           $SUDO apt-get install -y -qq --no-install-recommends \
-            xvfb xdotool openbox stalonetray x11-utils \
+            xvfb xdotool openbox stalonetray x11-utils dbus-x11 \
             opensc osslsigncode curl python3 ca-certificates \
             libxslt1.1 libxml2 libgl1 libegl1 libfontconfig1 libfreetype6 \
             libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \

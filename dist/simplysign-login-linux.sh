@@ -154,13 +154,22 @@ sleep 2
 stalonetray --geometry 1x1+0+0 --icon-size 24 --window-strut none >/tmp/stalonetray.log 2>&1 &
 sleep 2
 
-/opt/SimplySignDesktop/SimplySignDesktop >/tmp/simplysign.log 2>&1 &
+# Under a session bus, because Qt's tray/notification paths expect one and
+# there is no desktop session here to have started it.
+dbus-run-session -- /opt/SimplySignDesktop/SimplySignDesktop >/tmp/simplysign.log 2>&1 &
 SSD_PID=$!
 
-# Give the icon time to dock, then activate it. Qt maps a plain click to
-# Trigger and a double click to DoubleClick; which one opens the dialog is not
-# documented, so try double first and fall back to single.
-sleep 15
+# Give the app time to start and its icon time to dock. The previous probe
+# waited 15s, clicked into an empty tray and learned nothing, so wait longer
+# and say what is actually there before clicking anything.
+sleep 45
+if ! kill -0 "$SSD_PID" 2>/dev/null; then
+  warn "SimplySign Desktop exited immediately - shipping UNSIGNED Windows binaries. Log:"
+  tail -30 /tmp/simplysign.log
+  exit 0
+fi
+echo "SimplySign is running (pid $SSD_PID). X11 tree under the tray:"
+xwininfo -root -tree 2>/dev/null | grep -iE "stalonetray|simplysign|icon" | head -10
 WIN=""
 for attempt in double single; do
   case "$attempt" in
