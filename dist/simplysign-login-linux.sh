@@ -210,12 +210,9 @@ xdotool mousemove 12 12 click 3
 sleep 3
 snap 06-tray-menu
 
-MENU="$(xdotool search --name '^SimplySign Desktop$' 2>/dev/null | head -1)"
-if [ -z "$MENU" ]; then
-  warn "The tray context menu did not open - shipping UNSIGNED Windows binaries."
-  snap 03-final
-  exit 0
-fi
+# Do not try to find the menu window first: it is override-redirect, so
+# xdotool search does not reliably match it even while it is plainly on screen
+# (a guard on that check failed a probe where the capture showed the menu open).
 # Click the first item rather than sending Down/Return: Qt menus opened from a
 # tray icon do not always take keyboard focus under a bare WM.
 xdotool mousemove 100 24 click 1
