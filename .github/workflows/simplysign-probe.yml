@@ -32,7 +32,10 @@ jobs:
     # current glibc (the self-hosted ones are 20.04 / glibc 2.31, and
     # SimplySign needs GLIBC_2.34, including in its older builds) and Xvfb
     # installs freely, so it needs no infrastructure at all.
-    runs-on: ubuntu-latest
+    # Pinned to 22.04, not ubuntu-latest: 24.04 renamed the t64 packages
+    # (libasound2 -> libasound2t64 etc), and 22.04's glibc 2.35 already clears
+    # SimplySign's GLIBC_2.34 requirement.
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
