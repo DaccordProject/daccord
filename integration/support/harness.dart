@@ -211,16 +211,15 @@ class IntegrationHarness {
     }
     await ProfileStore.bootstrap(dir.path);
 
-    // Sounds and notifications reach plugins (audio players, local
-    // notifications) that have no implementation in a headless test VM, and
-    // the event handler only touches them when these are enabled. Seed the
-    // settings box before any container reads it.
+    // Notifications reach a plugin with no implementation in a headless test
+    // VM, and the event handler only touches it when they're enabled. Seed the
+    // settings box before any container reads it. Sounds need no equivalent:
+    // `SoundManager.silent` defaults to true under `flutter test` (#220).
     final settings = Hive.box('accord-settings');
     final raw = settings.get('settings');
     final map = raw is Map
         ? Map<String, dynamic>.from(raw)
         : <String, dynamic>{};
-    map['soundsEnabled'] = false;
     map['notificationsEnabled'] = false;
     await settings.put('settings', map);
   }
