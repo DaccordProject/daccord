@@ -260,11 +260,29 @@ fi
 OTP="$(current_totp 2>/tmp/totp-params)"
 echo "Generated a ${#OTP}-digit TOTP ($(cat /tmp/totp-params))."   # never the value
 
-xdotool type --window "$WIN" --delay 60 "$SIMPLYSIGN_USER"
-xdotool key --window "$WIN" Tab
-sleep 1
-xdotool type --window "$WIN" --delay 60 "$OTP"
-xdotool key --window "$WIN" Return
+# The form is a web view inside the window, and it does not behave like a Qt
+# dialog: sending events with `xdotool --window` delivered only some of them,
+# and Tab did not move focus between the fields. The previous probe ended up
+# with the OTP sitting in the e-mail box and no e-mail at all.
+#
+# So drive it the way a person would: click each field, then type with XTEST
+# (no --window) so the events go through the normal focus path. Coordinates are
+# from the 1280x1024 Xvfb screen and the captures in this repo's history —
+# e-mail box, token box, Login button, all horizontally centred.
+click_type() {   # x y text
+  xdotool mousemove "$1" "$2" click 1
+  sleep 1
+  xdotool key --clearmodifiers ctrl+a
+  xdotool key --clearmodifiers Delete
+  xdotool type --clearmodifiers --delay 80 "$3"
+  sleep 1
+}
+
+click_type 639 457 "$SIMPLYSIGN_USER"
+snap 09-email-typed
+click_type 639 565 "$OTP"
+snap 10-otp-typed
+xdotool mousemove 639 645 click 1     # Login
 snap 05-after-submit
 
 echo "Credentials submitted; waiting up to ${TIMEOUT_SEC}s for the virtual card..."
