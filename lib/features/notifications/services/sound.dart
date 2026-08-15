@@ -1,5 +1,8 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/widgets.dart';
+// `dart:io` isn't available on web; universal_io's Platform reports an empty
+// environment there, which is the right answer for this check anyway.
+import 'package:universal_io/io.dart' show Platform;
 
 /// Plays short UI sound effects (message sent/received, mentions). The Dart
 /// analogue of the reference client's `SoundManager` autoload
@@ -33,14 +36,28 @@ class SoundManager {
 
   static const _poolSize = 4;
 
-  final List<AudioPlayer> _pool =
+  /// Silences every playback path, and stops any [AudioPlayer] from being
+  /// constructed at all.
+  ///
+  /// Defaults to true under `flutter test`, where `audioplayers` and the
+  /// `path_provider` it reaches for have no platform implementation: a chime
+  /// fired from code under test (a mute toggle, an incoming message) would
+  /// otherwise throw `MissingPluginException` from an un-awaited async gap and
+  /// fail whichever test happened to be running (#220). Settable so a test can
+  /// opt back in.
+  static bool silent = Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// Lazy so a silent manager never builds a player. `audioplayers` reaches the
+  /// platform on first use, not construction, but building four of them plus a
+  /// ringtone player in a test process is pointless either way.
+  late final List<AudioPlayer> _pool =
       List.generate(_poolSize, (_) => AudioPlayer());
   int _next = 0;
   bool _initialized = false;
 
   /// Dedicated looping player for the incoming/outgoing call ringtone, separate
   /// from the one-shot SFX pool so it can sustain across a ring.
-  final AudioPlayer _ringPlayer = AudioPlayer();
+  late final AudioPlayer _ringPlayer = AudioPlayer();
   bool _ringing = false;
 
   AppLifecycleListener? _lifecycle;
@@ -56,7 +73,7 @@ class SoundManager {
   double volume = 1.0;
 
   void init() {
-    if (_initialized) return;
+    if (silent || _initialized) return;
     _initialized = true;
     for (final player in _pool) {
       player.setReleaseMode(ReleaseMode.stop);
@@ -70,7 +87,7 @@ class SoundManager {
   /// Plays the named SFX from [_sounds]. No-ops when disabled, muted, or the
   /// name is unknown.
   Future<void> play(String name) async {
-    if (!enabled || volume <= 0.0) return;
+    if (silent || !enabled || volume <= 0.0) return;
     final asset = _sounds[name];
     if (asset == null) return;
 
@@ -146,7 +163,7 @@ class SoundManager {
   /// Starts looping the incoming-call ringtone until [stopRingtone]. No-ops if
   /// already ringing, disabled, or muted.
   Future<void> startRingtone({bool outgoing = false}) async {
-    if (_ringing || !enabled || volume <= 0.0) return;
+    if (silent || _ringing || !enabled || volume <= 0.0) return;
     _ringing = true;
     await _ringPlayer.setVolume(volume.clamp(0.0, 1.0).toDouble());
     await _ringPlayer.play(
@@ -163,6 +180,7 @@ class SoundManager {
 
   void dispose() {
     _lifecycle?.dispose();
+    if (silent) return;
     _ringPlayer.dispose();
     for (final player in _pool) {
       player.dispose();
