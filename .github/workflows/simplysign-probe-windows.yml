@@ -63,7 +63,10 @@ jobs:
           "explorer running    : $([bool](Get-Process explorer -ErrorAction SilentlyContinue))"
 
       - name: Launch SimplySign and enumerate every window it owns
-        shell: pwsh
+        # Windows PowerShell, not pwsh: UI Automation (UIAutomationClient,
+        # UIAutomationTypes, WindowsBase) ships with .NET Framework and is not
+        # resolvable from PowerShell 7, where Add-Type fails outright.
+        shell: powershell
         env:
           SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
         run: |
