@@ -30,7 +30,8 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
-import 'package:flutter/foundation.dart' show VoidCallback;
+import 'package:bonfire/shared/app_info.dart' show kAppVersion;
+import 'package:flutter/widgets.dart' show VoidCallback, Widget;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -222,7 +223,52 @@ class IntegrationHarness {
         ? Map<String, dynamic>.from(raw)
         : <String, dynamic>{};
     map['notificationsEnabled'] = false;
+    // The self-updater otherwise reaches the real release endpoint and starts
+    // staging a download mid-test, which lands as an unhandled async error
+    // after the test body has finished.
+    map['autoUpdateCheck'] = false;
+    // A fresh Hive dir looks like a first install, so the app would open its
+    // onboarding tour, error-reporting consent dialog, and release notes over
+    // whatever a UI test is trying to drive. Answer them up front.
+    map['errorReportingConsentShown'] = true;
     await settings.put('settings', map);
+    await settings.put('onboarding-seen-version', kAppVersion);
+    await settings.put('release-notes-seen-version', kAppVersion);
+  }
+
+  /// A [ProviderScope] around [child] that reports [account] as the logged-in
+  /// session — the widget-tree counterpart of [containerFor], for driving real
+  /// screens in `integration_test/`.
+  ///
+  /// Subclassing [AccordAuth] rather than faking the notifier keeps every
+  /// `ref.watchAccordClient()` / `watchUserId()` call site working unchanged,
+  /// and its `build()` touches no Hive box.
+  ///
+  /// (Returns the scope rather than a `List<Override>` because
+  /// `flutter_riverpod` doesn't export the `Override` type.)
+  Widget scopeFor(TestAccount account, {required Widget child}) => ProviderScope(
+        overrides: [
+          accordAuthProvider.overrideWith(
+            () => _StubAccordAuth(account.client, account.session),
+          ),
+        ],
+        child: child,
+      );
+
+  /// Attaches the app's real gateway event handler to [container], so live
+  /// server events land in the real caches. Returns a disposer, and also
+  /// registers one with the harness so [dispose] cleans up either way.
+  VoidCallback wireEvents(ProviderContainer container, TestAccount account) {
+    final dispose = handleAccordEvents(
+      container.read(_refProvider),
+      account.client,
+      serverKey: account.session.key,
+      currentUserId: account.userId,
+      selfDomain: account.server.homeDomain,
+      isActive: () => true,
+    );
+    _disposers.add(dispose);
+    return dispose;
   }
 
   /// A [ProviderContainer] whose `accordAuthProvider` reports [account] as the
@@ -241,17 +287,7 @@ class IntegrationHarness {
     );
     _containers.add(container);
 
-    if (wireEvents) {
-      final dispose = handleAccordEvents(
-        container.read(_refProvider),
-        account.client,
-        serverKey: account.session.key,
-        currentUserId: account.userId,
-        selfDomain: account.server.homeDomain,
-        isActive: () => true,
-      );
-      _disposers.add(dispose);
-    }
+    if (wireEvents) this.wireEvents(container, account);
 
     return container;
   }

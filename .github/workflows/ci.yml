@@ -7,6 +7,8 @@ name: CI
 # - `integration`: client↔accordserver end-to-end tests against the ghcr.io
 #                server image. Non-blocking (continue-on-error) so a server-side
 #                problem can't wedge merges; see integration/README.md.
+# - `ui-e2e`   : the real app driven on Linux under xvfb against the same
+#                server image. Also non-blocking; see integration_test/README.md.
 # - `build`    : release builds for web / Android / Linux / Windows, uploaded
 #                as artifacts. Only runs on manual `workflow_dispatch` — PRs
 #                don't need four release builds to merge, and tagged releases
@@ -149,6 +151,54 @@ jobs:
 
       - name: Integration tests
         run: flutter test integration/
+
+  ui-e2e:
+    name: UI end-to-end (Linux)
+    runs-on: ubuntu-latest
+    # Non-blocking for the same reason as `integration`, plus this one also
+    # depends on a working display and the Linux desktop toolchain.
+    # See integration_test/README.md and #221.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv \
+            xvfb
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Pull accordserver image
+        run: docker pull ghcr.io/daccordproject/accordserver:latest
+
+      - name: UI end-to-end tests
+        run: xvfb-run -a flutter test integration_test/ -d linux
 
   build:
     name: Build ${{ matrix.name }}
