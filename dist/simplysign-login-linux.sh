@@ -283,7 +283,16 @@ snap 09-email-typed
 click_type 639 565 "$OTP"
 snap 10-otp-typed
 xdotool mousemove 639 645 click 1     # Login
+sleep 20
 snap 05-after-submit
+
+# The login succeeds and then parks on a "Logon succesfull" panel with a Close
+# button (Certum's spelling). Dismiss it — leaving the dialog up is what kept
+# the earlier probes at "Get Softcards List -> none" for the full three
+# minutes despite the logon having worked.
+xdotool mousemove 634 738 click 1     # Close
+sleep 5
+snap 12-after-close
 
 echo "Credentials submitted; waiting up to ${TIMEOUT_SEC}s for the virtual card..."
 
