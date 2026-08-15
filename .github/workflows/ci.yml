@@ -4,6 +4,14 @@ name: CI
 #
 # - `analyze`  : code generation + static analysis + unit tests (the gate).
 #                Runs on every push/PR — this is what blocks merges.
+# - `integration`: client↔accordserver end-to-end tests against the ghcr.io
+#                server image. GitHub-hosted — it needs docker, which the
+#                self-hosted runners don't have (see the job's note).
+#                Non-blocking (continue-on-error) so a server-side problem
+#                can't wedge merges; see integration/README.md.
+# - `ui-e2e`   : the real app driven on Linux under xvfb against the same
+#                server image. GitHub-hosted (see the job's own note) and also
+#                non-blocking; see integration_test/README.md.
 # - `build`    : release builds for web / Android / Linux / Windows, uploaded
 #                as artifacts. Only runs on manual `workflow_dispatch` — PRs
 #                don't need four release builds to merge, and tagged releases
@@ -108,6 +116,137 @@ jobs:
 
       - name: Test
         run: flutter test
+
+  integration:
+    name: Integration (client ↔ accordserver)
+    # GitHub-hosted, because this job needs docker to run the server image.
+    #
+    # Tried on the self-hosted runners (run 31913534062, portainer-daccord-1):
+    # the job "passed" in 2m50s having run nothing — 0 tests passed, 16
+    # skipped, because docker isn't available there. Only the
+    # `portainer-accord-*` runners carry a `docker` label, and no runner has
+    # both `docker` and `flutter`. On ubuntu-latest the same suite is 15/15 in
+    # ~2m13s.
+    #
+    # To move it back: expose docker to the `flutter` runners, or stand up a
+    # long-lived test server and set ACCORD_TEST_SERVER_URL on this job — the
+    # fixture prefers that over spawning anything (integration/README.md).
+    runs-on: ubuntu-latest
+    # Separate from `analyze` on purpose: these need a real server, so a
+    # registry outage or a server-side regression must not redden the unit
+    # gate. See integration/README.md and #217.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Pull accordserver image
+        # Pre-pull so a slow first pull doesn't eat the fixture's boot timeout.
+        run: docker pull ghcr.io/daccordproject/accordserver:latest
+
+      - name: Integration tests
+        # The suite skips itself when it can't find a server, which is the right
+        # behaviour locally but would make this job a green no-op in CI — that's
+        # exactly what the self-hosted attempt did (0 passed, 16 skipped, job
+        # reported success). Fail instead if nothing actually ran.
+        shell: bash
+        run: |
+          set -uo pipefail
+          flutter test integration/ 2>&1 | tee /tmp/integration.log
+          status=${PIPESTATUS[0]}
+          if grep -qE "^0 tests passed|🎉 0 tests passed" /tmp/integration.log; then
+            echo "::error::No integration tests ran — the fixture found no server. See integration/README.md."
+            exit 1
+          fi
+          exit $status
+
+  ui-e2e:
+    name: UI end-to-end (Linux)
+    # NOT self-hosted, for the same reason the Linux `build` isn't: this
+    # compiles and runs the Linux desktop app, and the runner container is
+    # Ubuntu 20.04 — CMake 3.16 predates the file(ARCHIVE_EXTRACT) that
+    # flutter_webrtc needs (3.18+), its libmpv is far older than media_kit
+    # expects, and installing the build deps on EOL focal took ~100 minutes.
+    # Revisit if the runner image is ever rebuilt on 24.04.
+    runs-on: ubuntu-latest
+    # Non-blocking for the same reason as `integration`, plus this one also
+    # depends on a working display and the Linux desktop toolchain.
+    # See integration_test/README.md and #221.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv \
+            xvfb
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Pull accordserver image
+        run: docker pull ghcr.io/daccordproject/accordserver:latest
+
+      - name: UI end-to-end tests
+        # One `flutter test` per file, not one over the directory. Each file
+        # launches the app on the device, and a second launch inside a single
+        # invocation fails with "Error waiting for a debug connection: The log
+        # reader stopped unexpectedly, or never started" — the previous app
+        # process is still holding the connection. Reproduces locally too.
+        shell: bash
+        run: |
+          set -uo pipefail
+          status=0
+          for f in integration_test/*_test.dart; do
+            echo "::group::$f"
+            xvfb-run -a flutter test "$f" -d linux || status=1
+            echo "::endgroup::"
+          done
+          exit $status
 
   build:
     name: Build ${{ matrix.name }}
