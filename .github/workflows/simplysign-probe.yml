@@ -52,7 +52,7 @@ jobs:
           # rest are the usual transitive set for a Qt5 XCB app running against
           # a bare Xvfb (no desktop session, so nothing else pulls them in).
           $SUDO apt-get install -y -qq --no-install-recommends \
-            xvfb xdotool openbox stalonetray x11-utils dbus-x11 \
+            xvfb xdotool openbox stalonetray x11-utils dbus-x11 imagemagick \
             opensc osslsigncode curl python3 ca-certificates \
             libxslt1.1 libxml2 libgl1 libegl1 libfontconfig1 libfreetype6 \
             libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
@@ -79,3 +79,13 @@ jobs:
           fi
           echo "PKCS#11 module: $SIMPLYSIGN_PKCS11_MODULE"
           pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-objects | head -30
+
+      - name: Upload screen captures
+        # The X11 tree and window titles have both come back empty-handed; the
+        # screen itself is the remaining way to see what the app is doing.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplysign-screen
+          path: /tmp/ssd-shot-*.png
+          if-no-files-found: warn

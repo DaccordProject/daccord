@@ -170,12 +170,18 @@ if ! kill -0 "$SSD_PID" 2>/dev/null; then
 fi
 echo "SimplySign is running (pid $SSD_PID). X11 tree under the tray:"
 xwininfo -root -tree 2>/dev/null | grep -iE "stalonetray|simplysign|icon" | head -10
+
+# Window titles and the X11 tree have both come back empty-handed, so capture
+# the screen itself. /tmp/ssd-shot-*.png is uploaded as a CI artifact.
+snap() { import -window root "/tmp/ssd-shot-$1.png" 2>/dev/null || true; }
+snap 01-before-click
 WIN=""
 for attempt in double single; do
   case "$attempt" in
     double) xdotool mousemove 12 12 click --repeat 2 --delay 120 1 ;;
     single) xdotool mousemove 12 12 click 1 ;;
   esac
+  snap "02-after-$attempt-click"
   for _ in $(seq 1 15); do
     WIN="$(xdotool search --name 'SimplySign' 2>/dev/null | head -1)"
     [ -n "$WIN" ] && break
@@ -191,6 +197,7 @@ if [ -z "$WIN" ]; then
   xdotool search --onlyvisible --name '.*' 2>/dev/null | while read -r w; do
     echo "  $w: $(xdotool getwindowname "$w" 2>/dev/null)"
   done
+  snap 03-final
   echo "--- stalonetray ---"; tail -10 /tmp/stalonetray.log
   echo "--- SimplySign ---"; tail -30 /tmp/simplysign.log
   exit 0
