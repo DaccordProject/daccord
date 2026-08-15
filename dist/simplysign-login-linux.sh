@@ -121,6 +121,18 @@ fi
 
 export LD_LIBRARY_PATH=/opt/SimplySignDesktop
 export QT_QPA_PLATFORM_PLUGIN_PATH=/opt/SimplySignDesktop/plugins
+
+# A missing transitive library is the likeliest way this fails on a fresh
+# runner, and the symptom (no window ever appears) points nowhere near the
+# cause, so name the missing libraries up front instead of making the next
+# person read a 60-second timeout and guess.
+MISSING="$(ldd /opt/SimplySignDesktop/SimplySignDesktop 2>/dev/null | awk '/not found/{print $1}' | sort -u)"
+if [ -n "$MISSING" ]; then
+  warn "SimplySign Desktop is missing shared libraries - shipping UNSIGNED Windows binaries:"
+  echo "$MISSING"
+  exit 0
+fi
+
 /opt/SimplySignDesktop/SimplySignDesktop >/tmp/simplysign.log 2>&1 &
 SSD_PID=$!
 

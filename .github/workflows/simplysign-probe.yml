@@ -39,8 +39,17 @@ jobs:
           # xvfb: the X server the Qt app needs. xdotool: types into it.
           # opensc: pkcs11-tool, to prove the token is really there.
           # osslsigncode: what will actually sign the PE files.
+          # SimplySign Desktop bundles its own Qt, but not Qt's own
+          # dependencies — the first probe died on a missing libxslt.so.1. The
+          # rest are the usual transitive set for a Qt5 XCB app running against
+          # a bare Xvfb (no desktop session, so nothing else pulls them in).
           $SUDO apt-get install -y -qq --no-install-recommends \
-            xvfb xdotool opensc osslsigncode curl python3 ca-certificates
+            xvfb xdotool opensc osslsigncode curl python3 ca-certificates \
+            libxslt1.1 libxml2 libgl1 libegl1 libfontconfig1 libfreetype6 \
+            libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+            libxcb-xkb1 libxcb-sync1 libxcb-xfixes0 libnss3 libnspr4 \
+            libasound2 libdbus-1-3 libglib2.0-0 libpng16-16 libjpeg-turbo8
           osslsigncode --version | head -2 || true
 
       - name: Open SimplySign session
