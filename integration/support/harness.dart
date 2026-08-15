@@ -146,7 +146,8 @@ class IntegrationHarness {
       'password': password,
       'display_name': username,
     });
-    restOnly.dispose();
+    await restOnly.dispose();
+    _clients.remove(restOnly);
 
     if (!result.ok) {
       throw StateError(
@@ -282,7 +283,7 @@ class IntegrationHarness {
 
     for (final client in _clients) {
       await client.logout().catchError((_) {});
-      client.dispose();
+      await client.dispose();
     }
     _clients.clear();
 
