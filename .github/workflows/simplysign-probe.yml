@@ -27,7 +27,17 @@ on:
 jobs:
   probe:
     name: Probe SimplySign on Linux
-    runs-on: [self-hosted, flutter]
+    # The flutter runners are Ubuntu 20.04 (glibc 2.31) and SimplySign 2.9.14
+    # needs GLIBC_2.34, so it cannot start there at all. Rather than pin an
+    # older SimplySign against Certum's live service, run the job inside a
+    # 22.04 container — signing needs osslsigncode, not the Flutter toolchain,
+    # so the docker-labelled runners are fine for it.
+    runs-on: [self-hosted, docker]
+    container:
+      image: ubuntu:22.04
+      # SimplySign talks to its PKCS#11 front end over localhost inside the
+      # container; nothing needs to escape it.
+      options: --shm-size=1g
     steps:
       - name: Checkout
         uses: actions/checkout@v4
