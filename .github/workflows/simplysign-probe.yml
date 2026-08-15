@@ -113,7 +113,9 @@ jobs:
             "pkcs11:type=private" \
             "pkcs11:token=Code%20Signing" ; do
             echo "=== trying key URI: $KEY"
-            if osslsigncode sign \
+            # Capture to a file: piping into tail swallowed everything last
+            # time, including whatever osslsigncode was complaining about.
+            osslsigncode sign \
                  -pkcs11engine "$ENGINE" \
                  -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
                  -certs dist/certum-codesign.pem \
@@ -121,9 +123,10 @@ jobs:
                  -h sha256 \
                  -t http://time.certum.pl \
                  -in /tmp/daccord-windows-x86_64-setup.exe \
-                 -out /tmp/signed-setup.exe 2>&1 | tail -20; then
-              [ -s /tmp/signed-setup.exe ] && { echo "SIGNED with $KEY"; break; }
-            fi
+                 -out /tmp/signed-setup.exe >/tmp/oss.log 2>&1
+            echo "exit=$? output:"
+            cat /tmp/oss.log
+            [ -s /tmp/signed-setup.exe ] && { echo "SIGNED with $KEY"; break; }
           done
 
           [ -s /tmp/signed-setup.exe ] || { echo "::warning::No key URI worked."; exit 0; }
