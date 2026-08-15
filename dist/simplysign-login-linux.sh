@@ -175,21 +175,42 @@ xwininfo -root -tree 2>/dev/null | grep -iE "stalonetray|simplysign|icon" | head
 # the screen itself. /tmp/ssd-shot-*.png is uploaded as a CI artifact.
 snap() { import -window root "/tmp/ssd-shot-$1.png" 2>/dev/null || true; }
 snap 01-before-click
-WIN=""
-for attempt in double single; do
-  case "$attempt" in
-    double) xdotool mousemove 12 12 click --repeat 2 --delay 120 1 ;;
-    single) xdotool mousemove 12 12 click 1 ;;
-  esac
-  snap "02-after-$attempt-click"
-  for _ in $(seq 1 15); do
-    WIN="$(xdotool search --name 'SimplySign' 2>/dev/null | head -1)"
-    [ -n "$WIN" ] && break
-    sleep 2
+# The window is NOT called "SimplySign": Certum shipped it with Qt Designer's
+# default title, "MainWindow". Every earlier probe searched for a window that
+# was sitting right there, fullscreen, and reported "no window appeared".
+find_window() {
+  { xdotool search --name 'SimplySign'   2>/dev/null
+    xdotool search --name '^MainWindow$' 2>/dev/null
+    xdotool search --class -i simplysign 2>/dev/null
+  } | head -1
+}
+
+WIN="$(find_window)"
+if [ -z "$WIN" ]; then
+  for attempt in double single; do
+    case "$attempt" in
+      double) xdotool mousemove 12 12 click --repeat 2 --delay 120 1 ;;
+      single) xdotool mousemove 12 12 click 1 ;;
+    esac
+    snap "02-after-$attempt-click"
+    for _ in $(seq 1 15); do
+      WIN="$(find_window)"
+      [ -n "$WIN" ] && break
+      sleep 2
+    done
+    [ -n "$WIN" ] && { echo "Tray $attempt click opened the window."; break; }
+    echo "Tray $attempt click produced no window; retrying."
   done
-  [ -n "$WIN" ] && { echo "Tray $attempt click opened the window."; break; }
-  echo "Tray $attempt click produced no window; retrying."
-done
+fi
+
+# The login form is a QtWebKit page against Certum's CAS, so the window can be
+# mapped well before it has painted anything to type into. Wait for it, and
+# capture what it looks like either way.
+if [ -n "$WIN" ]; then
+  xdotool windowactivate --sync "$WIN" 2>/dev/null || true
+  sleep 20
+  snap 04-window-settled
+fi
 
 if [ -z "$WIN" ]; then
   warn "No SimplySign window appeared - shipping UNSIGNED Windows binaries."
@@ -222,6 +243,7 @@ xdotool key --window "$WIN" Tab
 sleep 1
 xdotool type --window "$WIN" --delay 60 "$OTP"
 xdotool key --window "$WIN" Return
+snap 05-after-submit
 
 echo "Credentials submitted; waiting up to ${TIMEOUT_SEC}s for the virtual card..."
 
