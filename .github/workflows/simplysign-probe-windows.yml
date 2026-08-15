@@ -104,8 +104,15 @@ jobs:
           }
 
           if ($hwnd -eq 0) {
-            "::warning::No visible SimplySign window in 120s. All windows:"
-            [WinEnum]::All() | ForEach-Object { $_ }
+            "No window yet - going in through the tray icon, as on Linux."
+            Add-Type -Path dist/TrayClick.cs -ReferencedAssemblies `
+              System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes, WindowsBase
+            "--- notification area buttons ---"
+            [TrayClick]::List() | ForEach-Object { $_ }
+            $clicked = [TrayClick]::Click('SimplySign', $true)
+            "Right-clicked: ${clicked}"
+            Start-Sleep -Seconds 5
+            [WinEnum]::All() | Where-Object { $_ -match 'visible=True' } | ForEach-Object { $_ }
           } else {
             [WinCapture]::Raise([IntPtr]$hwnd)
             Start-Sleep -Seconds 3
