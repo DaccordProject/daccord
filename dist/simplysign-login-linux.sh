@@ -203,40 +203,54 @@ if [ -z "$WIN" ]; then
   done
 fi
 
-# The login form is a QtWebKit page against Certum's CAS, so the window can be
-# mapped well before it has painted anything to type into. Wait for it, and
-# capture what it looks like either way.
-if [ -n "$WIN" ]; then
-  xdotool windowactivate --sync "$WIN" 2>/dev/null || true
-  sleep 20
-  snap 04-window-settled
-fi
-
-# "MainWindow" turned out to be the app's empty main window - it paints nothing
-# and has no fields, so typing into it went nowhere. The login lives behind the
-# tray icon's context menu, so open that and photograph it.
+# The tray menu is the way in. Its first item is "Connect with cloud" (then
+# Options / About / Quit) - confirmed from a screen capture, since the menu is
+# an override-redirect window whose items cannot be read with xdotool.
 xdotool mousemove 12 12 click 3
 sleep 3
 snap 06-tray-menu
-echo "--- windows after right-click ---"
-xdotool search --onlyvisible --name '.*' 2>/dev/null | while read -r w; do
-  echo "  $w: $(xdotool getwindowname "$w" 2>/dev/null) $(xdotool getwindowgeometry "$w" 2>/dev/null | tr '\n' ' ')"
-done
 
-if [ -z "$WIN" ]; then
-  warn "No SimplySign window appeared - shipping UNSIGNED Windows binaries."
-  echo "--- windows currently mapped ---"
-  xdotool search --onlyvisible --name '.*' 2>/dev/null | while read -r w; do
-    echo "  $w: $(xdotool getwindowname "$w" 2>/dev/null)"
-  done
+MENU="$(xdotool search --name '^SimplySign Desktop$' 2>/dev/null | head -1)"
+if [ -z "$MENU" ]; then
+  warn "The tray context menu did not open - shipping UNSIGNED Windows binaries."
   snap 03-final
-  echo "--- stalonetray ---"; tail -10 /tmp/stalonetray.log
-  echo "--- SimplySign ---"; tail -30 /tmp/simplysign.log
   exit 0
 fi
-echo "SimplySign window found (id $WIN)."
-xdotool windowactivate --sync "$WIN" 2>/dev/null || true
-sleep 2
+# Click the first item rather than sending Down/Return: Qt menus opened from a
+# tray icon do not always take keyboard focus under a bare WM.
+xdotool mousemove 100 24 click 1
+sleep 8
+snap 07-after-connect
+
+# The login dialog is a new window; the empty "MainWindow" is not it.
+LOGIN=""
+for _ in $(seq 1 20); do
+  LOGIN="$(xdotool search --onlyvisible --name '.' 2>/dev/null | while read -r w; do
+      geo="$(xdotool getwindowgeometry "$w" 2>/dev/null | grep Geometry | tr -d ' ')"
+      case "$geo" in
+        *1280x1024|*24x24|*1x1) ;;                # root, tray, openbox helper
+        Geometry:*) echo "$w" ;;
+      esac
+    done | head -1)"
+  [ -n "$LOGIN" ] && break
+  sleep 3
+done
+
+if [ -n "$LOGIN" ]; then
+  echo "Login dialog found (id $LOGIN): $(xdotool getwindowname "$LOGIN" 2>/dev/null)"
+  WIN="$LOGIN"
+  xdotool windowactivate --sync "$WIN" 2>/dev/null || true
+  sleep 5
+  snap 08-login-dialog
+else
+  warn "No login dialog appeared after Connect with cloud - shipping UNSIGNED Windows binaries."
+  echo "--- windows ---"
+  xdotool search --onlyvisible --name '.' 2>/dev/null | while read -r w; do
+    echo "  $w: $(xdotool getwindowname "$w" 2>/dev/null) $(xdotool getwindowgeometry "$w" 2>/dev/null | grep Geometry)"
+  done
+  snap 03-final
+  exit 0
+fi
 
 # Derive the code only now, and only from a window with enough validity left to
 # survive the typing below - see the matching note in the PowerShell script.
