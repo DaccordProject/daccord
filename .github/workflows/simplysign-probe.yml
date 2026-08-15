@@ -96,32 +96,37 @@ jobs:
           echo "--- pkcs11-tool --list-objects --login --pin '' ---"
           pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-objects --login --pin "" 2>&1 | head -20
 
-          CERT_URL="$(p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-all-certs 2>/dev/null \
-                       | awk '/^URL:/{print $2; exit}')"
-          KEY_URL="$(p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-privkeys --login 2>/dev/null \
-                       | awk '/^URL:/{print $2; exit}')"
-          echo "cert URL: ${CERT_URL:-<none>}"
-          echo "key  URL: ${KEY_URL:-<none>}"
-          if [ -z "$CERT_URL" ] || [ -z "$KEY_URL" ]; then
-            echo "::warning::Could not enumerate the token — see the p11tool output above."
-            exit 0
-          fi
-
-          p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --export "$CERT_URL" > /tmp/cert.pem
-          openssl x509 -in /tmp/cert.pem -noout -subject -issuer -dates
-
           gh release download v0.2.10-rc.2 -R "$GITHUB_REPOSITORY" \
             -p 'daccord-windows-x86_64-setup.exe' -D /tmp || {
               echo "::warning::Could not download the rc.2 installer; skipping the signing test."; exit 0; }
 
-          osslsigncode sign \
-            -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
-            -certs /tmp/cert.pem \
-            -key "$KEY_URL" \
-            -h sha256 \
-            -t http://time.certum.pl \
-            -in /tmp/daccord-windows-x86_64-setup.exe \
-            -out /tmp/signed-setup.exe
+          ENGINE="$(ls /usr/lib/x86_64-linux-gnu/engines-*/pkcs11.so 2>/dev/null | head -1)"
+          echo "pkcs11 engine: ${ENGINE:-<none>}"
+
+          # The certificate comes from the repo, not the token: enumeration is
+          # broken in Certum's module (see dist/certum-codesign.pem). The key
+          # is still used from the token — it cannot leave the HSM. Without a
+          # readable object list there is no id/label to name, so try the
+          # URIs that identify a key by token rather than by object.
+          for KEY in \
+            "pkcs11:token=Code%20Signing;type=private" \
+            "pkcs11:type=private" \
+            "pkcs11:token=Code%20Signing" ; do
+            echo "=== trying key URI: $KEY"
+            if osslsigncode sign \
+                 -pkcs11engine "$ENGINE" \
+                 -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
+                 -certs dist/certum-codesign.pem \
+                 -key "$KEY" \
+                 -h sha256 \
+                 -t http://time.certum.pl \
+                 -in /tmp/daccord-windows-x86_64-setup.exe \
+                 -out /tmp/signed-setup.exe 2>&1 | tail -20; then
+              [ -s /tmp/signed-setup.exe ] && { echo "SIGNED with $KEY"; break; }
+            fi
+          done
+
+          [ -s /tmp/signed-setup.exe ] || { echo "::warning::No key URI worked."; exit 0; }
 
           echo "--- verify ---"
           osslsigncode verify -in /tmp/signed-setup.exe | head -30
