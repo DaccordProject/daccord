@@ -60,7 +60,7 @@ jobs:
             libxcb-xkb1 libxcb-sync1 libxcb-xfixes0 libnss3 libnspr4 \
             libasound2 libdbus-1-3 libglib2.0-0 libpng16-16 libjpeg-turbo8 \
             libpulse0 libpulse-mainloop-glib0 libxcomposite1 libxrender1 \
-            libengine-pkcs11-openssl
+            libengine-pkcs11-openssl gnutls-bin
           osslsigncode --version | head -2 || true
 
       - name: Open SimplySign session
@@ -81,25 +81,35 @@ jobs:
             exit 0
           fi
 
-          # The signing certificate lives on the token; read it from there
-          # rather than committing a copy that would go stale at renewal.
-          pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-objects --type cert | head -20
-          pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --read-object --type cert --output-file /tmp/cert.der
-          openssl x509 -inform DER -in /tmp/cert.der -out /tmp/cert.pem
+          # pkcs11-tool --list-objects SEGFAULTS on Certum's module, so use
+          # p11tool for enumeration and to export the certificate. Reading the
+          # cert off the token beats committing a copy that goes stale at
+          # renewal.
+          echo "--- p11tool --list-all ---"
+          p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-all --login 2>&1 | head -40
+
+          CERT_URL="$(p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-all-certs 2>/dev/null \
+                       | awk '/^URL:/{print $2; exit}')"
+          KEY_URL="$(p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-privkeys --login 2>/dev/null \
+                       | awk '/^URL:/{print $2; exit}')"
+          echo "cert URL: ${CERT_URL:-<none>}"
+          echo "key  URL: ${KEY_URL:-<none>}"
+          if [ -z "$CERT_URL" ] || [ -z "$KEY_URL" ]; then
+            echo "::warning::Could not enumerate the token — see the p11tool output above."
+            exit 0
+          fi
+
+          p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --export "$CERT_URL" > /tmp/cert.pem
           openssl x509 -in /tmp/cert.pem -noout -subject -issuer -dates
 
           gh release download v0.2.10-rc.2 -R "$GITHUB_REPOSITORY" \
             -p 'daccord-windows-x86_64-setup.exe' -D /tmp || {
               echo "::warning::Could not download the rc.2 installer; skipping the signing test."; exit 0; }
 
-          KEY_ID="$(pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-objects --type privkey \
-                     | awk '/ID:/{print $2; exit}')"
-          echo "Private key ID on token: ${KEY_ID:-<none>}"
-
           osslsigncode sign \
             -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
             -certs /tmp/cert.pem \
-            -key "pkcs11:id=%${KEY_ID}" \
+            -key "$KEY_URL" \
             -h sha256 \
             -t http://time.certum.pl \
             -in /tmp/daccord-windows-x86_64-setup.exe \
