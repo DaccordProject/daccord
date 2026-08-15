@@ -289,12 +289,21 @@ echo "Credentials submitted; waiting up to ${TIMEOUT_SEC}s for the virtual card.
 
 DEADLINE=$(( $(date +%s) + TIMEOUT_SEC ))
 FOUND=0
+SHOT=0
 while [ "$(date +%s)" -lt "$DEADLINE" ]; do
   sleep 5
   # A mounted card shows up as a PKCS#11 slot with a token present.
   if pkcs11-tool --module "$PKCS11_MODULE" --list-token-slots 2>/dev/null | grep -qi 'token label'; then
     FOUND=1
     break
+  fi
+  # Once, ~30s in: show what the login actually did and what the module sees.
+  # A rejected OTP and a slow mount look identical from out here otherwise.
+  if [ "$SHOT" -eq 0 ] && [ "$(date +%s)" -gt $(( DEADLINE - TIMEOUT_SEC + 30 )) ]; then
+    SHOT=1
+    snap 11-30s-after-login
+    echo "--- pkcs11-tool --list-slots (30s after login) ---"
+    pkcs11-tool --module "$PKCS11_MODULE" --list-slots 2>&1 | head -15
   fi
 done
 
