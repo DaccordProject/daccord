@@ -82,8 +82,15 @@ jobs:
           "--- all top-level windows ---"
           [WinEnum]::All() | ForEach-Object { $_ }
 
-          # A visible SimplySign window appeared 45s in on one run and not on
-          # the next, so poll rather than sampling once.
+          # The window's visibility is inconsistent between runs - the app is a
+          # tray app and only shows itself on demand. It has a single-instance
+          # path ("Application already running"), and on Windows that normally
+          # means a second launch raises the existing window, so use it as the
+          # way in rather than hoping the first launch left one up.
+          "--- second launch, to raise the existing instance ---"
+          Start-Process -FilePath $exe
+          Start-Sleep -Seconds 10
+
           Add-Type -Path dist/CaptureWindow.cs -ReferencedAssemblies System.Drawing, System.Windows.Forms
           $hwnd = 0
           foreach ($i in 1..24) {
