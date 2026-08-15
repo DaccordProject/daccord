@@ -4,6 +4,9 @@ name: CI
 #
 # - `analyze`  : code generation + static analysis + unit tests (the gate).
 #                Runs on every push/PR — this is what blocks merges.
+# - `integration`: client↔accordserver end-to-end tests against the ghcr.io
+#                server image. Non-blocking (continue-on-error) so a server-side
+#                problem can't wedge merges; see integration/README.md.
 # - `build`    : release builds for web / Android / Linux / Windows, uploaded
 #                as artifacts. Only runs on manual `workflow_dispatch` — PRs
 #                don't need four release builds to merge, and tagged releases
@@ -108,6 +111,44 @@ jobs:
 
       - name: Test
         run: flutter test
+
+  integration:
+    name: Integration (client ↔ accordserver)
+    runs-on: ubuntu-latest
+    # Separate from `analyze` on purpose: these need a real server, so a
+    # registry outage or a server-side regression must not redden the unit
+    # gate. See integration/README.md and #217.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Pull accordserver image
+        # Pre-pull so a slow first pull doesn't eat the fixture's boot timeout.
+        run: docker pull ghcr.io/daccordproject/accordserver:latest
+
+      - name: Integration tests
+        run: flutter test integration/
 
   build:
     name: Build ${{ matrix.name }}
