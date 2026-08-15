@@ -138,7 +138,13 @@ class IntegrationHarness {
     }
     s.registrationsUsed++;
 
-    final username = '$name${_accountSeq++}';
+    // The counter alone only guarantees uniqueness within one harness. Test
+    // files each get their own process but can share a server — that's exactly
+    // what ACCORD_TEST_SERVER_URL does — and two files both asking for
+    // "alice0" would collide on the second registration. The pid disambiguates
+    // them. Kept to lowercase alphanumerics, which is all `validate_username`
+    // accepts, and well inside the server's 32-character limit.
+    final username = '$name${_accountSeq++}p$pid';
     const password = 'integration-test-pw';
 
     final restOnly = _newClient(intents: const []);

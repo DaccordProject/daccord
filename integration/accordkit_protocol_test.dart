@@ -227,15 +227,15 @@ Future<void> main() async {
       });
     });
     group('membership changes mid-session', () {
-      // Regression test for #218: the server snapshotted a session's space
-      // memberships at IDENTIFY and never refreshed them, so a space joined
-      // while connected fanned out nothing until the gateway reconnected.
+      // Regression test for #218: the server used to snapshot a session's
+      // space memberships at IDENTIFY and never refresh them, so a space
+      // joined while connected fanned out nothing until the gateway
+      // reconnected. Fixed server-side in accordserver#55, shipped in
+      // accordserver v0.1.31.
       //
-      // Fixed by DaccordProject/accordserver#55, and verified passing against
-      // a server built from that branch. Still skipped because CI resolves the
-      // published `ghcr.io/daccordproject/accordserver:latest` image, which
-      // won't carry the fix until that PR merges and an image is pushed.
-      // Unskip then.
+      // This needs a server at or past that version. If it fails with a
+      // timeout waiting for message.create, check the server image is current
+      // before suspecting the client.
       test('a space joined after connecting still receives messages', () async {
         final carol = await harness.newAccount('carol');
         final joined = await carol.client.spaces.join(spaceId);
@@ -251,7 +251,7 @@ Future<void> main() async {
         await alice.client.messages.create(channelId, {'content': content});
 
         expect((await received).channelId, channelId);
-      }, skip: 'needs accordserver#55 in the published image');
+      });
     });
   }, skip: harness.skipReason);
 }
