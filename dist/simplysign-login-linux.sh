@@ -212,6 +212,17 @@ if [ -n "$WIN" ]; then
   snap 04-window-settled
 fi
 
+# "MainWindow" turned out to be the app's empty main window - it paints nothing
+# and has no fields, so typing into it went nowhere. The login lives behind the
+# tray icon's context menu, so open that and photograph it.
+xdotool mousemove 12 12 click 3
+sleep 3
+snap 06-tray-menu
+echo "--- windows after right-click ---"
+xdotool search --onlyvisible --name '.*' 2>/dev/null | while read -r w; do
+  echo "  $w: $(xdotool getwindowname "$w" 2>/dev/null) $(xdotool getwindowgeometry "$w" 2>/dev/null | tr '\n' ' ')"
+done
+
 if [ -z "$WIN" ]; then
   warn "No SimplySign window appeared - shipping UNSIGNED Windows binaries."
   echo "--- windows currently mapped ---"
