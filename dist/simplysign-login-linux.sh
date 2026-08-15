@@ -143,19 +143,47 @@ if [ -n "$MISSING" ]; then
   exit 0
 fi
 
+# SimplySign Desktop is a TRAY application: it starts with no window at all and
+# its login dialog is opened from a QSystemTrayIcon. A bare Xvfb has neither a
+# window manager nor a system tray, so the icon has nowhere to dock and the
+# window never exists - which is exactly what the first hosted-Ubuntu probe saw.
+# openbox provides the WM, stalonetray provides the tray the icon docks into,
+# and the icon is then clickable at a known position.
+openbox >/tmp/openbox.log 2>&1 &
+sleep 2
+stalonetray --geometry 1x1+0+0 --icon-size 24 --window-strut none >/tmp/stalonetray.log 2>&1 &
+sleep 2
+
 /opt/SimplySignDesktop/SimplySignDesktop >/tmp/simplysign.log 2>&1 &
 SSD_PID=$!
 
-# Poll for the window rather than sleeping a fixed interval.
+# Give the icon time to dock, then activate it. Qt maps a plain click to
+# Trigger and a double click to DoubleClick; which one opens the dialog is not
+# documented, so try double first and fall back to single.
+sleep 15
 WIN=""
-for _ in $(seq 1 30); do
-  WIN="$(xdotool search --name 'SimplySign' 2>/dev/null | head -1)"
-  [ -n "$WIN" ] && break
-  sleep 2
+for attempt in double single; do
+  case "$attempt" in
+    double) xdotool mousemove 12 12 click --repeat 2 --delay 120 1 ;;
+    single) xdotool mousemove 12 12 click 1 ;;
+  esac
+  for _ in $(seq 1 15); do
+    WIN="$(xdotool search --name 'SimplySign' 2>/dev/null | head -1)"
+    [ -n "$WIN" ] && break
+    sleep 2
+  done
+  [ -n "$WIN" ] && { echo "Tray $attempt click opened the window."; break; }
+  echo "Tray $attempt click produced no window; retrying."
 done
+
 if [ -z "$WIN" ]; then
-  warn "No SimplySign window appeared in 60s - shipping UNSIGNED Windows binaries. Log:"
-  tail -30 /tmp/simplysign.log
+  warn "No SimplySign window appeared - shipping UNSIGNED Windows binaries."
+  echo "--- windows currently mapped ---"
+  xdotool search --onlyvisible --name '.*' 2>/dev/null | while read -r w; do
+    echo "  $w: $(xdotool getwindowname "$w" 2>/dev/null)"
+  done
+  echo "--- stalonetray ---"; tail -10 /tmp/stalonetray.log
+  echo "--- SimplySign ---"; tail -30 /tmp/simplysign.log
   exit 0
 fi
 echo "SimplySign window found (id $WIN)."
