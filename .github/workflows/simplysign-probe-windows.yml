@@ -82,20 +82,27 @@ jobs:
           "--- all top-level windows ---"
           [WinEnum]::All() | ForEach-Object { $_ }
 
-          # There IS a visible window - rc.2 was wrong, and only looked at
-          # MainWindowHandle, which is 0 for this app. Bring it to the front so
-          # the capture shows whatever it is displaying.
-          Add-Type -AssemblyName Microsoft.VisualBasic
-          $vis = [WinEnum]::All() | Where-Object { $_ -match 'visible=True' -and $_ -match 'SimplySign' }
-          "--- visible SimplySign windows ---"
-          $vis | ForEach-Object { $_ }
-          if ($vis) {
-            $hwnd = [int](($vis | Select-Object -First 1) -replace '.*hwnd=(\d+).*','$1')
-            "Activating hwnd $hwnd"
-            Add-Type -Path dist/CaptureWindow.cs -ReferencedAssemblies System.Drawing, System.Windows.Forms
-            [WinCapture]::Raise([IntPtr]$hwnd)
+          # A visible SimplySign window appeared 45s in on one run and not on
+          # the next, so poll rather than sampling once.
+          Add-Type -Path dist/CaptureWindow.cs -ReferencedAssemblies System.Drawing, System.Windows.Forms
+          $hwnd = 0
+          foreach ($i in 1..24) {
+            $vis = [WinEnum]::All() | Where-Object { $_ -match 'visible=True' -and $_ -match 'SimplySign Desktop' }
+            if ($vis) {
+              $hwnd = [int](($vis | Select-Object -First 1) -replace '.*hwnd=(\d+).*','$1')
+              "Visible SimplySign window after $($i*5)s: $vis"
+              break
+            }
             Start-Sleep -Seconds 5
-            # Capture the window itself: the desktop capture just showed the
+          }
+
+          if ($hwnd -eq 0) {
+            "::warning::No visible SimplySign window in 120s. All windows:"
+            [WinEnum]::All() | ForEach-Object { $_ }
+          } else {
+            [WinCapture]::Raise([IntPtr]$hwnd)
+            Start-Sleep -Seconds 3
+            # Capture the window itself: a desktop capture just shows the
             # runner agent console sitting on top of everything.
             [WinCapture]::Save([IntPtr]$hwnd, "$env:RUNNER_TEMP\simplysign-window.png")
           }
