@@ -487,7 +487,11 @@ jobs:
         # us on the usual unsigned-artifacts fallback.
         if: matrix.platform == 'windows' && env.SIMPLYSIGN_AVAILABLE == 'true'
         continue-on-error: true
-        shell: pwsh
+        # Windows PowerShell, NOT pwsh: the script compiles dist/*.cs helpers
+        # that need .NET Framework's System.Drawing and UI Automation, which
+        # pwsh 7 cannot resolve (v0.2.10-rc.3 died on exactly that - CS1069,
+        # 'Bitmap' could not be found - after the login itself was working).
+        shell: powershell
         env:
           SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
           SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
