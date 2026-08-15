@@ -68,4 +68,35 @@ void main() {
       });
     });
   });
+
+  group('SoundManager.silent', () {
+    test('defaults to true under flutter test', () {
+      // The guard that keeps audio plugins — and the path_provider call behind
+      // them — out of the test VM (#220). If this ever defaults to false,
+      // every chime fired from code under test throws MissingPluginException
+      // from an async gap and fails an unrelated test.
+      expect(SoundManager.silent, isTrue);
+    });
+
+    test('play is a no-op while silent, even when enabled and audible', () async {
+      soundManager.enabled = true;
+      soundManager.volume = 1.0;
+
+      // Reaching a real AudioPlayer here would throw rather than return.
+      await expectLater(soundManager.play('message_received'), completes);
+      await expectLater(soundManager.startRingtone(), completes);
+      await expectLater(soundManager.stopRingtone(), completes);
+    });
+
+    test('init is a no-op while silent', () {
+      expect(soundManager.init, returnsNormally);
+    });
+
+    test('dispose is a no-op while silent', () {
+      // Guards against forcing the late `_pool`/`_ringPlayer` fields into
+      // existence just to tear them down — that construction reaches the
+      // platform the same as `play` does.
+      expect(soundManager.dispose, returnsNormally);
+    });
+  });
 }
