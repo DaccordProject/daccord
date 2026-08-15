@@ -9,10 +9,18 @@ list that doesn't rebuild, a route that doesn't resolve, a channel that renders
 empty.
 
 ```bash
-flutter test integration_test/ -d linux                      # whole suite
-flutter test integration_test/messaging_ui_test.dart -d linux # one file
-xvfb-run -a flutter test integration_test/ -d linux           # headless
+flutter test integration_test/messaging_ui_test.dart -d linux   # one file
+xvfb-run -a flutter test integration_test/smoke_test.dart -d linux  # headless
+
+# whole suite: one invocation per file (see below)
+for f in integration_test/*_test.dart; do flutter test "$f" -d linux; done
 ```
+
+**Run one file per invocation.** `flutter test integration_test/` over the
+whole directory launches the app once per file in a single invocation, and the
+second launch fails with *"Error waiting for a debug connection: The log reader
+stopped unexpectedly, or never started"* — the previous app process is still
+holding it. Each file passes on its own; CI loops.
 
 `flutter test` on its own does **not** pick these up — it only walks `test/`.
 

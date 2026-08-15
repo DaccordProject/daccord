@@ -233,7 +233,21 @@ jobs:
         run: docker pull ghcr.io/daccordproject/accordserver:latest
 
       - name: UI end-to-end tests
-        run: xvfb-run -a flutter test integration_test/ -d linux
+        # One `flutter test` per file, not one over the directory. Each file
+        # launches the app on the device, and a second launch inside a single
+        # invocation fails with "Error waiting for a debug connection: The log
+        # reader stopped unexpectedly, or never started" — the previous app
+        # process is still holding the connection. Reproduces locally too.
+        shell: bash
+        run: |
+          set -uo pipefail
+          status=0
+          for f in integration_test/*_test.dart; do
+            echo "::group::$f"
+            xvfb-run -a flutter test "$f" -d linux || status=1
+            echo "::endgroup::"
+          done
+          exit $status
 
   build:
     name: Build ${{ matrix.name }}
