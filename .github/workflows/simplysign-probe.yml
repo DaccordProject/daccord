@@ -30,9 +30,14 @@ jobs:
     # The flutter runners are Ubuntu 20.04 (glibc 2.31) and SimplySign 2.9.14
     # needs GLIBC_2.34, so it cannot start there at all. Rather than pin an
     # older SimplySign against Certum's live service, run the job inside a
-    # 22.04 container — signing needs osslsigncode, not the Flutter toolchain,
-    # so the docker-labelled runners are fine for it.
-    runs-on: [self-hosted, docker]
+    # 22.04 container.
+    #
+    # It runs on the flutter runners even though it needs none of Flutter: the
+    # docker-labelled runners are in the Default runner group, which has
+    # allows_public_repositories=false, so a job targeting them from this
+    # (public) repo queues forever rather than failing. Only the
+    # daccord-flutter group is visible here.
+    runs-on: [self-hosted, flutter]
     container:
       image: ubuntu:22.04
       # SimplySign talks to its PKCS#11 front end over localhost inside the
