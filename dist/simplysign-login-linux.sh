@@ -126,7 +126,17 @@ export QT_QPA_PLATFORM_PLUGIN_PATH=/opt/SimplySignDesktop/plugins
 # runner, and the symptom (no window ever appears) points nowhere near the
 # cause, so name the missing libraries up front instead of making the next
 # person read a 60-second timeout and guess.
-MISSING="$(ldd /opt/SimplySignDesktop/SimplySignDesktop 2>/dev/null | awk '/not found/{print $1}' | sort -u)"
+LDD_OUT="$(ldd /opt/SimplySignDesktop/SimplySignDesktop 2>&1)"
+# Two distinct failures both say "not found": an absent file ("libfoo.so.1 =>
+# not found") is fatal, whereas a symbol-version complaint ("version `X' not
+# found") often is not - the app may still run. Only the former aborts; both
+# get printed, because either one explains a window that never appears.
+MISSING="$(awk '/=> not found/{print $1}' <<<"$LDD_OUT" | sort -u)"
+VERSIONS="$(grep -F 'version `' <<<"$LDD_OUT" | sort -u)"
+if [ -n "$VERSIONS" ]; then
+  echo "Symbol-version mismatches (not necessarily fatal):"
+  echo "$VERSIONS"
+fi
 if [ -n "$MISSING" ]; then
   warn "SimplySign Desktop is missing shared libraries - shipping UNSIGNED Windows binaries:"
   echo "$MISSING"
