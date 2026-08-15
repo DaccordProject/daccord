@@ -103,30 +103,44 @@ jobs:
           ENGINE="$(ls /usr/lib/x86_64-linux-gnu/engines-*/pkcs11.so 2>/dev/null | head -1)"
           echo "pkcs11 engine: ${ENGINE:-<none>}"
 
+          # 22.04 ships osslsigncode 2.2, whose PKCS#11 support predates a
+          # rewrite; and pkcs11-tool only avoided the segfault when it logged
+          # in first. Build 2.9 and give it a PIN, so both differences are
+          # tested at once against the module that crashed 2.2.
+          sudo apt-get install -y -qq --no-install-recommends \
+            cmake build-essential libssl-dev libcurl4-openssl-dev python3-pip >/dev/null
+          curl -fsSL -o /tmp/oss.tgz \
+            https://github.com/mtrojnar/osslsigncode/archive/refs/tags/2.9.tar.gz
+          tar -xzf /tmp/oss.tgz -C /tmp
+          cmake -S /tmp/osslsigncode-2.9 -B /tmp/oss-build -DCMAKE_BUILD_TYPE=Release >/dev/null
+          cmake --build /tmp/oss-build -j"$(nproc)" >/dev/null
+          OSS=/tmp/oss-build/osslsigncode
+          "$OSS" --version | head -2
+
           # The certificate comes from the repo, not the token: enumeration is
           # broken in Certum's module (see dist/certum-codesign.pem). The key
-          # is still used from the token — it cannot leave the HSM. Without a
-          # readable object list there is no id/label to name, so try the
-          # URIs that identify a key by token rather than by object.
+          # never leaves the HSM either way.
           for KEY in \
             "pkcs11:token=Code%20Signing;type=private" \
-            "pkcs11:type=private" \
-            "pkcs11:token=Code%20Signing" ; do
-            echo "=== trying key URI: $KEY"
-            # Capture to a file: piping into tail swallowed everything last
-            # time, including whatever osslsigncode was complaining about.
-            osslsigncode sign \
-                 -pkcs11engine "$ENGINE" \
-                 -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
-                 -certs dist/certum-codesign.pem \
-                 -key "$KEY" \
-                 -h sha256 \
-                 -t http://time.certum.pl \
-                 -in /tmp/daccord-windows-x86_64-setup.exe \
-                 -out /tmp/signed-setup.exe >/tmp/oss.log 2>&1
-            echo "exit=$? output:"
-            cat /tmp/oss.log
-            [ -s /tmp/signed-setup.exe ] && { echo "SIGNED with $KEY"; break; }
+            "pkcs11:type=private" ; do
+            for PASS in "-pass" "" ; do
+              echo "=== $OSS  key=$KEY  ${PASS:+with empty PIN}"
+              set +e
+              if [ -n "$PASS" ]; then
+                "$OSS" sign -pkcs11engine "$ENGINE" -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
+                  -certs dist/certum-codesign.pem -key "$KEY" -pass "" \
+                  -h sha256 -t http://time.certum.pl \
+                  -in /tmp/daccord-windows-x86_64-setup.exe -out /tmp/signed-setup.exe >/tmp/oss.log 2>&1
+              else
+                "$OSS" sign -pkcs11engine "$ENGINE" -pkcs11module "$SIMPLYSIGN_PKCS11_MODULE" \
+                  -certs dist/certum-codesign.pem -key "$KEY" \
+                  -h sha256 -t http://time.certum.pl \
+                  -in /tmp/daccord-windows-x86_64-setup.exe -out /tmp/signed-setup.exe >/tmp/oss.log 2>&1
+              fi
+              echo "exit=$?"; tail -25 /tmp/oss.log
+              set -e
+              [ -s /tmp/signed-setup.exe ] && { echo "SIGNED with $KEY"; break 2; }
+            done
           done
 
           [ -s /tmp/signed-setup.exe ] || { echo "::warning::No key URI worked."; exit 0; }
