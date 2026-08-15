@@ -92,9 +92,12 @@ jobs:
           if ($vis) {
             $hwnd = [int](($vis | Select-Object -First 1) -replace '.*hwnd=(\d+).*','$1')
             "Activating hwnd $hwnd"
-            Add-Type -Path dist/ShowWindow.cs
-            [WinShow]::Raise([IntPtr]$hwnd)
+            Add-Type -Path dist/CaptureWindow.cs -ReferencedAssemblies System.Drawing, System.Windows.Forms
+            [WinCapture]::Raise([IntPtr]$hwnd)
             Start-Sleep -Seconds 5
+            # Capture the window itself: the desktop capture just showed the
+            # runner agent console sitting on top of everything.
+            [WinCapture]::Save([IntPtr]$hwnd, "$env:RUNNER_TEMP\simplysign-window.png")
           }
 
       - name: Screenshot the desktop
@@ -118,5 +121,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: simplysign-windows-desktop
-          path: ${{ runner.temp }}/desktop.png
+          path: |
+            ${{ runner.temp }}/desktop.png
+            ${{ runner.temp }}/simplysign-window.png
           if-no-files-found: warn
