@@ -82,10 +82,20 @@ jobs:
           "--- all top-level windows ---"
           [WinEnum]::All() | ForEach-Object { $_ }
 
-          "--- second launch, to raise the existing instance ---"
-          Start-Process -FilePath $exe
-          Start-Sleep -Seconds 20
-          [WinEnum]::All() | Where-Object { $_ -match 'SimplySign|MainWindow|Qt' } | ForEach-Object { $_ }
+          # There IS a visible window - rc.2 was wrong, and only looked at
+          # MainWindowHandle, which is 0 for this app. Bring it to the front so
+          # the capture shows whatever it is displaying.
+          Add-Type -AssemblyName Microsoft.VisualBasic
+          $vis = [WinEnum]::All() | Where-Object { $_ -match 'visible=True' -and $_ -match 'SimplySign' }
+          "--- visible SimplySign windows ---"
+          $vis | ForEach-Object { $_ }
+          if ($vis) {
+            $hwnd = [int](($vis | Select-Object -First 1) -replace '.*hwnd=(\d+).*','$1')
+            "Activating hwnd $hwnd"
+            Add-Type -Path dist/ShowWindow.cs
+            [WinShow]::Raise([IntPtr]$hwnd)
+            Start-Sleep -Seconds 5
+          }
 
       - name: Screenshot the desktop
         if: always()
@@ -97,7 +107,7 @@ jobs:
             $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
             $g = [System.Drawing.Graphics]::FromImage($bmp)
             $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-            $bmp.Save("$env:TEMP\desktop.png")
+            $bmp.Save("$env:RUNNER_TEMP\desktop.png")   # not $env:TEMP: the upload path is runner.temp, and on this image they differ
             "Captured $($b.Width)x$($b.Height)"
           } catch {
             "::warning::Screen capture failed: $($_.Exception.Message)"
