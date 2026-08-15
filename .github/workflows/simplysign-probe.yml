@@ -85,8 +85,16 @@ jobs:
           # p11tool for enumeration and to export the certificate. Reading the
           # cert off the token beats committing a copy that goes stale at
           # renewal.
-          echo "--- p11tool --list-all ---"
-          p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-all --login 2>&1 | head -40
+          # p11tool printed nothing at all, so before trying to sign, find out
+          # what the token actually reports and whether it demands a login.
+          echo "--- pkcs11-tool --list-token-slots ---"
+          pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-token-slots 2>&1 | head -20
+          echo "--- p11tool --list-tokens ---"
+          p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-tokens 2>&1 | head -20
+          echo "--- p11tool --list-all (no login) ---"
+          p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-all 2>&1 | head -30
+          echo "--- pkcs11-tool --list-objects --login --pin '' ---"
+          pkcs11-tool --module "$SIMPLYSIGN_PKCS11_MODULE" --list-objects --login --pin "" 2>&1 | head -20
 
           CERT_URL="$(p11tool --provider "$SIMPLYSIGN_PKCS11_MODULE" --list-all-certs 2>/dev/null \
                        | awk '/^URL:/{print $2; exit}')"
