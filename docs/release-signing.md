@@ -199,48 +199,60 @@ mode described above is the integration.
 Opening that session unattended is the hard part, and `dist/simplysign-login.ps1`
 does it the only way anyone has documented:
 
-1. installs SimplySign Desktop — from a hash-pinned MSI (`files.certum.eu`,
-   URL and SHA-256 taken from Certum's winget manifest), because `winget`
-   itself is **not available** on the GitHub `windows-latest` image: it is
-   provisioned per-user for an interactive desktop user and the runner service
-   account has no such install. `winget` is still used when present, for
-   self-hosted runners that have it,
-2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, reading the
+1. installs SimplySign Desktop from a hash-pinned MSI (`files.certum.eu`, URL
+   and SHA-256 taken from Certum's winget manifest) — **not** `winget`, which is
+   provisioned per-user for an interactive desktop user and does not exist for
+   the runner's service account,
+2. **launches the app twice.** SimplySign is a *tray* application: the first
+   launch leaves every window hidden, and its single-instance path is what
+   raises the login dialog,
+3. finds that dialog by **enumerating top-level windows** (`dist/EnumWindows.cs`)
+   for a visible one titled `SimplySign Desktop`, and raises it with
+   `SwitchToThisWindow`,
+4. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET`, reading the
    algorithm/digits/period from the `otpauth://` URI — Certum's code-signing
-   enrolment uses **HMAC-SHA256**, *not* the SHA1 default, and a SHA1 code is
-   six plausible digits that Certum silently rejects, so store the whole URI
-   rather than the bare base32 secret),
-3. launches the app and **types the credentials into its GUI via `SendKeys`**,
-4. polls `Cert:\CurrentUser\My` until a new code-signing cert appears,
-5. exports its thumbprint as `WINDOWS_CERT_SHA1`.
+   enrolment uses **HMAC-SHA256**, not RFC 6238's SHA1 default, and a SHA1 code
+   is six plausible digits that Certum silently rejects, so store the whole URI
+   rather than the bare base32 secret,
+5. types the credentials with `SendKeys`,
+6. polls `Cert:\CurrentUser\My` until the cloud certificate appears, and
+   exports its thumbprint as `WINDOWS_CERT_SHA1`.
 
-Step 3 is exactly as fragile as it sounds. It depends on the runner having an
-interactive desktop and on Certum not rearranging the login dialog's tab order,
-and it will break without warning at some point. Two things make that
-acceptable rather than reckless:
+Two traps that cost a lot of time, both worth knowing before touching this:
 
-- the script exits 0 on **every** failure path, so a broken login leaves
-  `WINDOWS_CERT_SHA1` unset and the release ships unsigned — the same outcome as
-  owning no certificate;
-- the signing steps are already `continue-on-error: true`, so a tagged release
-  can never be lost to it.
+- **`MainWindowHandle` is 0 for this app even when its login dialog is on
+  screen.** Trusting it is what made v0.2.10-rc.2 report "no SimplySign window
+  could be activated" and conclude that hosted Windows runners have no
+  interactive desktop. They do: session 2, `explorer` running, a 1024x768
+  virtual screen, and a perfectly ordinary 479x408 WinForms dialog. Enumerate
+  windows; never trust `MainWindowHandle`.
+- **The step must run under `shell: powershell`, not `pwsh`.** The helper in
+  `dist/CaptureWindow.cs` needs .NET Framework's `System.Drawing`, which
+  PowerShell 7 cannot resolve (`CS1069: the type name 'Bitmap' could not be
+  found`). v0.2.10-rc.3 died on exactly that, after the login itself worked.
 
-Two caveats worth stating plainly:
+### The Linux alternative, and why it is not what we use
 
-- **It collapses 2FA to 1FA.** `SIMPLYSIGN_TOTP_SECRET` is the second factor;
-  storing it next to the account ID means anyone with repo-secret access can
-  sign as you. That is inherent to unattended signing with this product, not
-  something the script introduces.
-- **Session lifetime is unverified.** Certum do not document how long a
-  SimplySign session stays open. The login runs once per job and both signing
-  steps reuse it, which is fine if sessions outlive a build; if they turn out to
-  be shorter, the installer-signing step is the one that will start failing
-  first, and the fix is to re-run the login before it.
+Signing can also be done on Linux — SimplySign Desktop has a Linux build that
+runs under Xvfb, and it was tried first because Xvfb is a real X server and the
+Windows runner was (wrongly) believed to have no desktop. It gets as far as a
+mounted card and then stops:
 
-The Linux alternative ([hpvb/certum-container](https://github.com/hpvb/certum-container)
-— SimplySign under Xvnc, `p11-kit` socket, `osslsigncode`) is more robust but
-needs a human to enter the OTP over VNC per session, so it only suits a
-persistent self-hosted runner, not GitHub-hosted ones.
+- Certum's Linux PKCS#11 module (`SimplySignPKCS_64-MS-1.0.20.so`) **cannot be
+  enumerated**. `pkcs11-tool --list-objects` segfaults, `p11tool` lists nothing,
+  and `osslsigncode` segfaults (exit 139) with both 2.2 and 2.9, with and
+  without a PIN.
+- [Rhizomatica/mercury](https://github.com/Rhizomatica/mercury/blob/main/docs/WINDOWS-SIGNING.md)
+  hit the same wall and documents the way through, if this is ever needed:
+  sign with **jsign** (Java's SunPKCS11 enumerates the key by alias where
+  OpenSC cannot), never install `libengine-pkcs11-openssl` (loading Certum's
+  OpenSSL-1.0.0-based module into an OpenSSL-3.x process segfaults), and
+  **export `USER`** — the module NULL-derefs when it is empty, which CI runners
+  often leave it.
+
+The Linux route would also need the release pipeline restructured, because the
+installer's payload must be signed before ISCC wraps it. The Windows path needs
+none of that, so it is the one in the repo.
 
 Certum certificates should be timestamped against Certum's own server: set the
 `WINDOWS_TIMESTAMP_URL` repo variable to `http://time.certum.pl`.
@@ -376,7 +388,9 @@ on a tag push.
 
 ## What is still blocked
 
-- **Windows** — **unblocked.** The Certum *Open Source Code Signing in the Cloud*
+- **Windows** — **done.** `v0.2.10-rc.4` shipped Authenticode-signed binaries:
+  18 files (`daccord.exe` and every bundled DLL) plus the Inno installer, all
+  timestamped against `time.certum.pl` and verified by `signtool verify /pa`. The Certum *Open Source Code Signing in the Cloud*
   certificate was issued on 11 Aug 2026 to `Open Source Developer Jacob
   Cattrall` (issuer `Certum Code Signing 2021 CA`, valid until 11 Aug 2027).
   The `WINDOWS_TIMESTAMP_URL` repo variable is set to `http://time.certum.pl`.
