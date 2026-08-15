@@ -62,67 +62,20 @@ jobs:
           } catch { "Virtual screen      : unavailable - $($_.Exception.Message)" }
           "explorer running    : $([bool](Get-Process explorer -ErrorAction SilentlyContinue))"
 
-      - name: Launch SimplySign and enumerate every window it owns
-        # Windows PowerShell, not pwsh: UI Automation (UIAutomationClient,
-        # UIAutomationTypes, WindowsBase) ships with .NET Framework and is not
-        # resolvable from PowerShell 7, where Add-Type fails outright.
+      - name: Open a SimplySign session with the real login script
+        # Windows PowerShell, not pwsh: the helpers reference .NET Framework
+        # assemblies that pwsh 7 cannot resolve.
         shell: powershell
         env:
           SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
+          SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
+        run: .\dist\simplysign-login.ps1
+
+      - name: Did a certificate arrive?
+        shell: powershell
         run: |
-          $exe = Get-ChildItem 'C:\Program Files\Certum' -Recurse -Filter 'SimplySign*.exe' |
-                   Select-Object -First 1 -ExpandProperty FullName
-          "Launching $exe"
-          Start-Process -FilePath $exe
-          Start-Sleep -Seconds 45
-
-          # MainWindowHandle is 0 for a tray app with no window - which is all
-          # rc.2 ever checked. Enumerate the real window list instead.
-          Add-Type -Path dist/EnumWindows.cs
-
-          $procs = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue
-          "SimplySign processes: $($procs.Id -join ', ')"
-          "--- all top-level windows ---"
-          [WinEnum]::All() | ForEach-Object { $_ }
-
-          # The window's visibility is inconsistent between runs - the app is a
-          # tray app and only shows itself on demand. It has a single-instance
-          # path ("Application already running"), and on Windows that normally
-          # means a second launch raises the existing window, so use it as the
-          # way in rather than hoping the first launch left one up.
-          "--- second launch, to raise the existing instance ---"
-          Start-Process -FilePath $exe
-          Start-Sleep -Seconds 10
-
-          Add-Type -Path dist/CaptureWindow.cs -ReferencedAssemblies System.Drawing, System.Windows.Forms
-          $hwnd = 0
-          foreach ($i in 1..24) {
-            $vis = [WinEnum]::All() | Where-Object { $_ -match 'visible=True' -and $_ -match 'SimplySign Desktop' }
-            if ($vis) {
-              $hwnd = [int](($vis | Select-Object -First 1) -replace '.*hwnd=(\d+).*','$1')
-              "Visible SimplySign window after $($i*5)s: $vis"
-              break
-            }
-            Start-Sleep -Seconds 5
-          }
-
-          if ($hwnd -eq 0) {
-            "No window yet - going in through the tray icon, as on Linux."
-            Add-Type -Path dist/TrayClick.cs -ReferencedAssemblies `
-              System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes, WindowsBase
-            "--- notification area buttons ---"
-            [TrayClick]::List() | ForEach-Object { $_ }
-            $clicked = [TrayClick]::Click('SimplySign', $true)
-            "Right-clicked: ${clicked}"
-            Start-Sleep -Seconds 5
-            [WinEnum]::All() | Where-Object { $_ -match 'visible=True' } | ForEach-Object { $_ }
-          } else {
-            [WinCapture]::Raise([IntPtr]$hwnd)
-            Start-Sleep -Seconds 3
-            # Capture the window itself: a desktop capture just shows the
-            # runner agent console sitting on top of everything.
-            [WinCapture]::Save([IntPtr]$hwnd, "$env:RUNNER_TEMP\simplysign-window.png")
-          }
+          "WINDOWS_CERT_SHA1 = $env:WINDOWS_CERT_SHA1"
+          Get-ChildItem Cert:\CurrentUser\My | Format-List Subject, Thumbprint, NotAfter
 
       - name: Screenshot the desktop
         if: always()
@@ -148,4 +101,5 @@ jobs:
           path: |
             ${{ runner.temp }}/desktop.png
             ${{ runner.temp }}/simplysign-window.png
+            ${{ runner.temp }}/simplysign-failure.png
           if-no-files-found: warn

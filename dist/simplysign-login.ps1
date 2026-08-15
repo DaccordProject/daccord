@@ -222,31 +222,48 @@ try {
     $totp = Get-TotpParams $env:SIMPLYSIGN_TOTP_SECRET
 
     Start-Process -FilePath $exe | Out-Null
+    Start-Sleep -Seconds 25
 
-    # There is no supported way to script this. AppActivate + SendKeys against
-    # the login dialog is what the community does; it depends on the runner
-    # having an interactive desktop and on Certum not reshuffling the tab order.
-    # If it breaks, the certificate simply never appears and we ship unsigned.
-    $shell = New-Object -ComObject WScript.Shell
+    # A second launch is what actually produces the login dialog: SimplySign is
+    # a tray application, so the first launch leaves every window hidden. It has
+    # a single-instance path, and hitting it raises the dialog.
+    Start-Process -FilePath $exe | Out-Null
 
-    # Poll for the window rather than sleeping a fixed 20s: the tray app's paint
-    # time varies with runner load, and a fixed wait is either too short (no
-    # window to type into) or wastes TOTP validity.
-    $proc = $null
-    $windowDeadline = (Get-Date).AddSeconds(60)
+    # Find that window by ENUMERATING top-level windows, not through
+    # MainWindowHandle. MainWindowHandle is 0 for this app even when its login
+    # dialog is on screen, and trusting it is the single reason v0.2.10-rc.2
+    # reported "no interactive desktop" on a runner that demonstrably has one:
+    # session 2, explorer running, 1024x768, and a visible WinForms dialog.
+    Add-Type -Path (Join-Path $PSScriptRoot 'EnumWindows.cs')
+    Add-Type -Path (Join-Path $PSScriptRoot 'CaptureWindow.cs') `
+        -ReferencedAssemblies System.Drawing, System.Windows.Forms
+
+    $hwnd = [IntPtr]::Zero
+    $windowDeadline = (Get-Date).AddSeconds(120)
     while ((Get-Date) -lt $windowDeadline) {
-        $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-        if ($proc -and $shell.AppActivate($proc.Id)) { break }
-        $proc = $null
-        Start-Sleep -Seconds 2
+        $row = [WinEnum]::All() |
+            Where-Object { $_ -match 'visible=True' -and $_ -match 'title=SimplySign Desktop' } |
+            Select-Object -First 1
+        if ($row) {
+            $hwnd = [IntPtr][int]($row -replace '.*hwnd=(\d+).*', '$1')
+            Write-Host "Login dialog found: $row"
+            break
+        }
+        Start-Sleep -Seconds 5
     }
-    if ($proc) {
-        Write-Host "Activated SimplySign window (pid $($proc.Id))."
-    } else {
-        Write-Warn "No SimplySign window could be activated in 60s; typing into the foreground window instead."
+
+    if ($hwnd -eq [IntPtr]::Zero) {
+        Write-Warn "No SimplySign login dialog appeared in 120s - shipping UNSIGNED Windows binaries."
+        [WinEnum]::All() | ForEach-Object { Write-Host "  $_" }
+        exit 0
     }
+
+    # SwitchToThisWindow, not SetForegroundWindow: the latter is refused to a
+    # background process and silently does nothing.
+    [WinCapture]::Raise($hwnd)
     Start-Sleep -Seconds 2
+
+    $shell = New-Object -ComObject WScript.Shell
 
     # Only now derive the code, and only from a window with enough validity left
     # to survive the ~2s of typing below. Generating it before the GUI wait -
@@ -286,6 +303,13 @@ try {
 
     if (-not $found) {
         Write-Warn "SimplySign session did not produce a code-signing certificate within ${timeoutSec}s - shipping UNSIGNED Windows binaries."
+        # Photograph the dialog: on Linux the equivalent capture was the only
+        # thing that showed the login had actually succeeded and was merely
+        # waiting on a confirmation panel.
+        if ($env:RUNNER_TEMP) {
+            $shot = Join-Path $env:RUNNER_TEMP 'simplysign-failure.png'
+            Write-Host ([WinCapture]::Save($hwnd, $shot))
+        }
         exit 0
     }
 
