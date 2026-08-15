@@ -91,5 +91,12 @@ void main() {
     test('init is a no-op while silent', () {
       expect(soundManager.init, returnsNormally);
     });
+
+    test('dispose is a no-op while silent', () {
+      // Guards against forcing the late `_pool`/`_ringPlayer` fields into
+      // existence just to tear them down — that construction reaches the
+      // platform the same as `play` does.
+      expect(soundManager.dispose, returnsNormally);
+    });
   });
 }
