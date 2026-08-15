@@ -5,9 +5,10 @@ name: CI
 # - `analyze`  : code generation + static analysis + unit tests (the gate).
 #                Runs on every push/PR — this is what blocks merges.
 # - `integration`: client↔accordserver end-to-end tests against the ghcr.io
-#                server image, on the self-hosted runners. Non-blocking
-#                (continue-on-error) so a server-side problem can't wedge
-#                merges; see integration/README.md.
+#                server image. GitHub-hosted — it needs docker, which the
+#                self-hosted runners don't have (see the job's note).
+#                Non-blocking (continue-on-error) so a server-side problem
+#                can't wedge merges; see integration/README.md.
 # - `ui-e2e`   : the real app driven on Linux under xvfb against the same
 #                server image. GitHub-hosted (see the job's own note) and also
 #                non-blocking; see integration_test/README.md.
@@ -118,33 +119,28 @@ jobs:
 
   integration:
     name: Integration (client ↔ accordserver)
-    # Self-hosted: this is a plain `flutter test`, so it needs no Linux desktop
-    # toolchain and none of the Ubuntu 20.04 limits that keep `ui-e2e` and the
-    # Linux `build` on GitHub-hosted runners apply here.
+    # GitHub-hosted, because this job needs docker to run the server image.
     #
-    # Fork PRs go to GitHub-hosted runners and never touch our hardware — same
-    # rule, and same reason, as the analyze job.
-    runs-on: ${{ github.event.pull_request.head.repo.fork
-                 && fromJSON('["ubuntu-latest"]')
-                 || fromJSON('["self-hosted","flutter"]') }}
+    # Tried on the self-hosted runners (run 31913534062, portainer-daccord-1):
+    # the job "passed" in 2m50s having run nothing — 0 tests passed, 16
+    # skipped, because docker isn't available there. Only the
+    # `portainer-accord-*` runners carry a `docker` label, and no runner has
+    # both `docker` and `flutter`. On ubuntu-latest the same suite is 15/15 in
+    # ~2m13s.
+    #
+    # To move it back: expose docker to the `flutter` runners, or stand up a
+    # long-lived test server and set ACCORD_TEST_SERVER_URL on this job — the
+    # fixture prefers that over spawning anything (integration/README.md).
+    runs-on: ubuntu-latest
     # Separate from `analyze` on purpose: these need a real server, so a
     # registry outage or a server-side regression must not redden the unit
     # gate. See integration/README.md and #217.
     continue-on-error: true
-    env:
-      # Trusted runs use the runner's persistent volume; forks land on a
-      # throwaway hosted runner and use the workspace-local cache below.
-      PUB_CACHE: ${{ github.event.pull_request.head.repo.fork
-                     && format('{0}/.pub-cache', github.workspace)
-                     || '/tmp/runner/cache/pub' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Cache pub + native deps
-        # Only forks reach this — trusted runs keep PUB_CACHE on the runner's
-        # persistent volume and need no GitHub cache round-trip.
-        if: ${{ github.event.pull_request.head.repo.fork }}
         uses: actions/cache@v4
         with:
           key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
@@ -156,9 +152,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
-          # The SDK is already on the persistent volume for trusted runs; only
-          # forks need flutter-action's own cache.
-          cache: ${{ github.event.pull_request.head.repo.fork }}
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
@@ -168,18 +162,23 @@ jobs:
 
       - name: Pull accordserver image
         # Pre-pull so a slow first pull doesn't eat the fixture's boot timeout.
-        #
-        # The `flutter` runners don't advertise a `docker` label (the
-        # `portainer-accord-*` ones do), so docker may not be reachable here.
-        # Not fatal: without it the fixture finds no server and every suite
-        # skips with an explanation rather than failing. If this step reports
-        # docker missing, either expose it to those runners or give the job an
-        # ACCORD_TEST_SERVER_URL pointing at a long-lived test server.
-        continue-on-error: true
         run: docker pull ghcr.io/daccordproject/accordserver:latest
 
       - name: Integration tests
-        run: flutter test integration/
+        # The suite skips itself when it can't find a server, which is the right
+        # behaviour locally but would make this job a green no-op in CI — that's
+        # exactly what the self-hosted attempt did (0 passed, 16 skipped, job
+        # reported success). Fail instead if nothing actually ran.
+        shell: bash
+        run: |
+          set -uo pipefail
+          flutter test integration/ 2>&1 | tee /tmp/integration.log
+          status=${PIPESTATUS[0]}
+          if grep -qE "^0 tests passed|🎉 0 tests passed" /tmp/integration.log; then
+            echo "::error::No integration tests ran — the fixture found no server. See integration/README.md."
+            exit 1
+          fi
+          exit $status
 
   ui-e2e:
     name: UI end-to-end (Linux)
