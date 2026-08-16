@@ -15,6 +15,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/app_instance.dart';
 
 Future<void> main() async {
+  // Always runs, unlike the rest of this file: no fleet, no display, no
+  // server. `list_members` flattens the member onto the user, unlike the
+  // REST shape which nests it under `user_id` — this is the one piece of
+  // parsing logic in the suite worth covering directly.
+  group('_memberId', () {
+    test('flattened id (the shape list_members actually returns)', () {
+      expect(_memberId({'id': 'u1', 'username': 'alice'}), 'u1');
+    });
+
+    test('nested user.id (REST shape, kept for resilience)', () {
+      expect(
+        _memberId({
+          'user_id': 'u1',
+          'user': {'id': 'u1', 'username': 'alice'},
+        }),
+        'u1',
+      );
+    });
+
+    test('user_id fallback with no nested user object', () {
+      expect(_memberId({'user_id': 'u1'}), 'u1');
+    });
+
+    test('not a map', () {
+      expect(_memberId('u1'), isNull);
+      expect(_memberId(null), isNull);
+    });
+  });
+
   final fleet = await AppFleet.resolve();
 
   group('two clients', () {
@@ -156,6 +185,12 @@ Future<void> main() async {
     }, timeout: _generous);
 
     test('an edit by alice reaches bob, and so does a delete', () async {
+      // Self-contained rather than relying on an earlier test having left the
+      // channel selected: tests within a group run in declaration order, but
+      // nothing here should depend on that order being preserved.
+      await openChannel(alice);
+      await openChannel(bob);
+
       const original = 'before the edit';
       const edited = 'after the edit';
 

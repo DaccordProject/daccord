@@ -12,9 +12,9 @@ name: CI
 # - `ui-e2e`   : the real app driven on Linux under xvfb against the same
 #                server image. GitHub-hosted (see the job's own note) and also
 #                non-blocking; see integration_test/README.md.
-# - `multi`   : two real app processes driven over the in-app MCP surface,
-#                against the same server image. Non-blocking; the most
-#                expensive suite (release build + two apps).
+# - `multi-instance`: two real app processes driven over the in-app MCP
+#                surface, against the same server image. Non-blocking; the
+#                most expensive suite (release build + two apps).
 #                See multi_instance/README.md.
 # - `build`    : release builds for web / Android / Linux / Windows, uploaded
 #                as artifacts. Only runs on manual `workflow_dispatch` — PRs

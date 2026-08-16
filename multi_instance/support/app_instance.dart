@@ -23,6 +23,22 @@ import 'package:hive_ce/hive.dart';
 
 import '../../integration/support/harness.dart';
 
+/// Which bundle (if any) [AppInstance.resolveBinary] should launch, given
+/// what's on disk. Split out as a pure decision so the "release only, never
+/// debug" policy can be exercised without touching the filesystem — see
+/// [AppInstance.resolveBinary] for why debug is never an acceptable fallback.
+enum BundleChoice { release, debugOnly, none }
+
+@visibleForTesting
+BundleChoice chooseBundle({
+  required bool releaseExists,
+  required bool debugExists,
+}) {
+  if (releaseExists) return BundleChoice.release;
+  if (debugExists) return BundleChoice.debugOnly;
+  return BundleChoice.none;
+}
+
 /// Thrown when no app bundle is available to launch.
 class AppUnavailable implements Exception {
   AppUnavailable(this.message);
@@ -211,31 +227,46 @@ class AppInstance {
     return instance;
   }
 
-  /// The app bundle to launch: `DACCORD_APP_BIN`, else a local release build,
-  /// else debug.
+  /// The app bundle to launch: `DACCORD_APP_BIN`, else a local release build.
   ///
-  /// Release first on purpose. A *debug* bundle launched directly never runs
-  /// its Dart entrypoint — the engine starts, native plugins register and the
-  /// GTK loop idles, but `main()` never executes, so no Hive box is ever
-  /// opened and the MCP server never starts. It presents as a window that
-  /// simply does nothing. `flutter test -d linux` drives debug bundles fine
-  /// because the tool attaches and injects the entrypoint; nothing does that
-  /// here.
+  /// Release only — a debug build is never picked, even as a fallback. A
+  /// *debug* bundle launched directly never runs its Dart entrypoint — the
+  /// engine starts, native plugins register and the GTK loop idles, but
+  /// `main()` never executes, so no Hive box is ever opened and the MCP
+  /// server never starts. It presents as a window that simply does nothing.
+  /// `flutter test -d linux` drives debug bundles fine because the tool
+  /// attaches and injects the entrypoint; nothing does that here — so
+  /// resolving to one would only trade an immediate, actionable error for
+  /// [launch] burning its full 60s startup timeout on a bundle that was never
+  /// going to answer.
   static String resolveBinary() {
     final explicit = Platform.environment['DACCORD_APP_BIN'];
     if (explicit != null && explicit.trim().isNotEmpty) {
       if (File(explicit).existsSync()) return explicit;
       throw AppUnavailable('DACCORD_APP_BIN=$explicit does not exist.');
     }
-    for (final mode in const ['release', 'debug']) {
-      final candidate = File('build/linux/x64/$mode/bundle/daccord').absolute;
-      if (candidate.existsSync()) return candidate.path;
+    final release = File('build/linux/x64/release/bundle/daccord').absolute;
+    final debug = File('build/linux/x64/debug/bundle/daccord').absolute;
+    switch (chooseBundle(
+      releaseExists: release.existsSync(),
+      debugExists: debug.existsSync(),
+    )) {
+      case BundleChoice.release:
+        return release.path;
+      case BundleChoice.debugOnly:
+        throw AppUnavailable(
+          'Only a debug build exists at ${debug.path}, and a debug bundle '
+          "launched directly never runs main() — its MCP server would never "
+          'start (see resolveBinary). Build a release bundle instead:\n'
+          '  flutter build linux --release',
+        );
+      case BundleChoice.none:
+        throw AppUnavailable(
+          'No Daccord app bundle found. Build one first:\n'
+          '  flutter build linux --release\n'
+          'or point DACCORD_APP_BIN at an existing bundle.',
+        );
     }
-    throw AppUnavailable(
-      'No Daccord app bundle found. Build one first:\n'
-      '  flutter build linux --release\n'
-      'or point DACCORD_APP_BIN at an existing bundle.',
-    );
   }
 
   /// Where the app will put its data for an instance rooted at [home].
