@@ -126,6 +126,16 @@ class AccordTestServer {
         // Relaxes the LiveKit requirement so voice-state paths are reachable
         // without a real SFU. It does NOT relax auth or rate limits.
         'ACCORD_TEST_MODE': '1',
+        // Voice endpoints 400 with "voice_not_configured" unless a LiveKit
+        // client is configured, even in test mode. Test mode skips actually
+        // talking to the SFU (no room creation, no participant cleanup) but
+        // still mints a token and broadcasts voice.state_update — which is
+        // what makes voice-state fan-out testable without running one. The
+        // URL is never dialled by the server.
+        'LIVEKIT_URL': 'ws://127.0.0.1:7880',
+        'LIVEKIT_EXTERNAL_URL': 'ws://127.0.0.1:7880',
+        'LIVEKIT_API_KEY': 'devkey',
+        'LIVEKIT_API_SECRET': 'secret',
         'RUST_LOG': _env('ACCORD_TEST_LOG') ?? 'warn',
       },
     );
@@ -166,6 +176,11 @@ class AccordTestServer {
       '--env', 'DATABASE_URL=sqlite:data/accord.db?mode=rwc',
       '--env', 'ACCORD_STORAGE_PATH=/app/data/cdn',
       '--env', 'ACCORD_TEST_MODE=1',
+      // See the binary path above: configured, never dialled.
+      '--env', 'LIVEKIT_URL=ws://127.0.0.1:7880',
+      '--env', 'LIVEKIT_EXTERNAL_URL=ws://127.0.0.1:7880',
+      '--env', 'LIVEKIT_API_KEY=devkey',
+      '--env', 'LIVEKIT_API_SECRET=secret',
       '--env', 'RUST_LOG=${_env('ACCORD_TEST_LOG') ?? 'warn'}',
       image,
     ]);

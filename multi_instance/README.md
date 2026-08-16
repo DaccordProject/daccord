@@ -74,18 +74,28 @@ Note that tool payloads don't always match the REST shapes: `list_members`
 flattens the member onto the user (`id`, `username`, …) where REST nests a
 `user` object under `user_id`.
 
-## Not covered yet: voice
+## Voice, without an SFU
 
 Voice is the strongest reason to have this layer — who hears whom is inherently
-multi-process — but the current tool surface can't express the assertion. The
-`voice` group exposes `join_voice_channel`, `leave_voice` and `toggle_mute`, and
-`get_current_state` reports only the caller's **own** `voice_channel_id` /
-`voice_self_mute`. There's no tool that reports the voice states of *other*
-members, so B has no way to say what it thinks A is doing.
+multi-process — and it's covered, but not in the obvious way.
 
-Closing that needs a small addition to `mcp_tools.dart` — a `list_voice_states`
-in the `read` group, say — and then the scenarios (A joins, B sees them; A
-mutes, B sees the mute) are a handful of lines each. Tracked in #222.
+`get_current_state` only reports the caller's **own** voice state, so a new
+`list_voice_states` (read group) was added to `mcp_tools.dart`. It reads the
+local `voiceStatesController` cache, which is what the UI renders and what
+`voice.state_update` events drive — so it reports what the user can actually
+see, including whether a peer's join ever arrived.
+
+The other half is that A joins voice **over REST**, not through her app's
+`join_voice_channel`. That tool also drives the LiveKit session, and there's no
+SFU in the fixture. It doesn't weaken the test: the server broadcasts
+`voice.state_update` *before* it touches LiveKit, so the fan-out B renders is
+identical either way. What isn't covered is the client's own LiveKit session —
+media, mute propagation through the room — which needs a real
+`livekit/livekit-server` in the fixture.
+
+The server also refuses voice endpoints outright unless a LiveKit client is
+configured (`voice_not_configured`), even in test mode, so the fixture sets
+`LIVEKIT_*` to a URL it never dials.
 
 ## CI
 

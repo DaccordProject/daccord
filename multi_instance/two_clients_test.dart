@@ -51,6 +51,7 @@ Future<void> main() async {
     late AppInstance bob;
     late String spaceId;
     late String channelId;
+    late String voiceChannelId;
 
     setUpAll(() async {
       // Accounts and the space are set up over REST first: an app instance
@@ -71,6 +72,14 @@ Future<void> main() async {
           .cast<AccordChannel>()
           .firstWhere((c) => c.type == 'text')
           .id;
+
+      // Created before the apps launch, so both pick it up from their READY.
+      final voice = await aliceAccount.client.spaces.createChannel(spaceId, {
+        'name': 'Voice',
+        'type': 'voice',
+      });
+      expect(voice.ok, isTrue, reason: '${voice.error}');
+      voiceChannelId = (voice.data! as AccordChannel).id;
 
       final joined = await bobAccount.client.spaces.join(spaceId);
       expect(joined.ok, isTrue, reason: '${joined.error}');
@@ -232,6 +241,39 @@ Future<void> main() async {
             false,
         arguments: {'channel_id': channelId, 'limit': 20},
         description: 'the delete in bob\'s client',
+      );
+    }, timeout: _generous);
+
+    test("bob's client sees alice join and leave voice", () async {
+      // Alice joins over REST rather than through her app's
+      // `join_voice_channel`, because that tool drives the LiveKit session too
+      // and there's no SFU here. The server broadcasts `voice.state_update`
+      // before it touches LiveKit, so the fan-out — which is what bob renders
+      // — is exactly the same either way.
+      final joined = await alice.account.client.voice.join(voiceChannelId);
+      expect(joined.ok, isTrue, reason: '${joined.error}');
+
+      await bob.callUntil(
+        'list_voice_states',
+        (r) => (r['voice_states'] as List?)?.any(
+              (v) => v['user_id'] == alice.account.userId,
+            ) ??
+            false,
+        arguments: {'channel_id': voiceChannelId},
+        description: "alice in bob's voice states",
+      );
+
+      final left = await alice.account.client.voice.leave(voiceChannelId);
+      expect(left.ok, isTrue, reason: '${left.error}');
+
+      await bob.callUntil(
+        'list_voice_states',
+        (r) => (r['voice_states'] as List?)?.every(
+              (v) => v['user_id'] != alice.account.userId,
+            ) ??
+            true,
+        arguments: {'channel_id': voiceChannelId},
+        description: "alice gone from bob's voice states",
       );
     }, timeout: _generous);
   }, skip: fleet.skipReason);

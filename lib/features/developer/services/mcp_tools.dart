@@ -10,6 +10,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -120,6 +121,12 @@ class McpTools {
         'Search messages in a space',
         _schema({'query': 'string', 'space_id': 'string'}, ['query']),
         _searchMessages);
+    _register(
+        'list_voice_states',
+        'read',
+        'List who is currently in a voice channel',
+        _schema({'channel_id': 'string'}, ['channel_id']),
+        _listVoiceStates);
     _register('get_user', 'read', 'Get user details by ID',
         _schema({'user_id': 'string'}, ['user_id']), _getUser);
     _register('get_space', 'read', 'Get space details by ID',
@@ -432,6 +439,34 @@ class McpTools {
     return {
       'ok': true,
       'members': [for (final m in members) _memberBrief(m)],
+    };
+  }
+
+  /// Who this client currently believes is in [channel_id]'s voice.
+  ///
+  /// Read from the local cache rather than REST on purpose: the cache is what
+  /// the UI renders, and it's driven by `voice.state_update` gateway events —
+  /// so this reports what the user can actually see, including whether a
+  /// peer's join or leave ever arrived.
+  Future<Map<String, dynamic>> _listVoiceStates(
+      Map<String, dynamic> args) async {
+    final channelId = (args['channel_id'] ?? '').toString();
+    if (channelId.isEmpty) return {'error': 'channel_id is required'};
+    final states =
+        voiceStatesFor(ref.read(voiceStatesControllerProvider), channelId);
+    return {
+      'ok': true,
+      'channel_id': channelId,
+      'voice_states': [
+        for (final vs in states)
+          {
+            'user_id': vs.userId,
+            'self_mute': vs.selfMute,
+            'self_deaf': vs.selfDeaf,
+            'self_video': vs.selfVideo,
+            'self_stream': vs.selfStream,
+          },
+      ],
     };
   }
 
