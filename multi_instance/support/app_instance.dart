@@ -182,6 +182,14 @@ class AppInstance {
         'XDG_DATA_HOME': '${home.path}/.local/share',
         'XDG_CONFIG_HOME': '${home.path}/.config',
         'XDG_CACHE_HOME': '${home.path}/.cache',
+        // Under xvfb there's no DRI device ("libEGL warning: DRI3 error"),
+        // and the app can't get a GL context, so it never reaches a first
+        // frame — and the MCP server only starts once the widget tree builds.
+        // llvmpipe is slower but always available.
+        'LIBGL_ALWAYS_SOFTWARE': '1',
+        // Silences "Atk-CRITICAL atk_socket_embed" spam on headless runners,
+        // where there's no accessibility bus to embed into.
+        'NO_AT_BRIDGE': '1',
         if (Platform.environment['DISPLAY'] != null)
           'DISPLAY': Platform.environment['DISPLAY']!,
         if (Platform.environment['WAYLAND_DISPLAY'] != null)
@@ -200,7 +208,10 @@ class AppInstance {
     );
     instance._captureOutput();
 
-    if (!await instance._waitForMcp(const Duration(seconds: 60))) {
+    // Generous because a headless runner on llvmpipe is far slower to a first
+    // frame than a desktop with a GPU, and the MCP server doesn't exist until
+    // the widget tree builds.
+    if (!await instance._waitForMcp(const Duration(seconds: 150))) {
       final log = instance.log;
       await instance.dispose();
       throw AppUnavailable(
