@@ -1,6 +1,8 @@
 /// Unit coverage for the pure decisions in
 /// `multi_instance/support/app_instance.dart` — fast and hermetic, unlike the
 /// suite itself which needs a display, a built release bundle, and a server.
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../multi_instance/support/app_instance.dart';
