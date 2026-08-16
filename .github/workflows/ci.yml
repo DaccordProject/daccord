@@ -12,6 +12,10 @@ name: CI
 # - `ui-e2e`   : the real app driven on Linux under xvfb against the same
 #                server image. GitHub-hosted (see the job's own note) and also
 #                non-blocking; see integration_test/README.md.
+# - `multi`   : two real app processes driven over the in-app MCP surface,
+#                against the same server image. Non-blocking; the most
+#                expensive suite (release build + two apps).
+#                See multi_instance/README.md.
 # - `build`    : release builds for web / Android / Linux / Windows, uploaded
 #                as artifacts. Only runs on manual `workflow_dispatch` — PRs
 #                don't need four release builds to merge, and tagged releases
@@ -246,6 +250,67 @@ jobs:
             xvfb-run -a flutter test "$f" -d linux || status=1
             echo "::endgroup::"
           done
+          exit $status
+
+  multi-instance:
+    name: Multi-instance (two clients)
+    # GitHub-hosted for the same reason as ui-e2e: it builds and runs the Linux
+    # desktop app, which the Ubuntu 20.04 self-hosted runners can't do.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv \
+            xvfb xdg-user-dirs
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Pull accordserver image
+        run: docker pull ghcr.io/daccordproject/accordserver:latest
+
+      - name: Build the app
+        # Release, not debug: a debug bundle launched directly never runs its
+        # Dart entrypoint. See multi_instance/README.md.
+        run: flutter build linux --release
+
+      - name: Multi-instance tests
+        shell: bash
+        run: |
+          set -uo pipefail
+          xvfb-run -a flutter test multi_instance/ 2>&1 | tee /tmp/multi.log
+          status=${PIPESTATUS[0]}
+          if grep -qE "^0 tests passed|🎉 0 tests passed" /tmp/multi.log; then
+            echo "::error::No multi-instance tests ran — no server or no app bundle. See multi_instance/README.md."
+            exit 1
+          fi
           exit $status
 
   build:
