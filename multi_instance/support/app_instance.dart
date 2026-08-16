@@ -229,9 +229,21 @@ class AppInstance {
     // the widget tree builds.
     if (!await instance._waitForMcp(const Duration(seconds: 150))) {
       final log = instance.log;
+      // The usual cause is a seed/read mismatch on where the app keeps its
+      // data, which is invisible from the app's own output — so report both
+      // sides of it here rather than leaving the next person to rediscover it.
+      final documents = documentsDirFor(home);
+      final dataDir = Directory('$documents/daccord/data');
+      final seeded = dataDir.existsSync()
+          ? dataDir.listSync().map((e) => e.uri.pathSegments.last).toList()
+          : const <String>[];
       await instance.dispose();
       throw AppUnavailable(
         "$label: the app's MCP server never answered on port $port.\n"
+        'documents dir: $documents\n'
+        'files there:   $seeded\n'
+        '(if that list is empty or lacks accord-settings.hive, the app and '
+        'this launcher disagree about where data lives)\n'
         '--- app output ---\n$log',
       );
     }
@@ -296,7 +308,16 @@ class AppInstance {
       final result = Process.runSync(
         'xdg-user-dir',
         ['DOCUMENTS'],
-        environment: {'HOME': home.path},
+        // The same XDG environment the app is launched with, or the two
+        // disagree: `xdg-user-dir` reads `$XDG_CONFIG_HOME/user-dirs.dirs`,
+        // and a runner that exports its own XDG_CONFIG_HOME would send this
+        // lookup to the runner's config while the app reads the instance's.
+        // Seeding one path and reading another is silent — the app just comes
+        // up with default settings and no MCP server.
+        environment: {
+          'HOME': home.path,
+          'XDG_CONFIG_HOME': '${home.path}/.config',
+        },
         includeParentEnvironment: true,
       );
       final path = (result.stdout as String).split('\n').first.trim();
