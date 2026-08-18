@@ -231,6 +231,35 @@ void main() {
     expect(find.byIcon(Icons.emoji_emotions_outlined), findsOneWidget);
   });
 
+  testWidgets('below the side-panel breakpoint the chat is still a full '
+      'text channel', (tester) async {
+    // Portrait phone: the chat takes over the body instead of sitting beside
+    // the video grid, and rows render in touch mode — no hover bar at all, so
+    // the long-press menu is the only path to the per-message actions. It has
+    // to carry all of them.
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final host = _host();
+    addTearDown(host.client.dispose);
+    await tester.pumpWidget(host.app);
+    await _settle(tester);
+
+    expect(_body('hello from voice chat'), findsOneWidget);
+    expect(find.byTooltip('Message actions'), findsNothing);
+
+    await tester.longPress(find.byKey(const ValueKey('m1')));
+    await _settle(tester);
+
+    expect(find.text('Add reaction'), findsOneWidget);
+    expect(find.text('Reply'), findsOneWidget);
+    expect(find.text('Thread'), findsOneWidget);
+    expect(find.text('Copy text'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+  });
+
   testWidgets('the voice chat panel keeps its close button', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
