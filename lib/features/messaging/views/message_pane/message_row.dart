@@ -15,6 +15,7 @@ class _MessageRow extends ConsumerStatefulWidget {
     required this.onToggleSelected,
     this.onLongPressSelect,
     this.grouped = false,
+    this.narrow = false,
     this.author,
     this.authorUser,
     this.nameColor,
@@ -27,6 +28,13 @@ class _MessageRow extends ConsumerStatefulWidget {
   /// [_isGrouped]). Grouped rows hide the avatar/name/timestamp header and show
   /// the timestamp in the avatar gutter on hover instead.
   final bool grouped;
+
+  /// Whether the row is rendered in a narrow column (the voice channel's chat
+  /// panel). An inline hover action bar reserves its full width even while
+  /// invisible, which in a ~340px panel would leave the message itself a few
+  /// dozen pixels; a narrow row floats the same bar over its top-right corner
+  /// instead. Everything else about the row is unchanged.
+  final bool narrow;
 
   /// Whether the current user can pin/unpin in this channel.
   final bool canManageMessages;
@@ -286,132 +294,145 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
     final tappable = widget.spaceId != null;
     void openPopout() => _openPopout(message.authorId);
+    // Hover actions are mouse-driven and have no affordance on touch, where
+    // `Opacity` would still reserve their width and squeeze the message content
+    // into a narrow column. Omit them on mobile so the content uses the full
+    // row width. On desktop they render inline at the end of the row, or —
+    // when [narrow] — floated over it (see [_FloatingActionsOverlay]).
+    final hoverActions =
+        _editing || widget.selecting || !shouldUseDesktopLayout(context)
+        ? null
+        : _HoverActions(
+            // Floated (see below), the bar is only built while hovered, so it
+            // doesn't need to fade itself out.
+            visible: widget.narrow || _hovered,
+            onReact: () => _openReactionPicker(message.id),
+            onReply: widget.onReply,
+            onThread: () => _openThread(message),
+            canEdit: widget.isOwn,
+            canDelete: widget.isOwn || widget.canManageMessages,
+            canPin: widget.canManageMessages,
+            canReport: !widget.isOwn && widget.spaceId != null,
+            pinned: message.pinned,
+            onEdit: () => _startEdit(message),
+            onDelete: () => _delete(message.id),
+            onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
+            onReport: () => _report(message.id),
+          );
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        // Opaque so the whole row is hit-testable: on mobile a plain-text
-        // message renders as a bare RichText with no recognisers, and the
-        // surrounding Container is transparent, so with the default
-        // `deferToChild` a long-press over the text hits nothing and never
-        // fires. Only the avatar (which paints a background) responded before.
-        behavior: HitTestBehavior.opaque,
-        onLongPressStart: widget.selecting
-            ? null
-            : (d) => _showActionsMenu(message, d.globalPosition),
-        onSecondaryTapUp: widget.selecting
-            ? null
-            : (d) => _showActionsMenu(message, d.globalPosition),
-        onTap: widget.selecting ? widget.onToggleSelected : null,
-        child: Container(
-          padding: widget.mentionsMe
-              ? EdgeInsets.fromLTRB(13, topGap, 6, bottomGap)
-              : EdgeInsets.only(top: topGap, bottom: bottomGap),
-          decoration: widget.selected
-              ? BoxDecoration(color: colors.primary.withValues(alpha: 0.14))
-              : widget.mentionsMe
-              ? BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.08),
-                  border: Border(
-                    left: BorderSide(color: colors.primary, width: 3),
+      child: _FloatingActionsOverlay(
+        // In the voice chat panel an inline action bar would leave the message
+        // a few dozen pixels of width, so the bar floats over the row's
+        // top-right corner instead — and only while hovered, so it never covers
+        // the text or swallows a click.
+        actions: widget.narrow && _hovered ? hoverActions : null,
+        child: GestureDetector(
+          // Opaque so the whole row is hit-testable: on mobile a plain-text
+          // message renders as a bare RichText with no recognisers, and the
+          // surrounding Container is transparent, so with the default
+          // `deferToChild` a long-press over the text hits nothing and never
+          // fires. Only the avatar (which paints a background) responded before.
+          behavior: HitTestBehavior.opaque,
+          onLongPressStart: widget.selecting
+              ? null
+              : (d) => _showActionsMenu(message, d.globalPosition),
+          onSecondaryTapUp: widget.selecting
+              ? null
+              : (d) => _showActionsMenu(message, d.globalPosition),
+          onTap: widget.selecting ? widget.onToggleSelected : null,
+          child: Container(
+            padding: widget.mentionsMe
+                ? EdgeInsets.fromLTRB(13, topGap, 6, bottomGap)
+                : EdgeInsets.only(top: topGap, bottom: bottomGap),
+            decoration: widget.selected
+                ? BoxDecoration(color: colors.primary.withValues(alpha: 0.14))
+                : widget.mentionsMe
+                ? BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.08),
+                    border: Border(
+                      left: BorderSide(color: colors.primary, width: 3),
+                    ),
+                  )
+                : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.selecting) ...[
+                  Checkbox(
+                    value: widget.selected,
+                    onChanged: (_) => widget.onToggleSelected(),
                   ),
-                )
-              : null,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.selecting) ...[
-                Checkbox(
-                  value: widget.selected,
-                  onChanged: (_) => widget.onToggleSelected(),
-                ),
-                const SizedBox(width: 4),
-              ],
-              if (widget.grouped)
-                _GutterTimestamp(
-                  width: avatarRadius * 2,
-                  visible: _hovered,
-                  clock: _clock,
-                  fullTime: _fullTime,
-                )
-              else
-                _MaybeTappable(
-                  enabled: tappable,
-                  onTap: openPopout,
-                  child: AccordMemberAvatar(
-                    avatarUrl: avatarUrl,
-                    initial: _initial,
-                    radius: avatarRadius,
-                    backgroundColor: avatarBg,
-                    initialStyle: theme.textTheme.titleSmall,
+                  const SizedBox(width: 4),
+                ],
+                if (widget.grouped)
+                  _GutterTimestamp(
+                    width: avatarRadius * 2,
+                    visible: _hovered,
+                    clock: _clock,
+                    fullTime: _fullTime,
+                  )
+                else
+                  _MaybeTappable(
+                    enabled: tappable,
+                    onTap: openPopout,
+                    child: AccordMemberAvatar(
+                      avatarUrl: avatarUrl,
+                      initial: _initial,
+                      radius: avatarRadius,
+                      backgroundColor: avatarBg,
+                      initialStyle: theme.textTheme.titleSmall,
+                    ),
                   ),
-                ),
-              SizedBox(width: gutter),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (message.replyTo != null)
-                      _buildReplyPreview(message, colors),
-                    if (!widget.grouped)
-                      MessageAuthorHeader(
-                        name: _authorName,
-                        nameColor: widget.nameColor,
-                        onNameTap: tappable ? openPopout : null,
-                        pinned: message.pinned,
-                        origin: _authorOrigin,
-                        time: _time,
-                        timeTooltip: _fullTime,
-                        edited: message.editedAt != null,
-                      ),
-                    if (_editing)
-                      _buildEditor(theme, colors)
-                    else if (message.content.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: AccordMessageContent(
-                          content: message.content,
-                          spaceId: widget.spaceId,
+                SizedBox(width: gutter),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (message.replyTo != null)
+                        _buildReplyPreview(message, colors),
+                      if (!widget.grouped)
+                        MessageAuthorHeader(
+                          name: _authorName,
+                          nameColor: widget.nameColor,
+                          // A long name must ellipsize rather than push the
+                          // timestamp out of a narrow row.
+                          ellipsizeName: true,
+                          onNameTap: tappable ? openPopout : null,
+                          pinned: message.pinned,
+                          origin: _authorOrigin,
+                          time: _time,
+                          timeTooltip: _fullTime,
+                          edited: message.editedAt != null,
                         ),
-                      ),
-                    for (final attachment in message.attachments)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: _buildAttachment(attachment, cdnUrl, theme),
-                      ),
-                    for (final embed in message.embeds)
-                      AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
-                    if ((message.reactions ?? const []).isNotEmpty)
-                      _buildReactions(message, theme, colors, cdnUrl),
-                    if (message.replyCount > 0)
-                      _buildThreadChip(message, theme, colors),
-                  ],
+                      if (_editing)
+                        _buildEditor(theme, colors)
+                      else if (message.content.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: AccordMessageContent(
+                            content: message.content,
+                            spaceId: widget.spaceId,
+                          ),
+                        ),
+                      for (final attachment in message.attachments)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: _buildAttachment(attachment, cdnUrl, theme),
+                        ),
+                      for (final embed in message.embeds)
+                        AccordEmbedBox(embed: embed, cdnUrl: cdnUrl),
+                      if ((message.reactions ?? const []).isNotEmpty)
+                        _buildReactions(message, theme, colors, cdnUrl),
+                      if (message.replyCount > 0)
+                        _buildThreadChip(message, theme, colors),
+                    ],
+                  ),
                 ),
-              ),
-              // Hover actions are mouse-driven (revealed by [_hovered]) and have
-              // no affordance on touch, where `Opacity` would still reserve their
-              // width and squeeze the message content into a narrow column. Omit
-              // them on mobile so the content uses the full row width.
-              if (!_editing &&
-                  !widget.selecting &&
-                  shouldUseDesktopLayout(context))
-                _HoverActions(
-                  visible: _hovered,
-                  onReact: () => _openReactionPicker(message.id),
-                  onReply: widget.onReply,
-                  onThread: () => _openThread(message),
-                  canEdit: widget.isOwn,
-                  canDelete: widget.isOwn || widget.canManageMessages,
-                  canPin: widget.canManageMessages,
-                  canReport: !widget.isOwn && widget.spaceId != null,
-                  pinned: message.pinned,
-                  onEdit: () => _startEdit(message),
-                  onDelete: () => _delete(message.id),
-                  onTogglePin: () =>
-                      _togglePin(message.id, pinned: message.pinned),
-                  onReport: () => _report(message.id),
-                ),
-            ],
+                if (hoverActions != null && !widget.narrow) hoverActions,
+              ],
+            ),
           ),
         ),
       ),
@@ -735,6 +756,40 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   }
 }
 
+/// Floats [actions] over the top-right corner of [child], or renders [child]
+/// untouched when there are none. Used by narrow rows (the voice channel's chat
+/// panel), where an inline action bar would take most of the row's width; the
+/// bar is only passed in while the row is hovered, so nothing overlaps the
+/// message the rest of the time.
+class _FloatingActionsOverlay extends StatelessWidget {
+  const _FloatingActionsOverlay({required this.actions, required this.child});
+
+  final Widget? actions;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = this.actions;
+    if (actions == null) return child;
+    final colors = BonfireThemeExtension.of(context);
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          top: 0,
+          right: 4,
+          child: Material(
+            color: colors.foreground,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            child: actions,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Wraps [child] in a click-to-open gesture (with a pointer cursor) when
 /// [enabled]; otherwise renders the child untouched. Used so message authors are
 /// only tappable inside a space (where a profile popout makes sense).
@@ -840,6 +895,7 @@ class _HoverActions extends StatelessWidget {
     return Opacity(
       opacity: visible ? 1 : 0,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _ReactButton(onPressed: onReact),
           IconButton(

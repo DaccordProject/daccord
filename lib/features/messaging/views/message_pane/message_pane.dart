@@ -74,11 +74,34 @@ class MessagePane extends ConsumerStatefulWidget {
     required this.channel,
     required this.channelId,
     required this.spaceId,
+    this.panel = false,
+    this.panelTitle,
+    this.onClosePanel,
   });
 
   final AccordChannel? channel;
   final String? channelId;
   final String? spaceId;
+
+  /// Renders the channel's *text chat only*, in the slimmer presentation used
+  /// by the voice channel view's side panel (see [VoiceTextPanel]): a compact
+  /// header with a left divider instead of the full 48px channel header, and no
+  /// delegation to [VoiceChannelView] — a voice channel shows its chat here
+  /// rather than recursing back into the voice view that embedded this pane.
+  ///
+  /// Everything below the header is the same widget tree the regular pane
+  /// builds, so a voice channel's chat keeps every text-channel affordance:
+  /// context menus, reactions, replies, threads, edit/delete/pin/report,
+  /// attachments and history paging (#210).
+  final bool panel;
+
+  /// Header title for [panel] mode, when the caller knows the channel name but
+  /// not the [AccordChannel] itself. Falls back to the channel's own name.
+  final String? panelTitle;
+
+  /// Closes the panel. When null (or outside [panel] mode) no close button is
+  /// shown.
+  final VoidCallback? onClosePanel;
 
   @override
   ConsumerState<MessagePane> createState() => _MessagePaneState();
@@ -212,7 +235,9 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
-    if (channel?.type == 'voice') {
+    // In panel mode this pane *is* the voice view's chat panel — delegating
+    // back to the voice view would recurse.
+    if (!widget.panel && channel?.type == 'voice') {
       return VoiceChannelView(
         channelId: channelId,
         spaceId: spaceId,
@@ -294,14 +319,23 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
+    final panel = widget.panel;
+
     return Container(
-      color: colors.background,
+      decoration: BoxDecoration(
+        color: colors.background,
+        // In panel mode the pane sits beside the video grid, so it needs a
+        // divider on its leading edge too.
+        border: panel
+            ? Border(left: BorderSide(color: colors.foreground, width: 1))
+            : null,
+      ),
       child: Column(
         children: [
           Container(
-            height: 48,
+            height: panel ? 44 : 48,
             alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 16, right: 8),
+            padding: EdgeInsets.only(left: panel ? 12 : 16, right: panel ? 4 : 8),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: colors.foreground, width: 1),
@@ -346,13 +380,20 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                   )
                 : Row(
                     children: [
-                      Icon(channel?.type == 'announcement'
-                              ? Icons.campaign
-                              : Icons.tag,
-                          size: 18, color: colors.dirtyWhite),
+                      Icon(
+                          panel
+                              ? Icons.chat_bubble_outline
+                              : channel?.type == 'announcement'
+                                  ? Icons.campaign
+                                  : Icons.tag,
+                          size: panel ? 16 : 18,
+                          color: colors.dirtyWhite),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text(channel?.name ?? '',
+                        child: Text(
+                            panel
+                                ? (widget.panelTitle ?? channel?.name ?? 'Chat')
+                                : channel?.name ?? '',
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleSmall),
                       ),
@@ -368,6 +409,13 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                             size: 18, color: colors.dirtyWhite),
                       ),
                       _MuteButton(channelId: channelId),
+                      if (panel && widget.onClosePanel != null)
+                        IconButton(
+                          tooltip: 'Close chat',
+                          onPressed: widget.onClosePanel,
+                          icon: Icon(Icons.close,
+                              size: 18, color: colors.dirtyWhite),
+                        ),
                     ],
                   ),
           ),
@@ -382,8 +430,9 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                     : ListView.builder(
                         controller: _scroll,
                         reverse: true,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: panel ? 10 : 16,
+                            vertical: panel ? 8 : 12),
                         // One extra slot at the top of history (rendered last
                         // under `reverse: true`) shows a spinner while older
                         // pages load and a "Beginning of channel" hint once we
@@ -453,6 +502,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                             key: ValueKey(message.id),
                             message: message,
                             grouped: grouped,
+                            narrow: panel,
                             author: author,
                             authorUser: authorUser,
                             nameColor: colorRole == null
@@ -482,7 +532,9 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
             anchor: OnboardingAnchorId.messageComposer,
             child: _Composer(
               channelId: channelId,
-              channelName: channel?.name,
+              channelName: panel
+                  ? (widget.panelTitle ?? channel?.name)
+                  : channel?.name,
               spaceId: spaceId,
               replyingTo: _replyTo,
               replyName: _replyTo == null

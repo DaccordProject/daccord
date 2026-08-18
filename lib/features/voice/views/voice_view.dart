@@ -191,7 +191,9 @@ class _VoiceChannelViewState extends ConsumerState<VoiceChannelView> {
           return Row(
             children: [
               Expanded(child: primary),
-              SizedBox(width: 300, child: chat),
+              // Wide enough for the full message pane's chrome (avatar gutter,
+              // reactions, floating action bar) to stay readable.
+              SizedBox(width: 340, child: chat),
             ],
           );
         }

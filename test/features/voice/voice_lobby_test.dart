@@ -1,6 +1,8 @@
 import 'package:accordkit/accordkit.dart' show AccordVoiceState;
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_text_panel.dart';
@@ -44,6 +46,15 @@ class _FakeVoiceStates extends VoiceStatesController {
   Map<String, Map<String, AccordVoiceState>> build() => _seed;
 }
 
+/// The voice view's chat panel is the real [MessagePane], whose rows and
+/// composer read local preferences — and the live [SettingsController] reads a
+/// Hive box that only `setupHive()` opens. In-memory defaults keep these
+/// widget tests off disk.
+class _FakeSettingsController extends SettingsController {
+  @override
+  AccordSettings build() => const AccordSettings();
+}
+
 Widget _host({
   required _RecordingVoiceController voice,
   required String channelId,
@@ -53,6 +64,7 @@ Widget _host({
   return ProviderScope(
     overrides: [
       accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
+      settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       voiceControllerProvider.overrideWith(() => voice),
       voiceStatesControllerProvider.overrideWith(
         () => _FakeVoiceStates(voiceStates),
@@ -161,6 +173,7 @@ void main() {
     Widget host(String channelId) => ProviderScope(
       overrides: [
         accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
+        settingsControllerProvider.overrideWith(_FakeSettingsController.new),
         voiceControllerProvider.overrideWith(() => voice),
         voiceStatesControllerProvider.overrideWith(
           () => _FakeVoiceStates(const {}),
