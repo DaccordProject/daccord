@@ -1,6 +1,8 @@
 import 'package:accordkit/accordkit.dart' show AccordVoiceState;
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
@@ -65,6 +67,7 @@ Widget _app({
   return ProviderScope(
     overrides: [
       accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
+      settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       callControllerProvider.overrideWith(() => call),
       voiceControllerProvider.overrideWith(() => _StubVoiceController(voice)),
       voiceStatesControllerProvider.overrideWith(_FakeVoiceStates.new),
@@ -84,6 +87,15 @@ final _decline = find.descendant(
   of: find.byType(IncomingCallOverlay),
   matching: find.byIcon(Icons.call_end),
 );
+
+/// The voice view's chat panel is the real [MessagePane], whose rows and
+/// composer read local preferences — and the live [SettingsController] reads a
+/// Hive box that only `setupHive()` opens. In-memory defaults keep these
+/// widget tests off disk.
+class _FakeSettingsController extends SettingsController {
+  @override
+  AccordSettings build() => const AccordSettings();
+}
 
 void main() {
   testWidgets('the ring banner is reachable over a dialog route', (

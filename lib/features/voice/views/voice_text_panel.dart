@@ -1,28 +1,26 @@
-import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:accordkit/accordkit.dart' show AccordChannel;
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
-import 'package:bonfire/features/member/controllers/accord_members.dart';
-import 'package:bonfire/features/member/utils/member_display.dart';
-import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
-import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
-import 'package:bonfire/features/messaging/controllers/typing.dart';
+import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
-import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
-import 'package:bonfire/features/voice/utils/participant_display.dart';
-import 'package:bonfire/shared/components/async_state_views.dart';
-import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
-import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Text chat for a voice channel, shown beside (or over) the video grid while in
-/// a voice call. Ports the reference client's dedicated `voice_text_panel.gd`:
-/// a header with the channel name + close button, the channel's message history,
-/// a typing line, and a composer. It reuses the shared message providers and the
-/// [AccordMessageContent] renderer rather than the full message pane, matching
-/// the reference's separate, slimmer panel.
+/// a voice call. Ports the reference client's dedicated `voice_text_panel.gd`.
+///
+/// A voice channel's chat is an ordinary text channel, so this is a thin
+/// wrapper around [MessagePane] in its panel presentation rather than a
+/// second, slimmer message list. That was the bug (#210): the hand-rolled panel
+/// rendered author + content and nothing else, so voice chat silently lost the
+/// context menu, reactions, replies, threads, edit/delete/pin/report,
+/// attachments, embeds, timestamps, mention highlighting, history paging and
+/// the full composer that every other channel has. The only things this widget
+/// still owns are the voice-specific bits: acking the channel on open (against
+/// the connection the *call* is pinned to, which needn't be the active one) and
+/// the panel's title/close button.
 class VoiceTextPanel extends ConsumerStatefulWidget {
   const VoiceTextPanel({
     super.key,
@@ -45,10 +43,6 @@ class VoiceTextPanel extends ConsumerStatefulWidget {
 }
 
 class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
-  final TextEditingController _input = TextEditingController();
-  final ScrollController _scroll = ScrollController();
-  bool _sending = false;
-
   @override
   void initState() {
     super.initState();
@@ -65,287 +59,38 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
         ref,
         widget.channelId,
         serverKey: serverKey,
-        fallbackMessageId: _lastMessageId(),
+        fallbackMessageId: _channel()?.lastMessageId,
       );
     });
   }
 
-  /// The channel's `last_message_id` from the space's channel cache — the ack
-  /// position to use before this panel's own history has loaded.
-  String? _lastMessageId() {
+  /// The panel's channel from the space's channel cache. Supplies the ack
+  /// position (`last_message_id`) before this panel's own history has loaded,
+  /// and the channel the pane renders (for permissions and the header).
+  AccordChannel? _channel() {
     final spaceId = widget.spaceId;
     if (spaceId == null) return null;
     return ref
         .read(accordChannelsControllerProvider(spaceId))
-        ?.firstWhereOrNull((c) => c.id == widget.channelId)
-        ?.lastMessageId;
-  }
-
-  @override
-  void dispose() {
-    _input.dispose();
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final text = _input.text;
-    if (text.trim().isEmpty || _sending) return;
-    final client = ref.accordClient;
-    if (client == null) return;
-    setState(() => _sending = true);
-    final ok = await ref
-        .read(accordMessagesControllerProvider(widget.channelId).notifier)
-        .send(client, text);
-    if (!mounted) return;
-    setState(() {
-      _sending = false;
-      if (ok) _input.clear();
-    });
+        ?.firstWhereOrNull((c) => c.id == widget.channelId);
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final channelId = widget.channelId;
-    final messages = ref.watch(accordMessagesControllerProvider(channelId));
-    final members = widget.spaceId == null
+    final spaceId = widget.spaceId;
+    final channel = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(widget.spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
-    final cdnUrl = ref.watchCdnUrl();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.background,
-        border: Border(left: BorderSide(color: colors.foreground, width: 1)),
-      ),
-      child: Column(
-        children: [
-          _header(context, colors),
-          Expanded(
-            child: messages == null
-                ? const LoadingView()
-                : messages.isEmpty
-                    ? Center(
-                        child: Text('No messages yet',
-                            style: Theme.of(context).textTheme.bodySmall!
-                                .copyWith(color: colors.gray)),
-                      )
-                    : ListView.builder(
-                        controller: _scroll,
-                        reverse: true,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) {
-                          final i = messages.length - 1 - index;
-                          final message = messages[i];
-                          final prev = i > 0 ? messages[i - 1] : null;
-                          final grouped = prev != null &&
-                              prev.authorId == message.authorId &&
-                              message.replyTo == null;
-                          // Backfill authors outside the first member page.
-                          if (members != null &&
-                              members[message.authorId] == null &&
-                              users[message.authorId] == null) {
-                            ref
-                                .read(accordUsersControllerProvider.notifier)
-                                .ensure(message.authorId);
-                          }
-                          final display = participantDisplay(
-                            message.authorId,
-                            members: members,
-                            users: users,
-                            cdnUrl: cdnUrl,
-                          );
-                          return _VoiceTextMessage(
-                            authorName: display.name,
-                            avatarUrl: display.avatarUrl,
-                            avatarBg: display.color,
-                            content: message.content,
-                            spaceId: widget.spaceId,
-                            grouped: grouped,
-                          );
-                        },
-                      ),
-          ),
-          _TypingLine(channelId: channelId, spaceId: widget.spaceId),
-          _composer(context, colors),
-        ],
-      ),
-    );
-  }
-
-  Widget _header(BuildContext context, BonfireThemeExtension colors) {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.only(left: 12, right: 4),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.foreground, width: 1)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.chat_bubble_outline, size: 16, color: colors.dirtyWhite),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(widget.channelName ?? 'Chat',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall),
-          ),
-          if (widget.onClose != null)
-            IconButton(
-              tooltip: 'Close chat',
-              onPressed: widget.onClose,
-              icon: Icon(Icons.close, size: 18, color: colors.dirtyWhite),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _composer(BuildContext context, BonfireThemeExtension colors) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _input,
-              minLines: 1,
-              maxLines: 5,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _send(),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: colors.foreground,
-                hintText: 'Message #${widget.channelName ?? ''}',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Send',
-            onPressed: _sending ? null : _send,
-            icon: _sending
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(Icons.send, size: 20, color: colors.dirtyWhite),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A single message row in the voice text panel. Grouped rows (same consecutive
-/// author) drop the avatar/name header, matching the reference's collapsed rows.
-class _VoiceTextMessage extends StatelessWidget {
-  const _VoiceTextMessage({
-    required this.authorName,
-    required this.avatarUrl,
-    required this.avatarBg,
-    required this.content,
-    required this.spaceId,
-    required this.grouped,
-  });
-
-  final String authorName;
-  final String? avatarUrl;
-  final Color avatarBg;
-  final String content;
-  final String? spaceId;
-  final bool grouped;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    final initial = accordInitial(authorName);
-    return Padding(
-      padding: EdgeInsets.only(top: grouped ? 1 : 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 32,
-            child: grouped
-                ? null
-                : AccordMemberAvatar(
-                    avatarUrl: avatarUrl,
-                    initial: initial,
-                    radius: 14,
-                    backgroundColor: avatarBg,
-                    initialStyle: const TextStyle(fontSize: 12),
-                  ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!grouped)
-                  Text(authorName,
-                      style: Theme.of(context).textTheme.labelMedium!.copyWith(
-                          color: colors.dirtyWhite,
-                          fontWeight: FontWeight.w600)),
-                AccordMessageContent(content: content, spaceId: spaceId),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Compact "X is typing…" line for the voice text panel.
-class _TypingLine extends ConsumerWidget {
-  const _TypingLine({required this.channelId, required this.spaceId});
-
-  final String channelId;
-  final String? spaceId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = BonfireThemeExtension.of(context);
-    final typing = ref.watch(typingControllerProvider(channelId));
-    if (typing.isEmpty) return const SizedBox(height: 4);
-    final members = spaceId == null
-        ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
-
-    String nameFor(String userId) {
-      final member = members?[userId];
-      if (member != null) return accordMemberName(member, fallback: 'Someone');
-      return accordUserName(users[userId], fallback: 'Someone');
-    }
-
-    final label = typing.length == 1
-        ? '${nameFor(typing.first)} is typing…'
-        : typing.length == 2
-            ? '${nameFor(typing[0])} and ${nameFor(typing[1])} are typing…'
-            : 'Several people are typing…';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(label,
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall!
-                .copyWith(color: colors.gray)),
-      ),
+        : ref.watch(accordChannelsControllerProvider(spaceId).select(
+            (channels) =>
+                channels?.firstWhereOrNull((c) => c.id == widget.channelId),
+          ));
+    return MessagePane(
+      channel: channel,
+      channelId: widget.channelId,
+      spaceId: spaceId,
+      panel: true,
+      panelTitle: widget.channelName ?? channel?.name,
+      onClosePanel: widget.onClose,
     );
   }
 }
