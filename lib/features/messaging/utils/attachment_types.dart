@@ -10,7 +10,7 @@ enum AttachmentPreview {
   /// Rendered by `CachedNetworkImage` (Flutter's own decoders).
   image,
 
-  /// Rendered by `InlineVideoPlayer` (media_kit / libmpv).
+  /// Rendered by `InlineVideoPlayer` (media_kit / libmpv; AVFoundation on iOS).
   video,
 
   /// Rendered by `InlineAudioPlayer` (audioplayers).
@@ -73,7 +73,8 @@ const Map<String, AttachmentType> kAttachmentTypes = {
   'heif': AttachmentType('image/heif', _none),
   'ico': AttachmentType('image/x-icon', _none),
   'psd': AttachmentType('image/vnd.adobe.photoshop', _none),
-  // ---- Video (media_kit / libmpv handles all of these) -------------------
+  // ---- Video (media_kit / libmpv handles all of these; iOS plays the
+  // AVFoundation-supported subset — see InlineVideoPlayer) ------------------
   'mp4': AttachmentType('video/mp4', _video),
   'm4v': AttachmentType('video/mp4', _video),
   'webm': AttachmentType('video/webm', _video),
