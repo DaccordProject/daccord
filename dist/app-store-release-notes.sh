@@ -15,6 +15,14 @@
 # falls back to the generic note rather than failing the release.
 set -euo pipefail
 
+# Byte-oriented throughout: the iOS/macOS release jobs run on macos-15 runners,
+# whose default locale can vary, and forcing C here keeps `${#notes}` (used for
+# the length check below) and `head -c` (used to truncate) counting the same
+# units. A touch more conservative than counting Unicode characters — a
+# multi-byte bullet can trip the cap a few bytes before 4000 real characters —
+# but Apple's limit is never exceeded, which is what matters.
+export LC_ALL=C
+
 # Deliver reads <metadata_path>/<lang>/release_notes.txt. The two platforms get
 # separate trees so a future iOS-only or macOS-only note doesn't need a fork.
 LANG_DIR="en-US"
@@ -57,9 +65,15 @@ user_facing() {
 
 # Strip the conventional-commit prefix and bullet the rest: "feat(voice): add x"
 # becomes "• Add x". Store readers are not reading a changelog.
+#
+# Capitalization uses awk, not GNU sed's \U — the iOS/macOS release jobs run on
+# macos-15, whose default /usr/bin/sed is BSD sed and doesn't support \U. It
+# would silently mangle every bullet in the actual App Store submission
+# ("• Uadd x" instead of "• Add x") rather than error, so this only shows up by
+# reading the generated text.
 prettify() {
   sed -E 's/^(feat|fix|perf)(\([^)]*\))?!?: //' |
-    sed -E 's/^(.)/\U\1/' |
+    awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }' |
     sed -E 's/^/• /'
 }
 
