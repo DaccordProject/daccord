@@ -1,8 +1,10 @@
 # Daccord App Store release lanes.
 #
-# These build the *store* variants (iOS App Store + Mac App Store), upload them
-# to App Store Connect and submit them for review, set to release automatically
-# once approved. They are invoked by .github/workflows/release.yml,
+# These build the *store* variants (iOS App Store + Mac App Store) and upload
+# them to App Store Connect. iOS goes all the way — submitted for review and set
+# to release automatically once approved; Mac stops at the upload until its
+# product page exists (see the note on the :appstore lane below). They are
+# invoked by .github/workflows/release.yml,
 # which first imports the signing certs and provisioning profiles into a temp
 # keychain and runs `flutter build … --no-codesign` so the Flutter/Dart side is
 # already compiled; `build_app` (gym) then archives + signs + exports.
@@ -205,7 +207,7 @@ platform :ios do
 end
 
 platform :mac do
-  desc "Build a sandboxed signed .pkg and submit it for Mac App Store review"
+  desc "Build a sandboxed signed .pkg and upload it to App Store Connect"
   lane :appstore do
     api_key = asc_api_key
     profile = ENV.fetch("MAC_PROFILE_NAME")
@@ -233,11 +235,31 @@ platform :mac do
     )
     pkg ||= lane_context[SharedValues::PKG_OUTPUT_PATH] || Dir["build/appstore/*.pkg"].first
     UI.user_error!("No .pkg produced by gym (got #{pkg.inspect})") if pkg.nil? || !File.exist?(pkg)
-    submit_release(
+    # Upload only — the Mac listing is not submittable yet, so do NOT route this
+    # through submit_release. The macOS product page has never been filled in (0
+    # screenshots, no description/keywords/support URL/copyright) and the version
+    # record has no App Store Review Detail, which is a hard failure rather than a
+    # rejection: deliver's upload_metadata calls fetch_app_store_review_detail,
+    # spaceship gets `{"data": null}` back and raises "No data", killing the job
+    # *before* the .pkg is uploaded (fastlane's own "Uploading the very first
+    # version of my app yields `No data`" issue). That is what turned v0.2.11's
+    # release run red while iOS, Google Play and the GitHub Release all succeeded.
+    #
+    # skip_metadata sidesteps that call, so the binary lands in App Store Connect
+    # ready to attach. Swap this back to submit_release(platform: "osx", ...) once
+    # the macOS listing is complete and the version has been submitted by hand
+    # once — see "Mac App Store: listing first" in docs/app-store-deploy.md.
+    upload_to_app_store(
       api_key: api_key,
-      platform: "osx",
-      metadata_path: "fastlane/metadata/mac",
       pkg: pkg,
+      platform: "osx",
+      app_version: ENV.fetch("APP_STORE_VERSION"),
+      skip_metadata: true,
+      skip_screenshots: true,
+      skip_app_version_update: true,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true,
     )
   end
 

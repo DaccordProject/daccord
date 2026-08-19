@@ -1,13 +1,15 @@
 # App / Play Store deployment
 
 The `Release` workflow (`.github/workflows/release.yml`) builds signed store
-builds and takes them all the way to public release on both stores — a tag push
-needs no follow-up clicks in App Store Connect or the Play Console:
+builds and takes iOS and Android all the way to public release — a tag push
+needs no follow-up clicks in App Store Connect or the Play Console. macOS is the
+exception: its build is uploaded but not submitted, because the Mac product page
+does not exist yet ([below](#mac-app-store-listing-first)).
 
 | Target | Job | Lane | Lands in |
 |--------|-----|------|----------|
 | iOS App Store | `ios-appstore` | `fastlane ios appstore` | App Store (submitted for review, auto-release) |
-| Mac App Store | `mac-appstore` | `fastlane mac appstore` | Mac App Store (submitted for review, auto-release) |
+| Mac App Store | `mac-appstore` | `fastlane mac appstore` | App Store Connect (uploaded only — **not** submitted) |
 | Notarized DMG | `build` (macOS) | `fastlane mac dmg` | GitHub Release (direct download) |
 | Google Play | `android-play` | `fastlane android play` | Play Console (AAB → `production` track) |
 
@@ -131,10 +133,11 @@ tag and `HEAD` (release candidates are skipped, so a stable release's notes span
 everything since the last stable one), keeps the `feat`/`fix`/`perf` subjects,
 strips the conventional-commit prefixes and writes a bulleted list to
 `fastlane/metadata/{ios,mac}/en-US/release_notes.txt`. That is the only metadata
-field CI delivers; everything else stays managed in App Store Connect.
+field CI delivers; everything else stays managed in App Store Connect. Only the
+iOS job runs it today — the Mac job delivers no metadata at all (below).
 
 The output is generated, not committed — `fastlane/metadata/` is gitignored.
-Both Apple jobs check out with `fetch-depth: 0` because a shallow clone has no
+The iOS job checks out with `fetch-depth: 0` because a shallow clone has no
 previous tag to diff against; if one is ever missing the script falls back to a
 generic note instead of failing the release.
 
@@ -143,21 +146,55 @@ paths after the generate step — or drop the step and commit the files.
 
 ## What's still manual
 
-Nothing per release. A tag push submits both Apple builds for review with
-automatic release on approval, and ships the Android build to `production`.
-What remains is **per-app, set once**, and every later release reuses it:
+Nothing per release for **iOS and Android**. A tag push submits the iOS build
+for review with automatic release on approval, and ships the Android build to
+`production`. What remains there is **per-app, set once**, and every later
+release reuses it:
 
-- **Apple:** screenshots, the App Privacy questionnaire, and the age rating, in
+- **iOS:** screenshots, the App Privacy questionnaire, and the age rating, in
   App Store Connect. A brand-new app also needs its first release created by
   hand before API submissions work.
 - **Google Play:** the store listing, content rating and Data safety
   declarations — already complete for this app.
+
+**macOS is not there yet** — see the next section.
 
 What no CI can remove is the stores' own review. Apple's review typically takes
 about a day; the build sits in *Waiting for Review* → *In Review* and then goes
 live on its own (`automatic_release: true`). Google's review gates the
 `production` rollout the same way. "All the way to production" means *submitted
 and set to ship*, not *live within minutes*.
+
+## Mac App Store: listing first
+
+The `mac-appstore` job **uploads only**. It does not submit, because there is
+nothing submittable: the macOS product page has never been filled in. As of
+0.2.11 it has 0 of 10 screenshots and an empty description, keywords, support
+URL and copyright, and the version record has no App Store Review Detail.
+
+That last one is not a soft failure. `deliver`'s metadata upload calls
+`fetch_app_store_review_detail`, spaceship gets `{"data": null}` back for a
+version that has never been submitted, and raises `No data` — killing the job
+*before* the `.pkg` is uploaded (fastlane's own "Uploading the very first
+version of my app yields `No data`"). That is what turned v0.2.11's release run
+red while iOS, Google Play and the GitHub Release all succeeded. Passing
+`skip_metadata: true` skips that call, so the binary reaches App Store Connect
+and waits there.
+
+To turn macOS on, in App Store Connect → Daccord → macOS App:
+
+1. Add Mac screenshots (1280 × 800, 1440 × 900, 2560 × 1600 or 2880 × 1800) —
+   these have to be real captures of the app on macOS.
+2. Fill in description, keywords, support URL and copyright. The iOS listing is
+   a reasonable starting point.
+3. Fill in App Review Information (contact details), which is what creates the
+   review-detail record `deliver` chokes on.
+4. Attach the uploaded build and submit that first version by hand.
+
+Then swap the `mac :appstore` lane's `upload_to_app_store` call back to
+`submit_release(api_key: api_key, platform: "osx", metadata_path:
+"fastlane/metadata/mac", pkg: pkg)`, and restore the "Generate What's New" step
+in the `mac-appstore` job, and macOS releases the same way iOS does.
 
 ## Guideline 2.5.1: no libmpv in the iOS build
 

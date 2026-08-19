@@ -45,7 +45,7 @@ on:
         type: boolean
         default: true
       deploy_mac:
-        description: "Build the Mac App Store build, upload it and submit it for review"
+        description: "Build the Mac App Store build and upload it (no review submission — see docs)"
         type: boolean
         default: true
       deploy_android:
@@ -930,11 +930,12 @@ jobs:
             --dart-define=APP_STORE=true \
             --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
 
-      - name: Generate What's New
-        # See the iOS job: Apple rejects a submission with no release notes.
-        run: ./dist/app-store-release-notes.sh
-
-      - name: Archive, sign, upload & submit for review
+      - name: Archive, sign & upload
+        # Upload only, no review submission: the macOS product page has never
+        # been filled in, so there is nothing to submit yet and deliver's
+        # metadata step hard-fails on the missing review detail. See the
+        # :appstore lane and docs/app-store-deploy.md. No release notes are
+        # generated here for the same reason — nothing delivers them.
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
