@@ -55,9 +55,14 @@ void main() async {
 
   initializePlatform();
 
+  // Register media_kit as package:video_player's backend everywhere except iOS.
+  // iOS has no media_kit_libs_ios_video (see pubspec.yaml — libmpv's
+  // fork/execve and OpenGL ES references got 0.2.6 rejected under App Store
+  // guideline 2.5.1), so there is no libmpv to initialise there; video_player
+  // falls through to its stock AVFoundation implementation instead.
   VideoPlayerMediaKit.ensureInitialized(
     android: true,
-    iOS: true,
+    iOS: false,
     macOS: true,
     windows: true,
     linux: true,

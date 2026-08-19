@@ -158,3 +158,43 @@ about a day; the build sits in *Waiting for Review* → *In Review* and then goe
 live on its own (`automatic_release: true`). Google's review gates the
 `production` rollout the same way. "All the way to production" means *submitted
 and set to ship*, not *live within minutes*.
+
+## Guideline 2.5.1: no libmpv in the iOS build
+
+iOS 0.2.6 (build 141, submitted 2026-07-09) was **rejected** under App Store
+guideline *2.5.1 Performance: Software Requirements* — Apple's automated binary
+scan reported "the app uses or references non-public or deprecated APIs".
+
+The offender was `media_kit_libs_ios_video`, which vendors a prebuilt
+`Mpv.xcframework` (libmpv + FFmpeg). Of everything linked into the iOS app it
+was the only binary referencing APIs an iOS app may not use:
+
+```
+$ llvm-nm -u Mpv.framework/Mpv | grep -E '^_(fork|execve|setsid|waitpid|kill)$'
+_execve _fork _kill _setsid _waitpid
+```
+
+— mpv's POSIX subprocess and TTY layer (`tcgetattr`/`tcsetattr`/`tcgetpgrp`,
+`shm_open`) — plus `EAGLContext` and `CVOpenGLESTextureCache*`, i.e. OpenGL ES,
+which Apple deprecated in iOS 12. `media_kit_video`'s own iOS plugin renders
+through that same OpenGL ES path and compiles with `GL_SILENCE_DEPRECATION`.
+Every other embedded binary (WebRTC, the FFmpeg libs, libxml2, …) was clean.
+
+So **iOS does not get media_kit**. `pubspec.yaml` lists media_kit's native libs
+per platform (`media_kit_libs_android_video`, `_macos_video`, `_windows_video`,
+`_linux`) instead of the `media_kit_libs_video` umbrella, deliberately omitting
+the iOS package. With no `media_kit_libs_ios_*` in `pubspec.lock`,
+`media_kit_video`'s iOS podspec falls back to `Classes/stub` — a no-op plugin
+registrar — and nothing of mpv reaches the binary.
+
+Video attachments on iOS play through `package:video_player`'s AVFoundation
+backend instead (`lib/features/messaging/views/inline_video_player.dart`);
+`main.dart` passes `iOS: false` to `VideoPlayerMediaKit.ensureInitialized` so
+media_kit is never registered as the `video_player` backend there. The trade-off
+is container support: AVFoundation handles `mp4`/`m4v`/`mov`, so on iOS the
+other formats in `attachment_types.dart` are shown as a download rather than a
+player that would fail on the first frame.
+
+**Do not re-add `media_kit_libs_video` (or `media_kit_libs_ios_video`) to
+`pubspec.yaml`** — it silently puts libmpv back in the iOS binary and the next
+submission gets the same automated rejection.
