@@ -83,6 +83,10 @@ class _MessageRow extends ConsumerStatefulWidget {
 
 class _MessageRowState extends ConsumerState<_MessageRow> {
   bool _hovered = false;
+
+  /// Whether the row's "⋯" actions menu is open. Only meaningful when [narrow],
+  /// where the action bar is mounted on hover alone — see [_menuStateChanged].
+  bool _menuOpen = false;
   bool _editing = false;
   bool _busy = false;
   TextEditingController? _editController;
@@ -247,6 +251,19 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     }
   }
 
+  /// Keeps the floating action bar mounted for as long as its menu is open.
+  ///
+  /// When [_MessageRow.narrow] the bar is only built while the row is hovered,
+  /// but opening a [PopupMenuButton] pushes a modal barrier that ends the hover
+  /// — which unmounted the button mid-menu, and Flutter drops the selection
+  /// when the button is gone (`if (!mounted) return` in `showButtonMenu`).
+  /// Every item in that menu (delete, edit, pin, report) silently did nothing
+  /// in the voice channel's chat panel as a result.
+  void _menuStateChanged(bool open) {
+    if (!mounted) return;
+    setState(() => _menuOpen = open);
+  }
+
   Future<void> _delete(String messageId) async {
     final client = _client;
     if (client == null || _busy) return;
@@ -259,11 +276,14 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
-    await ref
+    final ok = await ref
         .read(accordMessagesControllerProvider(widget.channelId).notifier)
         .delete(client, messageId);
-    // Row disappears on success; if it failed we just re-enable.
-    if (mounted) setState(() => _busy = false);
+    if (!mounted) return;
+    // Row disappears on success; if it failed we re-enable and say so, rather
+    // than leaving the message sitting there as if nothing had been asked.
+    setState(() => _busy = false);
+    if (!ok) showInfoSnack(context, 'Failed to delete message');
   }
 
   @override
@@ -318,6 +338,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             onDelete: () => _delete(message.id),
             onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
             onReport: () => _report(message.id),
+            onMenuStateChanged: _menuStateChanged,
           );
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -326,8 +347,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         // In the voice chat panel an inline action bar would leave the message
         // a few dozen pixels of width, so the bar floats over the row's
         // top-right corner instead — and only while hovered, so it never covers
-        // the text or swallows a click.
-        actions: widget.narrow && _hovered ? hoverActions : null,
+        // the text or swallows a click. `_menuOpen` extends that past the
+        // hover: the actions menu's barrier ends the hover, and unmounting the
+        // button mid-menu loses the selection (see [_menuStateChanged]).
+        actions: widget.narrow && (_hovered || _menuOpen) ? hoverActions : null,
         child: GestureDetector(
           // Opaque so the whole row is hit-testable: on mobile a plain-text
           // message renders as a bare RichText with no recognisers, and the
@@ -752,232 +775,6 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Floats [actions] over the top-right corner of [child], or renders [child]
-/// untouched when there are none. Used by narrow rows (the voice channel's chat
-/// panel), where an inline action bar would take most of the row's width; the
-/// bar is only passed in while the row is hovered, so nothing overlaps the
-/// message the rest of the time.
-class _FloatingActionsOverlay extends StatelessWidget {
-  const _FloatingActionsOverlay({required this.actions, required this.child});
-
-  final Widget? actions;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = this.actions;
-    if (actions == null) return child;
-    final colors = BonfireThemeExtension.of(context);
-    return Stack(
-      children: [
-        child,
-        Positioned(
-          top: 0,
-          right: 4,
-          child: Material(
-            color: colors.foreground,
-            borderRadius: BorderRadius.circular(8),
-            clipBehavior: Clip.antiAlias,
-            child: actions,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Wraps [child] in a click-to-open gesture (with a pointer cursor) when
-/// [enabled]; otherwise renders the child untouched. Used so message authors are
-/// only tappable inside a space (where a profile popout makes sense).
-class _MaybeTappable extends StatelessWidget {
-  const _MaybeTappable({
-    required this.enabled,
-    required this.onTap,
-    required this.child,
-  });
-
-  final bool enabled;
-  final VoidCallback onTap;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) return child;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(onTap: onTap, child: child),
-    );
-  }
-}
-
-/// The hover-only timestamp shown in the avatar gutter of a grouped row (which
-/// has no author header of its own). Bare HH:MM in a fixed-width slot, with the
-/// full date in a tooltip.
-class _GutterTimestamp extends StatelessWidget {
-  const _GutterTimestamp({
-    required this.width,
-    required this.visible,
-    required this.clock,
-    required this.fullTime,
-  });
-
-  final double width;
-  final bool visible;
-  final String clock;
-  final String fullTime;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
-    return SizedBox(
-      width: width,
-      child: Opacity(
-        opacity: visible ? 1 : 0,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Tooltip(
-            message: fullTime,
-            child: Text(
-              clock,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelSmall!.copyWith(color: colors.gray),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The desktop hover-action cluster at a row's trailing edge: react, reply,
-/// thread, and (when any moderation/authorship applies) the overflow
-/// [_MessageActions] menu. Revealed by hover via [visible]; the row omits it
-/// entirely on touch layouts.
-class _HoverActions extends StatelessWidget {
-  const _HoverActions({
-    required this.visible,
-    required this.onReact,
-    required this.onReply,
-    required this.onThread,
-    required this.canEdit,
-    required this.canDelete,
-    required this.canPin,
-    required this.canReport,
-    required this.pinned,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onTogglePin,
-    required this.onReport,
-  });
-
-  final bool visible;
-  final VoidCallback onReact;
-  final VoidCallback onReply;
-  final VoidCallback onThread;
-  final bool canEdit;
-  final bool canDelete;
-  final bool canPin;
-  final bool canReport;
-  final bool pinned;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onTogglePin;
-  final VoidCallback onReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Opacity(
-      opacity: visible ? 1 : 0,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ReactButton(onPressed: onReact),
-          IconButton(
-            tooltip: 'Reply',
-            onPressed: onReply,
-            icon: Icon(Icons.reply, size: 18, color: colors.gray),
-          ),
-          IconButton(
-            tooltip: 'Thread',
-            onPressed: onThread,
-            icon: Icon(Icons.forum_outlined, size: 18, color: colors.gray),
-          ),
-          // canEdit implies canDelete, so this matches the original
-          // isOwn || canManageMessages || canReport gate.
-          if (canDelete || canReport)
-            _MessageActions(
-              canEdit: canEdit,
-              canDelete: canDelete,
-              canPin: canPin,
-              canReport: canReport,
-              pinned: pinned,
-              onEdit: onEdit,
-              onDelete: onDelete,
-              onTogglePin: onTogglePin,
-              onReport: onReport,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MessageActions extends StatelessWidget {
-  const _MessageActions({
-    required this.canEdit,
-    required this.canDelete,
-    required this.canPin,
-    required this.canReport,
-    required this.pinned,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onTogglePin,
-    required this.onReport,
-  });
-
-  final bool canEdit;
-  final bool canDelete;
-  final bool canPin;
-  final bool canReport;
-  final bool pinned;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onTogglePin;
-  final VoidCallback onReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return PopupMenuButton<String>(
-      tooltip: 'Message actions',
-      icon: Icon(Icons.more_horiz, size: 18, color: colors.gray),
-      onSelected: (value) {
-        switch (value) {
-          case 'edit':
-            onEdit();
-          case 'delete':
-            onDelete();
-          case 'pin':
-            onTogglePin();
-          case 'report':
-            onReport();
-        }
-      },
-      itemBuilder: (context) => [
-        if (canPin)
-          PopupMenuItem(value: 'pin', child: Text(pinned ? 'Unpin' : 'Pin')),
-        if (canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-        if (canDelete)
-          const PopupMenuItem(value: 'delete', child: Text('Delete')),
-        if (canReport)
-          const PopupMenuItem(value: 'report', child: Text('Report')),
-      ],
     );
   }
 }

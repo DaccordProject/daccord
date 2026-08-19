@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
+import 'package:bonfire/shared/utils/ban_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -170,15 +171,12 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     final spaceId = r['_space_id']?.toString();
     final userId = _reportedUserId(r);
     if (client == null || spaceId == null || userId == null) return;
-    if (!await _confirm(
-      'Ban member',
-      'Ban the reported member and action this report?',
-      'Ban',
-    )) {
-      return;
-    }
+    final request =
+        await showBanDialog(context, memberName: 'The reported member');
+    if (request == null || !mounted) return;
     setState(() => _busy = true);
-    final result = await client.bans.create(spaceId, userId);
+    final result =
+        await client.bans.create(spaceId, userId, data: request.toJson());
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {

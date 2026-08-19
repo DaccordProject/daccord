@@ -4,6 +4,7 @@ import 'package:bonfire/shared/components/load_more_footer.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/ban_dialog.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
@@ -235,9 +236,11 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                         ),
                         const SizedBox(width: 8),
                         FilledButton(
-                          onPressed: _busy || _category == null
-                              ? null
-                              : _submit,
+                          // Enabled without a reason chosen so [_submit]'s
+                          // "Choose a reason" guard can actually run. Disabling
+                          // it here instead made that branch dead code and the
+                          // button a no-op that never said why.
+                          onPressed: _busy ? null : _submit,
                           child: const Text('Submit report'),
                         ),
                       ],
@@ -412,15 +415,12 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
     final userId = _reportedUserId(r);
     final id = r['id']?.toString() ?? '';
     if (client == null || userId == null) return;
-    final ok = await showConfirmDialog(
-      context,
-      title: 'Ban member',
-      message: 'Ban the reported member and action this report?',
-      confirmLabel: 'Ban',
-    );
-    if (ok != true) return;
+    final request =
+        await showBanDialog(context, memberName: 'The reported member');
+    if (request == null || !mounted) return;
     setState(() => _busy = true);
-    final result = await client.bans.create(widget.spaceId, userId);
+    final result = await client.bans
+        .create(widget.spaceId, userId, data: request.toJson());
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {

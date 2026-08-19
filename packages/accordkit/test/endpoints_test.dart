@@ -171,6 +171,33 @@ void main() {
     });
   });
 
+  group('BansApi', () {
+    test('create with no data sends an empty body', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData(null));
+      await BansApi(rest).create('7', '2');
+      expect(req.method, 'PUT');
+      expect(req.url.path, '/api/v1/spaces/7/bans/2');
+      expect(req.jsonBody, {});
+    });
+
+    test('create forwards delete_message_seconds and parses the count back',
+        () async {
+      rest = mockRest(
+          log: log, responder: (_) => jsonData({'deleted_message_count': 4}));
+      final result = await BansApi(rest)
+          .create('7', '2', data: {'delete_message_seconds': 86400});
+      expect(req.jsonBody, {'delete_message_seconds': 86400});
+      expect((result.data as Map)['deleted_message_count'], 4);
+    });
+
+    test('remove path', () async {
+      rest = mockRest(log: log, responder: (_) => jsonData(null));
+      await BansApi(rest).remove('7', '2');
+      expect(req.method, 'DELETE');
+      expect(req.url.path, '/api/v1/spaces/7/bans/2');
+    });
+  });
+
   group('AuthApi', () {
     test('register parses auth response into user + token', () async {
       rest = mockRest(
