@@ -44,7 +44,9 @@ class _FakeSettingsController extends SettingsController {
 /// the live message controller so tests can inject a "new message arrived"
 /// gateway event mid-await.
 class _Harness {
-  _Harness(List<Map<String, String>> seed) {
+  /// [failDeleteOf] makes the DELETE request for that message id come back
+  /// as a server error instead of succeeding, to exercise the failure path.
+  _Harness(List<Map<String, String>> seed, {String? failDeleteOf}) {
     final responder = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       if (request.method == 'GET' &&
@@ -54,6 +56,11 @@ class _Harness {
           200,
           headers: {'content-type': 'application/json'},
         );
+      }
+      if (request.method == 'DELETE' &&
+          failDeleteOf != null &&
+          request.url.path.endsWith('/messages/$failDeleteOf')) {
+        return http.Response('', 500);
       }
       return http.Response(
         '[]',
@@ -146,11 +153,11 @@ Future<void> _tick(WidgetTester tester, {int frames = 12}) async {
   }
 }
 
-Future<_Harness> _pumpPane(WidgetTester tester) async {
+Future<_Harness> _pumpPane(WidgetTester tester, {String? failDeleteOf}) async {
   final harness = _Harness([
     _msgJson('m1', 'first message'),
     _msgJson('m2', 'second message'),
-  ]);
+  ], failDeleteOf: failDeleteOf);
   addTearDown(harness.dispose);
   await tester.pumpWidget(harness.app);
   await _tick(tester);
@@ -234,6 +241,27 @@ void main() {
     expect(_body('first message'), findsNothing);
     expect(_body('second message'), findsOneWidget);
   });
+
+  testWidgets(
+    'a failed delete leaves the message and reports the failure',
+    (tester) async {
+      final harness = await _pumpPane(tester, failDeleteOf: 'm1');
+
+      await _menuAction(tester, _row('m1', 'first message'), 'Delete');
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await _tick(tester);
+
+      expect(
+        harness.requestsFor('m1'),
+        ['DELETE /api/v1/channels/$_channelId/messages/m1'],
+      );
+      // The row is still there rather than having been optimistically removed…
+      expect(_body('first message'), findsOneWidget);
+      // …and the failure is surfaced rather than silently swallowed, which is
+      // what made this indistinguishable from the dead voice-chat menu (#229).
+      expect(find.text('Failed to delete message'), findsOneWidget);
+    },
+  );
 
   testWidgets('reaction lands on the message the picker was opened on, even '
       'when a new message arrives while it is open', (tester) async {

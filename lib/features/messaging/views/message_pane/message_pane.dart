@@ -66,6 +66,7 @@ import 'package:pasteboard/pasteboard.dart';
 part 'attachments.dart';
 part 'composer.dart';
 part 'message_row.dart';
+part 'message_row_actions.dart';
 part 'mute_button.dart';
 part 'reactions.dart';
 
