@@ -83,6 +83,10 @@ class _MessageRow extends ConsumerStatefulWidget {
 
 class _MessageRowState extends ConsumerState<_MessageRow> {
   bool _hovered = false;
+
+  /// Whether the row's "⋯" actions menu is open. Only meaningful when [narrow],
+  /// where the action bar is mounted on hover alone — see [_menuStateChanged].
+  bool _menuOpen = false;
   bool _editing = false;
   bool _busy = false;
   TextEditingController? _editController;
@@ -247,6 +251,19 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     }
   }
 
+  /// Keeps the floating action bar mounted for as long as its menu is open.
+  ///
+  /// When [_MessageRow.narrow] the bar is only built while the row is hovered,
+  /// but opening a [PopupMenuButton] pushes a modal barrier that ends the hover
+  /// — which unmounted the button mid-menu, and Flutter drops the selection
+  /// when the button is gone (`if (!mounted) return` in `showButtonMenu`).
+  /// Every item in that menu (delete, edit, pin, report) silently did nothing
+  /// in the voice channel's chat panel as a result.
+  void _menuStateChanged(bool open) {
+    if (!mounted) return;
+    setState(() => _menuOpen = open);
+  }
+
   Future<void> _delete(String messageId) async {
     final client = _client;
     if (client == null || _busy) return;
@@ -259,11 +276,14 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
-    await ref
+    final ok = await ref
         .read(accordMessagesControllerProvider(widget.channelId).notifier)
         .delete(client, messageId);
-    // Row disappears on success; if it failed we just re-enable.
-    if (mounted) setState(() => _busy = false);
+    if (!mounted) return;
+    // Row disappears on success; if it failed we re-enable and say so, rather
+    // than leaving the message sitting there as if nothing had been asked.
+    setState(() => _busy = false);
+    if (!ok) showInfoSnack(context, 'Failed to delete message');
   }
 
   @override
@@ -318,6 +338,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             onDelete: () => _delete(message.id),
             onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
             onReport: () => _report(message.id),
+            onMenuStateChanged: _menuStateChanged,
           );
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -326,8 +347,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         // In the voice chat panel an inline action bar would leave the message
         // a few dozen pixels of width, so the bar floats over the row's
         // top-right corner instead — and only while hovered, so it never covers
-        // the text or swallows a click.
-        actions: widget.narrow && _hovered ? hoverActions : null,
+        // the text or swallows a click. `_menuOpen` extends that past the
+        // hover: the actions menu's barrier ends the hover, and unmounting the
+        // button mid-menu loses the selection (see [_menuStateChanged]).
+        actions: widget.narrow && (_hovered || _menuOpen) ? hoverActions : null,
         child: GestureDetector(
           // Opaque so the whole row is hit-testable: on mobile a plain-text
           // message renders as a bare RichText with no recognisers, and the
@@ -873,6 +896,7 @@ class _HoverActions extends StatelessWidget {
     required this.onDelete,
     required this.onTogglePin,
     required this.onReport,
+    required this.onMenuStateChanged,
   });
 
   final bool visible;
@@ -888,6 +912,10 @@ class _HoverActions extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onTogglePin;
   final VoidCallback onReport;
+
+  /// Notified when the "⋯" menu opens and closes, so a floated bar can stay
+  /// mounted for the menu's lifetime.
+  final ValueChanged<bool> onMenuStateChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -921,6 +949,7 @@ class _HoverActions extends StatelessWidget {
               onDelete: onDelete,
               onTogglePin: onTogglePin,
               onReport: onReport,
+              onMenuStateChanged: onMenuStateChanged,
             ),
         ],
       ),
@@ -939,6 +968,7 @@ class _MessageActions extends StatelessWidget {
     required this.onDelete,
     required this.onTogglePin,
     required this.onReport,
+    required this.onMenuStateChanged,
   });
 
   final bool canEdit;
@@ -951,13 +981,21 @@ class _MessageActions extends StatelessWidget {
   final VoidCallback onTogglePin;
   final VoidCallback onReport;
 
+  /// See [_HoverActions.onMenuStateChanged].
+  final ValueChanged<bool> onMenuStateChanged;
+
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     return PopupMenuButton<String>(
       tooltip: 'Message actions',
       icon: Icon(Icons.more_horiz, size: 18, color: colors.gray),
+      // `onOpened` fires before the menu's barrier steals the hover, which is
+      // what keeps this button mounted long enough for `onSelected` to run.
+      onOpened: () => onMenuStateChanged(true),
+      onCanceled: () => onMenuStateChanged(false),
       onSelected: (value) {
+        onMenuStateChanged(false);
         switch (value) {
           case 'edit':
             onEdit();

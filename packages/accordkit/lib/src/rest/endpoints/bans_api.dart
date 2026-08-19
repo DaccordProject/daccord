@@ -16,7 +16,12 @@ class BansApi extends EndpointBase {
     return rest.makeRequest('GET', '/spaces/$spaceId/bans/$userId');
   }
 
-  /// Creates a ban. [data] may include `delete_message_seconds`.
+  /// Creates a ban.
+  ///
+  /// [data] may carry a `reason`, and a `delete_message_seconds` to also purge
+  /// the banned user's messages in this space from that many seconds back
+  /// (omitted or 0 keeps their history; the server clamps to 7 days). The
+  /// response's `deleted_message_count` reports how many were removed.
   Future<RestResult> create(String spaceId, String userId,
       {Map<String, dynamic> data = const {}}) {
     return rest.makeRequest('PUT', '/spaces/$spaceId/bans/$userId', body: data);

@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
+import 'package:bonfire/shared/utils/ban_dialog.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
@@ -62,6 +63,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     String failure = 'Action failed',
     bool closeOnSuccess = false,
     VoidCallback? onSuccess,
+    /// Given the successful result, for actions that report something back
+    /// (e.g. how many messages a ban purged). Runs before [closeOnSuccess]
+    /// pops, so it must not touch this popout's context.
+    void Function(RestResult result)? onResult,
     bool missingIsSuccess = false,
   }) async {
     final client = _client;
@@ -79,6 +84,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     final ok = result.ok || (missingIsSuccess && _isMissingResource(result));
     if (ok) {
       onSuccess?.call();
+      onResult?.call(result);
       if (closeOnSuccess) {
         Navigator.of(context).pop();
         return;
@@ -131,23 +137,55 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
   }
 
+  /// The member's display name, resolved the same way [build] resolves it, for
+  /// the moderation dialogs that name their target.
+  String get _displayName {
+    final member =
+        ref.read(accordMembersControllerProvider(widget.spaceId))?[widget.userId];
+    if (member != null) return accordMemberName(member);
+    final cached = ref.read(accordUsersControllerProvider)[widget.userId];
+    return accordUserName(cached, fallback: widget.userId);
+  }
+
   Future<void> _ban() async {
-    final confirmed = await _confirm(
-      title: 'Ban member',
-      message:
-          'This member will be banned from the space and removed. Continue?',
-      action: 'Ban',
-    );
-    if (confirmed != true) return;
+    // Resolved up front because the ban removes the member from the roster
+    // cache `_displayName` reads, leaving only the raw id afterwards.
+    final name = _displayName;
+    final request = await showBanDialog(context, memberName: name);
+    if (request == null || !mounted) return;
+    // Captured now: the popout pops itself on success, so by the time the
+    // result lands its own context can no longer find a messenger.
+    final messenger = ScaffoldMessenger.maybeOf(context);
     _run(
-      (c) => c.bans.create(widget.spaceId, widget.userId),
+      (c) => c.bans.create(widget.spaceId, widget.userId,
+          data: request.toJson()),
       failure: 'Failed to ban member',
       closeOnSuccess: true,
       missingIsSuccess: true,
       onSuccess: () => ref
           .read(accordMembersControllerProvider(widget.spaceId).notifier)
           .removeMember(widget.userId),
+      onResult: (result) {
+        if (request.deleteMessageSeconds == 0) return;
+        // Reported rather than assumed: a server that predates the purge
+        // ignores the field, and this is the only way that shows up.
+        final count = _deletedMessageCount(result);
+        messenger?.showSnackBar(SnackBar(
+          content: Text(count == 1
+              ? 'Banned $name and deleted 1 message'
+              : 'Banned $name and deleted $count messages'),
+        ));
+      },
     );
+  }
+
+  /// `deleted_message_count` from a ban response, or 0 when the server didn't
+  /// report one (i.e. it doesn't support purging on ban).
+  int _deletedMessageCount(RestResult result) {
+    final data = result.data;
+    if (data is! Map) return 0;
+    final count = data['deleted_message_count'];
+    return count is int ? count : int.tryParse('$count') ?? 0;
   }
 
   void _timeout(int seconds) {
