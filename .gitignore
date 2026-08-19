@@ -44,3 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/
+
+# Generated at release time by dist/app-store-release-notes.sh — the App Store
+# "What's New" text is derived from the commit range, not committed.
+/fastlane/metadata/
+/fastlane/report.xml

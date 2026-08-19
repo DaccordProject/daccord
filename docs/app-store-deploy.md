@@ -1,12 +1,13 @@
 # App / Play Store deployment
 
-The `Release` workflow (`.github/workflows/release.yml`) can build and upload
-signed store builds to Apple's App Store Connect and to Google Play:
+The `Release` workflow (`.github/workflows/release.yml`) builds signed store
+builds and takes them all the way to public release on both stores — a tag push
+needs no follow-up clicks in App Store Connect or the Play Console:
 
 | Target | Job | Lane | Lands in |
 |--------|-----|------|----------|
-| iOS App Store | `ios-appstore` | `fastlane ios beta` | TestFlight / App Store Connect |
-| Mac App Store | `mac-appstore` | `fastlane mac appstore` | App Store Connect (sandboxed `.pkg`) |
+| iOS App Store | `ios-appstore` | `fastlane ios appstore` | App Store (submitted for review, auto-release) |
+| Mac App Store | `mac-appstore` | `fastlane mac appstore` | Mac App Store (submitted for review, auto-release) |
 | Notarized DMG | `build` (macOS) | `fastlane mac dmg` | GitHub Release (direct download) |
 | Google Play | `android-play` | `fastlane android play` | Play Console (AAB → `production` track) |
 
@@ -121,13 +122,39 @@ deleted.)
 - **Test a store deploy only:** Actions → Release → Run workflow, pick the
   branch, and toggle `deploy_ios` / `deploy_mac` / `deploy_android`.
 
-## What's still manual on Apple's side
+## Release notes ("What's New")
 
-CI uploads the **build**. Promoting it to public release is a human step:
+Apple rejects a version submission that has no release notes, so CI generates
+them rather than leaving the release to block on a human.
+`dist/app-store-release-notes.sh` reads the commits between the previous stable
+tag and `HEAD` (release candidates are skipped, so a stable release's notes span
+everything since the last stable one), keeps the `feat`/`fix`/`perf` subjects,
+strips the conventional-commit prefixes and writes a bulleted list to
+`fastlane/metadata/{ios,mac}/en-US/release_notes.txt`. That is the only metadata
+field CI delivers; everything else stays managed in App Store Connect.
 
-- **Apple:** select the build on the version page and click *Add for Review* →
-  *Submit* in App Store Connect (screenshots, App Privacy questionnaire, and age
-  rating are also manual there).
-- **Google Play:** the AAB is released to the **`production`** track and goes
-  live once Google finishes its review — no manual promotion needed. The store
-  listing, content rating, and Data safety declarations are already complete.
+The output is generated, not committed — `fastlane/metadata/` is gitignored.
+Both Apple jobs check out with `fetch-depth: 0` because a shallow clone has no
+previous tag to diff against; if one is ever missing the script falls back to a
+generic note instead of failing the release.
+
+To hand-write the notes for a release instead, edit the two `release_notes.txt`
+paths after the generate step — or drop the step and commit the files.
+
+## What's still manual
+
+Nothing per release. A tag push submits both Apple builds for review with
+automatic release on approval, and ships the Android build to `production`.
+What remains is **per-app, set once**, and every later release reuses it:
+
+- **Apple:** screenshots, the App Privacy questionnaire, and the age rating, in
+  App Store Connect. A brand-new app also needs its first release created by
+  hand before API submissions work.
+- **Google Play:** the store listing, content rating and Data safety
+  declarations — already complete for this app.
+
+What no CI can remove is the stores' own review. Apple's review typically takes
+about a day; the build sits in *Waiting for Review* → *In Review* and then goes
+live on its own (`automatic_release: true`). Google's review gates the
+`production` rollout the same way. "All the way to production" means *submitted
+and set to ship*, not *live within minutes*.

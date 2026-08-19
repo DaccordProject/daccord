@@ -41,11 +41,11 @@ on:
   workflow_dispatch:
     inputs:
       deploy_ios:
-        description: "Build + upload the iOS App Store build to TestFlight"
+        description: "Build the iOS App Store build, upload it and submit it for review"
         type: boolean
         default: true
       deploy_mac:
-        description: "Build + upload the Mac App Store build to App Store Connect"
+        description: "Build the Mac App Store build, upload it and submit it for review"
         type: boolean
         default: true
       deploy_android:
@@ -691,6 +691,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags: the What's New text is derived from the commits
+          # since the previous release tag, which a shallow clone cannot see.
+          fetch-depth: 0
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -777,13 +781,21 @@ jobs:
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
+          # Reused by the submit step so deliver edits the same version record
+          # that CFBundleShortVersionString declares.
+          echo "APP_STORE_VERSION=$BUILD_NAME" >> "$GITHUB_ENV"
           flutter build ios --release --no-codesign \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
             --dart-define=APP_STORE=true \
             --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
 
-      - name: Archive, sign & upload to TestFlight
+      - name: Generate What's New
+        # Apple rejects a version submission with no release notes, so they have
+        # to be produced unattended. See dist/app-store-release-notes.sh.
+        run: ./dist/app-store-release-notes.sh
+
+      - name: Archive, sign, upload & submit for review
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -791,7 +803,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_BUNDLE_ID: com.cattrall.daccord
           IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
-        run: bundle exec fastlane ios beta
+        run: bundle exec fastlane ios appstore
 
   mac-appstore:
     name: Mac App Store
@@ -803,6 +815,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # See the iOS job: the release notes need the tag history.
+          fetch-depth: 0
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -905,6 +920,8 @@ jobs:
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
+          # Reused by the submit step (see the iOS job's note).
+          echo "APP_STORE_VERSION=$BUILD_NAME" >> "$GITHUB_ENV"
           # NOTE: flutter build macos has no --no-codesign flag (iOS-only); gym
           # re-signs on export.
           flutter build macos --release \
@@ -913,7 +930,11 @@ jobs:
             --dart-define=APP_STORE=true \
             --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
 
-      - name: Archive, sign & upload to App Store Connect
+      - name: Generate What's New
+        # See the iOS job: Apple rejects a submission with no release notes.
+        run: ./dist/app-store-release-notes.sh
+
+      - name: Archive, sign, upload & submit for review
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}

@@ -1,7 +1,8 @@
 # Daccord App Store release lanes.
 #
-# These build the *store* variants (iOS App Store + Mac App Store) and upload
-# them to App Store Connect. They are invoked by .github/workflows/release.yml,
+# These build the *store* variants (iOS App Store + Mac App Store), upload them
+# to App Store Connect and submit them for review, set to release automatically
+# once approved. They are invoked by .github/workflows/release.yml,
 # which first imports the signing certs and provisioning profiles into a temp
 # keychain and runs `flutter build … --no-codesign` so the Flutter/Dart side is
 # already compiled; `build_app` (gym) then archives + signs + exports.
@@ -21,6 +22,62 @@ def asc_api_key
     issuer_id: ENV.fetch("ASC_ISSUER_ID"),
     key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
     is_key_content_base64: true,
+  )
+end
+
+# Submit an uploaded build to App Store review and let it ship on approval.
+#
+# This is the step that takes an Apple release "all the way": deliver creates
+# (or updates) the version record, attaches the freshly uploaded binary,
+# delivers the What's New text, then submits for review with automatic release
+# on approval — the Apple equivalent of what `supply` already does for Google
+# Play (production track, rollout completed).
+#
+# Apple's review still gates the actual go-live; nothing here can shorten that.
+#
+# Listing assets — screenshots, App Privacy answers, age rating — stay managed
+# in App Store Connect. They are per-app rather than per-version, so they are
+# set once and every later release reuses them; only the release notes change
+# per version, which is why that is the single metadata field delivered here.
+def submit_release(api_key:, platform:, metadata_path:, ipa: nil, pkg: nil)
+  upload_to_app_store(
+    api_key: api_key,
+    ipa: ipa,
+    pkg: pkg,
+    platform: platform,
+    # The numeric marketing version the workflow built (`0.2.10`), not the raw
+    # pubspec string — deliver has to target the same version record that
+    # CFBundleShortVersionString declares or it edits the wrong one.
+    app_version: ENV.fetch("APP_STORE_VERSION"),
+    # Only release_notes.txt lives here (written by
+    # dist/app-store-release-notes.sh); deliver uploads the fields it finds and
+    # leaves everything else in App Store Connect untouched.
+    metadata_path: metadata_path,
+    skip_metadata: false,
+    skip_screenshots: true,
+    # Must stay false: with no version record created, there is nothing to
+    # attach the build to and nothing to submit.
+    skip_app_version_update: false,
+    submit_for_review: true,
+    automatic_release: true,
+    # App Store Connect needs a while to register a newly uploaded build before
+    # deliver can attach it. The default of 7 retries is an exponential backoff
+    # that tops out too early for a Flutter binary of this size; 10 buys roughly
+    # an extra 15 minutes without hanging the job indefinitely.
+    version_check_wait_retry_limit: 10,
+    # precheck reads the full listing metadata, which this lane deliberately
+    # does not manage — it would fail on fields that live only in ASC.
+    run_precheck_before_submit: false,
+    # Answers the submission questionnaire that otherwise blocks review with no
+    # useful error. Both Info.plists declare ITSAppUsesNonExemptEncryption =
+    # false (HTTPS/WebRTC only, all exempt), and the app links no ad SDK and
+    # never touches the advertising identifier.
+    submission_information: {
+      export_compliance_uses_encryption: false,
+      add_id_info_uses_idfa: false,
+    },
+    # Non-interactive: skip deliver's "does this HTML preview look right?" prompt.
+    force: true,
   )
 end
 
@@ -115,8 +172,12 @@ platform :android do
 end
 
 platform :ios do
-  desc "Build a signed iOS .ipa and upload it to TestFlight / App Store Connect"
-  lane :beta do
+  desc "Build a signed iOS .ipa, upload it, and submit it for App Store review"
+  # Was TestFlight-only (`upload_to_testflight`), which left every release
+  # parked as an internal build that a human then had to submit by hand in App
+  # Store Connect. It now goes all the way; the build still shows up in
+  # TestFlight, because every App Store build does.
+  lane :appstore do
     api_key = asc_api_key
     profile = ENV.fetch("IOS_PROFILE_NAME")
     force_manual_signing("ios/Runner.xcodeproj", profile)
@@ -134,17 +195,17 @@ platform :ios do
         signingStyle: "manual",
       },
     )
-    upload_to_testflight(
+    submit_release(
       api_key: api_key,
+      platform: "ios",
+      metadata_path: "fastlane/metadata/ios",
       ipa: "build/appstore/Daccord-iOS.ipa",
-      skip_waiting_for_build_processing: true,
-      distribute_external: false,
     )
   end
 end
 
 platform :mac do
-  desc "Build a sandboxed signed .pkg and upload it to the Mac App Store"
+  desc "Build a sandboxed signed .pkg and submit it for Mac App Store review"
   lane :appstore do
     api_key = asc_api_key
     profile = ENV.fetch("MAC_PROFILE_NAME")
@@ -172,15 +233,11 @@ platform :mac do
     )
     pkg ||= lane_context[SharedValues::PKG_OUTPUT_PATH] || Dir["build/appstore/*.pkg"].first
     UI.user_error!("No .pkg produced by gym (got #{pkg.inspect})") if pkg.nil? || !File.exist?(pkg)
-    upload_to_app_store(
+    submit_release(
       api_key: api_key,
+      platform: "osx",
+      metadata_path: "fastlane/metadata/mac",
       pkg: pkg,
-      skip_metadata: true,
-      skip_screenshots: true,
-      skip_app_version_update: true,
-      submit_for_review: false,
-      run_precheck_before_submit: false,
-      force: true,
     )
   end
 
