@@ -36,6 +36,20 @@ MAX_CHARS=4000
 # avoid.
 FALLBACK="Bug fixes and performance improvements."
 
+# Optional hand-written override, committed to the repo. Commit subjects make
+# decent notes for an ordinary release, but they are written for the people
+# maintaining this repo, not for the store listing — a subject like
+# "fix(ios): clear the 5.1.2 and 4.0 App Review rejections" is accurate and
+# completely wrong to show a user, and App Review reads this text too. When a
+# release needs copy written on purpose, put it here; the derived notes remain
+# the default so no release can ship without any.
+#
+# Clear it after the release it was written for, or the next release ships
+# stale text — the version it belongs to is recorded on the first line as a
+# comment, which is stripped before delivery, so a mismatch is visible in the
+# job log.
+OVERRIDE="dist/release-notes.txt"
+
 previous_tag() {
   # The release tag before the one being built. `git describe` walks back from
   # HEAD's parent so the tag currently being released is never its own
@@ -90,7 +104,26 @@ main() {
   fi
 
   notes=""
-  if [ -n "$range" ]; then
+  if [ -s "$OVERRIDE" ]; then
+    # Strip comment lines and blank padding; keep the author's own wording and
+    # bullets otherwise untouched.
+    # `|| true` is load-bearing, as it is on subjects()/user_facing(): grep
+    # exits 1 when nothing matches, and under `set -euo pipefail` that kills
+    # the script mid-assignment. An override holding only comments would then
+    # write no release_notes.txt at all — the empty-notes submission failure
+    # this script exists to prevent, arriving silently.
+    notes="$(grep -vE '^[[:space:]]*#' "$OVERRIDE" | sed -e 's/[[:space:]]*$//' -e '/./,$!d' || true)"
+    # Announce it only if something survived the strip: a file holding nothing
+    # but comments falls through to the derived notes, and claiming otherwise
+    # in the log would send someone hunting for copy that was never used.
+    if [ -n "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+      echo "Using hand-written notes from $OVERRIDE"
+    else
+      echo "$OVERRIDE has no content after comments — deriving from commits"
+    fi
+  fi
+
+  if [ -z "$notes" ] && [ -n "$range" ]; then
     raw="$(subjects "$range")"
     notes="$(printf '%s\n' "$raw" | user_facing | prettify)"
     # Nothing user-facing in this range: fall back to every non-merge subject

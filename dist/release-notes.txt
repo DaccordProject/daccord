@@ -1,0 +1,9 @@
+# What's New for v0.2.13. Delivered verbatim to App Store Connect (comment
+# lines like this one are stripped). Clear this file after the release.
+
+• Daccord no longer collects crash reports, analytics or telemetry of any
+  kind, and the prompt asking to send them is gone.
+• Text now follows your device's text size setting, so Larger Text and the
+  accessibility sizes scale the whole app.
+• Improved text contrast in the Light and Solarized themes, and increased
+  the smallest text sizes for readability.
