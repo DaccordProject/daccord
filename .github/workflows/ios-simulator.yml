@@ -205,9 +205,19 @@ jobs:
           APP=build/ios/iphonesimulator/Runner.app
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
           echo "Bundle id: $BUNDLE_ID  (build mode: ${BUILD_MODE:-unknown})"
-          python3 -m pip install --quiet --disable-pip-version-check Pillow numpy \
-            || python3 -m pip install --quiet --break-system-packages Pillow numpy
+          xcrun simctl install "$UDID" "$APP"
 
+          # A venv, not a bare `pip install`: the runner's python3 is Homebrew's
+          # and is PEP 668 externally-managed, so a plain install exits with
+          # "externally-managed-environment".
+          python3 -m venv "$RUNNER_TEMP/venv"
+          PY_BIN="$RUNNER_TEMP/venv/bin/python"
+          "$PY_BIN" -m pip install --quiet --disable-pip-version-check Pillow numpy
+
+          # NB: not named inspect.py — it sits first on sys.path for its own
+          # run, and numpy imports the stdlib `inspect` internally, so that
+          # name shadows it and numpy dies on a circular import.
+          #
           # Classifies a screenshot by sampling three strips the centred system
           # alert can never reach. A rendered dark theme reads ~33; the white
           # launch screen reads ~204 once the alert dims it. Crucially it also
@@ -218,7 +228,7 @@ jobs:
           # changing instead, and was fooled every time — a launch screen that
           # has not drawn is already static, so it "settled" in nine seconds and
           # captured nothing. Uniformity is the signal that actually works.
-          cat > "$RUNNER_TEMP/inspect.py" <<'PY'
+          cat > "$RUNNER_TEMP/shot_stats.py" <<'PY'
           import sys
           import numpy as np
           from PIL import Image
@@ -248,7 +258,7 @@ jobs:
             for i in $(seq 1 40); do
               sleep 3
               shot "$out" || continue
-              read -r mean std state <<<"$(python3 "$RUNNER_TEMP/inspect.py" "$out")"
+              read -r mean std state <<<"$("$PY_BIN" "$RUNNER_TEMP/shot_stats.py" "$out")"
               if [ "$state" = "drawn" ]; then
                 sleep 3   # let the first frame finish settling
                 shot "$out"
@@ -260,7 +270,7 @@ jobs:
           }
 
           report() {
-            read -r mean std state <<<"$(python3 "$RUNNER_TEMP/inspect.py" "artifacts/$1.png")"
+            read -r mean std state <<<"$("$PY_BIN" "$RUNNER_TEMP/shot_stats.py" "artifacts/$1.png")"
             printf '| %s | %s | %s | %s |\n' "$1" "$mean" "$std" "$state" >> "$GITHUB_STEP_SUMMARY"
             echo "captured $1  mean=$mean std=$std $state"
           }
