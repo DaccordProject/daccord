@@ -18,8 +18,8 @@ import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
-import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/utils/desktop_window.dart';
@@ -170,6 +170,13 @@ void _silenceLiveKitAsyncErrors() {
   };
 }
 
+/// Upper bound on the combined (system × in-app) text scale. The OS can ask
+/// for far more than this at the top accessibility sizes; past roughly 2× the
+/// app's fixed-height rows (channel tiles, the member list, voice tiles) start
+/// clipping instead of growing, so honour the user's preference up to here and
+/// no further.
+const double _maxEffectiveTextScale = 2.0;
+
 class MainWindow extends ConsumerStatefulWidget {
   const MainWindow({super.key});
 
@@ -184,19 +191,11 @@ class _MainWindowState extends ConsumerState<MainWindow> {
   void initState() {
     super.initState();
     _initDeepLinks();
-    // Every route change becomes an error-reporting breadcrumb (a no-op until
-    // the user opts in).
-    routerController.routerDelegate.addListener(_onRouteChanged);
-    // First-launch walkthrough (#175). Registered first so it snapshots "is
-    // this a fresh install?" before sign-in persists a session; it then waits
-    // for sign-in *and* for the consent dialog below to be answered before
-    // showing anything. A no-op on every later launch, and on installs that
-    // predate it.
+    // First-launch walkthrough (#175). It snapshots "is this a fresh install?"
+    // before sign-in persists a session, then waits for sign-in before showing
+    // anything. A no-op on every later launch, and on installs that predate it.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => maybeShowOnboardingOnStartup(ref),
-    );
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _maybeShowErrorReportingConsent(),
     );
     // Post-update "What's new" notes (#183): shown once per new version, after
     // sign-in. A no-op on a first install or an unchanged version.
@@ -207,60 +206,8 @@ class _MainWindowState extends ConsumerState<MainWindow> {
 
   @override
   void dispose() {
-    routerController.routerDelegate.removeListener(_onRouteChanged);
     _linkSub?.cancel();
     super.dispose();
-  }
-
-  void _onRouteChanged() {
-    final path = routerController.routerDelegate.currentConfiguration.uri.path;
-    ref
-        .read(errorReportingControllerProvider.notifier)
-        .addBreadcrumb('Navigated: $path', 'navigation');
-  }
-
-  /// First-launch error-reporting consent, mirroring the reference client's
-  /// `main_window._show_consent_dialog`: asked once, never reshown (answering
-  /// — or toggling the switch in Settings — stamps the preference).
-  Future<void> _maybeShowErrorReportingConsent() async {
-    if (ref.read(settingsControllerProvider).errorReportingConsentShown) {
-      return;
-    }
-    // Give the router a moment to mount its navigator so the dialog has a
-    // context to attach to.
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    if (ref.read(settingsControllerProvider).errorReportingConsentShown) {
-      return;
-    }
-    final ctx = rootNavigatorKey.currentContext;
-    if (ctx == null) return;
-    final enable = await showDialog<bool>(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Help improve daccord'),
-        content: const Text(
-          'Help improve daccord by sending anonymous crash and error '
-          'reports? No personal data is included. You can change this in '
-          'Settings at any time.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('No thanks'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(true),
-            child: const Text('Enable'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted) return;
-    ref
-        .read(settingsControllerProvider.notifier)
-        .setErrorReportingEnabled(enable == true);
   }
 
   /// Listens for `daccord://` deep links (cold-start and while running) and
@@ -351,9 +298,6 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     // Keep the local MCP server controller alive so it starts/stops with the
     // Developer Mode + MCP settings (desktop-only; a no-op on web).
     ref.watch(mcpServerControllerProvider);
-    // Keep opt-in error reporting alive; it activates/deactivates with the
-    // persisted consent toggle.
-    ref.watch(errorReportingControllerProvider);
     // Keep the Android background-connection service controller alive so the
     // foreground service starts/stops with the "Background connection" setting
     // and login state (a no-op on every other platform and on Play builds).
@@ -381,13 +325,27 @@ class _MainWindowState extends ConsumerState<MainWindow> {
       // The incoming-call banner is hosted here too, above every route, so a
       // ring stays answerable from inside a dialog or the full-screen call
       // view (#139).
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.linear(settings.uiScale),
-          disableAnimations: settings.reducedMotion,
-        ),
-        child: withIncomingCallOverlay(child),
-      ),
+      builder: (context, child) {
+        // Compose the in-app UI scale with the platform's own text scale (iOS
+        // Dynamic Type, Android font size) instead of replacing it. Passing
+        // `TextScaler.linear(uiScale)` straight through discarded whatever the
+        // user had set at the OS level, so iOS "Larger Text" did nothing here —
+        // the app always rendered at its own scale. Capped at
+        // [_maxEffectiveTextScale] so the largest accessibility sizes can't
+        // burst fixed-height rows.
+        final systemScale = MediaQuery.textScalerOf(context).scale(1);
+        final combined = (systemScale * settings.uiScale).clamp(
+          AccordSettings.minUiScale,
+          _maxEffectiveTextScale,
+        );
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(combined),
+            disableAnimations: settings.reducedMotion,
+          ),
+          child: withIncomingCallOverlay(child),
+        );
+      },
     );
   }
 }

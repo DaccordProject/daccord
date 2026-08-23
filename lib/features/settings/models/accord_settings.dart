@@ -115,8 +115,6 @@ class AccordSettings {
     this.mutedSpaces = const <String>[],
     this.hiddenSpaces = const <String>[],
     this.channelListWidth = defaultChannelListWidth,
-    this.errorReportingEnabled = false,
-    this.errorReportingConsentShown = false,
   });
 
   /// Minimum / maximum UI text scale, matching the reference's `ui_scale` range.
@@ -323,16 +321,6 @@ class AccordSettings {
   /// [minChannelListWidth]–[maxChannelListWidth]; persisted across restarts.
   final double channelListWidth;
 
-  /// Opt-in anonymous crash/error reporting to GlitchTip. Off by default —
-  /// nothing is sent until the user consents. Mirrors the reference client's
-  /// `[error_reporting] enabled` config key.
-  final bool errorReportingEnabled;
-
-  /// Whether the first-launch consent dialog has been answered (in either
-  /// direction), so it is never shown again. Mirrors the reference client's
-  /// `[error_reporting] consent_shown`.
-  final bool errorReportingConsentShown;
-
   AccordSettings copyWith({
     AppThemePreset? themePreset,
     int? accentColor,
@@ -382,8 +370,6 @@ class AccordSettings {
     List<String>? mutedSpaces,
     List<String>? hiddenSpaces,
     double? channelListWidth,
-    bool? errorReportingEnabled,
-    bool? errorReportingConsentShown,
   }) {
     return AccordSettings(
       themePreset: themePreset ?? this.themePreset,
@@ -437,10 +423,6 @@ class AccordSettings {
       mutedSpaces: mutedSpaces ?? this.mutedSpaces,
       hiddenSpaces: hiddenSpaces ?? this.hiddenSpaces,
       channelListWidth: channelListWidth ?? this.channelListWidth,
-      errorReportingEnabled:
-          errorReportingEnabled ?? this.errorReportingEnabled,
-      errorReportingConsentShown:
-          errorReportingConsentShown ?? this.errorReportingConsentShown,
     );
   }
 
@@ -598,8 +580,6 @@ class AccordSettings {
     'mutedSpaces': mutedSpaces,
     'hiddenSpaces': hiddenSpaces,
     'channelListWidth': channelListWidth,
-    'errorReportingEnabled': errorReportingEnabled,
-    'errorReportingConsentShown': errorReportingConsentShown,
   };
 
   factory AccordSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -715,9 +695,6 @@ class AccordSettings {
             maxChannelListWidth,
           ) ??
           defaultChannelListWidth,
-      errorReportingEnabled: json['errorReportingEnabled'] as bool? ?? false,
-      errorReportingConsentShown:
-          json['errorReportingConsentShown'] as bool? ?? false,
     );
   }
 }

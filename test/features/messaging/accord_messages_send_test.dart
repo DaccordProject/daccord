@@ -19,12 +19,6 @@ import 'package:http/testing.dart';
 /// A logged-out container so `build()` skips its auto `_load` REST call —
 /// these tests drive `send`/`sendWithAttachments` directly with a client of
 /// their own, the same way the composer and other callers do.
-///
-/// On success, `send`/`sendWithAttachments` post a breadcrumb through
-/// `errorReportingControllerProvider`, which watches `settingsControllerProvider`,
-/// which reads the `accord-settings` Hive box — so the suite's `setUp` opens a
-/// real (temp-dir-backed) one, same as `error_reporting_test.dart`. Reporting
-/// itself stays off (no consent given), so the breadcrumb call is a no-op.
 ProviderContainer _makeContainer() {
   final container = ProviderContainer(
     overrides: [

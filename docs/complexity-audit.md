@@ -65,7 +65,7 @@ Keep (single-use but no SDK substitute): `crypto`, `qr_flutter`, `pasteboard`, `
 | # | Location | Problem | Change | Effort | Risk |
 |---|---|---|---|---|---|
 | B1 | `voice/utils/voice_logic.dart` | 61 lines of `voiceGain`/`shouldAutoReconnect`/`isUnintentionalDisconnect` etc. duplicating logic inlined in `voice_session.dart:150-155,488-489` and `voice.dart:328-331,399-406`; imported **only by its own test** — tests assert copies, not shipped code | Make these the single source and call them from voice_session/voice (do NOT just delete) | M | **high** (voice teardown territory) |
-| B2 | `notifications/controllers/background_connection.dart` | `backgroundConnectionControllerProvider` is never watched/read anywhere; the `backgroundConnection` settings toggle writes a bool no live code consumes | Wire it up in `main.dart` (like mcp/error-reporting controllers) **or** delete controller + setting — needs a product decision | M | med |
+| B2 | `notifications/controllers/background_connection.dart` | `backgroundConnectionControllerProvider` is never watched/read anywhere; the `backgroundConnection` settings toggle writes a bool no live code consumes | Wire it up in `main.dart` (like the mcp controller) **or** delete controller + setting — needs a product decision | M | med |
 | B3 | `member/utils/member_display.dart:92,95` | `accordIsRemoteUser`/`accordIsRemoteMember` have zero production call sites (only their test) | Remove both + tests | S | low |
 | B4 | `accord_home_composer.dart:486` / `accord_home_attachments.dart:244` | `_MentionPopup`'s doc comment is a copy-paste about CDN URLs; the correct comment sits orphaned at the end of the attachments file | Swap/fix comments | S | none |
 
@@ -134,7 +134,7 @@ All: extract `const`-constructible section widgets; effort M, risk low.
 - Voice stack: serialization queue, reused `Room`, credential-refresh reconnect, native-leak flag, error-zone swallowers — documented Linux-crash workarounds; **anything in reconnect/teardown paths is risk-high by default**.
 - `mcp_tools.dart` (996 lines): flat registry of ~40 tools; length is breadth, not layering.
 - `updates/` self-updater: streaming download + SHA-256 + per-OS swap scripts are genuinely bespoke; uses `http` correctly.
-- `error_reporting/glitchtip_client.dart`, `notifications/sound.dart`: deliberately simple, testable.
+- `notifications/sound.dart`: deliberately simple, testable.
 - `shared/` library, `AdminListScaffold`, `context_menu` desktop/mobile split, `web_utils` conditional imports, `ThemeExtension` mechanics, `list_ext.dart`: correctly-scoped, keep.
 - Hand-rolled `fromJson/toJson` in Hive models: accepted codebase norm per CLAUDE.md.
 - State management: uniformly Riverpod; no mixing found. Async-gap `mounted` hygiene sampled clean. No TODO/FIXME debt, no commented-out blocks.

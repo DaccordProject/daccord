@@ -75,7 +75,7 @@ final class ServerLimitsControllerProvider
 }
 
 String _$serverLimitsControllerHash() =>
-    r'da6c7f5d32411963f4364a2d5f57e373b3a159e2';
+    r'ad1e49b942e1444d5b85cb2eb70f8381d4afb4b7';
 
 /// The connected server's upload limits, refreshed on connect.
 ///

@@ -1,6 +1,5 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
-import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
@@ -156,9 +155,6 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
-    // Action breadcrumb for opt-in error reporting — the fact a message was
-    // sent, never its content.
-    ref.read(errorReportingControllerProvider.notifier).messageSent();
     return null;
   }
 
@@ -282,9 +278,6 @@ class AccordMessagesController extends _$AccordMessagesController {
     }
     final message = result.data;
     if (message is AccordMessage) addMessage(message);
-    // Action breadcrumb for opt-in error reporting — the fact a message was
-    // sent, never its content.
-    ref.read(errorReportingControllerProvider.notifier).messageSent();
     return null;
   }
 

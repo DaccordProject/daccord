@@ -61,7 +61,9 @@ const Map<AppThemePreset, BonfireThemeExtension> _palettes = {
     // dirtyWhite is the high-emphasis text colour throughout the app, so on a
     // light surface it has to be dark.
     dirtyWhite: Color(0xFF2D3338),
-    gray: Color(0xFF6B707A),
+    // Darkened from #6B707A, which sat at 4.12:1 on `background` — under the
+    // 4.5:1 WCAG AA floor for the body/label text this token carries.
+    gray: Color(0xFF5F646E),
     darkGray: Color(0xFFE0E2E5),
     primary: Color(0xFF5764F1),
     red: Color(0xFFD82D33),
@@ -93,8 +95,12 @@ const Map<AppThemePreset, BonfireThemeExtension> _palettes = {
   AppThemePreset.solarized: BonfireThemeExtension(
     background: Color(0xFF00242D),
     foreground: Color(0xFF002B36),
-    dirtyWhite: Color(0xFF839395),
-    gray: Color(0xFF647A83),
+    // Solarized base1/base0. Was base0/base01 (#839395/#647A83), which put muted
+    // text at 3.33:1 and high-emphasis at 4.70:1 — muted failed WCAG AA outright
+    // and high-emphasis had no margin. Shifting both one step lighter keeps the
+    // palette authentic and clears 5:1.
+    dirtyWhite: Color(0xFF93A1A1),
+    gray: Color(0xFF839496),
     darkGray: Color(0xFF063642),
     primary: Color(0xFF258AD2),
     red: Color(0xFFDC312E),
@@ -150,7 +156,7 @@ TextTheme _textTheme(BonfireThemeExtension palette) {
     headlineSmall: s(24, high),
     labelLarge: s(15, medium),
     labelMedium: s(12, medium),
-    labelSmall: s(11, medium),
+    labelSmall: s(12, medium),
     bodyLarge: s(15, high),
     bodyMedium: s(14, medium),
     bodySmall: s(12, medium),

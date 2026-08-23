@@ -72,7 +72,7 @@ final class AccordMessagesControllerProvider
 }
 
 String _$accordMessagesControllerHash() =>
-    r'11ae006518c09b3ea116e0d0b579262e7cac9ba1';
+    r'b7b5809981246a10b8c5af6c05597ccf140f54f1';
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time

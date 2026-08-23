@@ -78,7 +78,7 @@ void main() {
       expect(find.byType(ListView), findsOneWidget);
     });
 
-    testWidgets('still shows all eleven sections and Log out in one scroll', (
+    testWidgets('still shows all ten sections and Log out in one scroll', (
       tester,
     ) async {
       // Tall viewport so the whole (lazy) list is laid out at once.
@@ -87,7 +87,6 @@ void main() {
       for (final title in const [
         'Appearance',
         'Notifications',
-        'Error Reporting',
         'Sounds',
         'Voice & Video',
         'Account',
@@ -162,7 +161,7 @@ void main() {
       }
 
       await _selectCategory(tester, 'System');
-      for (final title in const ['Updates', 'Backup', 'Error Reporting']) {
+      for (final title in const ['Updates', 'Backup']) {
         expect(_section(title), findsOneWidget, reason: title);
       }
 

@@ -59,7 +59,6 @@ generates the certs/profiles and prints the `gh secret set` commands.
 | `IOS_PROFILE_NAME` | that profile's name (matches `PROVISIONING_PROFILE_SPECIFIER`) |
 | `MAC_PROFILE_BASE64` | base64 of the **Mac App Store** provisioning profile |
 | `MAC_PROFILE_NAME` | that profile's name |
-| `SENTRY_DSN` | (optional, already used) GlitchTip DSN baked into builds |
 
 ### Google Play (`android-play` job)
 

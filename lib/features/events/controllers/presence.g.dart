@@ -131,7 +131,7 @@ final class PresenceControllerProvider
 }
 
 String _$presenceControllerHash() =>
-    r'e788b9684a26aede0da70e56346c6f6a94e92345';
+    r'5816b88e6e1757c3b90761697a15487626227417';
 
 /// One connection's per-user presence cache, scoped to [serverKey]
 /// (`userId@baseUrl`) — the same scoping [ReadStateController] uses, and for the

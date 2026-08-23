@@ -81,8 +81,7 @@ class ReleaseNotesDialog extends StatelessWidget {
 Future<void> maybeShowReleaseNotesOnStartup(WidgetRef ref) async {
   try {
     if (!await _waitForSignIn(ref)) return;
-    // Let the router mount its navigator (and any first-launch consent dialog
-    // settle) before stacking a dialog on top.
+    // Let the router mount its navigator before stacking a dialog on top.
     await Future<void>.delayed(const Duration(milliseconds: 800));
     final notifier = ref.read(releaseNotesControllerProvider.notifier);
     final release = await notifier.maybeLoadOnStartup();

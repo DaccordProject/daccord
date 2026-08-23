@@ -13,7 +13,6 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/settings/views/connections_settings_page.dart';
 import 'package:bonfire/features/settings/views/privacy_settings_page.dart';
 import 'package:bonfire/features/settings/views/settings_backup.dart';
-import 'package:bonfire/features/error_reporting/controllers/error_reporting.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
@@ -84,12 +83,6 @@ class AccordSettingsScreen extends ConsumerWidget {
               _AppearanceSection(settings: settings, controller: controller),
               const Divider(height: 24),
               _NotificationsSection(settings: settings, controller: controller),
-              const Divider(height: 24),
-              _ErrorReportingSection(
-                settings: settings,
-                controller: controller,
-                onReportProblem: () => _showReportProblemDialog(context, ref),
-              ),
               const Divider(height: 24),
               _SoundsSection(settings: settings, controller: controller),
               const Divider(height: 24),
@@ -339,11 +332,6 @@ class _CategoryPane extends ConsumerWidget {
       SettingsCategory.system => <Widget>[
         const _UpdatesSection(),
         const _BackupSection(),
-        _ErrorReportingSection(
-          settings: settings,
-          controller: controller,
-          onReportProblem: () => _showReportProblemDialog(context, ref),
-        ),
       ],
       SettingsCategory.advanced => <Widget>[
         _DeveloperSection(settings: settings, controller: controller),
@@ -555,47 +543,6 @@ class _NotificationsSection extends StatelessWidget {
           onChanged: settings.notificationsEnabled
               ? controller.setSuppressEveryone
               : null,
-        ),
-      ],
-    );
-  }
-}
-
-/// Opt-in anonymous error reporting + user-initiated problem reports.
-class _ErrorReportingSection extends StatelessWidget {
-  const _ErrorReportingSection({
-    required this.settings,
-    required this.controller,
-    required this.onReportProblem,
-  });
-
-  final AccordSettings settings;
-  final SettingsController controller;
-  final VoidCallback onReportProblem;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader('Error Reporting'),
-        SwitchListTile(
-          title: const Text('Send error reports'),
-          subtitle: const Text(
-            'Anonymous crash and error reports. No personal data or '
-            'message content is included',
-          ),
-          value: settings.errorReportingEnabled,
-          onChanged: controller.setErrorReportingEnabled,
-        ),
-        ListTile(
-          leading: Icon(Icons.bug_report_outlined, color: colors.dirtyWhite),
-          title: const Text('Report a problem'),
-          subtitle: const Text('Describe a bug and send it to the developers'),
-          trailing: const Icon(Icons.chevron_right),
-          enabled: settings.errorReportingEnabled,
-          onTap: settings.errorReportingEnabled ? onReportProblem : null,
         ),
       ],
     );
@@ -895,61 +842,6 @@ class _LogOutTile extends StatelessWidget {
       onTap: onLogOut,
     );
   }
-}
-
-/// User-initiated feedback, mirroring the reference client's "Report a
-/// Problem" dialog: an optional free-text description sent as a tagged
-/// `user-feedback` event through the opt-in error reporting pipeline.
-Future<void> _showReportProblemDialog(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  final textController = TextEditingController();
-  final send = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Report a Problem'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: textController,
-            autofocus: true,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Describe what happened (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'No personal data or message content is included.',
-            style: Theme.of(ctx).textTheme.bodySmall,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Send Report'),
-        ),
-      ],
-    ),
-  );
-  if (send == true) {
-    await ref
-        .read(errorReportingControllerProvider.notifier)
-        .reportProblem(textController.text.trim());
-    if (context.mounted) {
-      showInfoSnack(context, 'Report sent. Thank you!');
-    }
-  }
-  textController.dispose();
 }
 
 /// Lets the user pick which connected server's profile to edit, then opens the

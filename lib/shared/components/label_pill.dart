@@ -27,7 +27,7 @@ class LabelPill extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: 11,
           color: filled ? Colors.white : color,
           fontWeight: FontWeight.w600,
         ),

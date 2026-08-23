@@ -424,22 +424,6 @@ class SettingsController extends _$SettingsController {
   void setAutoUpdateCheck(bool enabled) =>
       _update(state.copyWith(autoUpdateCheck: enabled));
 
-  /// Enables/disables anonymous error reporting (GlitchTip). Answering counts
-  /// as having seen the consent prompt, so it is never reshown. Mirrors the
-  /// reference's `Config.set_error_reporting_enabled` + consent stamping.
-  void setErrorReportingEnabled(bool enabled) => _update(
-    state.copyWith(
-      errorReportingEnabled: enabled,
-      errorReportingConsentShown: true,
-    ),
-  );
-
-  /// Marks the first-launch error-reporting consent dialog as answered
-  /// without changing the toggle. Mirrors the reference's
-  /// `Config.set_error_reporting_consent_shown`.
-  void markErrorReportingConsentShown() =>
-      _update(state.copyWith(errorReportingConsentShown: true));
-
   /// Records the release [version] the user dismissed from the update banner.
   void setDismissedUpdateVersion(String version) =>
       _update(state.copyWith(dismissedUpdateVersion: version));

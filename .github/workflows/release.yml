@@ -310,22 +310,15 @@ jobs:
         # intermittently 504 or arrive corrupted and fail the whole release.
         # Retry the build a few times with backoff so a transient fetch failure
         # doesn't sink a tagged release; a cached archive also short-circuits it.
-        env:
-          # GlitchTip DSN baked into release builds (reporting stays opt-in at
-          # runtime). When the secret is unset the empty define falls back to
-          # the in-repo dev DSN (see
-          # lib/features/error_reporting/controllers/error_reporting.dart).
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           set -uo pipefail
-          DEFINES=(--dart-define=SENTRY_DSN="${SENTRY_DSN:-}")
           build_once() {
             case "${{ matrix.platform }}" in
-              web)     flutter build web     --no-tree-shake-icons --release "${DEFINES[@]}" ;;
-              android) flutter build apk     --no-tree-shake-icons -v --flavor github "${DEFINES[@]}" ;;
-              linux)   flutter build linux   -v "${DEFINES[@]}" ;;
-              windows) flutter build windows -v "${DEFINES[@]}" ;;
-              macos)   flutter build macos   -v "${DEFINES[@]}" ;;
+              web)     flutter build web     --no-tree-shake-icons --release ;;
+              android) flutter build apk     --no-tree-shake-icons -v --flavor github ;;
+              linux)   flutter build linux   -v ;;
+              windows) flutter build windows -v ;;
+              macos)   flutter build macos   -v ;;
             esac
           }
           n=0; max=3
@@ -776,8 +769,6 @@ jobs:
         # archives + signs. CFBundleShortVersionString must be a numeric x.y.z,
         # so strip any prerelease/build suffix from the pubspec version (e.g. a
         # `0.2.4-rc.1` tag still uploads as marketing version `0.2.4`).
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
@@ -787,8 +778,7 @@ jobs:
           flutter build ios --release --no-codesign \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
-            --dart-define=APP_STORE=true \
-            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+            --dart-define=APP_STORE=true
 
       - name: Generate What's New
         # Apple rejects a version submission with no release notes, so they have
@@ -915,8 +905,6 @@ jobs:
 
       - name: Build macOS (Flutter, unsigned)
         # Numeric marketing version only (see the iOS job's note).
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
           echo "App Store marketing version: $BUILD_NAME (build ${{ github.run_number }})"
@@ -927,8 +915,7 @@ jobs:
           flutter build macos --release \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
-            --dart-define=APP_STORE=true \
-            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+            --dart-define=APP_STORE=true
 
       - name: Archive, sign & upload
         # Upload only, no review submission: the macOS product page has never
@@ -1045,7 +1032,6 @@ jobs:
         # (Play policy forbids self-updating; the direct-download APK keeps it).
         # versionCode = run number so it strictly increases across uploads.
         env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -1059,8 +1045,7 @@ jobs:
           flutter build appbundle --release --flavor play \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
-            --dart-define=APP_STORE=true \
-            --dart-define=SENTRY_DSN="${SENTRY_DSN:-}"
+            --dart-define=APP_STORE=true
 
       - name: Upload signed AAB artifact
         # Keep the exact signed bundle even if the Play API upload fails, so the

@@ -6,7 +6,6 @@ import 'package:bonfire/features/onboarding/controllers/onboarding_controller.da
 import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_help.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_overlay.dart';
-import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/components/section_header.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -17,18 +16,12 @@ import 'package:go_router/go_router.dart';
 /// Startup hook for the first-launch walkthrough (#175). Call once from a
 /// post-frame callback in `main.dart`. Never throws.
 ///
-/// **Precedence against the other two startup dialogs.**
+/// **Precedence against the other startup dialog.**
 ///
-/// * The error-reporting consent dialog is `barrierDismissible: false` and must
-///   be answered, so it goes first — this waits for
-///   `errorReportingConsentShown` to flip before pushing anything.
-/// * The post-update release notes (#183) can never collide: they are shown only
-///   for `ReleaseNotesTrigger.updated`, and the tour only for a first launch
-///   with no marker at all. The two conditions are mutually exclusive by
-///   construction, and a first install explicitly suppresses the notes.
-///
-/// So the order is: consent → tour (fresh install) *or* release notes (upgrade),
-/// never both.
+/// The post-update release notes (#183) can never collide: they are shown only
+/// for `ReleaseNotesTrigger.updated`, and the tour only for a first launch with
+/// no marker at all. The two conditions are mutually exclusive by construction,
+/// and a first install explicitly suppresses the notes.
 ///
 /// Like the release-notes hook, this waits for a signed-in session first: the
 /// tour points at the home screen's panes, which don't exist behind the sign-in
@@ -58,7 +51,6 @@ Future<void> maybeShowOnboardingOnStartup(WidgetRef ref) async {
     }
 
     if (!await _waitForSignIn(ref)) return;
-    if (!await _waitForConsentDialog(ref)) return;
     // Let the home screen finish its first real layout (spaces load, the
     // default channel auto-opens) so the anchors resolve to their settled
     // positions rather than to an empty rail.
@@ -147,30 +139,6 @@ Future<bool> _waitForSignIn(
   final completer = Completer<bool>();
   final sub = ref.listenManual<AccordAuthState>(accordAuthProvider, (_, next) {
     if (next is AccordAuthLoggedIn && !completer.isCompleted) {
-      completer.complete(true);
-    }
-  });
-  try {
-    return await completer.future.timeout(timeout, onTimeout: () => false);
-  } finally {
-    sub.close();
-  }
-}
-
-/// Completes with true once the first-launch error-reporting consent dialog has
-/// been answered — it is modal and undismissable, so the tour must not stack on
-/// top of it. Returns false on timeout, in which case nothing is shown and
-/// nothing is stamped: the tour is offered again next launch.
-Future<bool> _waitForConsentDialog(
-  WidgetRef ref, {
-  Duration timeout = const Duration(minutes: 5),
-}) async {
-  bool answered() =>
-      ref.read(settingsControllerProvider).errorReportingConsentShown;
-  if (answered()) return true;
-  final completer = Completer<bool>();
-  final sub = ref.listenManual(settingsControllerProvider, (_, next) {
-    if (next.errorReportingConsentShown && !completer.isCompleted) {
       completer.complete(true);
     }
   });

@@ -208,7 +208,7 @@ class _ParticipantRow extends StatelessWidget {
         child: Text(
           text,
           style: TextStyle(
-              fontSize: 10, color: color, fontWeight: FontWeight.bold),
+              fontSize: 11, color: color, fontWeight: FontWeight.bold),
         ),
       );
 }
