@@ -1,0 +1,241 @@
+# On-demand iPad rendering check.
+#
+# App Review rejected 0.2.12 under guideline 4.0 ("hard to read type"), with a
+# screenshot of the app on an iPad rendering washed out — near-white surfaces
+# under light-grey text, nothing like the dark theme a fresh install uses. That
+# reproduces on neither Android nor Linux desktop from the same Dart, and no
+# self-hosted runner can build iOS (all four are Linux/X64), so this job exists
+# to get eyes on the actual iOS pixels.
+#
+# Simulator builds need no signing, so unlike the release job this needs no
+# secrets and no App Store Connect access.
+#
+# It is workflow_dispatch only: nothing here gates a push.
+name: iOS simulator screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Simulator device name substring (e.g. "iPad Air", "iPad Pro", "iPhone")'
+        required: false
+        # Apple's rejection screenshot is 1640x2360, the native resolution of
+        # the 11-inch iPad Air — so that is the reviewer's device, and matching
+        # it gives the best chance of reproducing what they saw. Widen to "iPad"
+        # (picks the largest available) or "iPhone" to check other form factors.
+        default: 'iPad Air'
+
+env:
+  # Keep in sync with ci.yml / release.yml / .fvmrc.
+  FLUTTER_CHANNEL: beta
+  PUB_CACHE: ${{ github.workspace }}/.pub-cache
+
+jobs:
+  screenshots:
+    name: iPad screenshots
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        # Deliberately the same selection the release job makes, so the SDK this
+        # builds against matches the SDK the rejected binary was built against.
+        # That equivalence is the whole point — see the "Record the SDK" step.
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/livekit_client/**/*.podspec') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -uo pipefail
+          n=0; max=3
+          until flutter pub get; do
+            n=$((n + 1))
+            if [ "$n" -ge "$max" ]; then
+              echo "::error::flutter pub get failed after $max attempts" >&2
+              exit 1
+            fi
+            sleep $((n * 15))
+          done
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build for the simulator
+        # --simulator produces an x86_64/arm64 .app with no code signing at all,
+        # which is why this job needs none of the release job's certificates.
+        run: flutter build ios --simulator --no-codesign -v
+
+      - name: Record the SDK the binary was built against
+        # The leading hypothesis for the washed-out rendering is that building
+        # against the iOS 26 SDK opts the app into the system's new design
+        # language, and the app has no UIDesignRequiresCompatibility key to
+        # decline it. These three keys say which SDK actually got used, which
+        # either supports that or kills it outright.
+        shell: bash
+        run: |
+          APP=build/ios/iphonesimulator/Runner.app
+          PLIST="$APP/Info.plist"
+          echo "### Built-against SDK" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          for key in DTSDKName DTPlatformVersion DTXcode DTXcodeBuild MinimumOSVersion UIDesignRequiresCompatibility; do
+            value=$(/usr/libexec/PlistBuddy -c "Print :$key" "$PLIST" 2>/dev/null || echo '(absent)')
+            printf '%-32s %s\n' "$key" "$value" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          xcodebuild -version
+
+      - name: Boot the simulator
+        id: sim
+        shell: bash
+        env:
+          DEVICE_FILTER: ${{ inputs.device }}
+        run: |
+          set -euo pipefail
+          # Pick the best matching available device rather than hardcoding a
+          # name: the runner image's simulator list changes with every Xcode.
+          # Prefer a "Pro", then the longest name (13-inch sorts over 11-inch).
+          cat > "$RUNNER_TEMP/pick_sim.py" <<'PY'
+          import json, os, re, subprocess, sys
+
+          want = (os.environ.get("DEVICE_FILTER") or "iPad").strip().lower()
+          data = json.loads(
+              subprocess.run(
+                  ["xcrun", "simctl", "list", "devices", "available", "-j"],
+                  capture_output=True, text=True, check=True,
+              ).stdout
+          )
+
+          def rank(name):
+              # Screen size first, read out of the name ("13-inch" > "11-inch").
+              # Ranking on len(name) instead does NOT work: "iPad Pro 11-inch
+              # (M4)" and "iPad Pro 13-inch (M4)" are both 21 characters, so the
+              # winner would come down to dict order and drift between Xcode
+              # releases. Fall back to the name so ties stay deterministic.
+              inches = re.search(r"(\d+(?:\.\d+)?)-inch", name)
+              return (
+                  float(inches.group(1)) if inches else 0.0,
+                  "pro" in name.lower(),
+                  name,
+              )
+
+          best = None
+          for runtime, devices in data["devices"].items():
+              if "iOS" not in runtime:
+                  continue
+              for d in devices:
+                  if want not in d["name"].lower():
+                      continue
+                  r = rank(d["name"])
+                  if best is None or r > best[0]:
+                      best = (r, d["udid"], d["name"])
+          if best is None:
+              sys.exit("no available iOS simulator matching %r" % want)
+          print("%s\t%s" % (best[1], best[2]))
+          PY
+          row=$(python3 "$RUNNER_TEMP/pick_sim.py") || {
+            echo "::error::simulator selection failed" >&2
+            xcrun simctl list devices available
+            exit 1
+          }
+          udid=${row%%$'\t'*}
+          name=${row#*$'\t'}
+          echo "Booting $name ($udid)"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+
+      - name: Install and capture
+        shell: bash
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          APP=build/ios/iphonesimulator/Runner.app
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          echo "Bundle id: $BUNDLE_ID"
+          xcrun simctl install "$UDID" "$APP"
+
+          # $1 = label, $2 = seconds to let the app settle before capturing
+          capture() {
+            xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+            xcrun simctl launch "$UDID" "$BUNDLE_ID"
+            sleep "$2"
+            xcrun simctl io "$UDID" screenshot "artifacts/$1.png"
+            echo "captured $1"
+          }
+
+          # The first launch does the most work (font loading, Hive boxes), so
+          # give it longer to settle than the relaunches that follow.
+          capture 01-default 25
+
+          # The app ignores system appearance entirely — `theme` and `darkTheme`
+          # are handed the same ThemeData — so these two should be identical.
+          # If they differ, that assumption is wrong and is itself the finding.
+          xcrun simctl ui "$UDID" appearance light
+          capture 02-appearance-light 12
+          xcrun simctl ui "$UDID" appearance dark
+          capture 03-appearance-dark 12
+          xcrun simctl ui "$UDID" appearance light
+
+          # Dynamic Type. Before the fix in this branch the app replaced the
+          # platform text scaler outright, so these three would render at
+          # identical size; they should now visibly grow.
+          for size in large extra-extra-extra-large accessibility-extra-large; do
+            xcrun simctl ui "$UDID" content-size "$size"
+            capture "04-text-$size" 12
+          done
+          xcrun simctl ui "$UDID" content-size large
+
+      - name: Collect app log
+        if: always()
+        shell: bash
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          mkdir -p artifacts
+          xcrun simctl spawn "$UDID" log show --last 10m \
+            --predicate 'processImagePath CONTAINS "Runner"' \
+            > artifacts/app.log 2>&1 || true
+          tail -n 40 artifacts/app.log || true
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots-${{ steps.sim.outputs.name || 'unknown' }}
+          path: artifacts/
+          if-no-files-found: error
+
+      - name: Shut down the simulator
+        if: always()
+        run: xcrun simctl shutdown "${{ steps.sim.outputs.udid }}" || true
