@@ -89,9 +89,31 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build for the simulator
-        # --simulator produces an x86_64/arm64 .app with no code signing at all,
-        # which is why this job needs none of the release job's certificates.
-        run: flutter build ios --simulator --no-codesign -v
+        # --simulator produces an arm64 .app with no code signing at all, which
+        # is why this job needs none of the release job's certificates.
+        #
+        # Try release first: the rejected binary was a release build, and debug
+        # differs in ways that could matter to a rendering fault (JIT vs AOT,
+        # the debug banner, shader warm-up). Flutter has historically refused
+        # release/profile for the simulator, so fall back rather than fail, and
+        # record which mode actually produced the .app — a screenshot from a
+        # debug build is weaker evidence and the summary should say so.
+        shell: bash
+        run: |
+          set -uo pipefail
+          for mode in release profile debug; do
+            echo "::group::flutter build ios --simulator --$mode"
+            if flutter build ios --simulator --no-codesign "--$mode" -v; then
+              echo "::endgroup::"
+              echo "BUILD_MODE=$mode" >> "$GITHUB_ENV"
+              echo "Built in $mode mode" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "$mode mode not supported for the simulator, trying next"
+          done
+          echo "::error::no build mode succeeded for the simulator" >&2
+          exit 1
 
       - name: Record the SDK the binary was built against
         # The leading hypothesis for the washed-out rendering is that building
@@ -182,39 +204,70 @@ jobs:
           mkdir -p artifacts
           APP=build/ios/iphonesimulator/Runner.app
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
-          echo "Bundle id: $BUNDLE_ID"
+          echo "Bundle id: $BUNDLE_ID  (build mode: ${BUILD_MODE:-unknown})"
           xcrun simctl install "$UDID" "$APP"
 
-          # $1 = label, $2 = seconds to let the app settle before capturing
+          # The app asks for notification permission on first launch, and the
+          # resulting system alert sits over the middle of every screenshot.
+          # Pre-answering it is best-effort: `simctl privacy` does not cover
+          # notifications on every runtime, so tolerate a failure.
+          xcrun simctl privacy "$UDID" deny all "$BUNDLE_ID" 2>/dev/null || true
+
+          # Wait for the app to actually draw rather than sleeping a fixed
+          # guess. The previous run captured at 12s and got the white launch
+          # screen dimmed grey by the alert — no app UI at all — while a 25s
+          # capture of the same build was fine. Poll the screenshot until two
+          # consecutive captures are identical, i.e. the UI has settled.
+          settle() {
+            local out=$1 prev="" cur="" stable=0
+            for _ in $(seq 1 30); do
+              sleep 3
+              xcrun simctl io "$UDID" screenshot --type=png "$out" >/dev/null 2>&1 || continue
+              cur=$(shasum -a 256 "$out" | cut -d" " -f1)
+              if [ -n "$prev" ] && [ "$cur" = "$prev" ]; then
+                stable=$((stable + 1))
+                # Two matching pairs in a row: rendering has stopped changing.
+                [ "$stable" -ge 2 ] && return 0
+              else
+                stable=0
+              fi
+              prev=$cur
+            done
+            echo "warning: $out never stopped changing; capturing as-is" >&2
+          }
+
+          # $1 = label
           capture() {
             xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
+            sleep 2
             xcrun simctl launch "$UDID" "$BUNDLE_ID"
-            sleep "$2"
-            xcrun simctl io "$UDID" screenshot "artifacts/$1.png"
+            settle "artifacts/$1.png"
             echo "captured $1"
           }
 
-          # The first launch does the most work (font loading, Hive boxes), so
-          # give it longer to settle than the relaunches that follow.
-          capture 01-default 25
+          capture 01-default
 
           # The app ignores system appearance entirely — `theme` and `darkTheme`
           # are handed the same ThemeData — so these two should be identical.
           # If they differ, that assumption is wrong and is itself the finding.
           xcrun simctl ui "$UDID" appearance light
-          capture 02-appearance-light 12
+          capture 02-appearance-light
           xcrun simctl ui "$UDID" appearance dark
-          capture 03-appearance-dark 12
+          capture 03-appearance-dark
           xcrun simctl ui "$UDID" appearance light
 
-          # Dynamic Type. Before the fix in this branch the app replaced the
-          # platform text scaler outright, so these three would render at
-          # identical size; they should now visibly grow.
+          # Dynamic Type. The option is `content_size` with an underscore —
+          # `content-size` is not a simctl option and exits 117, which is what
+          # killed the previous run after three captures.
+          #
+          # Before the scaler fix these three would render at identical size,
+          # because the app replaced the platform scaler instead of composing
+          # with it. They should now visibly grow.
           for size in large extra-extra-extra-large accessibility-extra-large; do
-            xcrun simctl ui "$UDID" content-size "$size"
-            capture "04-text-$size" 12
+            xcrun simctl ui "$UDID" content_size "$size"
+            capture "04-text-$size"
           done
-          xcrun simctl ui "$UDID" content-size large
+          xcrun simctl ui "$UDID" content_size large
 
       - name: Collect app log
         if: always()
