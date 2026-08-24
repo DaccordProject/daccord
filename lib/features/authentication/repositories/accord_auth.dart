@@ -155,8 +155,8 @@ class AccordAuth extends _$AccordAuth {
 
   /// Connects to [server] as an anonymous guest (read-only). The guest token is
   /// transient, so the session is **not** persisted or added to the saved
-  /// account list. (Guest-token refresh and guest-mode restrictions live in the
-  /// connection layer and are not wired yet.)
+  /// account list. The sign-in surface keeps this mode hidden until all write
+  /// affordances can consume the explicit guest restriction.
   Future<AccordAuthState> loginAsGuest(AccordServer server) async {
     state = const AccordAuthInProgress();
     final authClient = _restClientFor(server);
@@ -180,7 +180,20 @@ class AccordAuth extends _$AccordAuth {
         if (!me.ok || me.data is! AccordUser) {
           return _fail(me.error?.message ?? 'Guest connection failed');
         }
-        final session = _sessionFrom(server, token, me.data as AccordUser);
+        final user = me.data as AccordUser;
+        final base = _sessionFrom(server, token, user);
+        final session = AccordSession(
+          server: base.server,
+          token: base.token,
+          tokenType: base.tokenType,
+          userId: base.userId,
+          username: base.username,
+          avatar: base.avatar,
+          isAdmin: false,
+          isGuest: true,
+          expiresAt: guestSessionExpiry(data, token),
+        );
+        if (session.isExpired) return _fail('Guest token already expired');
         // Intentionally not persisted: guest sessions are transient.
         return await _addConnection(session, makeActive: true);
       } finally {
@@ -273,19 +286,15 @@ class AccordAuth extends _$AccordAuth {
   /// background so the rail can show every server's spaces. Returns
   /// [AccordAuthLoggedOut] when nothing is stored.
   Future<AccordAuthState> restoreSession() async {
-    final raw = await _store.readActiveRaw();
-    if (raw == null) {
-      return const AccordAuthLoggedOut();
-    }
-
     AccordSession? active;
     try {
-      active = AccordSession.fromJson(Map<String, dynamic>.from(raw as Map));
+      active = await _store.readRestorableActive();
     } catch (e) {
       debugPrint('Failed to restore Accord session: $e');
       await _store.deleteActive();
       return _fail(e.toString());
     }
+    if (active == null) return const AccordAuthLoggedOut();
 
     final result = await _addConnection(active, makeActive: true);
 
@@ -797,16 +806,18 @@ class AccordAuth extends _$AccordAuth {
       gatewayUrl: session.server.gatewayUrl,
       cdnUrl: session.server.cdnUrl,
       onUnauthorized: () => _handleUnauthorized(key),
-      intents: [
-        GatewayIntents.spaces,
-        GatewayIntents.messages,
-        GatewayIntents.messageContent,
-        GatewayIntents.messageReactions,
-        GatewayIntents.messageTyping,
-        GatewayIntents.members,
-        GatewayIntents.presences,
-        GatewayIntents.voiceStates,
-      ],
+      intents: session.isGuest
+          ? GatewayIntents.guest()
+          : [
+              GatewayIntents.spaces,
+              GatewayIntents.messages,
+              GatewayIntents.messageContent,
+              GatewayIntents.messageReactions,
+              GatewayIntents.messageTyping,
+              GatewayIntents.members,
+              GatewayIntents.presences,
+              GatewayIntents.voiceStates,
+            ],
     );
     final disposeEvents = handleAccordEvents(
       ref,
@@ -855,7 +866,7 @@ class AccordAuth extends _$AccordAuth {
     final next = AccordAuthLoggedIn(client: conn.client, session: conn.session);
     state = next;
     ref.read(accordUsersControllerProvider.notifier).activate(conn.client);
-    unawaited(_store.persistActive(conn.session));
+    if (!conn.session.isGuest) unawaited(_store.persistActive(conn.session));
     return next;
   }
 

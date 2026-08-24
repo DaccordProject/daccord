@@ -21,6 +21,7 @@ class AccordSessionStore {
   /// any other saved account on the same server is dropped, so signing in as a
   /// new user replaces the old one rather than leaving a stale duplicate.
   Future<void> persist(AccordSession session) async {
+    if (session.isGuest || session.isExpired) return;
     final box = await _box();
     await box.put(_sessionKey, session.toJson());
     final accounts = _accountsFrom(box);
@@ -41,8 +42,25 @@ class AccordSessionStore {
   /// Records [session] as the persisted *active* pointer without touching the
   /// saved-accounts list (already persisted when first added).
   Future<void> persistActive(AccordSession session) async {
+    if (session.isGuest || session.isExpired) return;
     final box = await _box();
     await box.put(_sessionKey, session.toJson());
+  }
+
+  /// Active session eligible for restart. Guest or expired credentials are
+  /// deleted defensively even if an older client wrote them.
+  Future<AccordSession?> readRestorableActive() async {
+    final box = await _box();
+    final raw = box.get(_sessionKey);
+    if (raw == null) return null;
+    final session = AccordSession.fromJson(
+      Map<String, dynamic>.from(raw as Map),
+    );
+    if (session.isGuest || session.isExpired) {
+      await box.delete(_sessionKey);
+      return null;
+    }
+    return session;
   }
 
   /// The raw stored active-session value (a JSON map when present). Callers own
@@ -67,7 +85,8 @@ class AccordSessionStore {
     for (final raw in accounts.values) {
       if (raw is! Map) continue;
       try {
-        result.add(AccordSession.fromJson(Map<String, dynamic>.from(raw)));
+        final session = AccordSession.fromJson(Map<String, dynamic>.from(raw));
+        if (!session.isGuest && !session.isExpired) result.add(session);
       } catch (_) {
         // Skip malformed saved accounts.
       }

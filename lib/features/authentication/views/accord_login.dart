@@ -231,19 +231,6 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     }
   }
 
-  void _submitGuest() {
-    final rawServer = _serverController.text.trim();
-    if (rawServer.isEmpty) {
-      setState(() => _authLocalError = 'Enter a server URL first.');
-      return;
-    }
-    final server = _serverFromInput(rawServer);
-    if (server == null) return;
-    Hive.box('accord-session').put('last-server', rawServer);
-    setState(() => _authLocalError = null);
-    ref.read(accordAuthProvider.notifier).loginAsGuest(server);
-  }
-
   void _submitMfa() {
     final code = _mfaController.text.trim();
     if (code.isEmpty) return;
@@ -360,7 +347,6 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           onGeneratePassword: _generatePassword,
           onTosChanged: (v) => setState(() => _tosAccepted = v),
           onTosLinkTap: _openTos,
-          onGuest: _submitGuest,
           onDiscover: () => setState(() => _view = _LoggedOutView.browse),
           onSubmit: _submit,
           error:
@@ -454,7 +440,6 @@ class _AuthForm extends StatelessWidget {
     required this.onGeneratePassword,
     required this.onTosChanged,
     required this.onTosLinkTap,
-    required this.onGuest,
     required this.onDiscover,
     required this.onSubmit,
     this.onBack,
@@ -475,7 +460,6 @@ class _AuthForm extends StatelessWidget {
   final VoidCallback onGeneratePassword;
   final ValueChanged<bool> onTosChanged;
   final VoidCallback onTosLinkTap;
-  final VoidCallback onGuest;
   final VoidCallback onDiscover;
   final VoidCallback onSubmit;
   final String? error;
@@ -559,25 +543,11 @@ class _AuthForm extends StatelessWidget {
           label: const Text('Discover public servers'),
         ),
         const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextButton(
-              onPressed: onGuest,
-              child: Text('Browse as guest', style: theme.textTheme.bodyMedium),
-            ),
-            if (hasAccounts) ...[
-              Text('·', style: theme.textTheme.bodyMedium),
-              TextButton(
-                onPressed: onSwitchAccount,
-                child: Text(
-                  'Switch account',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-            ],
-          ],
-        ),
+        if (hasAccounts)
+          TextButton(
+            onPressed: onSwitchAccount,
+            child: Text('Switch account', style: theme.textTheme.bodyMedium),
+          ),
       ],
     );
   }
