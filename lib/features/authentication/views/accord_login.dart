@@ -12,7 +12,6 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_ce/hive.dart';
 
 /// Server-URL + credentials login against an Accord server. The Daccord
@@ -509,8 +508,8 @@ class _AuthForm extends StatelessWidget {
         Text(
           'Connect to your Accord server',
           textAlign: TextAlign.center,
-          style: GoogleFonts.publicSans(
-            color: const Color(0xFFC8C8C8),
+          style: const TextStyle(
+            color: Color(0xFFC8C8C8),
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -566,10 +565,7 @@ class _AuthForm extends StatelessWidget {
           children: [
             TextButton(
               onPressed: onGuest,
-              child: Text(
-                'Browse as guest',
-                style: theme.textTheme.bodyMedium,
-              ),
+              child: Text('Browse as guest', style: theme.textTheme.bodyMedium),
             ),
             if (hasAccounts) ...[
               Text('·', style: theme.textTheme.bodyMedium),
@@ -634,7 +630,9 @@ class _BrowseView extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: AccordDiscoveryBody(onJoinRequiresAuth: onJoinRequiresAuth),
+              child: AccordDiscoveryBody(
+                onJoinRequiresAuth: onJoinRequiresAuth,
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -678,8 +676,8 @@ class _MfaForm extends StatelessWidget {
         Text(
           'Enter the code from your authenticator app',
           textAlign: TextAlign.center,
-          style: GoogleFonts.publicSans(
-            color: const Color(0xFFC8C8C8),
+          style: const TextStyle(
+            color: Color(0xFFC8C8C8),
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -737,8 +735,8 @@ class _PasswordResetForm extends StatelessWidget {
         Text(
           'The server requires a new password before you can continue',
           textAlign: TextAlign.center,
-          style: GoogleFonts.publicSans(
-            color: const Color(0xFFC8C8C8),
+          style: const TextStyle(
+            color: Color(0xFFC8C8C8),
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),

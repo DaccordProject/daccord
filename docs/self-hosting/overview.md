@@ -7,7 +7,7 @@ section: self-hosting
 
 # Self-Hosting Overview
 
-daccord connects to servers running [accordserver](https://github.com/DaccordProject/accordserver). When you self-host, you run that server yourself, which means you keep full control of your community's data, accounts, uploads, and voice traffic. Nothing passes through a third party.
+daccord connects to servers running [accordserver](https://github.com/DaccordProject/accordserver). When you self-host, you run that server yourself, which means you keep full control of your community's data, accounts, uploads, and voice traffic. Daccord does not proxy that traffic, although the client can make the ancillary requests listed in its [network and privacy disclosure](../privacy-network.md).
 
 There are two supported ways to host, depending on how much you want to manage.
 

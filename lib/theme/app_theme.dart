@@ -1,6 +1,5 @@
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Selectable colour themes for the Accord client. Each preset maps to a
 /// [BonfireThemeExtension] palette + a [Brightness]; the user may additionally
@@ -17,11 +16,8 @@ enum AppThemePreset {
 
   final String label;
 
-  static AppThemePreset fromName(String? name) =>
-      AppThemePreset.values.firstWhere(
-        (p) => p.name == name,
-        orElse: () => AppThemePreset.dark,
-      );
+  static AppThemePreset fromName(String? name) => AppThemePreset.values
+      .firstWhere((p) => p.name == name, orElse: () => AppThemePreset.dark);
 }
 
 /// The fixed palette for a preset, before any user accent override is applied.
@@ -128,7 +124,6 @@ BonfireThemeExtension paletteFor(AppThemePreset preset, {Color? accent}) {
 }
 
 TextTheme _textTheme(BonfireThemeExtension palette) {
-  final family = GoogleFonts.publicSans().fontFamily!;
   final high = palette.dirtyWhite;
   final medium = palette.gray;
   // Every slot is defined with an explicit colour. ThemeData.copyWith replaces
@@ -137,13 +132,11 @@ TextTheme _textTheme(BonfireThemeExtension palette) {
   // framework's near-black default and becomes unreadable on the dark surfaces
   // (e.g. the "Daccord" welcome title, which uses headlineSmall). Metrics are
   // kept tight (no `height`) to match the original layout and avoid overflow.
-  TextStyle s(double size, Color color,
-          [FontWeight weight = FontWeight.w500]) =>
-      TextStyle(
-          fontSize: size,
-          fontFamily: family,
-          fontWeight: weight,
-          color: color);
+  TextStyle s(
+    double size,
+    Color color, [
+    FontWeight weight = FontWeight.w500,
+  ]) => TextStyle(fontSize: size, fontWeight: weight, color: color);
   return TextTheme(
     displayLarge: s(36, high),
     displayMedium: s(20, high),
@@ -167,23 +160,25 @@ TextTheme _textTheme(BonfireThemeExtension palette) {
 ThemeData buildAppTheme(AppThemePreset preset, {Color? accent}) {
   final palette = paletteFor(preset, accent: accent);
   final brightness = _brightnessFor(preset);
-  final base =
-      brightness == Brightness.light ? ThemeData.light() : ThemeData.dark();
+  final base = brightness == Brightness.light
+      ? ThemeData.light()
+      : ThemeData.dark();
   return base.copyWith(
     scaffoldBackgroundColor: palette.background,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: palette.primary,
-      brightness: brightness,
-    ).copyWith(
-      primary: palette.primary,
-      // fromSeed derives onPrimary for its generated primary tone, not the
-      // accent we force above — so a light accent (e.g. Nord, or a custom one)
-      // would otherwise get light text. Pick the on-colour by luminance.
-      onPrimary: _onColor(palette.primary),
-      error: palette.red,
-      onError: _onColor(palette.red),
-      surface: palette.background,
-    ),
+    colorScheme:
+        ColorScheme.fromSeed(
+          seedColor: palette.primary,
+          brightness: brightness,
+        ).copyWith(
+          primary: palette.primary,
+          // fromSeed derives onPrimary for its generated primary tone, not the
+          // accent we force above — so a light accent (e.g. Nord, or a custom one)
+          // would otherwise get light text. Pick the on-colour by luminance.
+          onPrimary: _onColor(palette.primary),
+          error: palette.red,
+          onError: _onColor(palette.red),
+          surface: palette.background,
+        ),
     textTheme: _textTheme(palette),
     extensions: [palette],
   );

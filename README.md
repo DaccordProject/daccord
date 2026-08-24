@@ -4,7 +4,7 @@
 
 **Daccord** is the free, open-source alternative to Discord — chat, voice, and video with native apps you control. This repository is the **Flutter client**: a fast, beautiful, cross-platform app that talks to *your* server, not someone else's cloud.
 
-No ads. No tracking. No corporate lock-in. **Your server, your data, your rules.**
+No ads. No first-party analytics or tracking. No corporate lock-in. **Your server, your data, your rules.**
 
 <p align="left">
   <img alt="License: GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue.svg">
@@ -23,8 +23,8 @@ Discord is great until it isn't — until your community gets the wrong end of a
 
 Daccord flips the model. The people who show up are what make a community — not the platform that hosts it.
 
-- 🔒 **Your data, your rules.** No ads, no tracking, no corporate lock-in. Privacy without invasive measures like forced identity exposure or unnecessary data collection.
-- 🏠 **Self-hosted by design.** Don't just *join* a server — run your own. Keep full control of your data, accounts, and voice traffic. Nothing passes through us.
+- 🔒 **Your data, your rules.** No ads, first-party analytics, telemetry, or crash reporting. See the [network and privacy disclosure](docs/privacy-network.md) for the requests normal operation can make.
+- 🏠 **Self-hosted by design.** Don't just *join* a server — run your own. Keep full control of your community data, accounts, uploads, and voice traffic; Daccord does not proxy that traffic.
 - 🆓 **Free and open source.** GPLv3-licensed and community-driven, with nothing locked behind a paywall.
 - 🌍 **Native on every platform.** Lightweight, fast, and built with Flutter, with a responsive UI that adapts from phone to desktop.
 
@@ -176,7 +176,7 @@ Yes — completely free and open source under the GPLv3. Nothing is locked behin
 No. This client talks *only* to Daccord/Accord servers. There is no Discord integration — none of your data goes to Discord, and the app never connects to Discord's services.
 
 **Where is my data stored?**
-On whichever Accord server you connect to — including one you host yourself. Nothing passes through us.
+Community data is stored on whichever Accord server you connect to — including one you host yourself. Daccord does not proxy that server or voice traffic. The client can still make ancillary requests for discovery, updates, and explicitly approved external media; see [Network behavior and privacy](docs/privacy-network.md).
 
 **Do I need to run a server to use Daccord?**
 No — you can join any Accord server you have an address and token for. But hosting your own gives you full control. See [Don't have a server yet?](#dont-have-a-server-yet)

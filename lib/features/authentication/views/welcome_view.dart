@@ -1,6 +1,5 @@
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// First-run / signed-out landing screen: daccord branding, a short pitch, and
 /// the primary path into the public server browser. The Flutter port of the
@@ -51,7 +50,10 @@ class WelcomeView extends StatelessWidget {
       curve: Curves.easeOut,
       builder: (context, t, child) => Opacity(
         opacity: t,
-        child: Transform.translate(offset: Offset(0, (1 - t) * 16), child: child),
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 16),
+          child: child,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -72,8 +74,8 @@ class WelcomeView extends StatelessWidget {
           Text(
             'Connect. Communicate. Collaborate.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.publicSans(
-              color: const Color(0xFFC8C8C8),
+            style: const TextStyle(
+              color: Color(0xFFC8C8C8),
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -142,10 +144,7 @@ class WelcomeView extends StatelessWidget {
           if (onSwitchAccount != null)
             TextButton(
               onPressed: onSwitchAccount,
-              child: Text(
-                'Switch account',
-                style: theme.textTheme.bodyMedium,
-              ),
+              child: Text('Switch account', style: theme.textTheme.bodyMedium),
             ),
         ],
       ),

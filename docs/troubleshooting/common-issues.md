@@ -45,4 +45,4 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 
 If you encounter a bug, report it at the [daccord GitHub Issues page](https://github.com/DaccordProject/daccord/issues).
 
-daccord collects no analytics, telemetry, or crash data. Nothing about your usage leaves your device except the traffic to the Accord servers you have connected to.
+daccord collects no first-party analytics, telemetry, or crash data. It does make documented requests for connected servers, discovery, updates, and user-approved media. See [Network behavior and privacy](../privacy-network.md) for the complete disclosure.

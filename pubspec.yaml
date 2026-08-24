@@ -25,7 +25,6 @@ dependencies:
   accordkit:
     path: packages/accordkit
 
-  google_fonts: ^6.2.1
   flutter_riverpod: ^3.0.3
   riverpod_annotation: ^3.0.3
 

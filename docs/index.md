@@ -50,5 +50,6 @@ New to daccord? Start here.
 
 ## Help
 
+- [Network Behavior and Privacy](privacy-network.md) -- What the client connects to and when
 - [Troubleshooting](troubleshooting/common-issues.md) -- Solutions to common problems
 - [Keyboard Shortcuts](troubleshooting/keyboard-shortcuts.md) -- Speed up your workflow
