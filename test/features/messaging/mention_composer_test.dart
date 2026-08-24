@@ -36,6 +36,7 @@ class _Harness {
     required List<String> everyonePermissions,
     List<AccordPermissionOverwrite> overwrites = const [],
     String ownerId = 'owner',
+    bool isDm = false,
   }) {
     final server = AccordServer.fromBaseUrl('https://accord.example.test');
     client = AccordClient(
@@ -58,7 +59,7 @@ class _Harness {
     );
     channel = AccordChannel(
       id: _channelId,
-      spaceId: _spaceId,
+      spaceId: isDm ? null : _spaceId,
       name: 'general',
       permissionOverwrites: overwrites,
     );
@@ -108,7 +109,7 @@ class _Harness {
         body: MessagePane(
           channel: channel,
           channelId: _channelId,
-          spaceId: _spaceId,
+          spaceId: channel.spaceId,
         ),
       ),
     ),
@@ -122,11 +123,13 @@ Future<_Harness> _pump(
   List<String> permissions = const [AccordPermission.sendMessages],
   List<AccordPermissionOverwrite> overwrites = const [],
   String ownerId = 'owner',
+  bool isDm = false,
 }) async {
   final harness = _Harness(
     everyonePermissions: permissions,
     overwrites: overwrites,
     ownerId: ownerId,
+    isDm: isDm,
   );
   addTearDown(harness.dispose);
   await tester.pumpWidget(harness.app);
@@ -190,5 +193,80 @@ void main() {
     await tester.pump();
 
     expect(find.text(_permissionHint), findsNothing);
+  });
+
+  testWidgets('broadcast autocomplete is offered first with permission', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      permissions: const [
+        AccordPermission.sendMessages,
+        AccordPermission.mentionEveryone,
+      ],
+    );
+
+    await tester.enterText(_composer, '@');
+    await tester.pump();
+
+    expect(find.text('@everyone'), findsOneWidget);
+    expect(find.text('@here'), findsOneWidget);
+    expect(find.byIcon(Icons.campaign_outlined), findsNWidgets(2));
+    expect(
+      tester.getTopLeft(find.text('@everyone')).dy,
+      lessThan(tester.getTopLeft(find.text('@here')).dy),
+    );
+
+    await tester.enterText(_composer, '@h');
+    await tester.pump();
+    expect(find.text('@everyone'), findsNothing);
+    expect(find.text('@here'), findsOneWidget);
+  });
+
+  testWidgets('picking broadcast completion inserts the literal token', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      permissions: const [
+        AccordPermission.sendMessages,
+        AccordPermission.mentionEveryone,
+      ],
+    );
+
+    await tester.enterText(_composer, '@ever');
+    await tester.pump();
+    expect(find.text('@everyone'), findsOneWidget);
+    expect(find.text('@here'), findsNothing);
+    await tester.tap(find.text('@everyone'));
+    await tester.pump();
+
+    expect(tester.widget<TextField>(_composer).controller?.text, '@everyone ');
+  });
+
+  testWidgets('broadcast autocomplete is hidden without permission', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    await tester.enterText(_composer, '@');
+    await tester.pump();
+
+    expect(find.text('@everyone'), findsNothing);
+    expect(find.text('@here'), findsNothing);
+  });
+
+  testWidgets('broadcast autocomplete is absent in DMs', (tester) async {
+    await _pump(
+      tester,
+      isDm: true,
+      permissions: const [AccordPermission.mentionEveryone],
+    );
+
+    await tester.enterText(_composer, '@');
+    await tester.pump();
+
+    expect(find.text('@everyone'), findsNothing);
+    expect(find.text('@here'), findsNothing);
   });
 }

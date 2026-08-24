@@ -759,9 +759,15 @@ class _MentionPopup extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      entry.isRole ? Icons.label_outline : Icons.person,
+                      switch (entry.kind) {
+                        _MentionEntryKind.broadcast => Icons.campaign_outlined,
+                        _MentionEntryKind.member => Icons.person,
+                        _MentionEntryKind.role => Icons.label_outline,
+                      },
                       size: 14,
-                      color: colors.gray,
+                      color: entry.kind == _MentionEntryKind.broadcast
+                          ? _composerBroadcastColor
+                          : colors.gray,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -769,14 +775,22 @@ class _MentionPopup extends ConsumerWidget {
                         entry.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                          color: entry.kind == _MentionEntryKind.broadcast
+                              ? _composerBroadcastColor
+                              : null,
+                        ),
                       ),
                     ),
                     Text(
                       "@${entry.handle}",
                       style: Theme.of(
                         context,
-                      ).textTheme.labelSmall!.copyWith(color: colors.gray),
+                      ).textTheme.labelSmall!.copyWith(
+                        color: entry.kind == _MentionEntryKind.broadcast
+                            ? _composerBroadcastColor
+                            : colors.gray,
+                      ),
                     ),
                   ],
                 ),
@@ -787,25 +801,46 @@ class _MentionPopup extends ConsumerWidget {
     );
   }
 
-  /// Picks up to [_maxResults] candidates from members and mentionable roles
-  /// whose handle/label matches [query] (case-insensitive). Prefix matches rank
-  /// before substring matches; members rank before roles within each tier.
+  /// Picks up to [_maxResults] candidates from broadcast mentions, members and
+  /// mentionable roles whose handle/label matches [query] (case-insensitive).
+  /// Broadcast mentions always rank first, then prefix before substring
+  /// matches for members and roles.
   List<_MentionEntry> _filter(
     Map<String, AccordMember>? members,
     List<AccordRole> roles,
     String query,
   ) {
     final q = query.toLowerCase();
+    final broadcasts = <_MentionEntry>[];
     final prefix = <_MentionEntry>[];
     final contains = <_MentionEntry>[];
-    void consider(_MentionEntry e) {
+    void consider(_MentionEntry e, {bool broadcast = false}) {
       final h = e.handle.toLowerCase();
       final l = e.label.toLowerCase();
       if (q.isEmpty || h.startsWith(q) || l.startsWith(q)) {
-        prefix.add(e);
+        (broadcast ? broadcasts : prefix).add(e);
       } else if (h.contains(q) || l.contains(q)) {
-        contains.add(e);
+        (broadcast ? broadcasts : contains).add(e);
       }
+    }
+
+    if (allowBroadcast) {
+      consider(
+        const _MentionEntry(
+          handle: 'everyone',
+          label: 'Notify everyone',
+          kind: _MentionEntryKind.broadcast,
+        ),
+        broadcast: true,
+      );
+      consider(
+        const _MentionEntry(
+          handle: 'here',
+          label: 'Notify online members',
+          kind: _MentionEntryKind.broadcast,
+        ),
+        broadcast: true,
+      );
     }
 
     if (members != null) {
@@ -817,16 +852,22 @@ class _MentionPopup extends ConsumerWidget {
           _MentionEntry(
             handle: username,
             label: accordMemberName(m, fallback: username),
-            isRole: false,
+            kind: _MentionEntryKind.member,
           ),
         );
       }
     }
     for (final r in roles) {
       if (!r.mentionable) continue;
-      consider(_MentionEntry(handle: r.name, label: r.name, isRole: true));
+      consider(
+        _MentionEntry(
+          handle: r.name,
+          label: r.name,
+          kind: _MentionEntryKind.role,
+        ),
+      );
     }
-    final out = [...prefix, ...contains];
+    final out = [...broadcasts, ...prefix, ...contains];
     if (out.length > _maxResults) return out.sublist(0, _maxResults);
     return out;
   }
@@ -836,9 +877,14 @@ class _MentionEntry {
   const _MentionEntry({
     required this.handle,
     required this.label,
-    required this.isRole,
+    required this.kind,
   });
   final String handle;
   final String label;
-  final bool isRole;
+  final _MentionEntryKind kind;
 }
+
+enum _MentionEntryKind { broadcast, member, role }
+
+/// Matches the broadcast chip used by sent-message markup.
+const _composerBroadcastColor = Color(0xFFFAA61A);
