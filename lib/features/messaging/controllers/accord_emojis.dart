@@ -21,9 +21,10 @@ class AccordEmojisController extends _$AccordEmojisController {
   }
 
   Future<void> _load(AccordClient client, String spaceId) async {
-    final emojis = (await client.emojis.list(spaceId))
-        .listOrLog<AccordEmoji>('emojis for $spaceId');
-    if (emojis != null) state = emojis;
+    final emojis = (await client.emojis.list(
+      spaceId,
+    )).listOrLog<AccordEmoji>('emojis for $spaceId');
+    if (emojis != null && ref.mounted) state = emojis;
   }
 
   /// Inserts [emoji] (when the id is new) or replaces an existing one in
