@@ -28,6 +28,12 @@ Server operators control the Accord and LiveKit endpoints they configure and may
 
 The app uses platform-provided fonts. It does not fetch Google Fonts or another font service at runtime. Message content cannot silently load `file:`, `data:`, `blob:`, `content:`, asset, UNC, or custom-scheme image URLs.
 
+## Stored sign-in credentials
+
+On Android, iOS, macOS, Windows, and Linux, reusable session tokens are stored through the operating system's credential service. The ordinary Hive profile database contains only random opaque references and non-secret account metadata. Older plaintext session records are migrated by committing the token to the credential service before the Hive copy is removed. Linux builds require a Secret Service provider such as GNOME Keyring or KWallet; if no credential vault is available, Daccord does not fall back to plaintext storage.
+
+Web browsers do not expose an OS credential vault to Flutter applications. On Web, the secure-storage plugin uses a non-exportable WebCrypto key to protect values kept in origin-scoped local storage. This reduces offline portability but does not protect a token from script executing in the same origin or from a compromised browser profile. Web deployments must use HTTPS and strong security headers, and users should treat the browser profile as part of the trust boundary.
+
 ## What self-hosting controls
 
 Self-hosting keeps community accounts, messages, uploads, and the configured voice service under infrastructure you choose. daccord does not proxy those services. You can also replace the default public directory URL in settings. Ancillary update checks and explicitly initiated external requests remain separate from your server traffic as described above.

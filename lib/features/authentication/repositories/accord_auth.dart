@@ -287,7 +287,9 @@ class AccordAuth extends _$AccordAuth {
       active = await _store.readRestorableActive();
     } catch (e) {
       debugPrint('Failed to restore Accord session: $e');
-      await _store.deleteActive();
+      // A locked/unavailable platform credential vault can be temporary. Keep
+      // the opaque pointer (and any legacy plaintext awaiting migration) so a
+      // later launch can recover instead of destroying the only credential.
       return _fail(e.toString());
     }
     if (active == null) return const AccordAuthLoggedOut();
@@ -659,7 +661,11 @@ class AccordAuth extends _$AccordAuth {
     if (data is Map && data['force_password_reset'] == true) {
       return _resetRequired(session);
     }
-    await _store.persist(session);
+    try {
+      await _store.persist(session);
+    } catch (e) {
+      return _fail('Secure credential storage failed: $e');
+    }
     return await _addConnection(session, makeActive: true);
   }
 

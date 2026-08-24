@@ -35,7 +35,8 @@ android {
 
     defaultConfig {
         applicationId = "com.daccord_projects.daccord"
-        minSdk = flutter.minSdkVersion
+        // flutter_secure_storage 11 uses the Android Keystore and requires 23.
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

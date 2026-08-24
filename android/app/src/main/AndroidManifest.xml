@@ -37,6 +37,7 @@
     <application
         android:label="Daccord"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <!-- Grants the system package installer read access to the downloaded
              APK handed off by the in-app updater (MainActivity.installApk). -->
