@@ -22,6 +22,9 @@ typedef AccordDiscoveryBrowse =
       required String tag,
     });
 
+const _invalidDirectoryResponse =
+    'The server returned an invalid directory response';
+
 /// Performs the unauthenticated master-server directory request.
 ///
 /// Kept behind a provider so discovery's asynchronous state handling can be
@@ -205,22 +208,24 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
   }
 
   Future<void> _search(_DiscoveryRequest request) async {
-    final result = await ref.read(accordDiscoveryBrowseProvider)(
-      masterUrl: request.masterUrl,
-      query: request.query,
-      tag: request.tag ?? '',
-    );
+    RestResult result;
+    try {
+      result = await ref.read(accordDiscoveryBrowseProvider)(
+        masterUrl: request.masterUrl,
+        query: request.query,
+        tag: request.tag ?? '',
+      );
+    } catch (_) {
+      if (!mounted || request.generation != _requestGeneration) return;
+      setState(() {
+        _error = 'Failed to load directory';
+        _listings = const [];
+      });
+      return;
+    }
     if (!mounted || request.generation != _requestGeneration) return;
 
-    final data = result.data;
-    List<dynamic> raw = const [];
-    if (data is List) {
-      raw = data;
-    } else if (data is Map) {
-      raw =
-          (data['spaces'] ?? data['results'] ?? data['data'] ?? const [])
-              as List;
-    }
+    final listings = result.ok ? _decodeListings(result.data) : null;
 
     setState(() {
       if (!result.ok) {
@@ -228,11 +233,12 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
         _listings = const [];
         return;
       }
-      _listings = raw
-          .map<Map<String, dynamic>>(
-            (e) => e is Map ? e.cast<String, dynamic>() : <String, dynamic>{},
-          )
-          .toList();
+      if (listings == null) {
+        _error = _invalidDirectoryResponse;
+        _listings = const [];
+        return;
+      }
+      _listings = listings;
       // Only refresh the tag bar from an unfiltered result, so filtering by a
       // tag doesn't collapse the bar to that single tag.
       if (request.tag == null) {
@@ -246,6 +252,29 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
         _tags = tags.toList()..sort();
       }
     });
+  }
+
+  List<Map<String, dynamic>>? _decodeListings(Object? data) {
+    Object? payload;
+    if (data is List) {
+      payload = data;
+    } else if (data is Map) {
+      payload = data['spaces'] ?? data['results'] ?? data['data'];
+    }
+    if (payload is! List) return null;
+
+    final listings = <Map<String, dynamic>>[];
+    for (final item in payload) {
+      if (item is! Map) return null;
+      final listing = <String, dynamic>{};
+      for (final entry in item.entries) {
+        final key = entry.key;
+        if (key is! String) return null;
+        listing[key] = entry.value;
+      }
+      listings.add(listing);
+    }
+    return listings;
   }
 
   void _selectTag(String? tag) {

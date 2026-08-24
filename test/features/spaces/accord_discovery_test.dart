@@ -70,4 +70,44 @@ void main() {
     expect(find.text('Latest result'), findsOneWidget);
     expect(find.text('Stale result'), findsNothing);
   });
+
+  testWidgets('shows an error for a non-list directory payload', (
+    tester,
+  ) async {
+    Future<RestResult> browse({
+      required String masterUrl,
+      required String query,
+      required String tag,
+    }) async => RestResult.success(200, {
+      'spaces': {'space_id': 'not-a-list'},
+    });
+
+    await tester.pumpWidget(_host(browse));
+    await tester.pump();
+
+    expect(
+      find.text('The server returned an invalid directory response'),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('shows an error when the directory payload is missing', (
+    tester,
+  ) async {
+    Future<RestResult> browse({
+      required String masterUrl,
+      required String query,
+      required String tag,
+    }) async => RestResult.success(200, {'page': 1});
+
+    await tester.pumpWidget(_host(browse));
+    await tester.pump();
+
+    expect(
+      find.text('The server returned an invalid directory response'),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
 }
