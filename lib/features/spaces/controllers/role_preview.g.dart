@@ -51,7 +51,7 @@ final class RolePreviewControllerProvider
 }
 
 String _$rolePreviewControllerHash() =>
-    r'f58cb4d5014e6bfb0d91734e9017d8ba97b8bf83';
+    r'9b794246d73330ae3feaab4b7deba4e94fbc6426';
 
 /// Holds the active role preview (null when not previewing). Permission checks
 /// read this to gate the UI as the previewed role, and the preview banner reads

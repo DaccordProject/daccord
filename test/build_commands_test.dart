@@ -58,4 +58,18 @@ void main() {
       }
     }
   });
+
+  test('CI and local docs use the generated-code cleanliness check', () {
+    final ci = File('.github/workflows/ci.yml').readAsStringSync();
+    final script = File('scripts/codegen.sh').readAsStringSync();
+    final readme = File('README.md').readAsStringSync();
+
+    expect(ci, contains('run: scripts/codegen.sh --check'));
+    expect(script, contains("git diff --name-only HEAD -- '*.g.dart'"));
+    expect(
+      script,
+      contains("git ls-files --others --exclude-standard -- '*.g.dart'"),
+    );
+    expect(readme, contains('scripts/codegen.sh --check'));
+  });
 }

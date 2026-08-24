@@ -140,11 +140,17 @@ flutter run --flavor github            # Android device/emulator (a flavor is re
 flutter run -d chrome                  # browser; non-Android platforms have no flavor
 ```
 
-`build_runner watch -d` regenerates Riverpod `*.g.dart` files. Keep it running while developing, or run a one-shot build after editing any `@riverpod`-annotated file:
+`build_runner watch -d` regenerates Riverpod `*.g.dart` files. Keep it running
+while developing, or run the same one-shot generation check as CI after editing
+any `@riverpod`-annotated file:
 
 ```bash
-dart run build_runner build -d
+scripts/codegen.sh --check
 ```
+
+`scripts/codegen.sh --check` is the same check CI runs: it performs a
+deterministic one-shot build and lists any tracked or untracked `*.g.dart`
+outputs that still need to be committed.
 
 ### Lint & test
 

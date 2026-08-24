@@ -120,6 +120,7 @@ The actual wiring: a single gateway dispatcher (`lib/features/events/controllers
 ```bash
 flutter pub get
 dart run build_runner watch -d        # keep running during dev (codegen)
+scripts/codegen.sh --check             # regenerate + verify committed *.g.dart
 
 flutter run --flavor github            # run on a connected device/emulator (Android needs a flavor)
 flutter analyze --no-fatal-infos       # lint; --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
@@ -151,7 +152,9 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
 ## Conventions
 
 - Match the surrounding code's style; Bonfire is feature-modular — keep new code inside the relevant `lib/features/<feature>/` module.
-- Run `dart run build_runner build -d` after changing any `@riverpod`-annotated file (regenerates `*.g.dart`).
+- Run `scripts/codegen.sh --check` after changing any `@riverpod`-annotated
+  file. It regenerates `*.g.dart` and fails with the tracked or untracked paths
+  that still need to be committed.
 - Documentation is part of the change: authors who alter dependencies,
   generation, build/test commands, CI, or supported behavior must update
   `README.md`, this file, and relevant `docs/` pages in the same PR. Reviewers
