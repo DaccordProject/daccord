@@ -17,6 +17,7 @@ import 'dart:io' as io;
 
 import '../../extensions.dart';
 import '../../logger.dart';
+import '../../utils.dart' show Utils;
 import '../websocket.dart';
 
 Future<LiveKitWebSocketIO> lkWebSocketConnect(
@@ -75,7 +76,7 @@ class LiveKitWebSocketIO extends LiveKitWebSocket {
     WebSocketEventHandlers? options,
     Map<String, String>? headers,
   }) async {
-    logger.fine('[WebSocketIO] Connecting(uri: ${uri.toString()})...');
+    logger.fine('[WebSocketIO] Connecting(uri: ${Utils.redactUri(uri)})...');
     try {
       final ws = await io.WebSocket.connect(uri.toString(), headers: headers);
       logger.fine('[WebSocketIO] Connected');

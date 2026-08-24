@@ -58,6 +58,25 @@ class Utils {
   // order of rids
   static final videoRids = ['q', 'h', 'f'];
 
+  /// Returns a copy of [uri] that is safe to include in diagnostic output.
+  ///
+  /// The unmodified URI must still be used for the connection because web
+  /// clients authenticate their WebSocket through this query parameter.
+  static Uri redactUri(Uri uri) {
+    if (!uri.queryParametersAll.keys.any((key) => key.toLowerCase() == 'access_token')) {
+      return uri;
+    }
+
+    return uri.replace(
+      queryParameters: <String, Object>{
+        for (final entry in uri.queryParametersAll.entries)
+          entry.key: entry.key.toLowerCase() == 'access_token'
+              ? List<String>.filled(entry.value.length, 'REDACTED')
+              : entry.value,
+      },
+    );
+  }
+
   /// Returns a [Future] that will retry [future] while it throws
   /// for a maximum  of [tries] times with [delay] in between.
   /// If all the attempts throws, the future will throw a [List] of the

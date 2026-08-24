@@ -540,7 +540,7 @@ class SignalTokenUpdatedEvent with SignalEvent, InternalEvent {
   });
 
   @override
-  String toString() => '${runtimeType}(token: ${token})';
+  String toString() => '${runtimeType}(token: REDACTED)';
 }
 
 @internal
