@@ -108,19 +108,19 @@ class OpenTabsController extends _$OpenTabsController {
   void closeToRight(String key) {
     final i = state.tabs.indexWhere((t) => t.key == key);
     if (i < 0 || i >= state.tabs.length - 1) return;
-    _commit(OpenTabsState(
-      tabs: state.tabs.sublist(0, i + 1),
-      activeKey: state.tabs[i].key,
-    ));
+    _commit(
+      OpenTabsState(
+        tabs: state.tabs.sublist(0, i + 1),
+        activeKey: state.tabs[i].key,
+      ),
+    );
   }
 
   void reorder(int oldIndex, int newIndex) {
     if (oldIndex == newIndex) return;
     final tabs = [...state.tabs];
     if (oldIndex < 0 || oldIndex >= tabs.length) return;
-    var target = newIndex;
-    if (target > oldIndex) target -= 1;
-    target = target.clamp(0, tabs.length - 1);
+    final target = newIndex.clamp(0, tabs.length - 1);
     final moved = tabs.removeAt(oldIndex);
     tabs.insert(target, moved);
     _commit(state.copyWith(tabs: tabs));
@@ -130,8 +130,9 @@ class OpenTabsController extends _$OpenTabsController {
   void removeForServer(String serverKey) {
     if (!state.tabs.any((t) => t.serverKey == serverKey)) return;
     final tabs = state.tabs.where((t) => t.serverKey != serverKey).toList();
-    final activeKey =
-        tabs.any((t) => t.key == state.activeKey) ? state.activeKey : null;
+    final activeKey = tabs.any((t) => t.key == state.activeKey)
+        ? state.activeKey
+        : null;
     _commit(OpenTabsState(tabs: tabs, activeKey: activeKey));
   }
 
@@ -140,10 +141,12 @@ class OpenTabsController extends _$OpenTabsController {
   /// out (otherwise they'd linger in the strip as stale duplicates).
   void retainServers(Set<String> serverKeys) {
     if (state.tabs.every((t) => serverKeys.contains(t.serverKey))) return;
-    final tabs =
-        state.tabs.where((t) => serverKeys.contains(t.serverKey)).toList();
-    final activeKey =
-        tabs.any((t) => t.key == state.activeKey) ? state.activeKey : null;
+    final tabs = state.tabs
+        .where((t) => serverKeys.contains(t.serverKey))
+        .toList();
+    final activeKey = tabs.any((t) => t.key == state.activeKey)
+        ? state.activeKey
+        : null;
     _commit(OpenTabsState(tabs: tabs, activeKey: activeKey));
   }
 

@@ -342,6 +342,75 @@ void main() {
     });
   });
 
+  group('ReportsApi', () {
+    test('list deserializes reports and forwards filters', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData([
+          {
+            'id': '10',
+            'space_id': '7',
+            'target_type': 'user',
+            'target_id': '2',
+          },
+        ]),
+      );
+
+      final result = await ReportsApi(rest).list(
+        '7',
+        query: {'status': 'pending', 'limit': 25},
+      );
+
+      expect(req.url.path, '/api/v1/spaces/7/reports');
+      expect(req.url.queryParameters['status'], 'pending');
+      expect((result.data as List).single, isA<AccordReport>());
+    });
+
+    test('normalizes a legacy reports map to typed results', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData({
+          'reports': [
+            {'id': '10', 'target_type': 'message', 'target_id': '20'},
+          ],
+        }),
+      );
+
+      final result = await ReportsApi(rest).list('7');
+
+      expect((result.data as List).single, isA<AccordReport>());
+    });
+
+    test('create, fetch, and resolve deserialize a single report', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData({
+          'id': '10',
+          'space_id': '7',
+          'status': 'actioned',
+        }),
+      );
+      final api = ReportsApi(rest);
+
+      final created = await api.create('7', {
+        'target_type': 'user',
+        'target_id': '2',
+        'category': 'spam',
+      });
+      final fetched = await api.fetch('7', '10');
+      final resolved = await api.resolve('7', '10', {
+        'status': 'actioned',
+        'action_taken': 'none',
+      });
+
+      expect(created.data, isA<AccordReport>());
+      expect(fetched.data, isA<AccordReport>());
+      expect(resolved.data, isA<AccordReport>());
+      expect(log.last.method, 'PATCH');
+      expect(log.last.jsonBody!['action_taken'], 'none');
+    });
+  });
+
   group('FederationApi', () {
     test('joinSpace posts domain + space_id', () async {
       rest = mockRest(

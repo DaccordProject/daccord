@@ -190,7 +190,7 @@ extension TextStyleExtensions on TextStyle {
 }
 
 extension ListExtensions on List<dynamic> {
-  void addIfAbsent(other) {
+  void addIfAbsent(Object? other) {
     if (!contains(other)) {
       add(other);
     }

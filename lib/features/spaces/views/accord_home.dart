@@ -190,12 +190,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     'toggle_member_list': (args) async {
       if (!mounted) return _mcpUnmounted;
       setState(() => _memberListVisible = !_memberListVisible);
-      mcpHomeBridge.memberListVisible = _memberListVisible;
       return {'ok': true, 'visible': _memberListVisible};
     },
     'toggle_search': (args) async {
       if (!mounted) return _mcpUnmounted;
-      final spaceId = mcpHomeBridge.currentSpaceId;
+      final spaceId = mcpHomeBridge.state.spaceId;
       if (spaceId == null || spaceId.isEmpty) {
         return {'error': 'No space selected'};
       }
@@ -444,12 +443,13 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     // Let the notification layer skip the channel that's on screen.
     accordVisibleChannelId = shownChannelId;
 
-    // Keep the MCP bridge's snapshot current for the `read` group's
-    // get_current_state and for navigate handlers that need the active space.
-    mcpHomeBridge
-      ..currentSpaceId = effectiveSpaceId
-      ..currentChannelId = shownChannelId
-      ..memberListVisible = _memberListVisible;
+    mcpHomeBridge.setStateReader(
+      () => (
+        spaceId: effectiveSpaceId,
+        channelId: shownChannelId,
+        memberListVisible: _memberListVisible,
+      ),
+    );
 
     final shownSpaceId = effectiveSpaceId;
     final colors = BonfireThemeExtension.of(context);

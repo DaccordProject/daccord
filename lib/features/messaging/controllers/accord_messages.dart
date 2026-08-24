@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
@@ -385,17 +386,24 @@ class AccordMessagesController extends _$AccordMessagesController {
     // The endpoint returns bare user-id strings, not user objects — resolve each
     // to an AccordUser, falling back to an id-only stub if the fetch fails so the
     // reactor still appears (and the list matches the badge count).
-    final ids = [
-      for (final item in data)
-        if (item is AccordUser) item.id else item.toString(),
-    ].where((id) => id.isNotEmpty).toList();
-    return Future.wait(
-      ids.map((id) async {
-        final res = await client.users.fetch(id);
-        final user = res.data;
-        return res.ok && user is AccordUser ? user : AccordUser(id: id);
-      }),
-    );
+    final users = ref.read(accordUsersControllerProvider.notifier);
+    final resolved = <Future<AccordUser>>[];
+    for (final item in data) {
+      if (item is AccordUser) {
+        if (item.id.isEmpty) continue;
+        users.upsert(item);
+        resolved.add(Future.value(item));
+        continue;
+      }
+      final id = item.toString();
+      if (id.isEmpty) continue;
+      resolved.add(
+        users
+            .resolve(id, client: client)
+            .then((user) => user ?? AccordUser(id: id)),
+      );
+    }
+    return Future.wait(resolved);
   }
 
   /// Applies a reaction add/remove to [messageId]'s aggregate counts. Used both

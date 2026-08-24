@@ -40,21 +40,17 @@ class UnreadIndicatorGate {
 /// server-level badge up from per-channel state) and how many pending mentions
 /// it carries. [spaceId] is null for DMs, which never appear in the space rail.
 class ReadEntry {
-  const ReadEntry({
-    required this.channelId,
-    this.spaceId,
-    this.mentions = 0,
-  });
+  const ReadEntry({required this.channelId, this.spaceId, this.mentions = 0});
 
   final String channelId;
   final String? spaceId;
   final int mentions;
 
   ReadEntry copyWith({String? spaceId, int? mentions}) => ReadEntry(
-        channelId: channelId,
-        spaceId: spaceId ?? this.spaceId,
-        mentions: mentions ?? this.mentions,
-      );
+    channelId: channelId,
+    spaceId: spaceId ?? this.spaceId,
+    mentions: mentions ?? this.mentions,
+  );
 }
 
 /// A snapshot of which channels are unread (and their mention counts) for a
@@ -72,20 +68,6 @@ class ReadStateSnapshot {
 
   /// Pending mention count for [channelId] (0 when read).
   int mentionCount(String channelId) => entries[channelId]?.mentions ?? 0;
-
-  /// True when any channel in [spaceId] is unread — drives the rail dot.
-  bool anyUnreadInSpace(String spaceId) =>
-      entries.values.any((e) => e.spaceId == spaceId);
-
-  /// Aggregate mention count across [spaceId]'s channels — drives the rail's
-  /// server-level mention badge.
-  int mentionsInSpace(String spaceId) {
-    var total = 0;
-    for (final e in entries.values) {
-      if (e.spaceId == spaceId) total += e.mentions;
-    }
-    return total;
-  }
 
   // --- Mute-aware variants (what the UI actually renders) -------------------
   //
@@ -113,11 +95,11 @@ class ReadStateSnapshot {
       UnreadIndicatorGate.showsChannelPip(
         channelLevel: channelLevels[channelId],
       )
-          ? mentionCount(channelId)
-          : 0;
+      ? mentionCount(channelId)
+      : 0;
 
-  /// [anyUnreadInSpace], minus muted spaces and silenced channels — the rail
-  /// dot.
+  /// Whether the rail should show an unread dot, excluding muted spaces and
+  /// silenced channels.
   bool spaceShowsUnread(
     String spaceId, {
     required bool spaceMuted,
@@ -134,8 +116,8 @@ class ReadStateSnapshot {
     );
   }
 
-  /// [mentionsInSpace], minus muted spaces and silenced channels — the rail's
-  /// mention badge.
+  /// Mention count for the rail badge, excluding muted spaces and silenced
+  /// channels.
   int visibleMentionsInSpace(
     String spaceId, {
     required bool spaceMuted,
@@ -213,10 +195,12 @@ class ReadStateController extends _$ReadStateController {
   /// (the READY payload's `unread` array, or `GET /users/@me/read-states`).
   /// This is what gives persistence across restarts.
   void hydrate(Iterable<ReadEntry> unread) {
-    state = ReadStateSnapshot(entries: {
-      for (final e in unread)
-        if (e.channelId.isNotEmpty) e.channelId: e,
-    });
+    state = ReadStateSnapshot(
+      entries: {
+        for (final e in unread)
+          if (e.channelId.isNotEmpty) e.channelId: e,
+      },
+    );
   }
 
   /// Drops every entry — used when a server disconnects / the account is

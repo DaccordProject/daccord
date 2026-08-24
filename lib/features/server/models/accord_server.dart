@@ -1,5 +1,3 @@
-import 'package:accordkit/accordkit.dart';
-
 /// Connection details for a single Accord server.
 ///
 /// Bonfire hard-coded `discord.com`; Daccord can point at any Accord instance,
@@ -54,26 +52,19 @@ class AccordServer {
   /// qualified from a remote home. Mirrors the server's federation `domain`.
   String get homeDomain => Uri.parse(baseUrl).host;
 
-  /// Builds the accordkit [AccordConfig] for this server.
-  AccordConfig toConfig() => AccordConfig(
-        baseUrl: baseUrl,
-        gatewayUrl: gatewayUrl,
-        cdnUrl: cdnUrl,
-      );
-
   Map<String, dynamic> toJson() => {
-        'baseUrl': baseUrl,
-        'gatewayUrl': gatewayUrl,
-        'cdnUrl': cdnUrl,
-        if (name != null) 'name': name,
-      };
+    'baseUrl': baseUrl,
+    'gatewayUrl': gatewayUrl,
+    'cdnUrl': cdnUrl,
+    if (name != null) 'name': name,
+  };
 
   factory AccordServer.fromJson(Map<String, dynamic> json) => AccordServer(
-        baseUrl: json['baseUrl'] as String,
-        gatewayUrl: json['gatewayUrl'] as String,
-        cdnUrl: json['cdnUrl'] as String,
-        name: json['name'] as String?,
-      );
+    baseUrl: json['baseUrl'] as String,
+    gatewayUrl: json['gatewayUrl'] as String,
+    cdnUrl: json['cdnUrl'] as String,
+    name: json['name'] as String?,
+  );
 
   @override
   bool operator ==(Object other) =>

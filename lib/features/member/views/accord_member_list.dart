@@ -9,6 +9,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
@@ -36,9 +37,7 @@ class AccordMemberList extends ConsumerWidget {
     final colors = BonfireThemeExtension.of(context);
     final id = spaceId;
 
-    final body = id == null
-        ? const SizedBox.shrink()
-        : _Roster(spaceId: id);
+    final body = id == null ? const SizedBox.shrink() : _Roster(spaceId: id);
 
     return Container(
       width: 240,
@@ -83,13 +82,21 @@ class _Roster extends ConsumerWidget {
           },
         );
       }
-      if (ref.watch(connectionControllerProvider).isUnreachable) {
-        return ServerUnreachable(onRetry: () {
-          final auth = ref.read(accordAuthProvider);
-          if (auth is AccordAuthLoggedIn) {
-            auth.client.ensureConnected();
-          }
-        });
+      final connectionStatus = ref.watch(
+        connectionsControllerProvider.select(
+          (connections) =>
+              connections.active?.status ?? ConnectionStatus.disconnected,
+        ),
+      );
+      if (connectionStatus.isUnreachable) {
+        return ServerUnreachable(
+          onRetry: () {
+            final auth = ref.read(accordAuthProvider);
+            if (auth is AccordAuthLoggedIn) {
+              auth.client.ensureConnected();
+            }
+          },
+        );
       }
       return const LoadingView();
     }
@@ -100,18 +107,16 @@ class _Roster extends ConsumerWidget {
     // materializes the rows on screen.
     final rows = <Widget Function()>[
       for (final section in sections) ...[
-        () => _SectionHeader(
-              label: section.label,
-              count: section.members.length,
-            ),
+        () =>
+            _SectionHeader(label: section.label, count: section.members.length),
         for (final member in section.members)
           () => _MemberRow(
-                member: member,
-                roles: roles,
-                cdnUrl: cdnUrl,
-                spaceId: spaceId,
-                status: accordPresenceStatus(presences, member.userId),
-              ),
+            member: member,
+            roles: roles,
+            cdnUrl: cdnUrl,
+            spaceId: spaceId,
+            status: accordPresenceStatus(presences, member.userId),
+          ),
       ],
     ];
 
@@ -125,8 +130,7 @@ class _Roster extends ConsumerWidget {
 
 /// One roster group: a hoisted role's members, or the trailing default bucket.
 class _RosterSection {
-  _RosterSection({required this.label, required this.position})
-      : members = [];
+  _RosterSection({required this.label, required this.position}) : members = [];
 
   final String label;
 
@@ -149,10 +153,14 @@ List<_RosterSection> _buildSections(
   PresenceMap presences,
 ) {
   final byKey = <String, _RosterSection>{};
-  final defaultSection =
-      _RosterSection(label: 'Members', position: _defaultPosition);
-  final offlineSection =
-      _RosterSection(label: 'Offline', position: _offlinePosition);
+  final defaultSection = _RosterSection(
+    label: 'Members',
+    position: _defaultPosition,
+  );
+  final offlineSection = _RosterSection(
+    label: 'Offline',
+    position: _offlinePosition,
+  );
 
   for (final member in members) {
     if (accordPresenceStatus(presences, member.userId) == 'offline') {
@@ -177,9 +185,11 @@ List<_RosterSection> _buildSections(
   if (offlineSection.members.isNotEmpty) sections.add(offlineSection);
 
   for (final section in sections) {
-    section.members.sort((a, b) => accordMemberName(a)
-        .toLowerCase()
-        .compareTo(accordMemberName(b).toLowerCase()));
+    section.members.sort(
+      (a, b) => accordMemberName(
+        a,
+      ).toLowerCase().compareTo(accordMemberName(b).toLowerCase()),
+    );
   }
   return sections;
 }
@@ -197,10 +207,10 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Text(
         '${label.toUpperCase()} — $count',
-        style: Theme.of(context)
-            .textTheme
-            .labelSmall!
-            .copyWith(color: colors.gray, fontWeight: FontWeight.bold),
+        style: Theme.of(context).textTheme.labelSmall!.copyWith(
+          color: colors.gray,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -228,8 +238,9 @@ class _MemberRow extends ConsumerWidget {
     final name = accordMemberName(member);
     final avatarUrl = accordMemberAvatarUrl(member, cdnUrl);
     final colorRole = memberColorRole(member, roles);
-    final nameColor =
-        colorRole == null ? colors.dirtyWhite : accordRoleColor(colorRole.color);
+    final nameColor = colorRole == null
+        ? colors.dirtyWhite
+        : accordRoleColor(colorRole.color);
     final initial = accordInitial(name);
     // Offline members read as muted, matching the reference roster.
     final dimmed = status == 'offline';
@@ -253,13 +264,8 @@ class _MemberRow extends ConsumerWidget {
             spaceId,
             d.globalPosition,
           ),
-          onLongPress: () => _showMemberContextMenu(
-            context,
-            ref,
-            member,
-            spaceId,
-            null,
-          ),
+          onLongPress: () =>
+              _showMemberContextMenu(context, ref, member, spaceId, null),
           child: Opacity(
             opacity: dimmed ? 0.5 : 1,
             child: Padding(
@@ -271,16 +277,19 @@ class _MemberRow extends ConsumerWidget {
                     initial: initial,
                     status: status,
                     radius: 16,
-                    backgroundColor:
-                        accordAvatarColor(member.user, member.userId),
+                    backgroundColor: accordAvatarColor(
+                      member.user,
+                      member.userId,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       name,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium!
-                          .copyWith(color: nameColor ?? colors.dirtyWhite),
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: nameColor ?? colors.dirtyWhite,
+                      ),
                     ),
                   ),
                   if (member.isRemote) ...[

@@ -52,13 +52,14 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
   @override
   void initState() {
     super.initState();
-    _items = flattenChannelsForReorder(widget.channels,
-        uncategorizedFirst: false);
+    _items = flattenChannelsForReorder(
+      widget.channels,
+      uncategorizedFirst: false,
+    );
   }
 
   void _onReorder(int oldIndex, int newIndex) {
     setState(() {
-      if (newIndex > oldIndex) newIndex--;
       final entry = _items.removeAt(oldIndex);
       _items.insert(newIndex, entry);
       _recomputeParents();
@@ -268,7 +269,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
                     : ReorderableListView.builder(
                         shrinkWrap: true,
                         itemCount: _items.length,
-                        onReorder: _onReorder,
+                        onReorderItem: _onReorder,
                         itemBuilder: (context, index) {
                           final entry = _items[index];
                           return ListTile(
@@ -351,4 +352,3 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     );
   }
 }
-

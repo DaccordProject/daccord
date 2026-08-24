@@ -124,13 +124,9 @@ class _ParseDestination {
 
 class _MarkdownImageInfo extends MarkdownImageInfo {
   _MarkdownImageInfo({
-    String? title,
-    String? description,
-    double? width,
-    double? height,
-  }) : super(
-            title: title,
-            description: description,
-            width: width,
-            height: height);
+    super.title,
+    super.description,
+    super.width,
+    super.height,
+  });
 }

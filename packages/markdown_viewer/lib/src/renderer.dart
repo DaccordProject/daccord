@@ -211,11 +211,6 @@ class MarkdownRenderer implements NodeVisitor {
   void visitText(MarkdownText text) {
     final parent = _tree.last;
     final builder = _builders[parent.type]!;
-    // no idea why they did this, but it only makeas it kinda bad
-    // final textContent = _keepLineEndingsWhen == null
-    //     ? text.text.replaceAll('\n', ' ')
-    //     : text.text;
-
     final textContent = text.text;
     var textSpan = builder.buildText(textContent, parent);
 
@@ -320,11 +315,8 @@ class _TreeElement extends MarkdownTreeElement {
           style: null,
         );
 
-  _TreeElement.fromAstElement(MarkdownElement element, {TextStyle? style})
-      : super(
-          element: element,
-          style: style,
-        );
+  _TreeElement.fromAstElement(MarkdownElement element, {super.style})
+      : super(element: element);
 }
 
 void _checkInlineWidget(Widget widget) {

@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 /// A fake widget in order to return a list of widget from
 /// [MarkdownElementBuilder.buildWidget] when it is an inline element.
 class InlineWraper extends Widget {
-  const InlineWraper(this.children, {Key? key}) : super(key: key);
+  const InlineWraper(this.children, {super.key});
   final List<Widget> children;
 
   @override

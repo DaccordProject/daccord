@@ -87,7 +87,7 @@ class _TabStripState extends ConsumerState<_TabStrip> {
       proxyDecorator: (child, index, animation) =>
           Material(color: Colors.transparent, child: child),
       itemCount: tabs.length,
-      onReorder: (oldIndex, newIndex) => ref
+      onReorderItem: (oldIndex, newIndex) => ref
           .read(openTabsControllerProvider.notifier)
           .reorder(oldIndex, newIndex),
       itemBuilder: (context, index) {

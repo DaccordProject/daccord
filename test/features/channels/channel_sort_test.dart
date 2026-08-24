@@ -13,17 +13,9 @@ AccordChannel _ch(String id, {Object? position, String? parentId}) {
   );
 }
 
-// Applies the canonical ReorderableListView.onReorder index adjustment:
-// newIndex is in pre-removal coordinates (the dragged slot still counted),
-// so subtract 1 when dragging down to get the post-removal insertion point.
-int _adjustReorder(int oldIndex, int newIndex) =>
-    newIndex > oldIndex ? newIndex - 1 : newIndex;
-
-// Simulates one reorder operation on a simple list of strings and returns the
-// result. Mirrors the pattern used in _ChannelReorderState._onReorder and
-// _ChannelDragListState._onReorder.
-List<T> _applyReorder<T>(List<T> items, int oldIndex, int newIndex) {
-  newIndex = _adjustReorder(oldIndex, newIndex);
+// Simulates `ReorderableListView.onReorderItem`, whose new index is already in
+// post-removal coordinates. Mirrors the channel reorder surfaces.
+List<T> _applyReorderItem<T>(List<T> items, int oldIndex, int newIndex) {
   final result = [...items];
   final item = result.removeAt(oldIndex);
   result.insert(newIndex, item);
@@ -77,52 +69,53 @@ void main() {
     });
   });
 
-  // Tests for the canonical ReorderableListView.onReorder index adjustment.
-  // Flutter's onReorder reports newIndex in pre-removal coordinates (the dragged
-  // slot is still counted), so subtracting 1 when dragging down is required to
-  // convert to the post-removal insertion point. This is the fix from #138.
-  group('reorder index adjustment', () {
-    test('drag down by one slot', () {
-      // oldIndex=0, newIndex=1 pre-removal → adjusted to 0 → no-op (can't move
-      // to the slot immediately below itself). After adjust: item stays at 0.
-      expect(_applyReorder(['A', 'B', 'C'], 0, 1), ['A', 'B', 'C']);
+  group('onReorderItem index semantics', () {
+    test('dropping in the original slot is a no-op', () {
+      expect(_applyReorderItem(['A', 'B', 'C'], 0, 0), ['A', 'B', 'C']);
     });
 
-    test('drag down two slots', () {
-      // A [0] dragged to position 2 (pre-removal). After decrement: insert at 1.
-      expect(_applyReorder(['A', 'B', 'C'], 0, 2), ['B', 'A', 'C']);
+    test('drag down by one slot', () {
+      expect(_applyReorderItem(['A', 'B', 'C'], 0, 1), ['B', 'A', 'C']);
     });
 
     test('drag down to last position', () {
-      // Flutter passes newIndex == itemCount when dragging to the very end.
-      // After decrement: last index in the post-removal list.
-      expect(_applyReorder(['A', 'B', 'C', 'D'], 0, 4), ['B', 'C', 'D', 'A']);
+      expect(_applyReorderItem(['A', 'B', 'C', 'D'], 0, 3), [
+        'B',
+        'C',
+        'D',
+        'A',
+      ]);
     });
 
     test('drag up by one slot', () {
-      // newIndex < oldIndex → no decrement.
-      expect(_applyReorder(['A', 'B', 'C'], 2, 1), ['A', 'C', 'B']);
+      expect(_applyReorderItem(['A', 'B', 'C'], 2, 1), ['A', 'C', 'B']);
     });
 
     test('drag up to first position', () {
-      expect(_applyReorder(['A', 'B', 'C', 'D'], 3, 0), ['D', 'A', 'B', 'C']);
+      expect(_applyReorderItem(['A', 'B', 'C', 'D'], 3, 0), [
+        'D',
+        'A',
+        'B',
+        'C',
+      ]);
     });
 
     test('drag up multiple slots', () {
-      expect(_applyReorder(['A', 'B', 'C', 'D'], 3, 1), ['A', 'D', 'B', 'C']);
+      expect(_applyReorderItem(['A', 'B', 'C', 'D'], 3, 1), [
+        'A',
+        'D',
+        'B',
+        'C',
+      ]);
     });
 
-    test('without adjustment drag-down lands one slot too low (regression guard)', () {
-      // Without the decrement a drag from 0 to newIndex=2 would insert at 2,
-      // placing the item one position further down than intended.
-      final list = ['A', 'B', 'C', 'D'];
-      final bugged = [...list];
-      final item = bugged.removeAt(0);
-      bugged.insert(2, item); // no adjustment
-      expect(bugged, ['B', 'C', 'A', 'D']); // A is one slot too low
-
-      final fixed = _applyReorder(list, 0, 2); // with adjustment
-      expect(fixed, ['B', 'A', 'C', 'D']); // A is in the correct position
+    test('does not apply the legacy downward-index adjustment', () {
+      expect(_applyReorderItem(['A', 'B', 'C', 'D'], 0, 2), [
+        'B',
+        'C',
+        'A',
+        'D',
+      ]);
     });
   });
 }

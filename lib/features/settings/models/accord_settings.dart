@@ -101,7 +101,6 @@ class AccordSettings {
     this.mcpToken = '',
     this.mcpAllowedGroups = defaultMcpAllowedGroups,
     this.autoUpdateCheck = true,
-    this.dismissedUpdateVersion = '',
     this.skippedUpdateVersion = '',
     this.lastUpdateCheckMs = 0,
     this.lastSpaceId = '',
@@ -262,11 +261,6 @@ class AccordSettings {
   /// client's `Config.get_auto_update_check`.
   final bool autoUpdateCheck;
 
-  /// The release version the user dismissed from the update banner, so it isn't
-  /// shown again until a newer one ships. Mirrors the reference's dismissed
-  /// version tracking.
-  final String dismissedUpdateVersion;
-
   /// The release version the user permanently skipped (Skip this version).
   final String skippedUpdateVersion;
 
@@ -356,7 +350,6 @@ class AccordSettings {
     String? mcpToken,
     List<String>? mcpAllowedGroups,
     bool? autoUpdateCheck,
-    String? dismissedUpdateVersion,
     String? skippedUpdateVersion,
     int? lastUpdateCheckMs,
     String? lastSpaceId,
@@ -381,7 +374,8 @@ class AccordSettings {
       sfxVolume: sfxVolume ?? this.sfxVolume,
       videoResolution: videoResolution ?? this.videoResolution,
       videoFps: videoFps ?? this.videoFps,
-      screenShareResolution: screenShareResolution ?? this.screenShareResolution,
+      screenShareResolution:
+          screenShareResolution ?? this.screenShareResolution,
       screenShareFps: screenShareFps ?? this.screenShareFps,
       screenShareMotionPriority:
           screenShareMotionPriority ?? this.screenShareMotionPriority,
@@ -408,8 +402,6 @@ class AccordSettings {
       mcpToken: mcpToken ?? this.mcpToken,
       mcpAllowedGroups: mcpAllowedGroups ?? this.mcpAllowedGroups,
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
-      dismissedUpdateVersion:
-          dismissedUpdateVersion ?? this.dismissedUpdateVersion,
       skippedUpdateVersion: skippedUpdateVersion ?? this.skippedUpdateVersion,
       lastUpdateCheckMs: lastUpdateCheckMs ?? this.lastUpdateCheckMs,
       lastSpaceId: lastSpaceId ?? this.lastSpaceId,
@@ -566,7 +558,6 @@ class AccordSettings {
     'mcpToken': mcpToken,
     'mcpAllowedGroups': mcpAllowedGroups,
     'autoUpdateCheck': autoUpdateCheck,
-    'dismissedUpdateVersion': dismissedUpdateVersion,
     'skippedUpdateVersion': skippedUpdateVersion,
     'lastUpdateCheckMs': lastUpdateCheckMs,
     'lastSpaceId': lastSpaceId,
@@ -604,9 +595,10 @@ class AccordSettings {
             screenShareResolutionLabels.length - 1,
           ) ??
           defaultScreenShareResolution,
-      screenShareFps: screenShareFpsOptions.contains(
-        (json['screenShareFps'] as num?)?.toInt(),
-      )
+      screenShareFps:
+          screenShareFpsOptions.contains(
+            (json['screenShareFps'] as num?)?.toInt(),
+          )
           ? (json['screenShareFps'] as num).toInt()
           : defaultScreenShareFps,
       screenShareMotionPriority:
@@ -663,7 +655,6 @@ class AccordSettings {
             ]
           : defaultMcpAllowedGroups,
       autoUpdateCheck: json['autoUpdateCheck'] as bool? ?? true,
-      dismissedUpdateVersion: (json['dismissedUpdateVersion'] as String?) ?? '',
       skippedUpdateVersion: (json['skippedUpdateVersion'] as String?) ?? '',
       lastUpdateCheckMs: (json['lastUpdateCheckMs'] as num?)?.toInt() ?? 0,
       lastSpaceId: (json['lastSpaceId'] as String?) ?? '',

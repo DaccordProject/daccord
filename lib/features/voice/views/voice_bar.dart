@@ -2,10 +2,8 @@ import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
-import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
-import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_soundboard.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -13,7 +11,6 @@ import 'package:bonfire/features/voice/services/voice_session.dart';
 import 'package:bonfire/features/voice/views/mic_level_meter.dart';
 import 'package:bonfire/features/voice/views/screen_share_picker.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
-import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -65,35 +62,28 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
     final channelName = voice.spaceId == null
         ? null
         : ref
-            .watch(accordChannelsControllerProvider(voice.spaceId!))
-            ?.firstWhereOrNull((c) => c.id == voice.channelId)
-            ?.name;
+              .watch(accordChannelsControllerProvider(voice.spaceId!))
+              ?.firstWhereOrNull((c) => c.id == voice.channelId)
+              ?.name;
 
-    // Mirrors accord_space_settings.dart — keep these permission checks in sync.
     final spaceId = voice.spaceId;
     var canUseSoundboard = false;
     var canManageSoundboard = false;
     if (spaceId != null) {
       final space = ref.watch(
-        spacesControllerProvider
-            .select((s) => s?.firstWhereOrNull((sp) => sp.id == spaceId)),
+        spacesControllerProvider.select(
+          (s) => s?.firstWhereOrNull((sp) => sp.id == spaceId),
+        ),
       );
-      final currentUserId = ref.watchUserId();
-      final isAdmin = ref.watchIsAdmin();
-      final members = ref.watch(accordMembersControllerProvider(spaceId));
-      final preview = ref.watch(rolePreviewControllerProvider);
-      final perms = accordEffectivePermissions(
-        space: space,
-        selfMember: currentUserId == null ? null : members?[currentUserId],
-        roles: space?.roles ?? const <AccordRole>[],
-        currentUserId: currentUserId ?? '',
-        currentUserIsAdmin: isAdmin,
-        previewRoleId: preview?.spaceId == spaceId ? preview?.roleId : null,
+      final perms = ref.watchAccordPermissions(space, spaceId);
+      canUseSoundboard = accordHasPermission(
+        perms,
+        AccordPermission.useSoundboard,
       );
-      canUseSoundboard =
-          accordHasPermission(perms, AccordPermission.useSoundboard);
-      canManageSoundboard =
-          accordHasPermission(perms, AccordPermission.manageSoundboard);
+      canManageSoundboard = accordHasPermission(
+        perms,
+        AccordPermission.manageSoundboard,
+      );
     }
 
     final (statusText, statusColor) = _status(voice, colors, channelName);
@@ -124,10 +114,9 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
                       child: Text(
                         statusText,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelMedium!
-                            .copyWith(color: statusColor),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelMedium!.copyWith(color: statusColor),
                       ),
                     ),
                   ],
@@ -209,8 +198,11 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: MicLevelMeter(
                   height: 4,
-                  threshold: ref.watch(settingsControllerProvider
-                      .select((s) => s.speakingThreshold)),
+                  threshold: ref.watch(
+                    settingsControllerProvider.select(
+                      (s) => s.speakingThreshold,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -269,15 +261,12 @@ class _VoiceButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 2),
       child: Material(
-        color: active
-            ? activeColor.withValues(alpha: 0.3)
-            : Colors.transparent,
+        color: active ? activeColor.withValues(alpha: 0.3) : Colors.transparent,
         borderRadius: BorderRadius.circular(4),
         child: IconButton(
           tooltip: tooltip,
           onPressed: onPressed,
-          icon: Icon(icon,
-              size: 18, color: iconColor ?? colors.dirtyWhite),
+          icon: Icon(icon, size: 18, color: iconColor ?? colors.dirtyWhite),
           padding: EdgeInsets.zero,
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),

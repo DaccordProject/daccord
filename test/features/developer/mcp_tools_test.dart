@@ -1,5 +1,10 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_session.dart';
+import 'package:bonfire/features/developer/services/mcp_home_bridge.dart';
 import 'package:bonfire/features/developer/services/mcp_tools.dart';
+import 'package:bonfire/features/events/controllers/connection.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,9 +18,74 @@ void main() {
   late McpTools tools;
 
   setUp(() {
+    mcpHomeBridge.clear();
+    addTearDown(mcpHomeBridge.clear);
     container = ProviderContainer();
     addTearDown(container.dispose);
     tools = container.read(_toolsProvider);
+  });
+
+  group('get_current_state', () {
+    test('reads the home screen state through the registered reader', () async {
+      mcpHomeBridge.setStateReader(
+        () => (
+          spaceId: 'space-1',
+          channelId: 'channel-2',
+          memberListVisible: false,
+        ),
+      );
+
+      final result = await tools.tools['get_current_state']!.handler({});
+
+      expect(result['space_id'], 'space-1');
+      expect(result['channel_id'], 'channel-2');
+      expect(result['member_list_visible'], isFalse);
+    });
+
+    test('clear resets both handlers and the state reader', () {
+      mcpHomeBridge.registerAll({
+        'navigate': (_) async => {'ok': true},
+      });
+      mcpHomeBridge.setStateReader(
+        () => (
+          spaceId: 'space-1',
+          channelId: 'channel-2',
+          memberListVisible: false,
+        ),
+      );
+
+      mcpHomeBridge.clear();
+
+      expect(mcpHomeBridge.isMounted, isFalse);
+      expect(mcpHomeBridge.state.spaceId, isNull);
+      expect(mcpHomeBridge.state.channelId, isNull);
+      expect(mcpHomeBridge.state.memberListVisible, isTrue);
+    });
+
+    test('counts connected and ready servers as connected', () async {
+      final connections = container.read(
+        connectionsControllerProvider.notifier,
+      );
+      for (final entry in [
+        (userId: 'connected', status: ConnectionStatus.connected),
+        (userId: 'ready', status: ConnectionStatus.ready),
+        (userId: 'connecting', status: ConnectionStatus.connecting),
+      ]) {
+        final session = AccordSession(
+          server: AccordServer.fromBaseUrl(
+            'https://${entry.userId}.example.test',
+          ),
+          token: 'token',
+          userId: entry.userId,
+          username: entry.userId,
+        );
+        connections.register(session, status: entry.status);
+      }
+
+      final result = await tools.tools['get_current_state']!.handler({});
+
+      expect(result['connected_servers'], 2);
+    });
   });
 
   // ── tool registration ────────────────────────────────────────────────────
@@ -86,11 +156,17 @@ void main() {
       expect((schema['required'] as List), contains('space_id'));
     });
 
-    test('set_channel_permission schema requires channel_id, target_id, target_type', () {
-      final schema = tools.tools['set_channel_permission']!.inputSchema;
-      final required = schema['required'] as List;
-      expect(required, containsAll(['channel_id', 'target_id', 'target_type']));
-    });
+    test(
+      'set_channel_permission schema requires channel_id, target_id, target_type',
+      () {
+        final schema = tools.tools['set_channel_permission']!.inputSchema;
+        final required = schema['required'] as List;
+        expect(
+          required,
+          containsAll(['channel_id', 'target_id', 'target_type']),
+        );
+      },
+    );
   });
 
   // ── list_permissions handler ──────────────────────────────────────────────
@@ -125,12 +201,15 @@ void main() {
     test('includes known permissions', () {
       final perms = result['permissions'] as List;
       final ids = perms.map((p) => (p as Map)['id'] as String).toSet();
-      expect(ids, containsAll([
-        AccordPermission.administrator,
-        AccordPermission.sendMessages,
-        AccordPermission.manageRoles,
-        AccordPermission.viewChannel,
-      ]));
+      expect(
+        ids,
+        containsAll([
+          AccordPermission.administrator,
+          AccordPermission.sendMessages,
+          AccordPermission.manageRoles,
+          AccordPermission.viewChannel,
+        ]),
+      );
     });
 
     test('count matches AccordPermission.all()', () {

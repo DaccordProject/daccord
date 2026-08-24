@@ -53,26 +53,6 @@ bool onboardingLooksLikeExistingUser({
     hasCachedSpaces ||
     hasPriorSelection;
 
-/// Snapshot of the walkthrough for the UI (only the "is it on screen" bit
-/// matters today; the step cursor lives in the overlay widget).
-@immutable
-class OnboardingState {
-  const OnboardingState({this.active = false});
-
-  /// True while the tour route is on screen.
-  final bool active;
-
-  OnboardingState copyWith({bool? active}) =>
-      OnboardingState(active: active ?? this.active);
-
-  @override
-  bool operator ==(Object other) =>
-      other is OnboardingState && other.active == active;
-
-  @override
-  int get hashCode => active.hashCode;
-}
-
 /// Owns the first-launch walkthrough's persistence and gating (#175).
 ///
 /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
@@ -109,7 +89,7 @@ class OnboardingController extends _$OnboardingController {
   bool _startupHandled = false;
 
   @override
-  OnboardingState build() => const OnboardingState();
+  bool build() => false;
 
   // -- persistence ----------------------------------------------------------
 
@@ -219,7 +199,7 @@ class OnboardingController extends _$OnboardingController {
 
   /// Marks the tour route as on/off screen.
   void setActive(bool active) {
-    if (state.active == active) return;
-    state = state.copyWith(active: active);
+    if (state == active) return;
+    state = active;
   }
 }

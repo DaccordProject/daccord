@@ -121,7 +121,7 @@ class ListBuilder extends MarkdownElementBuilder {
       text: TextSpan(
         text: listType == MarkdownListType.unordered ? '\u2022' : '$number.',
         style: TextStyle(
-          color: listItemStyle?.color?.withOpacity(0.75) ?? Colors.black,
+          color: listItemStyle?.color?.withValues(alpha: 0.75) ?? Colors.black,
           fontSize: listType == MarkdownListType.unordered
               ? (listItemStyle?.fontSize ?? 16) * 1.4
               : (listItemStyle?.fontSize ?? 16) * 0.96,

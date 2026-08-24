@@ -28,7 +28,7 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 ## Architecture (inherited from Bonfire)
 
 - **State management:** Riverpod 3 (`flutter_riverpod`, `riverpod_annotation` with codegen → `*.g.dart`).
-- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. `freezed`/`json_serializable` remain (dev) dependencies but are unused by any model: no `*.freezed.dart` or model `*.g.dart` files exist in `lib/` (the only generated files are Riverpod's). They can be dropped once someone regenerates `pubspec.lock` locally.
+- **Models / serialization:** primarily provided by `accordkit` (`Accord*` types). The handful of client-local models (server config, session, device profile, space folders, settings) hand-roll `fromJson`/`toJson` — they're small and Hive-backed, so codegen serializers aren't used. The only generated files in `lib/` are Riverpod's `*.g.dart` files.
 - **Routing:** `go_router`.
 - **Local storage:** `hive_ce` — boxes opened in `setupHive()`: `auth`, `last-location`, `added-accounts`, `accord-session`, `accord-settings`.
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
@@ -120,7 +120,7 @@ dart run build_runner watch -d        # keep running during dev (codegen)
 
 flutter run --flavor github            # run on a connected device/emulator (Android needs a flavor)
 flutter analyze --no-fatal-infos       # lint; --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
-flutter test                           # ~12 unit/widget tests, mostly voice/settings/server logic
+flutter test                           # full unit/widget suite (950+ tests)
 flutter test test/features/voice/voice_logic_test.dart   # run a single test file
 
 # Release builds
@@ -129,7 +129,7 @@ flutter test test/features/voice/voice_logic_test.dart   # run a single test fil
 # builds/runs MUST pass --flavor; other platforms have no flavors.
 flutter build apk       --flavor github --no-tree-shake-icons -v          # Android sideload APK
 flutter build appbundle --flavor play  --dart-define=APP_STORE=true       # Play Store AAB
-flutter build web     --no-tree-shake-icons --release   # Web (WASM)
+flutter build web     --no-tree-shake-icons --release   # Web
 flutter build windows -v
 flutter build linux   -v                                # needs libmpv/media_kit deps
 flutter build ios     --release --no-tree-shake-icons --no-codesign -v

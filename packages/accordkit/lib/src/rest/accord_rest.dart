@@ -60,39 +60,12 @@ class AccordRest {
     final headers = _buildHeaders();
     final bodyText = body != null ? jsonEncode(body) : '';
 
-    var attempt = 0;
-    while (attempt < maxRetries) {
-      final http.Response response;
-      try {
-        response = await _send(method, uri, headers, bodyText);
-      } catch (e) {
-        return RestResult.failure(
-          0,
-          _internalError('Failed to start request: $e'),
-        );
-      }
-
-      if (response.statusCode == 429) {
-        final retryAfter = _getRetryAfter(response);
-        attempt += 1;
-        if (attempt < maxRetries) {
-          await _sleep(Duration(milliseconds: (retryAfter * 1000).round()));
-          continue;
-        }
-        return RestResult.failure(
-          429,
-          _internalError('Rate limited after $maxRetries retries'),
-        );
-      }
-
-      if (response.statusCode == 401) onUnauthorized?.call();
-      return _parseResponse(
-          response.statusCode, utf8.decode(response.bodyBytes));
-    }
-
-    return RestResult.failure(
-      0,
-      _internalError('Request exhausted all retries'),
+    return _executeWithRetry(
+      send: () => _send(method, uri, headers, bodyText),
+      interpret: (response) => _parseResponse(
+        response.statusCode,
+        utf8.decode(response.bodyBytes),
+      ),
     );
   }
 
@@ -110,44 +83,17 @@ class AccordRest {
       headers['Authorization'] = '$tokenType $token';
     }
 
-    var attempt = 0;
-    while (attempt < maxRetries) {
-      final http.Response response;
-      try {
-        response = await _client.get(uri, headers: headers);
-      } catch (e) {
-        return RestResult.failure(
-          0,
-          _internalError('Failed to start request: $e'),
-        );
-      }
-
-      if (response.statusCode == 429) {
-        final retryAfter = _getRetryAfter(response);
-        attempt += 1;
-        if (attempt < maxRetries) {
-          await _sleep(Duration(milliseconds: (retryAfter * 1000).round()));
-          continue;
+    return _executeWithRetry(
+      send: () => _client.get(uri, headers: headers),
+      interpret: (response) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return RestResult.success(response.statusCode, response.bodyBytes);
         }
         return RestResult.failure(
-          429,
-          _internalError('Rate limited after $maxRetries retries'),
+          response.statusCode,
+          _internalError('HTTP ${response.statusCode}'),
         );
-      }
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return RestResult.success(response.statusCode, response.bodyBytes);
-      }
-      if (response.statusCode == 401) onUnauthorized?.call();
-      return RestResult.failure(
-        response.statusCode,
-        _internalError('HTTP ${response.statusCode}'),
-      );
-    }
-
-    return RestResult.failure(
-      0,
-      _internalError('Request exhausted all retries'),
+      },
     );
   }
 
@@ -168,26 +114,45 @@ class AccordRest {
       headers['Authorization'] = '$tokenType $token';
     }
 
-    var attempt = 0;
-    while (attempt < maxRetries) {
-      final http.Response response;
-      try {
+    return _executeWithRetry(
+      failureLabel: 'multipart request',
+      exhaustedLabel: 'Multipart request',
+      send: () async {
         final request = http.Request(method, uri)
           ..headers.addAll(headers)
           ..bodyBytes = bodyBytes;
         final streamed = await _client.send(request);
-        response = await http.Response.fromStream(streamed);
-      } catch (e) {
+        return http.Response.fromStream(streamed);
+      },
+      interpret: (response) => _parseResponse(
+        response.statusCode,
+        utf8.decode(response.bodyBytes),
+      ),
+    );
+  }
+
+  Future<RestResult> _executeWithRetry({
+    required Future<http.Response> Function() send,
+    required RestResult Function(http.Response) interpret,
+    String failureLabel = 'request',
+    String exhaustedLabel = 'Request',
+  }) async {
+    var attempt = 0;
+    while (attempt < maxRetries) {
+      final http.Response response;
+      try {
+        response = await send();
+      } catch (error) {
         return RestResult.failure(
           0,
-          _internalError('Failed to start multipart request: $e'),
+          _internalError('Failed to start $failureLabel: $error'),
         );
       }
 
       if (response.statusCode == 429) {
-        final retryAfter = _getRetryAfter(response);
         attempt += 1;
         if (attempt < maxRetries) {
+          final retryAfter = _getRetryAfter(response);
           await _sleep(Duration(milliseconds: (retryAfter * 1000).round()));
           continue;
         }
@@ -198,13 +163,12 @@ class AccordRest {
       }
 
       if (response.statusCode == 401) onUnauthorized?.call();
-      return _parseResponse(
-          response.statusCode, utf8.decode(response.bodyBytes));
+      return interpret(response);
     }
 
     return RestResult.failure(
       0,
-      _internalError('Multipart request exhausted all retries'),
+      _internalError('$exhaustedLabel exhausted all retries'),
     );
   }
 

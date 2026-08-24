@@ -48,11 +48,6 @@ class SettingsController extends _$SettingsController {
   void setSuppressEveryone(bool suppress) =>
       _update(state.copyWith(suppressEveryone: suppress));
 
-  /// Android only: keep a foreground service (and so the gateway connection)
-  /// alive while the app is backgrounded.
-  void setBackgroundConnection(bool enabled) =>
-      _update(state.copyWith(backgroundConnection: enabled));
-
   void setSoundsEnabled(bool enabled) =>
       _update(state.copyWith(soundsEnabled: enabled));
 
@@ -320,8 +315,9 @@ class SettingsController extends _$SettingsController {
   void addRecentEmoji(String token) {
     if (token.isEmpty) return;
     final next = [token, ...state.recentEmoji.where((e) => e != token)];
-    if (next.length > _maxRecentEmoji)
+    if (next.length > _maxRecentEmoji) {
       next.removeRange(_maxRecentEmoji, next.length);
+    }
     _update(state.copyWith(recentEmoji: next));
   }
 
@@ -423,10 +419,6 @@ class SettingsController extends _$SettingsController {
   /// Enables/disables the startup update check.
   void setAutoUpdateCheck(bool enabled) =>
       _update(state.copyWith(autoUpdateCheck: enabled));
-
-  /// Records the release [version] the user dismissed from the update banner.
-  void setDismissedUpdateVersion(String version) =>
-      _update(state.copyWith(dismissedUpdateVersion: version));
 
   /// Records the release [version] the user permanently skipped.
   void setSkippedUpdateVersion(String version) =>
