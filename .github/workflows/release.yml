@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Validate tag matches pubspec version
         run: |
@@ -171,7 +171,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Resolve version
         id: version
@@ -179,7 +179,7 @@ jobs:
         run: echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/.pub-cache
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -190,7 +190,7 @@ jobs:
         # build_runner keys its own incremental state on input hashes, so a
         # coarse cache key is safe: stale entries are invalidated internally,
         # but unchanged generators are skipped on a hit.
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .dart_tool/build
           key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -201,14 +201,14 @@ jobs:
         # connectivity_plus (pulled in by livekit_client) uses NWPath APIs that
         # only exist in a recent SDK; the runner's default Xcode 16.4 lacks them.
         if: matrix.platform == 'macos'
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
 
       - name: Set up Ruby (macOS)
         # Fastlane (gym + notarize) signs and notarizes the DMG below.
         if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
@@ -217,21 +217,21 @@ jobs:
         # Developer ID Application cert → the DMG's .app is signed with a
         # hardened runtime and notarized so Gatekeeper allows direct downloads.
         if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3.0.0
         with:
           p12-file-base64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
           p12-password: ${{ secrets.CERT_P12_PASSWORD }}
 
       - name: Set up Java 17 (Android)
         if: matrix.platform == 'android'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Cache Gradle (Android)
         if: matrix.platform == 'android'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.gradle/caches
@@ -242,7 +242,7 @@ jobs:
 
       - name: Cache CocoaPods (macOS)
         if: matrix.platform == 'macos'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cocoapods
@@ -268,7 +268,7 @@ jobs:
         shell: powershell
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
@@ -500,7 +500,7 @@ jobs:
         run: ./dist/sign-windows.ps1 daccord-windows-x86_64-setup.exe
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -523,7 +523,7 @@ jobs:
       GPG_AVAILABLE: ${{ secrets.GPG_PRIVATE_KEY != '' }}
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
           pattern: daccord-*
@@ -607,7 +607,7 @@ jobs:
           gpg --verify artifacts/checksums.asc artifacts/SHA256SUMS.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: ${{ github.ref_name }}
           # Prepended to the auto-generated notes. The in-app Updates page renders
@@ -683,19 +683,19 @@ jobs:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Full history + tags: the What's New text is derived from the commits
           # since the previous release tag, which a shallow clone cannot see.
           fetch-depth: 0
 
       - name: Select latest stable Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/.pub-cache
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -703,7 +703,7 @@ jobs:
             pub-${{ runner.os }}-
 
       - name: Cache CocoaPods
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cocoapods
@@ -713,13 +713,13 @@ jobs:
             pods-${{ runner.os }}-
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
@@ -751,7 +751,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Import Apple Distribution certificate
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3.0.0
         with:
           p12-file-base64: ${{ secrets.APPLE_DIST_CERT_P12 }}
           p12-password: ${{ secrets.CERT_P12_PASSWORD }}
@@ -804,18 +804,18 @@ jobs:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # See the iOS job: the release notes need the tag history.
           fetch-depth: 0
 
       - name: Select latest stable Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/.pub-cache
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -823,7 +823,7 @@ jobs:
             pub-${{ runner.os }}-
 
       - name: Cache CocoaPods
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cocoapods
@@ -833,13 +833,13 @@ jobs:
             pods-${{ runner.os }}-
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
@@ -871,7 +871,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Import Apple Distribution certificate
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3.0.0
         with:
           p12-file-base64: ${{ secrets.APPLE_DIST_CERT_P12 }}
           p12-password: ${{ secrets.CERT_P12_PASSWORD }}
@@ -880,7 +880,7 @@ jobs:
 
       - name: Import Mac Installer Distribution certificate
         # Signs the .pkg installer that the Mac App Store ingests.
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3.0.0
         with:
           p12-file-base64: ${{ secrets.MAC_INSTALLER_CERT_P12 }}
           p12-password: ${{ secrets.CERT_P12_PASSWORD }}
@@ -950,10 +950,10 @@ jobs:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ github.workspace }}/.pub-cache
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -961,13 +961,13 @@ jobs:
             pub-${{ runner.os }}-
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.gradle/caches
@@ -977,14 +977,14 @@ jobs:
             gradle-${{ runner.os }}-
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
 
       - name: Set up Ruby
         # fastlane supply (upload_to_play_store) does the Play upload.
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
@@ -1053,7 +1053,7 @@ jobs:
         # brand-new app rejects API uploads with an opaque 500 until its first
         # release is created by hand).
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: daccord-playstore-aab
           path: build/app/outputs/bundle/playRelease/app-play-release.aab
@@ -1087,10 +1087,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
@@ -1121,10 +1121,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: '3.3'
           bundler-cache: true

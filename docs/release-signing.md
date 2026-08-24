@@ -9,6 +9,26 @@ gated on its secrets being present and skips cleanly when they are not, so a
 tag push with no signing secrets configured publishes exactly the artifacts it
 always did — unsigned, but published. A missing secret can never fail a release.
 
+## Reviewing release action updates
+
+Every external action in `.github/workflows/release.yml` is pinned to a full
+commit SHA; the trailing comment records the corresponding upstream release.
+The local reusable `ci.yml` workflow is the only `uses:` entry that is not an
+external action. Dependabot checks GitHub Actions weekly via
+`.github/dependabot.yml` and opens explicit update pull requests.
+
+Before merging one of those pull requests:
+
+1. Read the upstream release notes and compare the old and new commits. Confirm
+   that the proposed SHA belongs to the expected repository and release tag.
+2. Review changes to `action.yml`, runtime dependencies, inputs, permissions,
+   downloaded or executed code, and handling of any signing or publishing
+   secrets used by the affected step.
+3. Keep the immutable 40-character SHA in `uses:` and update its readable
+   version comment; never replace it with a branch or movable version tag.
+4. Run the workflow YAML/action-reference checks. Test behavior in a
+   non-publishing environment when an update changes inputs or execution.
+
 ## Status at a glance
 
 | Artifact | Signing | Secrets needed | Without them |
