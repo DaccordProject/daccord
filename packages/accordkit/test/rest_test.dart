@@ -280,5 +280,49 @@ void main() {
       expect(out, contains('\r\nb\r\n'));
       expect(out.endsWith('--X--\r\n'), isTrue);
     });
+
+    test('escapes the filename fallback and adds an RFC 5987 filename', () {
+      final form = MultipartForm(boundary: 'X')
+        ..addFile('file', 'résumé "final"\\100%.txt', [1, 2, 3]);
+
+      final out = utf8.decode(form.build());
+      expect(out, contains(r'''filename="r_sum_ \"final\"\\100%.txt"'''));
+      expect(
+        out,
+        contains(
+          "filename*=UTF-8''r%C3%A9sum%C3%A9%20%22final%22%5C100%25.txt",
+        ),
+      );
+    });
+
+    test('does not emit control characters in the filename fallback', () {
+      final form = MultipartForm(boundary: 'X')
+        ..addFile('file', 'null\u0000tab\t.txt', [1]);
+
+      final out = utf8.decode(form.build());
+      expect(out, contains('filename="null_tab_.txt"'));
+      expect(out, contains("filename*=UTF-8''null%00tab%09.txt"));
+    });
+
+    test('rejects filenames containing CR or LF', () {
+      for (final filename in [
+        'evil\rname.txt',
+        'evil\nname.txt',
+        'evil\r\nX-Injected: true.txt',
+      ]) {
+        final form = MultipartForm(boundary: 'X');
+        expect(
+          () => form.addFile('file', filename, [1]),
+          throwsA(
+            isA<ArgumentError>().having(
+              (error) => error.name,
+              'name',
+              'filename',
+            ),
+          ),
+        );
+        expect(utf8.decode(form.build()), isNot(contains('X-Injected')));
+      }
+    });
   });
 }
