@@ -20,7 +20,7 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 
 - Wait a moment for automatic reconnection.
 - Check your internet connection.
-- If the problem persists, right-click the space icon and select **Reconnect**.
+- If the problem persists, close and reopen daccord to establish a fresh session.
 
 ## No Sound in Voice Channels
 
@@ -32,14 +32,14 @@ daccord automatically attempts to reconnect when the connection drops. If you se
 
 - Check your connection status. A banner at the top of the message area indicates connection issues.
 - Try switching to another channel and back.
-- Right-click the space icon and select **Reconnect**.
+- If every channel is affected after automatic reconnection, close and reopen daccord.
 
 ## App Won't Start
 
 - Make sure you're running a supported version for your operating system.
 - On Linux, verify the executable has the right permissions.
 - On macOS, right-click and choose "Open" to bypass Gatekeeper on first launch.
-- Try launching with `--profile default` to rule out a corrupted profile.
+- If the app renders far enough to open settings, create or select another profile under **App Settings > Profiles** to isolate profile-specific data. daccord does not currently provide a command-line profile selector.
 
 ## Reporting Issues
 

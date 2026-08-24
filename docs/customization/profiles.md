@@ -15,7 +15,8 @@ Profiles let you maintain separate configurations -- each with its own servers, 
 2. Go to **Profiles**.
 3. Select a profile from the list to switch to it.
 
-You can also launch daccord with a specific profile from the command line using `--profile <name>`.
+Profile selection is currently available only through this in-app screen; there
+is no command-line profile selector.
 
 ## Creating a Profile
 
