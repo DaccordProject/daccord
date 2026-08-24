@@ -34,6 +34,7 @@ void main() {
   test('tagged executable builds fail closed on signing and verification', () {
     final workflow = File('.github/workflows/release.yml').readAsStringSync();
     final build = _jobBlock(workflow, 'build');
+    final fastfile = File('fastlane/Fastfile').readAsStringSync();
 
     expect(build, contains('Require stable release-signing credentials'));
     for (final secret in [
@@ -61,6 +62,16 @@ void main() {
     expect(build, contains('simplysign-login.ps1 -Required'));
     expect(build, contains(r'ANDROID_REQUIRE_RELEASE_SIGNING: ${{'));
     expect(build, contains('dist/verify-android-signing.sh'));
+
+    expect(fastfile, contains('lane :dmg do'));
+    expect(
+      fastfile,
+      contains(
+        'sh("codesign", "--sign", "Developer ID Application", '
+        '"--timestamp", "--force", out)',
+      ),
+    );
+    expect(fastfile, isNot(contains('rescue StandardError')));
   });
 
   test('Android release policy pins APK and AAB to the stable key', () {
