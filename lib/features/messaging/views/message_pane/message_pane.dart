@@ -280,14 +280,29 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
         (currentUserId == null ? null : members?[currentUserId])?.roles ??
         const <String>[];
 
-    final perms = spaceId == null
+    final spacePerms = spaceId == null
         ? const <String>{}
         : ref.watchAccordPermissions(space, spaceId);
+    final everyoneRoleId = roles
+        .where((role) => role.position == 0)
+        .map((role) => role.id)
+        .firstOrNull;
+    final perms = accordEffectiveChannelPermissions(
+      permissions: spacePerms,
+      channel: channel,
+      everyoneRoleId: everyoneRoleId ?? '',
+      memberRoleIds: myRoles.toSet(),
+      currentUserId: currentUserId ?? '',
+    );
     final canManageMessages = accordHasPermission(
       perms,
       AccordPermission.manageMessages,
     );
     final canSend = accordHasPermission(perms, AccordPermission.sendMessages);
+    final canMentionEveryone = accordHasPermission(
+      perms,
+      AccordPermission.mentionEveryone,
+    );
     final suppressEveryone = ref.watch(
       settingsControllerProvider.select((s) => s.suppressEveryone),
     );
@@ -588,6 +603,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                   ? (widget.panelTitle ?? channel?.name)
                   : channel?.name,
               spaceId: spaceId,
+              canMentionEveryone: canMentionEveryone,
               replyingTo: _replyTo,
               replyName: _replyTo == null
                   ? null

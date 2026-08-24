@@ -87,6 +87,59 @@ extension AccordPermissionWidgetRef on WidgetRef {
 bool accordHasPermission(Set<String> perms, String perm) =>
     perms.contains(AccordPermission.administrator) || perms.contains(perm);
 
+/// Applies a channel's permission overwrites to already-resolved space-level
+/// [permissions], following Accord's server order: position-0 (`@everyone`)
+/// role, combined assigned-role overwrites, then the member overwrite. Denies
+/// are applied before allows at each tier. Owners, instance admins, and roles
+/// with `administrator` arrive with the administrator sentinel and bypass all
+/// channel overwrites, matching the protocol.
+Set<String> accordEffectiveChannelPermissions({
+  required Set<String> permissions,
+  required AccordChannel? channel,
+  required String everyoneRoleId,
+  required Set<String> memberRoleIds,
+  required String currentUserId,
+}) {
+  final effective = Set<String>.of(permissions);
+  if (channel == null ||
+      effective.contains(AccordPermission.administrator)) {
+    return effective;
+  }
+
+  void apply(Iterable<AccordPermissionOverwrite> overwrites) {
+    final deny = <String>{};
+    final allow = <String>{};
+    for (final overwrite in overwrites) {
+      deny.addAll(overwrite.deny.map((permission) => permission.toString()));
+      allow.addAll(overwrite.allow.map((permission) => permission.toString()));
+    }
+    effective
+      ..removeAll(deny)
+      ..addAll(allow);
+  }
+
+  apply(
+    channel.permissionOverwrites.where(
+      (overwrite) =>
+          overwrite.type == 'role' && overwrite.id == everyoneRoleId,
+    ),
+  );
+  apply(
+    channel.permissionOverwrites.where(
+      (overwrite) =>
+          overwrite.type == 'role' && memberRoleIds.contains(overwrite.id),
+    ),
+  );
+  apply(
+    channel.permissionOverwrites.where(
+      (overwrite) =>
+          (overwrite.type == 'user' || overwrite.type == 'member') &&
+          overwrite.id == currentUserId,
+    ),
+  );
+  return effective;
+}
+
 /// Whether [perms] should reveal the space settings affordance: any of
 /// manage-space, manage-roles or view-audit-log. The gate shared by the space
 /// header menu and the channel list's settings gear.

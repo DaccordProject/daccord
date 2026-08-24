@@ -5,6 +5,7 @@ class _Composer extends ConsumerStatefulWidget {
     required this.channelId,
     this.channelName,
     this.spaceId,
+    required this.canMentionEveryone,
     this.replyingTo,
     this.replyName,
     this.onCancelReply,
@@ -13,6 +14,7 @@ class _Composer extends ConsumerStatefulWidget {
   final String channelId;
   final String? channelName;
   final String? spaceId;
+  final bool canMentionEveryone;
   final AccordMessage? replyingTo;
   final String? replyName;
   final VoidCallback? onCancelReply;
@@ -41,6 +43,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// every 8s while the user keeps typing rather than on every keystroke.
   DateTime? _lastTypingSent;
   static const _typingInterval = Duration(seconds: 8);
+  static final _broadcastMention = RegExp(r'@(everyone|here)\b');
 
   /// Mention-popup state. `_mentionQuery == null` means the popup is hidden;
   /// otherwise it's the lowercase text after the active `@`, and
@@ -529,6 +532,8 @@ class _ComposerState extends ConsumerState<_Composer> {
         : widget.channelName != null
         ? 'Message #${widget.channelName}'
         : 'Message';
+    final unauthorizedBroadcast = !widget.canMentionEveryone &&
+        _broadcastMention.hasMatch(_controller.text);
     // A DropTarget keeps receiving drags even when covered, so it's disabled
     // while a dialog/sheet (emoji picker, lightbox, …) is on top of the pane.
     final onTop = ModalRoute.of(context)?.isCurrent ?? true;
@@ -610,10 +615,24 @@ class _ComposerState extends ConsumerState<_Composer> {
                     ],
                   ),
                 ),
+              if (unauthorizedBroadcast)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "You don't have permission to mention @everyone or @here in this channel.",
+                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                        color: colors.yellow,
+                      ),
+                    ),
+                  ),
+                ),
               if (_mentionQuery != null && widget.spaceId != null)
                 _MentionPopup(
                   spaceId: widget.spaceId!,
                   query: _mentionQuery!,
+                  allowBroadcast: widget.canMentionEveryone,
                   onPick: _pickMention,
                 ),
               Row(
@@ -695,11 +714,13 @@ class _MentionPopup extends ConsumerWidget {
   const _MentionPopup({
     required this.spaceId,
     required this.query,
+    required this.allowBroadcast,
     required this.onPick,
   });
 
   final String spaceId;
   final String query;
+  final bool allowBroadcast;
   final ValueChanged<String> onPick;
 
   static const int _maxResults = 6;
