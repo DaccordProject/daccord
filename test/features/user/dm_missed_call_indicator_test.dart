@@ -2,6 +2,8 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,11 +20,16 @@ class _FakeDmChannels extends DmChannelsController {
   List<AccordChannel>? build(String serverKey) => _channels;
 }
 
+class _FakeSettingsController extends SettingsController {
+  @override
+  AccordSettings build() => const AccordSettings();
+}
+
 AccordChannel _dm(String id, String withName) => AccordChannel(
-      id: id,
-      type: 'dm',
-      recipients: [AccordUser(id: 'u2', username: withName)],
-    );
+  id: id,
+  type: 'dm',
+  recipients: [AccordUser(id: 'u2', username: withName)],
+);
 
 void main() {
   late ProviderContainer container;
@@ -51,8 +58,10 @@ void main() {
   setUp(() {
     container = ProviderContainer(
       overrides: [
-        dmChannelsControllerProvider('')
-            .overrideWith(() => _FakeDmChannels([_dm('dm1', 'bob')])),
+        settingsControllerProvider.overrideWith(_FakeSettingsController.new),
+        dmChannelsControllerProvider(
+          '',
+        ).overrideWith(() => _FakeDmChannels([_dm('dm1', 'bob')])),
       ],
     );
   });
@@ -66,8 +75,9 @@ void main() {
     expect(find.byIcon(Icons.call_missed), findsNothing);
   });
 
-  testWidgets('a missed call labels the conversation in the DM list',
-      (tester) async {
+  testWidgets('a missed call labels the conversation in the DM list', (
+    tester,
+  ) async {
     container
         .read(missedCallsControllerProvider.notifier)
         .record(channelId: 'dm1', callerId: 'u2');
@@ -78,8 +88,9 @@ void main() {
     expect(find.byIcon(Icons.call_missed), findsOneWidget);
   });
 
-  testWidgets('repeat misses show the count, video misses use the video icon',
-      (tester) async {
+  testWidgets('repeat misses show the count, video misses use the video icon', (
+    tester,
+  ) async {
     final missed = container.read(missedCallsControllerProvider.notifier);
     missed.record(channelId: 'dm1', callerId: 'u2', video: true);
     missed.record(channelId: 'dm1', callerId: 'u2', video: true);
@@ -99,9 +110,9 @@ void main() {
     await openDialog(tester);
     expect(find.text('Missed call'), findsOneWidget);
 
-    // Open the conversation, then go back to the list. The conversation shows
-    // an endless loading spinner while its (never-arriving) fetch is in flight,
-    // so settle isn't an option — pump explicit frames instead.
+    // Open the conversation, then go back to the list. There is no client in
+    // this harness, so the shared message pane remains in its loading state;
+    // pump explicit frames rather than waiting for it to settle.
     await tester.tap(find.text('bob'));
     await tester.pump();
     await tester.pump();
@@ -114,9 +125,39 @@ void main() {
     expect(find.text('Missed call'), findsNothing);
   });
 
-  testWidgets('opening a different conversation keeps the indicator',
-      (tester) async {
+  testWidgets('conversation uses the shared channel message controls', (
+    tester,
+  ) async {
+    await openDialog(tester);
+    await tester.tap(find.text('bob'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byTooltip('Pinned messages'), findsOneWidget);
+    expect(find.byTooltip('Attach files'), findsOneWidget);
+    expect(find.byTooltip('Emoji'), findsOneWidget);
+    expect(find.byTooltip('Start voice call'), findsOneWidget);
+    expect(find.byTooltip('Start video call'), findsOneWidget);
+  });
+
+  testWidgets('long-pressing a DM user opens their context menu', (
+    tester,
+  ) async {
+    await openDialog(tester);
+
+    await tester.longPress(find.text('bob'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('View profile'), findsOneWidget);
+    expect(find.text('Copy user ID'), findsOneWidget);
+    expect(find.text('Close direct message'), findsOneWidget);
+  });
+
+  testWidgets('opening a different conversation keeps the indicator', (
+    tester,
+  ) async {
     container.updateOverrides([
+      settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       dmChannelsControllerProvider('').overrideWith(
         () => _FakeDmChannels([_dm('dm1', 'bob'), _dm('dm2', 'carol')]),
       ),

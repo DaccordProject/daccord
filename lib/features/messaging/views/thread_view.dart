@@ -40,6 +40,8 @@ Future<ThreadResult?> showAccordThread(
   String? spaceId,
   required AccordMessage root,
   bool canManageMessages = false,
+  ValueChanged<AccordUser>? onUserTap,
+  void Function(AccordUser user, Offset? globalPosition)? onUserContextMenu,
 }) {
   return showDialog<ThreadResult>(
     context: context,
@@ -51,6 +53,8 @@ Future<ThreadResult?> showAccordThread(
           spaceId: spaceId,
           root: root,
           canManageMessages: canManageMessages,
+          onUserTap: onUserTap,
+          onUserContextMenu: onUserContextMenu,
           dialog: true,
           onClose: (result) => Navigator.of(dialogContext).pop(result),
         ),
@@ -90,6 +94,8 @@ class AccordThreadPane extends ConsumerStatefulWidget {
     required this.root,
     required this.canManageMessages,
     required this.onClose,
+    this.onUserTap,
+    this.onUserContextMenu,
     this.dialog = false,
   });
 
@@ -98,6 +104,9 @@ class AccordThreadPane extends ConsumerStatefulWidget {
   final AccordMessage root;
   final bool canManageMessages;
   final void Function(ThreadResult? result) onClose;
+  final ValueChanged<AccordUser>? onUserTap;
+  final void Function(AccordUser user, Offset? globalPosition)?
+  onUserContextMenu;
 
   /// When true, renders with dialog chrome (close icon, shrink-wrapped); when
   /// false, fills the available area with a back arrow.
@@ -143,7 +152,8 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     setState(() => _sending = true);
     final ok = await ref
         .read(
-          threadRepliesControllerProvider(ref.readActiveServerKey() ?? '',
+          threadRepliesControllerProvider(
+            ref.readActiveServerKey() ?? '',
             widget.channelId,
             widget.root.id,
           ).notifier,
@@ -216,7 +226,12 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         break;
       }
     }
-    final channels = ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
+    final channels = ref.read(
+      accordChannelsControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        spaceId,
+      ),
+    );
     AccordChannel? channel;
     for (final c in channels ?? const <AccordChannel>[]) {
       if (c.id == widget.channelId) {
@@ -271,7 +286,11 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
     final replies = ref.watch(
-      threadRepliesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId, widget.root.id),
+      threadRepliesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.channelId,
+        widget.root.id,
+      ),
     );
     final currentUserId = _currentUserId;
     final dialog = widget.dialog;
@@ -310,6 +329,8 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
             rootId: widget.root.id,
             isOwn: currentUserId != null && _root.authorId == currentUserId,
             canManageMessages: widget.canManageMessages,
+            onUserTap: widget.onUserTap,
+            onUserContextMenu: widget.onUserContextMenu,
             onEdit: _editRoot,
             onDelete: _deleteRoot,
           );
@@ -339,6 +360,8 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
           rootId: widget.root.id,
           isOwn: currentUserId != null && reply.authorId == currentUserId,
           canManageMessages: widget.canManageMessages,
+          onUserTap: widget.onUserTap,
+          onUserContextMenu: widget.onUserContextMenu,
         );
       },
     );
@@ -454,6 +477,8 @@ class _MessageLine extends ConsumerStatefulWidget {
     required this.rootId,
     required this.isOwn,
     required this.canManageMessages,
+    this.onUserTap,
+    this.onUserContextMenu,
     this.onEdit,
     this.onDelete,
   });
@@ -467,6 +492,9 @@ class _MessageLine extends ConsumerStatefulWidget {
   final String rootId;
   final bool isOwn;
   final bool canManageMessages;
+  final ValueChanged<AccordUser>? onUserTap;
+  final void Function(AccordUser user, Offset? globalPosition)?
+  onUserContextMenu;
 
   /// Root-only handlers (the root edits its title and pops on delete).
   final VoidCallback? onEdit;
@@ -489,7 +517,11 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
   AccordClient? get _client => ref.accordClient;
 
   ThreadRepliesController get _replies => ref.read(
-    threadRepliesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId, widget.rootId).notifier,
+    threadRepliesControllerProvider(
+      ref.readActiveServerKey() ?? '',
+      widget.channelId,
+      widget.rootId,
+    ).notifier,
   );
 
   bool get _canDelete => widget.isOwn || widget.canManageMessages;
@@ -535,8 +567,15 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final authorId = message.authorId;
     final member = widget.spaceId == null
         ? null
-        : ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId!))?[authorId];
-    final user = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''))[authorId];
+        : ref.read(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              widget.spaceId!,
+            ),
+          )?[authorId];
+    final user = ref.read(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    )[authorId];
     final name = accordAuthorNameOf(authorId, member: member, user: user);
     final entries = buildMessageActionEntries(
       content: message.content,
@@ -567,14 +606,23 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final member = widget.spaceId == null
         ? null
         : ref.watch(
-            accordMembersControllerProvider(ref.readActiveServerKey() ?? '',
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
               widget.spaceId!,
             ).select((m) => m?[authorId]),
           );
     final user = ref.watch(
-      accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[authorId]),
+      accordUsersControllerProvider(
+        ref.readActiveServerKey() ?? '',
+      ).select((m) => m[authorId]),
     );
-    final ensure = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
+    final ensure = ref
+        .read(
+          accordUsersControllerProvider(
+            ref.readActiveServerKey() ?? '',
+          ).notifier,
+        )
+        .ensure;
     final cdnUrl = ref.watchCdnUrl();
     final name = accordAuthorNameOf(
       authorId,
@@ -589,6 +637,39 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     );
     final avatarBg = accordAvatarColor(member?.user ?? user, authorId);
     final initial = accordInitial(name);
+    final author = member?.user ?? user;
+    final userActionsEnabled =
+        author != null &&
+        (widget.onUserTap != null || widget.onUserContextMenu != null);
+    void openUser() {
+      if (author != null) widget.onUserTap?.call(author);
+    }
+
+    void openUserMenu(Offset? position) {
+      if (author != null) widget.onUserContextMenu?.call(author, position);
+    }
+
+    Widget avatar = AccordMemberAvatar(
+      avatarUrl: avatarUrl,
+      initial: initial,
+      backgroundColor: avatarBg,
+      radius: 16,
+    );
+    if (userActionsEnabled) {
+      avatar = MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onUserTap == null ? null : openUser,
+          onLongPressStart: widget.onUserContextMenu == null
+              ? null
+              : (details) => openUserMenu(details.globalPosition),
+          onSecondaryTapUp: widget.onUserContextMenu == null
+              ? null
+              : (details) => openUserMenu(details.globalPosition),
+          child: avatar,
+        ),
+      );
+    }
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -604,12 +685,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AccordMemberAvatar(
-                avatarUrl: avatarUrl,
-                initial: initial,
-                backgroundColor: avatarBg,
-                radius: 16,
-              ),
+              avatar,
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -618,6 +694,17 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                     MessageAuthorHeader(
                       name: name,
                       ellipsizeName: true,
+                      onNameTap: userActionsEnabled && widget.onUserTap != null
+                          ? openUser
+                          : null,
+                      onNameLongPressStart:
+                          userActionsEnabled && widget.onUserContextMenu != null
+                          ? (details) => openUserMenu(details.globalPosition)
+                          : null,
+                      onNameSecondaryTapUp:
+                          userActionsEnabled && widget.onUserContextMenu != null
+                          ? (details) => openUserMenu(details.globalPosition)
+                          : null,
                       time: _time,
                       smallTime: true,
                       edited: message.editedAt != null,

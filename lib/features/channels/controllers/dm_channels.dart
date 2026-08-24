@@ -37,13 +37,66 @@ bool isValidRemoteHandle(String value) {
 /// dialog has ever opened are intentionally dropped (the next open refetches).
 @Riverpod(keepAlive: true)
 class DmChannelsController extends _$DmChannelsController {
+  final Map<String, String> _previews = {};
+
   @override
   List<AccordChannel>? build(String serverKey) => null;
 
   /// Replaces the cache with a freshly-fetched list.
   void setChannels(List<AccordChannel> channels) {
+    final ids = channels.map((channel) => channel.id).toSet();
+    _previews.removeWhere((id, _) => !ids.contains(id));
     state = List.unmodifiable(channels);
   }
+
+  /// Last-message text shown under a DM conversation. Attachment-only messages
+  /// use a human-readable fallback rather than leaving a blank row.
+  String? previewFor(String channelId) => _previews[channelId];
+
+  /// Seeds a preview loaded alongside the conversation list without changing
+  /// its server-provided order.
+  void setPreview(String channelId, AccordMessage message) {
+    _previews[channelId] = _messagePreview(message);
+    final current = state;
+    if (current != null) state = [...current];
+  }
+
+  /// Applies live DM activity: update the preview, last-message id, and move the
+  /// conversation to the front. The gateway calls this even when the DM dialog
+  /// is closed, provided its list cache has been initialized once.
+  void applyMessage(AccordMessage message) {
+    final current = state;
+    if (current == null) return;
+    final index = current.indexWhere(
+      (channel) => channel.id == message.channelId,
+    );
+    if (index < 0) return;
+    final channel = current[index]..lastMessageId = message.id;
+    _previews[channel.id] = _messagePreview(message);
+    state = [channel, ...current.where((item) => item.id != channel.id)];
+  }
+
+  void updateMessagePreview(AccordMessage message) {
+    final current = state;
+    if (current == null) return;
+    final channel = _findChannel(current, message.channelId);
+    if (channel?.lastMessageId != message.id) return;
+    _previews[message.channelId] = _messagePreview(message);
+    state = [...current];
+  }
+
+  void removeMessagePreview(String channelId, String messageId) {
+    final current = state;
+    if (current == null) return;
+    final channel = _findChannel(current, channelId);
+    if (channel?.lastMessageId != messageId) return;
+    channel?.lastMessageId = null;
+    _previews.remove(channelId);
+    state = [...current];
+  }
+
+  bool contains(String channelId) =>
+      state?.any((channel) => channel.id == channelId) ?? false;
 
   /// Inserts or replaces [channel] (matched by id). Brand-new channels go to the
   /// front so a just-created group DM surfaces at the top of the list.
@@ -64,6 +117,23 @@ class DmChannelsController extends _$DmChannelsController {
   void remove(String channelId) {
     final current = state;
     if (current == null) return;
+    _previews.remove(channelId);
     state = current.removeById(channelId, (c) => c.id);
   }
+}
+
+String _messagePreview(AccordMessage message) {
+  final content = message.content.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (content.isNotEmpty) return content;
+  final count = message.attachments.length;
+  if (count == 1) return 'Attachment';
+  if (count > 1) return '$count attachments';
+  return 'Message';
+}
+
+AccordChannel? _findChannel(List<AccordChannel> channels, String channelId) {
+  for (final channel in channels) {
+    if (channel.id == channelId) return channel;
+  }
+  return null;
 }
