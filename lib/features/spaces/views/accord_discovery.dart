@@ -15,6 +15,38 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+typedef AccordDiscoveryBrowse =
+    Future<RestResult> Function({
+      required String masterUrl,
+      required String query,
+      required String tag,
+    });
+
+/// Performs the unauthenticated master-server directory request.
+///
+/// Kept behind a provider so discovery's asynchronous state handling can be
+/// tested without making network requests.
+final accordDiscoveryBrowseProvider = Provider<AccordDiscoveryBrowse>((ref) {
+  return ({
+    required String masterUrl,
+    required String query,
+    required String tag,
+  }) async {
+    // Mirror the reference client exactly (`discovery_panel.gd`): a BARE
+    // AccordRest pointed at the master server + DirectoryApi, no auth. Note we
+    // must NOT use AccordClient here — it sets the rest base URL to
+    // `<master>/api/v1`, and DirectoryApi prepends `/api/v1/directory` again,
+    // producing `<master>/api/v1/api/v1/directory` (404). A bare AccordRest
+    // keeps the single `/api/v1/directory` prefix.
+    final rest = AccordRest(AccordServer.normalizeBaseUrl(masterUrl));
+    try {
+      return await DirectoryApi(rest).browse(query: query, tag: tag);
+    } finally {
+      rest.close();
+    }
+  };
+});
+
 /// Opens the discovery panel: a searchable browser of public spaces the user
 /// can join. Backed by the **master-server** directory (unauthenticated), so it
 /// works before signing in to any instance. The Accord analogue of the
@@ -131,11 +163,12 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
   String? _activeTag;
   final Set<String> _joining = {};
   String? _error;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    _search();
+    _startSearch();
   }
 
   @override
@@ -148,31 +181,36 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
   String get _masterUrl => ref.read(settingsControllerProvider).masterServerUrl;
 
   void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _search);
+    _startSearch(delay: const Duration(milliseconds: 400));
   }
 
-  Future<void> _search() async {
+  void _startSearch({Duration delay = Duration.zero}) {
+    _debounce?.cancel();
+    final request = _DiscoveryRequest(
+      generation: ++_requestGeneration,
+      masterUrl: _masterUrl,
+      query: _query.text.trim(),
+      tag: _activeTag,
+    );
     setState(() {
       _listings = null;
       _error = null;
     });
-    // Mirror the reference client exactly (`discovery_panel.gd`): a BARE
-    // AccordRest pointed at the master server + DirectoryApi, no auth. Note we
-    // must NOT use AccordClient here — it sets the rest base URL to
-    // `<master>/api/v1`, and DirectoryApi prepends `/api/v1/directory` again,
-    // producing `<master>/api/v1/api/v1/directory` (404). A bare AccordRest
-    // keeps the single `/api/v1/directory` prefix.
-    final rest = AccordRest(AccordServer.normalizeBaseUrl(_masterUrl));
-    RestResult result;
-    try {
-      result = await DirectoryApi(
-        rest,
-      ).browse(query: _query.text.trim(), tag: _activeTag ?? '');
-    } finally {
-      rest.close();
+
+    if (delay == Duration.zero) {
+      unawaited(_search(request));
+    } else {
+      _debounce = Timer(delay, () => unawaited(_search(request)));
     }
-    if (!mounted) return;
+  }
+
+  Future<void> _search(_DiscoveryRequest request) async {
+    final result = await ref.read(accordDiscoveryBrowseProvider)(
+      masterUrl: request.masterUrl,
+      query: request.query,
+      tag: request.tag ?? '',
+    );
+    if (!mounted || request.generation != _requestGeneration) return;
 
     final data = result.data;
     List<dynamic> raw = const [];
@@ -197,7 +235,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
           .toList();
       // Only refresh the tag bar from an unfiltered result, so filtering by a
       // tag doesn't collapse the bar to that single tag.
-      if (_activeTag == null) {
+      if (request.tag == null) {
         final tags = <String>{};
         for (final l in _listings!) {
           for (final t in (l['tags'] as List? ?? const [])) {
@@ -212,7 +250,7 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
 
   void _selectTag(String? tag) {
     setState(() => _activeTag = tag);
-    _search();
+    _startSearch();
   }
 
   Future<void> _join(Map<String, dynamic> listing) async {
@@ -332,6 +370,20 @@ class _AccordDiscoveryBodyState extends ConsumerState<AccordDiscoveryBody> {
       ],
     );
   }
+}
+
+class _DiscoveryRequest {
+  const _DiscoveryRequest({
+    required this.generation,
+    required this.masterUrl,
+    required this.query,
+    required this.tag,
+  });
+
+  final int generation;
+  final String masterUrl;
+  final String query;
+  final String? tag;
 }
 
 class _TagChip extends StatelessWidget {
