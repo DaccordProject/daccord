@@ -16,6 +16,7 @@ import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
+import 'package:bonfire/features/server/views/federation_join_confirmation.dart';
 import 'package:bonfire/features/developer/controllers/mcp_server_controller.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
@@ -242,25 +243,39 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           // Join a space homed on a remote server through the active
           // connection. Requires being signed in (federation is server-to
           // -server); otherwise route to login.
-          if (!loggedIn) {
+          final authState = ref.read(accordAuthProvider);
+          if (authState is! AccordAuthLoggedIn) {
             routerController.go('/login');
             break;
           }
           final domain = parsed.domain;
           final spaceId = parsed.spaceId;
-          final client = ref.read(accordAuthProvider.notifier).client;
-          if (domain == null || spaceId == null || client == null) break;
-          final outcome = await joinFederatedSpace(
-            ref,
-            client,
-            domain,
-            spaceId,
+          final ctx = rootNavigatorKey.currentContext;
+          if (domain == null ||
+              spaceId == null ||
+              ctx == null ||
+              !ctx.mounted) {
+            break;
+          }
+          final session = authState.session;
+          final outcome = await confirmFederatedDeepLinkJoin(
+            ctx,
+            activeAccount: '${session.username} (${session.userId}) on '
+                '${session.server.homeDomain}',
+            domain: domain,
+            spaceId: spaceId,
+            join: () => joinFederatedSpace(
+              ref,
+              authState.client,
+              domain,
+              spaceId,
+            ),
           );
+          if (outcome == null) break;
           if (outcome.error == null) {
             routerController.go('/spaces');
           } else {
-            final ctx = rootNavigatorKey.currentContext;
-            if (ctx != null && ctx.mounted) {
+            if (ctx.mounted) {
               ScaffoldMessenger.maybeOf(
                 ctx,
               )?.showSnackBar(SnackBar(content: Text(outcome.error!)));
