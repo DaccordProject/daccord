@@ -6,6 +6,7 @@ import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:path/path.dart' as p;
 import 'package:universal_io/io.dart';
 import 'package:universal_platform/universal_platform.dart';
 
@@ -44,12 +45,12 @@ class ProfileStore {
       await _openProfileBoxes(activeId);
     } catch (e) {
       debugPrint('Profile bootstrap failed ($e); using default storage.');
-      if (!Hive.isBoxOpen(sessionBoxName)) {
-        await Hive.openBox(sessionBoxName);
+      await _closeProfileBoxes();
+      if (Hive.isBoxOpen(registryBoxName)) {
+        _ensureDefault();
+        _putProfiles(profiles, activeId: DeviceProfile.defaultId);
       }
-      if (!Hive.isBoxOpen(settingsBoxName)) {
-        await Hive.openBox(settingsBoxName);
-      }
+      await _openProfileBoxes(DeviceProfile.defaultId);
     }
   }
 
@@ -101,7 +102,14 @@ class ProfileStore {
   /// web, where path is ignored), else `profiles/<id>`.
   static String? _dirFor(String id) {
     if (id == DeviceProfile.defaultId || _rootPath == null) return _rootPath;
-    return '$_rootPath/profiles/$id';
+    final profilesRoot = p.normalize(
+      p.absolute(p.join(_rootPath!, 'profiles')),
+    );
+    final profileDir = p.normalize(p.absolute(p.join(profilesRoot, id)));
+    if (!p.isWithin(profilesRoot, profileDir)) {
+      throw ArgumentError.value(id, 'id', 'Unsafe profile storage id');
+    }
+    return profileDir;
   }
 
   static Future<void> _openProfileBoxes(String id) async {
@@ -114,18 +122,34 @@ class ProfileStore {
     await Hive.openBox(settingsBoxName, path: path);
   }
 
-  /// Closes the current profile's session/settings boxes and reopens [id]'s,
-  /// recording it as active. The caller is responsible for rebuilding the
-  /// provider tree afterwards (see the app restart in main.dart).
-  static Future<void> switchTo(String id) async {
+  static Future<void> _closeProfileBoxes() async {
     if (Hive.isBoxOpen(sessionBoxName)) {
       await Hive.box(sessionBoxName).close();
     }
     if (Hive.isBoxOpen(settingsBoxName)) {
       await Hive.box(settingsBoxName).close();
     }
-    _putProfiles(profiles, activeId: id);
-    await _openProfileBoxes(id);
+  }
+
+  /// Closes the current profile's session/settings boxes and reopens [id]'s,
+  /// recording it as active. The caller is responsible for rebuilding the
+  /// provider tree afterwards (see the app restart in main.dart).
+  static Future<void> switchTo(String id) async {
+    if (!profiles.any((profile) => profile.id == id)) {
+      throw ArgumentError.value(id, 'id', 'Unknown profile');
+    }
+    final previousId = activeId;
+    if (id == previousId) return;
+
+    await _closeProfileBoxes();
+    try {
+      await _openProfileBoxes(id);
+      _putProfiles(profiles, activeId: id);
+    } catch (error, stackTrace) {
+      await _closeProfileBoxes();
+      await _openProfileBoxes(previousId);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   // ── Registry mutations ────────────────────────────────────────────────────
@@ -178,22 +202,32 @@ class ProfileStore {
   /// was active, the default becomes active. Returns false for the default.
   static Future<bool> delete(String id) async {
     if (id == DeviceProfile.defaultId) return false;
+    if (!profiles.any((profile) => profile.id == id)) return false;
+
+    String? dir;
+    try {
+      dir = _dirFor(id);
+    } catch (e) {
+      debugPrint('Refusing to remove unsafe profile dir for $id: $e');
+      return false;
+    }
+
     final wasActive = activeId == id;
     if (wasActive) await switchTo(DeviceProfile.defaultId);
-    final next = [
-      for (final p in profiles)
-        if (p.id != id) p,
-    ];
-    _putProfiles(next);
-    final dir = _dirFor(id);
     if (dir != null && !UniversalPlatform.isWeb) {
       try {
         final d = Directory(dir);
         if (d.existsSync()) d.deleteSync(recursive: true);
       } catch (e) {
         debugPrint('Failed to remove profile dir for $id: $e');
+        return false;
       }
     }
+    final next = [
+      for (final p in profiles)
+        if (p.id != id) p,
+    ];
+    _putProfiles(next);
     return true;
   }
 
