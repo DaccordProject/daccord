@@ -391,7 +391,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     for (final item in data) {
       if (item is AccordUser) {
         if (item.id.isEmpty) continue;
-        users.upsert(item);
+        users.upsert(item, client: client);
         resolved.add(Future.value(item));
         continue;
       }

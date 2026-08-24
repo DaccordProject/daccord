@@ -288,7 +288,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
   bool get canLoad => _client != null;
 
   @override
-  String? itemId(AccordReport item) => item.id;
+  String? itemId(AccordReport item) => item.id.isEmpty ? null : item.id;
 
   @override
   Future<RestResult> fetchPage({String? before}) => _client!.reports.list(
