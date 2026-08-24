@@ -72,4 +72,45 @@ void main() {
     );
     expect(readme, contains('scripts/codegen.sh --check'));
   });
+
+  test('CI blocks on maintained vendored package and native tests', () {
+    final ci = File('.github/workflows/ci.yml').readAsStringSync();
+
+    final accordkit = _workflowJob(ci, 'accordkit');
+    expect(accordkit, contains('working-directory: packages/accordkit'));
+    expect(accordkit, contains('run: dart analyze'));
+    expect(accordkit, contains('run: dart test'));
+    expect(accordkit, isNot(contains('continue-on-error: true')));
+
+    final markdown = _workflowJob(ci, 'markdown-viewer');
+    expect(markdown, contains('working-directory: packages/markdown_viewer'));
+    expect(markdown, contains('flutter analyze --no-fatal-infos'));
+    expect(markdown, contains('test/widget_test.dart'));
+    expect(markdown, isNot(contains('continue-on-error: true')));
+
+    final native = _workflowJob(ci, 'livekit-android');
+    expect(native, contains("gradle-version: '8.14.3'"));
+    expect(native, contains(':livekit_client:testDebugUnitTest'));
+    expect(native, contains('--tests io.livekit.plugin.AudioResamplerTest'));
+    expect(native, isNot(contains('continue-on-error: true')));
+
+    final inherited = _workflowJob(ci, 'markdown-conformance');
+    expect(inherited, contains('continue-on-error: true'));
+    expect(inherited, contains('flutter test test/renderer_test.dart'));
+  });
+}
+
+String _workflowJob(String workflow, String name) {
+  final marker = '\n  $name:\n';
+  final start = workflow.indexOf(marker);
+  expect(start, isNonNegative, reason: 'missing workflow job: $name');
+
+  final remainderStart = start + marker.length;
+  final nextJob = RegExp(
+    r'\n  [a-zA-Z0-9_-]+:\n',
+  ).firstMatch(workflow.substring(remainderStart));
+  final end = nextJob == null
+      ? workflow.length
+      : remainderStart + nextJob.start;
+  return workflow.substring(start, end);
 }

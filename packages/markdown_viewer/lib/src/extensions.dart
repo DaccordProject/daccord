@@ -164,7 +164,7 @@ extension BorderSideExtensions on BorderSide {
     return {
       'type': runtimeType.toString(),
       'width': width,
-      'color': color.toString(),
+      'color': _colorToString(color),
     };
   }
 
@@ -177,11 +177,11 @@ extension TextStyleExtensions on TextStyle {
         if (fontWeight != null) 'fontWeight': fontWeight.toString(),
         if (fontSize != null) 'fontSize': fontSize,
         if (fontStyle != null) 'fontStyle': fontStyle.toString(),
-        if (color != null) 'color': color.toString(),
+        if (color != null) 'color': _colorToString(color!),
         if (decoration != null && decoration != TextDecoration.none)
           'decoration': decoration.toString(),
         if (backgroundColor != null)
-          'backgroundColor': backgroundColor.toString(),
+          'backgroundColor': _colorToString(backgroundColor!),
         if (fontFeatures != null)
           'fontFeatures': fontFeatures!.map((e) => e.toString()).toList(),
       };
@@ -235,3 +235,9 @@ extension MapsExtensions on List<Map<String, dynamic>> {
 
 String _toPrettyString(Object object) =>
     const JsonEncoder.withIndent("  ").convert(object);
+
+// Flutter's Color.toString() is intended for diagnostics and changed format
+// in Flutter 3.27. Keep structural renderer snapshots stable across supported
+// SDK channels by serializing the actual ARGB value instead.
+String _colorToString(Color color) =>
+    'Color(0x${color.toARGB32().toRadixString(16).padLeft(8, '0')})';
