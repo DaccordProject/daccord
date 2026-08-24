@@ -10,6 +10,19 @@
 class MessageNotificationGate {
   const MessageNotificationGate._();
 
+  /// Whether a message should count as mentioning the current user across
+  /// notifications, sounds, unread badges, and message-row highlighting.
+  /// Direct and role mentions are never suppressed; the user preference only
+  /// applies to broadcast mentions.
+  ///
+  /// Badge counts are decided when a gateway event is ingested, so changing
+  /// [suppressEveryone] does not rewrite already-stored unread counts.
+  static bool countsAsMention({
+    required bool mentionsMe,
+    required bool mentionEveryone,
+    required bool suppressEveryone,
+  }) => mentionsMe || (mentionEveryone && !suppressEveryone);
+
   /// Returns true when a notification should be shown.
   ///
   /// [notificationsEnabled] mirrors `AccordSettings.notificationsEnabled`;
@@ -47,7 +60,10 @@ class MessageNotificationGate {
     // explicitly-disabled stream.
     if (channelLevel == 'nothing') return false;
     if (channelLevel == 'all') return true;
-    final everyone = mentionEveryone && !suppressEveryone;
-    return mentionsMe || everyone;
+    return countsAsMention(
+      mentionsMe: mentionsMe,
+      mentionEveryone: mentionEveryone,
+      suppressEveryone: suppressEveryone,
+    );
   }
 }

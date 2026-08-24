@@ -37,6 +37,7 @@ import 'package:bonfire/features/messaging/views/message_author_header.dart';
 import 'package:bonfire/features/messaging/views/pinned_messages.dart';
 import 'package:bonfire/features/messaging/views/thread_view.dart';
 import 'package:bonfire/features/notifications/services/sound.dart';
+import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/onboarding/models/onboarding_step.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_anchors.dart';
 import 'package:bonfire/features/server/controllers/server_limits.dart';
@@ -287,6 +288,9 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       AccordPermission.manageMessages,
     );
     final canSend = accordHasPermission(perms, AccordPermission.sendMessages);
+    final suppressEveryone = ref.watch(
+      settingsControllerProvider.select((s) => s.suppressEveryone),
+    );
 
     if (channel?.type == 'forum') {
       return Container(
@@ -533,8 +537,16 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       final mentionsMe =
                           !isOwn &&
                           uid != null &&
-                          (message.mentionEveryone ||
-                              _mentionsSelf(message, uid, homeDomain, myRoles));
+                          MessageNotificationGate.countsAsMention(
+                            mentionsMe: _mentionsSelf(
+                              message,
+                              uid,
+                              homeDomain,
+                              myRoles,
+                            ),
+                            mentionEveryone: message.mentionEveryone,
+                            suppressEveryone: suppressEveryone,
+                          );
                       return _MessageRow(
                         // Keyed by message id, not list position. Under
                         // `reverse: true` every index shifts when a message

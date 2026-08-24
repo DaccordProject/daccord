@@ -387,6 +387,11 @@ VoidCallback handleAccordEvents(
       final isVisibleChannel =
           active && message.channelId == accordVisibleChannelId;
       final settings = ref.read(settingsControllerProvider);
+      final countsAsMention = MessageNotificationGate.countsAsMention(
+        mentionsMe: mentionsMe,
+        mentionEveryone: message.mentionEveryone,
+        suppressEveryone: settings.suppressEveryone,
+      );
       final spaceMuted =
           message.spaceId != null && settings.isSpaceMuted(message.spaceId!);
 
@@ -451,7 +456,7 @@ VoidCallback handleAccordEvents(
             .markUnread(
               message.channelId,
               spaceId: message.spaceId,
-              isMention: message.mentionEveryone || mentionsMe,
+              isMention: countsAsMention,
             );
       }
 
@@ -489,9 +494,8 @@ VoidCallback handleAccordEvents(
       // silent like its suppressed banner), or the channel that's on screen
       // (only the active connection owns the visible-channel pointer).
       if (settings.soundsEnabled && !spaceMuted && !isOwn) {
-        final everyone = message.mentionEveryone && !settings.suppressEveryone;
         soundManager.playForMessage(
-          isMention: mentionsMe || everyone,
+          isMention: countsAsMention,
           isVisibleChannel: isVisibleChannel,
           isMemberJoin: message.type == 'member_join',
         );

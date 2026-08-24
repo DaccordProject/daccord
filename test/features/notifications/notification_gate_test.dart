@@ -270,4 +270,47 @@ void main() {
       expect(indicators(settings(), from: live).railBadge, 1);
     });
   });
+
+  group('MessageNotificationGate.countsAsMention', () {
+    test('suppresses broadcast mentions when requested', () {
+      expect(
+        MessageNotificationGate.countsAsMention(
+          mentionsMe: false,
+          mentionEveryone: true,
+          suppressEveryone: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('counts broadcasts when suppression is off', () {
+      expect(
+        MessageNotificationGate.countsAsMention(
+          mentionsMe: false,
+          mentionEveryone: true,
+          suppressEveryone: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('direct and role mentions are unaffected by suppression', () {
+      expect(
+        MessageNotificationGate.countsAsMention(
+          mentionsMe: true,
+          mentionEveryone: false,
+          suppressEveryone: true,
+        ),
+        isTrue,
+      );
+      expect(
+        MessageNotificationGate.countsAsMention(
+          mentionsMe: true,
+          mentionEveryone: true,
+          suppressEveryone: true,
+        ),
+        isTrue,
+      );
+    });
+  });
 }
