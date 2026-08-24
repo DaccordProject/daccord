@@ -683,7 +683,9 @@ class _AccountSection extends StatelessWidget {
         ListTile(
           leading: Icon(Icons.devices, color: colors.dirtyWhite),
           title: const Text('Device profiles'),
-          subtitle: const Text('Isolated, PIN-lockable local profiles'),
+          subtitle: const Text(
+            'Local profiles with an optional casual PIN lock',
+          ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => showProfilesSettings(context),
         ),

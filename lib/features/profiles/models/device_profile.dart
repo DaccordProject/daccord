@@ -1,5 +1,6 @@
 /// A local device profile: an isolated namespace with its own `accord-session`
-/// and `accord-settings` storage, optionally PIN-locked. Distinct from the
+/// and `accord-settings` storage, with an optional casual UI PIN lock. The PIN
+/// does not encrypt either store. Distinct from the
 /// multi-account switcher (several server logins within one profile). Mirrors
 /// the reference client's `config_profiles.gd` profile registry entries.
 class DeviceProfile {

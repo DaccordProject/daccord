@@ -224,8 +224,10 @@ class ProfileStore {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  /// Iterated salted SHA-256 of [pin] — a lightweight stand-in for the
-  /// reference's PBKDF2, sufficient for a local device-access PIN gate.
+  /// Iterated salted SHA-256 for the casual in-app PIN gate.
+  ///
+  /// This verifier is deliberately not described as encryption or as an
+  /// at-rest security boundary; profile Hive data remains readable on disk.
   static String hashPin(String salt, String pin) {
     List<int> digest = utf8.encode('$salt:$pin');
     for (var i = 0; i < 10000; i++) {

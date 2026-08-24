@@ -21,13 +21,15 @@ You can also launch daccord with a specific profile from the command line using 
 
 1. In the Profiles settings page, click **Create Profile**.
 2. Enter a name for the new profile.
-3. Optionally set a password to protect it.
+3. Optionally set a PIN as a casual in-app screen lock.
 
 Each profile has its own server connections, theme, and preferences. Switching profiles reloads the app with that profile's configuration.
 
-## Password-Protected Profiles
+## Optional PIN Lock
 
-You can add a password to any profile. When switching to a password-protected profile, you'll be prompted to enter the password first. This keeps your conversations private on shared devices.
+You can add a PIN to make Daccord show an unlock screen before opening a profile. This is only a casual UI lock for situations such as handing an already-unlocked device to someone briefly.
+
+The PIN does **not** encrypt messages, sessions, settings, or other profile data. It does not protect that data from another operating-system user, a process that can read the app data directory, malware, or backups. Use your device's account security and full-disk encryption when you need data-at-rest protection.
 
 ## Deleting a Profile
 

@@ -5,13 +5,14 @@ import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/shared/components/label_pill.dart';
 import 'package:bonfire/shared/components/settings_scaffold.dart';
 import 'package:bonfire/features/profiles/models/device_profile.dart';
+import 'package:bonfire/features/profiles/utils/profile_pin_security.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Opens the device-profiles management page (create / switch / rename / delete
-/// / PIN-lock local profiles). Ports the reference's
+/// / casually PIN-lock local profiles). Ports the reference's
 /// `user_settings_profiles_page.gd`.
 Future<void> showProfilesSettings(BuildContext context) {
   return Navigator.of(
@@ -43,7 +44,8 @@ class ProfilesScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(
               'Profiles are isolated local spaces, each with its own accounts '
-              'and settings. Switching restarts the app.',
+              'and settings. Switching restarts the app. '
+              '$profilePinSecurityNotice',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall!.copyWith(color: colors.gray),
@@ -144,6 +146,7 @@ class ProfilesScreen extends ConsumerWidget {
       title: 'Set a PIN',
       obscureText: true,
       keyboardType: TextInputType.number,
+      helperText: profilePinSecurityNotice,
       confirmLabel: 'OK',
     );
     if (pin == null || pin.isEmpty) return;
@@ -190,7 +193,7 @@ class _ProfileTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        profile.hasPin ? 'PIN protected' : 'No PIN',
+        profile.hasPin ? 'Casual PIN lock (not encrypted)' : 'No PIN',
         style: Theme.of(
           context,
         ).textTheme.bodySmall!.copyWith(color: colors.gray),
@@ -260,7 +263,10 @@ class _CreateProfileDialogState extends State<_CreateProfileDialog> {
             controller: _pin,
             obscureText: true,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'PIN (optional)'),
+            decoration: const InputDecoration(
+              labelText: 'PIN (optional)',
+              helperText: profilePinSecurityNotice,
+            ),
           ),
         ],
       ),

@@ -1,4 +1,5 @@
 import 'package:bonfire/features/profiles/controllers/profiles_controller.dart';
+import 'package:bonfire/features/profiles/utils/profile_pin_security.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,8 +14,9 @@ class ProfileUnlocked extends Notifier<bool> {
   void unlock() => state = true;
 }
 
-final profileUnlockedProvider =
-    NotifierProvider<ProfileUnlocked, bool>(ProfileUnlocked.new);
+final profileUnlockedProvider = NotifierProvider<ProfileUnlocked, bool>(
+  ProfileUnlocked.new,
+);
 
 /// Gates [child] behind the active profile's PIN. When the active profile has no
 /// PIN, or once the correct PIN is entered, [child] is shown.
@@ -87,6 +89,14 @@ class _PinLockScreenState extends ConsumerState<_PinLockScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Enter your PIN to unlock this profile',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall!.copyWith(color: colors.gray),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  profilePinSecurityNotice,
                   textAlign: TextAlign.center,
                   style: Theme.of(
                     context,
