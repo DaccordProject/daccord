@@ -10,20 +10,22 @@ name: Release
 # ---------------------------------------------------------------------------
 # Code signing (see docs/release-signing.md for the full runbook)
 # ---------------------------------------------------------------------------
-# Every signing step is OPTIONAL and gated on its secrets being present. With no
-# signing secrets configured this workflow behaves exactly as it did before
-# signing existed: unsigned artifacts, release still published. A missing secret
-# must never fail a tagged release.
+# Tagged executable releases fail closed: macOS, Windows, and Android artifacts
+# are built only when their complete stable signing credential sets are present,
+# and a signing/notarization verification failure fails the platform build.
 #
 #   macOS   DEVELOPER_ID_CERT_P12 + CERT_P12_PASSWORD + ASC_KEY_* + APPLE_TEAM_ID
 #           → `fastlane mac dmg` signs the .app (Developer ID + hardened
 #             runtime), signs the .dmg, notarizes it with notarytool and staples
-#             the ticket. Absent → plain unsigned .dmg (Gatekeeper warns).
+#             the ticket. Absent or invalid → macOS build fails.
 #   Windows SIMPLYSIGN_USER + SIMPLYSIGN_TOTP_SECRET  (Certum cloud key), or
 #           WINDOWS_CERT_PFX_BASE64 (+ WINDOWS_CERT_PASSWORD)  (exportable .pfx)
 #           → Authenticode-signs daccord.exe, the bundled DLLs and the Inno
-#             Setup installer via dist/sign-windows.ps1. Absent → unsigned
-#             binaries (SmartScreen warns).
+#             Setup installer via dist/sign-windows.ps1. Absent or invalid →
+#             Windows build fails.
+#   Android ANDROID_KEYSTORE_* + ANDROID_KEY_ALIAS +
+#           ANDROID_SIGNING_CERT_SHA256 → signs the GitHub APK and Play AAB;
+#           their signer fingerprints are verified before upload.
 #   All     GPG_PRIVATE_KEY (+ GPG_PASSPHRASE)
 #           → detached signature (checksums.asc) over SHA256SUMS.txt. Absent →
 #             checksums are still published, just unsigned.
@@ -116,26 +118,17 @@ jobs:
     # also caches that ~hundreds-of-MB binary — the thing that 504'd before.
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
-      # Secret-presence flags. `secrets` can't be referenced from a job-level
-      # `if:`, but it CAN be referenced from job-level `env:` — so the presence
-      # test is resolved once here into a plain string ('true'/'false') and the
-      # individual steps gate on `env.*` instead. Every signing step is
-      # conditional on one of these: with none of the secrets set the build
-      # produces the same unsigned artifacts it always did.
-      #
-      # The Developer ID Application cert can only be created by the account
-      # holder (not the App Store Connect API key), so it may be absent. When it
-      # is, the DMG is built unsigned (previous behaviour) instead of failing.
-      # Notarization also needs the App Store Connect API key, so require both —
-      # otherwise the lane starts, fails on a missing ENV.fetch, and we take the
-      # slow path to the same unsigned DMG.
-      DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' && secrets.ASC_KEY_P8_BASE64 != '' }}
+      # Resolve complete credential presence once into plain strings. Executable
+      # platform legs fail immediately when their flag is false; no tagged
+      # release may silently downgrade to an unsigned artifact.
+      DEVID_AVAILABLE: ${{ secrets.DEVELOPER_ID_CERT_P12 != '' && secrets.CERT_P12_PASSWORD != '' && secrets.ASC_KEY_ID != '' && secrets.ASC_ISSUER_ID != '' && secrets.ASC_KEY_P8_BASE64 != '' && secrets.APPLE_TEAM_ID != '' }}
       # Authenticode signing of the Windows .exe / DLLs / installer. Either
       # credential will do: an exportable .pfx, or a Certum cloud key mounted by
       # dist/simplysign-login.ps1 (which exports WINDOWS_CERT_SHA1 for the
       # signing steps to pick up).
       WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || (secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '') }}
-      SIMPLYSIGN_AVAILABLE: ${{ secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '' }}
+      SIMPLYSIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 == '' && secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '' }}
+      ANDROID_SIGN_AVAILABLE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' && secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -173,6 +166,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Require stable release-signing credentials
+        if: ${{ (matrix.platform == 'macos' && env.DEVID_AVAILABLE != 'true') || (matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE != 'true') || (matrix.platform == 'android' && env.ANDROID_SIGN_AVAILABLE != 'true') }}
+        shell: bash
+        run: |
+          echo "::error::Complete stable signing credentials are required for tagged ${{ matrix.platform }} artifacts. See docs/release-signing.md."
+          exit 1
 
       - name: Resolve version
         id: version
@@ -241,6 +241,17 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      - name: Decode Android release keystore
+        if: matrix.platform == 'android' && env.ANDROID_SIGN_AVAILABLE == 'true'
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release-keystore.jks"
+          test -s "$RUNNER_TEMP/release-keystore.jks"
+
       - name: Cache CocoaPods (macOS)
         if: matrix.platform == 'macos'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -306,6 +317,12 @@ jobs:
 
       - name: Build ${{ matrix.name }}
         shell: bash
+        env:
+          ANDROID_REQUIRE_RELEASE_SIGNING: ${{ matrix.platform == 'android' && 'true' || 'false' }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         # Desktop builds fetch large prebuilt native archives (libwebrtc, mpv)
         # from third-party GitHub releases at CMake-configure time. Those fetches
         # intermittently 504 or arrive corrupted and fail the whole release.
@@ -343,6 +360,12 @@ jobs:
         if: matrix.platform == 'android'
         run: cp build/app/outputs/flutter-apk/app-github-release.apk "${{ matrix.artifact }}.apk"
 
+      - name: Verify stable signer (Android)
+        if: matrix.platform == 'android'
+        env:
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+        run: dist/verify-android-signing.sh "${{ matrix.artifact }}.apk"
+
       - name: Package (Linux)
         if: matrix.platform == 'linux'
         # `.tgz`, NOT `.tar.gz` — this suffix is load-bearing. Clients at v0.2.6
@@ -375,52 +398,30 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_BUNDLE_ID: com.cattrall.daccord
           DMG_OUTPUT: daccord-macos-universal.dmg
-        run: |
-          set -o pipefail
-          if bundle exec fastlane mac dmg; then
-            echo "Notarized DMG built."
-          else
-            echo "::warning::Notarized DMG failed; shipping an UNSIGNED DMG so the release still completes."
-            ls -R build/macos-signed 2>/dev/null || true
-            APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
-            TMP="$RUNNER_TEMP/dmg"; rm -rf "$TMP"; mkdir -p "$TMP"
-            cp -R "$APP" "$TMP/"
-            ln -s /Applications "$TMP/Applications"
-            hdiutil create -volname "Daccord" -srcfolder "$TMP" -ov -format UDZO \
-              "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
-            rm -rf "$TMP"
-          fi
-
-      - name: Package unsigned DMG (macOS, no Developer ID cert)
-        if: matrix.platform == 'macos' && env.DEVID_AVAILABLE != 'true'
-        # Fallback when the Developer ID cert secret isn't set: ship the same
-        # universal DMG unsigned (the pre-notarization behaviour) rather than
-        # failing the release. Gatekeeper will warn on first launch.
-        run: |
-          echo "::warning::DEVELOPER_ID_CERT_P12 not set — building UNSIGNED DMG (not notarized)."
-          APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
-          TMP="$RUNNER_TEMP/dmg"
-          rm -rf "$TMP"; mkdir -p "$TMP"
-          cp -R "$APP" "$TMP/"
-          ln -s /Applications "$TMP/Applications"
-          hdiutil create -volname "Daccord" -srcfolder "$TMP" -ov -format UDZO \
-            "$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
-          rm -rf "$TMP"
+        run: bundle exec fastlane mac dmg
 
       - name: Verify signature & notarization (macOS)
-        # Purely diagnostic, and never fatal: the DMG has already been built by
-        # this point, so the only thing failing here would achieve is losing the
-        # release. It exists so the log says plainly whether the artifact users
-        # are about to download will clear Gatekeeper — including when the
-        # fastlane lane fell back to an unsigned DMG.
+        # Blocking release gate: validate the container signature, stapled
+        # notarization ticket, Gatekeeper assessment, and the nested app bundle.
         if: matrix.platform == 'macos' && env.DEVID_AVAILABLE == 'true'
-        continue-on-error: true
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
           DMG="$GITHUB_WORKSPACE/daccord-macos-universal.dmg"
-          codesign -dv --verbose=4 "$DMG" 2>&1 || echo "::warning::$DMG is not code-signed"
-          xcrun stapler validate "$DMG" || echo "::warning::$DMG has no stapled notarization ticket"
-          spctl -a -t open --context context:primary-signature -v "$DMG" \
-            || echo "::warning::Gatekeeper would reject $DMG"
+          codesign --verify --strict --verbose=2 "$DMG"
+          xcrun stapler validate "$DMG"
+          spctl -a -t open --context context:primary-signature -v "$DMG"
+          MOUNT="$RUNNER_TEMP/daccord-verify"
+          mkdir -p "$MOUNT"
+          hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$DMG"
+          trap 'hdiutil detach "$MOUNT"' EXIT
+          APP=$(find "$MOUNT" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl -a -t exec -vv "$APP"
+          TEAM=$(codesign -dv --verbose=4 "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+          test "$TEAM" = "$APPLE_TEAM_ID"
 
       - name: Open SimplySign session (Windows)
         # Certum's cloud key can't be exported, so it has to be mounted as a
@@ -429,27 +430,21 @@ jobs:
         # below then pick it up automatically. The session stays open for the
         # rest of the job.
         #
-        # It drives a GUI with SendKeys because Certum ship no login CLI, so it
-        # is the least reliable step in this workflow by some margin. It exits 0
-        # on every failure path, which leaves WINDOWS_CERT_SHA1 unset and lands
-        # us on the usual unsigned-artifacts fallback.
+        # It drives a GUI with SendKeys because Certum ship no login CLI. Strict
+        # mode makes a failed session fatal rather than permitting unsigned output.
         if: matrix.platform == 'windows' && env.SIMPLYSIGN_AVAILABLE == 'true'
-        continue-on-error: true
         shell: pwsh
         env:
           SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
           SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
-        run: ./dist/simplysign-login.ps1
+        run: ./dist/simplysign-login.ps1 -Required
 
       - name: Sign binaries (Windows)
         # Authenticode-sign the app and the DLLs we build BEFORE they are zipped
         # or swept into the installer, so every shipped copy carries the
-        # signature. Skipped entirely when no signing credential is configured,
-        # and `continue-on-error` keeps even a hard signing failure (expired cert,
-        # timestamp server down) from sinking a tagged release — it degrades to
-        # today's unsigned artifacts with a warning on the step.
+        # signature. Strict mode requires successful timestamped signing and a
+        # trusted Authenticode verification for every target.
         if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
-        continue-on-error: true
         shell: pwsh
         env:
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
@@ -458,7 +453,7 @@ jobs:
           # RFC-3161 server. Some CAs require their own timestamp endpoint.
           WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
         run: |
-          ./dist/sign-windows.ps1 `
+          ./dist/sign-windows.ps1 -Required `
             build/windows/x64/runner/Release/daccord.exe `
             build/windows/x64/runner/Release/*.dll
 
@@ -486,19 +481,17 @@ jobs:
       - name: Sign installer (Windows)
         # The installer is a fresh .exe produced by ISCC, so it needs its own
         # signature — the signed payload inside it doesn't cover the wrapper,
-        # and the wrapper is what SmartScreen judges on download. Same gating
-        # and same never-fail-the-release policy as the binaries step above.
+        # and the wrapper is what SmartScreen judges on download.
         # (The uninstaller Inno generates at install time is NOT signed; that
         # needs Inno's SignTool/SignedUninstaller directives — see
         # docs/release-signing.md.)
         if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
-        continue-on-error: true
         shell: pwsh
         env:
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
           WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
-        run: ./dist/sign-windows.ps1 daccord-windows-x86_64-setup.exe
+        run: ./dist/sign-windows.ps1 -Required daccord-windows-x86_64-setup.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -642,9 +635,9 @@ jobs:
     name: Rebuild daccord.gg /chat/
     needs: release
     runs-on: ubuntu-latest
-    # As elsewhere in this workflow, a missing secret must never fail a tagged
-    # release: without the token this job is skipped, and the website just keeps
-    # serving the previous client until someone rebuilds it by hand.
+    # This cross-repository notification is not a shipped executable artifact:
+    # without the token, the website keeps serving the previous client until a
+    # rebuild is triggered by hand.
     if: ${{ success() && github.event_name == 'push' && github.repository == 'DaccordProject/daccord' }}
     steps:
       - name: Notify accordwebsite of the new web export
@@ -954,9 +947,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
+      ANDROID_SIGN_AVAILABLE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' && secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Require stable Android signing credentials
+        if: env.ANDROID_SIGN_AVAILABLE != 'true'
+        run: |
+          echo "::error::A complete Android upload-key credential set and ANDROID_SIGNING_CERT_SHA256 are required. See docs/release-signing.md."
+          exit 1
 
       - name: Cache pub + native deps
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -1024,7 +1024,10 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+          set -euo pipefail
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+          test -s "$RUNNER_TEMP/upload-keystore.jks"
 
       - name: Write Play service-account key
         env:
@@ -1038,6 +1041,7 @@ jobs:
         # (Play policy forbids self-updating; the direct-download APK keeps it).
         # versionCode = run number so it strictly increases across uploads.
         env:
+          ANDROID_REQUIRE_RELEASE_SIGNING: 'true'
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -1052,6 +1056,11 @@ jobs:
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
             --dart-define=APP_STORE=true
+
+      - name: Verify stable signer (Android App Bundle)
+        env:
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+        run: dist/verify-android-signing.sh build/app/outputs/bundle/playRelease/app-play-release.aab
 
       - name: Upload signed AAB artifact
         # Keep the exact signed bundle even if the Play API upload fails, so the

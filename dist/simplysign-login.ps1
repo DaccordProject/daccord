@@ -23,10 +23,9 @@
   Step 3 is the fragile part and there is no supported alternative — see
   docs/release-signing.md. Treat this as best-effort.
 
-  **Never fails the release.** Every failure path warns and exits 0 without
-  setting WINDOWS_CERT_SHA1; sign-windows.ps1 then finds no credential and
-  ships unsigned binaries, which is the same outcome as having no certificate
-  at all.
+  By default failures warn and return for local experimentation. Pass -Required
+  (the tagged-release workflow does) to terminate when the session cannot be
+  opened, preventing an unsigned release fallback.
 
   Environment:
 
@@ -45,18 +44,20 @@
   ./dist/simplysign-login.ps1
 #>
 [CmdletBinding()]
-param()
+param([switch]$Required)
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
-# Nothing here may sink a tagged release, so the whole body runs inside a
-# try/catch that downgrades any error to a warning + exit 0.
 function Write-Warn([string]$Message) { Write-Host "::warning::$Message" }
+function Stop-OrWarn([string]$Message) {
+    if ($Required) { throw $Message }
+    Write-Warn $Message
+}
 
 if ([string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_USER) -or
     [string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_TOTP_SECRET)) {
-    Write-Warn "SIMPLYSIGN_USER / SIMPLYSIGN_TOTP_SECRET are not both set - skipping SimplySign login."
+    Stop-OrWarn "SIMPLYSIGN_USER / SIMPLYSIGN_TOTP_SECRET are not both set."
     exit 0
 }
 
@@ -169,7 +170,7 @@ try {
         $exe = Find-SimplySign
     }
     if (-not $exe) {
-        Write-Warn "SimplySign Desktop could not be found or installed - shipping UNSIGNED Windows binaries."
+        Stop-OrWarn "SimplySign Desktop could not be found or installed."
         exit 0
     }
     Write-Host "Using SimplySign Desktop: $exe"
@@ -183,7 +184,7 @@ try {
     # There is no supported way to script this. AppActivate + SendKeys against
     # the login dialog is what the community does; it depends on the runner
     # having an interactive desktop and on Certum not reshuffling the tab order.
-    # If it breaks, the certificate simply never appears and we ship unsigned.
+    # If it breaks, strict release mode fails before any artifact is packaged.
     $shell = New-Object -ComObject WScript.Shell
 
     $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
@@ -217,7 +218,7 @@ try {
     }
 
     if (-not $found) {
-        Write-Warn "SimplySign session did not produce a code-signing certificate within ${timeoutSec}s - shipping UNSIGNED Windows binaries."
+        Stop-OrWarn "SimplySign session did not produce a code-signing certificate within ${timeoutSec}s."
         exit 0
     }
 
@@ -235,6 +236,7 @@ try {
     }
 }
 catch {
-    Write-Warn "SimplySign login failed: $($_.Exception.Message) - shipping UNSIGNED Windows binaries."
+    if ($Required) { throw }
+    Write-Warn "SimplySign login failed: $($_.Exception.Message)"
     exit 0
 }

@@ -6,17 +6,27 @@ plugins {
 }
 
 // Release signing. In CI the upload keystore + credentials come from environment
-// variables (decoded from GitHub secrets by the android-play job); locally they
-// can come from an (untracked) android/key.properties. When neither is present
-// the release build falls back to the debug key so `flutter run --release` and
-// the direct-download APK still build without secrets.
+// variables (decoded from GitHub secrets by the release jobs); locally they can
+// come from an (untracked) android/key.properties. Local builds may fall back to
+// the debug key, but tagged CI sets ANDROID_REQUIRE_RELEASE_SIGNING=true so an
+// incomplete credential set fails before any distributable is produced.
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 def releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH") ?: keystoreProperties["storeFile"]
-def hasReleaseSigning = releaseStoreFile != null && !releaseStoreFile.toString().isEmpty()
+def releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: keystoreProperties["storePassword"]
+def releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: keystoreProperties["keyAlias"]
+def releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: keystoreProperties["keyPassword"]
+def releaseStore = releaseStoreFile ? file(releaseStoreFile) : null
+def hasReleaseSigning = releaseStore != null && releaseStore.isFile() &&
+        releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def requireReleaseSigning = System.getenv("ANDROID_REQUIRE_RELEASE_SIGNING") == "true"
+
+if (requireReleaseSigning && !hasReleaseSigning) {
+    throw new GradleException("Stable Android release signing is required, but the keystore path or credentials are incomplete.")
+}
 
 android {
     namespace = "com.daccord_projects.daccord"
@@ -45,10 +55,10 @@ android {
     signingConfigs {
         if (hasReleaseSigning) {
             release {
-                storeFile = file(releaseStoreFile)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: keystoreProperties["storePassword"]
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: keystoreProperties["keyAlias"]
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: keystoreProperties["keyPassword"]
+                storeFile = releaseStore
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
@@ -56,9 +66,9 @@ android {
     buildTypes {
         release {
             // Sign release artifacts (AAB for Play, APK for direct download) with
-            // the upload key when it's available; otherwise fall back to the debug
-            // key so secret-less builds (`flutter run --release`, the GitHub
-            // Release APK) still work.
+            // the upload key when it's available. Secret-less local development
+            // remains usable with the debug fallback; tagged release jobs enable
+            // the fail-closed guard above and can never take this branch.
             signingConfig = hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }

@@ -28,12 +28,9 @@
                               defaults to http://timestamp.digicert.com;
                               Certum certificates want http://time.certum.pl)
 
-  **Never fails the release.** With neither credential set the script prints a
-  warning and exits 0, leaving the artifacts unsigned exactly as they were
-  before signing existed. The workflow additionally marks the signing steps
-  `continue-on-error: true`, so even a hard signing failure (expired cert,
-  timestamp server down) degrades to an unsigned-but-published release rather
-  than a broken tag.
+  Local invocations remain permissive when no credential is configured. Pass
+  -Required (as the tagged-release workflow does) to fail when credentials,
+  targets, signing, timestamping, or trusted Authenticode verification fail.
 
   Timestamping is not optional: without it every signature stops validating the
   day the certificate expires. The timestamp server is the flakiest part of the
@@ -44,11 +41,16 @@
   (e.g. `build\windows\x64\runner\Release\*.dll`). Files that already carry a
   valid signature (bundled, vendor-signed DLLs) are left alone.
 
+.PARAMETER Required
+  Enables fail-closed release behavior. Missing credentials/targets and failed
+  trust verification terminate with a non-zero exit code.
+
 .EXAMPLE
   ./dist/sign-windows.ps1 build/windows/x64/runner/Release/daccord.exe
 #>
 [CmdletBinding()]
 param(
+    [switch]$Required,
     [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
     [string[]]$Path
 )
@@ -68,7 +70,9 @@ $useStore = -not [string]::IsNullOrWhiteSpace($certSha1)
 $usePfx = -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_PFX_BASE64)
 
 if (-not $useStore -and -not $usePfx) {
-    Write-Host "::warning::Neither WINDOWS_CERT_SHA1 nor WINDOWS_CERT_PFX_BASE64 is set - shipping UNSIGNED Windows binaries."
+    $message = "Neither WINDOWS_CERT_SHA1 nor WINDOWS_CERT_PFX_BASE64 is set."
+    if ($Required) { throw $message }
+    Write-Host "::warning::$message Skipping optional local signing."
     exit 0
 }
 
@@ -108,10 +112,11 @@ function Find-SignTool {
 # drop anything that is already validly signed so we don't strip a third-party
 # vendor's signature off a prebuilt DLL we merely redistribute.
 $targets = @()
+$missingPatterns = @()
 foreach ($pattern in $Path) {
     $items = @(Get-Item -Path $pattern -ErrorAction SilentlyContinue)
     if ($items.Count -eq 0) {
-        Write-Host "::warning::No file matched '$pattern' - nothing to sign for that pattern."
+        $missingPatterns += $pattern
         continue
     }
     foreach ($item in $items) {
@@ -125,8 +130,17 @@ foreach ($pattern in $Path) {
     }
 }
 
+if ($missingPatterns.Count -gt 0) {
+    $message = "No file matched required signing pattern(s): $($missingPatterns -join ', ')"
+    if ($Required) { throw $message }
+    Write-Host "::warning::$message"
+}
+
 if ($targets.Count -eq 0) {
-    Write-Host "::warning::Nothing to sign (all requested files were missing or already signed)."
+    if ($missingPatterns.Count -eq $Path.Count -and $Required) {
+        throw "No requested Windows signing targets exist."
+    }
+    Write-Host "Nothing to sign (all existing targets already have valid signatures)."
     exit 0
 }
 
@@ -177,12 +191,14 @@ try {
         Start-Sleep -Seconds $delay
     }
 
-    # Verification is informational: /pa fails for a self-signed test cert that
-    # doesn't chain to a trusted root, which is a perfectly valid thing to be
-    # rehearsing the pipeline with. A real CA-issued cert should pass.
-    & $signtool verify /pa /v @targets
+    # Release mode requires a signature that chains through the Authenticode
+    # policy. Local rehearsals may use a self-signed certificate and receive a
+    # warning instead.
+    & $signtool verify /pa /all /v @targets
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "::warning::signtool verify failed - the signature was applied but does not chain to a trusted root on this machine (expected for a self-signed test certificate)."
+        $message = "signtool trust verification failed (exit $LASTEXITCODE)."
+        if ($Required) { throw $message }
+        Write-Host "::warning::$message Expected for a self-signed local rehearsal certificate."
     }
 
     Write-Host "Signed $($targets.Count) file(s)."

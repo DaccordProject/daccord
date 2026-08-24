@@ -381,13 +381,9 @@ platform :mac do
     # inside is already signed by gym; signing the container too is what Apple's
     # notarization guidance asks for and is what lets Gatekeeper assess the
     # downloaded .dmg directly rather than only the app once it's copied out.
-    # Non-fatal: a notarized-but-unsigned image still installs fine, so a hiccup
-    # here shouldn't cost us the notarization.
-    begin
-      sh("codesign", "--sign", "Developer ID Application", "--timestamp", "--force", out)
-    rescue StandardError => e
-      UI.important("Could not sign the DMG container (#{e.message}); notarizing it unsigned.")
-    end
+    # A tagged direct-download artifact must be signed itself; do not submit or
+    # publish a DMG when container signing fails.
+    sh("codesign", "--sign", "Developer ID Application", "--timestamp", "--force", out)
 
     # Submit to Apple's notary service and staple the ticket into the DMG so it
     # passes Gatekeeper offline. `use_notarytool` is explicit because altool's

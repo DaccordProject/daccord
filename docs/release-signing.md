@@ -1,13 +1,14 @@
 # Release signing, notarization & checksums
 
 How the tagged-release artifacts from `.github/workflows/release.yml` are signed,
-which GitHub secrets an admin has to add to switch each piece on, and what
-happens while those secrets are missing.
+which GitHub secrets an admin must configure, and how release verification
+prevents an unsigned or incorrectly signed executable from being published.
 
-**Nothing here is required for a release to succeed.** Every signing step is
-gated on its secrets being present and skips cleanly when they are not, so a
-tag push with no signing secrets configured publishes exactly the artifacts it
-always did — unsigned, but published. A missing secret can never fail a release.
+Tagged macOS, Windows, and Android artifacts **fail closed**. Their matrix legs
+stop when stable credentials are absent, and signing, notarization, trust, or
+signer-fingerprint verification failures block the GitHub Release. Local builds
+remain usable without production keys: Gradle and the Windows helper scripts
+retain explicit non-strict fallbacks outside the tagged workflow.
 
 ## Reviewing release action updates
 
@@ -33,8 +34,9 @@ Before merging one of those pull requests:
 
 | Artifact | Signing | Secrets needed | Without them |
 |----------|---------|----------------|--------------|
-| `daccord-macos-universal.dmg` | Developer ID + hardened runtime, notarized (`notarytool`) + stapled | `DEVELOPER_ID_CERT_P12`, `CERT_P12_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, `APPLE_TEAM_ID` | Unsigned `.dmg`; Gatekeeper says *"can't be opened because Apple cannot check it"* |
-| `daccord-windows-x86_64-setup.exe`, `daccord-windows-x86_64.zip` | Authenticode (SHA-256, RFC-3161 timestamped) on `daccord.exe`, the bundled DLLs and the installer | `SIMPLYSIGN_USER` + `SIMPLYSIGN_TOTP_SECRET` (Certum cloud), **or** `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` (exportable `.pfx`) | Unsigned binaries; SmartScreen shows *"Windows protected your PC — unrecognized app"* |
+| `daccord-macos-universal.dmg` | Developer ID + hardened runtime, notarized (`notarytool`) + stapled | `DEVELOPER_ID_CERT_P12`, `CERT_P12_PASSWORD`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, `APPLE_TEAM_ID` | macOS matrix leg fails |
+| `daccord-windows-x86_64-setup.exe`, `daccord-windows-x86_64.zip` | Authenticode (SHA-256, RFC-3161 timestamped) on `daccord.exe`, the bundled DLLs and the installer | `SIMPLYSIGN_USER` + `SIMPLYSIGN_TOTP_SECRET` (Certum cloud), **or** `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` (exportable `.pfx`) | Windows matrix leg fails |
+| `daccord-android.apk`, Play `.aab` | Android APK/JAR signature pinned to the stable upload-key certificate | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_SIGNING_CERT_SHA256` | Android matrix / Play job fails |
 | `daccord-linux-x86_64.tgz` / `.deb` | none needed | — | — |
 | `SHA256SUMS.txt` | always generated | none | always present |
 | `checksums.asc` (detached GPG signature of `SHA256SUMS.txt`) | OpenPGP | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | Checksums ship unsigned |
@@ -47,8 +49,9 @@ in-app updater already verifies downloads against it
 ## How the gating works
 
 `secrets` cannot be referenced from a job-level `if:`, so each job resolves the
-presence test once in its `env:` block (where `secrets` *is* available) into a
-plain `'true'`/`'false'` string, and the steps gate on that:
+complete presence test once in its `env:` block into a plain `'true'`/`'false'`
+string. A preflight step fails the executable platform leg when its flag is not
+true:
 
 ```yaml
 jobs:
@@ -56,28 +59,27 @@ jobs:
     env:
       WINDOWS_SIGN_AVAILABLE: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' || (secrets.SIMPLYSIGN_USER != '' && secrets.SIMPLYSIGN_TOTP_SECRET != '') }}
     steps:
-      - name: Sign binaries (Windows)
-        if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE == 'true'
-        continue-on-error: true
+      - name: Require stable release-signing credentials
+        if: matrix.platform == 'windows' && env.WINDOWS_SIGN_AVAILABLE != 'true'
+        run: exit 1
 ```
 
-Two layers of safety on top of that:
+Two layers of enforcement follow:
 
-1. **Skip when absent** — the `if:` means the step never runs without its secret.
-   `dist/sign-windows.ps1` re-checks and exits 0 anyway, so running it by hand is
-   also harmless.
-2. **Never fail when present but broken** — the signing steps are
-   `continue-on-error: true` and the macOS lane has an explicit unsigned-DMG
-   fallback, so an expired certificate or a down timestamp server produces a
-   loud warning and an unsigned artifact rather than a lost release.
+1. **Fail when absent** — the preflight prevents unsigned platform output.
+2. **Verify what was produced** — macOS runs blocking `codesign`, `stapler`, and
+   `spctl` checks; Windows strict mode requires `signtool verify /pa`; Android
+   cryptographically verifies the APK/AAB and compares its certificate SHA-256
+   fingerprint with the configured stable identity.
 
 The flags live at the top of each job:
 
 | Flag | Job | True when |
 |------|-----|-----------|
-| `DEVID_AVAILABLE` | `build` | `DEVELOPER_ID_CERT_P12` **and** `ASC_KEY_P8_BASE64` are set |
+| `DEVID_AVAILABLE` | `build` | all six Developer ID/notarization secrets are set |
 | `WINDOWS_SIGN_AVAILABLE` | `build` | `WINDOWS_CERT_PFX_BASE64` is set, **or** both `SIMPLYSIGN_*` secrets are |
-| `SIMPLYSIGN_AVAILABLE` | `build` | `SIMPLYSIGN_USER` **and** `SIMPLYSIGN_TOTP_SECRET` are set |
+| `SIMPLYSIGN_AVAILABLE` | `build` | no PFX is set and both `SIMPLYSIGN_*` secrets are |
+| `ANDROID_SIGN_AVAILABLE` | `build`, `android-play` | all four keystore values and `ANDROID_SIGNING_CERT_SHA256` are set |
 | `GPG_AVAILABLE` | `release` | `GPG_PRIVATE_KEY` is set |
 
 ## macOS — Developer ID + notarization
@@ -97,9 +99,9 @@ Implemented in the `build` job (macOS leg) and the `mac dmg` lane in
    password or 2FA in CI.
 4. The ticket is **stapled** into the `.dmg`, which is what lets it pass
    Gatekeeper on a machine that is offline or behind a filtering proxy.
-5. A diagnostic step runs `codesign -dv`, `stapler validate` and `spctl -a -t
-   open` and prints the result. It is `continue-on-error` — it reports, it never
-   blocks.
+5. A blocking verification step validates the DMG signature, stapled ticket and
+   Gatekeeper assessment, mounts the image, and validates the nested app's deep
+   signature and Gatekeeper assessment.
 
 ### Secrets
 
@@ -119,7 +121,7 @@ way to notarize without one.
 ### Verifying a released DMG
 
 ```bash
-codesign -dv --verbose=4 daccord-macos-universal.dmg
+codesign --verify --strict --verbose=2 daccord-macos-universal.dmg
 xcrun stapler validate daccord-macos-universal.dmg
 spctl -a -t open --context context:primary-signature -v daccord-macos-universal.dmg
 ```
@@ -169,9 +171,9 @@ base64 -w0 daccord-codesign.pfx | gh secret set WINDOWS_CERT_PFX_BASE64
 gh secret set WINDOWS_CERT_PASSWORD
 ```
 
-To rehearse the pipeline without buying anything, a self-signed cert works — it
-produces a real (untrusted) signature, and the script downgrades the failing
-`signtool verify /pa` to a warning:
+To rehearse the helper locally without buying anything, a self-signed cert works
+in its default permissive mode. Tagged releases pass `-Required`, so the same
+certificate is rejected when `signtool verify /pa` cannot build a trusted chain:
 
 ```powershell
 $c = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Daccord Test" `
@@ -231,11 +233,9 @@ interactive desktop and on Certum not rearranging the login dialog's tab order,
 and it will break without warning at some point. Two things make that
 acceptable rather than reckless:
 
-- the script exits 0 on **every** failure path, so a broken login leaves
-  `WINDOWS_CERT_SHA1` unset and the release ships unsigned — the same outcome as
-  owning no certificate;
-- the signing steps are already `continue-on-error: true`, so a tagged release
-  can never be lost to it.
+- without `-Required`, the script warns and exits for local experimentation;
+- the tagged workflow passes `-Required`, so a broken login or missing mounted
+  certificate fails the Windows leg before packaging.
 
 Two caveats worth stating plainly:
 
@@ -293,9 +293,8 @@ documented here as a first-class alternative rather than wired in, for one
 concrete reason beyond preference: the GitHub runner resolves and downloads
 every `uses:` action during job setup, *before* step `if:` conditions are
 evaluated. Adding an unexercisable third-party action to the release workflow
-would risk failing every release at setup if that action reference ever went
-away — which violates the "a release must never break" rule this whole design is
-built around. When someone actually provisions Trusted Signing, add
+would add a release dependency that cannot currently be exercised or reviewed
+end-to-end. When someone actually provisions Trusted Signing, add
 `azure/trusted-signing-action` (pinned to a SHA) as a gated step then, and verify
 it on a `workflow_dispatch` run before the next tag.
 
@@ -307,6 +306,28 @@ signed by giving ISCC its own `SignTool` definition plus
 `SignedUninstaller=yes` in `dist/installer.iss`. That means handing the
 certificate to the installer build step as well. Worth doing once real
 certificates exist; it does not affect the download-time SmartScreen prompt.
+
+## Android — stable APK and App Bundle identity
+
+The tagged GitHub APK and Play App Bundle use the same upload keystore. The
+workflow decodes it only into the runner's temporary directory and sets
+`ANDROID_REQUIRE_RELEASE_SIGNING=true`; `android/app/build.gradle` throws if the
+path, file, alias, or passwords are incomplete. Secret-less local release runs
+retain the historical debug-key fallback, but CI cannot take it.
+
+After each build, `dist/verify-android-signing.sh` verifies the APK with
+`apksigner` or the AAB with `jarsigner`, extracts its signing-certificate
+fingerprint, and compares it with `ANDROID_SIGNING_CERT_SHA256`. This identity
+pin prevents a valid but wrong/debug/replacement key from entering an update
+chain. Derive the value once from the protected upload keystore:
+
+```bash
+keytool -list -v -keystore upload-keystore.jks -alias upload \
+  | sed -n 's/^[[:space:]]*SHA256: //p'
+```
+
+Colons and letter case are optional when storing the fingerprint. The value
+must otherwise be exactly 32 SHA-256 bytes (64 hexadecimal characters).
 
 ## Checksums & GPG (all platforms)
 
@@ -355,8 +376,9 @@ gpg --verify checksums.asc SHA256SUMS.txt             # authenticity
 
 ## Admin checklist
 
-Add under **Settings → Secrets and variables → Actions**. Any subset works;
-each row switches on independently.
+Add under **Settings → Secrets and variables → Actions**. Each executable
+platform requires its complete group; a partial or absent group fails that
+tagged-release leg.
 
 ```
 # macOS notarized DMG  (also used by the App Store jobs — see app-store-deploy.md)
@@ -368,9 +390,18 @@ ASC_KEY_P8_BASE64          base64 of AuthKey_<id>.p8
 APPLE_TEAM_ID              10-char team id
 
 # Windows Authenticode
+SIMPLYSIGN_USER             Certum SimplySign account id (cloud-key mode)
+SIMPLYSIGN_TOTP_SECRET      Certum enrolment TOTP secret (cloud-key mode)
 WINDOWS_CERT_PFX_BASE64    base64 of the code-signing .pfx
 WINDOWS_CERT_PASSWORD      password for the .pfx (optional)
 WINDOWS_TIMESTAMP_URL      repo *variable*, optional; defaults to DigiCert
+
+# Android GitHub APK + Play upload AAB
+ANDROID_KEYSTORE_BASE64       base64 of the stable upload keystore
+ANDROID_KEYSTORE_PASSWORD     keystore password
+ANDROID_KEY_ALIAS             upload key alias
+ANDROID_KEY_PASSWORD          upload key password
+ANDROID_SIGNING_CERT_SHA256   pinned upload certificate fingerprint
 
 # Release checksum signature (any platform)
 GPG_PRIVATE_KEY            armoured private key block
@@ -384,13 +415,16 @@ on a tag push.
 
 ## What is still blocked
 
-The pipeline is complete and inert. Two purchases/enrolments are the only
-remaining blockers, and neither can be done from this repository:
+The repository now blocks executable publication until the required external
+identities exist. Those enrolments and secrets cannot be created here:
 
 - **Apple Developer Program membership** ($99/yr) to obtain a Developer ID
   Application certificate and notarization credentials.
 - **A Windows code-signing certificate** — SignPath Foundation (free for OSS),
   Azure Trusted Signing, or a CA's cloud-HSM product.
+- **A protected Android upload key**, enrolled in Play App Signing, plus an
+  active Play developer account for store publication.
 
-Until both exist, macOS and Windows downloads still trip Gatekeeper and
-SmartScreen, which is the acceptance criterion of the signing issue.
+Until a platform's credentials are configured, its tagged job fails and no
+unsigned replacement is attached to the release. Platform-native trust and
+reputation still depend on Apple, Microsoft/CA, and Google enrolment.

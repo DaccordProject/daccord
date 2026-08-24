@@ -13,10 +13,10 @@ does not exist yet ([below](#mac-app-store-listing-first)).
 | Notarized DMG | `build` (macOS) | `fastlane mac dmg` | GitHub Release (direct download) |
 | Google Play | `android-play` | `fastlane android play` | Play Console (AAB → `production` track) |
 
-Direct-download (non-store) signing — the notarized DMG, Windows Authenticode
-and the release checksums/GPG signature — is covered separately in
-[release-signing.md](release-signing.md), including what happens when those
-secrets are absent.
+Direct-download signing — the notarized DMG, Windows Authenticode, stable
+Android APK identity, and the release checksums/GPG signature — is covered in
+[release-signing.md](release-signing.md). Tagged executable platform jobs fail
+when their complete credential set is absent or verification fails.
 
 These run on a **tag push** (`v*`) and on **workflow_dispatch** (with
 `deploy_ios` / `deploy_mac` / `deploy_android` toggles, handy for testing
@@ -69,6 +69,7 @@ generates the certs/profiles and prints the `gh secret set` commands.
 | `ANDROID_KEYSTORE_PASSWORD` | the keystore (store) password |
 | `ANDROID_KEY_ALIAS` | the upload key alias inside the keystore |
 | `ANDROID_KEY_PASSWORD` | the key password (often the same as the store password) |
+| `ANDROID_SIGNING_CERT_SHA256` | SHA-256 fingerprint of the upload certificate; pins both APK and AAB identity |
 
 No repo variables affect the rollout: the workflow pins `PLAY_TRACK=production`
 and `PLAY_RELEASE_STATUS=completed`. (Older revisions read these from repo
@@ -89,7 +90,7 @@ deleted.)
 
 ### Google Play
 
-1. **Create the upload keystore** (once) and set the four `ANDROID_*` secrets:
+1. **Create the upload keystore** (once) and set the five `ANDROID_*` secrets:
    ```bash
    keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 \
      -validity 10000 -alias upload
@@ -97,11 +98,14 @@ deleted.)
    gh secret set ANDROID_KEYSTORE_PASSWORD   # store password
    gh secret set ANDROID_KEY_ALIAS           # "upload"
    gh secret set ANDROID_KEY_PASSWORD        # key password
+   keytool -list -v -keystore upload-keystore.jks -alias upload \
+     | sed -n 's/^[[:space:]]*SHA256: //p' \
+     | gh secret set ANDROID_SIGNING_CERT_SHA256
    ```
-   Keep `upload-keystore.jks` safe and out of git (`android/.gitignore` already
-   excludes `*.keystore` / `key.properties`). Enable **Play App Signing** in the
-   Play Console so Google manages the app signing key; this upload key only
-   needs to match what Play expects for uploads.
+   Keep `upload-keystore.jks` safe and out of git (the root `.gitignore`
+   excludes `*.jks`, `*.keystore`, and `android/key.properties`). Enable
+   **Play App Signing** in the Play Console so Google manages the app signing
+   key; this upload key only needs to match what Play expects for uploads.
 2. **Create a service account** in Google Cloud (IAM → Service Accounts) for the
    project linked to the Play Console, create a JSON key, then in **Play Console
    → Users and permissions → Invite new user** grant that service account access
