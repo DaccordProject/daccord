@@ -24,7 +24,10 @@ Future<DownloadResult> downloadAttachment(
   // Content-Disposition or the URL, and a page can't influence that. Nothing
   // attacker-controlled reaches a path here, so there is nothing to sanitize.
   final uri = Uri.tryParse(url);
-  if (uri == null || !uri.hasScheme) {
+  if (uri == null ||
+      !uri.hasAuthority ||
+      uri.host.isEmpty ||
+      (uri.scheme != 'http' && uri.scheme != 'https')) {
     return const DownloadResult.failed('That attachment has no valid address.');
   }
   try {

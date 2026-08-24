@@ -21,6 +21,17 @@ import 'package:universal_platform/universal_platform.dart';
 /// Only desktop has a file manager worth opening.
 bool get canRevealDownloads => UniversalPlatform.isDesktop;
 
+/// Absolute response-body limit for native attachment downloads.
+///
+/// Accord servers normally default to 25 MiB attachments. This higher ceiling
+/// leaves room for deployments with a larger configured upload limit while
+/// ensuring a response that omits or lies about `Content-Length` cannot consume
+/// unbounded memory or disk space.
+const int _maxAttachmentDownloadBytes = 100 * 1024 * 1024;
+
+typedef _SaveAttachment =
+    Future<String?> Function(String filename, Uint8List bytes);
+
 Future<DownloadResult> downloadAttachment(
   String url, {
   required String filename,
@@ -28,15 +39,78 @@ Future<DownloadResult> downloadAttachment(
 }) async {
   final safeName = sanitizeAttachmentFilename(filename);
   final uri = Uri.tryParse(url);
-  if (uri == null || !uri.hasScheme) {
+  if (!_isAllowedDownloadUri(uri)) {
     return const DownloadResult.failed('That attachment has no valid address.');
   }
 
   final client = http.Client();
+  return _downloadAttachment(
+    client,
+    uri!,
+    safeName,
+    onProgress,
+    isDesktop: UniversalPlatform.isDesktop,
+  );
+}
+
+/// Test seam for exercising both native platform branches without plugins.
+@visibleForTesting
+Future<DownloadResult> downloadAttachmentForTesting(
+  String url, {
+  required String filename,
+  required http.Client client,
+  required bool isDesktop,
+  Directory? downloadsDirectory,
+  Future<String?> Function(String filename, Uint8List bytes)? saveAttachment,
+  DownloadProgressCallback? onProgress,
+  int maxBytes = _maxAttachmentDownloadBytes,
+}) async {
+  final safeName = sanitizeAttachmentFilename(filename);
+  final uri = Uri.tryParse(url);
+  if (!_isAllowedDownloadUri(uri)) {
+    client.close();
+    return const DownloadResult.failed('That attachment has no valid address.');
+  }
+  return _downloadAttachment(
+    client,
+    uri!,
+    safeName,
+    onProgress,
+    isDesktop: isDesktop,
+    downloadsDirectory: downloadsDirectory,
+    saveAttachment: saveAttachment,
+    maxBytes: maxBytes,
+  );
+}
+
+Future<DownloadResult> _downloadAttachment(
+  http.Client client,
+  Uri uri,
+  String safeName,
+  DownloadProgressCallback? onProgress, {
+  required bool isDesktop,
+  Directory? downloadsDirectory,
+  _SaveAttachment? saveAttachment,
+  int maxBytes = _maxAttachmentDownloadBytes,
+}) async {
   try {
-    return UniversalPlatform.isDesktop
-        ? await _saveToDownloadsDir(client, uri, safeName, onProgress)
-        : await _saveViaShareSheet(client, uri, safeName, onProgress);
+    return isDesktop
+        ? await _saveToDownloadsDir(
+            client,
+            uri,
+            safeName,
+            onProgress,
+            downloadsDirectory: downloadsDirectory,
+            maxBytes: maxBytes,
+          )
+        : await _saveViaShareSheet(
+            client,
+            uri,
+            safeName,
+            onProgress,
+            saveAttachment: saveAttachment,
+            maxBytes: maxBytes,
+          );
   } on _DownloadException catch (e) {
     return DownloadResult.failed(e.message);
   } on SocketException {
@@ -59,10 +133,12 @@ Future<DownloadResult> _saveToDownloadsDir(
   http.Client client,
   Uri uri,
   String safeName,
-  DownloadProgressCallback? onProgress,
-) async {
-  final dir = await _downloadsDirectory();
-  final response = await _send(client, uri);
+  DownloadProgressCallback? onProgress, {
+  Directory? downloadsDirectory,
+  required int maxBytes,
+}) async {
+  final dir = downloadsDirectory ?? await _downloadsDirectory();
+  final response = await _send(client, uri, maxBytes: maxBytes);
 
   // Reserve the name before the first byte arrives so two concurrent downloads
   // of the same attachment can't race onto one path.
@@ -72,8 +148,9 @@ Future<DownloadResult> _saveToDownloadsDir(
   final sink = file.openWrite();
   try {
     await for (final chunk in response.stream) {
-      sink.add(chunk);
       received += chunk.length;
+      _checkReceivedBytes(received, maxBytes);
+      sink.add(chunk);
       onProgress?.call(total > 0 ? (received / total).clamp(0.0, 1.0) : null);
     }
     await sink.close();
@@ -92,12 +169,15 @@ Future<DownloadResult> _saveViaShareSheet(
   http.Client client,
   Uri uri,
   String safeName,
-  DownloadProgressCallback? onProgress,
-) async {
-  final response = await _send(client, uri);
+  DownloadProgressCallback? onProgress, {
+  _SaveAttachment? saveAttachment,
+  required int maxBytes,
+}) async {
+  final response = await _send(client, uri, maxBytes: maxBytes);
   final total = response.contentLength ?? 0;
   final builder = BytesBuilder(copy: false);
   await for (final chunk in response.stream) {
+    _checkReceivedBytes(builder.length + chunk.length, maxBytes);
     builder.add(chunk);
     onProgress?.call(
       total > 0 ? (builder.length / total).clamp(0.0, 1.0) : null,
@@ -106,11 +186,14 @@ Future<DownloadResult> _saveViaShareSheet(
 
   final String? saved;
   try {
-    saved = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save attachment',
-      fileName: safeName,
-      bytes: builder.takeBytes(),
-    );
+    final bytes = builder.takeBytes();
+    saved = saveAttachment != null
+        ? await saveAttachment(safeName, bytes)
+        : await FilePicker.platform.saveFile(
+            dialogTitle: 'Save attachment',
+            fileName: safeName,
+            bytes: bytes,
+          );
   } catch (e) {
     debugPrint('Save sheet failed: $e');
     return const DownloadResult.failed("Couldn't save the file.");
@@ -121,7 +204,11 @@ Future<DownloadResult> _saveViaShareSheet(
       : DownloadResult.saved(saved);
 }
 
-Future<http.StreamedResponse> _send(http.Client client, Uri uri) async {
+Future<http.StreamedResponse> _send(
+  http.Client client,
+  Uri uri, {
+  required int maxBytes,
+}) async {
   final request = http.Request('GET', uri)..followRedirects = true;
   final response = await client.send(request);
   if (response.statusCode != 200) {
@@ -129,8 +216,24 @@ Future<http.StreamedResponse> _send(http.Client client, Uri uri) async {
       'The server refused the download (HTTP ${response.statusCode}).',
     );
   }
+  final advertisedBytes = response.contentLength;
+  if (advertisedBytes != null && advertisedBytes > maxBytes) {
+    throw const _DownloadException('That attachment is too large to download.');
+  }
   return response;
 }
+
+void _checkReceivedBytes(int received, int maxBytes) {
+  if (received > maxBytes) {
+    throw const _DownloadException('That attachment is too large to download.');
+  }
+}
+
+bool _isAllowedDownloadUri(Uri? uri) =>
+    uri != null &&
+    uri.hasAuthority &&
+    uri.host.isNotEmpty &&
+    (uri.scheme == 'http' || uri.scheme == 'https');
 
 Future<Directory> _downloadsDirectory() async {
   Directory? dir;
