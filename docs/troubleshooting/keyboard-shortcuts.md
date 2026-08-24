@@ -13,8 +13,6 @@ section: troubleshooting
 |----------|--------|
 | Enter | Send message |
 | Shift+Enter | New line in message |
-| Up Arrow | Edit your last message (when composer is empty) |
-| Escape | Cancel editing, close reply bar, or close search |
 | Ctrl+V / Cmd+V | Paste image or text from clipboard |
 
 ## Editing a Message
@@ -22,7 +20,9 @@ section: troubleshooting
 | Shortcut | Action |
 |----------|--------|
 | Enter | Save edited message |
-| Escape | Cancel edit and discard changes |
+
+Use the visible **Cancel** button to discard an edit. To start editing, open
+the message's context menu and choose **Edit**.
 
 ## Mobile / Touch
 
