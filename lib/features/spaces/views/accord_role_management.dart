@@ -5,9 +5,9 @@ import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
-import 'package:bonfire/shared/utils/string_ext.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/member/utils/permission_catalog.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -617,19 +617,29 @@ class _RoleEditorPaneState extends State<_RoleEditorPane> {
             ),
           ),
           const SizedBox(height: 6),
-          for (final perm in AccordPermission.all())
-            _PermissionTile(
-              perm: perm,
-              value: _permissions.contains(perm),
-              enabled: enabled,
-              onChanged: (v) => setState(() {
-                if (v) {
-                  _permissions.add(perm);
-                } else {
-                  _permissions.remove(perm);
-                }
-              }),
+          for (final group in accordPermissionGroups) ...[
+            const SizedBox(height: 10),
+            Text(
+              group.label.toUpperCase(),
+              style: theme.textTheme.labelSmall!.copyWith(
+                color: colors.gray,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            for (final perm in group.permissions)
+              _PermissionTile(
+                perm: perm,
+                value: _permissions.contains(perm),
+                enabled: enabled,
+                onChanged: (v) => setState(() {
+                  if (v) {
+                    _permissions.add(perm);
+                  } else {
+                    _permissions.remove(perm);
+                  }
+                }),
+              ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -703,7 +713,7 @@ class _PermissionTile extends StatelessWidget {
   final bool enabled;
   final ValueChanged<bool> onChanged;
 
-  String get _label => titleCaseFromToken(perm);
+  String get _label => accordPermissionLabel(perm);
 
   @override
   Widget build(BuildContext context) {

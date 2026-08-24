@@ -8,6 +8,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/spaces/utils/new_space_permissions.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -100,6 +101,20 @@ class _AdminSpacesTabState extends ConsumerState<AdminSpacesTab> {
       setState(() =>
           _error = result.errorOr('Failed to create space'));
       return;
+    }
+    final created = result.data;
+    if (created is AccordSpace) {
+      final normalized = await normalizeNewSpaceEveryoneRole(client, created);
+      if (!mounted) return;
+      if (normalized != null && !normalized.ok) {
+        setState(() {
+          _busy = false;
+          _error = normalized.errorOr(
+            'Space created, but its default mention permission could not be secured',
+          );
+        });
+        return;
+      }
     }
     _load();
   }

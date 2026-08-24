@@ -3,9 +3,9 @@ import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/shared/utils/string_ext.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/member/utils/permission_catalog.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
@@ -59,76 +59,6 @@ const _textOnlyPerms = <String>{
   'use_external_stickers',
   'send_in_threads',
 };
-
-/// Permissions grouped into visual sections, matching the reference dialog.
-const _permGroups = <({String label, List<String> perms})>[
-  (
-    label: 'General',
-    perms: [
-      'view_channel',
-      'create_invites',
-      'change_nickname',
-      'manage_nicknames',
-      'use_commands',
-    ],
-  ),
-  (
-    label: 'Text',
-    perms: [
-      'send_messages',
-      'send_tts',
-      'embed_links',
-      'attach_files',
-      'read_history',
-      'mention_everyone',
-      'use_external_emojis',
-      'use_external_stickers',
-      'add_reactions',
-    ],
-  ),
-  (
-    label: 'Threads',
-    perms: ['manage_threads', 'create_threads', 'send_in_threads'],
-  ),
-  (
-    label: 'Voice',
-    perms: [
-      'connect',
-      'speak',
-      'stream',
-      'use_vad',
-      'priority_speaker',
-      'mute_members',
-      'deafen_members',
-      'move_members',
-      'use_soundboard',
-      'manage_soundboard',
-    ],
-  ),
-  (
-    label: 'Moderation',
-    perms: [
-      'kick_members',
-      'ban_members',
-      'moderate_members',
-      'manage_messages',
-      'manage_automod',
-      'view_audit_log',
-    ],
-  ),
-  (
-    label: 'Administration',
-    perms: [
-      'administrator',
-      'manage_channels',
-      'manage_space',
-      'manage_roles',
-      'manage_webhooks',
-      'manage_emojis',
-      'manage_events',
-    ],
-  ),
-];
 
 class _ChannelPermissionsDialog extends ConsumerStatefulWidget {
   const _ChannelPermissionsDialog({required this.spaceId, required this.channel});
@@ -696,7 +626,7 @@ class _OverwriteEditorPane extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final group in _permGroups)
+          for (final group in accordPermissionGroups)
             ..._buildGroup(context, theme, colors, group),
         ],
       ),
@@ -707,9 +637,9 @@ class _OverwriteEditorPane extends StatelessWidget {
     BuildContext context,
     ThemeData theme,
     BonfireThemeExtension colors,
-    ({String label, List<String> perms}) group,
+    ({String label, List<String> permissions}) group,
   ) {
-    final perms = group.perms.where(visiblePerms.contains).toList();
+    final perms = group.permissions.where(visiblePerms.contains).toList();
     if (perms.isEmpty) return const [];
     return [
       Padding(
@@ -722,7 +652,7 @@ class _OverwriteEditorPane extends StatelessWidget {
       ),
       for (final perm in perms)
         _PermissionRow(
-          label: titleCaseFromToken(perm),
+          label: accordPermissionLabel(perm),
           description: AccordPermission.description(perm),
           state: data[perm] ?? _OverwriteState.neutral,
           enabled: enabled,
