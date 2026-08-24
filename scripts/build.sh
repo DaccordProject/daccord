@@ -7,7 +7,8 @@
 #
 # Examples:
 #   scripts/build.sh                 # web release (WASM)
-#   scripts/build.sh apk             # Android APK
+#   scripts/build.sh apk             # Android GitHub/sideload APK
+#   scripts/build.sh appbundle       # Android Play Store AAB
 #   scripts/build.sh linux
 #   scripts/build.sh ios -- --no-codesign
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
@@ -33,13 +34,14 @@ case "$PLATFORM" in
     log "Output: build/web/"
     ;;
   apk)
-    log "Building Android APK (release)"
-    $FLUTTER build apk --no-tree-shake-icons -v "${EXTRA[@]}"
+    log "Building Android GitHub/sideload APK (release)"
+    $FLUTTER build apk --flavor github --no-tree-shake-icons -v "${EXTRA[@]}"
     log "Output: build/app/outputs/flutter-apk/"
     ;;
   appbundle|aab)
-    log "Building Android App Bundle (release)"
-    $FLUTTER build appbundle --no-tree-shake-icons -v "${EXTRA[@]}"
+    log "Building Android Play Store App Bundle (release)"
+    $FLUTTER build appbundle --flavor play --dart-define=APP_STORE=true \
+      --no-tree-shake-icons -v "${EXTRA[@]}"
     log "Output: build/app/outputs/bundle/"
     ;;
   linux)

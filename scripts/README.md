@@ -17,11 +17,12 @@ channel in `.fvmrc`), and fall back to a plain `flutter`/`dart` on `PATH`.
 ```bash
 scripts/setup.sh                 # first-time setup
 scripts/codegen.sh --watch       # keep this open while developing
-scripts/start.sh                 # run on the default device
+scripts/start.sh --flavor github # run on an Android device/emulator
 scripts/start.sh -d chrome       # run in Chrome
 
-scripts/build.sh                 # web release (WASM) -> build/web/
-scripts/build.sh apk             # Android APK
+scripts/build.sh                 # web release -> build/web/
+scripts/build.sh apk             # Android GitHub/sideload APK
+scripts/build.sh appbundle       # Android Play Store AAB
 scripts/build.sh linux           # Linux desktop (setup.sh installs the native deps)
 scripts/build.sh ios -- --no-codesign
 ```
