@@ -98,7 +98,7 @@ jobs:
           fi
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # Channel in the key so beta/stable don't clobber each other's cache.
           key: pub-${{ runner.os }}-${{ matrix.channel }}-${{ hashFiles('pubspec.lock') }}
@@ -107,7 +107,7 @@ jobs:
             pub-${{ runner.os }}-${{ matrix.channel }}-
 
       - name: Cache codegen (build_runner)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .dart_tool/build
           key: codegen-${{ runner.os }}-${{ matrix.channel }}-${{ hashFiles('pubspec.lock') }}
@@ -160,7 +160,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.PUB_CACHE }}
           key: accordkit-pub-${{ runner.os }}-${{ hashFiles('packages/accordkit/pubspec.yaml') }}
@@ -192,7 +192,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.PUB_CACHE }}
           key: markdown-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('packages/markdown_viewer/pubspec.yaml') }}
@@ -225,7 +225,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.PUB_CACHE }}
           key: livekit-native-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
@@ -269,7 +269,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           key: protocol-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
           path: ${{ env.PUB_CACHE }}
@@ -326,7 +326,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
           path: ${{ github.workspace }}/.pub-cache
@@ -383,7 +383,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
           path: ${{ github.workspace }}/.pub-cache
@@ -444,7 +444,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
           path: ${{ github.workspace }}/.pub-cache
@@ -533,7 +533,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache pub + native deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.pub-cache
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -541,7 +541,7 @@ jobs:
             pub-${{ runner.os }}-
 
       - name: Cache codegen (build_runner)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .dart_tool/build
           key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
@@ -557,7 +557,7 @@ jobs:
 
       - name: Cache Gradle (Android)
         if: matrix.platform == 'android'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
