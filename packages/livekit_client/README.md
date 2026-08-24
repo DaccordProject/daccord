@@ -35,7 +35,10 @@ LiveKit client SDK for Flutter is designed to work across all platforms supporte
 
 ## Example app
 
-We built a multi-user conferencing app as an example in the [example/](example/) folder. LiveKit is compatible cross-platform: you could join the same room using any of our supported realtime SDKs.
+This vendored fork intentionally does not contain LiveKit's standalone
+`example/` application. The maintained integration in this repository is
+Daccord's voice stack under [`lib/features/voice/`](../../lib/features/voice/);
+run the root application using the repository's main build instructions.
 
 Online demo: https://livekit.github.io/client-sdk-flutter/
 
@@ -279,13 +282,10 @@ LiveKit supports end-to-end encryption for audio/video data sent over the networ
 By default, the native platform can support E2EE without any settings, but for flutter web, you need to use the following steps to create `e2ee.worker.dart.js` file.
 
 ```bash
-# for example app
-dart compile js web/e2ee.worker.dart -o example/web/e2ee.worker.dart.js -m
-# for your project
-export YOUR_PROJECT_DIR=your_project_dir
-git clone https://github.com/livekit/client-sdk-flutter.git
-cd client-sdk-flutter && flutter pub get
-dart compile js web/e2ee.worker.dart -o ${YOUR_PROJECT_DIR}/web/e2ee.worker.dart.js -m
+# Run from packages/livekit_client and write into the host Flutter app.
+export DACCORD_WEB_APP_DIR=/path/to/your/flutter_app
+dart compile js web/e2ee.worker.dart \
+  -o "$DACCORD_WEB_APP_DIR/web/e2ee.worker.dart.js" -m
 ```
 
 ### Advanced track manipulation
