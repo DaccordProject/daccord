@@ -440,4 +440,70 @@ void main() {
       ]);
     });
   });
+
+  group('MCP backup security', () {
+    test('enabling MCP generates a nonempty local token', () {
+      final c = makeContainer();
+      controllerOf(c)
+        ..setDeveloperMode(true)
+        ..setMcpEnabled(true);
+
+      final settings = stateOf(c);
+      expect(settings.mcpEnabled, isTrue);
+      expect(settings.mcpToken, matches(RegExp(r'^[0-9a-f]{64}$')));
+    });
+
+    test('export strips the token and disables developer startup flags', () {
+      final c = makeContainer();
+      final controller = controllerOf(c)
+        ..setDeveloperMode(true)
+        ..setMcpEnabled(true);
+
+      final exported = controller.exportJson();
+      expect(exported, isNot(contains('mcpToken')));
+      expect(exported['developerMode'], isFalse);
+      expect(exported['mcpEnabled'], isFalse);
+    });
+
+    test('fresh-install import cannot enable MCP without a local secret', () {
+      final c = makeContainer();
+      final imported = controllerOf(c).importJson({
+        'themePreset': 'nord',
+        'developerMode': true,
+        'mcpEnabled': true,
+        'mcpAllowedGroups': AccordSettings.mcpToolGroups,
+      });
+
+      expect(imported, isTrue);
+      expect(stateOf(c).themePreset.name, 'nord');
+      expect(stateOf(c).developerMode, isFalse);
+      expect(stateOf(c).mcpEnabled, isFalse);
+      expect(stateOf(c).mcpToken, isEmpty);
+
+      final restored = stateOf(makeContainer());
+      expect(restored.developerMode, isFalse);
+      expect(restored.mcpEnabled, isFalse);
+      expect(restored.mcpToken, isEmpty);
+    });
+
+    test('import preserves a local token but never accepts a backup token', () {
+      final c = makeContainer();
+      final controller = controllerOf(c)
+        ..setDeveloperMode(true)
+        ..setMcpEnabled(true);
+      final localToken = stateOf(c).mcpToken;
+
+      expect(
+        controller.importJson({
+          'developerMode': true,
+          'mcpEnabled': true,
+          'mcpToken': 'attacker-controlled',
+        }),
+        isTrue,
+      );
+      expect(stateOf(c).developerMode, isFalse);
+      expect(stateOf(c).mcpEnabled, isFalse);
+      expect(stateOf(c).mcpToken, localToken);
+    });
+  });
 }

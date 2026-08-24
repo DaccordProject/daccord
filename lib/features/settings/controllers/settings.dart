@@ -375,7 +375,7 @@ class SettingsController extends _$SettingsController {
   /// Enables/disables the local Client MCP server. Generates a token on first
   /// enable if one isn't set yet.
   void setMcpEnabled(bool enabled) {
-    if (enabled && state.mcpToken.isEmpty) {
+    if (enabled && state.mcpToken.trim().isEmpty) {
       _update(state.copyWith(mcpEnabled: true, mcpToken: _generateToken()));
     } else {
       _update(state.copyWith(mcpEnabled: enabled));
@@ -440,20 +440,30 @@ class SettingsController extends _$SettingsController {
 
   /// A sanitised snapshot of the current settings for export to a file. Strips
   /// the local MCP bearer [AccordSettings.mcpToken] — the only secret that lives
-  /// in settings — mirroring the reference exporter's token/password stripping.
+  /// in settings — and disables its opt-in flags so restoring the backup cannot
+  /// start a service. Mirrors the reference exporter's secret stripping.
   Map<String, dynamic> exportJson() {
     final json = state.toJson();
     json.remove('mcpToken');
+    json['developerMode'] = false;
+    json['mcpEnabled'] = false;
     return json;
   }
 
   /// Replaces the current settings with those decoded from an exported file,
-  /// preserving the local MCP token (never imported, like the reference's
-  /// blocked keys). Returns false when [json] isn't a usable settings map.
+  /// preserving an existing local MCP token (never importing one, like the
+  /// reference's blocked keys). Developer Mode and MCP are always disabled so
+  /// importing an old backup cannot start a local service. Returns false when
+  /// [json] isn't a usable settings map.
   bool importJson(Map<dynamic, dynamic> json) {
     if (json.isEmpty) return false;
-    // Keep the current device's MCP token rather than importing one.
-    final merged = <dynamic, dynamic>{...json, 'mcpToken': state.mcpToken};
+    final localToken = state.mcpToken.trim().isEmpty ? '' : state.mcpToken;
+    final merged = <dynamic, dynamic>{
+      ...json,
+      'developerMode': false,
+      'mcpEnabled': false,
+      'mcpToken': localToken,
+    };
     try {
       _update(AccordSettings.fromJson(merged));
       return true;

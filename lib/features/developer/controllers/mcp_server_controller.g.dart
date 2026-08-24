@@ -69,7 +69,7 @@ final class McpServerControllerProvider
 }
 
 String _$mcpServerControllerHash() =>
-    r'2bac7b0fd691164df5c45b7e54851ace3158b054';
+    r'6a2734149fa1b62c8d4299e6e0d4ceb4d3e39983';
 
 /// Owns the desktop-only local MCP server lifecycle, driven by the persisted
 /// [SettingsController] flags. The server runs only while Developer Mode **and**

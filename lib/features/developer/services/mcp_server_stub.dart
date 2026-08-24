@@ -16,6 +16,7 @@ class McpServer {
   });
 
   bool get isListening => false;
+  int get port => 0;
 
   Future<bool> start(int port) async => false;
 

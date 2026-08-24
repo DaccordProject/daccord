@@ -48,9 +48,16 @@ class McpServer {
   final List<int> _requestTimestamps = [];
 
   bool get isListening => _server != null;
+  int get port => _server?.port ?? 0;
 
   Future<bool> start(int port) async {
     if (_server != null) return true;
+    if (_tokenGetter().trim().isEmpty) {
+      // Never expose a bearer-authenticated service without a bearer secret.
+      // ignore: avoid_print
+      print('McpServer: refused to start without an authentication token');
+      return false;
+    }
     try {
       _server = await HttpServer.bind(_loopbackAddr, port);
     } on SocketException catch (e) {
@@ -60,7 +67,7 @@ class McpServer {
     }
     _server!.listen(_handleRequest, onError: (_) {});
     // ignore: avoid_print
-    print('McpServer: listening on $_loopbackAddr:$port');
+    print('McpServer: listening on $_loopbackAddr:${_server!.port}');
     return true;
   }
 
@@ -216,7 +223,7 @@ class McpServer {
 
   bool _checkAuth(String? authHeader) {
     final token = _tokenGetter();
-    if (token.isEmpty) return true;
+    if (token.trim().isEmpty) return false;
     if (authHeader == null || !authHeader.startsWith('Bearer ')) return false;
     return _constantTimeCompare(authHeader.substring(7), token);
   }

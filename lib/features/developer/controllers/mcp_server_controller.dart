@@ -53,7 +53,10 @@ class McpServerController extends _$McpServerController {
   @override
   McpServerState build() {
     final settings = ref.watch(settingsControllerProvider);
-    final shouldRun = settings.developerMode && settings.mcpEnabled;
+    final shouldRun =
+        settings.developerMode &&
+        settings.mcpEnabled &&
+        settings.mcpToken.trim().isNotEmpty;
     final port = settings.mcpPort;
     ref.onDispose(() {
       _server?.stop();
