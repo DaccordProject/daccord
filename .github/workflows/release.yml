@@ -724,6 +724,9 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true
 
+      - name: Test App Store review-state policy
+        run: ruby fastlane/test/review_submission_policy_test.rb
+
       - name: Install dependencies
         # `pub get` fetches git dependencies (flutter_webrtc and its libwebrtc
         # download); a reset connection there is a transient failure, not a

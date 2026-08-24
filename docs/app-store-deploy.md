@@ -164,6 +164,23 @@ live on its own (`automatic_release: true`). Google's review gates the
 `production` rollout the same way. "All the way to production" means *submitted
 and set to ship*, not *live within minutes*.
 
+### Retrying an iOS App Store release
+
+The iOS lane queries App Store Connect before asking `deliver` to submit. If the
+same marketing version **and build** is already *Waiting for Review* or *In
+Review*, and its release type is still **After Approval**, the run is treated as
+an idempotent success: the duplicate IPA upload, version/metadata mutation, and
+review-submission request are all skipped. The Fastlane log calls this out
+explicitly. The original submission keeps automatic release enabled.
+
+The lane fails closed when the active review belongs to another version or
+build, is being cancelled, has unresolved issues, is configured for manual
+release, or App Store Connect returns incomplete/inconsistent state. Resolve
+that review in App Store Connect before retrying. In particular, rerunning the
+same GitHub Actions run keeps its build number and is idempotent; starting a new
+run for the same marketing version produces a new build number and therefore
+conflicts with a review already using the older build.
+
 ## Mac App Store: listing first
 
 The `mac-appstore` job **uploads only**. It does not submit, because there is

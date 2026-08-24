@@ -16,6 +16,9 @@
 
 require "shellwords" # String#shellescape for xcargs values containing spaces
 require "tmpdir"
+require "fastlane_core/ipa_file_analyser"
+require "fastlane_core/pkg_file_analyser"
+require_relative "lib/review_submission_policy"
 
 # Build the App Store Connect API key object once per run.
 def asc_api_key
@@ -24,6 +27,54 @@ def asc_api_key
     issuer_id: ENV.fetch("ASC_ISSUER_ID"),
     key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
     is_key_content_base64: true,
+  )
+end
+
+# Queries App Store Connect before deliver submits. Fastlane 2.236.1 treats any
+# in-progress review as an error, including an exact retry of the release that
+# is already waiting for Apple. Flatten the relevant API state for the pure
+# policy above, including the selected build and automatic-release mode.
+def app_store_review_decision(platform:, ipa: nil, pkg: nil)
+  app = Spaceship::ConnectAPI::App.find(ENV.fetch("APP_BUNDLE_ID"))
+  UI.user_error!("Could not find the app in App Store Connect") unless app
+
+  mapped_platform = Spaceship::ConnectAPI::Platform.map(platform)
+  submissions = app.get_review_submissions(
+    filter: {
+      platform: mapped_platform,
+      state: Daccord::ReviewSubmissionPolicy::ACTIVE_REVIEW_STATES.join(","),
+    },
+    includes: "appStoreVersionForReview",
+  )
+  snapshots = submissions.map do |submission|
+    related_version = submission.app_store_version_for_review
+    version = if related_version&.id
+                Spaceship::ConnectAPI::AppStoreVersion.get(
+                  app_store_version_id: related_version.id,
+                )
+              end
+    build = version&.get_build
+    {
+      state: submission.state,
+      version: version&.version_string,
+      build: build&.version,
+      version_state: version&.app_version_state,
+      release_type: version&.release_type,
+    }
+  end
+
+  target_build = if ipa
+                   FastlaneCore::IpaFileAnalyser.fetch_app_build(ipa)
+                 elsif pkg
+                   FastlaneCore::PkgFileAnalyser.fetch_app_build(pkg)
+                 else
+                   UI.user_error!("An IPA or PKG is required to verify review state")
+                 end
+
+  Daccord::ReviewSubmissionPolicy.decide(
+    target_version: ENV.fetch("APP_STORE_VERSION"),
+    target_build: target_build,
+    submissions: snapshots,
   )
 end
 
@@ -42,6 +93,23 @@ end
 # set once and every later release reuses them; only the release notes change
 # per version, which is why that is the single metadata field delivered here.
 def submit_release(api_key:, platform:, metadata_path:, ipa: nil, pkg: nil)
+  review_decision = app_store_review_decision(
+    platform: platform,
+    ipa: ipa,
+    pkg: pkg,
+  )
+  UI.user_error!(review_decision.message) if review_decision.fail?
+  if review_decision.skip?
+    UI.success(review_decision.message)
+  else
+    UI.message(review_decision.message)
+  end
+
+  # An exact retry must not upload the same version/build again, mutate its
+  # metadata, or create a second review submission. The first submission
+  # already carries the binary, release notes, and AFTER_APPROVAL release type
+  # verified by the preflight above.
+  skip_review = review_decision.skip?
   upload_to_app_store(
     api_key: api_key,
     ipa: ipa,
@@ -55,13 +123,15 @@ def submit_release(api_key:, platform:, metadata_path:, ipa: nil, pkg: nil)
     # dist/app-store-release-notes.sh); deliver uploads the fields it finds and
     # leaves everything else in App Store Connect untouched.
     metadata_path: metadata_path,
-    skip_metadata: false,
+    skip_binary_upload: skip_review,
+    skip_metadata: skip_review,
     skip_screenshots: true,
-    # Must stay false: with no version record created, there is nothing to
-    # attach the build to and nothing to submit.
-    skip_app_version_update: false,
-    submit_for_review: true,
-    automatic_release: true,
+    # Normally false: deliver must create/update the version before attaching
+    # and submitting the build. An exact retry skips version mutation because
+    # that same version is already locked in review.
+    skip_app_version_update: skip_review,
+    submit_for_review: !skip_review,
+    automatic_release: !skip_review,
     # App Store Connect needs a while to register a newly uploaded build before
     # deliver can attach it. The default of 7 retries is an exponential backoff
     # that tops out too early for a Flutter binary of this size; 10 buys roughly
