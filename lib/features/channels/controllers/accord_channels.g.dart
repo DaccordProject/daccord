@@ -72,7 +72,7 @@ final class AccordChannelsControllerProvider
 }
 
 String _$accordChannelsControllerHash() =>
-    r'6a426225ad17abc9b4da9c0914a82c99a854a911';
+    r'9c642174eb1069f812ba880ac7e7b3c093a93f5f';
 
 /// A space's channel list, keyed by space ID. The Accord analogue of Bonfire's
 /// firebridge-backed channel list. Self-loads via `spaces.listChannels` the

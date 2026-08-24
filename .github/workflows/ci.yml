@@ -308,7 +308,7 @@ jobs:
           if [ "$status" -ne 0 ]; then
             exit "$status"
           fi
-          if ! grep -q "All tests passed!" /tmp/protocol-integration.log; then
+          if ! grep -Eq "All tests passed!|[1-9][0-9]* tests? passed\\." /tmp/protocol-integration.log; then
             echo "::error::The blocking protocol suite did not run to completion. See integration/README.md."
             exit 1
           fi
@@ -467,7 +467,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev libsecret-1-dev \
+            libgtk-3-dev liblzma-dev libsecret-1-dev gnome-keyring \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libunwind-dev libdw-dev \
             libmpv-dev mpv \
@@ -497,7 +497,10 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          xvfb-run -a flutter test multi_instance/ 2>&1 | tee /tmp/multi.log
+          dbus-run-session -- bash -c '
+            eval "$(printf "ci-test-vault" | gnome-keyring-daemon --unlock --components=secrets)"
+            xvfb-run -a flutter test multi_instance/
+          ' 2>&1 | tee /tmp/multi.log
           status=${PIPESTATUS[0]}
           if grep -qE "^0 tests passed|🎉 0 tests passed" /tmp/multi.log; then
             echo "::error::No multi-instance tests ran — no server or no app bundle. See multi_instance/README.md."
@@ -530,7 +533,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev libsecret-1-dev \
+            libgtk-3-dev liblzma-dev libsecret-1-dev gnome-keyring \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libunwind-dev libdw-dev \
             libmpv-dev mpv \
@@ -570,9 +573,11 @@ jobs:
       - name: Exercise real LiveKit session
         env:
           ACCORD_TEST_LIVEKIT: "1"
-        run: >-
-          xvfb-run -a flutter test multi_instance/livekit_voice_test.dart
-          --reporter expanded
+        run: |
+          dbus-run-session -- bash -c '
+            eval "$(printf "ci-test-vault" | gnome-keyring-daemon --unlock --components=secrets)"
+            xvfb-run -a flutter test multi_instance/livekit_voice_test.dart --reporter expanded
+          '
 
   build:
     name: Build ${{ matrix.name }}

@@ -24,6 +24,7 @@ class AccordEmojisController extends _$AccordEmojisController {
     final emojis = (await client.emojis.list(
       spaceId,
     )).listOrLog<AccordEmoji>('emojis for $spaceId');
+    if (!ref.mounted) return;
     if (emojis != null && ref.isCurrentAccordClient(serverKey, client)) {
       state = emojis;
     }

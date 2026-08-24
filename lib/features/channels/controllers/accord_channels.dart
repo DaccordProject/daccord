@@ -23,15 +23,16 @@ class AccordChannelsController extends _$AccordChannelsController {
   }
 
   Future<void> _load(AccordClient client, String spaceId) async {
-    final channels = (await client.spaces.listChannels(spaceId))
-        .listOrLog<AccordChannel>('channels for $spaceId');
+    final channels = (await client.spaces.listChannels(
+      spaceId,
+    )).listOrLog<AccordChannel>('channels for $spaceId');
+    if (!ref.mounted) return;
     if (channels != null && ref.isCurrentAccordClient(serverKey, client)) {
       state = _sorted(channels);
     }
   }
 
-  void setChannels(List<AccordChannel> channels) =>
-      state = _sorted(channels);
+  void setChannels(List<AccordChannel> channels) => state = _sorted(channels);
 
   /// Inserts [channel], or replaces it in place if already present.
   void upsertChannel(AccordChannel channel) {
@@ -49,16 +50,23 @@ class AccordChannelsController extends _$AccordChannelsController {
   /// Creates a channel in this space. Returns the created channel on success,
   /// optimistically inserting it (the gateway create event is deduped by id).
   Future<AccordChannel?> createChannel(
-      AccordClient client, Map<String, dynamic> data) async {
-    final channel = (await client.spaces.createChannel(spaceId, data))
-        .dataOrLog<AccordChannel>('create channel in $spaceId');
+    AccordClient client,
+    Map<String, dynamic> data,
+  ) async {
+    final channel = (await client.spaces.createChannel(
+      spaceId,
+      data,
+    )).dataOrLog<AccordChannel>('create channel in $spaceId');
     if (channel != null) upsertChannel(channel);
     return channel;
   }
 
   /// Patches a channel's settings, replacing it in place on success.
   Future<bool> updateChannel(
-      AccordClient client, String channelId, Map<String, dynamic> data) async {
+    AccordClient client,
+    String channelId,
+    Map<String, dynamic> data,
+  ) async {
     final result = await client.channels.update(channelId, data);
     if (!result.ok) {
       debugPrint('Failed to update channel $channelId: ${result.error}');

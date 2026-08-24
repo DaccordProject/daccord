@@ -1,4 +1,3 @@
-import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
@@ -30,9 +29,10 @@ void markChannelRead(
   if (key == null) return;
   ref.read(readStateControllerProvider(key).notifier).markRead(channelId);
 
-  final messages = ref.read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId));
-  final lastId =
-      messages?.isNotEmpty == true ? messages!.last.id : fallbackMessageId;
+  final messages = ref.read(accordMessagesControllerProvider(key, channelId));
+  final lastId = messages?.isNotEmpty == true
+      ? messages!.last.id
+      : fallbackMessageId;
   if (lastId == null) return;
   ref
       .read(accordAuthProvider.notifier)

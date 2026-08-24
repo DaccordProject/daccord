@@ -81,7 +81,9 @@ class MessageAuthorHeader extends StatelessWidget {
       overflow: ellipsizeName ? TextOverflow.ellipsis : null,
       style: theme.textTheme.titleSmall!.copyWith(color: nameColor),
     );
-    if (onNameTap != null) {
+    if (onNameTap != null ||
+        onNameLongPressStart != null ||
+        onNameSecondaryTapUp != null) {
       nameWidget = MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(

@@ -103,10 +103,18 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     final client = _client;
     final serverKey = ref.readActiveServerKey();
     if (client == null || serverKey == null) return;
-    final result = await client.channels.delete(channel.id);
+    final selfId = widget.selfId;
+    if (group && selfId == null) return;
+    final result = group
+        ? await client.channels.removeRecipient(channel.id, selfId!)
+        : await client.channels.delete(channel.id);
     if (!mounted || ref.readActiveServerKey() != serverKey) return;
     if (!result.ok) {
-      _snackDmError(context, result.error, 'Failed to close conversation');
+      _snackDmError(
+        context,
+        result.error,
+        group ? 'Failed to leave group' : 'Failed to close conversation',
+      );
       return;
     }
     ref
