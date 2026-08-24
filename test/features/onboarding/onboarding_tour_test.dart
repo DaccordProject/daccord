@@ -1,6 +1,7 @@
 import 'package:bonfire/features/onboarding/controllers/onboarding_controller.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_overlay.dart';
 import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
+import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -60,6 +61,42 @@ void main() {
   });
 
   group('startOnboardingTour', () {
+    testWidgets('stays inside the themed navigator when apps are nested', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: _container,
+          child: MaterialApp(
+            home: MaterialApp(
+              navigatorKey: rootNavigatorKey,
+              theme: ThemeData(extensions: const [_theme]),
+              home: Scaffold(
+                body: Consumer(
+                  builder: (context, ref, _) => TextButton(
+                    onPressed: () => startOnboardingTour(context, ref),
+                    child: const Text('launch nested'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('launch nested'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(OnboardingOverlay), findsOneWidget);
+      expect(
+        Theme.of(
+          tester.element(find.byType(OnboardingOverlay)),
+        ).extension<BonfireThemeExtension>(),
+        _theme,
+      );
+    });
+
     testWidgets('pushes the walkthrough and stamps the marker on skip', (
       tester,
     ) async {

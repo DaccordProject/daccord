@@ -72,7 +72,12 @@ Future<void> maybeShowOnboardingOnStartup(WidgetRef ref) async {
 /// dismisses it for free and the home screen underneath keeps rendering (the
 /// tour has to be able to point at it).
 Future<void> startOnboardingTour(BuildContext context, WidgetRef ref) async {
-  final navigator = Navigator.of(context, rootNavigator: true);
+  // MainWindow is hosted inside a small outer MaterialApp used by ProfileGate.
+  // Asking for rootNavigator from inside MainWindow therefore climbs past the
+  // themed router and pushes the tour into that bootstrap app, where the
+  // BonfireThemeExtension is absent. Prefer the router's explicitly keyed
+  // navigator; the fallback keeps this helper usable in isolated widget tests.
+  final navigator = rootNavigatorKey.currentState ?? Navigator.of(context);
   final notifier = ref.read(onboardingControllerProvider.notifier);
   notifier.setActive(true);
   try {
