@@ -34,7 +34,10 @@ The Accord server backend is [`accordserver`](https://github.com/DaccordProject/
 - **Networking:** `accordkit` (vendored in-tree at `packages/accordkit`, maintained here). **The firebridge → accordkit swap is complete** — `packages/firebridge` and `firebridge_extensions` no longer exist and nothing in `lib/` imports them (a few doc comments still mention "firebridge" to describe what a controller replaced). Do not try to re-add firebridge.
 - **Voice/video/screen share:** `livekit_client` (a local fork at `packages/livekit_client`, see #68) over WebRTC; credentials fetched via accordkit's `client.voice`. See `lib/features/voice/`.
 - **Media:** `media_kit` (+ `media_kit_video`, `video_player_media_kit`, pinned git forks) / `cached_network_image` / `file_picker` — re-point CDN URLs at the Accord server.
-- **Code generation is required during development:** `dart run build_runner watch -d`.
+- **Riverpod generation is required after changing annotated providers:** run
+  `dart run build_runner build -d` once, or keep
+  `dart run build_runner watch -d` running while editing them. Client model
+  serialization is handwritten; there is no JSON-model generation step.
 
 ### Layout
 
@@ -120,7 +123,7 @@ dart run build_runner watch -d        # keep running during dev (codegen)
 
 flutter run --flavor github            # run on a connected device/emulator (Android needs a flavor)
 flutter analyze --no-fatal-infos       # lint; --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
-flutter test                           # full unit/widget suite (950+ tests)
+flutter test                           # full unit/widget suite; use its reported total
 flutter test test/features/voice/voice_logic_test.dart   # run a single test file
 
 # Release builds
@@ -149,5 +152,10 @@ When in doubt about Accord behaviour, read `packages/accordkit` (the vendored SD
 
 - Match the surrounding code's style; Bonfire is feature-modular — keep new code inside the relevant `lib/features/<feature>/` module.
 - Run `dart run build_runner build -d` after changing any `@riverpod`-annotated file (regenerates `*.g.dart`).
+- Documentation is part of the change: authors who alter dependencies,
+  generation, build/test commands, CI, or supported behavior must update
+  `README.md`, this file, and relevant `docs/` pages in the same PR. Reviewers
+  should verify commands against `pubspec.yaml` and workflows rather than copy
+  volatile dependency versions or test counts.
 - Keep changes minimal and reuse-first; this is a port, not a rewrite.
 - Don't reintroduce Discord endpoints, Discord branding, or Firebase push without explicit instruction.

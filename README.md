@@ -201,6 +201,7 @@ If you're contributing code, a few house rules keep this a port rather than a re
 - Keep changes **minimal and reuse-first** — prefer adapting existing Bonfire widgets, controllers, routing, and theming.
 - Keep new code inside the relevant `lib/features/<feature>/` module and match the surrounding style.
 - Run `dart run build_runner build -d` after touching any `@riverpod`-annotated file.
+- Update contributor and user documentation in the same PR when changing dependencies, generation, build/test commands, CI, supported platforms, or feature behavior. Reviewers should verify those instructions against `pubspec.yaml` and the workflows instead of preserving volatile version or test-count claims.
 - **No Discord.** Don't reintroduce Discord endpoints, branding, or Firebase push. This client talks only to Accord servers.
 - Run `flutter analyze --no-fatal-infos` and `flutter test` before opening a PR.
 
