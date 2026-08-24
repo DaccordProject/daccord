@@ -145,10 +145,15 @@ dependency_overrides:
       ref: 652c49e02701bb6bb80953a6fdf650a5c8f002f9
       path: video_player_media_kit
 
+  # The published 2.0.0 package constrains package:web to ^0.5.0; this fork
+  # widens that constraint for the package:web 1.x used by the app. Remove this
+  # override once a published release supports package:web 1.x (or the app no
+  # longer depends on flutter_keyboard_visibility_web). The audited fork is
+  # pinned so dependency resolution cannot silently select new code.
   flutter_keyboard_visibility_web:
     git:
       url: https://github.com/raldhafiri/flutter_keyboard_visibility.git
-      ref: master
+      ref: 3b13b9f65dc4cbddb20022c29c95f92180503285
       path: flutter_keyboard_visibility_web
 
 dev_dependencies:
