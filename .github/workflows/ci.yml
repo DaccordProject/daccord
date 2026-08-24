@@ -22,6 +22,8 @@ name: CI
 #                surface, against the same server image. Non-blocking; the
 #                most expensive suite (release build + two apps).
 #                See multi_instance/README.md.
+# - `livekit-sfu`: manual/advisory two-process voice run against a real SFU;
+#                enable it from workflow_dispatch with the livekit_sfu input.
 # - `build`    : release builds for Web (JavaScript) / Android / Linux /
 #                Windows, uploaded as artifacts. Only runs on manual
 #                `workflow_dispatch` — PRs
@@ -44,6 +46,12 @@ on:
   pull_request:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      livekit_sfu:
+        description: Run the advisory real-LiveKit two-client voice fixture
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -61,6 +69,9 @@ env:
   # integration/support/accord_test_server.dart together, after the blocking
   # protocol suite passes against the candidate image.
   ACCORD_SERVER_IMAGE: ghcr.io/daccordproject/accordserver@sha256:9f76756599fded6ec3f8b5f9638ed436e3ff73b96df24afd880c40673da8acf2
+  # Reviewed SFU fixture for the opt-in real-media job. Never replace this with
+  # a mutable tag; keep it in sync with accord_test_server.dart.
+  ACCORD_TEST_LIVEKIT_IMAGE: livekit/livekit-server@sha256:9e34703b97ceb9f622bcbb533107e4786c7aa65966f0494966a452ad41a0c0d4
 
 jobs:
   analyze:
@@ -493,6 +504,75 @@ jobs:
             exit 1
           fi
           exit $status
+
+  livekit-sfu:
+    name: Real LiveKit SFU (two clients, opt-in)
+    # Native WebRTC/UDP plus two release app processes is too expensive and
+    # host-sensitive for the default gate. It is visible and runnable from
+    # workflow_dispatch via the livekit_sfu checkbox, and remains advisory.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.livekit_sfu }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ github.workspace }}/.pub-cache
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Install Linux build and virtual-audio dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libsecret-1-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libdw-dev \
+            libmpv-dev mpv \
+            pulseaudio pulseaudio-utils \
+            xvfb xdg-user-dirs
+
+      - name: Start deterministic virtual audio devices
+        shell: bash
+        run: |
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=daccord_test \
+            sink_properties=device.description=daccord_test
+          pactl set-default-sink daccord_test
+          pactl set-default-source daccord_test.monitor
+          pactl info
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Code generation (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Pull immutable server and SFU fixtures
+        run: |
+          docker pull "${{ env.ACCORD_SERVER_IMAGE }}"
+          docker pull "${{ env.ACCORD_TEST_LIVEKIT_IMAGE }}"
+
+      - name: Build the app
+        run: flutter build linux --release
+
+      - name: Exercise real LiveKit session
+        env:
+          ACCORD_TEST_LIVEKIT: "1"
+        run: >-
+          xvfb-run -a flutter test multi_instance/livekit_voice_test.dart
+          --reporter expanded
 
   build:
     name: Build ${{ matrix.name }}

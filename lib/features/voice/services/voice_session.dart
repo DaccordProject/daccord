@@ -7,7 +7,13 @@ import 'package:livekit_client/livekit_client.dart';
 
 /// Lifecycle of the LiveKit media connection, mirroring the reference client's
 /// `ClientModels.VoiceSessionState`.
-enum VoiceSessionState { connecting, connected, reconnecting, failed, disconnected }
+enum VoiceSessionState {
+  connecting,
+  connected,
+  reconnecting,
+  failed,
+  disconnected,
+}
 
 /// Thin wrapper around a LiveKit [Room] that exposes the control surface the
 /// [VoiceController] needs. The Dart port of the reference `livekit_adapter.gd`
@@ -21,6 +27,7 @@ class VoiceSession {
   Room? _room;
   EventsListener<RoomEvent>? _listener;
   VoiceSessionState _state = VoiceSessionState.disconnected;
+  String? _lastError;
   bool _deafened = false;
   bool _intentionalDisconnect = false;
 
@@ -63,6 +70,7 @@ class VoiceSession {
 
   Room? get room => _room;
   VoiceSessionState get state => _state;
+  String? get lastError => _lastError;
   bool get isDeafened => _deafened;
 
   LocalParticipant? get localParticipant => _room?.localParticipant;
@@ -171,6 +179,7 @@ class VoiceSession {
     }
 
     _setState(VoiceSessionState.connecting);
+    _lastError = null;
     try {
       await room.connect(url, token);
       // The new connection is live — genuine drops from here are unintentional.
@@ -192,6 +201,7 @@ class VoiceSession {
       _startLevelPolling();
       _setState(VoiceSessionState.connected);
     } catch (e) {
+      _lastError = '$e';
       debugPrint('LiveKit connect failed: $e');
       _setState(VoiceSessionState.failed);
       // Soft cleanup — keep the Room so the next attempt can reuse it.
@@ -221,11 +231,15 @@ class VoiceSession {
   Future<void> _stopLocalMedia() async {
     final participant = _room?.localParticipant;
     if (participant == null) return;
-    await _guardMedia('stop screen share',
-        () => participant.setScreenShareEnabled(false));
     await _guardMedia(
-        'stop camera', () => participant.setCameraEnabled(false));
-    await _guardMedia('stop mic', () => participant.setMicrophoneEnabled(false));
+      'stop screen share',
+      () => participant.setScreenShareEnabled(false),
+    );
+    await _guardMedia('stop camera', () => participant.setCameraEnabled(false));
+    await _guardMedia(
+      'stop mic',
+      () => participant.setMicrophoneEnabled(false),
+    );
   }
 
   /// Drops the live connection but keeps the [Room] object alive for reuse.
@@ -247,8 +261,10 @@ class VoiceSession {
   Future<void> disconnect() => _softDisconnect();
 
   Future<void> setMicEnabled(bool enabled) async {
-    await _guardMedia('mic',
-        () => _room?.localParticipant?.setMicrophoneEnabled(enabled));
+    await _guardMedia(
+      'mic',
+      () => _room?.localParticipant?.setMicrophoneEnabled(enabled),
+    );
   }
 
   /// Silences (or restores) every remote participant's audio locally. LiveKit
@@ -285,8 +301,10 @@ class VoiceSession {
     }
     await _guardMedia(
       'camera',
-      () => _room?.localParticipant
-          ?.setCameraEnabled(enabled, cameraCaptureOptions: options),
+      () => _room?.localParticipant?.setCameraEnabled(
+        enabled,
+        cameraCaptureOptions: options,
+      ),
     );
   }
 
@@ -458,7 +476,9 @@ class VoiceSession {
   Future<void> _applyOutputDevice(String? deviceId) async {
     if (deviceId == null || deviceId.isEmpty) return;
     await _guardMedia(
-        'output device', () => rtc.Helper.selectAudioOutput(deviceId));
+      'output device',
+      () => rtc.Helper.selectAudioOutput(deviceId),
+    );
   }
 
   Future<void> _applyOutputGain() async {
@@ -467,14 +487,18 @@ class VoiceSession {
     for (final participant in room.remoteParticipants.values) {
       for (final pub in participant.audioTrackPublications) {
         final track = pub.track;
-        if (track != null) await _setTrackVolume(track.mediaStreamTrack, _outputGain);
+        if (track != null) {
+          await _setTrackVolume(track.mediaStreamTrack, _outputGain);
+        }
       }
     }
   }
 
   Future<void> _applyInputGain() async {
     final track = _localMicTrack;
-    if (track != null) await _setTrackVolume(track.mediaStreamTrack, _inputGain);
+    if (track != null) {
+      await _setTrackVolume(track.mediaStreamTrack, _inputGain);
+    }
   }
 
   /// Polls the local mic track's WebRTC stats so [localAudioLevel] tracks input
@@ -482,7 +506,9 @@ class VoiceSession {
   void _startLevelPolling() {
     _levelTimer?.cancel();
     _levelTimer = Timer.periodic(
-        const Duration(milliseconds: 100), (_) => _pollInputLevel());
+      const Duration(milliseconds: 100),
+      (_) => _pollInputLevel(),
+    );
   }
 
   void _stopLevelPolling() {
@@ -498,8 +524,8 @@ class VoiceSession {
       final track = _localMicTrack;
       if (track is LocalAudioTrack) {
         final stats = await track.getSenderStats();
-        _localInputLevel =
-            (stats?.audioSourceStats?.audioLevel ?? 0).toDouble();
+        _localInputLevel = (stats?.audioSourceStats?.audioLevel ?? 0)
+            .toDouble();
       } else {
         _localInputLevel = 0; // muted/unpublished — nothing to measure
       }
@@ -522,8 +548,7 @@ class VoiceSession {
     return null;
   }
 
-  Future<void> _setTrackVolume(
-      rtc.MediaStreamTrack track, double gain) async {
+  Future<void> _setTrackVolume(rtc.MediaStreamTrack track, double gain) async {
     await _guardMedia('volume', () => rtc.Helper.setVolume(gain, track));
   }
 

@@ -23,8 +23,9 @@ Per instance, `AppInstance.launch`:
 
 1. Creates a throwaway `HOME` and gives it the XDG layout (see below).
 2. Seeds `accord-settings` with Developer Mode + MCP on, a unique `mcpPort`,
-   and every tool group enabled — the default is `read`/`navigate` only, so
-   anything else 404s.
+   a unique nonempty bearer token, and every tool group enabled — the default
+   is `read`/`navigate` only, so anything else 404s. The driver sends that
+   token on every request; empty-token authentication is never used.
 3. Seeds `accord-session` with a token from an account the layer-1 harness
    registered, which is what makes the app come up already signed in: the login
    screen restores it on its first frame.
@@ -74,10 +75,12 @@ Note that tool payloads don't always match the REST shapes: `list_members`
 flattens the member onto the user (`id`, `username`, …) where REST nests a
 `user` object under `user_id`.
 
-## Voice, without an SFU
+## Voice fixtures
 
-Voice is the strongest reason to have this layer — who hears whom is inherently
-multi-process — and it's covered, but not in the obvious way.
+The default `two_clients_test.dart` remains the cheap voice-state seam. Alice
+joins over REST rather than through her app's `join_voice_channel`; Bob's app
+then proves the gateway state used by the UI arrived. This requires no SFU,
+audio device, or UDP and runs on every multi-instance job.
 
 `get_current_state` only reports the caller's **own** voice state, so a new
 `list_voice_states` (read group) was added to `mcp_tools.dart`. It reads the
@@ -85,20 +88,31 @@ local `voiceStatesController` cache, which is what the UI renders and what
 `voice.state_update` events drive — so it reports what the user can actually
 see, including whether a peer's join ever arrived.
 
-The other half is that A joins voice **over REST**, not through her app's
-`join_voice_channel`. That tool also drives the LiveKit session, and there's no
-SFU in the fixture. It doesn't weaken the test: the server broadcasts
-`voice.state_update` *before* it touches LiveKit, so the fan-out B renders is
-identical either way. What isn't covered is the client's own LiveKit session —
-media, mute propagation through the room — which needs a real
-`livekit/livekit-server` in the fixture.
+`livekit_voice_test.dart` is the opt-in real-media seam. With
+`ACCORD_TEST_LIVEKIT=1`, the server fixture starts a digest-pinned LiveKit
+container, removes the server's `ACCORD_TEST_MODE` bypass, and drives both apps
+through `join_voice_channel`. It asserts the actual LiveKit room and local /
+remote participants, microphone mute, deafen subscription state, a brief SFU
+outage + SDK reconnection, and room/session teardown. Run it with:
+
+```bash
+flutter build linux --release
+ACCORD_TEST_LIVEKIT=1 \
+  xvfb-run -a flutter test multi_instance/livekit_voice_test.dart --reporter expanded
+```
+
+This needs Linux Docker host networking, UDP, and usable PulseAudio devices.
+The manual advisory CI job provisions virtual audio; for local headless runs,
+provide an equivalent default sink and source.
 
 The server also refuses voice endpoints outright unless a LiveKit client is
-configured (`voice_not_configured`), even in test mode, so the fixture sets
-`LIVEKIT_*` to a URL it never dials.
+configured (`voice_not_configured`), even in test mode. The cheap fixture sets
+`LIVEKIT_*` to a placeholder it never dials; real-SFU mode replaces those
+values with the managed container endpoints.
 
 ## CI
 
-Runs as its own non-blocking job on Linux under xvfb, after a release build. It
-is the most expensive of the three suites (a release build plus two app
-processes), so it's deliberately separate from the merge gate.
+The cheap suite runs as its own non-blocking Linux job under xvfb. The real SFU
+scenario has a separate non-blocking `workflow_dispatch` job exposed by the
+**Real LiveKit SFU** checkbox; it is manual because native media and host UDP
+are the most environment-sensitive part of the stack.

@@ -86,6 +86,20 @@ void main() {
 
       expect(result['connected_servers'], 2);
     });
+
+    test('reports disconnected LiveKit transport observables', () async {
+      final result = await tools.tools['get_current_state']!.handler({});
+
+      expect(result['voice_session_state'], 'disconnected');
+      expect(result['voice_livekit_error'], '');
+      expect(result['voice_livekit_room_connected'], isFalse);
+      expect(result['voice_livekit_room_name'], isEmpty);
+      expect(result['voice_livekit_local_identity'], isEmpty);
+      expect(result['voice_livekit_remote_identities'], isEmpty);
+      expect(result['voice_livekit_remote_audio_tracks'], 0);
+      expect(result['voice_livekit_remote_audio_enabled'], 0);
+      expect(result['voice_livekit_remote_muted_identities'], isEmpty);
+    });
   });
 
   // ── tool registration ────────────────────────────────────────────────────

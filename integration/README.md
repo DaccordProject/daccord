@@ -32,6 +32,15 @@ Servers run with `ACCORD_TEST_MODE=1`, which relaxes the LiveKit requirement so
 voice-state paths are reachable without a real SFU. It does **not** relax auth
 or rate limits.
 
+Set `ACCORD_TEST_LIVEKIT=1` to replace that bypass with a real, managed LiveKit
+container. The fixture removes `ACCORD_TEST_MODE`, gives accordserver an
+internal HTTP endpoint and clients an external WebSocket endpoint, and uses
+randomized host-network signaling, RTC TCP, and RTC UDP ports. Its default
+image is an immutable reviewed digest; `ACCORD_TEST_LIVEKIT_IMAGE` may override
+it for explicit candidate testing. This mode requires Linux Docker host
+networking and is intended for `multi_instance/livekit_voice_test.dart`, not
+the cheap protocol/controller suite.
+
 ## Layout
 
 - `support/accord_test_server.dart` — boots and tears down the server.
@@ -102,3 +111,17 @@ ACCORD_SERVER_IMAGE=ghcr.io/daccordproject/accordserver@sha256:<digest> \
 
 Do not replace the digest with a mutable tag: releases reuse `ci.yml`, so this
 protocol job is part of the release gate as well as the pull-request gate.
+
+The real-SFU scenario is deliberately advisory and manual because native
+WebRTC, UDP, xvfb, and host audio are materially less reliable than the REST /
+gateway seam. Run **CI → Run workflow → Real LiveKit SFU** or locally:
+
+```bash
+flutter build linux --release
+ACCORD_TEST_LIVEKIT=1 \
+  xvfb-run -a flutter test multi_instance/livekit_voice_test.dart --reporter expanded
+```
+
+The Linux app must see usable input/output devices. CI starts a PulseAudio null
+sink and uses its monitor as the default source so both clients publish real
+audio tracks without depending on runner hardware.

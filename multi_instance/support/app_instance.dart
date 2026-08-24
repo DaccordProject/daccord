@@ -54,17 +54,23 @@ class AppInstance {
   AppInstance._({
     required this.label,
     required this.port,
+    required this.mcpToken,
     required this.account,
     required Directory home,
     required Process process,
-  })  : _home = home,
-        _process = process;
+  }) : _home = home,
+       _process = process;
 
   /// Human-readable name used in failure messages ("alice", "bob").
   final String label;
 
   /// Loopback port this instance's MCP server is listening on.
   final int port;
+
+  /// Per-instance bearer secret seeded into the isolated settings box. This
+  /// keeps the harness compatible with the app's fail-closed MCP startup and
+  /// prevents one test process from authenticating to another's port.
+  final String mcpToken;
 
   final TestAccount account;
 
@@ -101,8 +107,7 @@ class AppInstance {
     }
 
     final content = (response['result'] as Map)['content'] as List;
-    final decoded =
-        jsonDecode((content.first as Map)['text'] as String) as Map;
+    final decoded = jsonDecode((content.first as Map)['text'] as String) as Map;
     final result = Map<String, dynamic>.from(decoded);
     if (result['error'] != null) {
       throw StateError('$label: tool $tool returned ${result['error']}');
@@ -141,7 +146,7 @@ class AppInstance {
     // header was received". `persistentConnection: false` below makes that
     // rare; the retry covers the rest rather than failing a test over a
     // transport hiccup that says nothing about the app.
-    for (var attempt = 0;; attempt++) {
+    for (var attempt = 0; ; attempt++) {
       try {
         return await _rpcOnce(body);
       } on HttpException {
@@ -154,12 +159,14 @@ class AppInstance {
   }
 
   Future<Map<String, dynamic>> _rpcOnce(Map<String, dynamic> body) async {
-    final request =
-        await _http.postUrl(Uri.parse('http://127.0.0.1:$port/mcp'));
+    final request = await _http.postUrl(
+      Uri.parse('http://127.0.0.1:$port/mcp'),
+    );
     // Each call gets its own connection: the driver is chatty and long-lived,
     // and a pooled socket that the app has since dropped fails the next call.
     request.persistentConnection = false;
     request.headers.contentType = ContentType.json;
+    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $mcpToken');
     request.add(utf8.encode(jsonEncode(body)));
     final response = await request.close();
     final text = await response.transform(utf8.decoder).join();
@@ -179,10 +186,15 @@ class AppInstance {
     required int port,
   }) async {
     final binary = resolveBinary();
-    final home =
-        Directory.systemTemp.createTempSync('accord-instance-$label-');
+    final home = Directory.systemTemp.createTempSync('accord-instance-$label-');
+    final mcpToken = port.toRadixString(16).padLeft(64, '0');
     prepareHome(home);
-    await seedProfile(home: home, account: account, port: port);
+    await seedProfile(
+      home: home,
+      account: account,
+      port: port,
+      mcpToken: mcpToken,
+    );
 
     final process = await Process.start(
       binary,
@@ -218,6 +230,7 @@ class AppInstance {
     final instance = AppInstance._(
       label: label,
       port: port,
+      mcpToken: mcpToken,
       account: account,
       home: home,
       process: process,
@@ -332,8 +345,9 @@ class AppInstance {
   /// DOCUMENTS inside it.
   static void prepareHome(Directory home) {
     Directory('${home.path}/.config').createSync(recursive: true);
-    File('${home.path}/.config/user-dirs.dirs')
-        .writeAsStringSync('XDG_DOCUMENTS_DIR="\$HOME/Documents"\n');
+    File(
+      '${home.path}/.config/user-dirs.dirs',
+    ).writeAsStringSync('XDG_DOCUMENTS_DIR="\$HOME/Documents"\n');
     Directory('${home.path}/Documents').createSync(recursive: true);
     // Fontconfig warns loudly on every launch without a writable cache dir.
     Directory('${home.path}/.cache/fontconfig').createSync(recursive: true);
@@ -349,6 +363,7 @@ class AppInstance {
     required Directory home,
     required TestAccount account,
     required int port,
+    required String mcpToken,
   }) async {
     final dataDir = Directory('${documentsDirFor(home)}/daccord/data')
       ..createSync(recursive: true);
@@ -364,7 +379,7 @@ class AppInstance {
       'developerMode': true,
       'mcpEnabled': true,
       'mcpPort': port,
-      'mcpToken': '',
+      'mcpToken': mcpToken,
       'mcpAllowedGroups': AccordSettings.mcpToolGroups,
       // Same first-launch suppressions the other layers need: dialogs would
       // sit on top of the UI, and the updater would stage a real download.
@@ -381,7 +396,7 @@ class AppInstance {
     final session = await Hive.openBox(ProfileStore.sessionBoxName);
     final json = account.session.toJson();
     await session.put('session', json);
-    await session.put('accounts', [json]);
+    await session.put('accounts', {account.session.key: json});
 
     await Hive.close();
   }

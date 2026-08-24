@@ -116,6 +116,13 @@ class McpTools {
     final connections = ref.read(connectionsControllerProvider);
     final spaces = ref.read(spacesControllerProvider);
     final voice = ref.read(voiceControllerProvider);
+    final voiceSession = ref.read(voiceControllerProvider.notifier).session;
+    final room = voiceSession?.room;
+    final remoteParticipants = room?.remoteParticipants.values.toList() ?? [];
+    final remoteAudio = [
+      for (final participant in remoteParticipants)
+        ...participant.audioTrackPublications,
+    ];
     final session = ref.read(
       accordAuthProvider.select(
         (s) => s is AccordAuthLoggedIn ? s.session : null,
@@ -137,6 +144,30 @@ class McpTools {
       'voice_channel_id': voice.channelId ?? '',
       'voice_self_mute': voice.selfMute,
       'voice_self_deaf': voice.selfDeaf,
+      // Developer diagnostics used by the opt-in real-SFU fixture. These are
+      // transport observables, not mirrors of Accord's gateway voice state.
+      'voice_session_state': voice.sessionState.name,
+      'voice_livekit_error': voiceSession?.lastError ?? '',
+      'voice_livekit_room_connected': room?.connectionState.name == 'connected',
+      'voice_livekit_room_name': room?.name ?? '',
+      'voice_livekit_local_identity': room?.localParticipant?.identity ?? '',
+      'voice_livekit_microphone_enabled':
+          room?.localParticipant?.isMicrophoneEnabled() ?? false,
+      'voice_livekit_remote_identities': [
+        for (final participant in remoteParticipants) participant.identity,
+      ],
+      'voice_livekit_remote_audio_tracks': remoteAudio.length,
+      'voice_livekit_remote_audio_enabled': remoteAudio
+          .where((publication) => publication.enabled)
+          .length,
+      'voice_livekit_remote_muted_identities': [
+        for (final participant in remoteParticipants)
+          if (participant.audioTrackPublications.isNotEmpty &&
+              participant.audioTrackPublications.every(
+                (publication) => publication.muted,
+              ))
+            participant.identity,
+      ],
       'connected_servers': connected,
       'space_count': spaces?.length ?? 0,
       'user_id': session?.userId ?? '',
@@ -697,7 +728,9 @@ class McpTools {
   String? _spaceForChannel(String channelId) {
     final spaces = ref.read(spacesControllerProvider) ?? const [];
     for (final s in spaces) {
-      final channels = ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', s.id));
+      final channels = ref.read(
+        accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', s.id),
+      );
       if (channels != null && channels.any((c) => c.id == channelId)) {
         return s.id;
       }
