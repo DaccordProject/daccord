@@ -1,4 +1,5 @@
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -23,11 +24,12 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    return CircleAvatar(
+    return TickerAwareCircleAvatar(
       radius: radius,
       backgroundColor: colors.darkGray,
-      foregroundImage:
-          imageUrl == null ? null : CachedNetworkImageProvider(imageUrl!),
+      foregroundImage: imageUrl == null
+          ? null
+          : CachedNetworkImageProvider(imageUrl!),
       child: Text(accordInitial(name)),
     );
   }

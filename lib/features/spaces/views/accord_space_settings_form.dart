@@ -169,10 +169,10 @@ class _OverviewSection extends StatelessWidget {
             children: [
               Column(
                 children: [
-                  CircleAvatar(
+                  TickerAwareCircleAvatar(
                     radius: 28,
                     backgroundColor: colors.darkGray,
-                    backgroundImage: pendingIconDataUri != null
+                    foregroundImage: pendingIconDataUri != null
                         ? null
                         : (iconRemoved || iconUrl == null
                               ? null

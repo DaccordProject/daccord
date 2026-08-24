@@ -12,6 +12,7 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/image_crop_dialog.dart';
+import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
@@ -265,10 +266,10 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
                 Center(
                   child: Stack(
                     children: [
-                      CircleAvatar(
+                      TickerAwareCircleAvatar(
                         radius: 40,
                         backgroundColor: previewBg,
-                        backgroundImage: _newAvatarBytes != null
+                        foregroundImage: _newAvatarBytes != null
                             ? MemoryImage(_toUint8(_newAvatarBytes!))
                             : (avatarUrl != null
                                   ? CachedNetworkImageProvider(avatarUrl)

@@ -163,6 +163,7 @@ dependency_overrides:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  image: ^4.3.0
   # Drives the real widget tree on a real device for the UI end-to-end suite
   # (integration_test/, see its README). Not used by `flutter test`.
   integration_test:

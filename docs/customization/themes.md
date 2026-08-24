@@ -39,3 +39,7 @@ You can share your custom theme with others:
 - **Reduce motion** -- Disables animations throughout the app for a calmer experience
 - **UI Scale** -- Adjust the interface size from 50% to 200%
 - **Emoji skin tone** -- Set your preferred default skin tone
+
+Animated images also pause automatically whenever daccord is hidden,
+backgrounded, or not focused. They resume from the displayed frame when the
+app regains focus. Reduce motion continues to keep them paused while enabled.

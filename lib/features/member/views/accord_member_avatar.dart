@@ -1,4 +1,5 @@
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -57,11 +58,12 @@ class AccordMemberAvatar extends StatelessWidget {
       height: radius * 2,
       child: Stack(
         children: [
-          CircleAvatar(
+          TickerAwareCircleAvatar(
             radius: radius,
             backgroundColor: bg,
-            foregroundImage:
-                url == null ? null : CachedNetworkImageProvider(url),
+            foregroundImage: url == null
+                ? null
+                : CachedNetworkImageProvider(url),
             child: Text(
               initial,
               style: (initialStyle ?? theme.textTheme.labelLarge!)

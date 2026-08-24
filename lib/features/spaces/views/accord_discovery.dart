@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/ticker_aware_circle_avatar.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 
@@ -484,7 +485,7 @@ class _DiscoveryCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
+            TickerAwareCircleAvatar(
               radius: 24,
               backgroundColor: colors.darkGray,
               foregroundImage: iconUrl == null

@@ -24,6 +24,7 @@ import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/views/incoming_call_overlay.dart';
 import 'package:bonfire/router/controller.dart';
 import 'package:bonfire/shared/app_info.dart';
+import 'package:bonfire/shared/components/app_lifecycle_ticker_mode.dart';
 import 'package:bonfire/shared/utils/desktop_window.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
@@ -105,7 +106,9 @@ void main() async {
   runApp(
     const AppRestart(
       child: ProviderScope(
-        child: MaterialApp(home: ProfileGate(child: MainWindow())),
+        child: AppLifecycleTickerMode(
+          child: MaterialApp(home: ProfileGate(child: MainWindow())),
+        ),
       ),
     ),
   );
