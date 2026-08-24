@@ -16,6 +16,7 @@ import 'package:bonfire/features/messaging/views/box/accord_message_content.dart
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
+import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -154,7 +155,7 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
     final openChannel = _openChannel;
-    return Dialog(
+    final dialog = Dialog(
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
@@ -208,6 +209,29 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
                 ],
               ),
       ),
+    );
+    final inDmCall = ref.watch(
+      voiceControllerProvider.select(
+        (voice) => voice.isConnected && voice.spaceId == null,
+      ),
+    );
+    return Stack(
+      children: [
+        dialog,
+        // The home screen's PiP sits below this modal route. Host a DM-only
+        // copy here so minimizing the full-screen call returns to a visible,
+        // interactive preview instead of hiding it behind the conversation.
+        // Space calls keep using the home overlay, whose channel opener can
+        // restore the correct space and tab.
+        if (inDmCall)
+          VoicePipOverlay(
+            shownChannelId: null,
+            onOpen: (_, _) {
+              // This overlay is only mounted for spaceless calls, which reopen
+              // themselves without consulting the space-channel callback.
+            },
+          ),
+      ],
     );
   }
 }

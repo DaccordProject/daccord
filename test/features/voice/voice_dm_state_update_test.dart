@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,14 +46,18 @@ class _FakeConnectionFactory {
 /// Routes [VoiceController._client] to a client wired to a fake gateway
 /// connection instead of a real login.
 class _FakeAccordAuth extends AccordAuth {
-  _FakeAccordAuth(this._client);
-  final AccordClient _client;
+  _FakeAccordAuth.single(AccordClient client)
+    : _clients = {'server-key': client};
+
+  _FakeAccordAuth.clients(this._clients);
+
+  final Map<String, AccordClient> _clients;
 
   @override
   AccordAuthState build() => const AccordAuthLoggedOut();
 
   @override
-  AccordClient? clientForKey(String key) => _client;
+  AccordClient? clientForKey(String key) => _clients[key];
 }
 
 /// A [VoiceController] that starts out connected to a DM call (no space) on
@@ -75,6 +80,13 @@ class _SpaceConnectedVoiceController extends VoiceController {
     spaceId: 'space-1',
     serverKey: 'server-key',
   );
+}
+
+/// Models the user browsing a different server while the DM call remains
+/// pinned to `server-key`.
+class _OtherActiveConnections extends ConnectionsController {
+  @override
+  ConnectionsState build() => const ConnectionsState(activeKey: 'other-server');
 }
 
 Future<void> pump() => Future<void>.delayed(Duration.zero);
@@ -125,7 +137,7 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
+          accordAuthProvider.overrideWith(() => _FakeAccordAuth.single(client)),
           voiceControllerProvider.overrideWith(_DmConnectedVoiceController.new),
         ],
       );
@@ -145,6 +157,66 @@ void main() {
     });
 
     test(
+      'setDeafen broadcasts DM state through the call-pinned client',
+      () async {
+        final callFactory = _FakeConnectionFactory();
+        final otherFactory = _FakeConnectionFactory();
+        final callClient = AccordClient(
+          baseUrl: 'https://call.example',
+          gatewayUrl: 'wss://call.example/ws',
+          connectionFactory: callFactory.call,
+        );
+        final otherClient = AccordClient(
+          baseUrl: 'https://other.example',
+          gatewayUrl: 'wss://other.example/ws',
+          connectionFactory: otherFactory.call,
+        );
+        addTearDown(callClient.dispose);
+        addTearDown(otherClient.dispose);
+        callClient.login();
+        otherClient.login();
+        await pump();
+        callFactory.connection.sent.clear();
+        otherFactory.connection.sent.clear();
+
+        final container = ProviderContainer(
+          overrides: [
+            accordAuthProvider.overrideWith(
+              () => _FakeAccordAuth.clients({
+                'server-key': callClient,
+                'other-server': otherClient,
+              }),
+            ),
+            connectionsControllerProvider.overrideWith(
+              _OtherActiveConnections.new,
+            ),
+            voiceControllerProvider.overrideWith(
+              _DmConnectedVoiceController.new,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final voice = container.read(voiceControllerProvider.notifier);
+        voice.setMute(true);
+        await pump();
+        callFactory.connection.sent.clear();
+        voice.setDeafen(true);
+        await pump();
+
+        final sent = _lastSent(callFactory.connection);
+        expect(sent['op'], GatewayOpcodes.voiceStateUpdate);
+        expect(sent['data']['space_id'], isNull);
+        expect(sent['data']['channel_id'], 'dm-channel');
+        expect(sent['data']['self_mute'], isTrue);
+        expect(sent['data']['self_deaf'], isTrue);
+        // Switching the app's visible server must not leak call state onto a
+        // different authenticated session.
+        expect(otherFactory.connection.sent, isEmpty);
+      },
+    );
+
+    test(
       'setMute still carries the space id for a space voice channel',
       () async {
         final factory = _FakeConnectionFactory();
@@ -159,7 +231,9 @@ void main() {
 
         final container = ProviderContainer(
           overrides: [
-            accordAuthProvider.overrideWith(() => _FakeAccordAuth(client)),
+            accordAuthProvider.overrideWith(
+              () => _FakeAccordAuth.single(client),
+            ),
             voiceControllerProvider.overrideWith(
               _SpaceConnectedVoiceController.new,
             ),

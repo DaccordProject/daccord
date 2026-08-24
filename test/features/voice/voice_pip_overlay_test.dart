@@ -5,6 +5,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/controllers/voice_states.dart';
 import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
@@ -100,6 +101,29 @@ Widget _host({
   );
 }
 
+Widget _dialogHost({required _StubVoiceController voice}) {
+  return ProviderScope(
+    overrides: [
+      accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
+      settingsControllerProvider.overrideWith(_FakeSettingsController.new),
+      voiceControllerProvider.overrideWith(() => voice),
+      voiceStatesControllerProvider.overrideWith(_FakeVoiceStates.new),
+      dmChannelsControllerProvider.overrideWith(() => _FakeDmChannels([_dm])),
+    ],
+    child: MaterialApp(
+      theme: buildAppTheme(AppThemePreset.dark),
+      home: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showAccordDirectMessages(context),
+            child: const Text('Open DM'),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('a DM call with video gets a PiP', (tester) async {
     // DM calls used to be excluded outright (#136).
@@ -110,6 +134,36 @@ void main() {
     await tester.pump();
 
     expect(_pip, findsOneWidget);
+  });
+
+  testWidgets('the DM dialog hosts PiP above its modal route', (tester) async {
+    final voice = _StubVoiceController(const VoiceConnection(channelId: 'dm1'));
+    await tester.pumpWidget(_dialogHost(voice: voice));
+
+    await tester.tap(find.text('Open DM'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Alice'));
+    await tester.pump();
+
+    // The home overlay is below showDialog's modal route. The dialog must own
+    // a DM overlay so it becomes visible as soon as full-screen voice pops.
+    expect(find.byType(VoicePipOverlay), findsOneWidget);
+  });
+
+  testWidgets('the DM dialog does not duplicate a space-call PiP', (
+    tester,
+  ) async {
+    final voice = _StubVoiceController(
+      const VoiceConnection(channelId: 'space-voice', spaceId: 'space-1'),
+    );
+    await tester.pumpWidget(_dialogHost(voice: voice));
+
+    await tester.tap(find.text('Open DM'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(VoicePipOverlay), findsNothing);
   });
 
   testWidgets('tapping a DM call PiP reopens the full-screen call view', (
@@ -167,12 +221,7 @@ void main() {
     // Consistent with space voice: nothing to preview, nothing to float.
     final voice = _StubVoiceController(const VoiceConnection(channelId: 'dm1'));
     await tester.pumpWidget(
-      _host(
-        voice: voice,
-        shownChannelId: 'other',
-        hasVideo: false,
-        dms: [_dm],
-      ),
+      _host(voice: voice, shownChannelId: 'other', hasVideo: false, dms: [_dm]),
     );
     await tester.pump();
 
