@@ -133,7 +133,7 @@ void main() {
     }
 
     expect(release, contains('uses: ./.github/workflows/ci.yml'));
-    expect(release, contains('needs: ci'));
+    expect(release, contains('needs: [verify, ci]'));
   });
 }
 
