@@ -8,6 +8,21 @@ import 'package:test/test.dart';
 import 'support/test_helpers.dart';
 
 void main() {
+  group('AccordRest transport security', () {
+    test('rejects a cleartext remote API before making a request', () {
+      expect(
+        () => AccordRest('http://chat.example.test/api/v1'),
+        throwsFormatException,
+      );
+    });
+
+    test('allows a cleartext loopback API for development', () {
+      final rest = AccordRest('http://[::1]:3000/api/v1');
+      addTearDown(rest.close);
+      expect(rest.baseUrl, 'http://[::1]:3000/api/v1');
+    });
+  });
+
   group('RestResult', () {
     test('success/failure factories and hasMore', () {
       final ok = RestResult.success(200, {'a': 1}, {'has_more': true});

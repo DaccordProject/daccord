@@ -18,11 +18,40 @@ void main() {
       expect(server.cdnUrl, 'http://localhost:3000/cdn');
     });
 
+    test('allows cleartext IPv4 and IPv6 loopback development servers', () {
+      expect(
+        AccordServer.fromBaseUrl('http://127.0.0.1:3000').gatewayUrl,
+        'ws://127.0.0.1:3000/ws',
+      );
+      expect(
+        AccordServer.fromBaseUrl('http://[::1]:3000').gatewayUrl,
+        'ws://[::1]:3000/ws',
+      );
+    });
+
+    test('rejects a cleartext remote server before deriving endpoints', () {
+      expect(
+        () => AccordServer.fromBaseUrl('http://chat.example.com'),
+        throwsFormatException,
+      );
+    });
+
     test('assumes https and strips trailing slashes for a bare host', () {
       final server = AccordServer.fromBaseUrl('my.server/');
       expect(server.baseUrl, 'https://my.server');
       expect(server.gatewayUrl, 'wss://my.server/ws');
     });
+  });
+
+  test('AccordServer.fromJson rejects insecure persisted endpoints', () {
+    expect(
+      () => AccordServer.fromJson({
+        'baseUrl': 'https://chat.example.com',
+        'gatewayUrl': 'ws://chat.example.com/ws',
+        'cdnUrl': 'https://chat.example.com/cdn',
+      }),
+      throwsFormatException,
+    );
   });
 
   group('AccordSession', () {

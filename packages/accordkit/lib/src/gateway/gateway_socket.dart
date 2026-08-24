@@ -17,6 +17,7 @@ import '../models/user.dart';
 import '../models/voice_server_update.dart';
 import '../models/voice_state.dart';
 import '../utils/json_utils.dart';
+import '../utils/transport_security.dart';
 import 'gateway_connection.dart';
 import 'gateway_events.dart';
 import 'gateway_intents.dart';
@@ -326,9 +327,11 @@ class GatewaySocket {
   void connectToGateway([String url = '']) {
     if (_state != GatewayState.disconnected) return;
     final config = _config;
-    _gatewayUrl = url.isNotEmpty
+    final gatewayUrl = url.isNotEmpty
         ? url
         : (config != null ? config.gatewayConnectUrl() : '');
+    validateWebSocketEndpoint(gatewayUrl, label: 'Accord gateway URL');
+    _gatewayUrl = gatewayUrl;
     _reconnectAttempts = 0;
     _reconnectCancelled = false;
     _openConnection(GatewayState.connecting);

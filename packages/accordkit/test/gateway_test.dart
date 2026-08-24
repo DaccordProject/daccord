@@ -30,6 +30,18 @@ Map<String, dynamic> lastSent(FakeGatewayConnection c) =>
     jsonDecode(c.sent.last) as Map<String, dynamic>;
 
 void main() {
+  test('rejects a cleartext remote gateway before opening a connection', () {
+    final factory = FakeConnectionFactory();
+    final socket = makeSocket(factory);
+
+    expect(
+      () => socket.connectToGateway('ws://chat.example.test/ws'),
+      throwsFormatException,
+    );
+    expect(factory.connections, isEmpty);
+    expect(socket.state, GatewayState.disconnected);
+  });
+
   group('handshake', () {
     test('emits connected when the socket becomes ready', () async {
       final factory = FakeConnectionFactory();
@@ -37,7 +49,7 @@ void main() {
       final connected = <void>[];
       socket.onConnected.listen(connected.add);
 
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       expect(socket.state, GatewayState.connected);
@@ -48,7 +60,7 @@ void main() {
     test('HELLO triggers IDENTIFY with token and intents', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -70,7 +82,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       // Deliver an event carrying a sequence number.
@@ -96,7 +108,7 @@ void main() {
       // The effective interval must be capped so a beat lands inside that window.
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -113,7 +125,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -130,7 +142,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -146,7 +158,7 @@ void main() {
     test('keeps a server heartbeat interval already under the cap', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -170,7 +182,7 @@ void main() {
       socket.onMessageCreate.listen(messages.add);
       socket.onRawEvent.listen(raw.add);
 
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -191,7 +203,7 @@ void main() {
       final rings = <AccordCallSignal>[];
       socket.onCallRing.listen(rings.add);
 
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -222,7 +234,7 @@ void main() {
       socket.onCallCancel.listen(events.add);
       socket.onCallEnd.listen(events.add);
 
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       for (final type in ['call.decline', 'call.cancel', 'call.end']) {
@@ -242,7 +254,7 @@ void main() {
     test('ready event records the session id', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.receive(jsonEncode({
@@ -262,7 +274,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       final conn = factory.last;
 
@@ -304,7 +316,7 @@ void main() {
     test('resumes after an unexpected close once a session exists', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       // Establish a session. `resumable` is what licenses the RESUME below —
@@ -341,7 +353,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       // A plain READY — no `resumable`, no `capabilities`. accordserver's
@@ -377,7 +389,7 @@ void main() {
     test('a HELLO capability list also enables resuming', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       factory.last.receive(jsonEncode({
         'op': GatewayOpcodes.hello,
@@ -410,7 +422,7 @@ void main() {
     test('does not reconnect on a fatal close code', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.simulateClose(4004); // authentication failed
@@ -428,7 +440,7 @@ void main() {
       final disconnects = <DisconnectInfo>[];
       socket.onDisconnected.listen(disconnects.add);
 
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       await socket.disconnectFromGateway(1000, 'bye');
       await pump();
@@ -443,7 +455,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       factory.last.receive(jsonEncode({
         'op': GatewayOpcodes.event,
@@ -486,7 +498,7 @@ void main() {
         tokenType: 'Bot',
       );
       socket.setup(AccordConfig(), 'tok', intentList: ['messages']);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       for (var i = 0; i < rounds; i++) {
@@ -554,7 +566,7 @@ void main() {
     test('is a no-op after an explicit disconnect', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       await socket.disconnectFromGateway();
 
@@ -571,7 +583,7 @@ void main() {
       final socket = makeSocket(factory);
       // Start connecting but don't pump — the socket is in the 'connecting'
       // state (ready future hasn't resolved yet).
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
 
       socket.ensureConnected();
       await pump();
@@ -586,7 +598,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeExhaustedSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       factory.last.simulateClose(1006);
@@ -605,7 +617,7 @@ void main() {
     test('resumes the previous session when one is held', () async {
       final factory = FakeConnectionFactory();
       final socket = makeExhaustedSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       factory.last.receive(jsonEncode({
         'op': GatewayOpcodes.event,
@@ -636,7 +648,7 @@ void main() {
         () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
       expect(socket.state, GatewayState.connected);
 
@@ -667,7 +679,7 @@ void main() {
         tokenType: 'Bot',
       );
       socket.setup(AccordConfig(), 'tok', tknType: 'Bot');
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       socket.ensureConnected();
@@ -700,7 +712,7 @@ void main() {
         probeTimeout: const Duration(seconds: 5),
       );
       socket.setup(AccordConfig(), 'tok', tknType: 'Bot');
-      socket.connectToGateway('ws://x');
+      socket.connectToGateway('wss://x');
       await pump();
 
       // Receive HELLO so the heartbeat timer starts.

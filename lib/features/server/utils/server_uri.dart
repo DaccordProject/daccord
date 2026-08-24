@@ -82,7 +82,12 @@ class ServerUri {
 
     if (text.isEmpty) return null;
 
-    final server = AccordServer.fromBaseUrl(text);
+    final AccordServer server;
+    try {
+      server = AccordServer.fromBaseUrl(text);
+    } on FormatException {
+      return null;
+    }
     return ParsedServerUrl(
       server: server,
       route: 'connect',

@@ -133,10 +133,20 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (mode == AuthMode.register) _fetchTos();
   }
 
+  AccordServer? _serverFromInput(String raw) {
+    try {
+      return AccordServer.fromBaseUrl(raw);
+    } on FormatException catch (error) {
+      if (mounted) setState(() => _authLocalError = error.message);
+      return null;
+    }
+  }
+
   Future<void> _fetchTos() async {
     final raw = _serverController.text.trim();
     if (raw.isEmpty) return;
-    final server = AccordServer.fromBaseUrl(raw);
+    final server = _serverFromInput(raw);
+    if (server == null) return;
     if (_tosFetchedServer == server.baseUrl) return;
     final tos = await fetchTosConfig(
       ref.read(accordAuthProvider.notifier),
@@ -184,8 +194,9 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   void _submit() {
     final rawServer = _serverController.text.trim();
     if (rawServer.isEmpty) return;
+    final server = _serverFromInput(rawServer);
+    if (server == null) return;
     Hive.box('accord-session').put('last-server', rawServer);
-    final server = AccordServer.fromBaseUrl(rawServer);
     final notifier = ref.read(accordAuthProvider.notifier);
 
     final username = _usernameController.text.trim();
@@ -226,11 +237,11 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       setState(() => _authLocalError = 'Enter a server URL first.');
       return;
     }
+    final server = _serverFromInput(rawServer);
+    if (server == null) return;
     Hive.box('accord-session').put('last-server', rawServer);
     setState(() => _authLocalError = null);
-    ref
-        .read(accordAuthProvider.notifier)
-        .loginAsGuest(AccordServer.fromBaseUrl(rawServer));
+    ref.read(accordAuthProvider.notifier).loginAsGuest(server);
   }
 
   void _submitMfa() {

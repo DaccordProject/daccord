@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../core/accord_config.dart';
+import '../utils/transport_security.dart';
 import 'accord_error.dart';
 import 'multipart_form.dart';
 import 'rest_result.dart';
@@ -18,7 +19,7 @@ class AccordRest {
 
   String token;
   String tokenType; // "Bot" or "Bearer"
-  String baseUrl;
+  final String baseUrl;
 
   /// Invoked whenever an authenticated request comes back `401 Unauthorized`
   /// (an invalid, revoked, or expired token). Lets the owner react centrally —
@@ -31,13 +32,17 @@ class AccordRest {
   final Future<void> Function(Duration) _sleep;
 
   AccordRest(
-    this.baseUrl, {
+    String baseUrl, {
     this.token = '',
     this.tokenType = 'Bot',
     this.onUnauthorized,
     http.Client? client,
     Future<void> Function(Duration)? sleep,
-  })  : _client = client ?? http.Client(),
+  })  : baseUrl = validateHttpEndpoint(
+          baseUrl,
+          label: 'Accord REST URL',
+        ).toString(),
+        _client = client ?? http.Client(),
         _sleep = sleep ?? _defaultSleep;
 
   static Future<void> _defaultSleep(Duration d) => Future.delayed(d);

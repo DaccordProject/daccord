@@ -1,3 +1,5 @@
+import 'package:accordkit/accordkit.dart';
+
 /// Connection details for a single Accord server.
 ///
 /// Bonfire hard-coded `discord.com`; Daccord can point at any Accord instance,
@@ -12,12 +14,16 @@ class AccordServer {
   /// A human-friendly label (defaults to the host) for the account switcher.
   final String? name;
 
-  const AccordServer({
+  AccordServer({
     required this.baseUrl,
     required this.gatewayUrl,
     required this.cdnUrl,
     this.name,
-  });
+  }) {
+    validateHttpEndpoint(baseUrl, label: 'Accord server URL');
+    validateWebSocketEndpoint(gatewayUrl, label: 'Accord gateway URL');
+    validateHttpEndpoint(cdnUrl, label: 'Accord CDN URL');
+  }
 
   /// Derives gateway/CDN URLs from a single [rawBaseUrl] using Accord
   /// conventions. Accepts bare hosts (`my.server`), assuming `https`.
@@ -43,6 +49,7 @@ class AccordServer {
     while (v.endsWith('/')) {
       v = v.substring(0, v.length - 1);
     }
+    validateHttpEndpoint(v, label: 'Accord server URL');
     return v;
   }
 

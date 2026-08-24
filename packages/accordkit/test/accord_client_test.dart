@@ -14,6 +14,17 @@ Future<void> pump([int times = 2]) async {
 }
 
 void main() {
+  test('rejects cleartext remote REST and gateway configuration', () {
+    expect(
+      () => AccordClient(baseUrl: 'http://chat.example.test'),
+      throwsFormatException,
+    );
+    expect(
+      () => AccordClient(gatewayUrl: 'ws://chat.example.test/ws'),
+      throwsFormatException,
+    );
+  });
+
   test('wires config, endpoint APIs, and applies token to REST', () {
     final client = AccordClient(
       token: 'abc',

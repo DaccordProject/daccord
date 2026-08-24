@@ -23,7 +23,7 @@ void main() {
       random: () => 0.0,
     );
     gateway.setup(AccordConfig(), 'tok');
-    gateway.connectToGateway('ws://x');
+    gateway.connectToGateway('wss://x');
     await pump();
   }
 

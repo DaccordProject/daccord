@@ -58,7 +58,7 @@ void main() {
   }
 
   String connect(ProviderContainer c) {
-    const session = AccordSession(
+    final session = AccordSession(
       server: AccordServer(
         baseUrl: 'https://a.test',
         gatewayUrl: 'wss://a.test/ws',

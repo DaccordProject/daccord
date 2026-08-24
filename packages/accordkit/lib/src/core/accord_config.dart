@@ -1,3 +1,5 @@
+import '../utils/transport_security.dart';
+
 /// Connection configuration for an [AccordClient]: base, gateway, and CDN
 /// URLs plus protocol-level constants shared across the REST and gateway
 /// layers.
@@ -32,15 +34,19 @@ class AccordConfig {
   /// the wire well inside a 30s idle timeout so the connection survives.
   static const int heartbeatIntervalMax = 15000;
 
-  String baseUrl;
-  String gatewayUrl;
-  String cdnUrl;
+  final String baseUrl;
+  final String gatewayUrl;
+  final String cdnUrl;
 
   AccordConfig({
     this.baseUrl = defaultBaseUrl,
     this.gatewayUrl = defaultGatewayUrl,
     this.cdnUrl = defaultCdnUrl,
-  });
+  }) {
+    validateHttpEndpoint(baseUrl, label: 'Accord server URL');
+    validateWebSocketEndpoint(gatewayUrl, label: 'Accord gateway URL');
+    validateHttpEndpoint(cdnUrl, label: 'Accord CDN URL');
+  }
 
   /// The fully-qualified REST API root (base URL + versioned API path).
   String apiUrl() => baseUrl + apiBasePath;

@@ -21,6 +21,10 @@ void main() {
       expect(parsed.server?.gatewayUrl, 'ws://localhost:3000/ws');
     });
 
+    test('rejects an explicit cleartext remote server URL', () {
+      expect(ServerUri.parseServerUrl('http://chat.example.com'), isNull);
+    });
+
     test('#space-name fragment becomes spaceName', () {
       final parsed = ServerUri.parseServerUrl('chat.example.com#my-space');
       expect(parsed, isNotNull);
