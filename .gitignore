@@ -29,6 +29,11 @@ migrate_working_dir/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# macOS uses Flutter's generated local Swift package only; Xcode may leave
+# remote-package resolution files from removed plugins behind.
+macos/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved
+macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 .pub-cache/
 .pub/
 /build/
