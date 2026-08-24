@@ -16,8 +16,9 @@ name: CI
 #                surface, against the same server image. Non-blocking; the
 #                most expensive suite (release build + two apps).
 #                See multi_instance/README.md.
-# - `build`    : release builds for web / Android / Linux / Windows, uploaded
-#                as artifacts. Only runs on manual `workflow_dispatch` — PRs
+# - `build`    : release builds for Web (JavaScript) / Android / Linux /
+#                Windows, uploaded as artifacts. Only runs on manual
+#                `workflow_dispatch` — PRs
 #                don't need four release builds to merge, and tagged releases
 #                build every platform themselves in release.yml.
 #
@@ -344,7 +345,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Web
+          - name: Web (JavaScript)
             platform: web
             os: ubuntu-latest
             artifact: daccord-web

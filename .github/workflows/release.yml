@@ -139,7 +139,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Web
+          - name: Web (JavaScript)
             platform: web
             os: ubuntu-latest
             artifact: daccord-web
@@ -332,7 +332,7 @@ jobs:
             sleep $((n * 30))
           done
 
-      - name: Package (Web)
+      - name: Package (Web / JavaScript)
         if: matrix.platform == 'web'
         run: |
           cd build/web

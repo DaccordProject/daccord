@@ -6,7 +6,7 @@
 # platform: web (default) | apk | appbundle | linux | windows | ios | macos
 #
 # Examples:
-#   scripts/build.sh                 # web release (WASM)
+#   scripts/build.sh                 # Web (JavaScript) release
 #   scripts/build.sh apk             # Android GitHub/sideload APK
 #   scripts/build.sh appbundle       # Android Play Store AAB
 #   scripts/build.sh linux
@@ -29,7 +29,7 @@ $DART run build_runner build --delete-conflicting-outputs
 
 case "$PLATFORM" in
   web)
-    log "Building Web (release, WASM)"
+    log "Building Web (JavaScript), release"
     $FLUTTER build web --no-tree-shake-icons --release "${EXTRA[@]}"
     log "Output: build/web/"
     ;;

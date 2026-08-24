@@ -158,7 +158,7 @@ flutter test                           # unit/widget tests (voice/settings/serve
 ```bash
 flutter build apk     --flavor github --no-tree-shake-icons   # Android sideload APK
 flutter build appbundle --flavor play --dart-define=APP_STORE=true   # Play Store AAB
-flutter build web     --no-tree-shake-icons --release   # Web
+flutter build web     --no-tree-shake-icons --release   # Web (JavaScript)
 flutter build windows
 flutter build macos
 flutter build linux                               # needs libmpv / media_kit deps

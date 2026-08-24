@@ -132,14 +132,14 @@ flutter test test/features/voice/voice_logic_test.dart   # run a single test fil
 # builds/runs MUST pass --flavor; other platforms have no flavors.
 flutter build apk       --flavor github --no-tree-shake-icons -v          # Android sideload APK
 flutter build appbundle --flavor play  --dart-define=APP_STORE=true       # Play Store AAB
-flutter build web     --no-tree-shake-icons --release   # Web
+flutter build web     --no-tree-shake-icons --release   # Web (JavaScript)
 flutter build windows -v
 flutter build linux   -v                                # needs libmpv/media_kit deps
 flutter build ios     --release --no-tree-shake-icons --no-codesign -v
 ```
 
 CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
-- `ci.yml` — `analyze` job runs build_runner codegen → `flutter analyze --no-fatal-infos` → `flutter test`; `build` job is a Web/Android/Linux/Windows matrix.
+- `ci.yml` — `analyze` job runs build_runner codegen → `flutter analyze --no-fatal-infos` → `flutter test`; `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
 - `release.yml` — tag-driven (`v*`); validates the tag matches `pubspec.yaml` version, gates on `ci.yml`, builds all platforms, publishes a GitHub Release.
 
 ## Migration status

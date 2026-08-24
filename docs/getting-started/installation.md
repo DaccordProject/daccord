@@ -58,9 +58,9 @@ Choose the right file for your platform:
 2. Open it and follow the installation prompts. You may need to allow installation from unknown sources in your device settings.
 3. Launch daccord from your app drawer.
 
-## Web
+## Web (JavaScript)
 
-The web build runs entirely in your browser with no installation required. Extract `daccord-web.zip` and open it from a web server, or visit a hosted instance if your server operator provides one. Voice and video are supported via the web audio stack. Note that some features (such as automatic updates and file system access) are not available in the web build.
+The Web (JavaScript) build runs entirely in your browser with no installation required. Extract `daccord-web.zip` and open it from a web server, or visit a hosted instance if your server operator provides one. Voice and video are supported via the web audio stack. Note that some features (such as automatic updates and file system access) are not available in the web build.
 
 ## Updates
 

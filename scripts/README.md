@@ -10,7 +10,7 @@ channel in `.fvmrc`), and fall back to a plain `flutter`/`dart` on `PATH`.
 | `setup.sh` | Install Linux desktop build deps (via apt, if missing) + `flutter pub get` + one-shot code generation. Run after cloning or pulling. |
 | `start.sh` | Run the app in debug mode (hot reload). Extra args pass to `flutter run`, e.g. `scripts/start.sh -d chrome`. |
 | `codegen.sh` | Run `build_runner`. Pass `--watch` to keep it running during development. |
-| `build.sh` | Release build for a platform: `web` (default), `apk`, `appbundle`, `linux`, `windows`, `ios`, `macos`. |
+| `build.sh` | Release build for a platform: Web (JavaScript, the default), `apk`, `appbundle`, `linux`, `windows`, `ios`, `macos`. |
 
 ## Examples
 
@@ -20,7 +20,7 @@ scripts/codegen.sh --watch       # keep this open while developing
 scripts/start.sh --flavor github # run on an Android device/emulator
 scripts/start.sh -d chrome       # run in Chrome
 
-scripts/build.sh                 # web release -> build/web/
+scripts/build.sh                 # Web (JavaScript) release -> build/web/
 scripts/build.sh apk             # Android GitHub/sideload APK
 scripts/build.sh appbundle       # Android Play Store AAB
 scripts/build.sh linux           # Linux desktop (setup.sh installs the native deps)
