@@ -37,6 +37,23 @@ void main() {
     final childWidgets = _descendant();
     expect(childWidgets.first.runtimeType, Column);
   }));
+
+  testWidgets('never constructs platform images for local URI schemes', (
+    tester,
+  ) async {
+    for (final destination in [
+      'file:///etc/passwd',
+      'file://server/share/image.png',
+      'resource:assets/private.png',
+      'content://media/external/images/1',
+      'custom-image://open/image.png',
+      r'C:\Users\Public\image.png',
+    ]) {
+      await tester.pumpWidget(_createWidget('![private]($destination)'));
+      await tester.pump();
+      expect(find.byType(Image), findsNothing, reason: destination);
+    }
+  });
 }
 
 Widget _createWidget(

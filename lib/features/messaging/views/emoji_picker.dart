@@ -3,6 +3,7 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
+import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -279,11 +280,18 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
           _pick(EmojiPick(name: emoji.name, id: emoji.id, imageUrl: url)),
       child: url == null
           ? Text(':${emoji.name}:', style: const TextStyle(fontSize: 9))
-          : CachedNetworkImage(
-              imageUrl: url,
-              width: 26,
-              height: 26,
-              fit: BoxFit.contain,
+          : MessageMediaGate(
+              source: url,
+              trustedBaseUrl: _cdnUrl,
+              allowExternalConsent: false,
+              blockedPlaceholder:
+                  Text(':${emoji.name}:', style: const TextStyle(fontSize: 9)),
+              builder: (_, safeUrl) => CachedNetworkImage(
+                imageUrl: safeUrl,
+                width: 26,
+                height: 26,
+                fit: BoxFit.contain,
+              ),
             ),
     );
   }
@@ -295,11 +303,20 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
       child: pick.isCustom
           ? (pick.imageUrl == null
                 ? Text(':${pick.name}:', style: const TextStyle(fontSize: 9))
-                : CachedNetworkImage(
-                    imageUrl: pick.imageUrl!,
-                    width: 26,
-                    height: 26,
-                    fit: BoxFit.contain,
+                : MessageMediaGate(
+                    source: pick.imageUrl,
+                    trustedBaseUrl: _cdnUrl,
+                    allowExternalConsent: false,
+                    blockedPlaceholder: Text(
+                      ':${pick.name}:',
+                      style: const TextStyle(fontSize: 9),
+                    ),
+                    builder: (_, safeUrl) => CachedNetworkImage(
+                      imageUrl: safeUrl,
+                      width: 26,
+                      height: 26,
+                      fit: BoxFit.contain,
+                    ),
                   ))
           : Text(pick.char, style: const TextStyle(fontSize: 26)),
     );

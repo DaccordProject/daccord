@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
+import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dart_markdown/dart_markdown.dart' as md;
@@ -56,7 +57,7 @@ buildAccordMarkup(AccordMarkupContext ctx) {
     builders: <MarkdownElementBuilder>[
       _SpoilerBuilder(),
       _UnderlineBuilder(),
-      _EmojiBuilder(),
+      _EmojiBuilder(ctx.cdnUrl),
       _MentionBuilder(ctx.onTapUser),
       _ChannelBuilder(ctx.onTapChannel),
     ],
@@ -269,6 +270,10 @@ class _ChannelBuilder extends MarkdownElementBuilder {
 }
 
 class _EmojiBuilder extends MarkdownElementBuilder {
+  _EmojiBuilder(this.trustedMediaBaseUrl);
+
+  final String? trustedMediaBaseUrl;
+
   @override
   List<String> get matchTypes => const ['accordEmoji'];
 
@@ -278,7 +283,13 @@ class _EmojiBuilder extends MarkdownElementBuilder {
   @override
   Widget? buildWidget(element, parent) {
     final a = element.attributes;
-    return _inlineWidget(_EmojiImage(url: a['url'], name: a['name'] ?? ''));
+    return _inlineWidget(
+      _EmojiImage(
+        url: a['url'],
+        name: a['name'] ?? '',
+        trustedMediaBaseUrl: trustedMediaBaseUrl,
+      ),
+    );
   }
 }
 
@@ -356,10 +367,15 @@ class _Chip extends StatelessWidget {
 /// An inline custom-emoji image (~20px). Falls back to the literal `:name:`
 /// text when there's no URL or the image fails to load.
 class _EmojiImage extends StatelessWidget {
-  const _EmojiImage({required this.url, required this.name});
+  const _EmojiImage({
+    required this.url,
+    required this.name,
+    required this.trustedMediaBaseUrl,
+  });
 
   final String? url;
   final String name;
+  final String? trustedMediaBaseUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -368,13 +384,22 @@ class _EmojiImage extends StatelessWidget {
     }
     return Tooltip(
       message: ':$name:',
-      child: CachedNetworkImage(
-        imageUrl: url!,
-        width: 20,
-        height: 20,
-        fit: BoxFit.contain,
-        errorWidget: (context, _, _) =>
-            Text(':$name:', style: Theme.of(context).textTheme.bodyLarge),
+      child: MessageMediaGate(
+        source: url,
+        trustedBaseUrl: trustedMediaBaseUrl,
+        allowExternalConsent: false,
+        blockedPlaceholder: Text(
+          ':$name:',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        builder: (_, safeUrl) => CachedNetworkImage(
+          imageUrl: safeUrl,
+          width: 20,
+          height: 20,
+          fit: BoxFit.contain,
+          errorWidget: (context, _, _) =>
+              Text(':$name:', style: Theme.of(context).textTheme.bodyLarge),
+        ),
       ),
     );
   }

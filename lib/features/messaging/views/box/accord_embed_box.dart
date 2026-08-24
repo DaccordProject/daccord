@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
 import 'package:bonfire/features/messaging/views/inline_video_player.dart';
+import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,9 +21,11 @@ class AccordEmbedBox extends StatelessWidget {
   static const _maxImageHeight = 300.0;
   static const _thumbnailSize = 80.0;
 
-  String? _resolve(String? url) {
-    if (url == null || url.isEmpty) return null;
-    return AccordCDN.resolvePath(url, cdnUrl: cdnUrl ?? '');
+  String? _trustedImage(String? source) {
+    final decision = classifyMessageMediaUrl(source, trustedBaseUrl: cdnUrl);
+    return decision.disposition == MessageMediaUrlDisposition.trusted
+        ? decision.uri!.toString()
+        : null;
   }
 
   @override
@@ -33,14 +36,14 @@ class AccordEmbedBox extends StatelessWidget {
     final author = _asMap(embed.author);
     final authorName = _str(author?['name']);
     final authorUrl = _str(author?['url']);
-    final authorIcon = _resolve(_str(author?['icon_url']));
+    final authorIcon = _trustedImage(_str(author?['icon_url']));
 
     final title = _str(embed.title);
     final embedUrl = _str(embed.url);
     final description = _str(embed.description);
     final fields = embed.fields ?? const [];
-    final imageUrl = _resolve(_imageUrl(embed.image));
-    final thumbUrl = _resolve(_imageUrl(embed.thumbnail));
+    final imageSource = _imageUrl(embed.image);
+    final thumbSource = _imageUrl(embed.thumbnail);
     final footer = _footerText(embed.footer);
     final timestamp = _formatTimestamp(embed.timestamp);
     final isVideo = _str(embed.type)?.toLowerCase() == 'video';
@@ -89,12 +92,13 @@ class AccordEmbedBox extends StatelessWidget {
           ),
           const SizedBox(height: 4),
         ],
-        if (description != null) AccordMarkdownBox(content: description),
+        if (description != null)
+          AccordMarkdownBox(content: description, trustedMediaBaseUrl: cdnUrl),
         if (fields.isNotEmpty) ...[
           const SizedBox(height: 6),
-          _EmbedFields(fields: fields),
+          _EmbedFields(fields: fields, trustedMediaBaseUrl: cdnUrl),
         ],
-        if (imageUrl != null) ...[
+        if (imageSource != null) ...[
           const SizedBox(height: 8),
           // For video-type embeds we play the linked URL inline via media_kit
           // when present; otherwise we fall back to a tap-to-launch poster
@@ -108,24 +112,32 @@ class AccordEmbedBox extends StatelessWidget {
               height: _maxImageHeight,
             )
           else if (isVideo)
-            _VideoPoster(
-              imageUrl: imageUrl,
-              onTap: embedUrl == null
-                  ? null
-                  : () async => openExternalUrl(context, embedUrl),
+            MessageMediaGate(
+              source: imageSource,
+              trustedBaseUrl: cdnUrl,
+              builder: (_, safeUrl) => _VideoPoster(
+                imageUrl: safeUrl,
+                onTap: embedUrl == null
+                    ? null
+                    : () async => openExternalUrl(context, embedUrl),
+              ),
             )
           else
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: _maxImageWidth,
-                  maxHeight: _maxImageHeight,
-                ),
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.contain,
-                  errorWidget: (_, _, _) => const SizedBox.shrink(),
+            MessageMediaGate(
+              source: imageSource,
+              trustedBaseUrl: cdnUrl,
+              builder: (_, safeUrl) => ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _maxImageWidth,
+                    maxHeight: _maxImageHeight,
+                  ),
+                  child: CachedNetworkImage(
+                    imageUrl: safeUrl,
+                    fit: BoxFit.contain,
+                    errorWidget: (_, _, _) => const SizedBox.shrink(),
+                  ),
                 ),
               ),
             ),
@@ -149,21 +161,30 @@ class AccordEmbedBox extends StatelessWidget {
         border: Border(left: BorderSide(color: borderColor, width: 4)),
       ),
       padding: const EdgeInsets.all(12),
-      child: thumbUrl == null
+      child: thumbSource == null
           ? body
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: body),
                 const SizedBox(width: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: CachedNetworkImage(
-                    imageUrl: thumbUrl,
-                    width: _thumbnailSize,
-                    height: _thumbnailSize,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => const SizedBox.shrink(),
+                SizedBox(
+                  width: _thumbnailSize,
+                  height: _thumbnailSize,
+                  child: MessageMediaGate(
+                    source: thumbSource,
+                    trustedBaseUrl: cdnUrl,
+                    compactConsent: true,
+                    builder: (_, safeUrl) => ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: CachedNetworkImage(
+                        imageUrl: safeUrl,
+                        width: _thumbnailSize,
+                        height: _thumbnailSize,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -175,9 +196,10 @@ class AccordEmbedBox extends StatelessWidget {
 /// Renders embed fields, grouping consecutive inline fields into rows of up to
 /// three, matching the reference client.
 class _EmbedFields extends StatelessWidget {
-  const _EmbedFields({required this.fields});
+  const _EmbedFields({required this.fields, required this.trustedMediaBaseUrl});
 
   final List<dynamic> fields;
+  final String? trustedMediaBaseUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +215,10 @@ class _EmbedFields extends StatelessWidget {
           Text(_str(field['name']) ?? '',
               style: theme.textTheme.labelMedium!
                   .copyWith(color: colors.dirtyWhite, fontWeight: FontWeight.bold)),
-          AccordMarkdownBox(content: _str(field['value']) ?? ''),
+          AccordMarkdownBox(
+            content: _str(field['value']) ?? '',
+            trustedMediaBaseUrl: trustedMediaBaseUrl,
+          ),
         ],
       );
     }

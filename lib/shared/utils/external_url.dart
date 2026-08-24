@@ -1,3 +1,4 @@
+import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -5,6 +6,19 @@ import 'package:url_launcher/url_launcher.dart';
 typedef ExternalUrlLauncher = Future<bool> Function(Uri uri);
 
 enum ExternalUrlOpenResult { opened, blocked, cancelled, failed }
+
+enum MessageMediaUrlDisposition { trusted, consentRequired, blocked }
+
+/// The result of applying the message-media URL policy to an untrusted source.
+class MessageMediaUrlDecision {
+  const MessageMediaUrlDecision._(this.disposition, this.uri);
+
+  const MessageMediaUrlDecision.blocked()
+    : this._(MessageMediaUrlDisposition.blocked, null);
+
+  final MessageMediaUrlDisposition disposition;
+  final Uri? uri;
+}
 
 /// Parses an external web URL under the policy used for untrusted links.
 ///
@@ -25,6 +39,70 @@ Uri? tryParseExternalWebUrl(String? value) {
   }
   return uri;
 }
+
+/// Resolves and classifies an image URL supplied by untrusted message content.
+///
+/// HTTP(S) images on the configured CDN origin may load immediately. Other
+/// HTTP(S) origins require a user gesture before they are fetched. Everything
+/// else is blocked, including local files, assets/resources, custom schemes,
+/// protocol-relative URLs, and Windows UNC paths. Relative paths are accepted
+/// only when a valid trusted CDN base is available.
+MessageMediaUrlDecision classifyMessageMediaUrl(
+  String? value, {
+  String? trustedBaseUrl,
+}) {
+  final candidate = value?.trim();
+  if (candidate == null ||
+      candidate.isEmpty ||
+      candidate.contains(RegExp(r'[\x00-\x1f\x7f]')) ||
+      candidate.contains(r'\')) {
+    return const MessageMediaUrlDecision.blocked();
+  }
+
+  final parsed = Uri.tryParse(candidate);
+  if (parsed == null || parsed.userInfo.isNotEmpty) {
+    return const MessageMediaUrlDecision.blocked();
+  }
+
+  final parsedTrustedBase = tryParseExternalWebUrl(trustedBaseUrl);
+  final trustedBase = parsedTrustedBase?.userInfo.isEmpty == true
+      ? parsedTrustedBase
+      : null;
+  if (!parsed.hasScheme) {
+    // `//host/path` is network-path syntax, and is also how POSIX-looking UNC
+    // paths can reach platform file handlers. Never reinterpret it as a CDN
+    // relative path.
+    if (parsed.hasAuthority || trustedBase == null) {
+      return const MessageMediaUrlDecision.blocked();
+    }
+    final resolved = tryParseExternalWebUrl(
+      AccordCDN.resolvePath(candidate, cdnUrl: trustedBase.toString()),
+    );
+    if (resolved == null || !_sameWebOrigin(resolved, trustedBase)) {
+      return const MessageMediaUrlDecision.blocked();
+    }
+    return MessageMediaUrlDecision._(
+      MessageMediaUrlDisposition.trusted,
+      resolved,
+    );
+  }
+
+  final webUri = tryParseExternalWebUrl(candidate);
+  if (webUri == null || webUri.userInfo.isNotEmpty) {
+    return const MessageMediaUrlDecision.blocked();
+  }
+  return MessageMediaUrlDecision._(
+    trustedBase != null && _sameWebOrigin(webUri, trustedBase)
+        ? MessageMediaUrlDisposition.trusted
+        : MessageMediaUrlDisposition.consentRequired,
+    webUri,
+  );
+}
+
+bool _sameWebOrigin(Uri a, Uri b) =>
+    a.scheme.toLowerCase() == b.scheme.toLowerCase() &&
+    a.host.toLowerCase() == b.host.toLowerCase() &&
+    a.port == b.port;
 
 /// Confirms and opens an untrusted HTTP(S) URL in the platform browser.
 ///

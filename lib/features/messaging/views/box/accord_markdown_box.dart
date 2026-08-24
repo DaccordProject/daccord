@@ -1,6 +1,8 @@
+import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/shared/utils/style/markdown/stylesheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dart_markdown/dart_markdown.dart' as md;
 import 'package:flutter/material.dart';
 import 'package:flutter_prism/flutter_prism.dart';
@@ -19,11 +21,13 @@ class AccordMarkdownBox extends StatelessWidget {
   const AccordMarkdownBox({
     super.key,
     required this.content,
+    this.trustedMediaBaseUrl,
     this.syntaxExtensions = const [],
     this.elementBuilders = const [],
   });
 
   final String content;
+  final String? trustedMediaBaseUrl;
   final List<md.Syntax> syntaxExtensions;
   final List<MarkdownElementBuilder> elementBuilders;
 
@@ -41,6 +45,17 @@ class AccordMarkdownBox extends StatelessWidget {
       syntaxExtensions: syntaxExtensions,
       elementBuilders: elementBuilders,
       styleSheet: getMarkdownStyleSheet(context),
+      imageBuilder: (uri, info) => MessageMediaGate(
+        source: uri.toString(),
+        trustedBaseUrl: trustedMediaBaseUrl,
+        blockedPlaceholder: Text(info.description ?? ''),
+        builder: (_, url) => CachedNetworkImage(
+          imageUrl: url,
+          width: info.width,
+          height: info.height,
+          errorWidget: (_, _, _) => Text(info.description ?? ''),
+        ),
+      ),
       highlightBuilder: (text, language, infoString) {
         final prism = Prism(
           style: Theme.of(context).brightness == Brightness.dark

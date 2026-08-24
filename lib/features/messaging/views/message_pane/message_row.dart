@@ -604,6 +604,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             _ReactionPill(
               reaction: reaction,
               imageUrl: _reactionEmojiUrl(reaction, customEmoji, cdnUrl),
+              trustedMediaBaseUrl: cdnUrl,
               onTap: () => _toggleReaction(
                 messageId,
                 reaction.emoji['name']?.toString() ?? '',
@@ -708,14 +709,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final url = _attachmentUrl(attachment, cdnUrl);
     switch (_previewOf(attachment)) {
       case AttachmentPreview.image:
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () => showImageLightbox(context, url),
-            child: _ImageAttachment(
-              url: url,
-              width: _asDouble(attachment.width),
-              height: _asDouble(attachment.height),
+        return MessageMediaGate(
+          source: attachment.url,
+          trustedBaseUrl: cdnUrl,
+          builder: (_, safeUrl) => MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => showImageLightbox(context, safeUrl),
+              child: _ImageAttachment(
+                url: safeUrl,
+                width: _asDouble(attachment.width),
+                height: _asDouble(attachment.height),
+              ),
             ),
           ),
         );

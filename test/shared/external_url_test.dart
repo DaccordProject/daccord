@@ -67,6 +67,90 @@ void main() {
     });
   });
 
+  group('classifyMessageMediaUrl', () {
+    const cdn = 'https://chat.example/cdn';
+
+    test(
+      'trusts only the configured HTTP(S) origin and CDN-relative paths',
+      () {
+        final absolute = classifyMessageMediaUrl(
+          'HTTPS://CHAT.EXAMPLE/cdn/attachments/image.png',
+          trustedBaseUrl: cdn,
+        );
+        expect(absolute.disposition, MessageMediaUrlDisposition.trusted);
+        expect(absolute.uri?.host, 'chat.example');
+
+        final relative = classifyMessageMediaUrl(
+          '/cdn/attachments/image.png',
+          trustedBaseUrl: cdn,
+        );
+        expect(relative.disposition, MessageMediaUrlDisposition.trusted);
+        expect(
+          relative.uri,
+          Uri.parse('https://chat.example/cdn/attachments/image.png'),
+        );
+      },
+    );
+
+    test('requires consent for a different web origin', () {
+      for (final url in [
+        'https://tracker.example/pixel.png',
+        'http://chat.example/cdn/downgrade.png',
+        'https://chat.example:8443/cdn/other-port.png',
+      ]) {
+        final decision = classifyMessageMediaUrl(url, trustedBaseUrl: cdn);
+        expect(
+          decision.disposition,
+          MessageMediaUrlDisposition.consentRequired,
+          reason: url,
+        );
+      }
+    });
+
+    test('blocks local, resource, custom, UNC, and malformed destinations', () {
+      for (final url in [
+        'file:///etc/passwd',
+        'file://server/share/pixel.png',
+        'resource:assets/private.png',
+        'content://media/external/image/1',
+        'data:image/png;base64,AAAA',
+        'blob:https://chat.example/id',
+        'custom-image://open/pixel.png',
+        r'C:\Users\Public\pixel.png',
+        r'\\server\share\pixel.png',
+        '//server/share/pixel.png',
+        'https://user@chat.example/cdn/pixel.png',
+        'https://chat.example/pixel.png\nheader: injected',
+      ]) {
+        expect(
+          classifyMessageMediaUrl(url, trustedBaseUrl: cdn).disposition,
+          MessageMediaUrlDisposition.blocked,
+          reason: url,
+        );
+      }
+    });
+
+    test('does not resolve relative paths without a trusted CDN base', () {
+      for (final url in ['/local.png', 'local.png']) {
+        expect(
+          classifyMessageMediaUrl(url).disposition,
+          MessageMediaUrlDisposition.blocked,
+          reason: url,
+        );
+      }
+    });
+
+    test('does not trust a CDN base containing userinfo', () {
+      expect(
+        classifyMessageMediaUrl(
+          '/pixel.png',
+          trustedBaseUrl: 'https://user@chat.example/cdn',
+        ).disposition,
+        MessageMediaUrlDisposition.blocked,
+      );
+    });
+  });
+
   testWidgets('blocked schemes never reach the platform launcher', (
     tester,
   ) async {

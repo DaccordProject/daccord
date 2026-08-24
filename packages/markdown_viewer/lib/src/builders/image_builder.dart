@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../definition.dart';
@@ -42,7 +40,8 @@ class ImageBuilder extends MarkdownElementBuilder {
       path = destination;
     }
 
-    final uri = Uri.parse(path);
+    final uri = Uri.tryParse(path);
+    if (uri == null) return null;
 
     Widget? child;
     if (imageBuilder != null) {
@@ -92,9 +91,12 @@ class ImageBuilder extends MarkdownElementBuilder {
   }
 
   Widget? _buildImage(Uri uri, double? width, double? height) {
-    if (uri.scheme == 'http' || uri.scheme == 'https') {
+    final scheme = uri.scheme.toLowerCase();
+    if ((scheme == 'http' || scheme == 'https') &&
+        uri.hasAuthority &&
+        uri.host.isNotEmpty) {
       return Image.network(uri.toString(), width: width, height: height);
-    } else if (uri.scheme == 'data') {
+    } else if (scheme == 'data') {
       if (uri.data!.mimeType.startsWith('image/')) {
         return Image.memory(
           uri.data!.contentAsBytes(),
@@ -103,11 +105,10 @@ class ImageBuilder extends MarkdownElementBuilder {
         );
       }
       return null;
-    } else if (uri.scheme == 'resource') {
-      return Image.asset(uri.path, width: width, height: height);
-    } else {
-      return Image.file(File.fromUri(uri), width: width, height: height);
     }
+    // Markdown input is commonly untrusted. In particular, never reinterpret
+    // file/resource/custom/relative/UNC destinations as local platform files.
+    return null;
   }
 }
 

@@ -46,6 +46,7 @@ class AccordMessageContent extends ConsumerWidget {
       final markup = buildAccordMarkup(AccordMarkupContext(cdnUrl: cdnUrl));
       return AccordMarkdownBox(
         content: content,
+        trustedMediaBaseUrl: cdnUrl,
         syntaxExtensions: markup.syntaxes,
         elementBuilders: markup.builders,
       );
@@ -115,6 +116,7 @@ class AccordMessageContent extends ConsumerWidget {
 
     return AccordMarkdownBox(
       content: content,
+      trustedMediaBaseUrl: cdnUrl,
       syntaxExtensions: markup.syntaxes,
       elementBuilders: markup.builders,
     );

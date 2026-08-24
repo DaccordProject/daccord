@@ -32,6 +32,7 @@ import 'package:bonfire/features/messaging/utils/emoticons.dart';
 import 'package:bonfire/features/messaging/views/image_lightbox.dart';
 import 'package:bonfire/features/messaging/views/inline_audio_player.dart';
 import 'package:bonfire/features/messaging/views/inline_video_player.dart';
+import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/features/messaging/views/message_author_header.dart';
 import 'package:bonfire/features/messaging/views/pinned_messages.dart';
 import 'package:bonfire/features/messaging/views/thread_view.dart';

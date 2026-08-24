@@ -23,6 +23,7 @@ class _ReactionPill extends StatelessWidget {
     required this.onTap,
     required this.onShowReactors,
     this.imageUrl,
+    this.trustedMediaBaseUrl,
   });
 
   final AccordReaction reaction;
@@ -33,6 +34,7 @@ class _ReactionPill extends StatelessWidget {
 
   /// Resolved image URL for a custom-emoji reaction; null for unicode.
   final String? imageUrl;
+  final String? trustedMediaBaseUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -67,13 +69,22 @@ class _ReactionPill extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (id != null && imageUrl != null)
-                CachedNetworkImage(
-                  imageUrl: imageUrl!,
-                  width: 16,
-                  height: 16,
-                  fit: BoxFit.contain,
-                  errorWidget: (_, _, _) =>
-                      Text(name, style: const TextStyle(fontSize: 14)),
+                MessageMediaGate(
+                  source: imageUrl,
+                  trustedBaseUrl: trustedMediaBaseUrl,
+                  allowExternalConsent: false,
+                  blockedPlaceholder: Text(
+                    name,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  builder: (_, safeUrl) => CachedNetworkImage(
+                    imageUrl: safeUrl,
+                    width: 16,
+                    height: 16,
+                    fit: BoxFit.contain,
+                    errorWidget: (_, _, _) =>
+                        Text(name, style: const TextStyle(fontSize: 14)),
+                  ),
                 )
               else
                 // Unicode reaction: `name` is the shortcode (e.g. `hamburger`),

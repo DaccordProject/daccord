@@ -1,7 +1,10 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/messaging/views/box/accord_embed_box.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_markup.dart';
+import 'package:bonfire/features/messaging/views/message_media_gate.dart';
 import 'package:bonfire/theme/app_theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -97,5 +100,57 @@ void main() {
 
     expect(find.text('#nowhere'), findsNothing);
     expect(_paragraphText(tester), contains('#nowhere'));
+  });
+
+  testWidgets('markdown local image URI is blocked before an image is built', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        const AccordMarkdownBox(
+          content: '![private](file:///etc/passwd)',
+          trustedMediaBaseUrl: 'https://chat.example/cdn',
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(MessageMediaGate), findsOneWidget);
+    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.text('private'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('load-external-message-image')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('markdown and embed images require consent off the CDN origin', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        Column(
+          children: [
+            const AccordMarkdownBox(
+              content: '![pixel](https://tracker.example/markdown.png)',
+              trustedMediaBaseUrl: 'https://chat.example/cdn',
+            ),
+            AccordEmbedBox(
+              embed: AccordEmbed(
+                image: {'url': 'https://tracker.example/embed.png'},
+              ),
+              cdnUrl: 'https://chat.example/cdn',
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(
+      find.textContaining('Load external image from tracker.example'),
+      findsNWidgets(2),
+    );
   });
 }
