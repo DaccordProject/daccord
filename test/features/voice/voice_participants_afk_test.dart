@@ -28,7 +28,7 @@ class _FakeVoiceStates extends VoiceStatesController {
   _FakeVoiceStates(this._states);
   final Map<String, Map<String, AccordVoiceState>> _states;
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => _states;
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) => _states;
 }
 
 AccordVoiceState _state(String userId) =>
@@ -67,7 +67,7 @@ Widget _host({
         ),
       ),
       voiceControllerProvider.overrideWith(() => _FakeVoiceController(voice)),
-      voiceStatesControllerProvider.overrideWith(
+      voiceStatesControllerProvider('').overrideWith(
         () => _FakeVoiceStates({
           _channelId: {for (final id in userIds) id: _state(id)},
         }),

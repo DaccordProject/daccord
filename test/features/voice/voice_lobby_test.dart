@@ -43,7 +43,7 @@ class _FakeVoiceStates extends VoiceStatesController {
   _FakeVoiceStates(this._seed);
   final Map<String, Map<String, AccordVoiceState>> _seed;
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => _seed;
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) => _seed;
 }
 
 /// The voice view's chat panel is the real [MessagePane], whose rows and
@@ -66,7 +66,7 @@ Widget _host({
       accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
       settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       voiceControllerProvider.overrideWith(() => voice),
-      voiceStatesControllerProvider.overrideWith(
+      voiceStatesControllerProvider('').overrideWith(
         () => _FakeVoiceStates(voiceStates),
       ),
     ],
@@ -175,7 +175,7 @@ void main() {
         accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
         settingsControllerProvider.overrideWith(_FakeSettingsController.new),
         voiceControllerProvider.overrideWith(() => voice),
-        voiceStatesControllerProvider.overrideWith(
+        voiceStatesControllerProvider('').overrideWith(
           () => _FakeVoiceStates(const {}),
         ),
       ],

@@ -56,7 +56,9 @@ Set<String> accordEffectivePermissions({
 extension AccordPermissionWidgetRef on WidgetRef {
   Set<String> watchAccordPermissions(AccordSpace? space, String spaceId) {
     final currentUserId = watchUserId();
-    final members = watch(accordMembersControllerProvider(spaceId));
+    final members = watch(
+      accordMembersControllerProvider(readActiveServerKey() ?? '', spaceId),
+    );
     final preview = watch(rolePreviewControllerProvider);
     return accordEffectivePermissions(
       space: space,
@@ -70,7 +72,9 @@ extension AccordPermissionWidgetRef on WidgetRef {
 
   Set<String> readAccordPermissions(AccordSpace? space, String spaceId) {
     final currentUserId = readUserId();
-    final members = read(accordMembersControllerProvider(spaceId));
+    final members = read(
+      accordMembersControllerProvider(readActiveServerKey() ?? '', spaceId),
+    );
     final preview = read(rolePreviewControllerProvider);
     return accordEffectivePermissions(
       space: space,

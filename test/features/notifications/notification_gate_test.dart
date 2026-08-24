@@ -1,6 +1,7 @@
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/notifications/utils/notification_gate.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -112,6 +113,7 @@ void main() {
     const spaceId = 's1';
     const channelId = 'c1';
     const otherChannelId = 'c2';
+    const serverKey = 'server';
 
     /// Read state with one unread, 2-mention channel in [spaceId] (plus an
     /// unrelated unread channel in another space, which must never leak into
@@ -126,10 +128,12 @@ void main() {
       String? channelLevel,
     }) =>
         AccordSettings(
-          mutedSpaces: spaceMuted ? const [spaceId] : const [],
+          mutedSpaces: spaceMuted
+              ? [ServerEntityKey(serverKey, spaceId).encoded]
+              : const [],
           channelNotifications: channelLevel == null
               ? const {}
-              : {channelId: channelLevel},
+              : {ServerEntityKey(serverKey, channelId).encoded: channelLevel},
         );
 
     /// What the UI would render for [spaceId] / [channelId] under [s].
@@ -137,21 +141,21 @@ void main() {
         indicators(AccordSettings s, {ReadStateSnapshot from = state}) => (
               railDot: from.spaceShowsUnread(
                 spaceId,
-                spaceMuted: s.isSpaceMuted(spaceId),
-                channelLevels: s.channelNotifications,
+                spaceMuted: s.isSpaceMuted(serverKey, spaceId),
+                channelLevels: s.channelNotificationsFor(serverKey),
               ),
               railBadge: from.visibleMentionsInSpace(
                 spaceId,
-                spaceMuted: s.isSpaceMuted(spaceId),
-                channelLevels: s.channelNotifications,
+                spaceMuted: s.isSpaceMuted(serverKey, spaceId),
+                channelLevels: s.channelNotificationsFor(serverKey),
               ),
               channelPip: from.isUnreadVisible(
                 channelId,
-                channelLevels: s.channelNotifications,
+                channelLevels: s.channelNotificationsFor(serverKey),
               ),
               channelBadge: from.visibleMentionCount(
                 channelId,
-                channelLevels: s.channelNotifications,
+                channelLevels: s.channelNotificationsFor(serverKey),
               ),
             );
 
@@ -203,8 +207,10 @@ void main() {
 
     test('a space mute beats an explicit "all" channel level', () {
       final s = AccordSettings(
-        mutedSpaces: const [spaceId],
-        channelNotifications: const {channelId: 'all'},
+        mutedSpaces: [ServerEntityKey(serverKey, spaceId).encoded],
+        channelNotifications: {
+          ServerEntityKey(serverKey, channelId).encoded: 'all',
+        },
       );
       final i = indicators(s);
       expect(i.railDot, isFalse);

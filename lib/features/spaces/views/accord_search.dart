@@ -169,9 +169,9 @@ class _SearchDialogState extends ConsumerState<_SearchDialog>
     if (messages.isEmpty) {
       return _hint('No messages found', theme);
     }
-    final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
-    final users = ref.watch(accordUsersControllerProvider);
-    final ensureUser = ref.read(accordUsersControllerProvider.notifier).ensure;
+    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+    final ensureUser = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
     return ListView.separated(
       padding: const EdgeInsets.all(8),
       itemCount: messages.length,

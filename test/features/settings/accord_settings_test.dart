@@ -1,13 +1,14 @@
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AccordSettings round-trip', () {
     test('toJson -> fromJson preserves every field', () {
-      const settings = AccordSettings(
+      final settings = AccordSettings(
         themePreset: AppThemePreset.nord,
         accentColor: 0xFF00FF00,
         notificationsEnabled: false,
@@ -16,8 +17,11 @@ void main() {
         sfxVolume: 0.42,
         recentEmoji: ['😀', 'party:123'],
         masterServerUrl: 'https://master.example.com',
-        mutedSpaces: ['space-1', 'space-2'],
-        hiddenSpaces: ['space-3'],
+        mutedSpaces: [
+          ServerEntityKey('server', 'space-1').encoded,
+          ServerEntityKey('server', 'space-2').encoded,
+        ],
+        hiddenSpaces: [ServerEntityKey('server', 'space-3').encoded],
       );
 
       final restored = AccordSettings.fromJson(settings.toJson());
@@ -30,10 +34,10 @@ void main() {
       expect(restored.sfxVolume, 0.42);
       expect(restored.recentEmoji, ['😀', 'party:123']);
       expect(restored.masterServerUrl, 'https://master.example.com');
-      expect(restored.mutedSpaces, ['space-1', 'space-2']);
-      expect(restored.hiddenSpaces, ['space-3']);
-      expect(restored.isSpaceMuted('space-1'), isTrue);
-      expect(restored.isSpaceHidden('space-3'), isTrue);
+      expect(restored.mutedSpaces, settings.mutedSpaces);
+      expect(restored.hiddenSpaces, settings.hiddenSpaces);
+      expect(restored.isSpaceMuted('server', 'space-1'), isTrue);
+      expect(restored.isSpaceHidden('server', 'space-3'), isTrue);
     });
 
     test('a null accentColor round-trips as null', () {
@@ -221,7 +225,10 @@ void main() {
       expect(at30.screenShareBitrate, 2100000);
       expect(at15.screenShareBitrate, 1500000);
       // Halving fps must not halve the budget.
-      expect(at30.screenShareBitrate, greaterThan(base.screenShareBitrate ~/ 2));
+      expect(
+        at30.screenShareBitrate,
+        greaterThan(base.screenShareBitrate ~/ 2),
+      );
     });
 
     test('copyWith updates the screen-share fields independently', () {

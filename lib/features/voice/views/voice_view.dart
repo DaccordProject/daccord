@@ -335,14 +335,14 @@ class _LobbyBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final states = ref.watch(
-      voiceStatesControllerProvider.select(
+      voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
         (cache) => voiceStatesFor(cache, channelId),
       ),
     );
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
     final cdnUrl = ref.watchCdnUrl();
 
     // Viewing a lobby while a call is running elsewhere is a normal state now
@@ -355,7 +355,7 @@ class _LobbyBody extends ConsumerWidget {
     String? activeName;
     if (elsewhere && activeSpaceId != null) {
       activeName = ref.watch(
-        accordChannelsControllerProvider(activeSpaceId).select(
+        accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', activeSpaceId).select(
           (channels) =>
               channels?.firstWhereOrNull((c) => c.id == activeChannelId)?.name,
         ),
@@ -562,7 +562,7 @@ class _ConnectedBody extends ConsumerWidget {
     // Rebuild on any room change (track added/removed, speaker changes).
     ref.watch(voiceControllerProvider.select((v) => v.tick));
     final states = ref.watch(
-      voiceStatesControllerProvider.select(
+      voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
         (cache) => voiceStatesFor(cache, channelId),
       ),
     );
@@ -571,8 +571,8 @@ class _ConnectedBody extends ConsumerWidget {
     );
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
     final cdnUrl = ref.watchCdnUrl();
     final myId = ref.watchUserId();
     final session = ref.read(voiceControllerProvider.notifier).session;

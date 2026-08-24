@@ -108,7 +108,7 @@ class _ChannelPermissionsDialogState
   }
 
   Map<String, AccordMember> get _members =>
-      ref.read(accordMembersControllerProvider(widget.spaceId)) ??
+      ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId)) ??
       const <String, AccordMember>{};
 
   Future<void> _load() async {
@@ -335,7 +335,7 @@ class _ChannelPermissionsDialogState
     // nothing else from the cache; the watch also keeps the self-loading
     // member controller alive for the read-at-tap member picker.
     final memberIds = _memberOverwriteIds;
-    ref.watch(accordMembersControllerProvider(widget.spaceId).select(
+    ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).select(
         (members) => memberIds
             .map((id) => accordMemberName(members?[id], fallback: id))
             .join('\u0000')));

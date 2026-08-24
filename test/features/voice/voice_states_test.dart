@@ -14,9 +14,9 @@ void main() {
   }
 
   VoiceStatesController ctl(ProviderContainer c) =>
-      c.read(voiceStatesControllerProvider.notifier);
+      c.read(voiceStatesControllerProvider('').notifier);
   Map<String, Map<String, AccordVoiceState>> stateOf(ProviderContainer c) =>
-      c.read(voiceStatesControllerProvider);
+      c.read(voiceStatesControllerProvider(''));
 
   test('starts empty', () {
     final c = makeContainer();

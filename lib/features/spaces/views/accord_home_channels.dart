@@ -23,13 +23,16 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
   void _toggleCollapsed(String categoryId) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
+    final serverKey = ref.readActiveServerKey();
+    if (serverKey == null) return;
     final settings = ref.read(settingsControllerProvider);
     ref
         .read(settingsControllerProvider.notifier)
         .setCategoryCollapsed(
+          serverKey,
           spaceId,
           categoryId,
-          !settings.isCategoryCollapsed(spaceId, categoryId),
+          !settings.isCategoryCollapsed(serverKey, spaceId, categoryId),
         );
   }
 
@@ -592,7 +595,7 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
         );
     final voiceCount = isVoice
         ? ref.watch(
-            voiceStatesControllerProvider.select(
+            voiceStatesControllerProvider(ref.readActiveServerKey() ?? '').select(
               (cache) => voiceUserCount(cache, channel.id),
             ),
           )
@@ -855,7 +858,7 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
     );
     if (client == null) return;
     final notifier = ref.read(
-      accordChannelsControllerProvider(widget.spaceId).notifier,
+      accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,
     );
 
     final updates = diffChannelPositions(_items);

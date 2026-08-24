@@ -28,7 +28,7 @@ final class AccordChannelsControllerProvider
   /// channel create/update/delete gateway events. `null` means "not loaded yet".
   const AccordChannelsControllerProvider._({
     required AccordChannelsControllerFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'accordChannelsControllerProvider',
@@ -44,7 +44,7 @@ final class AccordChannelsControllerProvider
   String toString() {
     return r'accordChannelsControllerProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -72,7 +72,7 @@ final class AccordChannelsControllerProvider
 }
 
 String _$accordChannelsControllerHash() =>
-    r'f39d6f859683fab7c77090fe4a1690e004b735ed';
+    r'6a426225ad17abc9b4da9c0914a82c99a854a911';
 
 /// A space's channel list, keyed by space ID. The Accord analogue of Bonfire's
 /// firebridge-backed channel list. Self-loads via `spaces.listChannels` the
@@ -86,7 +86,7 @@ final class AccordChannelsControllerFamily extends $Family
           List<AccordChannel>?,
           List<AccordChannel>?,
           List<AccordChannel>?,
-          String
+          (String, String)
         > {
   const AccordChannelsControllerFamily._()
     : super(
@@ -102,8 +102,11 @@ final class AccordChannelsControllerFamily extends $Family
   /// first time it's watched (once logged in) and is kept in sync by
   /// channel create/update/delete gateway events. `null` means "not loaded yet".
 
-  AccordChannelsControllerProvider call(String spaceId) =>
-      AccordChannelsControllerProvider._(argument: spaceId, from: this);
+  AccordChannelsControllerProvider call(String serverKey, String spaceId) =>
+      AccordChannelsControllerProvider._(
+        argument: (serverKey, spaceId),
+        from: this,
+      );
 
   @override
   String toString() => r'accordChannelsControllerProvider';
@@ -116,14 +119,15 @@ final class AccordChannelsControllerFamily extends $Family
 
 abstract class _$AccordChannelsController
     extends $Notifier<List<AccordChannel>?> {
-  late final _$args = ref.$arg as String;
-  String get spaceId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get spaceId => _$args.$2;
 
-  List<AccordChannel>? build(String spaceId);
+  List<AccordChannel>? build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref = this.ref as $Ref<List<AccordChannel>?, List<AccordChannel>?>;
     final element =
         ref.element

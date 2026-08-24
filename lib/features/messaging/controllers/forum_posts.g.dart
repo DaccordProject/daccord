@@ -31,7 +31,7 @@ final class ForumPostsControllerProvider
   /// `null` means "not loaded yet".
   const ForumPostsControllerProvider._({
     required ForumPostsControllerFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'forumPostsControllerProvider',
@@ -47,7 +47,7 @@ final class ForumPostsControllerProvider
   String toString() {
     return r'forumPostsControllerProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -74,7 +74,7 @@ final class ForumPostsControllerProvider
 }
 
 String _$forumPostsControllerHash() =>
-    r'5781e9618e9101b3e86f66ee3dc3a3d262eef4c4';
+    r'9dabafb3d824185a499aa673ba15ace6e3ddf161';
 
 /// A forum channel's top-level posts (thread roots), keyed by channel ID, in
 /// server order (the board sorts for display). Self-loads via
@@ -89,7 +89,7 @@ final class ForumPostsControllerFamily extends $Family
           List<AccordMessage>?,
           List<AccordMessage>?,
           List<AccordMessage>?,
-          String
+          (String, String)
         > {
   const ForumPostsControllerFamily._()
     : super(
@@ -106,8 +106,11 @@ final class ForumPostsControllerFamily extends $Family
   /// kept in sync by top-level message create/update/delete gateway events.
   /// `null` means "not loaded yet".
 
-  ForumPostsControllerProvider call(String channelId) =>
-      ForumPostsControllerProvider._(argument: channelId, from: this);
+  ForumPostsControllerProvider call(String serverKey, String channelId) =>
+      ForumPostsControllerProvider._(
+        argument: (serverKey, channelId),
+        from: this,
+      );
 
   @override
   String toString() => r'forumPostsControllerProvider';
@@ -120,14 +123,15 @@ final class ForumPostsControllerFamily extends $Family
 /// `null` means "not loaded yet".
 
 abstract class _$ForumPostsController extends $Notifier<List<AccordMessage>?> {
-  late final _$args = ref.$arg as String;
-  String get channelId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get channelId => _$args.$2;
 
-  List<AccordMessage>? build(String channelId);
+  List<AccordMessage>? build(String serverKey, String channelId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element

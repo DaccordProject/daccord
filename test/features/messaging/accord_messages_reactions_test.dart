@@ -21,10 +21,10 @@ ProviderContainer makeContainer() {
 }
 
 AccordMessagesController notifier(ProviderContainer c) =>
-    c.read(accordMessagesControllerProvider('ch1').notifier);
+    c.read(accordMessagesControllerProvider('', 'ch1').notifier);
 
 List<AccordMessage>? messages(ProviderContainer c) =>
-    c.read(accordMessagesControllerProvider('ch1'));
+    c.read(accordMessagesControllerProvider('', 'ch1'));
 
 AccordMessage _msg({List<AccordReaction>? reactions}) => AccordMessage(
       id: 'm1',

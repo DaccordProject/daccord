@@ -16,6 +16,7 @@ import 'package:http/testing.dart';
 // ---------------------------------------------------------------------------
 
 const _spaceId = 'space1';
+const _serverKey = 'u-self@https://accord.example.test';
 
 /// A member payload with the user embedded, so `_resolveUsers` has nothing
 /// left to backfill and the test doesn't need to also mock `/users/*`.
@@ -58,7 +59,7 @@ ProviderContainer makeContainer(
   addTearDown(container.dispose);
   addTearDown(client.dispose);
   final subscription = container.listen(
-    accordMembersControllerProvider(_spaceId),
+    accordMembersControllerProvider(_serverKey, _spaceId),
     (_, _) {},
     fireImmediately: true,
   );
@@ -67,10 +68,10 @@ ProviderContainer makeContainer(
 }
 
 Map<String, AccordMember>? _state(ProviderContainer c) =>
-    c.read(accordMembersControllerProvider(_spaceId));
+    c.read(accordMembersControllerProvider(_serverKey, _spaceId));
 
 bool _failed(ProviderContainer c) =>
-    c.read(membersLoadFailedProvider(_spaceId));
+    c.read(membersLoadFailedProvider(_serverKey, _spaceId));
 
 /// Polls [condition] until it's true, so tests don't hard-code the retry
 /// loop's real (1s, 2s) backoff durations. Fails the test if [timeout] elapses
@@ -149,8 +150,12 @@ void main() {
         await _waitUntil(() => _failed(container));
 
         // Mirrors the roster's Retry button: clear the flag, then reload.
-        container.read(membersLoadFailedProvider(_spaceId).notifier).set(false);
-        container.invalidate(accordMembersControllerProvider(_spaceId));
+        container
+            .read(membersLoadFailedProvider(_serverKey, _spaceId).notifier)
+            .set(false);
+        container.invalidate(
+          accordMembersControllerProvider(_serverKey, _spaceId),
+        );
         await _waitUntil(() => _state(container) != null);
 
         expect(_state(container)?.keys, contains('u1'));

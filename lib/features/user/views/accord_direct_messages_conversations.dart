@@ -21,24 +21,31 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
 
   Future<void> _load() async {
     final client = _client;
-    if (client == null) return;
+    final serverKey = ref.readActiveServerKey();
+    if (client == null || serverKey == null) return;
     final result = await client.users.listChannels();
-    if (!mounted) return;
+    if (!mounted || ref.readActiveServerKey() != serverKey) return;
     final data = result.data;
-    ref.read(dmChannelsControllerProvider.notifier).setChannels(
+    ref.read(dmChannelsControllerProvider(serverKey).notifier).setChannels(
           data is List ? data.whereType<AccordChannel>().toList() : const [],
         );
   }
 
   Future<void> _createGroup() async {
+    final serverKey = ref.readActiveServerKey();
     final channel = await showDialog<AccordChannel>(
       context: context,
       builder: (_) => const _CreateGroupDialog(),
     );
-    if (channel == null || !mounted) return;
+    if (channel == null ||
+        !mounted ||
+        serverKey == null ||
+        ref.readActiveServerKey() != serverKey) {
+      return;
+    }
     // Surface the new group immediately; the gateway channel.create echo (and
     // the next _load) keep the cache authoritative.
-    ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
+    ref.read(dmChannelsControllerProvider(serverKey).notifier).upsert(channel);
     widget.onOpen(channel);
   }
 
@@ -58,7 +65,7 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final channels = ref.watch(dmChannelsControllerProvider);
+    final channels = ref.watch(dmChannelsControllerProvider(ref.readActiveServerKey() ?? ''));
     final cdnUrl = ref.watchCdnUrl();
     final missed = ref.watch(missedCallsControllerProvider);
     return Column(
@@ -251,7 +258,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   /// list behind this conversation reflects the change too.
   void _setChannel(AccordChannel channel) {
     setState(() => _channel = channel);
-    ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
+    ref.read(dmChannelsControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(channel);
   }
 
   /// Refetches the channel so the recipient list reflects add/remove changes.
@@ -372,7 +379,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final result = await client.channels.removeRecipient(_channel.id, selfId);
     if (!mounted) return;
     if (result.ok) {
-      ref.read(dmChannelsControllerProvider.notifier).remove(_channel.id);
+      ref.read(dmChannelsControllerProvider(ref.readActiveServerKey() ?? '').notifier).remove(_channel.id);
       widget.onBack();
     } else {
       _snack('Failed to leave group');
@@ -430,7 +437,7 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final colors = BonfireThemeExtension.of(context);
     // Keep the open conversation in sync with gateway-driven channel updates
     // (remote rename / recipient add/remove) the DM cache receives.
-    ref.listen<List<AccordChannel>?>(dmChannelsControllerProvider,
+    ref.listen<List<AccordChannel>?>(dmChannelsControllerProvider(ref.readActiveServerKey() ?? ''),
         (previous, next) {
       if (next == null) return;
       AccordChannel? updated;

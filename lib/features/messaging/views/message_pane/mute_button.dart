@@ -19,7 +19,9 @@ class _MuteButton extends ConsumerWidget {
     final muted = mutedChannels.value?.contains(channelId) ?? false;
     final level = ref.watch(
       settingsControllerProvider.select(
-        (settings) => settings.channelNotificationLevel(channelId),
+        (settings) => activeKey == null
+            ? null
+            : settings.channelNotificationLevel(activeKey, channelId),
       ),
     );
     final levelLabel = level == null
@@ -44,15 +46,17 @@ class _MuteButton extends ConsumerWidget {
         color: colors.dirtyWhite,
       ),
       onSelected: (action) {
+        if (activeKey == null) return;
         switch (action) {
           case _NotifAction.levelDefault:
             ref
                 .read(settingsControllerProvider.notifier)
-                .setChannelNotificationLevel(channelId, null);
+                .setChannelNotificationLevel(activeKey, channelId, null);
           case _NotifAction.levelAll:
             ref
                 .read(settingsControllerProvider.notifier)
                 .setChannelNotificationLevel(
+                  activeKey,
                   channelId,
                   AccordSettings.channelNotifAll,
                 );
@@ -60,6 +64,7 @@ class _MuteButton extends ConsumerWidget {
             ref
                 .read(settingsControllerProvider.notifier)
                 .setChannelNotificationLevel(
+                  activeKey,
                   channelId,
                   AccordSettings.channelNotifMentions,
                 );
@@ -67,15 +72,14 @@ class _MuteButton extends ConsumerWidget {
             ref
                 .read(settingsControllerProvider.notifier)
                 .setChannelNotificationLevel(
+                  activeKey,
                   channelId,
                   AccordSettings.channelNotifNothing,
                 );
           case _NotifAction.toggleMute:
-            if (activeKey != null) {
-              ref
-                  .read(mutedChannelsControllerProvider(activeKey).notifier)
-                  .setMuted(channelId, !muted);
-            }
+            ref
+                .read(mutedChannelsControllerProvider(activeKey).notifier)
+                .setMuted(channelId, !muted);
         }
       },
       itemBuilder: (context) => [

@@ -171,9 +171,9 @@ class _OlderHistoryHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Rebuild whenever the message list mutates (which also covers the
     // controller bumping state at the start/end of loadOlder).
-    ref.watch(accordMessagesControllerProvider(channelId));
+    ref.watch(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId));
     final notifier =
-        ref.read(accordMessagesControllerProvider(channelId).notifier);
+        ref.read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId).notifier);
     if (notifier.isLoadingOlder) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),

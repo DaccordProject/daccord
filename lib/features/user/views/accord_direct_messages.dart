@@ -102,12 +102,13 @@ Future<void> openAccordDirectMessage(
   String userId,
 ) async {
   final client = ref.accordClient;
-  if (client == null) return;
+  final serverKey = ref.readActiveServerKey();
+  if (client == null || serverKey == null) return;
   final result = await client.users.createDm(dmCreateBody(userId));
-  if (!context.mounted) return;
+  if (!context.mounted || ref.readActiveServerKey() != serverKey) return;
   final data = result.data;
   if (result.ok && data is AccordChannel) {
-    ref.read(dmChannelsControllerProvider.notifier).upsert(data);
+    ref.read(dmChannelsControllerProvider(serverKey).notifier).upsert(data);
     await showAccordDirectMessages(context, initialChannel: data);
   } else {
     // Surface the server's reason (federation disabled, recipient not
@@ -118,13 +119,12 @@ Future<void> openAccordDirectMessage(
 }
 
 /// Shows [error]'s server message (when present) or [fallback] in a snackbar.
-void _snackDmError(
-  BuildContext context,
-  AccordError? error,
-  String fallback,
-) {
+void _snackDmError(BuildContext context, AccordError? error, String fallback) {
   final reason = error?.message;
-  showInfoSnack(context, reason != null && reason.isNotEmpty ? reason : fallback);
+  showInfoSnack(
+    context,
+    reason != null && reason.isNotEmpty ? reason : fallback,
+  );
 }
 
 class _DirectMessagesDialog extends ConsumerStatefulWidget {

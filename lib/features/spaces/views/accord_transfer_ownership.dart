@@ -74,7 +74,7 @@ class _TransferOwnershipDialogState
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     final currentUserId = ref.watchUserId();
-    final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
+    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
     final candidates =
         (members?.values ?? const <AccordMember>[])
             .where((m) => m.userId != currentUserId)

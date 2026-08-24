@@ -31,7 +31,7 @@ final class ThreadRepliesControllerProvider
   /// create/update/delete gateway events. `null` means "not loaded yet".
   const ThreadRepliesControllerProvider._({
     required ThreadRepliesControllerFamily super.from,
-    required (String, String) super.argument,
+    required (String, String, String) super.argument,
   }) : super(
          retry: null,
          name: r'threadRepliesControllerProvider',
@@ -75,7 +75,7 @@ final class ThreadRepliesControllerProvider
 }
 
 String _$threadRepliesControllerHash() =>
-    r'9ececfe594134369596a5cc8ddb8b3847fd10cbf';
+    r'3ccc35531b8e830da1af2c0c509e9d02bcdd57f7';
 
 /// A thread's replies (excluding the root message), keyed by
 /// (channelId, rootId), ordered oldest→newest as the server returns them.
@@ -90,7 +90,7 @@ final class ThreadRepliesControllerFamily extends $Family
           List<AccordMessage>?,
           List<AccordMessage>?,
           List<AccordMessage>?,
-          (String, String)
+          (String, String, String)
         > {
   const ThreadRepliesControllerFamily._()
     : super(
@@ -107,11 +107,14 @@ final class ThreadRepliesControllerFamily extends $Family
   /// logged in) and is kept in sync by thread-scoped message
   /// create/update/delete gateway events. `null` means "not loaded yet".
 
-  ThreadRepliesControllerProvider call(String channelId, String rootId) =>
-      ThreadRepliesControllerProvider._(
-        argument: (channelId, rootId),
-        from: this,
-      );
+  ThreadRepliesControllerProvider call(
+    String serverKey,
+    String channelId,
+    String rootId,
+  ) => ThreadRepliesControllerProvider._(
+    argument: (serverKey, channelId, rootId),
+    from: this,
+  );
 
   @override
   String toString() => r'threadRepliesControllerProvider';
@@ -125,15 +128,16 @@ final class ThreadRepliesControllerFamily extends $Family
 
 abstract class _$ThreadRepliesController
     extends $Notifier<List<AccordMessage>?> {
-  late final _$args = ref.$arg as (String, String);
-  String get channelId => _$args.$1;
-  String get rootId => _$args.$2;
+  late final _$args = ref.$arg as (String, String, String);
+  String get serverKey => _$args.$1;
+  String get channelId => _$args.$2;
+  String get rootId => _$args.$3;
 
-  List<AccordMessage>? build(String channelId, String rootId);
+  List<AccordMessage>? build(String serverKey, String channelId, String rootId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args.$1, _$args.$2);
+    final created = build(_$args.$1, _$args.$2, _$args.$3);
     final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element

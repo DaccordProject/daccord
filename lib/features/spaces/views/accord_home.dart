@@ -50,6 +50,7 @@ import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/shared/components/server_unreachable.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -201,7 +202,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       final channelId = args['channel_id'] as String;
       final messageId = args['message_id'] as String;
       final root = ref
-          .read(accordMessagesControllerProvider(channelId))
+          .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId))
           ?.firstWhereOrNull((m) => m.id == messageId);
       if (root == null) return {'error': 'Message not loaded'};
       showAccordThread(context, channelId: channelId, root: root);
@@ -276,7 +277,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     _markChannelRead(tab.channelId);
     ref
         .read(settingsControllerProvider.notifier)
-        .setLastSelection(tab.spaceId, tab.channelId);
+        .setLastSelection(tab.serverKey, tab.spaceId, tab.channelId);
   }
 
   /// Opens (or switches to) a tab for [channelId] in [spaceId] on the active
@@ -286,7 +287,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     final activeKey = ref.read(connectionsControllerProvider).activeKey;
     if (activeKey == null) return false;
     final channel = ref
-        .read(accordChannelsControllerProvider(spaceId))
+        .read(accordChannelsControllerProvider(activeKey, spaceId))
         ?.firstWhereOrNull((c) => c.id == channelId);
     if (channel != null && channel.nsfw) {
       final ok = await confirmNsfwGate(
@@ -321,7 +322,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     setState(() => _pendingOpenSpaceId = null);
     ref
         .read(settingsControllerProvider.notifier)
-        .setLastSelection(spaceId, channelId);
+        .setLastSelection(activeKey, spaceId, channelId);
     return true;
   }
 
@@ -329,13 +330,16 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   /// fetches and opens a shared thread/message root. The direct fetch means a
   /// link still works when the target is older than the initial history page.
   void _scheduleDeepLinkOpen(AccordChannel channel, String spaceId) {
-    if (_deepLinkChannelInFlight == channel.id) return;
-    _deepLinkChannelInFlight = channel.id;
+    final serverKey = ref.readActiveServerKey();
+    if (serverKey == null) return;
+    final channelKey = ServerEntityKey(serverKey, channel.id).encoded;
+    if (_deepLinkChannelInFlight == channelKey) return;
+    _deepLinkChannelInFlight = channelKey;
     final messageId = _pendingMessageId;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
+      if (!mounted || ref.readActiveServerKey() != serverKey) return;
       final opened = await _openChannel(channel.id, spaceId: spaceId);
-      if (!mounted) return;
+      if (!mounted || ref.readActiveServerKey() != serverKey) return;
       _deepLinkChannelInFlight = null;
       if (!opened) return;
 
@@ -347,7 +351,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       if (messageId == null || messageId.isEmpty) return;
 
       final cached = ref
-          .read(accordMessagesControllerProvider(channel.id))
+          .read(accordMessagesControllerProvider(serverKey, channel.id))
           ?.firstWhereOrNull((message) => message.id == messageId);
       var root = cached;
       if (root == null) {
@@ -357,7 +361,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
             : await client.messages.fetch(channel.id, messageId);
         if (result?.data case final AccordMessage message) root = message;
       }
-      if (!mounted) return;
+      if (!mounted || ref.readActiveServerKey() != serverKey) return;
       if (root == null) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           const SnackBar(content: Text('The linked message is unavailable.')),
@@ -411,7 +415,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       _markChannelRead(channel.id, fallbackMessageId: channel.lastMessageId);
       ref
           .read(settingsControllerProvider.notifier)
-          .setLastSelection(spaceId, channel.id);
+          .setLastSelection(activeKey, spaceId, channel.id);
       if (_pendingOpenSpaceId != null) {
         setState(() => _pendingOpenSpaceId = null);
       }
@@ -496,7 +500,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       // No pending/active selection (e.g. a fresh launch with no open tabs):
       // restore the last selected space when it still exists, else default to
       // the first. Mirrors the reference's `last_space_id` restore.
-      final lastSpaceId = ref.read(settingsControllerProvider).lastSpaceId;
+      final lastSpaceId = ref
+          .read(settingsControllerProvider)
+          .lastSpaceFor(activeKey ?? '');
       effectiveSpaceId =
           lastSpaceId.isNotEmpty && spaces.any((s) => s.id == lastSpaceId)
           ? lastSpaceId
@@ -507,7 +513,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
 
     final channels = effectiveSpaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(effectiveSpaceId));
+        : ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', effectiveSpaceId));
 
     final firstText = channels?.where((c) => c.type == 'text').firstOrNull;
 
@@ -540,10 +546,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       // Routed through [_scheduleAutoOpen] (not [_openChannel]) so restoring a
       // voice channel shows its lobby instead of auto-rejoining the call.
       final settings = ref.read(settingsControllerProvider);
+      final lastSpaceId = settings.lastSpaceFor(activeKey ?? '');
+      final lastChannelId = settings.lastChannelFor(activeKey ?? '');
       final lastChannel =
-          settings.lastSpaceId == effectiveSpaceId &&
-              settings.lastChannelId.isNotEmpty
-          ? channels.firstWhereOrNull((c) => c.id == settings.lastChannelId)
+          lastSpaceId == effectiveSpaceId && lastChannelId.isNotEmpty
+          ? channels.firstWhereOrNull((c) => c.id == lastChannelId)
           : null;
       final restore = lastChannel ?? firstText;
       if (restore != null) {
@@ -553,7 +560,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     }
 
     // Let the notification layer skip the channel that's on screen.
-    accordVisibleChannelId = shownChannelId;
+    accordVisibleChannel = activeKey == null || shownChannelId == null
+        ? null
+        : (serverKey: activeKey, channelId: shownChannelId);
 
     mcpHomeBridge.setStateReader(
       () => (

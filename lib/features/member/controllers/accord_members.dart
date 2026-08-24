@@ -11,7 +11,9 @@ part 'accord_members.g.dart';
 /// consults this so member join/update/leave events only mutate caches the UI
 /// has actually opened, rather than history-loading the full member list for
 /// every space that happens to emit an event.
-final Set<String> activeMemberSpaces = <String>{};
+typedef ServerSpaceKey = ({String serverKey, String spaceId});
+
+final Set<ServerSpaceKey> activeMemberSpaces = <ServerSpaceKey>{};
 
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
@@ -21,7 +23,7 @@ final Set<String> activeMemberSpaces = <String>{};
 @Riverpod(keepAlive: true)
 class MembersLoadFailed extends _$MembersLoadFailed {
   @override
-  bool build(String spaceId) => false;
+  bool build(String serverKey, String spaceId) => false;
 
   // ignore: use_setters_to_change_properties
   void set(bool value) => state = value;
@@ -34,11 +36,12 @@ class MembersLoadFailed extends _$MembersLoadFailed {
 @Riverpod(keepAlive: false)
 class AccordMembersController extends _$AccordMembersController {
   @override
-  Map<String, AccordMember>? build(String spaceId) {
-    activeMemberSpaces.add(spaceId);
-    ref.onDispose(() => activeMemberSpaces.remove(spaceId));
+  Map<String, AccordMember>? build(String serverKey, String spaceId) {
+    final key = (serverKey: serverKey, spaceId: spaceId);
+    activeMemberSpaces.add(key);
+    ref.onDispose(() => activeMemberSpaces.remove(key));
 
-    final client = ref.watchAccordClient();
+    final client = ref.watchAccordClientFor(serverKey);
     if (client != null) {
       _load(client, spaceId);
     }
@@ -71,9 +74,12 @@ class AccordMembersController extends _$AccordMembersController {
       }
       if (!ref.mounted) return;
       if (list != null) {
+        if (!ref.isCurrentAccordClient(serverKey, client)) return;
         final members = {for (final member in list) member.userId: member};
         state = members;
-        ref.read(membersLoadFailedProvider(spaceId).notifier).set(false);
+        ref
+            .read(membersLoadFailedProvider(serverKey, spaceId).notifier)
+            .set(false);
         await _resolveUsers(client, members);
         return;
       }
@@ -83,8 +89,11 @@ class AccordMembersController extends _$AccordMembersController {
         if (!ref.mounted) return;
       }
     }
-    if (!ref.mounted) return;
-    ref.read(membersLoadFailedProvider(spaceId).notifier).set(true);
+    if (ref.mounted && ref.isCurrentAccordClient(serverKey, client)) {
+      ref
+          .read(membersLoadFailedProvider(serverKey, spaceId).notifier)
+          .set(true);
+    }
   }
 
   /// The members endpoint returns only `user_id` per member — no embedded user
@@ -96,7 +105,9 @@ class AccordMembersController extends _$AccordMembersController {
     AccordClient client,
     Map<String, AccordMember> members,
   ) async {
-    final usersController = ref.read(accordUsersControllerProvider.notifier);
+    final usersController = ref.read(
+      accordUsersControllerProvider(serverKey).notifier,
+    );
     final missing = <String>[];
     for (final member in members.values) {
       if (member.user != null) continue;
@@ -117,7 +128,9 @@ class AccordMembersController extends _$AccordMembersController {
     if (!ref.mounted) return;
 
     // Replace the map identity so watchers rebuild with enriched members.
-    if (state != null) state = {...members};
+    if (state != null && ref.isCurrentAccordClient(serverKey, client)) {
+      state = {...members};
+    }
   }
 
   /// Refreshes the cached [AccordMember.user] for [user] when that user is a

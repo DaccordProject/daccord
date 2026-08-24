@@ -31,7 +31,7 @@ class VoiceParticipantList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final states = ref.watch(voiceStatesControllerProvider
+    final states = ref.watch(voiceStatesControllerProvider(ref.readActiveServerKey() ?? '')
         .select((cache) => voiceStatesFor(cache, channelId)));
     if (states.isEmpty) return const SizedBox.shrink();
 
@@ -52,8 +52,8 @@ class VoiceParticipantList extends ConsumerWidget {
 
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
     final roles = spaceId == null
         ? const <AccordRole>[]
         : ref.watch(spacesControllerProvider.select((s) =>

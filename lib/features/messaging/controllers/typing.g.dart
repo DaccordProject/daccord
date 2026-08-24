@@ -28,7 +28,7 @@ final class TypingControllerProvider
   /// member cache.
   const TypingControllerProvider._({
     required TypingControllerFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'typingControllerProvider',
@@ -44,7 +44,7 @@ final class TypingControllerProvider
   String toString() {
     return r'typingControllerProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -70,7 +70,7 @@ final class TypingControllerProvider
   }
 }
 
-String _$typingControllerHash() => r'ccd08c145d3d64f7137f87cdaa31c11bc2ca3b38';
+String _$typingControllerHash() => r'e650dd9acc3f53b003d0c2d86a80038c11c9f318';
 
 /// The set of users currently typing in a channel, keyed by channel ID. Each
 /// user is held for [_typingTimeout] after their last event, then expires.
@@ -84,7 +84,7 @@ final class TypingControllerFamily extends $Family
           List<String>,
           List<String>,
           List<String>,
-          String
+          (String, String)
         > {
   const TypingControllerFamily._()
     : super(
@@ -100,8 +100,8 @@ final class TypingControllerFamily extends $Family
   /// Returns user IDs in arrival order; the UI resolves them to names via the
   /// member cache.
 
-  TypingControllerProvider call(String channelId) =>
-      TypingControllerProvider._(argument: channelId, from: this);
+  TypingControllerProvider call(String serverKey, String channelId) =>
+      TypingControllerProvider._(argument: (serverKey, channelId), from: this);
 
   @override
   String toString() => r'typingControllerProvider';
@@ -113,14 +113,15 @@ final class TypingControllerFamily extends $Family
 /// member cache.
 
 abstract class _$TypingController extends $Notifier<List<String>> {
-  late final _$args = ref.$arg as String;
-  String get channelId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get channelId => _$args.$2;
 
-  List<String> build(String channelId);
+  List<String> build(String serverKey, String channelId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref = this.ref as $Ref<List<String>, List<String>>;
     final element =
         ref.element

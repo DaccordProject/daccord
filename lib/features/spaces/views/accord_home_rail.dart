@@ -4,15 +4,22 @@ part of 'accord_home.dart';
 /// ungrouped space. Built per server group in the persisted order.
 class _RailUnit {
   const _RailUnit.folder(this.folder, this.spaces) : space = null;
-  const _RailUnit.space(AccordSpace this.space)
+  const _RailUnit.space(_RailSpace this.space)
     : folder = null,
       spaces = const [];
 
   final SpaceFolder? folder;
-  final AccordSpace? space;
-  final List<AccordSpace> spaces; // folder members present in this group
+  final _RailSpace? space;
+  final List<_RailSpace> spaces; // folder members present in this group
 
   bool get isFolder => folder != null;
+}
+
+class _RailSpace {
+  const _RailSpace(this.key, this.space);
+
+  final String key;
+  final AccordSpace space;
 }
 
 /// Which connection a space in the (flat, cross-account) rail belongs to, so a
@@ -63,24 +70,25 @@ class _SpaceRail extends ConsumerWidget {
     final connOf = <String, _SpaceConn>{};
     // Spaces the user hid from the rail (still joined) — collected so an "N
     // hidden" affordance can offer to restore them.
-    final hidden = <AccordSpace>[];
+    final hidden = <_RailSpace>[];
     for (final conn in connections.connections) {
       final isActive = conn.key == activeKey;
       final spaces = isActive ? (liveActiveSpaces ?? conn.spaces) : conn.spaces;
       final cdnUrl = conn.session.server.cdnUrl;
       for (final s in spaces) {
-        connOf[s.id] = _SpaceConn(conn.key, cdnUrl, isActive);
-        if (settings.isSpaceHidden(s.id)) {
-          hidden.add(s);
+        final entityKey = ServerEntityKey(conn.key, s.id).encoded;
+        connOf[entityKey] = _SpaceConn(conn.key, cdnUrl, isActive);
+        if (settings.isSpaceHidden(conn.key, s.id)) {
+          hidden.add(_RailSpace(entityKey, s));
         } else {
-          byId[s.id] = s;
+          byId[entityKey] = s;
         }
       }
     }
 
     // The effective global order, used when persisting a reorder so dragged
     // spaces keep a stable position.
-    final globalOrder = _orderedIds(byId.values.toList(), settings.spaceOrder);
+    final globalOrder = _orderedIds(byId.keys.toList(), settings.spaceOrder);
     final units = _buildUnits(globalOrder, byId, settings.spaceFolders);
 
     final railItems = <Widget>[
@@ -99,10 +107,20 @@ class _SpaceRail extends ConsumerWidget {
     // space/folder can be inserted between items — including between a space and
     // a folder — rather than only onto an icon.
     Widget gapFor(String? anchorId) => _InsertionGap(
-      onDropSpace: (spaceId) =>
-          _dropSpaceBefore(settingsCtl, settings, globalOrder, spaceId, anchorId),
-      onDropFolder: (folderId) =>
-          _moveFolderBefore(settingsCtl, settings, globalOrder, folderId, anchorId),
+      onDropSpace: (spaceId) => _dropSpaceBefore(
+        settingsCtl,
+        settings,
+        globalOrder,
+        spaceId,
+        anchorId,
+      ),
+      onDropFolder: (folderId) => _moveFolderBefore(
+        settingsCtl,
+        settings,
+        globalOrder,
+        folderId,
+        anchorId,
+      ),
     );
 
     for (final unit in units) {
@@ -115,42 +133,51 @@ class _SpaceRail extends ConsumerWidget {
             connOf: connOf,
             selectedSpaceId: selectedSpaceId,
             onSelect: onSelect,
-            onDropSpace: (spaceId) =>
-                settingsCtl.moveSpaceToFolder(spaceId, unit.folder!.id),
+            onDropSpace: (spaceKey) => settingsCtl.moveSpaceToFolder(
+              ServerEntityKey.tryDecode(spaceKey)!,
+              unit.folder!.id,
+            ),
             onReorderFolderBefore: (folderId) => _moveFolderBefore(
               settingsCtl,
               settings,
               globalOrder,
               folderId,
-              unit.spaces.first.id,
+              unit.spaces.first.key,
             ),
             onMemberDropBefore: (draggedId, targetMemberId) =>
                 settingsCtl.moveSpaceToFolder(
-                  draggedId,
+                  ServerEntityKey.tryDecode(draggedId)!,
                   unit.folder!.id,
-                  before: targetMemberId,
+                  before: ServerEntityKey.tryDecode(targetMemberId)!,
                 ),
           ),
         );
       } else {
-        final space = unit.space!;
-        final sc = connOf[space.id];
+        final railSpace = unit.space!;
+        final space = railSpace.space;
+        final entityKey = railSpace.key;
+        final sc = connOf[entityKey];
         final serverKey = sc?.serverKey ?? '';
         railItems.add(
           _DraggableSpace(
             space: space,
             cdnUrl: sc?.cdnUrl,
             serverKey: serverKey,
+            entityKey: entityKey,
             selected: (sc?.active ?? false) && space.id == selectedSpaceId,
             onTap: () => onSelect(serverKey, space.id),
-            onMergeSpace: (movedId) =>
-                settingsCtl.createFolder(spaceIds: [space.id, movedId]),
+            onMergeSpace: (movedId) => settingsCtl.createFolder(
+              spaces: [
+                ServerEntityKey.tryDecode(entityKey)!,
+                ServerEntityKey.tryDecode(movedId)!,
+              ],
+            ),
             onDropFolderBefore: (folderId) => _moveFolderBefore(
               settingsCtl,
               settings,
               globalOrder,
               folderId,
-              space.id,
+              entityKey,
             ),
             onMenu: (pos) => _spaceMenu(context, ref, space, serverKey, pos),
           ),
@@ -223,11 +250,7 @@ class _SpaceRail extends ConsumerWidget {
 
   /// Orders [spaces] by the saved [savedOrder], appending any not listed in
   /// their natural (server) order.
-  static List<String> _orderedIds(
-    List<AccordSpace> spaces,
-    List<String> savedOrder,
-  ) {
-    final ids = spaces.map((s) => s.id).toList();
+  static List<String> _orderedIds(List<String> ids, List<String> savedOrder) {
     final idSet = ids.toSet();
     final inOrder = [
       for (final id in savedOrder)
@@ -260,16 +283,16 @@ class _SpaceRail extends ConsumerWidget {
       final folder = folderOf[id];
       if (folder != null) {
         if (emittedFolders.add(folder.id)) {
-          final members = [
+          final members = <_RailSpace>[
             for (final sid in folder.spaceIds)
-              if (byId[sid] != null) byId[sid]!,
+              if (byId[sid] != null) _RailSpace(sid, byId[sid]!),
           ];
           units.add(_RailUnit.folder(folder, members));
         }
         continue;
       }
       final space = byId[id];
-      if (space != null) units.add(_RailUnit.space(space));
+      if (space != null) units.add(_RailUnit.space(_RailSpace(id, space)));
     }
     return units;
   }
@@ -278,7 +301,7 @@ class _SpaceRail extends ConsumerWidget {
   /// id, or a folder's first member (folders anchor at their first member's
   /// position in [spaceOrder]).
   String _unitAnchor(_RailUnit unit) =>
-      unit.isFolder ? unit.spaces.first.id : unit.space!.id;
+      unit.isFolder ? unit.spaces.first.key : unit.space!.key;
 
   void _reorderBefore(
     SettingsController ctl,
@@ -297,7 +320,7 @@ class _SpaceRail extends ConsumerWidget {
     } else {
       next.insert(idx, movedId);
     }
-    ctl.setSpaceOrder(next);
+    ctl.setSpaceOrder([for (final id in next) ServerEntityKey.tryDecode(id)!]);
   }
 
   /// Drops [movedId] before [targetId] in the rail, first pulling it out of any
@@ -314,7 +337,9 @@ class _SpaceRail extends ConsumerWidget {
     final inFolder = settings.spaceFolders.any(
       (f) => f.spaceIds.contains(movedId),
     );
-    if (inFolder) ctl.moveSpaceToFolder(movedId, null);
+    if (inFolder) {
+      ctl.moveSpaceToFolder(ServerEntityKey.tryDecode(movedId)!, null);
+    }
     _reorderBefore(ctl, globalOrder, movedId, targetId);
   }
 
@@ -353,7 +378,7 @@ class _SpaceRail extends ConsumerWidget {
     } else {
       rest.insertAll(idx, block);
     }
-    ctl.setSpaceOrder(rest);
+    ctl.setSpaceOrder([for (final id in rest) ServerEntityKey.tryDecode(id)!]);
   }
 
   /// Context menu for a space (double-tap / right-click): server actions
@@ -369,8 +394,9 @@ class _SpaceRail extends ConsumerWidget {
   ) {
     final settings = ref.read(settingsControllerProvider);
     final ctl = ref.read(settingsControllerProvider.notifier);
+    final entityKey = ServerEntityKey(serverKey, space.id);
     final inFolder = settings.spaceFolders.any(
-      (f) => f.spaceIds.contains(space.id),
+      (f) => f.spaceIds.contains(entityKey.encoded),
     );
 
     final entries = <AccordMenuEntry>[
@@ -378,20 +404,20 @@ class _SpaceRail extends ConsumerWidget {
       AccordMenuEntry(
         label: 'New folder with this space',
         icon: Icons.create_new_folder_outlined,
-        onSelected: () => ctl.createFolder(spaceIds: [space.id]),
+        onSelected: () => ctl.createFolder(spaces: [entityKey]),
       ),
       for (final f in settings.spaceFolders)
-        if (!f.spaceIds.contains(space.id))
+        if (!f.spaceIds.contains(entityKey.encoded))
           AccordMenuEntry(
             label: 'Move to "${f.name.isEmpty ? 'Folder' : f.name}"',
             icon: Icons.folder_outlined,
-            onSelected: () => ctl.moveSpaceToFolder(space.id, f.id),
+            onSelected: () => ctl.moveSpaceToFolder(entityKey, f.id),
           ),
       if (inFolder)
         AccordMenuEntry(
           label: 'Remove from folder',
           icon: Icons.folder_off_outlined,
-          onSelected: () => ctl.moveSpaceToFolder(space.id, null),
+          onSelected: () => ctl.moveSpaceToFolder(entityKey, null),
         ),
     ];
 
@@ -409,7 +435,7 @@ class _SpaceRail extends ConsumerWidget {
   Future<void> _showHiddenServers(
     BuildContext context,
     WidgetRef ref,
-    List<AccordSpace> hidden,
+    List<_RailSpace> hidden,
     Map<String, _SpaceConn> connOf,
   ) async {
     final ctl = ref.read(settingsControllerProvider.notifier);
@@ -427,21 +453,25 @@ class _SpaceRail extends ConsumerWidget {
               ),
             ),
             const Divider(height: 1),
-            for (final space in hidden)
+            for (final railSpace in hidden)
               ListTile(
                 leading: _SpaceIcon(
-                  space: space,
+                  space: railSpace.space,
                   selected: false,
-                  cdnUrl: connOf[space.id]?.cdnUrl,
-                  serverKey: connOf[space.id]?.serverKey ?? '',
+                  cdnUrl: connOf[railSpace.key]?.cdnUrl,
+                  serverKey: connOf[railSpace.key]?.serverKey ?? '',
                   onTap: () {},
                 ),
-                title: Text(space.name, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  railSpace.space.name,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 trailing: TextButton.icon(
                   icon: const Icon(Icons.visibility_outlined, size: 18),
                   label: const Text('Unhide'),
                   onPressed: () {
-                    ctl.setSpaceHidden(space.id, false);
+                    final key = ServerEntityKey.tryDecode(railSpace.key)!;
+                    ctl.setSpaceHidden(key.serverKey, key.entityId, false);
                     Navigator.of(ctx).pop();
                   },
                 ),

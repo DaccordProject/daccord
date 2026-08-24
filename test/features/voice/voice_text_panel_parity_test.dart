@@ -46,7 +46,7 @@ class _LobbyVoiceController extends VoiceController {
 
 class _NoVoiceStates extends VoiceStatesController {
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => const {};
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) => const {};
 }
 
 Map<String, dynamic> _message() => {
@@ -103,7 +103,7 @@ Map<String, dynamic> _message() => {
       ),
       settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       voiceControllerProvider.overrideWith(_LobbyVoiceController.new),
-      voiceStatesControllerProvider.overrideWith(_NoVoiceStates.new),
+      voiceStatesControllerProvider('').overrideWith(_NoVoiceStates.new),
     ],
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),

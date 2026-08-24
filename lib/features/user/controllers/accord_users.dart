@@ -20,14 +20,16 @@ part 'accord_users.g.dart';
 class AccordUsersController extends _$AccordUsersController {
   static const int maxConcurrentFetches = 8;
 
-  final Map<String, Map<String, AccordUser>> _cacheByServer = {};
-  final Map<({String server, String userId}), Future<AccordUser?>> _inFlight =
-      {};
+  final Map<String, AccordUser> _cache = {};
+  final Map<String, Future<AccordUser?>> _inFlight = {};
   final Queue<_UserResolutionRequest> _pending = Queue();
   int _activeFetches = 0;
 
   @override
-  Map<String, AccordUser> build() => const {};
+  Map<String, AccordUser> build(String serverKey) {
+    ref.watchAccordClientFor(serverKey);
+    return {..._cache};
+  }
 
   /// Schedules a one-time background fetch for [userId] if it isn't already
   /// cached or in flight. Safe to call during a widget build: the cache is
@@ -44,21 +46,19 @@ class AccordUsersController extends _$AccordUsersController {
     if (userId.isEmpty) return Future.value();
     final requestClient = client ?? ref.accordClient;
     if (requestClient == null) return Future.value();
-    final server = requestClient.config.baseUrl;
-    final cached = _cacheByServer[server]?[userId];
+    final cached = _cache[userId];
     if (cached != null) return Future.value(cached);
-    final key = (server: server, userId: userId);
-    final existing = _inFlight[key];
+    final existing = _inFlight[userId];
     if (existing != null) return existing;
 
     final completer = Completer<AccordUser?>();
     final request = _UserResolutionRequest(
       userId,
-      server,
       requestClient,
       completer,
+      requireCurrentClient: client == null,
     );
-    _inFlight[key] = completer.future;
+    _inFlight[userId] = completer.future;
     _pending.add(request);
     _drain();
     return completer.future;
@@ -78,18 +78,16 @@ class AccordUsersController extends _$AccordUsersController {
       user = (await request.client.users.fetch(
         request.userId,
       )).dataOrLog<AccordUser>('fetch user ${request.userId}');
-      if (user != null) {
-        final cache = _cacheByServer.putIfAbsent(request.server, () => {});
-        cache[request.userId] = user;
-        final activeServer = ref.accordClient?.config.baseUrl;
-        if (activeServer == null || activeServer == request.server) {
-          state = {...cache};
-        }
+      if (user != null &&
+          (!request.requireCurrentClient ||
+              ref.isCurrentAccordClient(serverKey, request.client))) {
+        _cache[request.userId] = user;
+        state = {..._cache};
       }
     } catch (error) {
       debugPrint('Failed to fetch user ${request.userId}: $error');
     } finally {
-      _inFlight.remove((server: request.server, userId: request.userId));
+      _inFlight.remove(request.userId);
       _activeFetches -= 1;
       request.completer.complete(user);
       _drain();
@@ -102,34 +100,24 @@ class AccordUsersController extends _$AccordUsersController {
   void upsert(AccordUser user, {AccordClient? client}) {
     final target = client ?? ref.accordClient;
     if (target == null) return;
-    final server = target.config.baseUrl;
-    final cache = _cacheByServer.putIfAbsent(server, () => {});
-    cache[user.id] = user;
-    if (ref.accordClient?.config.baseUrl == server) state = {...cache};
+    _cache[user.id] = user;
+    state = {..._cache};
   }
 
   /// Returns a cached user from the same server as [client].
-  AccordUser? cached(String userId, {required AccordClient client}) =>
-      _cacheByServer[client.config.baseUrl]?[userId];
-
-  /// Publishes the cache belonging to the newly active connection.
-  void activate(AccordClient? client) {
-    state = client == null
-        ? const {}
-        : {...?_cacheByServer[client.config.baseUrl]};
-  }
+  AccordUser? cached(String userId, {AccordClient? client}) => _cache[userId];
 }
 
 class _UserResolutionRequest {
   const _UserResolutionRequest(
     this.userId,
-    this.server,
     this.client,
-    this.completer,
-  );
+    this.completer, {
+    required this.requireCurrentClient,
+  });
 
   final String userId;
-  final String server;
   final AccordClient client;
   final Completer<AccordUser?> completer;
+  final bool requireCurrentClient;
 }

@@ -57,7 +57,7 @@ class _Roster extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final members = ref.watch(accordMembersControllerProvider(spaceId));
+    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
     final roles = ref.watch(
       spacesControllerProvider.select(
         (spaces) =>
@@ -72,13 +72,13 @@ class _Roster extends ConsumerWidget {
       // The roster fetch itself failed (timeout / non-2xx / network) — surface
       // a retry instead of spinning forever. onRetry clears the failed flag
       // itself, then invalidates the controller to re-run `_load`.
-      if (ref.watch(membersLoadFailedProvider(spaceId))) {
+      if (ref.watch(membersLoadFailedProvider(ref.readActiveServerKey() ?? '', spaceId))) {
         return ServerUnreachable(
           title: "Couldn't load members",
           message: 'Something went wrong fetching the member list.',
           onRetry: () {
-            ref.read(membersLoadFailedProvider(spaceId).notifier).set(false);
-            ref.invalidate(accordMembersControllerProvider(spaceId));
+            ref.read(membersLoadFailedProvider(ref.readActiveServerKey() ?? '', spaceId).notifier).set(false);
+            ref.invalidate(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
           },
         );
       }

@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -11,7 +12,7 @@ part 'forum_posts.g.dart';
 /// events into open boards — and only into channels that really are forums,
 /// since only forum channels ever build this controller. Mirrors
 /// `activeMessageChannels`.
-final Set<String> activeForumChannels = <String>{};
+final Set<ServerChannelKey> activeForumChannels = <ServerChannelKey>{};
 
 /// A forum channel's top-level posts (thread roots), keyed by channel ID, in
 /// server order (the board sorts for display). Self-loads via
@@ -21,11 +22,12 @@ final Set<String> activeForumChannels = <String>{};
 @Riverpod(keepAlive: false)
 class ForumPostsController extends _$ForumPostsController {
   @override
-  List<AccordMessage>? build(String channelId) {
-    activeForumChannels.add(channelId);
-    ref.onDispose(() => activeForumChannels.remove(channelId));
+  List<AccordMessage>? build(String serverKey, String channelId) {
+    final key = (serverKey: serverKey, channelId: channelId);
+    activeForumChannels.add(key);
+    ref.onDispose(() => activeForumChannels.remove(key));
 
-    final client = ref.watchAccordClient();
+    final client = ref.watchAccordClientFor(serverKey);
     if (client != null) {
       _load(client);
     }
@@ -34,7 +36,7 @@ class ForumPostsController extends _$ForumPostsController {
 
   Future<void> _load(AccordClient client) async {
     final result = await client.messages.listPosts(channelId);
-    if (!ref.mounted) return;
+    if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
     final data = result.data;
     if (!result.ok || data is! List) {
       debugPrint('Failed to load forum posts for $channelId: ${result.error}');

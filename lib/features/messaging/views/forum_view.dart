@@ -79,7 +79,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
   AccordClient? get _client => ref.accordClient;
 
   ForumPostsController get _postsNotifier =>
-      ref.read(forumPostsControllerProvider(widget.channelId).notifier);
+      ref.read(forumPostsControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier);
 
   Future<void> _reload() async {
     final client = _client;
@@ -230,7 +230,7 @@ class _ForumChannelViewState extends ConsumerState<ForumChannelView> {
         onClose: (result) => _onThreadClosed(openPost, result),
       );
     }
-    final posts = ref.watch(forumPostsControllerProvider(widget.channelId));
+    final posts = ref.watch(forumPostsControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId));
     // Compute once and capture in the itemBuilder closure so the sort is not
     // re-run O(n) times as items scroll into view.
     final sorted = posts == null ? const <AccordMessage>[] : _sorted(posts);
@@ -366,11 +366,11 @@ class _PostRow extends ConsumerWidget {
     final authorId = post.authorId;
     final member = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!)
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!)
             .select((m) => m?[authorId]));
     final user =
-        ref.watch(accordUsersControllerProvider.select((m) => m[authorId]));
-    final ensure = ref.read(accordUsersControllerProvider.notifier).ensure;
+        ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[authorId]));
+    final ensure = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
     final cdnUrl = ref.watchCdnUrl();
     final author =
         accordAuthorNameOf(authorId, member: member, user: user, ensure: ensure);

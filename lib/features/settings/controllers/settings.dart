@@ -4,6 +4,7 @@ import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -28,6 +29,65 @@ class SettingsController extends _$SettingsController {
   void _update(AccordSettings next) {
     state = next;
     ProfileStore.settingsBox.put(_key, next.toJson());
+  }
+
+  /// Claims settings written before server-qualified keys existed for the
+  /// active server and persists the migration exactly once.
+  ///
+  /// A bare ID cannot be assigned to every connected server without leaking a
+  /// draft, gate acknowledgement, or rail preference across ID collisions. The
+  /// active server is the only conservative owner we can infer, so the first
+  /// activation rewrites all legacy entries to that server and removes the
+  /// ambiguous forms.
+  void claimLegacyEntityKeys(String serverKey) {
+    String scoped(String value) => ServerEntityKey.tryDecode(value) == null
+        ? ServerEntityKey(serverKey, value).encoded
+        : value;
+
+    Map<String, T> scopedMap<T>(Map<String, T> source) => {
+      for (final entry in source.entries) scoped(entry.key): entry.value,
+    };
+
+    final hasLegacy = <Iterable<String>>[
+      state.channelNotifications.keys,
+      state.acceptedRuleSpaces,
+      state.acknowledgedNsfwChannels,
+      state.collapsedCategories.keys,
+      state.collapsedCategories.values.expand((ids) => ids),
+      state.drafts.keys,
+      state.spaceOrder,
+      state.spaceFolders.expand((folder) => folder.spaceIds),
+      state.mutedSpaces,
+      state.hiddenSpaces,
+      [state.lastSpaceId, state.lastChannelId].where((id) => id.isNotEmpty),
+    ].expand((ids) => ids).any((id) => ServerEntityKey.tryDecode(id) == null);
+    if (!hasLegacy) return;
+
+    _update(
+      state.copyWith(
+        channelNotifications: scopedMap(state.channelNotifications),
+        acceptedRuleSpaces: state.acceptedRuleSpaces.map(scoped).toList(),
+        acknowledgedNsfwChannels: state.acknowledgedNsfwChannels
+            .map(scoped)
+            .toList(),
+        collapsedCategories: {
+          for (final entry in state.collapsedCategories.entries)
+            scoped(entry.key): entry.value.map(scoped).toList(),
+        },
+        drafts: scopedMap(state.drafts),
+        spaceOrder: state.spaceOrder.map(scoped).toList(),
+        spaceFolders: [
+          for (final folder in state.spaceFolders)
+            folder.copyWith(spaceIds: folder.spaceIds.map(scoped).toList()),
+        ],
+        mutedSpaces: state.mutedSpaces.map(scoped).toList(),
+        hiddenSpaces: state.hiddenSpaces.map(scoped).toList(),
+        lastSpaceId: state.lastSpaceId.isEmpty ? '' : scoped(state.lastSpaceId),
+        lastChannelId: state.lastChannelId.isEmpty
+            ? ''
+            : scoped(state.lastChannelId),
+      ),
+    );
   }
 
   void setThemePreset(AppThemePreset preset) =>
@@ -143,14 +203,19 @@ class SettingsController extends _$SettingsController {
   /// `'mentions'`, or `'nothing'`. Pass `null` to clear the override and fall
   /// back to the global default (mention-only). Mirrors the reference
   /// `Config.set_channel_notification_level`.
-  void setChannelNotificationLevel(String channelId, String? level) {
+  void setChannelNotificationLevel(
+    String serverKey,
+    String channelId,
+    String? level,
+  ) {
+    final key = ServerEntityKey(serverKey, channelId).encoded;
     final next = Map<String, String>.from(state.channelNotifications);
     if (level == null || level.isEmpty) {
-      if (!next.containsKey(channelId)) return;
-      next.remove(channelId);
+      if (!next.containsKey(key)) return;
+      next.remove(key);
     } else {
-      if (next[channelId] == level) return;
-      next[channelId] = level;
+      if (next[key] == level) return;
+      next[key] = level;
     }
     _update(state.copyWith(channelNotifications: next));
   }
@@ -190,11 +255,16 @@ class SettingsController extends _$SettingsController {
   // ── Rail ordering & folders ───────────────────────────────────────────────
 
   /// Persists the manual rail space ordering (a flat list of space ids).
-  void setSpaceOrder(List<String> order) =>
-      _update(state.copyWith(spaceOrder: order));
+  void setSpaceOrder(List<ServerEntityKey> order) => _update(
+    state.copyWith(spaceOrder: [for (final key in order) key.encoded]),
+  );
 
   /// Creates a folder containing [spaceIds] and returns its id.
-  String createFolder({String name = '', List<String> spaceIds = const []}) {
+  String createFolder({
+    String name = '',
+    List<ServerEntityKey> spaces = const [],
+  }) {
+    final spaceIds = [for (final key in spaces) key.encoded];
     final id = 'folder-${_generateToken().substring(0, 12)}';
     // A space lives in at most one folder — strip these ids from any others.
     final cleaned = [
@@ -237,7 +307,13 @@ class SettingsController extends _$SettingsController {
   /// null. Within the target folder it is inserted before [before] (when that
   /// id is present) or appended otherwise — so this also reorders a space within
   /// a folder. Empty folders left behind are pruned.
-  void moveSpaceToFolder(String spaceId, String? folderId, {String? before}) {
+  void moveSpaceToFolder(
+    ServerEntityKey space,
+    String? folderId, {
+    ServerEntityKey? before,
+  }) {
+    final spaceId = space.encoded;
+    final beforeId = before?.encoded;
     final next = <SpaceFolder>[];
     for (final f in state.spaceFolders) {
       var ids = [
@@ -245,7 +321,7 @@ class SettingsController extends _$SettingsController {
           if (s != spaceId) s,
       ];
       if (f.id == folderId) {
-        final at = before == null ? -1 : ids.indexOf(before);
+        final at = beforeId == null ? -1 : ids.indexOf(beforeId);
         if (at < 0) {
           ids = [...ids, spaceId];
         } else {
@@ -263,37 +339,42 @@ class SettingsController extends _$SettingsController {
 
   /// Mutes or unmutes [spaceId]'s notifications (per-space suppression). No-op
   /// when already in the requested state.
-  void setSpaceMuted(String spaceId, bool muted) {
-    final isMuted = state.mutedSpaces.contains(spaceId);
+  void setSpaceMuted(String serverKey, String spaceId, bool muted) {
+    final key = ServerEntityKey(serverKey, spaceId).encoded;
+    final isMuted = state.mutedSpaces.contains(key);
     if (muted == isMuted) return;
     _update(
       state.copyWith(
         mutedSpaces: muted
-            ? [...state.mutedSpaces, spaceId]
+            ? [...state.mutedSpaces, key]
             : [
                 for (final s in state.mutedSpaces)
-                  if (s != spaceId) s,
+                  if (s != key) s,
               ],
       ),
     );
   }
 
   /// Toggles the muted state of [spaceId].
-  void toggleSpaceMuted(String spaceId) =>
-      setSpaceMuted(spaceId, !state.mutedSpaces.contains(spaceId));
+  void toggleSpaceMuted(String serverKey, String spaceId) => setSpaceMuted(
+    serverKey,
+    spaceId,
+    !state.isSpaceMuted(serverKey, spaceId),
+  );
 
   /// Hides [spaceId] from the rail without leaving it, or restores it. No-op
   /// when already in the requested state.
-  void setSpaceHidden(String spaceId, bool hidden) {
-    final isHidden = state.hiddenSpaces.contains(spaceId);
+  void setSpaceHidden(String serverKey, String spaceId, bool hidden) {
+    final key = ServerEntityKey(serverKey, spaceId).encoded;
+    final isHidden = state.hiddenSpaces.contains(key);
     if (hidden == isHidden) return;
     _update(
       state.copyWith(
         hiddenSpaces: hidden
-            ? [...state.hiddenSpaces, spaceId]
+            ? [...state.hiddenSpaces, key]
             : [
                 for (final s in state.hiddenSpaces)
-                  if (s != spaceId) s,
+                  if (s != key) s,
               ],
       ),
     );
@@ -321,44 +402,48 @@ class SettingsController extends _$SettingsController {
   }
 
   /// Marks [spaceId]'s rules interstitial as accepted so it isn't reshown.
-  void acceptRules(String spaceId) {
-    if (state.acceptedRuleSpaces.contains(spaceId)) return;
+  void acceptRules(String serverKey, String spaceId) {
+    final key = ServerEntityKey(serverKey, spaceId).encoded;
+    if (state.acceptedRuleSpaces.contains(key)) return;
     _update(
-      state.copyWith(
-        acceptedRuleSpaces: [...state.acceptedRuleSpaces, spaceId],
-      ),
+      state.copyWith(acceptedRuleSpaces: [...state.acceptedRuleSpaces, key]),
     );
   }
 
   /// Marks [channelId]'s NSFW gate as acknowledged.
-  void acknowledgeNsfw(String channelId) {
-    if (state.acknowledgedNsfwChannels.contains(channelId)) return;
+  void acknowledgeNsfw(String serverKey, String channelId) {
+    final key = ServerEntityKey(serverKey, channelId).encoded;
+    if (state.acknowledgedNsfwChannels.contains(key)) return;
     _update(
       state.copyWith(
-        acknowledgedNsfwChannels: [
-          ...state.acknowledgedNsfwChannels,
-          channelId,
-        ],
+        acknowledgedNsfwChannels: [...state.acknowledgedNsfwChannels, key],
       ),
     );
   }
 
   /// Sets whether [categoryId] is collapsed in [spaceId]'s channel list.
-  void setCategoryCollapsed(String spaceId, String categoryId, bool collapsed) {
-    final current = state.collapsedCategories[spaceId] ?? const <String>[];
-    final isCollapsed = current.contains(categoryId);
+  void setCategoryCollapsed(
+    String serverKey,
+    String spaceId,
+    String categoryId,
+    bool collapsed,
+  ) {
+    final spaceKey = ServerEntityKey(serverKey, spaceId).encoded;
+    final categoryKey = ServerEntityKey(serverKey, categoryId).encoded;
+    final current = state.collapsedCategories[spaceKey] ?? const <String>[];
+    final isCollapsed = current.contains(categoryKey);
     if (collapsed == isCollapsed) return;
     final nextList = collapsed
-        ? [...current, categoryId]
+        ? [...current, categoryKey]
         : [
             for (final c in current)
-              if (c != categoryId) c,
+              if (c != categoryKey) c,
           ];
     final next = Map<String, List<String>>.from(state.collapsedCategories);
     if (nextList.isEmpty) {
-      next.remove(spaceId);
+      next.remove(spaceKey);
     } else {
-      next[spaceId] = nextList;
+      next[spaceKey] = nextList;
     }
     _update(state.copyWith(collapsedCategories: next));
   }
@@ -430,11 +515,13 @@ class SettingsController extends _$SettingsController {
   /// Persists the last selected [spaceId]/[channelId] so the next launch can
   /// restore it. No-op when unchanged. Mirrors the reference's
   /// `Config.set_last_space_id` / `set_last_channel_id`.
-  void setLastSelection(String spaceId, String channelId) {
-    if (state.lastSpaceId == spaceId && state.lastChannelId == channelId) {
+  void setLastSelection(String serverKey, String spaceId, String channelId) {
+    final spaceKey = ServerEntityKey(serverKey, spaceId).encoded;
+    final channelKey = ServerEntityKey(serverKey, channelId).encoded;
+    if (state.lastSpaceId == spaceKey && state.lastChannelId == channelKey) {
       return;
     }
-    _update(state.copyWith(lastSpaceId: spaceId, lastChannelId: channelId));
+    _update(state.copyWith(lastSpaceId: spaceKey, lastChannelId: channelKey));
   }
 
   /// A sanitised snapshot of the current settings for export to a file. Strips
@@ -472,15 +559,16 @@ class SettingsController extends _$SettingsController {
   }
 
   /// Saves (or clears, when [text] is blank) the unsent draft for [channelId].
-  void setDraft(String channelId, String text) {
+  void setDraft(String serverKey, String channelId, String text) {
+    final key = ServerEntityKey(serverKey, channelId).encoded;
     final trimmed = text;
-    final current = state.drafts[channelId] ?? '';
+    final current = state.drafts[key] ?? '';
     if (current == trimmed) return;
     final next = Map<String, String>.from(state.drafts);
     if (trimmed.isEmpty) {
-      next.remove(channelId);
+      next.remove(key);
     } else {
-      next[channelId] = trimmed;
+      next[key] = trimmed;
     }
     _update(state.copyWith(drafts: next));
   }

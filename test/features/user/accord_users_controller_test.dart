@@ -65,7 +65,7 @@ void main() {
       });
       addTearDown(client.dispose);
       final container = _container();
-      final users = container.read(accordUsersControllerProvider.notifier);
+      final users = container.read(accordUsersControllerProvider('').notifier);
 
       final first = users.resolve('u1', client: client);
       final second = users.resolve('u1', client: client);
@@ -76,7 +76,7 @@ void main() {
 
       expect((await first)?.id, 'u1');
       expect((await second)?.id, 'u1');
-      expect(container.read(accordUsersControllerProvider)['u1']?.id, 'u1');
+      expect(container.read(accordUsersControllerProvider(''))['u1']?.id, 'u1');
 
       expect((await users.resolve('u1', client: client))?.id, 'u1');
       expect(calls, 1);
@@ -98,7 +98,7 @@ void main() {
     });
     addTearDown(client.dispose);
     final container = _container();
-    final users = container.read(accordUsersControllerProvider.notifier);
+    final users = container.read(accordUsersControllerProvider('').notifier);
     final total = AccordUsersController.maxConcurrentFetches + 4;
 
     final resolutions = [
@@ -115,7 +115,7 @@ void main() {
     expect(started, total);
     expect(peak, lessThanOrEqualTo(AccordUsersController.maxConcurrentFetches));
     expect(resolved.whereType<AccordUser>(), hasLength(total));
-    expect(container.read(accordUsersControllerProvider), hasLength(total));
+    expect(container.read(accordUsersControllerProvider('')), hasLength(total));
   });
 
   test('scopes cache and in-flight requests to each server', () async {
@@ -137,17 +137,31 @@ void main() {
     }, baseUrl: 'https://second.example.test');
     addTearDown(first.dispose);
     addTearDown(second.dispose);
-    final users = _container().read(accordUsersControllerProvider.notifier);
+    final container = _container();
+    final firstUsers = container.read(
+      accordUsersControllerProvider('server-a').notifier,
+    );
+    final secondUsers = container.read(
+      accordUsersControllerProvider('server-b').notifier,
+    );
 
     final results = await Future.wait([
-      users.resolve('same', client: first),
-      users.resolve('same', client: second),
+      firstUsers.resolve('same', client: first),
+      secondUsers.resolve('same', client: second),
     ]);
 
     expect(results[0]?.username, 'first');
     expect(results[1]?.username, 'second');
-    expect(users.cached('same', client: first)?.username, 'first');
-    expect(users.cached('same', client: second)?.username, 'second');
+    expect(firstUsers.cached('same', client: first)?.username, 'first');
+    expect(secondUsers.cached('same', client: second)?.username, 'second');
+    expect(
+      container.read(accordUsersControllerProvider('server-a'))['same']?.username,
+      'first',
+    );
+    expect(
+      container.read(accordUsersControllerProvider('server-b'))['same']?.username,
+      'second',
+    );
     expect(firstCalls, 1);
     expect(secondCalls, 1);
   });

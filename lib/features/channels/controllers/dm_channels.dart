@@ -25,7 +25,7 @@ bool isValidRemoteHandle(String value) {
   return isRemoteId(v) && domainOf(v) != null && localPart(v).isNotEmpty;
 }
 
-/// Global cache of the current user's direct-message and group-DM channels
+/// Per-server cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
 /// one-shot `users.listChannels` fetch and then watches it, while
 /// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
@@ -38,7 +38,7 @@ bool isValidRemoteHandle(String value) {
 @Riverpod(keepAlive: true)
 class DmChannelsController extends _$DmChannelsController {
   @override
-  List<AccordChannel>? build() => null;
+  List<AccordChannel>? build(String serverKey) => null;
 
   /// Replaces the cache with a freshly-fetched list.
   void setChannels(List<AccordChannel> channels) {

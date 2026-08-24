@@ -17,7 +17,7 @@ class TypingController extends _$TypingController {
   final Map<String, Timer> _timers = {};
 
   @override
-  List<String> build(String channelId) {
+  List<String> build(String serverKey, String channelId) {
     ref.onDispose(() {
       for (final timer in _timers.values) {
         timer.cancel();

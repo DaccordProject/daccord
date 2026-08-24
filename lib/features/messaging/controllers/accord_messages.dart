@@ -13,12 +13,14 @@ part 'accord_messages.g.dart';
 /// consults this so it only mutates caches the UI has actually opened, rather
 /// than instantiating (and history-loading) a controller for every channel
 /// that happens to receive a message.
-final Set<String> activeMessageChannels = <String>{};
+typedef ServerChannelKey = ({String serverKey, String channelId});
+
+final Set<ServerChannelKey> activeMessageChannels = <ServerChannelKey>{};
 
 /// The channel the user is currently viewing, if any. The notification layer
 /// consults this to avoid raising a notification for a message in the channel
 /// that's already on screen. Set by the home screen as the selection changes.
-String? accordVisibleChannelId;
+ServerChannelKey? accordVisibleChannel;
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
@@ -27,11 +29,12 @@ String? accordVisibleChannelId;
 @Riverpod(keepAlive: false)
 class AccordMessagesController extends _$AccordMessagesController {
   @override
-  List<AccordMessage>? build(String channelId) {
-    activeMessageChannels.add(channelId);
-    ref.onDispose(() => activeMessageChannels.remove(channelId));
+  List<AccordMessage>? build(String serverKey, String channelId) {
+    final key = (serverKey: serverKey, channelId: channelId);
+    activeMessageChannels.add(key);
+    ref.onDispose(() => activeMessageChannels.remove(key));
 
-    final client = ref.watchAccordClient();
+    final client = ref.watchAccordClientFor(serverKey);
     if (client != null) {
       _load(client, channelId);
     }
@@ -66,6 +69,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (data is List) {
       final list = data.whereType<AccordMessage>().toList();
       // The REST list returns newest-first; store oldest-first for display.
+      if (!ref.isCurrentAccordClient(serverKey, client)) return;
       state = list.reversed.toList();
       if (list.length < _pageSize) hasMoreOlder = false;
     }
@@ -399,7 +403,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     // The endpoint returns bare user-id strings, not user objects — resolve each
     // to an AccordUser, falling back to an id-only stub if the fetch fails so the
     // reactor still appears (and the list matches the badge count).
-    final users = ref.read(accordUsersControllerProvider.notifier);
+    final users = ref.read(accordUsersControllerProvider(serverKey).notifier);
     final resolved = <Future<AccordUser>>[];
     for (final item in data) {
       if (item is AccordUser) {

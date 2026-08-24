@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:typed_data';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
@@ -121,7 +122,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
       // Only seed the shared user cache when editing the active server (the
       // cache belongs to it); a background server's user shouldn't leak in.
       if (_isActiveServer) {
-        ref.read(accordUsersControllerProvider.notifier).upsert(data);
+        ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(data);
       }
     }
     setState(() => _loaded = true);
@@ -184,13 +185,19 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
     // server — those caches belong to it. A per-server edit of a background
     // connection just persists server-side and takes effect when it's active.
     if (updated is AccordUser && _isActiveServer) {
-      ref.read(accordUsersControllerProvider.notifier).upsert(updated);
+      ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(updated);
       // The member caches hold their own AccordUser per member; propagate the
       // change so message authors and the roster update, not just surfaces that
       // read the global user cache.
-      for (final spaceId in activeMemberSpaces) {
+      for (final key in activeMemberSpaces) {
+        if (key.serverKey != ref.readActiveServerKey()) continue;
         ref
-            .read(accordMembersControllerProvider(spaceId).notifier)
+            .read(
+              accordMembersControllerProvider(
+                key.serverKey,
+                key.spaceId,
+              ).notifier,
+            )
             .applyUserUpdate(updated);
       }
     }
@@ -210,7 +217,7 @@ class _ProfileEditState extends ConsumerState<_ProfileEdit> {
         _loadedUser ??
         (_isActiveServer && session != null
             ? ref.watch(
-                accordUsersControllerProvider.select((m) => m[session.userId]),
+                accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[session.userId]),
               )
             : null);
     final avatarUrl = me == null

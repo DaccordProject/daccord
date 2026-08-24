@@ -36,6 +36,7 @@ void main() {
         userId: 'self',
         username: 'Self',
       );
+      final serverKey = session.key;
       final container = ProviderContainer(
         overrides: [
           accordAuthProvider.overrideWithValue(
@@ -47,33 +48,46 @@ void main() {
       addTearDown(client.dispose);
 
       final messages = container.listen(
-        accordMessagesControllerProvider('channel'),
+        accordMessagesControllerProvider(serverKey, 'channel'),
         (_, _) {},
         fireImmediately: true,
       );
       final replies = container.listen(
-        threadRepliesControllerProvider('channel', 'root'),
+        threadRepliesControllerProvider(serverKey, 'channel', 'root'),
         (_, _) {},
         fireImmediately: true,
       );
       final posts = container.listen(
-        forumPostsControllerProvider('forum'),
+        forumPostsControllerProvider(serverKey, 'forum'),
         (_, _) {},
         fireImmediately: true,
       );
       final members = container.listen(
-        accordMembersControllerProvider('space'),
+        accordMembersControllerProvider(serverKey, 'space'),
         (_, _) {},
         fireImmediately: true,
       );
 
-      expect(activeMessageChannels, contains('channel'));
+      expect(
+        activeMessageChannels,
+        contains((serverKey: serverKey, channelId: 'channel')),
+      );
       expect(
         activeThreadReplies,
-        contains((channelId: 'channel', rootId: 'root')),
+        contains((
+          serverKey: serverKey,
+          channelId: 'channel',
+          rootId: 'root',
+        )),
       );
-      expect(activeForumChannels, contains('forum'));
-      expect(activeMemberSpaces, contains('space'));
+      expect(
+        activeForumChannels,
+        contains((serverKey: serverKey, channelId: 'forum')),
+      );
+      expect(
+        activeMemberSpaces,
+        contains((serverKey: serverKey, spaceId: 'space')),
+      );
 
       messages.close();
       replies.close();
@@ -81,35 +95,61 @@ void main() {
       members.close();
       await container.pump();
 
-      expect(activeMessageChannels, isNot(contains('channel')));
+      expect(
+        activeMessageChannels,
+        isNot(contains((serverKey: serverKey, channelId: 'channel'))),
+      );
       expect(
         activeThreadReplies,
-        isNot(contains((channelId: 'channel', rootId: 'root'))),
+        isNot(
+          contains((
+            serverKey: serverKey,
+            channelId: 'channel',
+            rootId: 'root',
+          )),
+        ),
       );
-      expect(activeForumChannels, isNot(contains('forum')));
-      expect(activeMemberSpaces, isNot(contains('space')));
+      expect(
+        activeForumChannels,
+        isNot(contains((serverKey: serverKey, channelId: 'forum'))),
+      );
+      expect(
+        activeMemberSpaces,
+        isNot(contains((serverKey: serverKey, spaceId: 'space'))),
+      );
 
       // This is the reconnect fanout's target selection. Once every view closes,
       // none of these loops may recreate a controller or issue another request.
       final requestsBeforeReconnect = requests;
-      for (final channelId in [...activeMessageChannels]) {
+      for (final key in [...activeMessageChannels]) {
         await container
-            .read(accordMessagesControllerProvider(channelId).notifier)
+            .read(
+              accordMessagesControllerProvider(
+                key.serverKey,
+                key.channelId,
+              ).notifier,
+            )
             .reload(client);
       }
       for (final key in [...activeThreadReplies]) {
         await container
             .read(
               threadRepliesControllerProvider(
+                key.serverKey,
                 key.channelId,
                 key.rootId,
               ).notifier,
             )
             .reload(client);
       }
-      for (final channelId in [...activeForumChannels]) {
+      for (final key in [...activeForumChannels]) {
         await container
-            .read(forumPostsControllerProvider(channelId).notifier)
+            .read(
+              forumPostsControllerProvider(
+                key.serverKey,
+                key.channelId,
+              ).notifier,
+            )
             .reload(client);
       }
       expect(requests, requestsBeforeReconnect);

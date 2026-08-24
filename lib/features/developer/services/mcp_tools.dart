@@ -215,7 +215,7 @@ class McpTools {
     final channelId = (args['channel_id'] ?? '').toString();
     if (channelId.isEmpty) return {'error': 'channel_id is required'};
     final states = voiceStatesFor(
-      ref.read(voiceStatesControllerProvider),
+      ref.read(voiceStatesControllerProvider(ref.readActiveServerKey() ?? '')),
       channelId,
     );
     return {
@@ -697,7 +697,7 @@ class McpTools {
   String? _spaceForChannel(String channelId) {
     final spaces = ref.read(spacesControllerProvider) ?? const [];
     for (final s in spaces) {
-      final channels = ref.read(accordChannelsControllerProvider(s.id));
+      final channels = ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', s.id));
       if (channels != null && channels.any((c) => c.id == channelId)) {
         return s.id;
       }
@@ -708,10 +708,12 @@ class McpTools {
   /// The channel of a loaded message [messageId] (only channels the UI has
   /// opened are searchable — mirrors the reference's in-memory message cache).
   String? _channelForMessage(String messageId) {
-    for (final channelId in activeMessageChannels) {
-      final messages = ref.read(accordMessagesControllerProvider(channelId));
+    for (final key in activeMessageChannels) {
+      final messages = ref.read(
+        accordMessagesControllerProvider(key.serverKey, key.channelId),
+      );
       if (messages != null && messages.any((m) => m.id == messageId)) {
-        return channelId;
+        return key.channelId;
       }
     }
     return null;

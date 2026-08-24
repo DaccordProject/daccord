@@ -190,7 +190,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     setState(() => _bulkDeleting = true);
     final ids = _selectedMessageIds.toList();
     final ok = await ref
-        .read(accordMessagesControllerProvider(channelId).notifier)
+        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId).notifier)
         .bulkDelete(client, ids);
     if (!mounted) return;
     setState(() {
@@ -219,7 +219,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     final position = _scroll.position;
     if (position.maxScrollExtent - position.pixels > 240) return;
     final notifier = ref.read(
-      accordMessagesControllerProvider(channelId).notifier,
+      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId).notifier,
     );
     if (notifier.isLoadingOlder || !notifier.hasMoreOlder) return;
     final client = ref.read(
@@ -259,11 +259,11 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
-    final messages = ref.watch(accordMessagesControllerProvider(channelId));
+    final messages = ref.watch(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId));
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId));
-    final userCache = ref.watch(accordUsersControllerProvider);
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
+    final userCache = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
     final space = spaceId == null
         ? null
         : ref.watch(
@@ -534,7 +534,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                         authorUser = userCache[message.authorId];
                         if (authorUser == null) {
                           ref
-                              .read(accordUsersControllerProvider.notifier)
+                              .read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier)
                               .ensure(message.authorId);
                         }
                       }
@@ -612,7 +612,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       members: members,
                       users: userCache,
                       ensure: ref
-                          .read(accordUsersControllerProvider.notifier)
+                          .read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier)
                           .ensure,
                     ),
               onCancelReply: () => setState(() => _replyTo = null),
@@ -668,11 +668,11 @@ class _TypingIndicator extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final typing = ref.watch(typingControllerProvider(channelId));
+    final typing = ref.watch(typingControllerProvider(ref.readActiveServerKey() ?? '', channelId));
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(spaceId!));
-    final userCache = ref.watch(accordUsersControllerProvider);
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
+    final userCache = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
 
     String nameFor(String userId) {
       final member = members?[userId];
@@ -680,7 +680,7 @@ class _TypingIndicator extends ConsumerWidget {
       final user = userCache[userId];
       if (user != null) return accordUserName(user, fallback: 'Someone');
       if (members != null) {
-        ref.read(accordUsersControllerProvider.notifier).ensure(userId);
+        ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure(userId);
       }
       return 'Someone';
     }

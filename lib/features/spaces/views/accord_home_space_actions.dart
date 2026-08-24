@@ -12,7 +12,9 @@ List<AccordMenuEntry> _serverActionEntries(
   final conn = ref.read(connectionsControllerProvider).connectionFor(serverKey);
   final session = conn?.session;
   final userId = session?.userId;
-  final members = ref.read(accordMembersControllerProvider(space.id));
+  final members = ref.read(
+    accordMembersControllerProvider(serverKey, space.id),
+  );
   final preview = ref.read(rolePreviewControllerProvider);
   final perms = accordEffectivePermissions(
     space: space,
@@ -26,7 +28,9 @@ List<AccordMenuEntry> _serverActionEntries(
   final canManage = canManageSpaceSettings(perms);
   final isOwner = userId != null && space.ownerId == userId;
   final settingsCtl = ref.read(settingsControllerProvider.notifier);
-  final muted = ref.read(settingsControllerProvider).isSpaceMuted(space.id);
+  final muted = ref
+      .read(settingsControllerProvider)
+      .isSpaceMuted(serverKey, space.id);
   return [
     AccordMenuEntry(
       label: muted ? 'Unmute server' : 'Mute server',
@@ -34,7 +38,7 @@ List<AccordMenuEntry> _serverActionEntries(
           ? Icons.notifications_active_outlined
           : Icons.notifications_off_outlined,
       subtitle: muted ? null : 'Silence notifications from this server',
-      onSelected: () => settingsCtl.toggleSpaceMuted(space.id),
+      onSelected: () => settingsCtl.toggleSpaceMuted(serverKey, space.id),
     ),
     if (canInvite)
       AccordMenuEntry(
@@ -58,7 +62,7 @@ List<AccordMenuEntry> _serverActionEntries(
       label: 'Hide from list',
       icon: Icons.visibility_off_outlined,
       subtitle: 'Remove from your rail without leaving',
-      onSelected: () => settingsCtl.setSpaceHidden(space.id, true),
+      onSelected: () => settingsCtl.setSpaceHidden(serverKey, space.id, true),
     ),
     AccordMenuEntry(
       label: 'Leave server',
@@ -66,17 +70,19 @@ List<AccordMenuEntry> _serverActionEntries(
       destructive: !isOwner,
       enabled: !isOwner,
       subtitle: isOwner ? 'Transfer ownership before leaving.' : null,
-      onSelected: isOwner ? null : () => _leaveSpace(context, ref, space, serverKey),
+      onSelected: isOwner
+          ? null
+          : () => _leaveSpace(context, ref, space, serverKey),
     ),
     AccordMenuEntry(
       label: 'Leave & delete data',
       icon: Icons.delete_forever_outlined,
       destructive: !isOwner,
       enabled: !isOwner,
-      subtitle:
-          isOwner ? null : 'Permanently delete your messages & data here',
-      onSelected:
-          isOwner ? null : () => _leaveAndDeleteSpace(context, ref, space, serverKey),
+      subtitle: isOwner ? null : 'Permanently delete your messages & data here',
+      onSelected: isOwner
+          ? null
+          : () => _leaveAndDeleteSpace(context, ref, space, serverKey),
     ),
     AccordMenuEntry(
       label: 'Remove server',
@@ -103,8 +109,9 @@ Future<void> _removeServer(
   final conn = ref.read(connectionsControllerProvider).connectionFor(serverKey);
   if (conn == null) return;
   final server = conn.session.server;
-  final label =
-      (server.name?.isNotEmpty ?? false) ? server.name! : server.homeDomain;
+  final label = (server.name?.isNotEmpty ?? false)
+      ? server.name!
+      : server.homeDomain;
   final confirmed = await showConfirmDialog(
     context,
     title: "Remove '$label'?",
@@ -184,7 +191,8 @@ Future<void> _leaveAndDeleteSpace(
   final confirmed = await showConfirmDialog(
     context,
     title: 'Leave & delete data',
-    message: "This will permanently leave '${space.name}' and delete all your "
+    message:
+        "This will permanently leave '${space.name}' and delete all your "
         'messages, reactions, and data from this server. Your account stays '
         'active. This cannot be undone.',
     confirmLabel: 'Leave & delete',
@@ -222,7 +230,8 @@ Future<void> _leaveSpace(
   final confirmed = await showConfirmDialog(
     context,
     title: "Leave '${space.name}'?",
-    message: 'You will lose access to this server until you rejoin with an '
+    message:
+        'You will lose access to this server until you rejoin with an '
         'invite. Your messages stay on the server.',
     confirmLabel: 'Leave',
     danger: true,

@@ -14,6 +14,7 @@ import 'package:bonfire/features/events/services/accord_connection_coordinator.d
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
+import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:flutter/foundation.dart';
@@ -322,7 +323,7 @@ class AccordAuth extends _$AccordAuth {
     await _store.deleteActive();
 
     ref.read(connectionsControllerProvider.notifier).clear();
-    ref.read(accordUsersControllerProvider.notifier).activate(null);
+    ref.invalidate(accordUsersControllerProvider);
     ref.invalidate(mutedChannelsControllerProvider);
     ref.invalidate(readStateControllerProvider);
     ref.invalidate(presenceControllerProvider);
@@ -855,6 +856,7 @@ class AccordAuth extends _$AccordAuth {
     }
 
     connections.setActive(key);
+    ref.read(settingsControllerProvider.notifier).claimLegacyEntityKeys(key);
 
     // Seed the shared rail/space controllers from this connection's cache so
     // panes have data immediately; the gateway READY refreshes it.
@@ -863,7 +865,6 @@ class AccordAuth extends _$AccordAuth {
 
     final next = AccordAuthLoggedIn(client: conn.client, session: conn.session);
     state = next;
-    ref.read(accordUsersControllerProvider.notifier).activate(conn.client);
     if (!conn.session.isGuest) unawaited(_store.persistActive(conn.session));
     return next;
   }

@@ -194,7 +194,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (client == null || text.trim().isEmpty || _busy) return;
     setState(() => _busy = true);
     final ok = await ref
-        .read(accordMessagesControllerProvider(widget.channelId).notifier)
+        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
         .edit(client, messageId, text);
     if (!mounted) return;
     setState(() => _busy = false);
@@ -228,7 +228,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final client = _client;
     if (client == null) return;
     ref
-        .read(accordMessagesControllerProvider(widget.channelId).notifier)
+        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
         .toggleReaction(client, messageId, emojiName, emojiId: emojiId);
   }
 
@@ -242,7 +242,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final client = _client;
     if (client == null) return;
     final controller = ref.read(
-      accordMessagesControllerProvider(widget.channelId).notifier,
+      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier,
     );
     if (pinned) {
       await controller.unpin(client, messageId);
@@ -277,7 +277,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     final ok = await ref
-        .read(accordMessagesControllerProvider(widget.channelId).notifier)
+        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
         .delete(client, messageId);
     if (!mounted) return;
     // Row disappears on success; if it failed we re-enable and say so, rather
@@ -592,7 +592,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final spaceId = widget.spaceId;
     final customEmoji = spaceId == null
         ? const <AccordEmoji>[]
-        : ref.watch(accordEmojisControllerProvider(spaceId)) ??
+        : ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', spaceId)) ??
               const <AccordEmoji>[];
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -649,7 +649,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   ) {
     final theme = Theme.of(context);
     final messages = ref.read(
-      accordMessagesControllerProvider(widget.channelId),
+      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId),
     );
     final referenced = messages?.firstWhereOrNull(
       (m) => m.id == message.replyTo,
@@ -663,18 +663,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       final member = widget.spaceId == null
           ? null
           : ref.watch(
-              accordMembersControllerProvider(
+              accordMembersControllerProvider(ref.readActiveServerKey() ?? '',
                 widget.spaceId!,
               ).select((m) => m?[authorId]),
             );
       final user = ref.watch(
-        accordUsersControllerProvider.select((u) => u[authorId]),
+        accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((u) => u[authorId]),
       );
       name = accordAuthorNameOf(
         authorId,
         member: member,
         user: user,
-        ensure: ref.read(accordUsersControllerProvider.notifier).ensure,
+        ensure: ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure,
       );
       preview = referenced.content.isEmpty
           ? '(attachment)'

@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:accordkit/accordkit.dart' show AccordChannel;
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
@@ -71,7 +72,7 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final spaceId = widget.spaceId;
     if (spaceId == null) return null;
     return ref
-        .read(accordChannelsControllerProvider(spaceId))
+        .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId))
         ?.firstWhereOrNull((c) => c.id == widget.channelId);
   }
 
@@ -80,7 +81,7 @@ class _VoiceTextPanelState extends ConsumerState<VoiceTextPanel> {
     final spaceId = widget.spaceId;
     final channel = spaceId == null
         ? null
-        : ref.watch(accordChannelsControllerProvider(spaceId).select(
+        : ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId).select(
             (channels) =>
                 channels?.firstWhereOrNull((c) => c.id == widget.channelId),
           ));

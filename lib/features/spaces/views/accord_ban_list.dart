@@ -136,8 +136,8 @@ class _BanListState extends ConsumerState<_BanList>
     final bans = items;
     // Ensure any bans the API returned with only a userId resolve their name
     // on the next rebuild via the on-demand user cache.
-    final users = ref.watch(accordUsersControllerProvider);
-    final ensureUser = ref.read(accordUsersControllerProvider.notifier).ensure;
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+    final ensureUser = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
     if (bans != null) {
       for (final b in bans) {
         if (b.username == null) {

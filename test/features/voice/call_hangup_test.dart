@@ -53,7 +53,7 @@ class _RecordingCallController extends CallController {
 
 class _FakeVoiceStates extends VoiceStatesController {
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => const {};
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) => const {};
 }
 
 /// The voice view's chat panel is the real [MessagePane], whose rows and
@@ -77,7 +77,7 @@ Widget _host({
       settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       voiceControllerProvider.overrideWith(() => voice),
       callControllerProvider.overrideWith(() => call),
-      voiceStatesControllerProvider.overrideWith(_FakeVoiceStates.new),
+      voiceStatesControllerProvider('').overrideWith(_FakeVoiceStates.new),
     ],
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),

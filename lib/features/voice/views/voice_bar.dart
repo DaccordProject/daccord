@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
@@ -62,7 +63,7 @@ class _VoiceBarState extends ConsumerState<VoiceBar> {
     final channelName = voice.spaceId == null
         ? null
         : ref
-              .watch(accordChannelsControllerProvider(voice.spaceId!))
+              .watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', voice.spaceId!))
               ?.firstWhereOrNull((c) => c.id == voice.channelId)
               ?.name;
 

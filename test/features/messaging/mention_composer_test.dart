@@ -28,7 +28,7 @@ class _FakeSettingsController extends SettingsController {
   AccordSettings build() => const AccordSettings();
 
   @override
-  void setDraft(String channelId, String text) {}
+  void setDraft(String serverKey, String channelId, String text) {}
 }
 
 class _Harness {
@@ -90,7 +90,7 @@ class _Harness {
         ),
         settingsControllerProvider.overrideWith(_FakeSettingsController.new),
         spacesControllerProvider.overrideWithValue([space]),
-        accordMembersControllerProvider(_spaceId).overrideWithValue({
+        accordMembersControllerProvider('', _spaceId).overrideWithValue({
           _selfId: AccordMember(userId: _selfId, spaceId: _spaceId),
         }),
       ],

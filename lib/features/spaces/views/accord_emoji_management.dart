@@ -73,7 +73,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     final emoji = result.data;
     if (emoji is AccordEmoji) {
       ref
-          .read(accordEmojisControllerProvider(widget.spaceId).notifier)
+          .read(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
           .upsert(emoji);
     }
   }
@@ -103,7 +103,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
     final updated = result.data;
     if (updated is AccordEmoji) {
       ref
-          .read(accordEmojisControllerProvider(widget.spaceId).notifier)
+          .read(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
           .upsert(updated);
     }
   }
@@ -135,7 +135,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
       return;
     }
     ref
-        .read(accordEmojisControllerProvider(widget.spaceId).notifier)
+        .read(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
         .remove(id);
   }
 
@@ -166,7 +166,7 @@ class _EmojiManagementState extends ConsumerState<_EmojiManagement> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final emojis = ref.watch(accordEmojisControllerProvider(widget.spaceId));
+    final emojis = ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
     final cdnUrl = ref.watchCdnUrl();
 
     return Dialog(

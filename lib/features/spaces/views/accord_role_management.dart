@@ -83,7 +83,7 @@ class _RoleManagementState extends ConsumerState<_RoleManagement> {
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
     final currentUserId = ref.readUserId();
     final isAdmin = ref.readIsAdmin();
-    final members = ref.read(accordMembersControllerProvider(widget.spaceId));
+    final members = ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
     return accordMyHighestRolePosition(
       space: space,
       selfMember: currentUserId == null ? null : members?[currentUserId],

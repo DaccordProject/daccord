@@ -58,15 +58,15 @@ class AccordMessageContent extends ConsumerWidget {
     // mention-free channel from triggering the roster fetch when the member
     // sidebar (which loads it on its own) is collapsed.
     final members = content.contains('@')
-        ? ref.watch(accordMembersControllerProvider(id))
+        ? ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', id))
         : null;
     final space = ref.watch(
       spacesControllerProvider.select(
         (s) => s?.firstWhereOrNull((sp) => sp.id == id),
       ),
     );
-    final channels = ref.watch(accordChannelsControllerProvider(id));
-    final emojiList = ref.watch(accordEmojisControllerProvider(id));
+    final channels = ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', id));
+    final emojiList = ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', id));
 
     final userByHandle = <String, AccordMember>{};
     if (members != null) {
@@ -130,9 +130,11 @@ class AccordMessageContent extends ConsumerWidget {
     final activeKey = ref.read(connectionsControllerProvider).activeKey;
     if (activeKey == null) return;
     final channel = ref
-        .read(accordChannelsControllerProvider(spaceId))
+        .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId))
         ?.firstWhereOrNull((c) => c.id == channelId);
-    ref.read(openTabsControllerProvider.notifier).open(
+    ref
+        .read(openTabsControllerProvider.notifier)
+        .open(
           OpenTab(
             channelId: channelId,
             spaceId: spaceId,
@@ -140,11 +142,9 @@ class AccordMessageContent extends ConsumerWidget {
             name: channel?.name ?? channelId,
           ),
         );
-    markChannelRead(ref, channelId,
-        fallbackMessageId: channel?.lastMessageId);
-    ref.read(settingsControllerProvider.notifier).setLastSelection(
-          spaceId,
-          channelId,
-        );
+    markChannelRead(ref, channelId, fallbackMessageId: channel?.lastMessageId);
+    ref
+        .read(settingsControllerProvider.notifier)
+        .setLastSelection(activeKey, spaceId, channelId);
   }
 }

@@ -36,7 +36,7 @@ class _StubVoiceController extends VoiceController {
 
 class _FakeVoiceStates extends VoiceStatesController {
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => const {};
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) => const {};
 }
 
 class _FakeDmChannels extends DmChannelsController {
@@ -44,7 +44,7 @@ class _FakeDmChannels extends DmChannelsController {
   final List<AccordChannel>? _seed;
 
   @override
-  List<AccordChannel>? build() => _seed;
+  List<AccordChannel>? build(String serverKey) => _seed;
 }
 
 final _dm = AccordChannel(
@@ -77,8 +77,8 @@ Widget _host({
       accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
       settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       voiceControllerProvider.overrideWith(() => voice),
-      voiceStatesControllerProvider.overrideWith(_FakeVoiceStates.new),
-      dmChannelsControllerProvider.overrideWith(() => _FakeDmChannels(dms)),
+      voiceStatesControllerProvider('').overrideWith(_FakeVoiceStates.new),
+      dmChannelsControllerProvider('').overrideWith(() => _FakeDmChannels(dms)),
     ],
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),
@@ -107,8 +107,10 @@ Widget _dialogHost({required _StubVoiceController voice}) {
       accordAuthProvider.overrideWithValue(const AccordAuthLoggedOut()),
       settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       voiceControllerProvider.overrideWith(() => voice),
-      voiceStatesControllerProvider.overrideWith(_FakeVoiceStates.new),
-      dmChannelsControllerProvider.overrideWith(() => _FakeDmChannels([_dm])),
+      voiceStatesControllerProvider('').overrideWith(_FakeVoiceStates.new),
+      dmChannelsControllerProvider('').overrideWith(
+        () => _FakeDmChannels([_dm]),
+      ),
     ],
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),

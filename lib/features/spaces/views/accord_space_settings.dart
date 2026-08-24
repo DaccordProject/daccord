@@ -342,7 +342,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final client = _client;
     final currentUserId = ref.readUserId();
     if (client == null || currentUserId == null) return;
-    final members = ref.read(accordMembersControllerProvider(widget.spaceId));
+    final members = ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
     final me = members?[currentUserId];
     final initial = me?.nickname ?? '';
     final controller = TextEditingController(text: initial);
@@ -392,7 +392,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final updated = result.data;
     if (updated is AccordMember) {
       ref
-          .read(accordMembersControllerProvider(widget.spaceId).notifier)
+          .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
           .upsertMember(updated);
     }
   }
@@ -445,7 +445,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     // Text channels usable as rules/system targets. Reconcile the drafted ids
     // against the live list so a stale id falls back to "None".
     final textChannels =
-        (ref.watch(accordChannelsControllerProvider(widget.spaceId)) ??
+        (ref.watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId)) ??
                 const <AccordChannel>[])
             .where((c) => c.type == 'text')
             .toList();

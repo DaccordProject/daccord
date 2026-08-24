@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:bonfire/theme/app_theme.dart';
 
 /// User-facing client preferences, persisted in the `accord-settings` Hive box.
@@ -419,24 +420,36 @@ class AccordSettings {
   }
 
   /// Whether [spaceId]'s notifications are muted.
-  bool isSpaceMuted(String spaceId) => mutedSpaces.contains(spaceId);
+  bool isSpaceMuted(String serverKey, String spaceId) =>
+      mutedSpaces.contains(ServerEntityKey(serverKey, spaceId).encoded);
 
   /// Whether [spaceId] is hidden from the rail (still joined on the server).
-  bool isSpaceHidden(String spaceId) => hiddenSpaces.contains(spaceId);
+  bool isSpaceHidden(String serverKey, String spaceId) =>
+      hiddenSpaces.contains(ServerEntityKey(serverKey, spaceId).encoded);
 
   /// Whether the rules interstitial for [spaceId] has been accepted.
-  bool isRulesAccepted(String spaceId) => acceptedRuleSpaces.contains(spaceId);
+  bool isRulesAccepted(String serverKey, String spaceId) =>
+      acceptedRuleSpaces.contains(ServerEntityKey(serverKey, spaceId).encoded);
 
   /// Whether the NSFW gate for [channelId] has been acknowledged.
-  bool isNsfwAcknowledged(String channelId) =>
-      acknowledgedNsfwChannels.contains(channelId);
+  bool isNsfwAcknowledged(String serverKey, String channelId) =>
+      acknowledgedNsfwChannels.contains(
+        ServerEntityKey(serverKey, channelId).encoded,
+      );
 
   /// Whether [categoryId] is collapsed in [spaceId]'s channel list.
-  bool isCategoryCollapsed(String spaceId, String categoryId) =>
-      collapsedCategories[spaceId]?.contains(categoryId) ?? false;
+  bool isCategoryCollapsed(
+    String serverKey,
+    String spaceId,
+    String categoryId,
+  ) =>
+      collapsedCategories[ServerEntityKey(serverKey, spaceId).encoded]
+          ?.contains(ServerEntityKey(serverKey, categoryId).encoded) ??
+      false;
 
   /// The saved draft for [channelId], or empty string when none.
-  String draftFor(String channelId) => drafts[channelId] ?? '';
+  String draftFor(String serverKey, String channelId) =>
+      drafts[ServerEntityKey(serverKey, channelId).encoded] ?? '';
 
   /// Camera capture dimensions (width, height) for the selected
   /// [videoResolution].
@@ -521,8 +534,26 @@ class AccordSettings {
 
   /// Returns the level set for [channelId], or null when the user hasn't
   /// overridden it (callers fall back to the default mention-only behaviour).
-  String? channelNotificationLevel(String channelId) =>
-      channelNotifications[channelId];
+  String? channelNotificationLevel(String serverKey, String channelId) =>
+      channelNotifications[ServerEntityKey(serverKey, channelId).encoded];
+
+  /// Notification overrides for one server, keyed by the channels' local IDs.
+  Map<String, String> channelNotificationsFor(String serverKey) => {
+    for (final entry in channelNotifications.entries)
+      if (ServerEntityKey.tryDecode(entry.key) case final key?
+          when key.serverKey == serverKey)
+        key.entityId: entry.value,
+  };
+
+  String lastSpaceFor(String serverKey) {
+    final key = ServerEntityKey.tryDecode(lastSpaceId);
+    return key?.serverKey == serverKey ? key!.entityId : '';
+  }
+
+  String lastChannelFor(String serverKey) {
+    final key = ServerEntityKey.tryDecode(lastChannelId);
+    return key?.serverKey == serverKey ? key!.entityId : '';
+  }
 
   Map<String, dynamic> toJson() => {
     'themePreset': themePreset.name,

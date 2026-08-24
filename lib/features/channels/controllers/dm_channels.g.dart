@@ -8,7 +8,7 @@ part of 'dm_channels.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Global cache of the current user's direct-message and group-DM channels
+/// Per-server cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
 /// one-shot `users.listChannels` fetch and then watches it, while
 /// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
@@ -20,9 +20,9 @@ part of 'dm_channels.dart';
 /// dialog has ever opened are intentionally dropped (the next open refetches).
 
 @ProviderFor(DmChannelsController)
-const dmChannelsControllerProvider = DmChannelsControllerProvider._();
+const dmChannelsControllerProvider = DmChannelsControllerFamily._();
 
-/// Global cache of the current user's direct-message and group-DM channels
+/// Per-server cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
 /// one-shot `users.listChannels` fetch and then watches it, while
 /// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
@@ -34,7 +34,7 @@ const dmChannelsControllerProvider = DmChannelsControllerProvider._();
 /// dialog has ever opened are intentionally dropped (the next open refetches).
 final class DmChannelsControllerProvider
     extends $NotifierProvider<DmChannelsController, List<AccordChannel>?> {
-  /// Global cache of the current user's direct-message and group-DM channels
+  /// Per-server cache of the current user's direct-message and group-DM channels
   /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
   /// one-shot `users.listChannels` fetch and then watches it, while
   /// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
@@ -44,19 +44,26 @@ final class DmChannelsControllerProvider
   /// A `null` state means "not loaded yet" — the dialog's fetch is the only thing
   /// that transitions it out of null, so gateway upserts that arrive before the
   /// dialog has ever opened are intentionally dropped (the next open refetches).
-  const DmChannelsControllerProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'dmChannelsControllerProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
+  const DmChannelsControllerProvider._({
+    required DmChannelsControllerFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'dmChannelsControllerProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
 
   @override
   String debugGetCreateSourceHash() => _$dmChannelsControllerHash();
+
+  @override
+  String toString() {
+    return r'dmChannelsControllerProvider'
+        ''
+        '($argument)';
+  }
 
   @$internal
   @override
@@ -69,12 +76,69 @@ final class DmChannelsControllerProvider
       providerOverride: $SyncValueProvider<List<AccordChannel>?>(value),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is DmChannelsControllerProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
 }
 
 String _$dmChannelsControllerHash() =>
-    r'2272e666774b594969d7e941a07de1fe86a8d7a9';
+    r'64af0e28a6ad4e7d248b88bb9577374ad9d8db5d';
 
-/// Global cache of the current user's direct-message and group-DM channels
+/// Per-server cache of the current user's direct-message and group-DM channels
+/// (the ones with no `spaceId`). The direct-messages dialog populates it from a
+/// one-shot `users.listChannels` fetch and then watches it, while
+/// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
+/// created remotely appear, renames / recipient changes (which arrive as
+/// `channel.update`) update in place, and leaves / deletions remove the entry.
+///
+/// A `null` state means "not loaded yet" — the dialog's fetch is the only thing
+/// that transitions it out of null, so gateway upserts that arrive before the
+/// dialog has ever opened are intentionally dropped (the next open refetches).
+
+final class DmChannelsControllerFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          DmChannelsController,
+          List<AccordChannel>?,
+          List<AccordChannel>?,
+          List<AccordChannel>?,
+          String
+        > {
+  const DmChannelsControllerFamily._()
+    : super(
+        retry: null,
+        name: r'dmChannelsControllerProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Per-server cache of the current user's direct-message and group-DM channels
+  /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
+  /// one-shot `users.listChannels` fetch and then watches it, while
+  /// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
+  /// created remotely appear, renames / recipient changes (which arrive as
+  /// `channel.update`) update in place, and leaves / deletions remove the entry.
+  ///
+  /// A `null` state means "not loaded yet" — the dialog's fetch is the only thing
+  /// that transitions it out of null, so gateway upserts that arrive before the
+  /// dialog has ever opened are intentionally dropped (the next open refetches).
+
+  DmChannelsControllerProvider call(String serverKey) =>
+      DmChannelsControllerProvider._(argument: serverKey, from: this);
+
+  @override
+  String toString() => r'dmChannelsControllerProvider';
+}
+
+/// Per-server cache of the current user's direct-message and group-DM channels
 /// (the ones with no `spaceId`). The direct-messages dialog populates it from a
 /// one-shot `users.listChannels` fetch and then watches it, while
 /// `accord_event_handler.dart` keeps it in sync from the gateway: group DMs
@@ -86,11 +150,14 @@ String _$dmChannelsControllerHash() =>
 /// dialog has ever opened are intentionally dropped (the next open refetches).
 
 abstract class _$DmChannelsController extends $Notifier<List<AccordChannel>?> {
-  List<AccordChannel>? build();
+  late final _$args = ref.$arg as String;
+  String get serverKey => _$args;
+
+  List<AccordChannel>? build(String serverKey);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
+    final created = build(_$args);
     final ref = this.ref as $Ref<List<AccordChannel>?, List<AccordChannel>?>;
     final element =
         ref.element

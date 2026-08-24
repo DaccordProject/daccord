@@ -14,7 +14,8 @@ part 'voice_states.g.dart';
 @Riverpod(keepAlive: true)
 class VoiceStatesController extends _$VoiceStatesController {
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => const {};
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) =>
+      const {};
 
   /// Applies a single voice state: removes the user from any previous channel
   /// and, when [vs.channelId] is non-null, inserts them into that channel.

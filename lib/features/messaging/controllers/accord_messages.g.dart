@@ -28,7 +28,7 @@ final class AccordMessagesControllerProvider
   /// create/update/delete gateway events. `null` means "not loaded yet".
   const AccordMessagesControllerProvider._({
     required AccordMessagesControllerFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'accordMessagesControllerProvider',
@@ -44,7 +44,7 @@ final class AccordMessagesControllerProvider
   String toString() {
     return r'accordMessagesControllerProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -72,7 +72,7 @@ final class AccordMessagesControllerProvider
 }
 
 String _$accordMessagesControllerHash() =>
-    r'125eab87402f0f4317a961143cb9b0281f566d65';
+    r'60a173190f02487fbf0f601ea0f2ee5435aa4a45';
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
@@ -86,7 +86,7 @@ final class AccordMessagesControllerFamily extends $Family
           List<AccordMessage>?,
           List<AccordMessage>?,
           List<AccordMessage>?,
-          String
+          (String, String)
         > {
   const AccordMessagesControllerFamily._()
     : super(
@@ -102,8 +102,11 @@ final class AccordMessagesControllerFamily extends $Family
   /// it's watched (once logged in) and is kept in sync by message
   /// create/update/delete gateway events. `null` means "not loaded yet".
 
-  AccordMessagesControllerProvider call(String channelId) =>
-      AccordMessagesControllerProvider._(argument: channelId, from: this);
+  AccordMessagesControllerProvider call(String serverKey, String channelId) =>
+      AccordMessagesControllerProvider._(
+        argument: (serverKey, channelId),
+        from: this,
+      );
 
   @override
   String toString() => r'accordMessagesControllerProvider';
@@ -116,14 +119,15 @@ final class AccordMessagesControllerFamily extends $Family
 
 abstract class _$AccordMessagesController
     extends $Notifier<List<AccordMessage>?> {
-  late final _$args = ref.$arg as String;
-  String get channelId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get channelId => _$args.$2;
 
-  List<AccordMessage>? build(String channelId);
+  List<AccordMessage>? build(String serverKey, String channelId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref = this.ref as $Ref<List<AccordMessage>?, List<AccordMessage>?>;
     final element =
         ref.element

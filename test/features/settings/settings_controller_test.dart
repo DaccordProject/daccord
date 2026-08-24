@@ -3,11 +3,17 @@ import 'dart:io';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
+import 'package:bonfire/shared/models/server_entity_key.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 
 void main() {
+  const server = 'account@https://server.example';
+  ServerEntityKey key(String id) => ServerEntityKey(server, id);
+  List<String> encoded(Iterable<String> ids) => [
+    for (final id in ids) key(id).encoded,
+  ];
   late Directory tempDir;
 
   setUp(() async {
@@ -100,70 +106,121 @@ void main() {
   group('acceptRules', () {
     test('records acceptance and survives a controller rebuild', () {
       final c1 = makeContainer();
-      controllerOf(c1).acceptRules('space-1');
-      expect(stateOf(c1).isRulesAccepted('space-1'), isTrue);
-      expect(stateOf(c1).isRulesAccepted('space-2'), isFalse);
+      controllerOf(c1).acceptRules(server, 'space-1');
+      expect(stateOf(c1).isRulesAccepted(server, 'space-1'), isTrue);
+      expect(stateOf(c1).isRulesAccepted(server, 'space-2'), isFalse);
 
       // The reported bug: the rules popup reappeared every join because
       // acceptance was in-memory. It must now survive a fresh controller.
       final c2 = makeContainer();
-      expect(stateOf(c2).isRulesAccepted('space-1'), isTrue);
+      expect(stateOf(c2).isRulesAccepted(server, 'space-1'), isTrue);
     });
 
     test('re-accepting the same space is a no-op (no duplicates)', () {
       final c = makeContainer();
       controllerOf(c)
-        ..acceptRules('s')
-        ..acceptRules('s');
-      expect(stateOf(c).acceptedRuleSpaces, ['s']);
+        ..acceptRules(server, 's')
+        ..acceptRules(server, 's');
+      expect(stateOf(c).acceptedRuleSpaces, encoded(['s']));
     });
   });
 
   group('acknowledgeNsfw', () {
     test('records and persists per-channel acknowledgement', () {
       final c1 = makeContainer();
-      controllerOf(c1).acknowledgeNsfw('chan-1');
+      controllerOf(c1).acknowledgeNsfw(server, 'chan-1');
       final c2 = makeContainer();
-      expect(stateOf(c2).isNsfwAcknowledged('chan-1'), isTrue);
-      expect(stateOf(c2).isNsfwAcknowledged('chan-2'), isFalse);
+      expect(stateOf(c2).isNsfwAcknowledged(server, 'chan-1'), isTrue);
+      expect(stateOf(c2).isNsfwAcknowledged(server, 'chan-2'), isFalse);
     });
   });
 
   group('setCategoryCollapsed', () {
     test('toggles per-space and persists', () {
       final c1 = makeContainer();
-      controllerOf(c1).setCategoryCollapsed('space', 'cat', true);
-      expect(stateOf(c1).isCategoryCollapsed('space', 'cat'), isTrue);
+      controllerOf(c1).setCategoryCollapsed(server, 'space', 'cat', true);
+      expect(stateOf(c1).isCategoryCollapsed(server, 'space', 'cat'), isTrue);
 
       final c2 = makeContainer();
-      expect(stateOf(c2).isCategoryCollapsed('space', 'cat'), isTrue);
+      expect(stateOf(c2).isCategoryCollapsed(server, 'space', 'cat'), isTrue);
 
-      controllerOf(c2).setCategoryCollapsed('space', 'cat', false);
-      expect(stateOf(c2).isCategoryCollapsed('space', 'cat'), isFalse);
+      controllerOf(c2).setCategoryCollapsed(server, 'space', 'cat', false);
+      expect(stateOf(c2).isCategoryCollapsed(server, 'space', 'cat'), isFalse);
       // Cleared spaces drop out of the map entirely.
-      expect(stateOf(c2).collapsedCategories.containsKey('space'), isFalse);
+      expect(
+        stateOf(c2).collapsedCategories.containsKey(key('space').encoded),
+        isFalse,
+      );
     });
 
     test('collapse state is scoped to its space', () {
       final c = makeContainer();
-      controllerOf(c).setCategoryCollapsed('space-a', 'cat', true);
-      expect(stateOf(c).isCategoryCollapsed('space-b', 'cat'), isFalse);
+      controllerOf(c).setCategoryCollapsed(server, 'space-a', 'cat', true);
+      expect(stateOf(c).isCategoryCollapsed(server, 'space-b', 'cat'), isFalse);
     });
   });
 
   group('setDraft', () {
     test('saves, restores across rebuild, and clears on blank', () {
       final c1 = makeContainer();
-      controllerOf(c1).setDraft('chan', 'half-typed message');
-      expect(stateOf(c1).draftFor('chan'), 'half-typed message');
+      controllerOf(c1).setDraft(server, 'chan', 'half-typed message');
+      expect(stateOf(c1).draftFor(server, 'chan'), 'half-typed message');
 
       final c2 = makeContainer();
-      expect(stateOf(c2).draftFor('chan'), 'half-typed message');
+      expect(stateOf(c2).draftFor(server, 'chan'), 'half-typed message');
 
-      controllerOf(c2).setDraft('chan', '');
-      expect(stateOf(c2).draftFor('chan'), '');
-      expect(stateOf(c2).drafts.containsKey('chan'), isFalse);
+      controllerOf(c2).setDraft(server, 'chan', '');
+      expect(stateOf(c2).draftFor(server, 'chan'), '');
+      expect(stateOf(c2).drafts.containsKey(key('chan').encoded), isFalse);
     });
+
+    test('identical channel IDs on two servers keep independent drafts', () {
+      final c = makeContainer();
+      controllerOf(c)
+        ..setDraft('server-a', 'same-id', 'draft from A')
+        ..setDraft('server-b', 'same-id', 'draft from B');
+
+      expect(stateOf(c).draftFor('server-a', 'same-id'), 'draft from A');
+      expect(stateOf(c).draftFor('server-b', 'same-id'), 'draft from B');
+    });
+  });
+
+  group('legacy entity-key migration', () {
+    test(
+      'the active server claims bare keys without exposing them to another',
+      () async {
+        await Hive.box('accord-settings').put('settings', {
+          'drafts': {'same-id': 'legacy draft'},
+          'hiddenSpaces': ['same-id'],
+          'spaceOrder': ['same-id'],
+          'spaceFolders': [
+            {
+              'id': 'folder',
+              'name': 'Legacy',
+              'spaceIds': ['same-id'],
+            },
+          ],
+        });
+        final c = makeContainer();
+
+        controllerOf(c).claimLegacyEntityKeys('server-a');
+
+        expect(stateOf(c).draftFor('server-a', 'same-id'), 'legacy draft');
+        expect(stateOf(c).draftFor('server-b', 'same-id'), isEmpty);
+        expect(stateOf(c).isSpaceHidden('server-a', 'same-id'), isTrue);
+        expect(stateOf(c).isSpaceHidden('server-b', 'same-id'), isFalse);
+        expect(stateOf(c).spaceFolders.single.spaceIds, [
+          ServerEntityKey('server-a', 'same-id').encoded,
+        ]);
+
+        final restored = makeContainer();
+        expect(
+          stateOf(restored).draftFor('server-a', 'same-id'),
+          'legacy draft',
+        );
+        expect(stateOf(restored).draftFor('server-b', 'same-id'), isEmpty);
+      },
+    );
   });
 
   group('persistence', () {
@@ -326,30 +383,49 @@ void main() {
   group('setSpaceOrder', () {
     test('persists the ordering across a controller rebuild', () {
       final c1 = makeContainer();
-      controllerOf(c1).setSpaceOrder(['s3', 's1', 's2']);
-      expect(stateOf(c1).spaceOrder, ['s3', 's1', 's2']);
+      controllerOf(c1).setSpaceOrder([key('s3'), key('s1'), key('s2')]);
+      expect(stateOf(c1).spaceOrder, encoded(['s3', 's1', 's2']));
 
       final c2 = makeContainer();
-      expect(stateOf(c2).spaceOrder, ['s3', 's1', 's2']);
+      expect(stateOf(c2).spaceOrder, encoded(['s3', 's1', 's2']));
     });
 
     test('overwrites a previous order', () {
       final c = makeContainer();
       controllerOf(c)
-        ..setSpaceOrder(['a', 'b', 'c'])
-        ..setSpaceOrder(['c', 'a']);
-      expect(stateOf(c).spaceOrder, ['c', 'a']);
+        ..setSpaceOrder([key('a'), key('b'), key('c')])
+        ..setSpaceOrder([key('c'), key('a')]);
+      expect(stateOf(c).spaceOrder, encoded(['c', 'a']));
+    });
+
+    test('keeps colliding space IDs from two servers as separate rail entries',
+        () {
+      final c = makeContainer();
+      final onA = ServerEntityKey('server-a', 'same-space');
+      final onB = ServerEntityKey('server-b', 'same-space');
+
+      controllerOf(c).setSpaceOrder([onA, onB]);
+      controllerOf(c).createFolder(spaces: [onA, onB]);
+
+      expect(stateOf(c).spaceOrder, [onA.encoded, onB.encoded]);
+      expect(stateOf(c).spaceFolders.single.spaceIds, [
+        onA.encoded,
+        onB.encoded,
+      ]);
+      expect(onA.encoded, isNot(onB.encoded));
     });
   });
 
   group('createFolder', () {
     test('creates a folder with the given name and space ids', () {
       final c = makeContainer();
-      controllerOf(c).createFolder(name: 'work', spaceIds: ['s1', 's2']);
+      controllerOf(
+        c,
+      ).createFolder(name: 'work', spaces: [key('s1'), key('s2')]);
       final folders = stateOf(c).spaceFolders;
       expect(folders.length, 1);
       expect(folders.first.name, 'work');
-      expect(folders.first.spaceIds, ['s1', 's2']);
+      expect(folders.first.spaceIds, encoded(['s1', 's2']));
     });
 
     test('returns the id of the newly created folder', () {
@@ -362,65 +438,81 @@ void main() {
       'removes the given spaces from any existing folder they belong to',
       () {
         final c = makeContainer();
-        controllerOf(c).createFolder(name: 'old', spaceIds: ['s1', 's3']);
-        controllerOf(c).createFolder(name: 'new', spaceIds: ['s1', 's2']);
+        controllerOf(
+          c,
+        ).createFolder(name: 'old', spaces: [key('s1'), key('s3')]);
+        controllerOf(
+          c,
+        ).createFolder(name: 'new', spaces: [key('s1'), key('s2')]);
         final folders = stateOf(c).spaceFolders;
         final old = folders.firstWhere((f) => f.name == 'old');
         final newF = folders.firstWhere((f) => f.name == 'new');
         expect(old.spaceIds, [
-          's3',
+          key('s3').encoded,
         ], reason: 's1 should have been stripped from old');
-        expect(newF.spaceIds, ['s1', 's2']);
+        expect(newF.spaceIds, encoded(['s1', 's2']));
       },
     );
 
     test('merge via drop-onto creates folder with target first then dragged', () {
       // Simulates the onMergeSpace callback: createFolder(spaceIds: [target, dragged])
       final c = makeContainer();
-      controllerOf(c).createFolder(spaceIds: ['target', 'dragged']);
-      expect(stateOf(c).spaceFolders.first.spaceIds, ['target', 'dragged']);
+      controllerOf(c).createFolder(spaces: [key('target'), key('dragged')]);
+      expect(
+        stateOf(c).spaceFolders.first.spaceIds,
+        encoded(['target', 'dragged']),
+      );
     });
 
     test('merging a space already in a folder moves it to the new one', () {
       final c = makeContainer();
-      controllerOf(c).createFolder(name: 'existing', spaceIds: ['s1', 's3']);
-      controllerOf(c).createFolder(spaceIds: ['s1', 's2']);
+      controllerOf(
+        c,
+      ).createFolder(name: 'existing', spaces: [key('s1'), key('s3')]);
+      controllerOf(c).createFolder(spaces: [key('s1'), key('s2')]);
       final existing = stateOf(
         c,
       ).spaceFolders.firstWhere((f) => f.name == 'existing');
-      expect(existing.spaceIds, ['s3'], reason: 's1 must leave the old folder');
-      expect(stateOf(c).spaceFolders.last.spaceIds, ['s1', 's2']);
+      expect(
+        existing.spaceIds,
+        encoded(['s3']),
+        reason: 's1 must leave the old folder',
+      );
+      expect(stateOf(c).spaceFolders.last.spaceIds, encoded(['s1', 's2']));
     });
   });
 
   group('moveSpaceToFolder', () {
     test('appends a space to the target folder', () {
       final c = makeContainer();
-      final fId = controllerOf(c).createFolder(name: 'f', spaceIds: ['s1']);
-      controllerOf(c).moveSpaceToFolder('s2', fId);
-      expect(stateOf(c).spaceFolders.first.spaceIds, ['s1', 's2']);
+      final fId = controllerOf(c).createFolder(name: 'f', spaces: [key('s1')]);
+      controllerOf(c).moveSpaceToFolder(key('s2'), fId);
+      expect(stateOf(c).spaceFolders.first.spaceIds, encoded(['s1', 's2']));
     });
 
     test('inserts before a given member when before is specified', () {
       final c = makeContainer();
       final fId = controllerOf(
         c,
-      ).createFolder(name: 'f', spaceIds: ['s1', 's2']);
-      controllerOf(c).moveSpaceToFolder('s3', fId, before: 's2');
-      expect(stateOf(c).spaceFolders.first.spaceIds, ['s1', 's3', 's2']);
+      ).createFolder(name: 'f', spaces: [key('s1'), key('s2')]);
+      controllerOf(c).moveSpaceToFolder(key('s3'), fId, before: key('s2'));
+      expect(
+        stateOf(c).spaceFolders.first.spaceIds,
+        encoded(['s1', 's3', 's2']),
+      );
     });
 
     test('removes a space from its folder when folderId is null', () {
       final c = makeContainer();
-      controllerOf(c).createFolder(name: 'f', spaceIds: ['s1', 's2']);
-      controllerOf(c).moveSpaceToFolder('s1', null);
-      expect(stateOf(c).spaceFolders.first.spaceIds, ['s2']);
+      controllerOf(c).createFolder(name: 'f', spaces: [key('s1'), key('s2')]);
+      controllerOf(c).moveSpaceToFolder(key('s1'), null);
+      expect(stateOf(c).spaceFolders.first.spaceIds, encoded(['s2']));
     });
 
     test('prunes a folder that becomes empty', () {
       final c = makeContainer();
-      controllerOf(c).createFolder(name: 'f', spaceIds: ['s1']);
-      controllerOf(c).moveSpaceToFolder('s1', null);
+      controllerOf(c).createFolder(name: 'f', spaces: [key('s1')]);
+      controllerOf(c).moveSpaceToFolder(key('s1'), null);
       expect(stateOf(c).spaceFolders, isEmpty);
     });
 
@@ -428,15 +520,17 @@ void main() {
       final c = makeContainer();
       final src = controllerOf(
         c,
-      ).createFolder(name: 'src', spaceIds: ['s1', 's2']);
-      final dst = controllerOf(c).createFolder(name: 'dst', spaceIds: ['s3']);
-      controllerOf(c).moveSpaceToFolder('s1', dst);
+      ).createFolder(name: 'src', spaces: [key('s1'), key('s2')]);
+      final dst = controllerOf(
+        c,
+      ).createFolder(name: 'dst', spaces: [key('s3')]);
+      controllerOf(c).moveSpaceToFolder(key('s1'), dst);
       expect(stateOf(c).spaceFolders.firstWhere((f) => f.id == src).spaceIds, [
-        's2',
+        key('s2').encoded,
       ]);
       expect(stateOf(c).spaceFolders.firstWhere((f) => f.id == dst).spaceIds, [
-        's3',
-        's1',
+        key('s3').encoded,
+        key('s1').encoded,
       ]);
     });
   });

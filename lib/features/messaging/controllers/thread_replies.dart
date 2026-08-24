@@ -7,7 +7,7 @@ part 'thread_replies.g.dart';
 
 /// The identity of an open thread: the channel it lives in plus its root
 /// message. Used by the gateway handler's active-thread registry.
-typedef ThreadKey = ({String channelId, String rootId});
+typedef ThreadKey = ({String serverKey, String channelId, String rootId});
 
 /// Threads that currently have a live replies controller. The gateway handler
 /// consults this so it only routes thread-scoped message events into threads
@@ -24,12 +24,20 @@ final Set<ThreadKey> activeThreadReplies = <ThreadKey>{};
 @Riverpod(keepAlive: false)
 class ThreadRepliesController extends _$ThreadRepliesController {
   @override
-  List<AccordMessage>? build(String channelId, String rootId) {
-    final ThreadKey key = (channelId: channelId, rootId: rootId);
+  List<AccordMessage>? build(
+    String serverKey,
+    String channelId,
+    String rootId,
+  ) {
+    final ThreadKey key = (
+      serverKey: serverKey,
+      channelId: channelId,
+      rootId: rootId,
+    );
     activeThreadReplies.add(key);
     ref.onDispose(() => activeThreadReplies.remove(key));
 
-    final client = ref.watchAccordClient();
+    final client = ref.watchAccordClientFor(serverKey);
     if (client != null) {
       _load(client);
     }
@@ -38,7 +46,7 @@ class ThreadRepliesController extends _$ThreadRepliesController {
 
   Future<void> _load(AccordClient client) async {
     final result = await client.messages.listThread(channelId, rootId);
-    if (!ref.mounted) return;
+    if (!ref.mounted || !ref.isCurrentAccordClient(serverKey, client)) return;
     final data = result.data;
     if (!result.ok || data is! List) {
       debugPrint('Failed to load thread $rootId: ${result.error}');

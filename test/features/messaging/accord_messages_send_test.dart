@@ -75,7 +75,7 @@ void main() {
   group('send', () {
     test('returns true on success', () async {
       final n = _makeContainer().read(
-        accordMessagesControllerProvider('ch1').notifier,
+        accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith(
         (_) async => http.Response(
@@ -89,7 +89,7 @@ void main() {
 
     test('returns false on a server failure', () async {
       final n = _makeContainer().read(
-        accordMessagesControllerProvider('ch1').notifier,
+        accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith(
         (_) async => _errorResponse(403, 'FORBIDDEN', 'Missing permission'),
@@ -106,7 +106,7 @@ void main() {
     test('surfaces the server error message on failure, not a generic one',
         () async {
       final n = _makeContainer().read(
-        accordMessagesControllerProvider('ch1').notifier,
+        accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith(
         (_) async => _errorResponse(
@@ -123,7 +123,7 @@ void main() {
 
     test('returns null on success', () async {
       final n = _makeContainer().read(
-        accordMessagesControllerProvider('ch1').notifier,
+        accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith(
         (_) async => http.Response(
@@ -139,7 +139,7 @@ void main() {
   group('sendWithAttachments — with files', () {
     test('surfaces the server error message on failure', () async {
       final n = _makeContainer().read(
-        accordMessagesControllerProvider('ch1').notifier,
+        accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith(
         (_) async => _errorResponse(413, 'FILE_TOO_LARGE', 'File too large'),
@@ -155,7 +155,7 @@ void main() {
     test('falls back to a generic message when the server sends none',
         () async {
       final n = _makeContainer().read(
-        accordMessagesControllerProvider('ch1').notifier,
+        accordMessagesControllerProvider('', 'ch1').notifier,
       );
       final client = _clientWith(
         (_) async => http.Response(

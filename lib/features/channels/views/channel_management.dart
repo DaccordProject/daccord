@@ -87,7 +87,7 @@ Future<bool> confirmAndDeleteChannel(
   final client = ref.accordClient;
   if (client == null) return false;
   final ok = await ref
-      .read(accordChannelsControllerProvider(spaceId).notifier)
+      .read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId).notifier)
       .deleteChannel(client, channel.id);
   if (!ok && context.mounted) {
     showInfoSnack(context, 'Failed to delete $noun');
@@ -155,7 +155,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
       _error = null;
     });
     final controller =
-        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+        ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier);
     final topic = _topic.text.trim();
     final bool ok;
     final supportsModeration = _type != 'category';
@@ -209,7 +209,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
       _error = null;
     });
     final controller =
-        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+        ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier);
     final ok = await controller.deleteChannel(client, channel.id);
     if (!mounted) return;
     if (ok) {
@@ -228,7 +228,7 @@ class _ChannelEditorDialogState extends ConsumerState<_ChannelEditorDialog> {
     // Categories the new channel can be nested under (edit keeps the channel's
     // own category fixed for simplicity).
     final categories = ref
-            .watch(accordChannelsControllerProvider(widget.spaceId))
+            .watch(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId))
             ?.where((c) => c.type == 'category')
             .toList() ??
         const <AccordChannel>[];

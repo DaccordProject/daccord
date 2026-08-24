@@ -49,7 +49,7 @@ class _StubVoiceController extends VoiceController {
 
 class _FakeVoiceStates extends VoiceStatesController {
   @override
-  Map<String, Map<String, AccordVoiceState>> build() => const {};
+  Map<String, Map<String, AccordVoiceState>> build(String serverKey) => const {};
 }
 
 const _incoming = IncomingCall(
@@ -70,7 +70,7 @@ Widget _app({
       settingsControllerProvider.overrideWith(_FakeSettingsController.new),
       callControllerProvider.overrideWith(() => call),
       voiceControllerProvider.overrideWith(() => _StubVoiceController(voice)),
-      voiceStatesControllerProvider.overrideWith(_FakeVoiceStates.new),
+      voiceStatesControllerProvider('').overrideWith(_FakeVoiceStates.new),
     ],
     child: MaterialApp(
       theme: buildAppTheme(AppThemePreset.dark),

@@ -516,12 +516,18 @@ class VoiceController extends _$VoiceController {
 
   Future<void> _refreshVoiceStates(String channelId) async {
     final client = _client;
-    if (client == null) return;
+    final serverKey = state.serverKey;
+    if (client == null || serverKey == null) return;
     final result = await client.voice.getStatus(channelId);
     final data = result.data;
-    if (!result.ok || data is! List<AccordVoiceState>) return;
+    if (_client != client ||
+        state.serverKey != serverKey ||
+        !result.ok ||
+        data is! List<AccordVoiceState>) {
+      return;
+    }
     ref
-        .read(voiceStatesControllerProvider.notifier)
+        .read(voiceStatesControllerProvider(serverKey).notifier)
         .seedChannel(channelId, data);
   }
 

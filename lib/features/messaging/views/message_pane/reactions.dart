@@ -148,7 +148,7 @@ class _ReactorsDialogState extends ConsumerState<_ReactorsDialog> {
       return;
     }
     final users = await ref
-        .read(accordMessagesControllerProvider(widget.channelId).notifier)
+        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
         .reactionUsers(
           client,
           widget.messageId,

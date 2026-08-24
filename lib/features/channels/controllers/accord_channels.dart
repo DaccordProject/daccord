@@ -14,8 +14,8 @@ part 'accord_channels.g.dart';
 @Riverpod(keepAlive: true)
 class AccordChannelsController extends _$AccordChannelsController {
   @override
-  List<AccordChannel>? build(String spaceId) {
-    final client = ref.watchAccordClient();
+  List<AccordChannel>? build(String serverKey, String spaceId) {
+    final client = ref.watchAccordClientFor(serverKey);
     if (client != null) {
       _load(client, spaceId);
     }
@@ -25,7 +25,9 @@ class AccordChannelsController extends _$AccordChannelsController {
   Future<void> _load(AccordClient client, String spaceId) async {
     final channels = (await client.spaces.listChannels(spaceId))
         .listOrLog<AccordChannel>('channels for $spaceId');
-    if (channels != null) state = _sorted(channels);
+    if (channels != null && ref.isCurrentAccordClient(serverKey, client)) {
+      state = _sorted(channels);
+    }
   }
 
   void setChannels(List<AccordChannel> channels) =>

@@ -9,8 +9,12 @@ String? _spaceIconUrl(AccordSpace space, String? cdnUrl) {
   if (icon.contains('/') || icon.startsWith('http')) {
     return AccordCDN.resolvePath(icon, cdnUrl: cdn);
   }
-  return AccordCDN.spaceIcon(space.id, icon,
-      format: AccordCDN.autoFormat(icon), cdnUrl: cdn);
+  return AccordCDN.spaceIcon(
+    space.id,
+    icon,
+    format: AccordCDN.autoFormat(icon),
+    cdnUrl: cdn,
+  );
 }
 
 /// Payload carried while dragging a rail item, so a drop target can tell a
@@ -116,10 +120,7 @@ class _RailDraggableState extends State<_RailDraggable> {
 /// instead of only onto an icon. Grows and shows an insertion bar while a
 /// compatible drag hovers it.
 class _InsertionGap extends StatelessWidget {
-  const _InsertionGap({
-    required this.onDropSpace,
-    required this.onDropFolder,
-  });
+  const _InsertionGap({required this.onDropSpace, required this.onDropFolder});
 
   /// A space [spaceId] was dropped in this gap: place it here as a standalone
   /// rail entry (pulled out of any folder it was in).
@@ -176,6 +177,7 @@ class _DraggableSpace extends StatelessWidget {
     required this.onMergeSpace,
     required this.onDropFolderBefore,
     required this.onMenu,
+    required this.entityKey,
     this.serverKey = '',
   });
 
@@ -193,6 +195,7 @@ class _DraggableSpace extends StatelessWidget {
   final ValueChanged<String> onDropFolderBefore;
   final void Function(Offset position) onMenu;
   final String serverKey;
+  final String entityKey;
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +208,7 @@ class _DraggableSpace extends StatelessWidget {
     );
     return DragTarget<_RailDrag>(
       onWillAcceptWithDetails: (d) => switch (d.data) {
-        _SpaceDrag(:final spaceId) => spaceId != space.id,
+        _SpaceDrag(:final spaceId) => spaceId != entityKey,
         _FolderDrag() => true,
       },
       onAcceptWithDetails: (d) {
@@ -219,7 +222,7 @@ class _DraggableSpace extends StatelessWidget {
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
         child: _RailDraggable(
-          data: _SpaceDrag(space.id),
+          data: _SpaceDrag(entityKey),
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
@@ -262,7 +265,7 @@ class _FolderTile extends ConsumerStatefulWidget {
   });
 
   final SpaceFolder folder;
-  final List<AccordSpace> spaces;
+  final List<_RailSpace> spaces;
 
   /// Per-space connection lookup so folder members can span servers: each
   /// member resolves its own CDN, owning server, and active state.
@@ -288,7 +291,7 @@ class _FolderTile extends ConsumerStatefulWidget {
 
 class _FolderTileState extends ConsumerState<_FolderTile> {
   SpaceFolder get folder => widget.folder;
-  List<AccordSpace> get spaces => widget.spaces;
+  List<_RailSpace> get spaces => widget.spaces;
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +338,10 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
               final highlight = candidate.isNotEmpty;
               return _RailDraggable(
                 data: _FolderDrag(folder.id),
-                feedback: Material(color: Colors.transparent, child: folderIcon),
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: folderIcon,
+                ),
                 childWhenDragging: Opacity(opacity: 0.3, child: folderIcon),
                 onPressMenu: (pos) => _folderMenu(context, ref, pos),
                 child: GestureDetector(
@@ -358,19 +364,23 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
           ),
         ),
         if (!folder.collapsed)
-          for (final space in spaces)
+          for (final railSpace in spaces)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: _FolderMemberTile(
-                space: space,
-                conn: widget.connOf[space.id],
-                selected: (widget.connOf[space.id]?.active ?? false) &&
-                    space.id == widget.selectedSpaceId,
-                onTap: () =>
-                    widget.onSelect(widget.connOf[space.id]?.serverKey ?? '', space.id),
+                space: railSpace.space,
+                entityKey: railSpace.key,
+                conn: widget.connOf[railSpace.key],
+                selected:
+                    (widget.connOf[railSpace.key]?.active ?? false) &&
+                    railSpace.space.id == widget.selectedSpaceId,
+                onTap: () => widget.onSelect(
+                  widget.connOf[railSpace.key]?.serverKey ?? '',
+                  railSpace.space.id,
+                ),
                 onDropBefore: (draggedId) =>
-                    widget.onMemberDropBefore(draggedId, space.id),
-                onMenu: (pos) => _memberMenu(context, ref, ctl, space, pos),
+                    widget.onMemberDropBefore(draggedId, railSpace.key),
+                onMenu: (pos) => _memberMenu(context, ref, ctl, railSpace, pos),
               ),
             ),
       ],
@@ -381,20 +391,24 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
     BuildContext context,
     WidgetRef ref,
     SettingsController ctl,
-    AccordSpace space,
+    _RailSpace railSpace,
     Offset position,
   ) {
+    final space = railSpace.space;
     final entries = <AccordMenuEntry>[
       ..._serverActionEntries(
         context,
         ref,
         space,
-        widget.connOf[space.id]?.serverKey ?? '',
+        widget.connOf[railSpace.key]?.serverKey ?? '',
       ),
       AccordMenuEntry(
         label: 'Remove "${space.name}" from folder',
         icon: Icons.folder_off_outlined,
-        onSelected: () => ctl.moveSpaceToFolder(space.id, null),
+        onSelected: () => ctl.moveSpaceToFolder(
+          ServerEntityKey.tryDecode(railSpace.key)!,
+          null,
+        ),
       ),
     ];
     return showAccordContextMenu(
@@ -415,8 +429,7 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
       AccordMenuEntry(
         label: folder.collapsed ? 'Expand' : 'Collapse',
         icon: folder.collapsed ? Icons.unfold_more : Icons.unfold_less,
-        onSelected: () =>
-            ctl.setFolderCollapsed(folder.id, !folder.collapsed),
+        onSelected: () => ctl.setFolderCollapsed(folder.id, !folder.collapsed),
       ),
       AccordMenuEntry(
         label: 'Rename',
@@ -496,6 +509,7 @@ class _FolderTileState extends ConsumerState<_FolderTile> {
 class _FolderMemberTile extends StatelessWidget {
   const _FolderMemberTile({
     required this.space,
+    required this.entityKey,
     required this.conn,
     required this.selected,
     required this.onTap,
@@ -504,6 +518,7 @@ class _FolderMemberTile extends StatelessWidget {
   });
 
   final AccordSpace space;
+  final String entityKey;
   final _SpaceConn? conn;
   final bool selected;
   final VoidCallback onTap;
@@ -524,7 +539,7 @@ class _FolderMemberTile extends StatelessWidget {
     );
     return DragTarget<_RailDrag>(
       onWillAcceptWithDetails: (d) => switch (d.data) {
-        _SpaceDrag(:final spaceId) => spaceId != space.id,
+        _SpaceDrag(:final spaceId) => spaceId != entityKey,
         _FolderDrag() => false,
       },
       onAcceptWithDetails: (d) {
@@ -535,7 +550,7 @@ class _FolderMemberTile extends StatelessWidget {
       builder: (context, candidate, _) => Opacity(
         opacity: candidate.isNotEmpty ? 0.5 : 1,
         child: _RailDraggable(
-          data: _SpaceDrag(space.id),
+          data: _SpaceDrag(entityKey),
           feedback: Material(
             color: Colors.transparent,
             child: _SpaceIcon(
@@ -602,12 +617,17 @@ class _SpaceIcon extends ConsumerWidget {
     // matter so an unrelated settings write (a draft keystroke) can't rebuild
     // every rail icon.
     final spaceMuted = ref.watch(
-      settingsControllerProvider.select((s) => s.isSpaceMuted(space.id)),
+      settingsControllerProvider.select(
+        (s) => s.isSpaceMuted(serverKey, space.id),
+      ),
     );
     final channelLevels = ref.watch(
-      settingsControllerProvider.select((s) => s.channelNotifications),
+      settingsControllerProvider.select(
+        (s) => s.channelNotificationsFor(serverKey),
+      ),
     );
-    final hasUnread = !selected &&
+    final hasUnread =
+        !selected &&
         readState.spaceShowsUnread(
           space.id,
           spaceMuted: spaceMuted,
@@ -620,10 +640,14 @@ class _SpaceIcon extends ConsumerWidget {
     );
     // Dim the icon while its server's gateway is down, so an unreachable space
     // reads as offline rather than just unselected.
-    final unreachable = serverKey.isNotEmpty &&
+    final unreachable =
+        serverKey.isNotEmpty &&
         (ref
-                .watch(connectionsControllerProvider
-                    .select((s) => s.connectionFor(serverKey)?.status))
+                .watch(
+                  connectionsControllerProvider.select(
+                    (s) => s.connectionFor(serverKey)?.status,
+                  ),
+                )
                 ?.isUnreachable ??
             false);
     final radius = BorderRadius.circular(selected ? 16 : 24);
@@ -753,11 +777,11 @@ class _DirectMessagesButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _RailIconTile(
-        tooltip: 'Direct messages',
-        icon: Icons.chat_bubble_outline,
-        iconSize: 22,
-        onTap: onTap,
-      );
+    tooltip: 'Direct messages',
+    icon: Icons.chat_bubble_outline,
+    iconSize: 22,
+    onTap: onTap,
+  );
 }
 
 /// The "Add a Server" (+) affordance at the foot of the rail's space list.
@@ -768,11 +792,11 @@ class _AddServerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _RailIconTile(
-        tooltip: 'Add a server',
-        icon: Icons.add,
-        iconColor: const Color(0xFF43B581),
-        onTap: onTap,
-      );
+    tooltip: 'Add a server',
+    icon: Icons.add,
+    iconColor: const Color(0xFF43B581),
+    onTap: onTap,
+  );
 }
 
 /// A small affordance at the foot of the rail showing how many servers are
@@ -785,9 +809,9 @@ class _HiddenServersButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _RailIconTile(
-        tooltip: '$count hidden ${count == 1 ? 'server' : 'servers'}',
-        icon: Icons.visibility_off_outlined,
-        iconSize: 20,
-        onTap: onTap,
-      );
+    tooltip: '$count hidden ${count == 1 ? 'server' : 'servers'}',
+    icon: Icons.visibility_off_outlined,
+    iconSize: 20,
+    onTap: onTap,
+  );
 }

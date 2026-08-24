@@ -1,3 +1,4 @@
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
@@ -68,7 +69,7 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
         .select((s) => s is AccordAuthLoggedIn ? s.client : null));
     if (client == null) return;
     await ref
-        .read(accordMessagesControllerProvider(widget.channelId).notifier)
+        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
         .unpin(client, message.id);
     if (mounted) setState(() => _future = _load());
   }
@@ -78,10 +79,10 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
     final colors = BonfireThemeExtension.of(context);
     final members = widget.spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(widget.spaceId!));
-    final users = ref.watch(accordUsersControllerProvider);
+        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId!));
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
     final ensureUser =
-        ref.read(accordUsersControllerProvider.notifier).ensure;
+        ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),

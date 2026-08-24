@@ -78,8 +78,10 @@ class IncomingCallOverlay extends ConsumerWidget {
 
     final colors = BonfireThemeExtension.of(context);
     // Backfill the caller's profile if it isn't cached yet.
-    ref.read(accordUsersControllerProvider.notifier).ensure(incoming.callerId);
-    final users = ref.watch(accordUsersControllerProvider);
+    ref
+        .read(accordUsersControllerProvider(incoming.serverKey).notifier)
+        .ensure(incoming.callerId);
+    final users = ref.watch(accordUsersControllerProvider(incoming.serverKey));
     final cdnUrl = ref.watchCdnUrl();
 
     final caller = users[incoming.callerId];
@@ -88,7 +90,7 @@ class IncomingCallOverlay extends ConsumerWidget {
     final bg = accordAvatarColor(caller, incoming.callerId);
 
     // For a group DM, name the group; otherwise it's a 1:1 call from the caller.
-    final channels = ref.watch(dmChannelsControllerProvider);
+    final channels = ref.watch(dmChannelsControllerProvider(incoming.serverKey));
     final channel =
         channels?.where((c) => c.id == incoming.channelId).firstOrNull;
     final isGroup =
@@ -171,21 +173,22 @@ class IncomingCallOverlay extends ConsumerWidget {
 
   Future<void> _accept(BuildContext context, WidgetRef ref) async {
     final incoming = ref.read(callControllerProvider).incoming;
+    if (incoming == null) return;
     // The banner is hosted *above* the app's Navigator (see
     // [withIncomingCallOverlay]), so there is normally no Navigator in its own
     // ancestry — fall back to the app's root navigator. Accepting must not
     // depend on finding one: worst case we join without opening the call view.
     final navigator = Navigator.maybeOf(context, rootNavigator: true) ??
         rootNavigatorKey.currentState;
-    final users = ref.read(accordUsersControllerProvider);
-    final channels = ref.read(dmChannelsControllerProvider);
+    final users = ref.read(accordUsersControllerProvider(incoming.serverKey));
+    final channels = ref.read(dmChannelsControllerProvider(incoming.serverKey));
     final channel =
-        channels?.where((c) => c.id == incoming?.channelId).firstOrNull;
+        channels?.where((c) => c.id == incoming.channelId).firstOrNull;
     final isGroup = channel?.type == 'group_dm' ||
-        (incoming?.participants.length ?? 0) > 2;
+        incoming.participants.length > 2;
     final name = isGroup
         ? (channel?.name?.isNotEmpty == true ? channel!.name! : 'Group call')
-        : accordUserName(users[incoming?.callerId], fallback: 'Call');
+        : accordUserName(users[incoming.callerId], fallback: 'Call');
 
     final channelId =
         await ref.read(callControllerProvider.notifier).acceptIncoming();

@@ -12,8 +12,8 @@ part 'accord_emojis.g.dart';
 @Riverpod(keepAlive: true)
 class AccordEmojisController extends _$AccordEmojisController {
   @override
-  List<AccordEmoji>? build(String spaceId) {
-    final client = ref.watchAccordClient();
+  List<AccordEmoji>? build(String serverKey, String spaceId) {
+    final client = ref.watchAccordClientFor(serverKey);
     if (client != null) {
       _load(client, spaceId);
     }
@@ -24,7 +24,9 @@ class AccordEmojisController extends _$AccordEmojisController {
     final emojis = (await client.emojis.list(
       spaceId,
     )).listOrLog<AccordEmoji>('emojis for $spaceId');
-    if (emojis != null && ref.mounted) state = emojis;
+    if (emojis != null && ref.isCurrentAccordClient(serverKey, client)) {
+      state = emojis;
+    }
   }
 
   /// Inserts [emoji] (when the id is new) or replaces an existing one in

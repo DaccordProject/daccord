@@ -21,6 +21,7 @@ import 'package:http/testing.dart';
 // these tests cover that pair of mutations.
 
 const _spaceId = 'space1';
+const _serverKey = 'u-self@https://accord.example.test';
 const _cdn = 'https://accord.example.test/cdn';
 
 String _membersJson(List<Map<String, dynamic>> members) => jsonEncode(members);
@@ -51,7 +52,7 @@ ProviderContainer makeContainer(String body) {
   addTearDown(container.dispose);
   addTearDown(client.dispose);
   final subscription = container.listen(
-    accordMembersControllerProvider(_spaceId),
+    accordMembersControllerProvider(_serverKey, _spaceId),
     (_, _) {},
     fireImmediately: true,
   );
@@ -74,10 +75,10 @@ Future<void> _waitUntil(
 
 /// Replays what the gateway handler does for one `user.update`.
 void applyUserUpdate(ProviderContainer c, AccordUser user) {
-  c.read(accordUsersControllerProvider.notifier).upsert(user);
-  for (final spaceId in [...activeMemberSpaces]) {
+  c.read(accordUsersControllerProvider(_serverKey).notifier).upsert(user);
+  for (final key in [...activeMemberSpaces]) {
     c
-        .read(accordMembersControllerProvider(spaceId).notifier)
+        .read(accordMembersControllerProvider(key.serverKey, key.spaceId).notifier)
         .applyUserUpdate(user);
   }
 }
@@ -93,7 +94,7 @@ void main() {
       ]),
     );
     await _waitUntil(
-      () => c.read(accordMembersControllerProvider(_spaceId)) != null,
+      () => c.read(accordMembersControllerProvider(_serverKey, _spaceId)) != null,
     );
 
     applyUserUpdate(
@@ -106,11 +107,11 @@ void main() {
       ),
     );
 
-    final cachedUser = c.read(accordUsersControllerProvider)['u1'];
+    final cachedUser = c.read(accordUsersControllerProvider(_serverKey))['u1'];
     expect(cachedUser?.displayName, 'Renamed');
     expect(accordAvatarUrl(cachedUser, _cdn), contains('newhash'));
 
-    final member = c.read(accordMembersControllerProvider(_spaceId))!['u1']!;
+    final member = c.read(accordMembersControllerProvider(_serverKey, _spaceId))!['u1']!;
     expect(accordMemberName(member), 'Renamed');
     expect(accordMemberAvatarUrl(member, _cdn), contains('newhash'));
   });
@@ -127,7 +128,7 @@ void main() {
       ]),
     );
     await _waitUntil(
-      () => c.read(accordMembersControllerProvider(_spaceId)) != null,
+      () => c.read(accordMembersControllerProvider(_serverKey, _spaceId)) != null,
     );
 
     applyUserUpdate(
@@ -140,7 +141,7 @@ void main() {
       ),
     );
 
-    final member = c.read(accordMembersControllerProvider(_spaceId))!['u1']!;
+    final member = c.read(accordMembersControllerProvider(_serverKey, _spaceId))!['u1']!;
     // The member record itself is untouched: overrides survive the update.
     expect(member.nickname, 'Spacey');
     expect(member.avatar, 'memberhash');
@@ -160,7 +161,7 @@ void main() {
       ]),
     );
     await _waitUntil(
-      () => c.read(accordMembersControllerProvider(_spaceId)) != null,
+      () => c.read(accordMembersControllerProvider(_serverKey, _spaceId)) != null,
     );
 
     applyUserUpdate(
@@ -169,10 +170,14 @@ void main() {
     );
 
     expect(
-      c.read(accordUsersControllerProvider)['stranger']?.displayName,
+      c
+          .read(accordUsersControllerProvider(_serverKey))['stranger']
+          ?.displayName,
       'Str',
     );
-    final members = c.read(accordMembersControllerProvider(_spaceId))!;
+    final members = c.read(
+      accordMembersControllerProvider(_serverKey, _spaceId),
+    )!;
     expect(members.keys, ['u1']);
   });
 }

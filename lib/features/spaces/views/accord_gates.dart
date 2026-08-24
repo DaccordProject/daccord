@@ -4,6 +4,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +20,11 @@ Future<bool> confirmNsfwGate(
   required String channelId,
   required String channelName,
 }) async {
-  if (ref.read(settingsControllerProvider).isNsfwAcknowledged(channelId)) {
+  final serverKey = ref.readActiveServerKey();
+  if (serverKey == null) return false;
+  if (ref
+      .read(settingsControllerProvider)
+      .isNsfwAcknowledged(serverKey, channelId)) {
     return true;
   }
   final colors = BonfireThemeExtension.of(context);
@@ -73,7 +78,9 @@ Future<bool> confirmNsfwGate(
     },
   );
   if (confirmed == true) {
-    ref.read(settingsControllerProvider.notifier).acknowledgeNsfw(channelId);
+    ref
+        .read(settingsControllerProvider.notifier)
+        .acknowledgeNsfw(serverKey, channelId);
     return true;
   }
   return false;
@@ -90,8 +97,12 @@ Future<void> maybeShowRulesInterstitial(
   required AccordSpace space,
 }) async {
   final rulesChannelId = space.rulesChannelId;
+  final serverKey = ref.readActiveServerKey();
+  if (serverKey == null) return;
   if (rulesChannelId == null ||
-      ref.read(settingsControllerProvider).isRulesAccepted(space.id)) {
+      ref
+          .read(settingsControllerProvider)
+          .isRulesAccepted(serverKey, space.id)) {
     return;
   }
   final client = ref.read(
@@ -151,7 +162,7 @@ Future<void> maybeShowRulesInterstitial(
                     onPressed: () {
                       ref
                           .read(settingsControllerProvider.notifier)
-                          .acceptRules(space.id);
+                          .acceptRules(serverKey, space.id);
                       Navigator.of(context).pop();
                     },
                     child: const Text('I agree'),

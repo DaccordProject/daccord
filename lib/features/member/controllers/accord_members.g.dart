@@ -31,7 +31,7 @@ final class MembersLoadFailedProvider
   /// `_load`; set true only after the retries are exhausted.
   const MembersLoadFailedProvider._({
     required MembersLoadFailedFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'membersLoadFailedProvider',
@@ -47,7 +47,7 @@ final class MembersLoadFailedProvider
   String toString() {
     return r'membersLoadFailedProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -73,7 +73,7 @@ final class MembersLoadFailedProvider
   }
 }
 
-String _$membersLoadFailedHash() => r'13daffe42918003e1b2b4dcdaf0e5120feadfc47';
+String _$membersLoadFailedHash() => r'c387131ed64445df83999a39422b19cd49039680';
 
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
@@ -82,7 +82,14 @@ String _$membersLoadFailedHash() => r'13daffe42918003e1b2b4dcdaf0e5120feadfc47';
 /// `_load`; set true only after the retries are exhausted.
 
 final class MembersLoadFailedFamily extends $Family
-    with $ClassFamilyOverride<MembersLoadFailed, bool, bool, bool, String> {
+    with
+        $ClassFamilyOverride<
+          MembersLoadFailed,
+          bool,
+          bool,
+          bool,
+          (String, String)
+        > {
   const MembersLoadFailedFamily._()
     : super(
         retry: null,
@@ -98,8 +105,8 @@ final class MembersLoadFailedFamily extends $Family
   /// successful load, and by the roster's Retry button before it re-triggers
   /// `_load`; set true only after the retries are exhausted.
 
-  MembersLoadFailedProvider call(String spaceId) =>
-      MembersLoadFailedProvider._(argument: spaceId, from: this);
+  MembersLoadFailedProvider call(String serverKey, String spaceId) =>
+      MembersLoadFailedProvider._(argument: (serverKey, spaceId), from: this);
 
   @override
   String toString() => r'membersLoadFailedProvider';
@@ -112,14 +119,15 @@ final class MembersLoadFailedFamily extends $Family
 /// `_load`; set true only after the retries are exhausted.
 
 abstract class _$MembersLoadFailed extends $Notifier<bool> {
-  late final _$args = ref.$arg as String;
-  String get spaceId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get spaceId => _$args.$2;
 
-  bool build(String spaceId);
+  bool build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -154,7 +162,7 @@ final class AccordMembersControllerProvider
   /// `null` means "not loaded yet".
   const AccordMembersControllerProvider._({
     required AccordMembersControllerFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'accordMembersControllerProvider',
@@ -170,7 +178,7 @@ final class AccordMembersControllerProvider
   String toString() {
     return r'accordMembersControllerProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -198,7 +206,7 @@ final class AccordMembersControllerProvider
 }
 
 String _$accordMembersControllerHash() =>
-    r'40bf912adff5a90caa8721b97d74f6563dba05e3';
+    r'e24a3dd16dabdafaec8bfc9c5e3561a202d5855e';
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
@@ -212,7 +220,7 @@ final class AccordMembersControllerFamily extends $Family
           Map<String, AccordMember>?,
           Map<String, AccordMember>?,
           Map<String, AccordMember>?,
-          String
+          (String, String)
         > {
   const AccordMembersControllerFamily._()
     : super(
@@ -228,8 +236,11 @@ final class AccordMembersControllerFamily extends $Family
   /// logged in) and is kept in sync by member join/update/leave gateway events.
   /// `null` means "not loaded yet".
 
-  AccordMembersControllerProvider call(String spaceId) =>
-      AccordMembersControllerProvider._(argument: spaceId, from: this);
+  AccordMembersControllerProvider call(String serverKey, String spaceId) =>
+      AccordMembersControllerProvider._(
+        argument: (serverKey, spaceId),
+        from: this,
+      );
 
   @override
   String toString() => r'accordMembersControllerProvider';
@@ -242,14 +253,15 @@ final class AccordMembersControllerFamily extends $Family
 
 abstract class _$AccordMembersController
     extends $Notifier<Map<String, AccordMember>?> {
-  late final _$args = ref.$arg as String;
-  String get spaceId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get spaceId => _$args.$2;
 
-  Map<String, AccordMember>? build(String spaceId);
+  Map<String, AccordMember>? build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref =
         this.ref
             as $Ref<Map<String, AccordMember>?, Map<String, AccordMember>?>;

@@ -116,9 +116,9 @@ class _AuditLogDialogState extends ConsumerState<_AuditLogDialog>
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
-    final users = ref.watch(accordUsersControllerProvider);
-    final ensureUser = ref.read(accordUsersControllerProvider.notifier).ensure;
+    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
+    final users = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+    final ensureUser = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
 
     // Distinct action types present, for the filter dropdown.
     final actionTypes = <String>{

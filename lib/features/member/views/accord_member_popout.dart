@@ -114,7 +114,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       closeOnSuccess: true,
       missingIsSuccess: true,
       onSuccess: () => ref
-          .read(accordMembersControllerProvider(widget.spaceId).notifier)
+          .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
           .removeMember(widget.userId),
     );
   }
@@ -141,10 +141,10 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   /// the moderation dialogs that name their target.
   String get _displayName {
     final member = ref.read(
-      accordMembersControllerProvider(widget.spaceId),
+      accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId),
     )?[widget.userId];
     if (member != null) return accordMemberName(member);
-    final cached = ref.read(accordUsersControllerProvider)[widget.userId];
+    final cached = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''))[widget.userId];
     return accordUserName(cached, fallback: widget.userId);
   }
 
@@ -164,7 +164,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       closeOnSuccess: true,
       missingIsSuccess: true,
       onSuccess: () => ref
-          .read(accordMembersControllerProvider(widget.spaceId).notifier)
+          .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
           .removeMember(widget.userId),
       onResult: (result) {
         if (request.deleteMessageSeconds == 0) return;
@@ -255,7 +255,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       onSuccess: () {
         member.nickname = next.isEmpty ? null : next;
         ref
-            .read(accordMembersControllerProvider(widget.spaceId).notifier)
+            .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
             .upsertMember(member);
       },
     );
@@ -276,7 +276,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         }
         member.roles = roles;
         ref
-            .read(accordMembersControllerProvider(widget.spaceId).notifier)
+            .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
             .upsertMember(member);
       },
     );
@@ -299,14 +299,14 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
 
-    final members = ref.watch(accordMembersControllerProvider(widget.spaceId));
+    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId));
     final member = members?[widget.userId];
     // Backfill the target from the on-demand user cache when outside the page.
     final cachedUser = ref.watch(
-      accordUsersControllerProvider.select((m) => m[widget.userId]),
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[widget.userId]),
     );
     if (member == null && cachedUser == null && members != null) {
-      ref.read(accordUsersControllerProvider.notifier).ensure(widget.userId);
+      ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure(widget.userId);
     }
 
     final space = ref.watch(

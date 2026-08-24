@@ -101,7 +101,7 @@ class _Harness {
   late final ProviderContainer container;
 
   AccordMessagesController get messages =>
-      container.read(accordMessagesControllerProvider(_channelId).notifier);
+      container.read(accordMessagesControllerProvider('', _channelId).notifier);
 
   /// Requests against [messageId]'s own sub-resources — i.e. everything except
   /// the channel-level message list. The suffix after the id is kept so the

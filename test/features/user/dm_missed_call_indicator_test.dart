@@ -15,7 +15,7 @@ class _FakeDmChannels extends DmChannelsController {
   final List<AccordChannel> _channels;
 
   @override
-  List<AccordChannel>? build() => _channels;
+  List<AccordChannel>? build(String serverKey) => _channels;
 }
 
 AccordChannel _dm(String id, String withName) => AccordChannel(
@@ -51,7 +51,7 @@ void main() {
   setUp(() {
     container = ProviderContainer(
       overrides: [
-        dmChannelsControllerProvider
+        dmChannelsControllerProvider('')
             .overrideWith(() => _FakeDmChannels([_dm('dm1', 'bob')])),
       ],
     );
@@ -117,7 +117,7 @@ void main() {
   testWidgets('opening a different conversation keeps the indicator',
       (tester) async {
     container.updateOverrides([
-      dmChannelsControllerProvider.overrideWith(
+      dmChannelsControllerProvider('').overrideWith(
         () => _FakeDmChannels([_dm('dm1', 'bob'), _dm('dm2', 'carol')]),
       ),
     ]);

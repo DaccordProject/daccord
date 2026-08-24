@@ -170,13 +170,14 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
   /// The DM/group-DM channel's display name: its custom name if it has one,
   /// otherwise the other participants' names.
   String _dmTitle(String channelId) {
+    final serverKey = ref.read(voiceControllerProvider).serverKey ?? '';
     final channel = ref
-        .read(dmChannelsControllerProvider)
+        .read(dmChannelsControllerProvider(serverKey))
         ?.firstWhereOrNull((c) => c.id == channelId);
     final name = channel?.name;
     if (name != null && name.isNotEmpty) return name;
     final myId = ref.readUserId();
-    final users = ref.read(accordUsersControllerProvider);
+    final users = ref.read(accordUsersControllerProvider(serverKey));
     final others = (channel?.recipients ?? const <AccordUser>[])
         .where((u) => u.id != myId)
         .map((u) => accordUserName(users[u.id] ?? u, fallback: 'Someone'));
@@ -218,9 +219,10 @@ class _VoicePipOverlayState extends ConsumerState<VoicePipOverlay> {
     }
 
     final channelId = voice.channelId;
-    if (channelId == null) return null;
+    final serverKey = voice.serverKey;
+    if (channelId == null || serverKey == null) return null;
     final states = voiceStatesFor(
-      ref.read(voiceStatesControllerProvider),
+      ref.read(voiceStatesControllerProvider(serverKey)),
       channelId,
     );
     for (final vs in states) {

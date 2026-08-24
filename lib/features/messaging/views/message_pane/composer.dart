@@ -57,6 +57,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// which Riverpod tears down before `dispose()` runs. Safe because
   /// `SettingsController` is `keepAlive`, so this notifier outlives the widget.
   late final SettingsController _settings;
+  late String _serverKey;
 
   /// Text pastes longer than this prompt to send as a `.txt` attachment.
   static const _largePasteThreshold = 2000;
@@ -65,9 +66,10 @@ class _ComposerState extends ConsumerState<_Composer> {
   void initState() {
     super.initState();
     _settings = ref.read(settingsControllerProvider.notifier);
+    _serverKey = ref.readActiveServerKey() ?? '';
     _controller.text = ref
         .read(settingsControllerProvider)
-        .draftFor(widget.channelId);
+        .draftFor(_serverKey, widget.channelId);
     // Intercept Ctrl/Cmd+V to support pasting images and large text (the
     // EditableText's own paste only handles inline text).
     _focusNode.onKeyEvent = _onComposerKey;
@@ -163,13 +165,16 @@ class _ComposerState extends ConsumerState<_Composer> {
   @override
   void didUpdateWidget(_Composer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.channelId != widget.channelId) {
+    final nextServerKey = ref.readActiveServerKey() ?? '';
+    if (oldWidget.channelId != widget.channelId ||
+        nextServerKey != _serverKey) {
       // Channel switched within the same composer instance: persist the
       // outgoing channel's draft and restore the incoming channel's.
       _saveDraft(oldWidget.channelId, _controller.text);
       _controller.text = ref
           .read(settingsControllerProvider)
-          .draftFor(widget.channelId);
+          .draftFor(nextServerKey, widget.channelId);
+      _serverKey = nextServerKey;
       _lastTypingSent = null;
     }
   }
@@ -177,7 +182,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// Persists [text] as the draft for [channelId] (mirrors the reference
   /// client's `Config.set_draft_text`).
   void _saveDraft(String channelId, String text) {
-    _settings.setDraft(channelId, text);
+    _settings.setDraft(_serverKey, channelId, text);
   }
 
   @override
@@ -320,7 +325,9 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (_sending) return;
     final picked = <PendingAttachment>[];
     final rejections = <String>[];
-    final maxBytes = ref.read(serverLimitsControllerProvider).maxAttachmentBytes;
+    final maxBytes = ref
+        .read(serverLimitsControllerProvider)
+        .maxAttachmentBytes;
     for (final item in details.files) {
       // `DropItemDirectory` only comes back on macOS and web; Linux and Windows
       // share a handler that types every dropped path as a file, so the path
@@ -454,7 +461,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (client == null) return;
 
     final controller = ref.read(
-      accordMessagesControllerProvider(widget.channelId).notifier,
+      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier,
     );
     final replyTo = widget.replyingTo?.id;
     final attachments = List<PendingAttachment>.of(_attachments);
@@ -640,9 +647,11 @@ class _ComposerState extends ConsumerState<_Composer> {
                   IconButton(
                     tooltip: atAttachmentLimit
                         ? 'Attachment limit reached '
-                            '(${limits.maxAttachmentsPerMessage} per message)'
+                              '(${limits.maxAttachmentsPerMessage} per message)'
                         : 'Attach files',
-                    onPressed: _sending || atAttachmentLimit ? null : _pickFiles,
+                    onPressed: _sending || atAttachmentLimit
+                        ? null
+                        : _pickFiles,
                     icon: Icon(
                       Icons.add_circle_outline,
                       size: 20,
@@ -728,7 +737,7 @@ class _MentionPopup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final members = ref.watch(accordMembersControllerProvider(spaceId));
+    final members = ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
     final space = ref.watch(
       spacesControllerProvider.select(
         (s) => s?.firstWhereOrNull((sp) => sp.id == spaceId),

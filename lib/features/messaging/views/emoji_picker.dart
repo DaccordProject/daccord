@@ -85,7 +85,7 @@ class _EmojiPickerSheetState extends ConsumerState<_EmojiPickerSheet> {
   List<AccordEmoji> get _customEmoji {
     final spaceId = widget.spaceId;
     if (spaceId == null) return const [];
-    return ref.watch(accordEmojisControllerProvider(spaceId)) ?? const [];
+    return ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', spaceId)) ?? const [];
   }
 
   void _pick(EmojiPick pick) {

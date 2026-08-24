@@ -21,10 +21,10 @@ ProviderContainer makeContainer() {
 }
 
 AccordMessagesController notifier(ProviderContainer c) =>
-    c.read(accordMessagesControllerProvider('chan@b.example').notifier);
+    c.read(accordMessagesControllerProvider('', 'chan@b.example').notifier);
 
 List<AccordMessage>? messages(ProviderContainer c) =>
-    c.read(accordMessagesControllerProvider('chan@b.example'));
+    c.read(accordMessagesControllerProvider('', 'chan@b.example'));
 
 AccordMessage _remote({
   String id = 'm1@b.example',

@@ -143,7 +143,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     setState(() => _sending = true);
     final ok = await ref
         .read(
-          threadRepliesControllerProvider(
+          threadRepliesControllerProvider(ref.readActiveServerKey() ?? '',
             widget.channelId,
             widget.root.id,
           ).notifier,
@@ -216,7 +216,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         break;
       }
     }
-    final channels = ref.read(accordChannelsControllerProvider(spaceId));
+    final channels = ref.read(accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
     AccordChannel? channel;
     for (final c in channels ?? const <AccordChannel>[]) {
       if (c.id == widget.channelId) {
@@ -271,7 +271,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
     final replies = ref.watch(
-      threadRepliesControllerProvider(widget.channelId, widget.root.id),
+      threadRepliesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId, widget.root.id),
     );
     final currentUserId = _currentUserId;
     final dialog = widget.dialog;
@@ -489,7 +489,7 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
   AccordClient? get _client => ref.accordClient;
 
   ThreadRepliesController get _replies => ref.read(
-    threadRepliesControllerProvider(widget.channelId, widget.rootId).notifier,
+    threadRepliesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId, widget.rootId).notifier,
   );
 
   bool get _canDelete => widget.isOwn || widget.canManageMessages;
@@ -535,8 +535,8 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final authorId = message.authorId;
     final member = widget.spaceId == null
         ? null
-        : ref.read(accordMembersControllerProvider(widget.spaceId!))?[authorId];
-    final user = ref.read(accordUsersControllerProvider)[authorId];
+        : ref.read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId!))?[authorId];
+    final user = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''))[authorId];
     final name = accordAuthorNameOf(authorId, member: member, user: user);
     final entries = buildMessageActionEntries(
       content: message.content,
@@ -567,14 +567,14 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final member = widget.spaceId == null
         ? null
         : ref.watch(
-            accordMembersControllerProvider(
+            accordMembersControllerProvider(ref.readActiveServerKey() ?? '',
               widget.spaceId!,
             ).select((m) => m?[authorId]),
           );
     final user = ref.watch(
-      accordUsersControllerProvider.select((m) => m[authorId]),
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((m) => m[authorId]),
     );
-    final ensure = ref.read(accordUsersControllerProvider.notifier).ensure;
+    final ensure = ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure;
     final cdnUrl = ref.watchCdnUrl();
     final name = accordAuthorNameOf(
       authorId,

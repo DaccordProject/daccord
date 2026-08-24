@@ -108,7 +108,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
     // Mirror successful updates into the channel cache. The gateway echo will
     // typically arrive too, but updating optimistically keeps the UI snappy.
     final notifier = ref.read(
-      accordChannelsControllerProvider(widget.spaceId).notifier,
+      accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,
     );
     for (final channel in updated) {
       notifier.upsertChannel(channel);
@@ -133,7 +133,7 @@ class _ChannelReorderState extends ConsumerState<_ChannelReorder> {
       _error = null;
     });
     final notifier = ref.read(
-      accordChannelsControllerProvider(widget.spaceId).notifier,
+      accordChannelsControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier,
     );
     final failed = <String>[];
     for (final id in ids) {

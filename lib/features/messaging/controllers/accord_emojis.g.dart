@@ -25,7 +25,7 @@ final class AccordEmojisControllerProvider
   /// an empty list means the space has no custom emoji.
   const AccordEmojisControllerProvider._({
     required AccordEmojisControllerFamily super.from,
-    required String super.argument,
+    required (String, String) super.argument,
   }) : super(
          retry: null,
          name: r'accordEmojisControllerProvider',
@@ -41,7 +41,7 @@ final class AccordEmojisControllerProvider
   String toString() {
     return r'accordEmojisControllerProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -69,7 +69,7 @@ final class AccordEmojisControllerProvider
 }
 
 String _$accordEmojisControllerHash() =>
-    r'385c9128534f0e9f72533d6a728cbd1f74cede83';
+    r'07a95433e5bb4b6f9b7a4ea4bb11864878740113';
 
 /// A space's custom emoji, keyed by space ID. Self-loads via `emojis.list` the
 /// first time it's watched (once logged in). `null` means "not loaded yet";
@@ -82,7 +82,7 @@ final class AccordEmojisControllerFamily extends $Family
           List<AccordEmoji>?,
           List<AccordEmoji>?,
           List<AccordEmoji>?,
-          String
+          (String, String)
         > {
   const AccordEmojisControllerFamily._()
     : super(
@@ -97,8 +97,11 @@ final class AccordEmojisControllerFamily extends $Family
   /// first time it's watched (once logged in). `null` means "not loaded yet";
   /// an empty list means the space has no custom emoji.
 
-  AccordEmojisControllerProvider call(String spaceId) =>
-      AccordEmojisControllerProvider._(argument: spaceId, from: this);
+  AccordEmojisControllerProvider call(String serverKey, String spaceId) =>
+      AccordEmojisControllerProvider._(
+        argument: (serverKey, spaceId),
+        from: this,
+      );
 
   @override
   String toString() => r'accordEmojisControllerProvider';
@@ -109,14 +112,15 @@ final class AccordEmojisControllerFamily extends $Family
 /// an empty list means the space has no custom emoji.
 
 abstract class _$AccordEmojisController extends $Notifier<List<AccordEmoji>?> {
-  late final _$args = ref.$arg as String;
-  String get spaceId => _$args;
+  late final _$args = ref.$arg as (String, String);
+  String get serverKey => _$args.$1;
+  String get spaceId => _$args.$2;
 
-  List<AccordEmoji>? build(String spaceId);
+  List<AccordEmoji>? build(String serverKey, String spaceId);
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build(_$args);
+    final created = build(_$args.$1, _$args.$2);
     final ref = this.ref as $Ref<List<AccordEmoji>?, List<AccordEmoji>?>;
     final element =
         ref.element

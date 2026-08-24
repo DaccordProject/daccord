@@ -58,7 +58,7 @@ Future<void> main() async {
       // only writes to channels the UI is actually showing (see
       // `activeMessageChannels`), so without this the cache never updates.
       container.listen(
-        accordMessagesControllerProvider(channelId),
+        accordMessagesControllerProvider('', channelId),
         (_, _) {},
         fireImmediately: true,
       );
@@ -67,7 +67,7 @@ Future<void> main() async {
     tearDownAll(harness.dispose);
 
     List<AccordMessage>? read() =>
-        container.read(accordMessagesControllerProvider(channelId));
+        container.read(accordMessagesControllerProvider('', channelId));
 
     test('the controller loads channel history from the server', () async {
       final created = await alice.client.messages
@@ -75,7 +75,7 @@ Future<void> main() async {
       expect(created.ok, isTrue, reason: '${created.error}');
 
       await container
-          .read(accordMessagesControllerProvider(channelId).notifier)
+          .read(accordMessagesControllerProvider('', channelId).notifier)
           .reload(alice.client);
 
       final messages = await waitForState(
