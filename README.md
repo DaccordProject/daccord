@@ -84,7 +84,19 @@ Run your own. **AccordServer** is the open-source, Rust-powered backend that pow
 
 Daccord stands on the shoulders of giants. It's a fork of **[Bonfire](https://github.com/OpenBonfire/bonfire)** — a mature, fast, cross-platform Discord client written in Flutter. We reuse Bonfire's polished UI, theming, routing, and caching, and **replace its Discord networking layer entirely** with the **Accord protocol** via **[accordkit-dart](https://github.com/DaccordProject/accordkit-dart)**.
 
-The result: Bonfire's battle-tested experience, pointed at a platform that's actually free and open — with feature parity against the Godot-based client it succeeds.
+The result: Bonfire's battle-tested experience pointed at a platform that's actually free and open. The Flutter client is actively working toward feature parity with the Godot client; it has not reached it yet.
+
+### Current limitations
+
+The core messaging, administration, and LiveKit calling paths are implemented, but early-development gaps still affect day-to-day expectations:
+
+- Background push delivery is not implemented; notifications are currently foreground-only ([#81](https://github.com/DaccordProject/daccord/issues/81)).
+- DM calls still lack some mid-call state propagation and picture-in-picture behavior available elsewhere ([#141](https://github.com/DaccordProject/daccord/issues/141)).
+- `@everyone` / `@here` permission checks, autocomplete, and suppression behavior are incomplete ([#213](https://github.com/DaccordProject/daccord/issues/213)–[#216](https://github.com/DaccordProject/daccord/issues/216)).
+- Device-profile storage isolation on Web does not yet match native platforms ([#247](https://github.com/DaccordProject/daccord/issues/247)).
+- Store signing and distribution setup is still being completed for some release targets ([#90](https://github.com/DaccordProject/daccord/issues/90), [#123](https://github.com/DaccordProject/daccord/issues/123)).
+
+See the [open issue tracker](https://github.com/DaccordProject/daccord/issues) for the current backlog rather than treating this list as exhaustive.
 
 A thin repository layer subscribes to Accord gateway streams, updates a local cache, and exposes Riverpod providers to the UI.
 
