@@ -1,9 +1,6 @@
-# What's New for v0.2.13. Delivered verbatim to App Store Connect (comment
-# lines like this one are stripped). Clear this file after the release.
-
-• Daccord no longer collects crash reports, analytics or telemetry of any
-  kind, and the prompt asking to send them is gone.
-• Text now follows your device's text size setting, so Larger Text and the
-  accessibility sizes scale the whole app.
-• Improved text contrast in the Light and Solarized themes, and increased
-  the smallest text sizes for readability.
+# Optional App Store "What's New" override. Keep this file comment-only between
+# releases so dist/app-store-release-notes.sh derives notes from commits.
+#
+# To override one release, add `# Release version: x.y.z` and the user-facing
+# text below it. The script rejects missing or stale version markers before any
+# store upload.

@@ -140,8 +140,18 @@ The iOS job checks out with `fetch-depth: 0` because a shallow clone has no
 previous tag to diff against; if one is ever missing the script falls back to a
 generic note instead of failing the release.
 
-To hand-write the notes for a release instead, edit the two `release_notes.txt`
-paths after the generate step — or drop the step and commit the files.
+To hand-write the notes for one release, add a version marker and the copy to
+`dist/release-notes.txt`:
+
+```text
+# Release version: 0.2.14
+• Added a clearer example of a user-visible improvement.
+```
+
+The marker must match both `pubspec.yaml` and the `v*` release tag or the job
+fails before upload. After the release, return the file to its comment-only
+template; otherwise a later version also fails instead of silently reusing
+stale copy.
 
 ## What's still manual
 

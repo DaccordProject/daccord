@@ -44,11 +44,56 @@ FALLBACK="Bug fixes and performance improvements."
 # release needs copy written on purpose, put it here; the derived notes remain
 # the default so no release can ship without any.
 #
-# Clear it after the release it was written for, or the next release ships
-# stale text — the version it belongs to is recorded on the first line as a
-# comment, which is stripped before delivery, so a mismatch is visible in the
-# job log.
+# Hand-written notes must start with `# Release version: x.y.z`. The script
+# compares that marker with both pubspec.yaml and a v* tag, when present, and
+# fails before upload on any mismatch. Keep the file comment-only between
+# releases so derived notes remain the safe default.
 OVERRIDE="dist/release-notes.txt"
+
+app_version() {
+  sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml |
+    head -n 1
+}
+
+tag_version() {
+  if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [[ "${GITHUB_REF_NAME:-}" == v* ]]; then
+    printf '%s\n' "${GITHUB_REF_NAME#v}"
+    return
+  fi
+  git tag --points-at HEAD 2>/dev/null |
+    sed -nE 's/^v([^[:space:]]+)$/\1/p' |
+    head -n 1
+}
+
+override_version() {
+  sed -nE \
+    's/^#[[:space:]]*Release version:[[:space:]]*v?([^[:space:]]+)[[:space:]]*$/\1/p' \
+    "$OVERRIDE" | head -n 1
+}
+
+validate_override() {
+  local declared expected tagged
+  declared="$(override_version)"
+  expected="$(app_version)"
+  tagged="$(tag_version)"
+
+  if [ -z "$declared" ]; then
+    echo "::error::$OVERRIDE has release copy but no '# Release version: x.y.z' marker." >&2
+    return 1
+  fi
+  if [ -z "$expected" ]; then
+    echo "::error::Could not read the version from pubspec.yaml." >&2
+    return 1
+  fi
+  if [ "$declared" != "$expected" ]; then
+    echo "::error::$OVERRIDE targets $declared but pubspec.yaml is $expected." >&2
+    return 1
+  fi
+  if [ -n "$tagged" ] && [ "$declared" != "$tagged" ]; then
+    echo "::error::$OVERRIDE targets $declared but the release tag is v$tagged." >&2
+    return 1
+  fi
+}
 
 previous_tag() {
   # The release tag before the one being built. `git describe` walks back from
@@ -117,6 +162,7 @@ main() {
     # but comments falls through to the derived notes, and claiming otherwise
     # in the log would send someone hunting for copy that was never used.
     if [ -n "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+      validate_override
       echo "Using hand-written notes from $OVERRIDE"
     else
       echo "$OVERRIDE has no content after comments — deriving from commits"
