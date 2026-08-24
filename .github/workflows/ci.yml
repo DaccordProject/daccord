@@ -66,6 +66,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify executable-file allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          tracked="$(mktemp)"
+          expected="$(mktemp)"
+          trap 'rm -f "$tracked" "$expected"' EXIT
+          git ls-files --stage \
+            | awk '$1 == "100755" { print $4 }' \
+            | LC_ALL=C sort > "$tracked"
+          LC_ALL=C sort .github/executable-files.txt > "$expected"
+          if ! diff -u "$expected" "$tracked"; then
+            echo "Executable files differ from .github/executable-files.txt" >&2
+            exit 1
+          fi
+
       - name: Cache pub + native deps
         uses: actions/cache@v4
         with:

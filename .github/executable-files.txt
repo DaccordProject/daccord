@@ -1,0 +1,9 @@
+dist/app-store-release-notes.sh
+dist/build-deb.sh
+scripts/_common.sh
+scripts/bootstrap-signing.sh
+scripts/build.sh
+scripts/codegen.sh
+scripts/setup.sh
+scripts/start.sh
+store-media/ios-generator/render.sh
