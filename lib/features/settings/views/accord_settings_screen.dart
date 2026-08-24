@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
@@ -35,8 +33,7 @@ import 'package:go_router/go_router.dart';
 /// * **Narrow** (< [kSettingsWideBreakpoint]) — the original single flat
 ///   `ListView` of all eleven sections. Unchanged.
 /// * **Wide** — a left category sidebar (Account / App / System / Advanced)
-///   plus a content pane that lays that category's sections out as width-capped
-///   cards in one to three columns. See [_DesktopSettings].
+///   plus one ordered, width-capped content column. See [_DesktopSettings].
 class AccordSettingsScreen extends ConsumerWidget {
   const AccordSettingsScreen({super.key});
 
@@ -72,10 +69,7 @@ class AccordSettingsScreen extends ConsumerWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= kSettingsWideBreakpoint) {
-            return _DesktopSettings(
-              width: constraints.maxWidth,
-              onLogOut: logOut,
-            );
+            return _DesktopSettings(onLogOut: logOut);
           }
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -130,29 +124,13 @@ class AccordSettingsScreen extends ConsumerWidget {
 /// pure function of width, so it is measured with a width-only breakpoint.
 const double kSettingsWideBreakpoint = 1000;
 
-/// Widths at which a second / third column of section cards appears.
-const double kSettingsTwoColumnBreakpoint = 1200;
-const double kSettingsThreeColumnBreakpoint = 1700;
-
-/// Maximum width of one section card. Caps every control row so a label and
+/// Maximum width of the ordered settings content. Caps every control row so a label and
 /// its switch stay visually paired instead of sitting at opposite ends of an
 /// ultrawide window.
-const double kSettingsCardMaxWidth = 520;
+const double kSettingsContentMaxWidth = 760;
 
 const double _kSidebarWidth = 232;
-const double _kCardGap = 16;
 const double _kPanePadding = 16;
-
-/// How many card columns the content pane uses at a given window [width].
-///
-/// The UI scale setting only scales *text* (`main.dart` sets a
-/// `TextScaler`), so these logical-pixel breakpoints hold at any UI scale; the
-/// cards simply grow taller as text does.
-int settingsColumnCount(double width) {
-  if (width >= kSettingsThreeColumnBreakpoint) return 3;
-  if (width >= kSettingsTwoColumnBreakpoint) return 2;
-  return 1;
-}
 
 /// The four sidebar categories the eleven settings sections group into.
 enum SettingsCategory {
@@ -169,10 +147,8 @@ enum SettingsCategory {
 
 /// Sidebar + content pane. Owns which category is selected.
 class _DesktopSettings extends StatefulWidget {
-  const _DesktopSettings({required this.width, required this.onLogOut});
+  const _DesktopSettings({required this.onLogOut});
 
-  /// Full width of the settings body, used for the column-count breakpoints.
-  final double width;
   final VoidCallback onLogOut;
 
   @override
@@ -194,9 +170,7 @@ class _DesktopSettingsState extends State<_DesktopSettings> {
           onLogOut: widget.onLogOut,
         ),
         VerticalDivider(width: 1, thickness: 1, color: colors.background),
-        Expanded(
-          child: _CategoryPane(category: _selected, windowWidth: widget.width),
-        ),
+        Expanded(child: _CategoryPane(category: _selected)),
       ],
     );
   }
@@ -221,27 +195,37 @@ class _CategorySidebar extends StatelessWidget {
     return Material(
       key: const ValueKey('settings-sidebar'),
       color: colors.foreground,
-      child: SizedBox(
-        width: _kSidebarWidth,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  for (final category in SettingsCategory.values)
-                    _SidebarTile(
-                      category: category,
-                      selected: category == selected,
-                      onTap: () => onSelect(category),
-                    ),
-                ],
+      child: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: SizedBox(
+          width: _kSidebarWidth,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    for (final category in SettingsCategory.values)
+                      FocusTraversalOrder(
+                        key: ValueKey('settings-category-${category.name}'),
+                        order: NumericFocusOrder(category.index.toDouble()),
+                        child: _SidebarTile(
+                          category: category,
+                          selected: category == selected,
+                          onTap: () => onSelect(category),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Divider(height: 1, thickness: 1, color: colors.background),
-            _LogOutTile(onLogOut: onLogOut),
-            const SizedBox(height: 8),
-          ],
+              Divider(height: 1, thickness: 1, color: colors.background),
+              FocusTraversalOrder(
+                order: const NumericFocusOrder(100),
+                child: _LogOutTile(onLogOut: onLogOut),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -284,18 +268,13 @@ class _SidebarTile extends StatelessWidget {
   }
 }
 
-/// The selected category's sections, laid out as width-capped cards spread
-/// across one to three columns.
-///
-/// Sections vary hugely in height (Appearance is ~7 rows, About is one), so the
-/// cards are distributed down independent columns rather than into a `Wrap` —
-/// a `Wrap` row is as tall as its tallest child and would leave a ragged gap
-/// under every short card.
+/// The selected category's sections in one predictable top-to-bottom sequence.
+/// Unequal sections retain their natural visual weight instead of each becoming
+/// an equal card or being distributed round-robin across columns.
 class _CategoryPane extends ConsumerWidget {
-  const _CategoryPane({required this.category, required this.windowWidth});
+  const _CategoryPane({required this.category});
 
   final SettingsCategory category;
-  final double windowWidth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -340,73 +319,29 @@ class _CategoryPane extends ConsumerWidget {
       ],
     };
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = settingsColumnCount(windowWidth);
-        final available =
-            constraints.maxWidth -
-            _kPanePadding * 2 -
-            _kCardGap * (columns - 1);
-        final cardWidth = math.max(
-          240.0,
-          math.min(kSettingsCardMaxWidth, available / columns),
-        );
-
-        final buckets = List.generate(columns, (_) => <Widget>[]);
-        for (var i = 0; i < sections.length; i++) {
-          buckets[i % columns].add(sections[i]);
-        }
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            _kPanePadding,
-            _kPanePadding,
-            _kPanePadding,
-            32,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(
+        _kPanePadding,
+        _kPanePadding,
+        _kPanePadding,
+        32,
+      ),
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: kSettingsContentMaxWidth),
+          child: Column(
+            key: const ValueKey('settings-content-column'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (var column = 0; column < columns; column++) ...[
-                if (column > 0) const SizedBox(width: _kCardGap),
-                SizedBox(
-                  key: ValueKey('settings-column-$column'),
-                  width: cardWidth,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final section in buckets[column])
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: _kCardGap),
-                          child: _SettingsCard(child: section),
-                        ),
-                    ],
-                  ),
-                ),
+              for (var i = 0; i < sections.length; i++) ...[
+                if (i > 0) const Divider(height: 32),
+                sections[i],
               ],
             ],
           ),
-        );
-      },
-    );
-  }
-}
-
-/// A single section rendered as a bounded, rounded surface instead of a
-/// full-bleed slice of one long list.
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = BonfireThemeExtension.of(context);
-    return Material(
-      clipBehavior: Clip.antiAlias,
-      color: colors.foreground,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: child),
+        ),
+      ),
     );
   }
 }

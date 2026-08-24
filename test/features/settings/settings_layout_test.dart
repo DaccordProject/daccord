@@ -42,7 +42,8 @@ Future<void> _pumpAt(
 }
 
 Finder _sidebar() => find.byKey(const ValueKey('settings-sidebar'));
-Finder _column(int i) => find.byKey(ValueKey('settings-column-$i'));
+Finder _contentColumn() =>
+    find.byKey(const ValueKey('settings-content-column'));
 
 /// `SectionHeader` uppercases its label, so section headings never collide with
 /// the sidebar's mixed-case category labels.
@@ -54,19 +55,6 @@ Future<void> _selectCategory(WidgetTester tester, String label) async {
 }
 
 void main() {
-  group('settingsColumnCount', () {
-    test('is width-only and steps at 1200 / 1700', () {
-      expect(settingsColumnCount(600), 1);
-      expect(settingsColumnCount(999), 1);
-      expect(settingsColumnCount(kSettingsWideBreakpoint), 1);
-      expect(settingsColumnCount(1199), 1);
-      expect(settingsColumnCount(kSettingsTwoColumnBreakpoint), 2);
-      expect(settingsColumnCount(1699), 2);
-      expect(settingsColumnCount(kSettingsThreeColumnBreakpoint), 3);
-      expect(settingsColumnCount(3440), 3);
-    });
-  });
-
   group('narrow layout', () {
     testWidgets('stays the single flat ListView with no sidebar', (
       tester,
@@ -74,7 +62,7 @@ void main() {
       await _pumpAt(tester, const Size(600, 900));
 
       expect(_sidebar(), findsNothing);
-      expect(_column(0), findsNothing);
+      expect(_contentColumn(), findsNothing);
       expect(find.byType(ListView), findsOneWidget);
     });
 
@@ -175,37 +163,50 @@ void main() {
       expect(_section('Server Directory'), findsOneWidget);
     });
 
-    testWidgets('reflows 1 → 2 → 3 columns at 1000 / 1200 / 1700', (
-      tester,
-    ) async {
-      await _pumpAt(tester, const Size(1000, 900));
-      expect(_sidebar(), findsOneWidget);
-      expect(_column(0), findsOneWidget);
-      expect(_column(1), findsNothing);
-
-      await _pumpAt(tester, const Size(1200, 900));
-      expect(_column(1), findsOneWidget);
-      expect(_column(2), findsNothing);
-
-      await _pumpAt(tester, const Size(1700, 900));
-      expect(_column(2), findsOneWidget);
-      expect(_column(3), findsNothing);
-    });
-
-    testWidgets('caps card width so labels stay next to their controls', (
+    testWidgets('keeps one ordered content column at every desktop width', (
       tester,
     ) async {
       for (final width in const [1000.0, 1200.0, 1700.0, 3440.0]) {
         await _pumpAt(tester, Size(width, 900));
-        await _selectCategory(tester, 'App');
-        final columns = settingsColumnCount(width);
-        for (var i = 0; i < columns; i++) {
-          expect(
-            tester.getSize(_column(i)).width,
-            lessThanOrEqualTo(kSettingsCardMaxWidth),
-            reason: 'width $width, column $i',
-          );
-        }
+        expect(_sidebar(), findsOneWidget, reason: '$width');
+        expect(_contentColumn(), findsOneWidget, reason: '$width');
+        expect(
+          tester.getSize(_contentColumn()).width,
+          lessThanOrEqualTo(kSettingsContentMaxWidth),
+          reason: '$width',
+        );
+      }
+    });
+
+    testWidgets('preserves the account pane scan order', (tester) async {
+      await _pumpAt(tester, const Size(1400, 3000));
+      final headings = [
+        _section('Account'),
+        _section('Connections'),
+        _section('Privacy & Data'),
+        _section('Server Directory'),
+      ];
+      for (var i = 1; i < headings.length; i++) {
+        expect(
+          tester.getTopLeft(headings[i]).dy,
+          greaterThan(tester.getTopLeft(headings[i - 1]).dy),
+        );
+      }
+    });
+
+    testWidgets('sidebar categories expose an explicit keyboard order', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1400, 900));
+
+      for (final category in SettingsCategory.values) {
+        final order = tester.widget<FocusTraversalOrder>(
+          find.byKey(ValueKey('settings-category-${category.name}')),
+        );
+        expect(
+          (order.order as NumericFocusOrder).order,
+          category.index.toDouble(),
+        );
       }
     });
 
@@ -215,8 +216,7 @@ void main() {
       await _pumpAt(tester, const Size(1200, 900), textScale: 1.5);
 
       expect(_sidebar(), findsOneWidget);
-      expect(_column(1), findsOneWidget);
-      expect(_column(2), findsNothing);
+      expect(_contentColumn(), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await _selectCategory(tester, 'App');
