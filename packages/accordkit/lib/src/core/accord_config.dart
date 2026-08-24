@@ -13,6 +13,14 @@ class AccordConfig {
 
   static const int heartbeatIntervalDefault = 45000;
 
+  /// Lower bound applied to the server-advertised `heartbeat_interval`.
+  ///
+  /// A zero or negative interval makes the periodic heartbeat timer fire as
+  /// quickly as the event loop allows, creating a CPU and network hot loop.
+  /// One second still tolerates an unusually aggressive server while bounding
+  /// the work a misconfigured or malicious server can trigger.
+  static const int heartbeatIntervalMin = 1000;
+
   /// Upper bound applied to the server-advertised `heartbeat_interval`.
   ///
   /// The heartbeat doubles as the only keepalive traffic on an otherwise-idle

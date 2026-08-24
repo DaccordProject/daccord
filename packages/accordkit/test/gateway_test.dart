@@ -109,6 +109,40 @@ void main() {
       await socket.dispose();
     });
 
+    test('raises a zero server heartbeat interval to the safe minimum',
+        () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': 0},
+      }));
+      await pump();
+
+      expect(socket.heartbeatIntervalMs, AccordConfig.heartbeatIntervalMin);
+      await socket.dispose();
+    });
+
+    test('raises a negative server heartbeat interval to the safe minimum',
+        () async {
+      final factory = FakeConnectionFactory();
+      final socket = makeSocket(factory);
+      socket.connectToGateway('ws://x');
+      await pump();
+
+      factory.last.receive(jsonEncode({
+        'op': GatewayOpcodes.hello,
+        'data': {'heartbeat_interval': -1000},
+      }));
+      await pump();
+
+      expect(socket.heartbeatIntervalMs, AccordConfig.heartbeatIntervalMin);
+      await socket.dispose();
+    });
+
     test('keeps a server heartbeat interval already under the cap', () async {
       final factory = FakeConnectionFactory();
       final socket = makeSocket(factory);

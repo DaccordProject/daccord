@@ -304,8 +304,9 @@ class GatewaySocket {
   /// see us (#208).
   bool get resumeSupported => _resumeSupported;
 
-  /// The effective heartbeat interval in ms, after capping the server-advertised
-  /// value at [AccordConfig.heartbeatIntervalMax]. Set on HELLO.
+  /// The effective heartbeat interval in ms, after constraining the
+  /// server-advertised value between [AccordConfig.heartbeatIntervalMin] and
+  /// [AccordConfig.heartbeatIntervalMax]. Set on HELLO.
   int get heartbeatIntervalMs => _heartbeatIntervalMs;
 
   /// Configures the socket before connecting.
@@ -662,14 +663,16 @@ class GatewaySocket {
     switch (op) {
       case GatewayOpcodes.hello:
         final dataMap = asMap(data) ?? const {};
-        // Cap the advertised interval: the heartbeat is our only keepalive on an
-        // idle socket, and intervals longer than a middlebox's idle timeout let
-        // the connection get culled (close 1006) before a beat fires. See
-        // [AccordConfig.heartbeatIntervalMax].
-        _heartbeatIntervalMs = min(
-          asInt(dataMap['heartbeat_interval'],
-              AccordConfig.heartbeatIntervalDefault),
-          AccordConfig.heartbeatIntervalMax,
+        // Constrain the advertised interval. Non-positive values would create a
+        // hot timer loop, while values longer than a middlebox's idle timeout
+        // can let the connection get culled (close 1006) before a beat fires.
+        final advertisedInterval = asInt(
+          dataMap['heartbeat_interval'],
+          AccordConfig.heartbeatIntervalDefault,
+        );
+        _heartbeatIntervalMs = max(
+          AccordConfig.heartbeatIntervalMin,
+          min(advertisedInterval, AccordConfig.heartbeatIntervalMax),
         );
         _heartbeatAckReceived = true;
         _startHeartbeat();
