@@ -73,7 +73,10 @@ Future<void> main() async {
       await tester.pumpWidget(
         harness.scopeFor(alice, child: const MainWindow()),
       );
-      await tester.pumpAndSettle();
+      // The connected shell owns persistent animations, so pumpAndSettle can
+      // wait for its ten-minute timeout. The assertions below use bounded,
+      // network-aware polling and only need the first frame here.
+      await tester.pump();
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(MainWindow)),
@@ -87,7 +90,7 @@ Future<void> main() async {
       await harness.connectGateway(alice);
 
       routerController.go('/spaces?space=$spaceId');
-      await tester.pumpAndSettle();
+      await tester.pump();
     }
 
     /// `pumpAndSettle` can't wait on network or gateway traffic — it settles as
