@@ -1,7 +1,7 @@
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Opens a fullscreen, pan/zoomable viewer for the image at [url].
 Future<void> showImageLightbox(BuildContext context, String url) {
@@ -50,8 +50,7 @@ class _ImageLightbox extends StatelessWidget {
               children: [
                 IconButton(
                   tooltip: 'Open in browser',
-                  onPressed: () => launchUrl(Uri.parse(url),
-                      mode: LaunchMode.externalApplication),
+                  onPressed: () async => openExternalUrl(context, url),
                   icon: const Icon(Icons.open_in_new, color: Colors.white),
                 ),
                 IconButton(

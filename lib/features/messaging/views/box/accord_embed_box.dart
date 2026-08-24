@@ -1,10 +1,10 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/views/box/accord_markdown_box.dart';
 import 'package:bonfire/features/messaging/views/inline_video_player.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Renders a single Accord message [AccordEmbed] — a rich card with an accent
 /// left border, optional author/title/description/fields/image/thumbnail/footer.
@@ -112,8 +112,7 @@ class AccordEmbedBox extends StatelessWidget {
               imageUrl: imageUrl,
               onTap: embedUrl == null
                   ? null
-                  : () => launchUrl(Uri.parse(embedUrl),
-                      mode: LaunchMode.externalApplication),
+                  : () async => openExternalUrl(context, embedUrl),
             )
           else
             ClipRRect(
@@ -257,8 +256,7 @@ class _LinkText extends StatelessWidget {
   Widget build(BuildContext context) {
     if (url == null) return Text(text, style: style);
     return InkWell(
-      onTap: () =>
-          launchUrl(Uri.parse(url!), mode: LaunchMode.externalApplication),
+      onTap: () async => openExternalUrl(context, url),
       child: Text(text, style: style),
     );
   }

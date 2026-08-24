@@ -1,7 +1,7 @@
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// A server's Terms-of-Service registration gate, read from its public
 /// settings: whether acceptance is required, plus the ToS link and/or inline
@@ -20,17 +20,14 @@ Future<TosConfig> fetchTosConfig(AccordAuth auth, AccordServer server) async {
   );
 }
 
-/// Shows a server's Terms of Service: a parseable [url] opens in the external
-/// browser; otherwise non-empty inline [text] is shown in an in-app dialog; a
-/// no-op when neither is usable.
+/// Shows a server's Terms of Service: an allowed web [url] can be confirmed and
+/// opened in the external browser; otherwise non-empty inline [text] is shown
+/// in an in-app dialog; a no-op when neither is usable.
 Future<void> openTos(BuildContext context, {String? url, String? text}) async {
   final tosUrl = url?.trim();
   if (tosUrl != null && tosUrl.isNotEmpty) {
-    final uri = Uri.tryParse(tosUrl);
-    if (uri != null) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      return;
-    }
+    final result = await openExternalUrl(context, tosUrl);
+    if (result != ExternalUrlOpenResult.blocked) return;
   }
   final tosText = text?.trim();
   if (tosText == null || tosText.isEmpty || !context.mounted) return;

@@ -1,10 +1,10 @@
+import 'package:bonfire/shared/utils/external_url.dart';
 import 'package:bonfire/shared/utils/platform.dart';
 import 'package:bonfire/shared/utils/style/markdown/stylesheet.dart';
 import 'package:dart_markdown/dart_markdown.dart' as md;
 import 'package:flutter/material.dart';
 import 'package:flutter_prism/flutter_prism.dart';
 import 'package:markdown_viewer/markdown_viewer.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Renders Accord message content as markdown, reusing Bonfire's
 /// `markdown_viewer` stack (stylesheet + Prism code highlighting + external
@@ -54,9 +54,9 @@ class AccordMarkdownBox extends StatelessWidget {
           return <TextSpan>[TextSpan(text: text)];
         }
       },
-      onTapLink: (href, title) {
+      onTapLink: (href, title) async {
         if (href == null) return;
-        launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication);
+        await openExternalUrl(context, href);
       },
     );
   }
