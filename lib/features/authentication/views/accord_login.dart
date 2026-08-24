@@ -6,6 +6,7 @@ import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/authentication/views/password_reset_form.dart';
 import 'package:bonfire/features/authentication/views/welcome_view.dart';
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_discovery.dart';
@@ -13,7 +14,6 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_ce/hive.dart';
 
 /// Server-URL + credentials login against an Accord server. The Daccord
 /// replacement for the Discord `LoginScreen`: it drives [accordAuthProvider]
@@ -92,7 +92,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   @override
   void initState() {
     super.initState();
-    final lastServer = Hive.box('accord-session').get('last-server');
+    final lastServer = ProfileStore.sessionBox.get('last-server');
     if (lastServer is String) _serverController.text = lastServer;
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -172,7 +172,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   /// `serverUrl` before joining `spaceId`: switch to the credentials form,
   /// pre-fill it, and remember the space so the next successful login joins it.
   void _onDiscoveryJoinRequiresAuth(String serverUrl, String spaceId) {
-    Hive.box('accord-session').put('last-server', serverUrl);
+    ProfileStore.sessionBox.put('last-server', serverUrl);
     setState(() {
       _serverController.text = serverUrl;
       _pendingJoinSpaceId = spaceId;
@@ -196,7 +196,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     if (rawServer.isEmpty) return;
     final server = _serverFromInput(rawServer);
     if (server == null) return;
-    Hive.box('accord-session').put('last-server', rawServer);
+    ProfileStore.sessionBox.put('last-server', rawServer);
     final notifier = ref.read(accordAuthProvider.notifier);
 
     final username = _usernameController.text.trim();

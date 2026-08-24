@@ -26,6 +26,8 @@ is no command-line profile selector.
 
 Each profile has its own server connections, theme, and preferences. Switching profiles reloads the app with that profile's configuration.
 
+Profile storage is isolated on every supported platform. Native apps store each non-default profile under its own data directory. The Web app stores each non-default profile in profile-specific Hive/IndexedDB box names, because browsers do not expose per-profile filesystem directories. The default profile keeps the original storage names on all platforms so data from installations created before profiles were added remains available.
+
 ## Optional PIN Lock
 
 You can add a PIN to make Daccord show an unlock screen before opening a profile. This is only a casual UI lock for situations such as handing an already-unlocked device to someone briefly.
@@ -34,4 +36,4 @@ The PIN does **not** encrypt messages, sessions, settings, or other profile data
 
 ## Deleting a Profile
 
-Select a profile and click **Delete** to remove it. This deletes all configuration associated with that profile, including saved server connections.
+Select a non-default profile and click **Delete** to remove it. This deletes only that profile's configuration, including saved server connections; other profiles and shared app data are left intact. The default profile cannot be deleted.

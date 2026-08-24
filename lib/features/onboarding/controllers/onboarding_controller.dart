@@ -1,3 +1,4 @@
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
@@ -69,6 +70,9 @@ class OnboardingController extends _$OnboardingController {
   static const String boxName = 'accord-settings';
   static const String seenKey = 'onboarding-seen-version';
 
+  static String get _activeSettingsBoxName =>
+      ProfileStore.activeSettingsBoxName;
+
   /// Overridable marker storage, for widget tests.
   ///
   /// A Hive write issued from inside a `testWidgets` body never completes: the
@@ -96,9 +100,12 @@ class OnboardingController extends _$OnboardingController {
   /// The app version that last showed the tour; empty when it never has.
   String get seenVersion {
     final store = debugStore;
+    final activeBoxName = _activeSettingsBoxName;
     final raw = store != null
         ? store[seenKey]
-        : (Hive.isBoxOpen(boxName) ? Hive.box(boxName).get(seenKey) : null);
+        : (Hive.isBoxOpen(activeBoxName)
+              ? Hive.box(activeBoxName).get(seenKey)
+              : null);
     return raw is String ? raw : '';
   }
 
@@ -116,8 +123,9 @@ class OnboardingController extends _$OnboardingController {
       store[seenKey] = value;
       return;
     }
-    if (!Hive.isBoxOpen(boxName)) return;
-    Hive.box(boxName).put(seenKey, value);
+    final activeBoxName = _activeSettingsBoxName;
+    if (!Hive.isBoxOpen(activeBoxName)) return;
+    Hive.box(activeBoxName).put(seenKey, value);
   }
 
   /// Clears the marker, so the next launch offers the tour again. Not used by
@@ -129,8 +137,9 @@ class OnboardingController extends _$OnboardingController {
       store.remove(seenKey);
       return;
     }
-    if (!Hive.isBoxOpen(boxName)) return;
-    Hive.box(boxName).delete(seenKey);
+    final activeBoxName = _activeSettingsBoxName;
+    if (!Hive.isBoxOpen(activeBoxName)) return;
+    Hive.box(activeBoxName).delete(seenKey);
   }
 
   // -- gating ---------------------------------------------------------------
@@ -139,19 +148,21 @@ class OnboardingController extends _$OnboardingController {
   /// Prefer [existingUserAtLaunch], which freezes this at startup.
   bool readLooksLikeExistingUser() {
     Map<dynamic, dynamic>? settings;
-    if (Hive.isBoxOpen(boxName)) {
-      final raw = Hive.box(boxName).get('settings');
+    final settingsBoxName = _activeSettingsBoxName;
+    final sessionBoxName = ProfileStore.activeSessionBoxName;
+    if (Hive.isBoxOpen(settingsBoxName)) {
+      final raw = Hive.box(settingsBoxName).get('settings');
       if (raw is Map) settings = raw;
     }
     final lastSpace = settings?['lastSpaceId'];
     final lastChannel = settings?['lastChannelId'];
     return onboardingLooksLikeExistingUser(
       hasPersistedSession:
-          Hive.isBoxOpen('accord-session') &&
-          Hive.box('accord-session').get('session') != null,
+          Hive.isBoxOpen(sessionBoxName) &&
+          Hive.box(sessionBoxName).get('session') != null,
       hasSavedAccounts:
-          Hive.isBoxOpen('accord-session') &&
-          (Hive.box('accord-session').get('accounts') as Map?)?.isNotEmpty ==
+          Hive.isBoxOpen(sessionBoxName) &&
+          (Hive.box(sessionBoxName).get('accounts') as Map?)?.isNotEmpty ==
               true,
       hasCachedSpaces:
           Hive.isBoxOpen('space-cache') && Hive.box('space-cache').isNotEmpty,

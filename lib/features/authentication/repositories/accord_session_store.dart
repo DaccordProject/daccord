@@ -1,4 +1,5 @@
 import 'package:bonfire/features/authentication/models/accord_session.dart';
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:hive_ce/hive.dart';
 
 /// Hive-backed persistence for Accord sessions: the active-session pointer plus
@@ -10,11 +11,10 @@ import 'package:hive_ce/hive.dart';
 /// separately from the account list) so [AccordAuth] keeps its exact
 /// orchestration order across logout/remove/switch flows.
 class AccordSessionStore {
-  static const _boxName = 'accord-session';
   static const _sessionKey = 'session';
   static const _accountsKey = 'accounts';
 
-  Future<Box> _box() => Hive.openBox(_boxName);
+  Future<Box> _box() => Hive.openBox(ProfileStore.activeSessionBoxName);
 
   /// Persists [session] as the active session and upserts it into the saved
   /// account list (keyed by user + server). Enforces one account per server:

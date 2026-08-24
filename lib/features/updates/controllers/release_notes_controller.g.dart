@@ -108,7 +108,7 @@ final class ReleaseNotesControllerProvider
 }
 
 String _$releaseNotesControllerHash() =>
-    r'5cef8737f7a9847dcf7f6a6f5cac56c39c131c25';
+    r'3efb6903312c385d3de8d355a35849b73e991077';
 
 /// Shows the release notes for the build the user is *now* running, once, after
 /// an update is applied (#183).

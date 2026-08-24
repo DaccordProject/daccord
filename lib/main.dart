@@ -13,6 +13,7 @@ import 'package:bonfire/features/onboarding/views/onboarding_tour.dart';
 import 'package:bonfire/features/updates/views/release_notes_dialog.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/features/profiles/views/profile_gate.dart';
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
@@ -29,7 +30,6 @@ import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -292,7 +292,7 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           } else {
             final base = parsed.server?.baseUrl;
             if (base != null) {
-              Hive.box('accord-session').put('last-server', base);
+              ProfileStore.sessionBox.put('last-server', base);
             }
             routerController.go('/login');
           }

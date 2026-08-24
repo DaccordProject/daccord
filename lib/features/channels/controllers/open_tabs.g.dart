@@ -60,7 +60,7 @@ final class OpenTabsControllerProvider
 }
 
 String _$openTabsControllerHash() =>
-    r'644e0c037ac9997b5a93f0d2d5e731b1396b4305';
+    r'd0c5b1f83dd3a87dfd486c7b1afffbf0f83de5c1';
 
 /// Owns the open-channel tab strip (the reference client's `main_window_tabs`).
 ///

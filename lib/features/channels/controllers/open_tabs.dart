@@ -1,6 +1,6 @@
 import 'package:bonfire/features/channels/models/open_tab.dart';
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:collection/collection.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'open_tabs.g.dart';
@@ -31,12 +31,11 @@ class OpenTabsState {
 /// [AccordSettings]) so open tabs survive a restart.
 @Riverpod(keepAlive: true)
 class OpenTabsController extends _$OpenTabsController {
-  static const _boxName = 'accord-settings';
   static const _key = 'open-tabs';
 
   @override
   OpenTabsState build() {
-    final raw = Hive.box(_boxName).get(_key);
+    final raw = ProfileStore.settingsBox.get(_key);
     if (raw is! Map) return const OpenTabsState();
     final tabs = [
       for (final t in (raw['tabs'] as List? ?? const []))
@@ -49,7 +48,7 @@ class OpenTabsController extends _$OpenTabsController {
 
   void _commit(OpenTabsState next) {
     state = next;
-    Hive.box(_boxName).put(_key, {
+    ProfileStore.settingsBox.put(_key, {
       'tabs': [for (final t in next.tabs) t.toJson()],
       'activeKey': next.activeKey,
     });

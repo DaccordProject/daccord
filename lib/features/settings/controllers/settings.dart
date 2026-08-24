@@ -1,10 +1,10 @@
 import 'dart:math';
 
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/spaces/models/space_folder.dart';
 import 'package:bonfire/features/voice/utils/afk_logic.dart';
 import 'package:bonfire/theme/app_theme.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'settings.g.dart';
@@ -14,13 +14,12 @@ part 'settings.g.dart';
 /// to build the active [ThemeData] and by the notification + emoji layers.
 @Riverpod(keepAlive: true)
 class SettingsController extends _$SettingsController {
-  static const _boxName = 'accord-settings';
   static const _key = 'settings';
   static const _maxRecentEmoji = 24;
 
   @override
   AccordSettings build() {
-    final box = Hive.box(_boxName);
+    final box = ProfileStore.settingsBox;
     final raw = box.get(_key);
     if (raw is Map) return AccordSettings.fromJson(raw);
     return const AccordSettings();
@@ -28,7 +27,7 @@ class SettingsController extends _$SettingsController {
 
   void _update(AccordSettings next) {
     state = next;
-    Hive.box(_boxName).put(_key, next.toJson());
+    ProfileStore.settingsBox.put(_key, next.toJson());
   }
 
   void setThemePreset(AppThemePreset preset) =>

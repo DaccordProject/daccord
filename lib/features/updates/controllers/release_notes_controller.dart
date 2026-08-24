@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:bonfire/features/updates/models/app_release.dart';
+import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive.dart';
@@ -118,7 +119,6 @@ class ReleaseNotesState {
 /// has no body nothing is shown at all (never a broken/empty sheet).
 @Riverpod(keepAlive: true)
 class ReleaseNotesController extends _$ReleaseNotesController {
-  static const _boxName = 'accord-settings';
   static const _seenKey = 'release-notes-seen-version';
   static const _timeout = Duration(seconds: 15);
 
@@ -135,16 +135,18 @@ class ReleaseNotesController extends _$ReleaseNotesController {
 
   /// The version we last showed (or suppressed) notes for; empty when none.
   String get lastSeenVersion {
-    if (!Hive.isBoxOpen(_boxName)) return '';
-    final raw = Hive.box(_boxName).get(_seenKey);
+    final boxName = ProfileStore.activeSettingsBoxName;
+    if (!Hive.isBoxOpen(boxName)) return '';
+    final raw = Hive.box(boxName).get(_seenKey);
     return raw is String ? raw : '';
   }
 
   /// Stamps [version] (default: the running build) as seen, so the notes are
   /// never shown twice for the same version.
   void markSeen([String? version]) {
-    if (!Hive.isBoxOpen(_boxName)) return;
-    Hive.box(_boxName).put(_seenKey, version ?? kAppVersion);
+    final boxName = ProfileStore.activeSettingsBoxName;
+    if (!Hive.isBoxOpen(boxName)) return;
+    Hive.box(boxName).put(_seenKey, version ?? kAppVersion);
   }
 
   /// How this launch compares to the last one.

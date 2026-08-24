@@ -75,7 +75,7 @@ final class OnboardingControllerProvider
 }
 
 String _$onboardingControllerHash() =>
-    r'a20a4720eae1531a409c6d78e903ed08510badf9';
+    r'd188e332a41df02ffd82b279c744793761d884ed';
 
 /// Owns the first-launch walkthrough's persistence and gating (#175).
 ///

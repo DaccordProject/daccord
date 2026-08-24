@@ -15,14 +15,11 @@ import 'package:universal_platform/universal_platform.dart';
 ///
 /// Isolation strategy: the **default** profile keeps the canonical box files at
 /// the root data dir (so data created before profiles existed is preserved),
-/// while every other profile gets its own `profiles/<id>` directory. The box
-/// *names* never change, so the session/settings/tab controllers keep reading
-/// `Hive.box('accord-session')` / `'accord-settings'` unmodified — they simply
-/// resolve to whichever profile's files were opened at boot / on switch.
-///
-/// Note: directory isolation applies on native platforms. On web Hive ignores
-/// the path (storage is keyed by box name in IndexedDB), so profiles there
-/// share storage; the registry + PIN gate still work.
+/// while every other native profile gets its own `profiles/<id>` directory.
+/// On Web, where Hive ignores filesystem paths and stores IndexedDB data by box
+/// name, non-default profiles use deterministic profile-specific box names.
+/// The default profile keeps the canonical names on every platform so existing
+/// pre-profile data remains available.
 class ProfileStore {
   ProfileStore._();
 
@@ -33,19 +30,39 @@ class ProfileStore {
 
   /// Root Hive data dir (native only; null on web). Captured in [bootstrap].
   static String? _rootPath;
+  static bool _useWebBoxNamespaces = UniversalPlatform.isWeb;
+
+  static String get _storageProfileId =>
+      Hive.isBoxOpen(registryBoxName) ? activeId : DeviceProfile.defaultId;
+
+  /// The currently active session/settings box names.
+  static String get activeSessionBoxName =>
+      _boxNameForProfile(sessionBoxName, _storageProfileId);
+  static String get activeSettingsBoxName =>
+      _boxNameForProfile(settingsBoxName, _storageProfileId);
+
+  static Box get sessionBox => Hive.box(activeSessionBoxName);
+  static Box get settingsBox => Hive.box(activeSettingsBoxName);
 
   /// Opens the registry box, ensures a default profile exists, and opens the
   /// active profile's session/settings boxes. Defensive: any failure falls back
   /// to opening the canonical boxes at the root so the app always boots.
-  static Future<void> bootstrap(String? rootPath) async {
-    _rootPath = rootPath;
+  static Future<void> bootstrap(
+    String? rootPath, {
+    @visibleForTesting bool? webForTesting,
+  }) async {
+    _useWebBoxNamespaces = webForTesting ?? UniversalPlatform.isWeb;
+    _rootPath = _useWebBoxNamespaces ? null : rootPath;
     try {
       await Hive.openBox(registryBoxName);
       _ensureDefault();
       await _openProfileBoxes(activeId);
     } catch (e) {
       debugPrint('Profile bootstrap failed ($e); using default storage.');
-      await _closeProfileBoxes();
+      final failedId = Hive.isBoxOpen(registryBoxName)
+          ? activeId
+          : DeviceProfile.defaultId;
+      await _closeProfileBoxes(failedId);
       if (Hive.isBoxOpen(registryBoxName)) {
         _ensureDefault();
         _putProfiles(profiles, activeId: DeviceProfile.defaultId);
@@ -112,22 +129,30 @@ class ProfileStore {
     return profileDir;
   }
 
+  static String _boxNameForProfile(String baseName, String id) {
+    if (!_useWebBoxNamespaces || id == DeviceProfile.defaultId) return baseName;
+    final namespace = sha256.convert(utf8.encode(id));
+    return '$baseName-profile-$namespace';
+  }
+
   static Future<void> _openProfileBoxes(String id) async {
     final path = _dirFor(id);
-    if (path != null && !UniversalPlatform.isWeb) {
+    if (path != null && !_useWebBoxNamespaces) {
       final dir = Directory(path);
       if (!dir.existsSync()) dir.createSync(recursive: true);
     }
-    await Hive.openBox(sessionBoxName, path: path);
-    await Hive.openBox(settingsBoxName, path: path);
+    await Hive.openBox(_boxNameForProfile(sessionBoxName, id), path: path);
+    await Hive.openBox(_boxNameForProfile(settingsBoxName, id), path: path);
   }
 
-  static Future<void> _closeProfileBoxes() async {
-    if (Hive.isBoxOpen(sessionBoxName)) {
-      await Hive.box(sessionBoxName).close();
+  static Future<void> _closeProfileBoxes(String id) async {
+    final sessionName = _boxNameForProfile(sessionBoxName, id);
+    final settingsName = _boxNameForProfile(settingsBoxName, id);
+    if (Hive.isBoxOpen(sessionName)) {
+      await Hive.box(sessionName).close();
     }
-    if (Hive.isBoxOpen(settingsBoxName)) {
-      await Hive.box(settingsBoxName).close();
+    if (Hive.isBoxOpen(settingsName)) {
+      await Hive.box(settingsName).close();
     }
   }
 
@@ -141,12 +166,12 @@ class ProfileStore {
     final previousId = activeId;
     if (id == previousId) return;
 
-    await _closeProfileBoxes();
+    await _closeProfileBoxes(previousId);
     try {
       await _openProfileBoxes(id);
       _putProfiles(profiles, activeId: id);
     } catch (error, stackTrace) {
-      await _closeProfileBoxes();
+      await _closeProfileBoxes(id);
       await _openProfileBoxes(previousId);
       Error.throwWithStackTrace(error, stackTrace);
     }
@@ -214,7 +239,15 @@ class ProfileStore {
 
     final wasActive = activeId == id;
     if (wasActive) await switchTo(DeviceProfile.defaultId);
-    if (dir != null && !UniversalPlatform.isWeb) {
+    if (_useWebBoxNamespaces) {
+      try {
+        await Hive.deleteBoxFromDisk(_boxNameForProfile(sessionBoxName, id));
+        await Hive.deleteBoxFromDisk(_boxNameForProfile(settingsBoxName, id));
+      } catch (e) {
+        debugPrint('Failed to remove Web profile boxes for $id: $e');
+        return false;
+      }
+    } else if (dir != null) {
       try {
         final d = Directory(dir);
         if (d.existsSync()) d.deleteSync(recursive: true);
