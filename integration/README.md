@@ -22,7 +22,7 @@ ephemeral port:
 | 1 | `ACCORD_TEST_SERVER_URL=http://host:port` | Point at an already-running server. Nothing is spawned or torn down. |
 | 2 | `ACCORD_SERVER_BIN=/path/to/accordserver` | Spawn an explicit build. |
 | 3 | `../accordserver/target/{release,debug}/accordserver` | Auto-detected sibling checkout — the usual local path. |
-| 4 | `docker run $ACCORD_SERVER_IMAGE` (default `ghcr.io/daccordproject/accordserver:latest`) | CI, or any machine without a Rust toolchain. |
+| 4 | `docker run $ACCORD_SERVER_IMAGE` (default is the reviewed digest in `support/accord_test_server.dart`) | CI, or any machine without a Rust toolchain. |
 
 If none resolve, every suite **skips** with a message explaining what to set,
 rather than failing. Set `ACCORD_TEST_LOG=debug` to surface server logs on a
@@ -85,5 +85,20 @@ fail with a timeout instead of hanging.
 
 ## CI
 
-`ci.yml` runs this suite on Linux via the `ghcr.io` server image. It is a
-separate job from `test` so a server-side outage can't redden the unit suite.
+`ci.yml` runs `accordkit_protocol_test.dart` as a blocking merge and release
+gate against an immutable `ghcr.io` image digest. The full integration,
+desktop UI, and multi-instance suites remain separate advisory jobs while
+their broader external-toolchain flakes are removed.
+
+To update the fixture, review the candidate accordserver image, replace the
+digest in both `ci.yml` and `support/accord_test_server.dart`, then run this on
+a machine where the fixture selects Docker (without an explicit or sibling
+server binary):
+
+```bash
+ACCORD_SERVER_IMAGE=ghcr.io/daccordproject/accordserver@sha256:<digest> \
+  flutter test integration/accordkit_protocol_test.dart
+```
+
+Do not replace the digest with a mutable tag: releases reuse `ci.yml`, so this
+protocol job is part of the release gate as well as the pull-request gate.

@@ -9,6 +9,8 @@ name: CI
 #                conformance snapshots remain visible in an advisory job.
 # - `livekit-android`: blocking native unit tests for the supported Android
 #                plugin seam.
+# - `protocol-integration`: blocking accordkit↔accordserver REST/gateway seam
+#                against an immutable server fixture image.
 # - `integration`: client↔accordserver end-to-end tests against the ghcr.io
 #                server image. GitHub-hosted — it needs docker, which the
 #                self-hosted runners don't have (see the job's note).
@@ -56,6 +58,10 @@ env:
   # Workspace-local pub cache so actions/cache can persist it (incl. the
   # flutter_webrtc git checkout + its downloaded libwebrtc binary).
   PUB_CACHE: ${{ github.workspace }}/.pub-cache
+  # Reviewed accordserver fixture. Update this and the default in
+  # integration/support/accord_test_server.dart together, after the blocking
+  # protocol suite passes against the candidate image.
+  ACCORD_SERVER_IMAGE: ghcr.io/daccordproject/accordserver@sha256:9f76756599fded6ec3f8b5f9638ed436e3ff73b96df24afd880c40673da8acf2
 
 jobs:
   analyze:
@@ -286,6 +292,50 @@ jobs:
           :livekit_client:testDebugUnitTest
           --tests io.livekit.plugin.AudioResamplerTest
 
+  protocol-integration:
+    name: Protocol integration (release gate)
+    # This intentionally covers only the stable accordkit REST/gateway seam.
+    # The broader controller/UI scenarios below remain advisory until their
+    # external toolchain and display flakes have been removed.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pub + native deps
+        uses: actions/cache@v4
+        with:
+          key: protocol-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('pubspec.lock') }}
+          path: ${{ env.PUB_CACHE }}
+          restore-keys: |
+            protocol-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Pull reviewed accordserver fixture
+        run: docker pull "${{ env.ACCORD_SERVER_IMAGE }}"
+
+      - name: Test accordkit REST and gateway protocol seam
+        shell: bash
+        run: |
+          set -uo pipefail
+          flutter test integration/accordkit_protocol_test.dart 2>&1 | tee /tmp/protocol-integration.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if ! grep -q "All tests passed!" /tmp/protocol-integration.log; then
+            echo "::error::The blocking protocol suite did not run to completion. See integration/README.md."
+            exit 1
+          fi
+
   integration:
     name: Integration (client ↔ accordserver)
     # GitHub-hosted, because this job needs docker to run the server image.
@@ -331,7 +381,7 @@ jobs:
 
       - name: Pull accordserver image
         # Pre-pull so a slow first pull doesn't eat the fixture's boot timeout.
-        run: docker pull ghcr.io/daccordproject/accordserver:latest
+        run: docker pull "${{ env.ACCORD_SERVER_IMAGE }}"
 
       - name: Integration tests
         # The suite skips itself when it can't find a server, which is the right
@@ -398,7 +448,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Pull accordserver image
-        run: docker pull ghcr.io/daccordproject/accordserver:latest
+        run: docker pull "${{ env.ACCORD_SERVER_IMAGE }}"
 
       - name: UI end-to-end tests
         # One `flutter test` per file, not one over the directory. Each file
@@ -459,7 +509,7 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Pull accordserver image
-        run: docker pull ghcr.io/daccordproject/accordserver:latest
+        run: docker pull "${{ env.ACCORD_SERVER_IMAGE }}"
 
       - name: Build the app
         # Release, not debug: a debug bundle launched directly never runs its

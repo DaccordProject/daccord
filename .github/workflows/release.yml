@@ -100,7 +100,8 @@ jobs:
   ci:
     name: CI
     uses: ./.github/workflows/ci.yml
-    # Runs the analyze/test gate. CI's build matrix only runs on
+    # Runs the blocking unit, vendored-package, native, and protocol gates.
+    # CI's build matrix only runs on
     # workflow_dispatch, so calling it here gates on tests without
     # double-building every platform.
     secrets: inherit

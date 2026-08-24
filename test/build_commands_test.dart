@@ -98,6 +98,43 @@ void main() {
     expect(inherited, contains('continue-on-error: true'));
     expect(inherited, contains('flutter test test/renderer_test.dart'));
   });
+
+  test('CI blocks on a pinned real-server protocol seam', () {
+    final ci = File('.github/workflows/ci.yml').readAsStringSync();
+    final fixture = File(
+      'integration/support/accord_test_server.dart',
+    ).readAsStringSync();
+    final release = File('.github/workflows/release.yml').readAsStringSync();
+    final imagePattern = RegExp(
+      r'ghcr\.io/daccordproject/accordserver@sha256:[0-9a-f]{64}',
+    );
+
+    final ciImage = imagePattern.firstMatch(ci)?.group(0);
+    final fixtureImage = imagePattern.firstMatch(fixture)?.group(0);
+    expect(ciImage, isNotNull);
+    expect(fixtureImage, ciImage);
+    expect(ci, isNot(contains('accordserver:latest')));
+    expect(fixture, isNot(contains('accordserver:latest')));
+
+    final protocol = _workflowJob(ci, 'protocol-integration');
+    expect(protocol, isNot(contains('continue-on-error: true')));
+    expect(
+      protocol,
+      contains('flutter test integration/accordkit_protocol_test.dart'),
+    );
+    expect(protocol, contains('All tests passed!'));
+
+    for (final advisory in ['integration', 'ui-e2e', 'multi-instance']) {
+      expect(
+        _workflowJob(ci, advisory),
+        contains('continue-on-error: true'),
+        reason: advisory,
+      );
+    }
+
+    expect(release, contains('uses: ./.github/workflows/ci.yml'));
+    expect(release, contains('needs: ci'));
+  });
 }
 
 String _workflowJob(String workflow, String name) {

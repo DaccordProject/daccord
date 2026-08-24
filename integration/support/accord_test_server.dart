@@ -10,7 +10,7 @@
 ///  2. `ACCORD_SERVER_BIN` — an explicit path to an `accordserver` binary.
 ///  3. An auto-detected binary from a sibling checkout, i.e.
 ///     `../accordserver/target/{release,debug}/accordserver`.
-///  4. `ACCORD_SERVER_IMAGE` (default `ghcr.io/daccordproject/accordserver:latest`)
+///  4. `ACCORD_SERVER_IMAGE` (default is the reviewed digest below)
 ///     run under docker.
 ///
 /// If none resolve, [AccordTestServer.start] throws [ServerUnavailable]; call
@@ -22,7 +22,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-const _defaultImage = 'ghcr.io/daccordproject/accordserver:latest';
+const _defaultImage =
+    'ghcr.io/daccordproject/accordserver@sha256:9f76756599fded6ec3f8b5f9638ed436e3ff73b96df24afd880c40673da8acf2';
 
 /// Thrown when no server could be resolved from the environment.
 class ServerUnavailable implements Exception {
