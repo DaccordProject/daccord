@@ -118,9 +118,12 @@ class ProfileStore {
   /// recording it as active. The caller is responsible for rebuilding the
   /// provider tree afterwards (see the app restart in main.dart).
   static Future<void> switchTo(String id) async {
-    if (Hive.isBoxOpen(sessionBoxName)) await Hive.box(sessionBoxName).close();
-    if (Hive.isBoxOpen(settingsBoxName))
+    if (Hive.isBoxOpen(sessionBoxName)) {
+      await Hive.box(sessionBoxName).close();
+    }
+    if (Hive.isBoxOpen(settingsBoxName)) {
       await Hive.box(settingsBoxName).close();
+    }
     _putProfiles(profiles, activeId: id);
     await _openProfileBoxes(id);
   }

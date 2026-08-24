@@ -24,7 +24,9 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
     final settings = ref.read(settingsControllerProvider);
-    ref.read(settingsControllerProvider.notifier).setCategoryCollapsed(
+    ref
+        .read(settingsControllerProvider.notifier)
+        .setCategoryCollapsed(
           spaceId,
           categoryId,
           !settings.isCategoryCollapsed(spaceId, categoryId),
@@ -44,19 +46,24 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     final space = id == null
         ? null
         : ref.watch(
-            spacesControllerProvider
-                .select((s) => s?.firstWhereOrNull((sp) => sp.id == id)),
+            spacesControllerProvider.select(
+              (s) => s?.firstWhereOrNull((sp) => sp.id == id),
+            ),
           );
     final cdnUrl = ref.watchCdnUrl();
-    final bannerUrl =
-        space == null ? null : accordSpaceBannerUrl(space, cdnUrl);
+    final bannerUrl = space == null
+        ? null
+        : accordSpaceBannerUrl(space, cdnUrl);
 
     // Collapsed categories are persisted per-space via SettingsController
     // (mirrors the reference client's Config.set_category_collapsed).
     final collapsed = id == null
         ? const <String>{}
-        : ref.watch(settingsControllerProvider
-            .select((s) => s.collapsedCategories[id]?.toSet() ?? const <String>{}));
+        : ref.watch(
+            settingsControllerProvider.select(
+              (s) => s.collapsedCategories[id]?.toSet() ?? const <String>{},
+            ),
+          );
 
     // Show the settings gear only to members who can manage the space or roles,
     // and the channel-management affordances to those with manage_channels.
@@ -64,31 +71,19 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
     var canManageChannels = false;
     var canInvite = false;
     if (id != null) {
-      final currentUserId = ref.watchUserId();
-      final isAdmin = ref.watchIsAdmin();
-      final members = ref.watch(accordMembersControllerProvider(id));
-      final preview = ref.watch(rolePreviewControllerProvider);
-      final perms = accordEffectivePermissions(
-        space: space,
-        selfMember: currentUserId == null ? null : members?[currentUserId],
-        roles: space?.roles ?? const <AccordRole>[],
-        currentUserId: currentUserId ?? '',
-        currentUserIsAdmin: isAdmin,
-        previewRoleId: preview?.spaceId == id ? preview?.roleId : null,
-      );
+      final perms = ref.watchAccordPermissions(space, id);
       canManage = canManageSpaceSettings(perms);
-      canManageChannels =
-          accordHasPermission(perms, AccordPermission.manageChannels);
-      canInvite =
-          accordHasPermission(perms, AccordPermission.createInvites);
+      canManageChannels = accordHasPermission(
+        perms,
+        AccordPermission.manageChannels,
+      );
+      canInvite = accordHasPermission(perms, AccordPermission.createInvites);
     }
 
     return Container(
       decoration: BoxDecoration(
         color: colors.foreground,
-        border: Border(
-          left: BorderSide(color: colors.background, width: 1),
-        ),
+        border: Border(left: BorderSide(color: colors.background, width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -129,8 +124,10 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                     icon: Icons.search,
                     color: colors.dirtyWhite,
                     onPressed: () async {
-                      final selection =
-                          await showAccordSearch(context, spaceId: id);
+                      final selection = await showAccordSearch(
+                        context,
+                        spaceId: id,
+                      );
                       if (selection != null) onSelect(selection.channelId);
                     },
                   ),
@@ -154,8 +151,11 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
                     tooltip: 'Reorder channels',
                     icon: Icons.reorder,
                     color: colors.dirtyWhite,
-                    onPressed: () => showAccordChannelReorder(context,
-                        spaceId: id, channels: channels),
+                    onPressed: () => showAccordChannelReorder(
+                      context,
+                      spaceId: id,
+                      channels: channels,
+                    ),
                   ),
                 if (canManage && id != null)
                   _HeaderAction(
@@ -171,37 +171,45 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
           Expanded(
             child: channels == null
                 ? (ref
-                        .watch(connectionControllerProvider)
-                        .isUnreachable
-                    ? ServerUnreachable(onRetry: () {
-                        final auth = ref.read(accordAuthProvider);
-                        if (auth is AccordAuthLoggedIn) {
-                          auth.client.ensureConnected();
-                        }
-                      })
-                    : const LoadingView())
+                          .watch(
+                            connectionsControllerProvider.select(
+                              (connections) =>
+                                  connections.active?.status ??
+                                  ConnectionStatus.disconnected,
+                            ),
+                          )
+                          .isUnreachable
+                      ? ServerUnreachable(
+                          onRetry: () {
+                            final auth = ref.read(accordAuthProvider);
+                            if (auth is AccordAuthLoggedIn) {
+                              auth.client.ensureConnected();
+                            }
+                          },
+                        )
+                      : const LoadingView())
                 : (canManageChannels && id != null)
-                    ? _ChannelDragList(
-                        spaceId: id,
-                        channels: channels,
-                        selectedChannelId: selectedChannelId,
-                        onSelect: onSelect,
-                        collapsed: collapsed,
-                        onToggleCollapsed: _toggleCollapsed,
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        children: _buildChannelEntries(
-                          context,
-                          spaceId: id,
-                          channels: channels,
-                          selectedChannelId: selectedChannelId,
-                          onSelect: onSelect,
-                          canManageChannels: canManageChannels,
-                          collapsed: collapsed,
-                          onToggleCollapsed: _toggleCollapsed,
-                        ),
-                      ),
+                ? _ChannelDragList(
+                    spaceId: id,
+                    channels: channels,
+                    selectedChannelId: selectedChannelId,
+                    onSelect: onSelect,
+                    collapsed: collapsed,
+                    onToggleCollapsed: _toggleCollapsed,
+                  )
+                : ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    children: _buildChannelEntries(
+                      context,
+                      spaceId: id,
+                      channels: channels,
+                      selectedChannelId: selectedChannelId,
+                      onSelect: onSelect,
+                      canManageChannels: canManageChannels,
+                      collapsed: collapsed,
+                      onToggleCollapsed: _toggleCollapsed,
+                    ),
+                  ),
           ),
           VoiceBar(
             onTapStatus: () {
@@ -314,16 +322,16 @@ List<Widget> _buildChannelEntries(
   }
 
   Widget tile(AccordChannel channel) => _ChannelTile(
-        channel: channel,
-        spaceId: spaceId,
-        selected: channel.id == selectedChannelId,
-        canManageChannels: canManageChannels,
-        onTap: () => onSelect(channel.id),
-        onEdit: canManageChannels && spaceId != null
-            ? () => showEditChannelDialog(context,
-                spaceId: spaceId, channel: channel)
-            : null,
-      );
+    channel: channel,
+    spaceId: spaceId,
+    selected: channel.id == selectedChannelId,
+    canManageChannels: canManageChannels,
+    onTap: () => onSelect(channel.id),
+    onEdit: canManageChannels && spaceId != null
+        ? () =>
+              showEditChannelDialog(context, spaceId: spaceId, channel: channel)
+        : null,
+  );
 
   final entries = <Widget>[];
   for (final channel in byParent[null] ?? const <AccordChannel>[]) {
@@ -331,21 +339,29 @@ List<Widget> _buildChannelEntries(
   }
   for (final category in categories) {
     final isCollapsed = collapsed.contains(category.id);
-    entries.add(_CategoryHeader(
-      category: category,
-      spaceId: spaceId,
-      canManageChannels: canManageChannels,
-      collapsed: isCollapsed,
-      onToggle: () => onToggleCollapsed(category.id),
-      onAdd: canManageChannels && spaceId != null
-          ? () => showCreateChannelDialog(context,
-              spaceId: spaceId, parentId: category.id)
-          : null,
-      onEdit: canManageChannels && spaceId != null
-          ? () => showEditChannelDialog(context,
-              spaceId: spaceId, channel: category)
-          : null,
-    ));
+    entries.add(
+      _CategoryHeader(
+        category: category,
+        spaceId: spaceId,
+        canManageChannels: canManageChannels,
+        collapsed: isCollapsed,
+        onToggle: () => onToggleCollapsed(category.id),
+        onAdd: canManageChannels && spaceId != null
+            ? () => showCreateChannelDialog(
+                context,
+                spaceId: spaceId,
+                parentId: category.id,
+              )
+            : null,
+        onEdit: canManageChannels && spaceId != null
+            ? () => showEditChannelDialog(
+                context,
+                spaceId: spaceId,
+                channel: category,
+              )
+            : null,
+      ),
+    );
     if (!isCollapsed) {
       for (final channel in byParent[category.id] ?? const <AccordChannel>[]) {
         entries.add(tile(channel));
@@ -411,10 +427,10 @@ class _CategoryHeader extends ConsumerWidget {
                 (category.name ?? '').toUpperCase(),
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                      color: colors.gray,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
+                  color: colors.gray,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
             if (onEdit != null)
@@ -516,7 +532,8 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
             label: 'Disconnect',
             icon: Icons.call_end,
             destructive: true,
-            onSelected: () => ref.read(voiceControllerProvider.notifier).leave(),
+            onSelected: () =>
+                ref.read(voiceControllerProvider.notifier).leave(),
           ),
         if (_isVoice) const AccordMenuEntry.divider(),
       ],
@@ -541,7 +558,8 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
     final colors = BonfireThemeExtension.of(context);
     final channel = widget.channel;
     final isVoice = channel.type == 'voice';
-    final enabled = isVoice ||
+    final enabled =
+        isVoice ||
         channel.type == 'text' ||
         channel.type == 'forum' ||
         channel.type == 'announcement';
@@ -560,17 +578,24 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
     );
     final unread =
         readState.isUnreadVisible(channel.id, channelLevels: channelLevels) &&
-            !widget.selected;
-    final mentions =
-        readState.visibleMentionCount(channel.id, channelLevels: channelLevels);
+        !widget.selected;
+    final mentions = readState.visibleMentionCount(
+      channel.id,
+      channelLevels: channelLevels,
+    );
 
     // Voice extras: green tint + count when anyone is present / we're connected.
-    final connectedHere = isVoice &&
-        ref.watch(voiceControllerProvider
-            .select((v) => v.channelId == channel.id));
+    final connectedHere =
+        isVoice &&
+        ref.watch(
+          voiceControllerProvider.select((v) => v.channelId == channel.id),
+        );
     final voiceCount = isVoice
-        ? ref.watch(voiceStatesControllerProvider
-            .select((cache) => voiceUserCount(cache, channel.id)))
+        ? ref.watch(
+            voiceStatesControllerProvider.select(
+              (cache) => voiceUserCount(cache, channel.id),
+            ),
+          )
         : 0;
     final iconColor = connectedHere
         ? colors.green
@@ -600,20 +625,22 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
                       channel.name ?? channel.id,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                            color: enabled
-                                ? (unread ? Colors.white : colors.dirtyWhite)
-                                : colors.gray,
-                            fontWeight:
-                                unread ? FontWeight.w600 : FontWeight.normal,
-                          ),
+                        color: enabled
+                            ? (unread ? Colors.white : colors.dirtyWhite)
+                            : colors.gray,
+                        fontWeight: unread
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
                     ),
                   ),
                   if (isVoice && voiceCount > 0)
-                    Text('$voiceCount',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall!
-                            .copyWith(color: colors.gray))
+                    Text(
+                      '$voiceCount',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall!.copyWith(color: colors.gray),
+                    )
                   else if (mentions > 0)
                     _MentionBadge(count: mentions)
                   else if (unread)
@@ -646,8 +673,7 @@ class _ChannelTileState extends ConsumerState<_ChannelTile> {
                     const SizedBox(width: 4),
                     InkWell(
                       onTap: widget.onEdit,
-                      child: Icon(Icons.settings,
-                          size: 14, color: colors.gray),
+                      child: Icon(Icons.settings, size: 14, color: colors.gray),
                     ),
                   ],
                 ],
@@ -780,17 +806,13 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
     moved.parentId = null;
   }
 
-  // [ReorderableListView.onReorder] reports [newIndex] in pre-removal
-  // coordinates (the slot is counted as if the dragged item were still
-  // present), so apply the canonical decrement to convert it to the target
-  // index within the post-removal list that the logic below expects.
   void _onReorder(int oldIndex, int newIndex) {
-    if (newIndex > oldIndex) newIndex -= 1;
     final visible = _visible;
     final moved = visible[oldIndex];
     final newVisible = [...visible]..removeAt(oldIndex);
-    final ChannelReorderEntry? before =
-        newIndex < newVisible.length ? newVisible[newIndex] : null;
+    final ChannelReorderEntry? before = newIndex < newVisible.length
+        ? newVisible[newIndex]
+        : null;
 
     // A dragged category carries its contiguous children with it.
     final List<ChannelReorderEntry> block;
@@ -826,11 +848,15 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
   /// changed. Positions count within each bucket (categories share one bucket;
   /// each category's children share another) so siblings stay coherent.
   Future<void> _persist() async {
-    final client = ref.read(accordAuthProvider
-        .select((s) => s is AccordAuthLoggedIn ? s.client : null));
+    final client = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.client : null,
+      ),
+    );
     if (client == null) return;
-    final notifier =
-        ref.read(accordChannelsControllerProvider(widget.spaceId).notifier);
+    final notifier = ref.read(
+      accordChannelsControllerProvider(widget.spaceId).notifier,
+    );
 
     final updates = diffChannelPositions(_items);
 
@@ -861,10 +887,16 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
         canManageChannels: true,
         collapsed: widget.collapsed.contains(cat.id),
         onToggle: () => widget.onToggleCollapsed(cat.id),
-        onAdd: () => showCreateChannelDialog(context,
-            spaceId: widget.spaceId, parentId: cat.id),
-        onEdit: () => showEditChannelDialog(context,
-            spaceId: widget.spaceId, channel: cat),
+        onAdd: () => showCreateChannelDialog(
+          context,
+          spaceId: widget.spaceId,
+          parentId: cat.id,
+        ),
+        onEdit: () => showEditChannelDialog(
+          context,
+          spaceId: widget.spaceId,
+          channel: cat,
+        ),
       );
     }
     final ch = entry.channel;
@@ -886,7 +918,7 @@ class _ChannelDragListState extends ConsumerState<_ChannelDragList> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       buildDefaultDragHandles: false,
       itemCount: visible.length,
-      onReorder: _onReorder,
+      onReorderItem: _onReorder,
       itemBuilder: (context, index) {
         final entry = visible[index];
         return ReorderableDelayedDragStartListener(

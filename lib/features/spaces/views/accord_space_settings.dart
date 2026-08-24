@@ -6,7 +6,6 @@ import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/features/channels/controllers/accord_channels.dart';
 import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
-import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/spaces/views/accord_audit_log.dart';
 import 'package:bonfire/features/spaces/views/accord_ban_list.dart';
@@ -159,20 +158,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     final space = ref
         .read(spacesControllerProvider)
         ?.firstWhereOrNull((s) => s.id == widget.spaceId);
-    final currentUserId = ref.readUserId();
-    final isAdmin = ref.readIsAdmin();
-    final members = ref.read(accordMembersControllerProvider(widget.spaceId));
-    final preview = ref.read(rolePreviewControllerProvider);
-    return accordEffectivePermissions(
-      space: space,
-      selfMember: currentUserId == null ? null : members?[currentUserId],
-      roles: space?.roles ?? const <AccordRole>[],
-      currentUserId: currentUserId ?? '',
-      currentUserIsAdmin: isAdmin,
-      previewRoleId: preview?.spaceId == widget.spaceId
-          ? preview?.roleId
-          : null,
-    );
+    return ref.readAccordPermissions(space, widget.spaceId);
   }
 
   Future<void> _update(Map<String, dynamic> body, String failure) async {
@@ -399,9 +385,7 @@ class _SpaceSettingsState extends ConsumerState<_SpaceSettings> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(
-        () => _error = result.errorOr('Failed to update nickname'),
-      );
+      setState(() => _error = result.errorOr('Failed to update nickname'));
       return;
     }
     final updated = result.data;

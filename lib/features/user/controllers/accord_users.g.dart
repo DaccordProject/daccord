@@ -8,7 +8,7 @@ part of 'accord_users.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Global per-user cache for users not covered by a space's loaded member page.
+/// Per-server user cache for users not covered by a space's loaded member page.
 ///
 /// The member cache (`AccordMembersController`) only holds the first 100 members
 /// of a space, so message authors and typers outside that page resolve to a raw
@@ -19,7 +19,7 @@ part of 'accord_users.dart';
 @ProviderFor(AccordUsersController)
 const accordUsersControllerProvider = AccordUsersControllerProvider._();
 
-/// Global per-user cache for users not covered by a space's loaded member page.
+/// Per-server user cache for users not covered by a space's loaded member page.
 ///
 /// The member cache (`AccordMembersController`) only holds the first 100 members
 /// of a space, so message authors and typers outside that page resolve to a raw
@@ -28,7 +28,7 @@ const accordUsersControllerProvider = AccordUsersControllerProvider._();
 /// the result, after which watchers rebuild with the resolved name/avatar.
 final class AccordUsersControllerProvider
     extends $NotifierProvider<AccordUsersController, Map<String, AccordUser>> {
-  /// Global per-user cache for users not covered by a space's loaded member page.
+  /// Per-server user cache for users not covered by a space's loaded member page.
   ///
   /// The member cache (`AccordMembersController`) only holds the first 100 members
   /// of a space, so message authors and typers outside that page resolve to a raw
@@ -63,9 +63,9 @@ final class AccordUsersControllerProvider
 }
 
 String _$accordUsersControllerHash() =>
-    r'51280c7742da9aba8fb850f15da9707c3fed5447';
+    r'aa9cce7016e5476a9018ea735c1a856cf0f6beb4';
 
-/// Global per-user cache for users not covered by a space's loaded member page.
+/// Per-server user cache for users not covered by a space's loaded member page.
 ///
 /// The member cache (`AccordMembersController`) only holds the first 100 members
 /// of a space, so message authors and typers outside that page resolve to a raw

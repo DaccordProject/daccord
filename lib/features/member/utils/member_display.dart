@@ -1,5 +1,4 @@
 import 'package:accordkit/accordkit.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 /// Resolves a member's preferred display name: nickname → user display name →
@@ -116,8 +115,12 @@ String? _userAvatarUrl(AccordUser? user, String? cdnUrl, {String? domain}) {
   }
   // A remote user's id is qualified; the home CDN keys avatars by the bare
   // snowflake, so strip any `@domain` before building the path.
-  return AccordCDN.avatar(localPart(user!.id), avatar,
-      format: AccordCDN.autoFormat(avatar), cdnUrl: cdn);
+  return AccordCDN.avatar(
+    localPart(user!.id),
+    avatar,
+    format: AccordCDN.autoFormat(avatar),
+    cdnUrl: cdn,
+  );
 }
 
 /// Resolves a member's avatar, preferring a per-space avatar override
@@ -175,8 +178,11 @@ String? accordEmojiUrl(AccordEmoji emoji, String? cdnUrl) {
   final id = emoji.id;
   if (id == null) return null;
   // A remote emoji id is qualified; the home CDN keys by the bare snowflake.
-  return AccordCDN.emoji(localPart(id),
-      format: emoji.animated ? 'gif' : 'png', cdnUrl: cdn);
+  return AccordCDN.emoji(
+    localPart(id),
+    format: emoji.animated ? 'gif' : 'png',
+    cdnUrl: cdn,
+  );
 }
 
 /// Resolves a message/post author's display name by `author_id`, consulting the
@@ -192,14 +198,13 @@ String accordAuthorName(
   Map<String, AccordUser>? users,
   void Function(String userId)? ensure,
   String fallback = 'Unknown',
-}) =>
-    accordAuthorNameOf(
-      authorId,
-      member: members?[authorId],
-      user: users?[authorId],
-      ensure: ensure,
-      fallback: fallback,
-    );
+}) => accordAuthorNameOf(
+  authorId,
+  member: members?[authorId],
+  user: users?[authorId],
+  ensure: ensure,
+  fallback: fallback,
+);
 
 /// Single-author variant of [accordAuthorName], for per-row widgets that scope
 /// their cache watches to one author (`.select((m) => m[authorId])`) instead of
@@ -217,23 +222,10 @@ String accordAuthorNameOf(
   return fallback;
 }
 
-/// Resolves a message/post author's avatar URL by `author_id`: member avatar
-/// (with per-space override) first, then the global user avatar, else null
-/// (callers render an initial). Companion to [accordAuthorName].
-String? accordAuthorAvatarUrl(
-  String authorId, {
-  Map<String, AccordMember>? members,
-  Map<String, AccordUser>? users,
-  String? cdnUrl,
-}) =>
-    accordAuthorAvatarUrlOf(
-      member: members?[authorId],
-      user: users?[authorId],
-      cdnUrl: cdnUrl,
-    );
-
-/// Single-author variant of [accordAuthorAvatarUrl]. Companion to
-/// [accordAuthorNameOf].
+/// Resolves a message/post author's avatar URL from the already-selected
+/// member/user cache entries. The member avatar (including a per-space
+/// override) wins over the global user avatar; callers render an initial when
+/// neither exists. Companion to [accordAuthorNameOf].
 String? accordAuthorAvatarUrlOf({
   AccordMember? member,
   AccordUser? user,
@@ -251,7 +243,16 @@ Color? accordRoleColor(int color) =>
 /// The reference client's fallback-avatar palette: 10 HSV hues at S 0.7, V 0.9
 /// (see `client_models.gd _color_from_id`).
 const List<double> _avatarPaletteHues = [
-  0.0, 0.08, 0.16, 0.28, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95,
+  0.0,
+  0.08,
+  0.16,
+  0.28,
+  0.45,
+  0.55,
+  0.65,
+  0.75,
+  0.85,
+  0.95,
 ];
 
 /// A deterministic background color for an avatar with no image, derived from a
@@ -308,10 +309,10 @@ AccordRole? _highestRole(
   List<AccordRole> spaceRoles,
   bool Function(AccordRole) test,
 ) {
+  final roleIds = member.roles.toSet();
   AccordRole? best;
-  for (final id in member.roles) {
-    final role = spaceRoles.firstWhereOrNull((r) => r.id == id);
-    if (role == null || !test(role)) continue;
+  for (final role in spaceRoles) {
+    if (!roleIds.contains(role.id) || !test(role)) continue;
     if (best == null || role.position > best.position) best = role;
   }
   return best;

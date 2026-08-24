@@ -1,4 +1,8 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/member/controllers/accord_members.dart';
+import 'package:bonfire/features/spaces/controllers/role_preview.dart';
+import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Computes the current user's effective space-level permissions, mirroring the
 /// reference client's `client_permissions.gd`:
@@ -32,8 +36,8 @@ Set<String> accordEffectivePermissions({
   }
 
   final myRoleIds = previewing
-      ? <String>[previewRoleId]
-      : (selfMember?.roles ?? const []);
+      ? <String>{previewRoleId}
+      : (selfMember?.roles.toSet() ?? const <String>{});
   final perms = <String>{};
   for (final role in roles) {
     final isEveryone = role.position == 0;
@@ -44,6 +48,39 @@ Set<String> accordEffectivePermissions({
     }
   }
   return perms;
+}
+
+/// Builds the active user's permission context from its authoritative
+/// providers. Keeping admin and role-preview handling here prevents UI
+/// call-sites from drifting as new permission gates are added.
+extension AccordPermissionWidgetRef on WidgetRef {
+  Set<String> watchAccordPermissions(AccordSpace? space, String spaceId) {
+    final currentUserId = watchUserId();
+    final members = watch(accordMembersControllerProvider(spaceId));
+    final preview = watch(rolePreviewControllerProvider);
+    return accordEffectivePermissions(
+      space: space,
+      selfMember: currentUserId == null ? null : members?[currentUserId],
+      roles: space?.roles ?? const <AccordRole>[],
+      currentUserId: currentUserId ?? '',
+      currentUserIsAdmin: watchIsAdmin(),
+      previewRoleId: preview?.spaceId == spaceId ? preview?.roleId : null,
+    );
+  }
+
+  Set<String> readAccordPermissions(AccordSpace? space, String spaceId) {
+    final currentUserId = readUserId();
+    final members = read(accordMembersControllerProvider(spaceId));
+    final preview = read(rolePreviewControllerProvider);
+    return accordEffectivePermissions(
+      space: space,
+      selfMember: currentUserId == null ? null : members?[currentUserId],
+      roles: space?.roles ?? const <AccordRole>[],
+      currentUserId: currentUserId ?? '',
+      currentUserIsAdmin: readIsAdmin(),
+      previewRoleId: preview?.spaceId == spaceId ? preview?.roleId : null,
+    );
+  }
 }
 
 /// Whether [perms] grants [perm], honoring the `administrator` override.
@@ -84,8 +121,8 @@ int accordMyHighestRolePosition({
     }
   }
   final myRoleIds = previewing
-      ? <String>[previewRoleId]
-      : (selfMember?.roles ?? const []);
+      ? <String>{previewRoleId}
+      : (selfMember?.roles.toSet() ?? const <String>{});
   var highest = 0;
   var hasAdmin = false;
   for (final role in roles) {

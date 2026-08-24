@@ -69,7 +69,7 @@ void main() {
       await tester.tap(find.text('launch'));
       await tester.pumpAndSettle();
       expect(find.byType(OnboardingOverlay), findsOneWidget);
-      expect(_container.read(onboardingControllerProvider).active, isTrue);
+      expect(_container.read(onboardingControllerProvider), isTrue);
 
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
@@ -77,7 +77,7 @@ void main() {
       expect(find.byType(OnboardingOverlay), findsNothing);
       expect(_notifier.hasSeenTour, isTrue);
       expect(_notifier.seenVersion, '9.9.9');
-      expect(_container.read(onboardingControllerProvider).active, isFalse);
+      expect(_container.read(onboardingControllerProvider), isFalse);
     });
 
     testWidgets('replay runs the tour again even once the marker is set', (

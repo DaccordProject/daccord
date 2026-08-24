@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
+import 'package:bonfire/shared/components/moderation_report_row.dart';
 import 'package:bonfire/shared/utils/ban_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
@@ -9,13 +10,7 @@ import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Status filters for the server-wide reports queue. `null` value = all.
-const _statuses = <({String label, String? value})>[
-  (label: 'Pending', value: 'pending'),
-  (label: 'All', value: null),
-  (label: 'Actioned', value: 'actioned'),
-  (label: 'Dismissed', value: 'dismissed'),
-];
+const _maxConcurrentReportRequests = 4;
 
 /// Instance-admin "Reports" tab: aggregates the per-space reports queues across
 /// all spaces the admin belongs to (matching the reference
@@ -30,7 +25,7 @@ class AdminReportsTab extends ConsumerStatefulWidget {
 }
 
 class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
-  final List<Map<String, dynamic>> _reports = [];
+  final List<AccordReport> _reports = [];
   bool _loading = true;
   bool _busy = false;
   String? _error;
@@ -44,21 +39,6 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  Map<String, dynamic> _asMap(dynamic e) {
-    if (e is Map<String, dynamic>) return e;
-    if (e is Map) return e.cast<String, dynamic>();
-    return const {};
-  }
-
-  List<Map<String, dynamic>> _parse(Object? data) {
-    final raw = data is List
-        ? data
-        : (data is Map && data['reports'] is List
-              ? data['reports'] as List
-              : const []);
-    return [for (final e in raw) _asMap(e)];
-  }
-
   Future<void> _load() async {
     final client = _client;
     if (client == null) return;
@@ -67,29 +47,47 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
       _loading = true;
       _error = null;
     });
-    final merged = <Map<String, dynamic>>[];
+    final merged = <AccordReport>[];
     String? firstError;
-    for (final space in spaces) {
-      if (space.id.isEmpty) continue;
-      final result = await client.reports.list(
-        space.id,
-        query: {if (_status != null) 'status': _status, 'limit': 25},
-      );
+    final reportSpaces = spaces.where((space) => space.id.isNotEmpty).toList();
+    final status = _status;
+    final results = List<RestResult?>.filled(reportSpaces.length, null);
+    var nextIndex = 0;
+    Future<void> worker() async {
+      while (nextIndex < reportSpaces.length) {
+        final index = nextIndex++;
+        results[index] = await client.reports.list(
+          reportSpaces[index].id,
+          query: {if (status != null) 'status': status, 'limit': 25},
+        );
+      }
+    }
+
+    await Future.wait([
+      for (
+        var i = 0;
+        i < _maxConcurrentReportRequests && i < reportSpaces.length;
+        i++
+      )
+        worker(),
+    ]);
+    for (var i = 0; i < reportSpaces.length; i++) {
+      final result = results[i]!;
       if (!result.ok) {
         firstError ??= result.error?.toString();
         continue;
       }
-      for (final r in _parse(result.data)) {
-        if (r['id'] == null) continue;
-        merged.add({...r, '_space_id': space.id});
+      final reports = result.data is List
+          ? (result.data as List).whereType<AccordReport>()
+          : const <AccordReport>[];
+      for (final report in reports) {
+        if (report.id.isEmpty) continue;
+        report.spaceId = reportSpaces[i].id;
+        merged.add(report);
       }
     }
     if (!mounted) return;
-    merged.sort(
-      (a, b) => (b['created_at']?.toString() ?? '').compareTo(
-        a['created_at']?.toString() ?? '',
-      ),
-    );
+    merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     setState(() {
       _loading = false;
       _reports
@@ -99,28 +97,15 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     });
   }
 
-  String? _reportedUserId(Map<String, dynamic> r) {
-    final type = r['target_type']?.toString() ?? '';
-    if (type == 'user' || type == 'member') {
-      final t = r['target_id']?.toString();
-      if (t != null && t.isNotEmpty) return t;
-    }
-    for (final key in ['reported_user_id', 'target_user_id', 'author_id']) {
-      final v = r[key]?.toString();
-      if (v != null && v.isNotEmpty) return v;
-    }
-    return null;
-  }
-
   Future<void> _resolve(
-    Map<String, dynamic> r,
+    AccordReport report,
     String status, {
     String? actionTaken,
   }) async {
     final client = _client;
-    final spaceId = r['_space_id']?.toString();
-    final id = r['id']?.toString();
-    if (client == null || spaceId == null || id == null) return;
+    final spaceId = report.spaceId;
+    final id = report.id;
+    if (client == null || spaceId.isEmpty || id.isEmpty) return;
     final result = await client.reports.resolve(spaceId, id, {
       'status': status,
       if (actionTaken != null) 'action_taken': actionTaken,
@@ -130,7 +115,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
       setState(() => _error = result.errorOr('Failed to resolve'));
       return;
     }
-    setState(() => _reports.removeWhere((e) => e['id']?.toString() == id));
+    setState(() => _reports.removeWhere((e) => e.id == id));
   }
 
   Future<bool> _confirm(String title, String message, String action) async {
@@ -143,11 +128,11 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
     return ok == true;
   }
 
-  Future<void> _kick(Map<String, dynamic> r) async {
+  Future<void> _kick(AccordReport report) async {
     final client = _client;
-    final spaceId = r['_space_id']?.toString();
-    final userId = _reportedUserId(r);
-    if (client == null || spaceId == null || userId == null) return;
+    final spaceId = report.spaceId;
+    final userId = report.reportedUserId;
+    if (client == null || spaceId.isEmpty || userId == null) return;
     if (!await _confirm(
       'Kick member',
       'Kick the reported member and action this report?',
@@ -163,34 +148,39 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
       setState(() => _error = result.errorOr('Failed to kick'));
       return;
     }
-    await _resolve(r, 'actioned', actionTaken: 'kick_member');
+    await _resolve(report, 'actioned', actionTaken: 'kick_member');
   }
 
-  Future<void> _ban(Map<String, dynamic> r) async {
+  Future<void> _ban(AccordReport report) async {
     final client = _client;
-    final spaceId = r['_space_id']?.toString();
-    final userId = _reportedUserId(r);
-    if (client == null || spaceId == null || userId == null) return;
-    final request =
-        await showBanDialog(context, memberName: 'The reported member');
+    final spaceId = report.spaceId;
+    final userId = report.reportedUserId;
+    if (client == null || spaceId.isEmpty || userId == null) return;
+    final request = await showBanDialog(
+      context,
+      memberName: 'The reported member',
+    );
     if (request == null || !mounted) return;
     setState(() => _busy = true);
-    final result =
-        await client.bans.create(spaceId, userId, data: request.toJson());
+    final result = await client.bans.create(
+      spaceId,
+      userId,
+      data: request.toJson(),
+    );
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
       setState(() => _error = result.errorOr('Failed to ban'));
       return;
     }
-    await _resolve(r, 'actioned', actionTaken: 'ban_member');
+    await _resolve(report, 'actioned', actionTaken: 'ban_member');
   }
 
-  Future<void> _deleteMessage(Map<String, dynamic> r) async {
+  Future<void> _deleteMessage(AccordReport report) async {
     final client = _client;
-    final channelId = r['channel_id']?.toString();
-    final messageId = r['target_id']?.toString();
-    if (client == null || channelId == null || messageId == null) return;
+    final channelId = report.channelId;
+    final messageId = report.targetId;
+    if (client == null || channelId == null || messageId.isEmpty) return;
     if (!await _confirm(
       'Delete message',
       'Delete the reported message and action this report?',
@@ -206,7 +196,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
       setState(() => _error = result.errorOr('Failed to delete message'));
       return;
     }
-    await _resolve(r, 'actioned', actionTaken: 'delete_message');
+    await _resolve(report, 'actioned', actionTaken: 'delete_message');
   }
 
   @override
@@ -225,7 +215,7 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
               child: Wrap(
                 spacing: 8,
                 children: [
-                  for (final s in _statuses)
+                  for (final s in moderationReportStatuses)
                     ChoiceChip(
                       label: Text(s.label),
                       selected: _status == s.value,
@@ -252,112 +242,17 @@ class _AdminReportsTabState extends ConsumerState<AdminReportsTab> {
         itemCount: _reports.length,
         separatorBuilder: (_, _) =>
             Divider(height: 16, color: colors.background),
-        itemBuilder: (context, i) => _ReportRow(
+        itemBuilder: (context, i) => ModerationReportRow(
           report: _reports[i],
           busy: _busy,
-          reportedUserId: _reportedUserId(_reports[i]),
-          onDismiss: () => _resolve(_reports[i], 'dismissed'),
-          onResolve: () =>
-              _resolve(_reports[i], 'resolved', actionTaken: 'none'),
-          onDeleteMessage: () => _deleteMessage(_reports[i]),
-          onKick: () => _kick(_reports[i]),
-          onBan: () => _ban(_reports[i]),
+          onDismiss: (report) => _resolve(report, 'dismissed'),
+          onResolve: (report) =>
+              _resolve(report, 'resolved', actionTaken: 'none'),
+          onDeleteMessage: _deleteMessage,
+          onKick: _kick,
+          onBan: _ban,
         ),
       ),
-    );
-  }
-}
-
-class _ReportRow extends StatelessWidget {
-  const _ReportRow({
-    required this.report,
-    required this.busy,
-    required this.reportedUserId,
-    required this.onDismiss,
-    required this.onResolve,
-    required this.onDeleteMessage,
-    required this.onKick,
-    required this.onBan,
-  });
-
-  final Map<String, dynamic> report;
-  final bool busy;
-  final String? reportedUserId;
-  final VoidCallback onDismiss;
-  final VoidCallback onResolve;
-  final VoidCallback onDeleteMessage;
-  final VoidCallback onKick;
-  final VoidCallback onBan;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
-    final category = AccordReportCategory.labelFor(
-      report['category']?.toString(),
-    );
-    final categoryLabel = category.isEmpty ? 'report' : category;
-    final description = report['description']?.toString() ?? '';
-    final targetType = report['target_type']?.toString() ?? '';
-    final channelId = report['channel_id']?.toString();
-    final canDeleteMessage =
-        targetType.contains('message') && channelId != null;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.flag_outlined, size: 16, color: colors.red),
-            const SizedBox(width: 6),
-            Text(categoryLabel, style: theme.textTheme.titleSmall),
-            const SizedBox(width: 6),
-            Text(
-              '· $targetType',
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
-            ),
-          ],
-        ),
-        if (description.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(description, style: theme.textTheme.bodySmall),
-        ],
-        const SizedBox(height: 6),
-        Wrap(
-          alignment: WrapAlignment.end,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            if (canDeleteMessage)
-              TextButton.icon(
-                onPressed: busy ? null : onDeleteMessage,
-                icon: const Icon(Icons.delete_outline, size: 16),
-                label: const Text('Delete msg'),
-              ),
-            if (reportedUserId != null) ...[
-              TextButton.icon(
-                onPressed: busy ? null : onKick,
-                icon: const Icon(Icons.exit_to_app, size: 16),
-                label: const Text('Kick'),
-              ),
-              TextButton.icon(
-                onPressed: busy ? null : onBan,
-                style: TextButton.styleFrom(foregroundColor: colors.red),
-                icon: const Icon(Icons.gavel, size: 16),
-                label: const Text('Ban'),
-              ),
-            ],
-            TextButton(
-              onPressed: busy ? null : onDismiss,
-              child: const Text('Dismiss'),
-            ),
-            FilledButton(
-              onPressed: busy ? null : onResolve,
-              child: const Text('Resolve'),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

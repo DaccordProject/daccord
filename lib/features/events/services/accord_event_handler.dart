@@ -70,85 +70,92 @@ VoidCallback handleAccordEvents(
   // to, minus that assert.
   final container = ref.container;
 
-  // Gateway lifecycle is mirrored per-connection (for the rail's status dots);
-  // the global connection banner only follows the active connection.
-  void setConnection(ConnectionStatus status) {
-    ref
-        .read(connectionsControllerProvider.notifier)
-        .setStatus(serverKey, status);
-    if (isActive()) {
-      ref.read(connectionControllerProvider.notifier).set(status);
-    }
-  }
+  // ConnectionsController is the authoritative lifecycle store for every
+  // server; active consumers select their connection from it.
+  void setConnection(ConnectionStatus status) => ref
+      .read(connectionsControllerProvider.notifier)
+      .setStatus(serverKey, status);
 
   // ── Connection lifecycle ─────────────────────────────────────────────────
-  subs.add(client.onConnected.listen((_) {
-    setConnection(ConnectionStatus.connected);
-  }));
-  subs.add(client.onReconnecting.listen((_) {
-    setConnection(ConnectionStatus.reconnecting);
-  }));
-  subs.add(client.onDisconnected.listen((info) {
-    debugPrint('Accord gateway disconnected: ${info.code} ${info.reason}');
-    setConnection(ConnectionStatus.disconnected);
-  }));
+  subs.add(
+    client.onConnected.listen((_) {
+      setConnection(ConnectionStatus.connected);
+    }),
+  );
+  subs.add(
+    client.onReconnecting.listen((_) {
+      setConnection(ConnectionStatus.reconnecting);
+    }),
+  );
+  subs.add(
+    client.onDisconnected.listen((info) {
+      debugPrint('Accord gateway disconnected: ${info.code} ${info.reason}');
+      setConnection(ConnectionStatus.disconnected);
+    }),
+  );
 
   // ── Initial sync ─────────────────────────────────────────────────────────
   var hadReady = false;
-  subs.add(client.onReady.listen((data) async {
-    setConnection(ConnectionStatus.ready);
-    // Hydrate this server's read state from the authoritative unread list the
-    // gateway sends in READY. Runs for every connection (active or background)
-    // and on every reconnect — this is what persists badges across a cold
-    // start and what lights up servers the user hasn't opened yet.
-    _hydrateReadState(ref, data, serverKey: serverKey);
-    // Presence is keyed by [serverKey] like read state, so seed it for every
-    // connection too — a background server that READYs while you're looking at
-    // another one used to be left permanently showing its whole roster as
-    // offline, with no re-seed on switch (#191).
-    seedPresencesFromReady(
-      ref,
-      data,
-      serverKey: serverKey,
-      homeDomain: selfDomain,
-    );
-    if (isActive()) {
-      _seedVoiceStates(ref, data);
-    }
-    await _loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
-    // A READY after the first means the gateway re-identified on a fresh
-    // session (a resumed session replays missed events instead, and emits
-    // `resumed`, not `ready`). Nothing replays what was missed while
-    // disconnected, so re-fetch the history of every open message pane.
-    // Active server only: the open panes are its channels.
-    if (hadReady && isActive()) {
-      for (final channelId in [...activeMessageChannels]) {
-        unawaited(
-          container
-              .read(accordMessagesControllerProvider(channelId).notifier)
-              .reload(client),
-        );
+  subs.add(
+    client.onReady.listen((data) async {
+      setConnection(ConnectionStatus.ready);
+      // Hydrate this server's read state from the authoritative unread list the
+      // gateway sends in READY. Runs for every connection (active or background)
+      // and on every reconnect — this is what persists badges across a cold
+      // start and what lights up servers the user hasn't opened yet.
+      _hydrateReadState(ref, data, serverKey: serverKey);
+      // Presence is keyed by [serverKey] like read state, so seed it for every
+      // connection too — a background server that READYs while you're looking at
+      // another one used to be left permanently showing its whole roster as
+      // offline, with no re-seed on switch (#191).
+      seedPresencesFromReady(
+        ref,
+        data,
+        serverKey: serverKey,
+        homeDomain: selfDomain,
+      );
+      if (isActive()) {
+        _seedVoiceStates(ref, data);
       }
-      // Open thread views and forum boards are caches of the same kind — they
-      // also missed events while disconnected, so refetch them too.
-      for (final key in [...activeThreadReplies]) {
-        unawaited(
-          container
-              .read(threadRepliesControllerProvider(key.channelId, key.rootId)
-                  .notifier)
-              .reload(client),
-        );
+      await _loadSpaces(ref, client, serverKey: serverKey, isActive: isActive);
+      // A READY after the first means the gateway re-identified on a fresh
+      // session (a resumed session replays missed events instead, and emits
+      // `resumed`, not `ready`). Nothing replays what was missed while
+      // disconnected, so re-fetch the history of every open message pane.
+      // Active server only: the open panes are its channels.
+      if (hadReady && isActive()) {
+        for (final channelId in [...activeMessageChannels]) {
+          unawaited(
+            container
+                .read(accordMessagesControllerProvider(channelId).notifier)
+                .reload(client),
+          );
+        }
+        // Open thread views and forum boards are caches of the same kind — they
+        // also missed events while disconnected, so refetch them too.
+        for (final key in [...activeThreadReplies]) {
+          unawaited(
+            container
+                .read(
+                  threadRepliesControllerProvider(
+                    key.channelId,
+                    key.rootId,
+                  ).notifier,
+                )
+                .reload(client),
+          );
+        }
+        for (final channelId in [...activeForumChannels]) {
+          unawaited(
+            container
+                .read(forumPostsControllerProvider(channelId).notifier)
+                .reload(client),
+          );
+        }
       }
-      for (final channelId in [...activeForumChannels]) {
-        unawaited(
-          container
-              .read(forumPostsControllerProvider(channelId).notifier)
-              .reload(client),
-        );
-      }
-    }
-    hadReady = true;
-  }));
+      hadReady = true;
+    }),
+  );
 
   // ── Presence (every connection) ──────────────────────────────────────────
   // Unlike the caches below, presence is keyed by [serverKey], so a background
@@ -159,11 +166,13 @@ VoidCallback handleAccordEvents(
   // The `user_id` on the wire is bare; a member seen through a federated space
   // is qualified. [selfDomain] is what lets the cache key both the same way
   // (#209).
-  subs.add(client.onPresenceUpdate.listen((presence) {
-    ref
-        .read(presenceControllerProvider(serverKey).notifier)
-        .upsert(presence, homeDomain: selfDomain);
-  }));
+  subs.add(
+    client.onPresenceUpdate.listen((presence) {
+      ref
+          .read(presenceControllerProvider(serverKey).notifier)
+          .upsert(presence, homeDomain: selfDomain);
+    }),
+  );
 
   // ── User cache (profile changes) ─────────────────────────────────────────
   // `user.update` carries a user's new avatar / display name / username, for
@@ -184,103 +193,117 @@ VoidCallback handleAccordEvents(
   //
   // NOTE: accordserver does not emit `user.update` today, so this is inert
   // until the server broadcasts on `PATCH /users/@me` (#193).
-  subs.add(client.onUserUpdate.listen((user) {
-    if (!isActive()) return;
-    if (user.id.isEmpty) return;
-    ref.read(accordUsersControllerProvider.notifier).upsert(user);
-    for (final spaceId in [...activeMemberSpaces]) {
-      container
-          .read(accordMembersControllerProvider(spaceId).notifier)
-          .applyUserUpdate(user);
-    }
-  }));
+  subs.add(
+    client.onUserUpdate.listen((user) {
+      if (!isActive()) return;
+      if (user.id.isEmpty) return;
+      ref.read(accordUsersControllerProvider.notifier).upsert(user);
+      for (final spaceId in [...activeMemberSpaces]) {
+        container
+            .read(accordMembersControllerProvider(spaceId).notifier)
+            .applyUserUpdate(user);
+      }
+    }),
+  );
 
   // ── Voice state cache ────────────────────────────────────────────────────
   // The who-is-in-which-channel cache is maintained for the active server only
   // (snowflake IDs are per-server and can collide). But a *forced disconnect* on
   // the server our call is pinned to must be honored even while we're browsing
   // another server — voice is one global session, not bound to the active pane.
-  subs.add(client.onVoiceStateUpdate.listen((vs) {
-    final me = currentUserId;
-    final voice = ref.read(voiceControllerProvider);
-    final isVoiceServer = serverKey == voice.serverKey;
+  subs.add(
+    client.onVoiceStateUpdate.listen((vs) {
+      final me = currentUserId;
+      final voice = ref.read(voiceControllerProvider);
+      final isVoiceServer = serverKey == voice.serverKey;
 
-    // A peer joining the DM channel we're ringing means our call connected;
-    // drop the "Calling…" state. No-ops unless this matches our outgoing call,
-    // so it's safe to run regardless of which server is active.
-    if (vs.userId != me && vs.channelId != null) {
-      ref.read(callControllerProvider.notifier).markAnswered(vs.channelId!);
-    }
+      // A peer joining the DM channel we're ringing means our call connected;
+      // drop the "Calling…" state. No-ops unless this matches our outgoing call,
+      // so it's safe to run regardless of which server is active.
+      if (vs.userId != me && vs.channelId != null) {
+        ref.read(callControllerProvider.notifier).markAnswered(vs.channelId!);
+      }
 
-    if (isActive()) {
-      final cache = ref.read(voiceStatesControllerProvider);
-      final previousChannel = _channelOf(cache, vs.userId);
-      ref.read(voiceStatesControllerProvider.notifier).upsert(vs);
-      soundManager.playForVoiceState(
-        isSelf: vs.userId == me,
-        joinedChannel: vs.channelId,
-        leftChannel: previousChannel,
-        myVoiceChannel: voice.channelId,
-      );
-      // Our own channel becoming null means the server removed us from voice —
-      // tear the session down locally. Only react when the channel we *left* is
-      // the one we currently believe we're in; otherwise this is the stale
-      // "left old channel" echo from a channel switch, and acting on it would
-      // kill the channel we just joined.
-      if (vs.userId == me &&
+      if (isActive()) {
+        final cache = ref.read(voiceStatesControllerProvider);
+        final previousChannel = _channelOf(cache, vs.userId);
+        ref.read(voiceStatesControllerProvider.notifier).upsert(vs);
+        soundManager.playForVoiceState(
+          isSelf: vs.userId == me,
+          joinedChannel: vs.channelId,
+          leftChannel: previousChannel,
+          myVoiceChannel: voice.channelId,
+        );
+        // Our own channel becoming null means the server removed us from voice —
+        // tear the session down locally. Only react when the channel we *left* is
+        // the one we currently believe we're in; otherwise this is the stale
+        // "left old channel" echo from a channel switch, and acting on it would
+        // kill the channel we just joined.
+        if (vs.userId == me &&
+            vs.channelId == null &&
+            voice.channelId != null &&
+            previousChannel == voice.channelId) {
+          ref
+              .read(voiceControllerProvider.notifier)
+              .handleForcedDisconnect(previousChannel);
+        }
+        return;
+      }
+
+      // Not the active server, so there's no cache to echo-guard against — but the
+      // join echoes were already drained while this server was active, so a self
+      // null-channel event here is a genuine kick from our pinned voice channel.
+      if (isVoiceServer &&
+          vs.userId == me &&
           vs.channelId == null &&
-          voice.channelId != null &&
-          previousChannel == voice.channelId) {
+          voice.channelId != null) {
         ref
             .read(voiceControllerProvider.notifier)
-            .handleForcedDisconnect(previousChannel);
+            .handleForcedDisconnect(voice.channelId);
       }
-      return;
-    }
-
-    // Not the active server, so there's no cache to echo-guard against — but the
-    // join echoes were already drained while this server was active, so a self
-    // null-channel event here is a genuine kick from our pinned voice channel.
-    if (isVoiceServer &&
-        vs.userId == me &&
-        vs.channelId == null &&
-        voice.channelId != null) {
-      ref
-          .read(voiceControllerProvider.notifier)
-          .handleForcedDisconnect(voice.channelId);
-    }
-  }));
+    }),
+  );
 
   // ── Voice server update ──────────────────────────────────────────────────
   // Fresh LiveKit credentials (token refresh / SFU migration) for the channel
   // we're (re)connecting to. Honored for the active server and for the server
   // our pinned voice session lives on, so a mid-call server switch doesn't drop
   // the reconnect signal.
-  subs.add(client.onVoiceServerUpdate.listen((info) {
-    final isVoiceServer =
-        serverKey == ref.read(voiceControllerProvider).serverKey;
-    if (!isActive() && !isVoiceServer) return;
-    ref.read(voiceControllerProvider.notifier).handleServerUpdate(info);
-  }));
+  subs.add(
+    client.onVoiceServerUpdate.listen((info) {
+      final isVoiceServer =
+          serverKey == ref.read(voiceControllerProvider).serverKey;
+      if (!isActive() && !isVoiceServer) return;
+      ref.read(voiceControllerProvider.notifier).handleServerUpdate(info);
+    }),
+  );
 
   // ── DM call signaling ────────────────────────────────────────────────────
   // The server targets `call.*` events at DM participants directly (not a
   // space), so they arrive on whichever connection owns the DM. Route them into
   // the call controller, which owns ring/accept/decline state for the whole app.
-  subs.add(client.onCallRing.listen((sig) {
-    ref
-        .read(callControllerProvider.notifier)
-        .handleRing(sig, serverKey, currentUserId);
-  }));
-  subs.add(client.onCallDecline.listen((sig) {
-    ref.read(callControllerProvider.notifier).handleDecline(sig);
-  }));
-  subs.add(client.onCallCancel.listen((sig) {
-    ref.read(callControllerProvider.notifier).handleCancelOrEnd(sig);
-  }));
-  subs.add(client.onCallEnd.listen((sig) {
-    ref.read(callControllerProvider.notifier).handleCancelOrEnd(sig);
-  }));
+  subs.add(
+    client.onCallRing.listen((sig) {
+      ref
+          .read(callControllerProvider.notifier)
+          .handleRing(sig, serverKey, currentUserId);
+    }),
+  );
+  subs.add(
+    client.onCallDecline.listen((sig) {
+      ref.read(callControllerProvider.notifier).handleDecline(sig);
+    }),
+  );
+  subs.add(
+    client.onCallCancel.listen((sig) {
+      ref.read(callControllerProvider.notifier).handleCancelOrEnd(sig);
+    }),
+  );
+  subs.add(
+    client.onCallEnd.listen((sig) {
+      ref.read(callControllerProvider.notifier).handleCancelOrEnd(sig);
+    }),
+  );
 
   // ── Space cache ──────────────────────────────────────────────────────────
   // Always feed this connection's rail cache; only the active connection drives
@@ -295,14 +318,18 @@ VoidCallback handleAccordEvents(
 
   subs.add(client.onSpaceCreate.listen(cacheSpace));
   subs.add(client.onSpaceUpdate.listen(cacheSpace));
-  subs.add(client.onSpaceDelete.listen((data) {
-    final id = data['id']?.toString() ?? data['space_id']?.toString();
-    if (id == null) return;
-    ref.read(connectionsControllerProvider.notifier).removeSpace(serverKey, id);
-    if (isActive()) {
-      ref.read(spacesControllerProvider.notifier).removeSpace(id);
-    }
-  }));
+  subs.add(
+    client.onSpaceDelete.listen((data) {
+      final id = data['id']?.toString() ?? data['space_id']?.toString();
+      if (id == null) return;
+      ref
+          .read(connectionsControllerProvider.notifier)
+          .removeSpace(serverKey, id);
+      if (isActive()) {
+        ref.read(spacesControllerProvider.notifier).removeSpace(id);
+      }
+    }),
+  );
 
   // ── Channel cache (per space, plus DM/group-DM channels) ─────────────────
   // Space channels feed the per-space channel controller; channels with no
@@ -331,17 +358,19 @@ VoidCallback handleAccordEvents(
 
   subs.add(client.onChannelCreate.listen(cacheChannel));
   subs.add(client.onChannelUpdate.listen(cacheChannel));
-  subs.add(client.onChannelDelete.listen((channel) {
-    if (!isActive()) return;
-    final spaceId = channel.spaceId;
-    if (spaceId == null) {
-      ref.read(dmChannelsControllerProvider.notifier).remove(channel.id);
-      return;
-    }
-    container
-        .read(accordChannelsControllerProvider(spaceId).notifier)
-        .removeChannel(channel.id);
-  }));
+  subs.add(
+    client.onChannelDelete.listen((channel) {
+      if (!isActive()) return;
+      final spaceId = channel.spaceId;
+      if (spaceId == null) {
+        ref.read(dmChannelsControllerProvider.notifier).remove(channel.id);
+        return;
+      }
+      container
+          .read(accordChannelsControllerProvider(spaceId).notifier)
+          .removeChannel(channel.id);
+    }),
+  );
 
   // ── Incoming messages ────────────────────────────────────────────────────
   // One `message.create` subscription fans out to four independent concerns —
@@ -350,183 +379,209 @@ VoidCallback handleAccordEvents(
   // reads (self-authorship, self-mention, settings, active/visible checks) are
   // computed once; each concern keeps its own skip conditions, so a guard that
   // silences the chime never suppresses the badge, and vice versa.
-  subs.add(client.onMessageCreate.listen((message) {
-    final active = isActive();
-    final isOwn = isSelf(message.authorId);
-    final mentionsMe = mentionsSelf(message.mentions);
-    final isVisibleChannel =
-        active && message.channelId == accordVisibleChannelId;
-    final settings = ref.read(settingsControllerProvider);
-    final spaceMuted =
-        message.spaceId != null && settings.isSpaceMuted(message.spaceId!);
+  subs.add(
+    client.onMessageCreate.listen((message) {
+      final active = isActive();
+      final isOwn = isSelf(message.authorId);
+      final mentionsMe = mentionsSelf(message.mentions);
+      final isVisibleChannel =
+          active && message.channelId == accordVisibleChannelId;
+      final settings = ref.read(settingsControllerProvider);
+      final spaceMuted =
+          message.spaceId != null && settings.isSpaceMuted(message.spaceId!);
 
-    // Channel cache: only touch channels the UI has actually opened (see
-    // [activeMessageChannels]) so we don't history-load every channel that
-    // receives a message. Active connection only — its channels own the panes.
-    if (active && activeMessageChannels.contains(message.channelId)) {
-      container
-          .read(accordMessagesControllerProvider(message.channelId).notifier)
-          .addMessage(message);
-    }
+      // Channel cache: only touch channels the UI has actually opened (see
+      // [activeMessageChannels]) so we don't history-load every channel that
+      // receives a message. Active connection only — its channels own the panes.
+      if (active && activeMessageChannels.contains(message.channelId)) {
+        container
+            .read(accordMessagesControllerProvider(message.channelId).notifier)
+            .addMessage(message);
+      }
 
-    // Thread views: a message carrying `thread_id` is a reply — route it into
-    // the matching open thread's replies cache (the composer's optimistic
-    // append is deduped by `addReply`). Same opened-only rule as above, via
-    // [activeThreadReplies].
-    final threadId = message.threadId;
-    if (active &&
-        threadId != null &&
-        activeThreadReplies
-            .contains((channelId: message.channelId, rootId: threadId))) {
-      container
-          .read(threadRepliesControllerProvider(message.channelId, threadId)
-              .notifier)
-          .addReply(message);
-    }
+      // Thread views: a message carrying `thread_id` is a reply — route it into
+      // the matching open thread's replies cache (the composer's optimistic
+      // append is deduped by `addReply`). Same opened-only rule as above, via
+      // [activeThreadReplies].
+      final threadId = message.threadId;
+      if (active &&
+          threadId != null &&
+          activeThreadReplies.contains((
+            channelId: message.channelId,
+            rootId: threadId,
+          ))) {
+        container
+            .read(
+              threadRepliesControllerProvider(
+                message.channelId,
+                threadId,
+              ).notifier,
+            )
+            .addReply(message);
+      }
 
-    // Forum boards: a top-level (no `thread_id`) message in a channel with a
-    // live forum controller is a new root post — surface it on the board live.
-    // Only forum channels ever build that controller, so membership in
-    // [activeForumChannels] is also the cheap "is this a forum?" test.
-    if (active &&
-        threadId == null &&
-        activeForumChannels.contains(message.channelId)) {
-      container
-          .read(forumPostsControllerProvider(message.channelId).notifier)
-          .addPost(message);
-    }
+      // Forum boards: a top-level (no `thread_id`) message in a channel with a
+      // live forum controller is a new root post — surface it on the board live.
+      // Only forum channels ever build that controller, so membership in
+      // [activeForumChannels] is also the cheap "is this a forum?" test.
+      if (active &&
+          threadId == null &&
+          activeForumChannels.contains(message.channelId)) {
+        container
+            .read(forumPostsControllerProvider(message.channelId).notifier)
+            .addPost(message);
+      }
 
-    // Read state (unread + mention badges): independent of the channel cache —
-    // every message that arrives in a channel other than the visible one marks
-    // that channel unread (with a bumped mention count when the user is
-    // mentioned). Runs for *every* connection so background servers light up
-    // their rail icon too — state is keyed by [serverKey] so colliding
-    // snowflakes don't cross-contaminate. Only the active connection
-    // suppresses the on-screen channel (the visible-channel pointer belongs to
-    // the active session). Mirrors `client_unread.gd`.
-    //
-    // Intentionally *not* filtered by mutes: the stored state stays truthful
-    // and the rail/channel indicators apply [UnreadIndicatorGate] when they
-    // render (see `ReadStateSnapshot.spaceShowsUnread`), so unmuting a space
-    // reveals what arrived while it was muted without waiting for a reconnect.
-    if (!isOwn && !isVisibleChannel) {
-      ref
-          .read(readStateControllerProvider(serverKey).notifier)
-          .markUnread(
-            message.channelId,
-            spaceId: message.spaceId,
-            isMention: message.mentionEveryone || mentionsMe,
-          );
-    }
+      // Read state (unread + mention badges): independent of the channel cache —
+      // every message that arrives in a channel other than the visible one marks
+      // that channel unread (with a bumped mention count when the user is
+      // mentioned). Runs for *every* connection so background servers light up
+      // their rail icon too — state is keyed by [serverKey] so colliding
+      // snowflakes don't cross-contaminate. Only the active connection
+      // suppresses the on-screen channel (the visible-channel pointer belongs to
+      // the active session). Mirrors `client_unread.gd`.
+      //
+      // Intentionally *not* filtered by mutes: the stored state stays truthful
+      // and the rail/channel indicators apply [UnreadIndicatorGate] when they
+      // render (see `ReadStateSnapshot.spaceShowsUnread`), so unmuting a space
+      // reveals what arrived while it was muted without waiting for a reconnect.
+      if (!isOwn && !isVisibleChannel) {
+        ref
+            .read(readStateControllerProvider(serverKey).notifier)
+            .markUnread(
+              message.channelId,
+              spaceId: message.spaceId,
+              isMention: message.mentionEveryone || mentionsMe,
+            );
+      }
 
-    // Mention notifications: fire for *any* mentioning message, even in
-    // channels the UI hasn't opened and on servers that aren't currently
-    // active (so a message on server B still notifies while you're on server
-    // A). [currentUserId] is per-connection, so author matching is correct on
-    // every server; only the *visible-channel* skip is active-connection
-    // -scoped, since that pointer belongs to the on-screen session.
-    final notify = MessageNotificationGate.shouldNotify(
-      notificationsEnabled: settings.notificationsEnabled,
-      suppressEveryone: settings.suppressEveryone,
-      isOwnMessage: isOwn,
-      isVisibleChannel: isVisibleChannel,
-      mentionsMe: mentionsMe,
-      mentionEveryone: message.mentionEveryone,
-      spaceMuted: spaceMuted,
-      channelLevel: settings.channelNotificationLevel(message.channelId),
-    );
-    if (notify) {
-      final author = ref.read(accordUsersControllerProvider)[message.authorId];
-      final name = accordUserName(author, fallback: 'New mention');
-      final body = message.content.trim();
-      showMentionNotification(
-        title: name,
-        body: body.isEmpty ? 'mentioned you' : body,
-      );
-    }
-
-    // Message SFX (mirrors the reference `play_for_message`): plays for *any*
-    // incoming message on *any* connection, gated by sound prefs + window
-    // focus, and never chimes for our own messages, a muted space (which stays
-    // silent like its suppressed banner), or the channel that's on screen
-    // (only the active connection owns the visible-channel pointer).
-    if (settings.soundsEnabled && !spaceMuted && !isOwn) {
-      final everyone = message.mentionEveryone && !settings.suppressEveryone;
-      soundManager.playForMessage(
-        isMention: mentionsMe || everyone,
+      // Mention notifications: fire for *any* mentioning message, even in
+      // channels the UI hasn't opened and on servers that aren't currently
+      // active (so a message on server B still notifies while you're on server
+      // A). [currentUserId] is per-connection, so author matching is correct on
+      // every server; only the *visible-channel* skip is active-connection
+      // -scoped, since that pointer belongs to the on-screen session.
+      final notify = MessageNotificationGate.shouldNotify(
+        notificationsEnabled: settings.notificationsEnabled,
+        suppressEveryone: settings.suppressEveryone,
+        isOwnMessage: isOwn,
         isVisibleChannel: isVisibleChannel,
-        isMemberJoin: message.type == 'member_join',
+        mentionsMe: mentionsMe,
+        mentionEveryone: message.mentionEveryone,
+        spaceMuted: spaceMuted,
+        channelLevel: settings.channelNotificationLevel(message.channelId),
       );
-    }
-  }));
+      if (notify) {
+        final author = ref
+            .read(accordUsersControllerProvider.notifier)
+            .cached(message.authorId, client: client);
+        final name = accordUserName(author, fallback: 'New mention');
+        final body = message.content.trim();
+        showMentionNotification(
+          title: name,
+          body: body.isEmpty ? 'mentioned you' : body,
+        );
+      }
+
+      // Message SFX (mirrors the reference `play_for_message`): plays for *any*
+      // incoming message on *any* connection, gated by sound prefs + window
+      // focus, and never chimes for our own messages, a muted space (which stays
+      // silent like its suppressed banner), or the channel that's on screen
+      // (only the active connection owns the visible-channel pointer).
+      if (settings.soundsEnabled && !spaceMuted && !isOwn) {
+        final everyone = message.mentionEveryone && !settings.suppressEveryone;
+        soundManager.playForMessage(
+          isMention: mentionsMe || everyone,
+          isVisibleChannel: isVisibleChannel,
+          isMemberJoin: message.type == 'member_join',
+        );
+      }
+    }),
+  );
 
   // ── Message cache (per channel) ──────────────────────────────────────────
   // Edits and deletes follow the same opened-channels rule as the cache block
   // above.
-  subs.add(client.onMessageUpdate.listen((message) {
-    if (!isActive()) return;
-    if (activeMessageChannels.contains(message.channelId)) {
-      container
-          .read(accordMessagesControllerProvider(message.channelId).notifier)
-          .updateMessage(message);
-    }
-    // Route edits into open thread views (replies) and forum boards (root
-    // posts) the same way creates are routed; both mutators no-op on ids they
-    // don't hold.
-    final threadId = message.threadId;
-    if (threadId != null &&
-        activeThreadReplies
-            .contains((channelId: message.channelId, rootId: threadId))) {
-      container
-          .read(threadRepliesControllerProvider(message.channelId, threadId)
-              .notifier)
-          .updateReply(message);
-    }
-    if (threadId == null && activeForumChannels.contains(message.channelId)) {
-      container
-          .read(forumPostsControllerProvider(message.channelId).notifier)
-          .updatePost(message);
-    }
-  }));
-  subs.add(client.onMessageDelete.listen((data) {
-    if (!isActive()) return;
-    final channelId = data['channel_id']?.toString();
-    final messageId =
-        data['id']?.toString() ?? data['message_id']?.toString();
-    if (channelId == null || messageId == null) return;
-    if (activeMessageChannels.contains(channelId)) {
-      container
-          .read(accordMessagesControllerProvider(channelId).notifier)
-          .removeMessage(messageId);
-    }
-    // The delete payload carries no `thread_id`, so fan the removal out to
-    // every open thread on this channel (usually at most one) and to an open
-    // forum board; removeReply/removePost no-op when the id isn't theirs.
-    for (final key in [...activeThreadReplies]) {
-      if (key.channelId != channelId) continue;
-      container
-          .read(threadRepliesControllerProvider(key.channelId, key.rootId)
-              .notifier)
-          .removeReply(messageId);
-    }
-    if (activeForumChannels.contains(channelId)) {
-      container
-          .read(forumPostsControllerProvider(channelId).notifier)
-          .removePost(messageId);
-    }
-  }));
+  subs.add(
+    client.onMessageUpdate.listen((message) {
+      if (!isActive()) return;
+      if (activeMessageChannels.contains(message.channelId)) {
+        container
+            .read(accordMessagesControllerProvider(message.channelId).notifier)
+            .updateMessage(message);
+      }
+      // Route edits into open thread views (replies) and forum boards (root
+      // posts) the same way creates are routed; both mutators no-op on ids they
+      // don't hold.
+      final threadId = message.threadId;
+      if (threadId != null &&
+          activeThreadReplies.contains((
+            channelId: message.channelId,
+            rootId: threadId,
+          ))) {
+        container
+            .read(
+              threadRepliesControllerProvider(
+                message.channelId,
+                threadId,
+              ).notifier,
+            )
+            .updateReply(message);
+      }
+      if (threadId == null && activeForumChannels.contains(message.channelId)) {
+        container
+            .read(forumPostsControllerProvider(message.channelId).notifier)
+            .updatePost(message);
+      }
+    }),
+  );
+  subs.add(
+    client.onMessageDelete.listen((data) {
+      if (!isActive()) return;
+      final channelId = data['channel_id']?.toString();
+      final messageId =
+          data['id']?.toString() ?? data['message_id']?.toString();
+      if (channelId == null || messageId == null) return;
+      if (activeMessageChannels.contains(channelId)) {
+        container
+            .read(accordMessagesControllerProvider(channelId).notifier)
+            .removeMessage(messageId);
+      }
+      // The delete payload carries no `thread_id`, so fan the removal out to
+      // every open thread on this channel (usually at most one) and to an open
+      // forum board; removeReply/removePost no-op when the id isn't theirs.
+      for (final key in [...activeThreadReplies]) {
+        if (key.channelId != channelId) continue;
+        container
+            .read(
+              threadRepliesControllerProvider(
+                key.channelId,
+                key.rootId,
+              ).notifier,
+            )
+            .removeReply(messageId);
+      }
+      if (activeForumChannels.contains(channelId)) {
+        container
+            .read(forumPostsControllerProvider(channelId).notifier)
+            .removePost(messageId);
+      }
+    }),
+  );
 
   // ── Read-state sync (multi-device) ───────────────────────────────────────
   // The server echoes our own acks to our *other* sessions, so reading a channel
   // on one device clears its badge here too. Keyed by [serverKey] like the rest
   // of read state; we only clear (acks never re-raise a badge).
-  subs.add(client.onReadStateUpdate.listen((data) {
-    final channelId = data['channel_id']?.toString();
-    if (channelId == null || channelId.isEmpty) return;
-    ref
-        .read(readStateControllerProvider(serverKey).notifier)
-        .markRead(channelId);
-  }));
+  subs.add(
+    client.onReadStateUpdate.listen((data) {
+      final channelId = data['channel_id']?.toString();
+      if (channelId == null || channelId.isEmpty) return;
+      ref
+          .read(readStateControllerProvider(serverKey).notifier)
+          .markRead(channelId);
+    }),
+  );
 
   // ── Reactions (per channel) ──────────────────────────────────────────────
   // Like messages, only mutate channels the UI has opened.
@@ -557,49 +612,63 @@ VoidCallback handleAccordEvents(
     final isOwn = isSelf(data['user_id']?.toString());
     container
         .read(accordMessagesControllerProvider(channelId).notifier)
-        .applyReaction(messageId, emoji.name,
-            added: added, isOwn: isOwn, emojiId: emoji.id);
+        .applyReaction(
+          messageId,
+          emoji.name,
+          added: added,
+          isOwn: isOwn,
+          emojiId: emoji.id,
+        );
   }
 
-  subs.add(client.onReactionAdd.listen((d) => applyReactionEvent(d, added: true)));
   subs.add(
-      client.onReactionRemove.listen((d) => applyReactionEvent(d, added: false)));
-  subs.add(client.onReactionClear.listen((data) {
-    if (!isActive()) return;
-    final channelId = data['channel_id']?.toString();
-    final messageId = data['message_id']?.toString();
-    if (channelId == null || messageId == null) return;
-    if (!activeMessageChannels.contains(channelId)) return;
-    container
-        .read(accordMessagesControllerProvider(channelId).notifier)
-        .clearReactions(messageId);
-  }));
-  subs.add(client.onReactionClearEmoji.listen((data) {
-    if (!isActive()) return;
-    final channelId = data['channel_id']?.toString();
-    final messageId = data['message_id']?.toString();
-    final name = reactionEmoji(data).name;
-    if (channelId == null || messageId == null || name.isEmpty) return;
-    if (!activeMessageChannels.contains(channelId)) return;
-    container
-        .read(accordMessagesControllerProvider(channelId).notifier)
-        .clearReactionEmoji(messageId, name);
-  }));
+    client.onReactionAdd.listen((d) => applyReactionEvent(d, added: true)),
+  );
+  subs.add(
+    client.onReactionRemove.listen((d) => applyReactionEvent(d, added: false)),
+  );
+  subs.add(
+    client.onReactionClear.listen((data) {
+      if (!isActive()) return;
+      final channelId = data['channel_id']?.toString();
+      final messageId = data['message_id']?.toString();
+      if (channelId == null || messageId == null) return;
+      if (!activeMessageChannels.contains(channelId)) return;
+      container
+          .read(accordMessagesControllerProvider(channelId).notifier)
+          .clearReactions(messageId);
+    }),
+  );
+  subs.add(
+    client.onReactionClearEmoji.listen((data) {
+      if (!isActive()) return;
+      final channelId = data['channel_id']?.toString();
+      final messageId = data['message_id']?.toString();
+      final name = reactionEmoji(data).name;
+      if (channelId == null || messageId == null || name.isEmpty) return;
+      if (!activeMessageChannels.contains(channelId)) return;
+      container
+          .read(accordMessagesControllerProvider(channelId).notifier)
+          .clearReactionEmoji(messageId, name);
+    }),
+  );
 
   // ── Typing indicators (per channel) ──────────────────────────────────────
   // A remote user's typing arrives with a qualified id; the typing controller
   // holds it verbatim and the UI resolves identity via the member/user cache
   // (fetching the replica on demand). Our own typing echoes back qualified to
   // our domain on a remote-homed channel, so skip-self matches both forms.
-  subs.add(client.onTypingStart.listen((data) {
-    if (!isActive()) return;
-    final channelId = data['channel_id']?.toString();
-    final userId = data['user_id']?.toString();
-    if (channelId == null || userId == null) return;
-    if (!activeMessageChannels.contains(channelId)) return;
-    if (isSelf(userId)) return; // don't show our own typing
-    ref.read(typingControllerProvider(channelId).notifier).userTyping(userId);
-  }));
+  subs.add(
+    client.onTypingStart.listen((data) {
+      if (!isActive()) return;
+      final channelId = data['channel_id']?.toString();
+      final userId = data['user_id']?.toString();
+      if (channelId == null || userId == null) return;
+      if (!activeMessageChannels.contains(channelId)) return;
+      if (isSelf(userId)) return; // don't show our own typing
+      ref.read(typingControllerProvider(channelId).notifier).userTyping(userId);
+    }),
+  );
 
   // ── Member cache (per space) ─────────────────────────────────────────────
   // Only touch spaces the UI has actually opened (see [activeMemberSpaces]) so
@@ -629,30 +698,39 @@ VoidCallback handleAccordEvents(
 
   subs.add(client.onRoleCreate.listen(cacheRole));
   subs.add(client.onRoleUpdate.listen(cacheRole));
-  subs.add(client.onRoleDelete.listen((data) {
-    if (!isActive()) return;
-    final spaceId = roleSpaceId(data);
-    final roleId = data['role_id']?.toString() ??
-        (data['role'] is Map ? (data['role'] as Map)['id']?.toString() : null);
-    if (spaceId == null || roleId == null) return;
-    ref.read(spacesControllerProvider.notifier).removeRole(spaceId, roleId);
-  }));
+  subs.add(
+    client.onRoleDelete.listen((data) {
+      if (!isActive()) return;
+      final spaceId = roleSpaceId(data);
+      final roleId =
+          data['role_id']?.toString() ??
+          (data['role'] is Map
+              ? (data['role'] as Map)['id']?.toString()
+              : null);
+      if (spaceId == null || roleId == null) return;
+      ref.read(spacesControllerProvider.notifier).removeRole(spaceId, roleId);
+    }),
+  );
 
   subs.add(client.onMemberJoin.listen(cacheMember));
   subs.add(client.onMemberUpdate.listen(cacheMember));
-  subs.add(client.onMemberLeave.listen((data) {
-    if (!isActive()) return;
-    final spaceId = data['space_id']?.toString() ?? data['guild_id']?.toString();
-    final userId =
-        data['user_id']?.toString() ?? (data['user'] is Map
-            ? (data['user'] as Map)['id']?.toString()
-            : null);
-    if (spaceId == null || userId == null) return;
-    if (!activeMemberSpaces.contains(spaceId)) return;
-    container
-        .read(accordMembersControllerProvider(spaceId).notifier)
-        .removeMember(userId);
-  }));
+  subs.add(
+    client.onMemberLeave.listen((data) {
+      if (!isActive()) return;
+      final spaceId =
+          data['space_id']?.toString() ?? data['guild_id']?.toString();
+      final userId =
+          data['user_id']?.toString() ??
+          (data['user'] is Map
+              ? (data['user'] as Map)['id']?.toString()
+              : null);
+      if (spaceId == null || userId == null) return;
+      if (!activeMemberSpaces.contains(spaceId)) return;
+      container
+          .read(accordMembersControllerProvider(spaceId).notifier)
+          .removeMember(userId);
+    }),
+  );
 
   return () {
     for (final sub in subs) {
@@ -727,14 +805,15 @@ void _hydrateReadState(
     if (e is! Map) continue;
     final channelId = e['channel_id']?.toString();
     if (channelId == null || channelId.isEmpty) continue;
-    final spaceId =
-        (e['space_id'] ?? channelSpace[channelId])?.toString();
+    final spaceId = (e['space_id'] ?? channelSpace[channelId])?.toString();
     final mentions = (e['mention_count'] as num?)?.toInt() ?? 0;
-    entries.add(ReadEntry(
-      channelId: channelId,
-      spaceId: (spaceId != null && spaceId.isNotEmpty) ? spaceId : null,
-      mentions: mentions,
-    ));
+    entries.add(
+      ReadEntry(
+        channelId: channelId,
+        spaceId: (spaceId != null && spaceId.isNotEmpty) ? spaceId : null,
+        mentions: mentions,
+      ),
+    );
   }
   ref.read(readStateControllerProvider(serverKey).notifier).hydrate(entries);
 }
@@ -802,17 +881,31 @@ Future<void> _loadSpaces(
 /// spaces concurrently on (re)connect is cheap. A failed fetch for one space
 /// leaves it with no roles rather than aborting the others — the gateway
 /// `role.*` events still keep it current once something changes.
-Future<void> _hydrateRoles(AccordClient client, List<AccordSpace> spaces) async {
-  await Future.wait(spaces.map((space) async {
-    final result = await client.roles.list(space.id);
-    if (!result.ok) {
-      debugPrint('Failed to load roles for ${space.id}: ${result.error}');
-      return;
+Future<void> _hydrateRoles(
+  AccordClient client,
+  List<AccordSpace> spaces,
+) async {
+  const maxConcurrentFetches = 8;
+  final pending = List<AccordSpace>.of(spaces);
+
+  Future<void> worker() async {
+    while (pending.isNotEmpty) {
+      final space = pending.removeLast();
+      final result = await client.roles.list(space.id);
+      if (!result.ok) {
+        debugPrint('Failed to load roles for ${space.id}: ${result.error}');
+        continue;
+      }
+      final roles = result.data;
+      if (roles is! List) continue;
+      space.roles
+        ..clear()
+        ..addAll(roles.whereType<AccordRole>());
     }
-    final roles = result.data;
-    if (roles is! List) return;
-    space.roles
-      ..clear()
-      ..addAll(roles.whereType<AccordRole>());
-  }));
+  }
+
+  final workerCount = spaces.length < maxConcurrentFetches
+      ? spaces.length
+      : maxConcurrentFetches;
+  await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
 }

@@ -35,7 +35,7 @@ const onboardingControllerProvider = OnboardingControllerProvider._();
 /// nothing and leaves the door open for a "this release changed the layout,
 /// re-introduce it" decision later. Any non-empty value counts as seen.
 final class OnboardingControllerProvider
-    extends $NotifierProvider<OnboardingController, OnboardingState> {
+    extends $NotifierProvider<OnboardingController, bool> {
   /// Owns the first-launch walkthrough's persistence and gating (#175).
   ///
   /// **Persistence.** The seen-marker lives in the existing `accord-settings` Hive
@@ -66,16 +66,16 @@ final class OnboardingControllerProvider
   OnboardingController create() => OnboardingController();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(OnboardingState value) {
+  Override overrideWithValue(bool value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<OnboardingState>(value),
+      providerOverride: $SyncValueProvider<bool>(value),
     );
   }
 }
 
 String _$onboardingControllerHash() =>
-    r'231c2945552b06b8c3bb87774a9fa59a67ed574f';
+    r'a20a4720eae1531a409c6d78e903ed08510badf9';
 
 /// Owns the first-launch walkthrough's persistence and gating (#175).
 ///
@@ -89,18 +89,18 @@ String _$onboardingControllerHash() =>
 /// nothing and leaves the door open for a "this release changed the layout,
 /// re-introduce it" decision later. Any non-empty value counts as seen.
 
-abstract class _$OnboardingController extends $Notifier<OnboardingState> {
-  OnboardingState build();
+abstract class _$OnboardingController extends $Notifier<bool> {
+  bool build();
   @$mustCallSuper
   @override
   void runBuild() {
     final created = build();
-    final ref = this.ref as $Ref<OnboardingState, OnboardingState>;
+    final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<OnboardingState, OnboardingState>,
-              OnboardingState,
+              AnyNotifier<bool, bool>,
+              bool,
               Object?,
               Object?
             >;

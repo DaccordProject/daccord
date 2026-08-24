@@ -1,3 +1,4 @@
+import '../../models/report.dart';
 import '../endpoint_base.dart';
 import '../rest_result.dart';
 
@@ -14,25 +15,52 @@ class ReportsApi extends EndpointBase {
   /// Creates a report. [data] should include `target_type`, `target_id`,
   /// `category`, and optionally `channel_id`/`description`.
   Future<RestResult> create(String spaceId, Map<String, dynamic> data) {
-    return rest.makeRequest('POST', '/spaces/$spaceId/reports', body: data);
+    return rest
+        .makeRequest('POST', '/spaces/$spaceId/reports', body: data)
+        .then((r) => r.deserialize(AccordReport.fromJson));
   }
 
   /// Lists reports. Supports `status`/`limit`/`before`.
   Future<RestResult> list(String spaceId,
       {Map<String, dynamic> query = const {}}) {
-    return rest.makeRequest('GET', '/spaces/$spaceId/reports', query: query);
+    return rest
+        .makeRequest('GET', '/spaces/$spaceId/reports', query: query)
+        .then(_deserializeReportList);
   }
 
   /// Fetches a single report by ID.
   Future<RestResult> fetch(String spaceId, String reportId) {
-    return rest.makeRequest('GET', '/spaces/$spaceId/reports/$reportId');
+    return rest
+        .makeRequest('GET', '/spaces/$spaceId/reports/$reportId')
+        .then((r) => r.deserialize(AccordReport.fromJson));
   }
 
   /// Resolves a report. [data] should include `status` and optionally
   /// `action_taken`.
   Future<RestResult> resolve(
       String spaceId, String reportId, Map<String, dynamic> data) {
-    return rest.makeRequest('PATCH', '/spaces/$spaceId/reports/$reportId',
-        body: data);
+    return rest
+        .makeRequest('PATCH', '/spaces/$spaceId/reports/$reportId', body: data)
+        .then((r) => r.deserialize(AccordReport.fromJson));
+  }
+
+  RestResult _deserializeReportList(RestResult result) {
+    if (!result.ok) return result;
+    final data = result.data;
+    final raw = data is List
+        ? data
+        : data is Map && data['reports'] is List
+            ? data['reports'] as List
+            : null;
+    if (raw != null) {
+      result.data = [
+        for (final item in raw)
+          if (item is Map<String, dynamic>)
+            AccordReport.fromJson(item)
+          else if (item is Map)
+            AccordReport.fromJson(item.cast<String, dynamic>()),
+      ];
+    }
+    return result;
   }
 }

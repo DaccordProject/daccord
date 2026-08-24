@@ -104,7 +104,7 @@ void main() {
         ..open(tab('a'))
         ..open(tab('b'))
         ..open(tab('c'))
-        ..reorder(0, 3); // Flutter passes newIndex past the end.
+        ..reorder(0, 2); // onReorderItem uses post-removal coordinates.
       expect(stateOf(c).tabs.map((t) => t.channelId), ['b', 'c', 'a']);
     });
   });

@@ -1,8 +1,10 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/admin/views/admin_list_scaffold.dart';
+import 'package:bonfire/shared/components/load_more_footer.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
+import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/shared/components/label_pill.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -21,22 +23,36 @@ class AdminUsersTab extends ConsumerStatefulWidget {
 
 const _userPageSize = 50;
 
-class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
-  final List<AccordUser> _users = [];
+class _AdminUsersTabState extends ConsumerState<AdminUsersTab>
+    with PaginatedListState<AccordUser, AdminUsersTab> {
   final _search = TextEditingController();
-  bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = false;
   bool _busy = false;
-  String? _error;
 
   AccordClient? get _client => ref.accordClient;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  int get pageSize => _userPageSize;
+
+  @override
+  bool get canLoad => _client != null;
+
+  @override
+  String itemId(AccordUser item) => item.id;
+
+  @override
+  Future<RestResult> fetchPage({String? before}) =>
+      _client!.adminApi.listUsers(query: _query(after: before));
+
+  @override
+  List<AccordUser> parseItems(Object? data) =>
+      data is List ? data.cast<AccordUser>() : <AccordUser>[];
+
+  @override
+  String loadError(RestResult result) => result.errorOr('Failed to load users');
+
+  @override
+  String loadMoreError(RestResult result) =>
+      result.errorOr('Failed to load more');
 
   @override
   void dispose() {
@@ -52,60 +68,12 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     return q;
   }
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    final result = await client.adminApi.listUsers(query: _query());
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _loading = false;
-        _error = result.errorOr('Failed to load users');
-      });
-      return;
-    }
-    final data = result.data;
-    final fresh = data is List ? data.cast<AccordUser>() : <AccordUser>[];
-    setState(() {
-      _loading = false;
-      _users
-        ..clear()
-        ..addAll(fresh);
-      _hasMore = fresh.length >= _userPageSize;
-    });
-  }
-
-  Future<void> _loadMore() async {
-    final client = _client;
-    if (client == null || _loadingMore || !_hasMore || _users.isEmpty) return;
-    setState(() => _loadingMore = true);
-    final result =
-        await client.adminApi.listUsers(query: _query(after: _users.last.id));
-    if (!mounted) return;
-    if (!result.ok) {
-      setState(() {
-        _loadingMore = false;
-        _error = result.errorOr('Failed to load more');
-      });
-      return;
-    }
-    final data = result.data;
-    final fresh = data is List ? data.cast<AccordUser>() : <AccordUser>[];
-    final existing = _users.map((u) => u.id).toSet();
-    final deduped = fresh.where((u) => !existing.contains(u.id)).toList();
-    setState(() {
-      _loadingMore = false;
-      _users.addAll(deduped);
-      _hasMore = fresh.length >= _userPageSize && deduped.isNotEmpty;
-    });
-  }
-
-  Future<bool?> _confirm(String title, String message, String action,
-      {bool danger = false}) {
+  Future<bool?> _confirm(
+    String title,
+    String message,
+    String action, {
+    bool danger = false,
+  }) {
     return showConfirmDialog(
       context,
       title: title,
@@ -118,12 +86,12 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
   Future<void> _setAdmin(AccordUser user, bool value) async {
     final client = _client;
     if (client == null) return;
-    final result =
-        await client.adminApi.updateUser(user.id, {'is_admin': value});
+    final result = await client.adminApi.updateUser(user.id, {
+      'is_admin': value,
+    });
     if (!mounted) return;
     if (!result.ok) {
-      setState(() =>
-          _error = result.errorOr('Failed to update user'));
+      setState(() => error = result.errorOr('Failed to update user'));
       return;
     }
     setState(() => user.isAdmin = value);
@@ -142,13 +110,13 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     final client = _client;
     if (client == null) return;
     setState(() => _busy = true);
-    final result =
-        await client.adminApi.updateUser(user.id, {'disabled': disable});
+    final result = await client.adminApi.updateUser(user.id, {
+      'disabled': disable,
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.errorOr('Failed to update user'));
+      setState(() => error = result.errorOr('Failed to update user'));
       return;
     }
     setState(() => user.disabled = disable);
@@ -163,13 +131,13 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     final client = _client;
     if (client == null) return;
     setState(() => _busy = true);
-    final result = await client.adminApi
-        .resetUserPassword(user.id, {'new_password': newPassword});
+    final result = await client.adminApi.resetUserPassword(user.id, {
+      'new_password': newPassword,
+    });
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
-      setState(() =>
-          _error = result.errorOr('Failed to reset password'));
+      setState(() => error = result.errorOr('Failed to reset password'));
       return;
     }
     showInfoSnack(context, "Password reset for ${user.username}");
@@ -191,22 +159,22 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     if (!result.ok) {
       setState(() {
         _busy = false;
-        _error = result.errorOr('Failed to delete user');
+        error = result.errorOr('Failed to delete user');
       });
       return;
     }
     setState(() {
       _busy = false;
-      _users.removeWhere((u) => u.id == user.id);
+      items.removeWhere((u) => u.id == user.id);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return AdminListScaffold(
-      error: _error,
-      loading: _loading,
-      isEmpty: _users.isEmpty,
+      error: error,
+      loading: loading,
+      isEmpty: items.isEmpty,
       emptyMessage: 'No users found.',
       header: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -221,12 +189,12 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   hintText: 'Search by username',
                   border: OutlineInputBorder(),
                 ),
-                onSubmitted: (_) => _load(),
+                onSubmitted: (_) => load(),
               ),
             ),
             const SizedBox(width: 8),
             FilledButton(
-              onPressed: _loading ? null : _load,
+              onPressed: loading ? null : load,
               child: const Text('Search'),
             ),
           ],
@@ -234,34 +202,19 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
       ),
       list: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: _users.length + (_hasMore ? 1 : 0),
+        itemCount: items.length + (hasMore ? 1 : 0),
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, i) {
-          if (i >= _users.length) {
-            return Center(
-              child: _loadingMore
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : TextButton(
-                      onPressed: _loadMore,
-                      child: const Text('Load more'),
-                    ),
-            );
+          if (i >= items.length) {
+            return LoadMoreFooter(loading: loadingMore, onPressed: loadMore);
           }
           return _UserRow(
-            user: _users[i],
+            user: items[i],
             busy: _busy,
-            onSetAdmin: (v) => _setAdmin(_users[i], v),
-            onToggleDisabled: () =>
-                _setDisabled(_users[i], !_users[i].disabled),
-            onResetPassword: () => _resetPassword(_users[i]),
-            onDelete: () => _delete(_users[i]),
+            onSetAdmin: (v) => _setAdmin(items[i], v),
+            onToggleDisabled: () => _setDisabled(items[i], !items[i].disabled),
+            onResetPassword: () => _resetPassword(items[i]),
+            onDelete: () => _delete(items[i]),
           );
         },
       ),
@@ -342,10 +295,7 @@ class _UserRow extends StatelessWidget {
             child: Text(user.disabled ? 'Enable account' : 'Disable account'),
           ),
           if (!user.bot)
-            const PopupMenuItem(
-              value: 'reset',
-              child: Text('Reset password'),
-            ),
+            const PopupMenuItem(value: 'reset', child: Text('Reset password')),
           PopupMenuItem(
             value: 'delete',
             child: Text('Delete user', style: TextStyle(color: colors.red)),

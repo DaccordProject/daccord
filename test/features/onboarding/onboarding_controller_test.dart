@@ -147,7 +147,10 @@ void main() {
     test('a persisted session means an existing user — no tour', () {
       Hive.box('accord-session').put('session', {'token': 'x'});
       final controller = _notifier(_container());
-      expect(controller.consumeStartupTrigger(), OnboardingTrigger.existingUser);
+      expect(
+        controller.consumeStartupTrigger(),
+        OnboardingTrigger.existingUser,
+      );
     });
 
     test('saved accounts mean an existing user, even after a log out', () {
@@ -155,13 +158,19 @@ void main() {
         'user@server': {'token': 'x'},
       });
       final controller = _notifier(_container());
-      expect(controller.consumeStartupTrigger(), OnboardingTrigger.existingUser);
+      expect(
+        controller.consumeStartupTrigger(),
+        OnboardingTrigger.existingUser,
+      );
     });
 
     test('cached spaces from a previous session mean an existing user', () {
       Hive.box('space-cache').put('server-key', ['space-1']);
       final controller = _notifier(_container());
-      expect(controller.consumeStartupTrigger(), OnboardingTrigger.existingUser);
+      expect(
+        controller.consumeStartupTrigger(),
+        OnboardingTrigger.existingUser,
+      );
     });
 
     test('a restored last space/channel selection means an existing user', () {
@@ -170,14 +179,16 @@ void main() {
         'lastChannelId': 'channel-1',
       });
       final controller = _notifier(_container());
-      expect(controller.consumeStartupTrigger(), OnboardingTrigger.existingUser);
+      expect(
+        controller.consumeStartupTrigger(),
+        OnboardingTrigger.existingUser,
+      );
     });
 
     test('empty persisted settings are not mistaken for prior use', () {
-      Hive.box('accord-settings').put('settings', {
-        'lastSpaceId': '',
-        'lastChannelId': '',
-      });
+      Hive.box(
+        'accord-settings',
+      ).put('settings', {'lastSpaceId': '', 'lastChannelId': ''});
       final controller = _notifier(_container());
       expect(controller.consumeStartupTrigger(), OnboardingTrigger.firstLaunch);
     });
@@ -203,11 +214,11 @@ void main() {
     test('tracks whether the tour route is on screen', () {
       final container = _container();
       final controller = _notifier(container);
-      expect(container.read(onboardingControllerProvider).active, isFalse);
+      expect(container.read(onboardingControllerProvider), isFalse);
       controller.setActive(true);
-      expect(container.read(onboardingControllerProvider).active, isTrue);
+      expect(container.read(onboardingControllerProvider), isTrue);
       controller.setActive(false);
-      expect(container.read(onboardingControllerProvider).active, isFalse);
+      expect(container.read(onboardingControllerProvider), isFalse);
     });
   });
 }

@@ -100,7 +100,7 @@ A thin repository layer subscribes to Accord gateway streams, updates a local ca
 | Voice / video / screen share | [`livekit_client`](https://pub.dev/packages/livekit_client) | local fork at `packages/livekit_client`, over WebRTC |
 | Media | [`media_kit`](https://pub.dev/packages/media_kit) / `cached_network_image` | CDN URLs point at the Accord server |
 | Markdown | `markdown_viewer` | custom renderer at `packages/markdown_viewer` |
-| Serialization | `json_serializable` | model types mostly come from `accordkit` (`Accord*`) |
+| Serialization | Hand-written JSON | most model types come from `accordkit` (`Accord*`) |
 
 ### Domain model
 
@@ -123,11 +123,12 @@ You'll need the [Flutter SDK](https://docs.flutter.dev/get-started/install) inst
 
 ```bash
 flutter pub get
-dart run build_runner watch -d        # keep running during dev (Riverpod / JSON codegen)
-flutter run                            # run on a connected device, emulator, or browser
+dart run build_runner watch -d        # keep running during dev (Riverpod codegen)
+flutter run --flavor github            # Android device/emulator (a flavor is required)
+flutter run -d chrome                  # browser; non-Android platforms have no flavor
 ```
 
-`build_runner watch -d` regenerates `*.g.dart` files. Keep it running while developing, or run a one-shot build after editing any `@riverpod` / `json_serializable`-annotated file:
+`build_runner watch -d` regenerates Riverpod `*.g.dart` files. Keep it running while developing, or run a one-shot build after editing any `@riverpod`-annotated file:
 
 ```bash
 dart run build_runner build -d
@@ -143,7 +144,7 @@ flutter test                           # unit/widget tests (voice/settings/serve
 ### Release builds
 
 ```bash
-flutter build apk     --no-tree-shake-icons       # Android
+flutter build apk     --flavor github --no-tree-shake-icons   # Android sideload APK
 flutter build web     --no-tree-shake-icons --release   # Web
 flutter build windows
 flutter build macos
@@ -187,7 +188,7 @@ If you're contributing code, a few house rules keep this a port rather than a re
 
 - Keep changes **minimal and reuse-first** — prefer adapting existing Bonfire widgets, controllers, routing, and theming.
 - Keep new code inside the relevant `lib/features/<feature>/` module and match the surrounding style.
-- Run `dart run build_runner build -d` after touching any `@riverpod` / `json_serializable`-annotated file.
+- Run `dart run build_runner build -d` after touching any `@riverpod`-annotated file.
 - **No Discord.** Don't reintroduce Discord endpoints, branding, or Firebase push. This client talks only to Accord servers.
 - Run `flutter analyze --no-fatal-infos` and `flutter test` before opening a PR.
 

@@ -3,6 +3,7 @@ import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/channels/views/channel_management.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/channels/controllers/muted_channels.dart';
 import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
@@ -25,8 +26,8 @@ IconData _glyphFor(String? type) {
 }
 
 AccordClient? _clientOf(WidgetRef ref) => ref.read(
-      accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
-    );
+  accordAuthProvider.select((s) => s is AccordAuthLoggedIn ? s.client : null),
+);
 
 /// Opens the long-press / right-click context menu for a leaf [channel]. On
 /// desktop it anchors next to [globalPosition]; on touch it opens a bottom
@@ -45,39 +46,26 @@ Future<void> showChannelContextMenu(
   List<AccordMenuEntry> leadingEntries = const [],
 }) async {
   final client = _clientOf(ref);
-
-  // Server-side mute state is a separate axis from local notification levels;
-  // it must be fetched (mirrors the channel-header bell). Pre-fetch so the menu
-  // entries are static. null client → treat as unmuted.
-  bool muted = false;
-  if (client != null) {
-    final result = await client.users.listMutes();
-    final data = result.data;
-    final ids = data is List
-        ? data
-            .map((e) => e is Map ? e['channel_id']?.toString() : e?.toString())
-            .whereType<String>()
-            .toSet()
-        : const <String>{};
-    muted = ids.contains(channel.id);
-  }
+  final activeKey = ref.read(connectionsControllerProvider).activeKey;
+  final mutedChannels = activeKey == null
+      ? const <String>{}
+      : await ref.read(mutedChannelsControllerProvider(activeKey).future);
+  final muted = mutedChannels.contains(channel.id);
   if (!hostContext.mounted) return;
 
-  final activeKey = ref.read(connectionsControllerProvider).activeKey;
-  final unread = activeKey != null &&
-      ref
-          .read(readStateControllerProvider(activeKey))
-          .isUnread(channel.id);
+  final unread =
+      activeKey != null &&
+      ref.read(readStateControllerProvider(activeKey)).isUnread(channel.id);
 
   // Falls back to the channel's `last_message_id` so acking a channel whose
   // history was never opened (any voice channel, or one only ever seen as a
   // badge) still moves the server's read position — otherwise the badge returns
   // on the next connect.
   void markRead() => markChannelRead(
-        ref,
-        channel.id,
-        fallbackMessageId: channel.lastMessageId,
-      );
+    ref,
+    channel.id,
+    fallbackMessageId: channel.lastMessageId,
+  );
 
   final entries = <AccordMenuEntry>[
     ...leadingEntries,
@@ -94,9 +82,13 @@ Future<void> showChannelContextMenu(
           : Icons.notifications_off_outlined,
       onSelected: client == null
           ? null
-          : () => muted
-              ? client.channels.unmute(channel.id)
-              : client.channels.mute(channel.id),
+          : () {
+              if (activeKey != null) {
+                ref
+                    .read(mutedChannelsControllerProvider(activeKey).notifier)
+                    .setMuted(channel.id, !muted);
+              }
+            },
     ),
     if (canManageChannels) ...[
       const AccordMenuEntry.divider(),

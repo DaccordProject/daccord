@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:accordkit/accordkit.dart';
-import 'package:bonfire/features/authentication/controllers/ready.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_session_store.dart';
 import 'package:bonfire/features/channels/controllers/open_tabs.dart';
+import 'package:bonfire/features/channels/controllers/muted_channels.dart';
 import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
@@ -15,6 +15,7 @@ import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -63,7 +64,6 @@ class _AuthAttempt {
 class AccordAuth extends _$AccordAuth {
   final _store = AccordSessionStore();
   final Map<String, _Conn> _connections = {};
-  String? _activeKey;
 
   /// Connection keys currently being torn down after a 401, so the burst of
   /// simultaneous unauthorized responses (spaces, members, emojis, …) triggers
@@ -73,8 +73,10 @@ class AccordAuth extends _$AccordAuth {
   /// The active connection's client, or null when signed out. Repositories
   /// should obtain this via the logged-in [AccordAuthLoggedIn] state rather than
   /// reaching in here.
-  AccordClient? get client =>
-      _activeKey == null ? null : _connections[_activeKey]?.client;
+  AccordClient? get client {
+    final activeKey = ref.read(connectionsControllerProvider).activeKey;
+    return activeKey == null ? null : _connections[activeKey]?.client;
+  }
 
   /// The active connection's client for [key], if connected.
   AccordClient? clientForKey(String key) => _connections[key]?.client;
@@ -218,7 +220,11 @@ class AccordAuth extends _$AccordAuth {
     }
     final server = current.server;
     state = const AccordAuthInProgress();
-    final attempt = await _attemptMfa(server, ticket: current.ticket, code: code);
+    final attempt = await _attemptMfa(
+      server,
+      ticket: current.ticket,
+      code: code,
+    );
     if (attempt.error != null) return _fail(attempt.error!);
     return await _completeLogin(server, attempt.data);
   }
@@ -305,11 +311,12 @@ class AccordAuth extends _$AccordAuth {
       await conn.client.dispose();
     }
     _connections.clear();
-    _activeKey = null;
 
     await _store.deleteActive();
 
     ref.read(connectionsControllerProvider.notifier).clear();
+    ref.read(accordUsersControllerProvider.notifier).activate(null);
+    ref.invalidate(mutedChannelsControllerProvider);
     ref.invalidate(readStateControllerProvider);
     ref.invalidate(presenceControllerProvider);
     // Missed calls are session-only and in-memory, so without this they would
@@ -318,10 +325,6 @@ class AccordAuth extends _$AccordAuth {
     ref.read(openTabsControllerProvider.notifier).clear();
     unawaited(SpaceCache.clear());
     ref.read(spacesControllerProvider.notifier).setSpaces(const []);
-    ref
-        .read(connectionControllerProvider.notifier)
-        .set(ConnectionStatus.disconnected);
-    ref.read(readyControllerProvider.notifier).setReady(false);
     state = const AccordAuthLoggedOut();
   }
 
@@ -340,8 +343,10 @@ class AccordAuth extends _$AccordAuth {
     final conn = _connections[key];
     if (conn == null) return;
     _signingOut.add(key);
-    debugPrint('Session $key is unauthorized (token invalid/expired); '
-        'signing it out.');
+    debugPrint(
+      'Session $key is unauthorized (token invalid/expired); '
+      'signing it out.',
+    );
     try {
       await removeAccount(conn.session);
     } finally {
@@ -440,17 +445,6 @@ class AccordAuth extends _$AccordAuth {
     await _store.persist(parsed.session!);
     await _addConnection(parsed.session!, makeActive: true);
     return AddServerOutcome.ok();
-  }
-
-  /// Pokes every live connection's gateway to verify it's still alive,
-  /// reconnecting any that died (see [AccordClient.ensureConnected]). Called
-  /// when the app returns to the foreground: mobile OSes freeze the process
-  /// while backgrounded, which stops heartbeats, silently kills sockets, and
-  /// can exhaust the automatic reconnect budget before the user comes back.
-  void ensureConnectedAll() {
-    for (final conn in _connections.values) {
-      conn.client.ensureConnected();
-    }
   }
 
   /// Flips the active connection to [key] (a server already connected). No-op if
@@ -661,6 +655,7 @@ class AccordAuth extends _$AccordAuth {
   /// signs out when none remain.
   Future<void> removeAccount(AccordSession session) async {
     final key = _accountKey(session);
+    final wasActive = ref.read(connectionsControllerProvider).activeKey == key;
     await _store.removeAccount(key);
 
     final conn = _connections.remove(key);
@@ -670,12 +665,12 @@ class AccordAuth extends _$AccordAuth {
       ref.read(connectionsControllerProvider.notifier).remove(key);
     }
     ref.invalidate(readStateControllerProvider(key));
+    ref.invalidate(mutedChannelsControllerProvider(key));
     ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
 
-    if (_activeKey == key) {
-      _activeKey = null;
+    if (wasActive) {
       final next = _connections.keys.isNotEmpty
           ? _connections.keys.first
           : null;
@@ -714,9 +709,9 @@ class AccordAuth extends _$AccordAuth {
       conn.disposeEvents();
       await conn.client.dispose();
     }
-    if (_activeKey == key) _activeKey = null;
     ref.read(connectionsControllerProvider.notifier).remove(key);
     ref.invalidate(readStateControllerProvider(key));
+    ref.invalidate(mutedChannelsControllerProvider(key));
     ref.invalidate(presenceControllerProvider(key));
     ref.read(openTabsControllerProvider.notifier).removeForServer(key);
     unawaited(SpaceCache.remove(key));
@@ -783,7 +778,7 @@ class AccordAuth extends _$AccordAuth {
       serverKey: key,
       currentUserId: session.userId,
       selfDomain: session.server.homeDomain,
-      isActive: () => _activeKey == key,
+      isActive: () => ref.read(connectionsControllerProvider).activeKey == key,
     );
     _connections[key] = _Conn(
       client: client,
@@ -798,9 +793,8 @@ class AccordAuth extends _$AccordAuth {
 
   /// Promotes the connection [key] to active: snapshots the outgoing server's
   /// live spaces into its rail cache, seeds the shared rail from [key]'s cache,
-  /// mirrors its gateway status onto the global banner, and publishes the
-  /// logged-in state. Existing panes/controllers then transparently read the
-  /// new active client.
+  /// publishes the logged-in state. Existing panes/controllers then
+  /// transparently read the new active client.
   AccordAuthState _makeActive(String key) {
     final conn = _connections[key];
     if (conn == null) return state;
@@ -809,13 +803,12 @@ class AccordAuth extends _$AccordAuth {
 
     // Capture the outgoing active server's live spaces (incl. roles, which only
     // the shared controller has) so they persist while it's backgrounded.
-    final prevKey = _activeKey;
+    final prevKey = ref.read(connectionsControllerProvider).activeKey;
     if (prevKey != null && prevKey != key) {
       final liveSpaces = ref.read(spacesControllerProvider);
       if (liveSpaces != null) connections.setSpaces(prevKey, liveSpaces);
     }
 
-    _activeKey = key;
     connections.setActive(key);
 
     // Seed the shared rail/space controllers from this connection's cache so
@@ -823,14 +816,9 @@ class AccordAuth extends _$AccordAuth {
     final cached = connections.spacesFor(key);
     ref.read(spacesControllerProvider.notifier).setSpaces(cached);
 
-    final status =
-        ref.read(connectionsControllerProvider).connectionFor(key)?.status ??
-        ConnectionStatus.connecting;
-    ref.read(connectionControllerProvider.notifier).set(status);
-    ref.read(readyControllerProvider.notifier).setReady(true);
-
     final next = AccordAuthLoggedIn(client: conn.client, session: conn.session);
     state = next;
+    ref.read(accordUsersControllerProvider.notifier).activate(conn.client);
     unawaited(_store.persistActive(conn.session));
     return next;
   }

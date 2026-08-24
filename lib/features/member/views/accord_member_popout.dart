@@ -10,7 +10,6 @@ import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/member/utils/permissions.dart';
 import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
-import 'package:bonfire/features/spaces/controllers/role_preview.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
@@ -63,6 +62,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     String failure = 'Action failed',
     bool closeOnSuccess = false,
     VoidCallback? onSuccess,
+
     /// Given the successful result, for actions that report something back
     /// (e.g. how many messages a ban purged). Runs before [closeOnSuccess]
     /// pops, so it must not touch this popout's context.
@@ -140,8 +140,9 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
   /// The member's display name, resolved the same way [build] resolves it, for
   /// the moderation dialogs that name their target.
   String get _displayName {
-    final member =
-        ref.read(accordMembersControllerProvider(widget.spaceId))?[widget.userId];
+    final member = ref.read(
+      accordMembersControllerProvider(widget.spaceId),
+    )?[widget.userId];
     if (member != null) return accordMemberName(member);
     final cached = ref.read(accordUsersControllerProvider)[widget.userId];
     return accordUserName(cached, fallback: widget.userId);
@@ -157,8 +158,8 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     // result lands its own context can no longer find a messenger.
     final messenger = ScaffoldMessenger.maybeOf(context);
     _run(
-      (c) => c.bans.create(widget.spaceId, widget.userId,
-          data: request.toJson()),
+      (c) =>
+          c.bans.create(widget.spaceId, widget.userId, data: request.toJson()),
       failure: 'Failed to ban member',
       closeOnSuccess: true,
       missingIsSuccess: true,
@@ -170,11 +171,15 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         // Reported rather than assumed: a server that predates the purge
         // ignores the field, and this is the only way that shows up.
         final count = _deletedMessageCount(result);
-        messenger?.showSnackBar(SnackBar(
-          content: Text(count == 1
-              ? 'Banned $name and deleted 1 message'
-              : 'Banned $name and deleted $count messages'),
-        ));
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              count == 1
+                  ? 'Banned $name and deleted 1 message'
+                  : 'Banned $name and deleted $count messages',
+            ),
+          ),
+        );
       },
     );
   }
@@ -335,16 +340,7 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
         ? null
         : accordRoleColor(colorRole.color);
 
-    final preview = ref.watch(rolePreviewControllerProvider);
-    final perms = accordEffectivePermissions(
-      space: space,
-      selfMember: currentUserId == null ? null : members?[currentUserId],
-      roles: roles,
-      currentUserId: currentUserId ?? '',
-      previewRoleId: preview?.spaceId == widget.spaceId
-          ? preview?.roleId
-          : null,
-    );
+    final perms = ref.watchAccordPermissions(space, widget.spaceId);
     final isSelf = currentUserId != null && currentUserId == widget.userId;
     // A remote (federated) user is homed on another server; local-only
     // moderation (kick/ban/timeout/roles/nickname) can't be performed on them
@@ -352,18 +348,22 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     final remoteDomain =
         accordMemberOrigin(member) ?? accordUserOrigin(cachedUser);
     final isRemote = remoteDomain != null;
-    final canKick = !isSelf &&
+    final canKick =
+        !isSelf &&
         !isRemote &&
         accordHasPermission(perms, AccordPermission.kickMembers);
-    final canBan = !isSelf &&
+    final canBan =
+        !isSelf &&
         !isRemote &&
         accordHasPermission(perms, AccordPermission.banMembers);
-    final canTimeout = !isSelf &&
+    final canTimeout =
+        !isSelf &&
         !isRemote &&
         accordHasPermission(perms, AccordPermission.moderateMembers);
     final canManageRoles =
         !isRemote && accordHasPermission(perms, AccordPermission.manageRoles);
-    final canEditNickname = !isRemote &&
+    final canEditNickname =
+        !isRemote &&
         (isSelf
             ? accordHasPermission(perms, AccordPermission.changeNickname)
             : accordHasPermission(perms, AccordPermission.manageNicknames));
@@ -488,7 +488,6 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       ),
     );
   }
-
 }
 
 /// The top row of the popout: avatar with presence dot, display name (in the
@@ -535,9 +534,7 @@ class _ProfileHeader extends StatelessWidget {
             children: [
               Text(
                 name,
-                style: theme.textTheme.titleMedium!.copyWith(
-                  color: nameColor,
-                ),
+                style: theme.textTheme.titleMedium!.copyWith(color: nameColor),
                 overflow: TextOverflow.ellipsis,
               ),
               if (username != null)
@@ -549,9 +546,7 @@ class _ProfileHeader extends StatelessWidget {
                 ),
               Text(
                 _statusLabel(status),
-                style: theme.textTheme.bodySmall!.copyWith(
-                  color: colors.gray,
-                ),
+                style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
               ),
               if (customStatus != null) ...[
                 const SizedBox(height: 2),
@@ -597,10 +592,7 @@ class _TimeoutBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFFFAA81A).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
@@ -608,18 +600,9 @@ class _TimeoutBanner extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.timer_outlined,
-            size: 16,
-            color: Color(0xFFFAA81A),
-          ),
+          const Icon(Icons.timer_outlined, size: 16, color: Color(0xFFFAA81A)),
           const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
+          Flexible(child: Text(label, style: theme.textTheme.bodySmall)),
         ],
       ),
     );
@@ -651,9 +634,7 @@ class _MembershipInfo extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'Member since ${_date(member.joinedAt)}',
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: colors.gray,
-            ),
+            style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
           ),
         ],
         if (memberRoleIds.isNotEmpty) ...[
@@ -671,8 +652,7 @@ class _MembershipInfo extends StatelessWidget {
             runSpacing: 6,
             children: [
               for (final id in memberRoleIds)
-                if (roles.firstWhereOrNull((r) => r.id == id)
-                    case final role?)
+                if (roles.firstWhereOrNull((r) => r.id == id) case final role?)
                   _RoleChip(role: role),
             ],
           ),

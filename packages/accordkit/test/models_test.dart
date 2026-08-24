@@ -368,6 +368,39 @@ void main() {
     });
   });
 
+  group('AccordReport', () {
+    test('leniently parses fields and derives a directly targeted user', () {
+      final report = AccordReport.fromJson({
+        'id': 12,
+        'guild_id': 7,
+        'reporter_id': 3,
+        'target_type': 'member',
+        'target_id': 9,
+        'category': 'spam',
+        'status': 'pending',
+      });
+
+      expect(report.id, '12');
+      expect(report.spaceId, '7');
+      expect(report.reporterId, '3');
+      expect(report.reportedUserId, '9');
+      expect(report.channelId, isNull);
+      expect(report.toJson().containsKey('channel_id'), isFalse);
+    });
+
+    test('retains legacy reported-user attribution for message reports', () {
+      final report = AccordReport.fromJson({
+        'id': '12',
+        'target_type': 'message',
+        'target_id': '44',
+        'author_id': 9,
+      });
+
+      expect(report.reportedUserId, '9');
+      expect(report.toJson()['reported_user_id'], '9');
+    });
+  });
+
   group('AccordInteraction', () {
     test('member.user.id and message', () {
       final it = AccordInteraction.fromJson({

@@ -30,8 +30,8 @@ class MarkdownViewer extends StatefulWidget {
     this.selectable,
     this.selectionColor,
     this.copyIconBuilder,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   final String data;
   final bool enableTaskList;

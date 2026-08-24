@@ -28,11 +28,4 @@ class RolePreviewController extends _$RolePreviewController {
   void enter(RolePreview preview) => state = preview;
 
   void exit() => state = null;
-
-  /// The role id being previewed for [spaceId], or null when not previewing
-  /// that space. Passed to `accordEffectivePermissions` / `…HighestRolePosition`.
-  String? roleIdFor(String? spaceId) =>
-      (state != null && spaceId != null && state!.spaceId == spaceId)
-      ? state!.roleId
-      : null;
 }

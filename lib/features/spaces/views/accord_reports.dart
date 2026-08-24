@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/load_more_footer.dart';
+import 'package:bonfire/shared/components/moderation_report_row.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/self_loading_list.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
@@ -271,18 +272,10 @@ class _ReportsPanel extends ConsumerStatefulWidget {
   ConsumerState<_ReportsPanel> createState() => _ReportsPanelState();
 }
 
-/// Status filters offered in the reports panel. `null` value = all statuses.
-const _reportStatuses = <({String label, String? value})>[
-  (label: 'Pending', value: 'pending'),
-  (label: 'All', value: null),
-  (label: 'Actioned', value: 'actioned'),
-  (label: 'Dismissed', value: 'dismissed'),
-];
-
 const _reportPageSize = 25;
 
 class _ReportsPanelState extends ConsumerState<_ReportsPanel>
-    with PaginatedListState<Map<String, dynamic>, _ReportsPanel> {
+    with PaginatedListState<AccordReport, _ReportsPanel> {
   bool _busy = false;
   String? _status = 'pending';
 
@@ -295,7 +288,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
   bool get canLoad => _client != null;
 
   @override
-  String? itemId(Map<String, dynamic> item) => item['id']?.toString();
+  String? itemId(AccordReport item) => item.id.isEmpty ? null : item.id;
 
   @override
   Future<RestResult> fetchPage({String? before}) => _client!.reports.list(
@@ -308,14 +301,8 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
   );
 
   @override
-  List<Map<String, dynamic>> parseItems(Object? data) {
-    final raw = data is List
-        ? data
-        : (data is Map && data['reports'] is List
-              ? data['reports'] as List
-              : const []);
-    return [for (final e in raw) _asMap(e)];
-  }
+  List<AccordReport> parseItems(Object? data) =>
+      data is List ? data.whereType<AccordReport>().toList() : const [];
 
   @override
   String loadError(RestResult result) => result.errorOr('Failed to load');
@@ -323,26 +310,6 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
   @override
   String loadMoreError(RestResult result) =>
       result.errorOr('Failed to load more');
-
-  Map<String, dynamic> _asMap(dynamic entry) {
-    if (entry is Map<String, dynamic>) return entry;
-    if (entry is Map) return entry.cast<String, dynamic>();
-    return const {};
-  }
-
-  /// The reported user's id, derived from common shapes of the report JSON.
-  String? _reportedUserId(Map<String, dynamic> r) {
-    final type = r['target_type']?.toString() ?? '';
-    if (type == 'user' || type == 'member') {
-      final t = r['target_id']?.toString();
-      if (t != null && t.isNotEmpty) return t;
-    }
-    for (final key in ['reported_user_id', 'target_user_id', 'author_id']) {
-      final v = r[key]?.toString();
-      if (v != null && v.isNotEmpty) return v;
-    }
-    return null;
-  }
 
   Future<void> _resolve(
     String reportId,
@@ -360,15 +327,15 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
       setState(() => error = result.errorOr('Failed to resolve'));
       return;
     }
-    setState(() => items.removeWhere((r) => r['id']?.toString() == reportId));
+    setState(() => items.removeWhere((r) => r.id == reportId));
   }
 
-  Future<void> _deleteMessage(Map<String, dynamic> r) async {
+  Future<void> _deleteMessage(AccordReport report) async {
     final client = _client;
-    final channelId = r['channel_id']?.toString();
-    final messageId = r['target_id']?.toString();
-    final id = r['id']?.toString() ?? '';
-    if (client == null || channelId == null || messageId == null) return;
+    final channelId = report.channelId;
+    final messageId = report.targetId;
+    final id = report.id;
+    if (client == null || channelId == null || messageId.isEmpty) return;
     final ok = await showConfirmDialog(
       context,
       title: 'Delete message',
@@ -387,10 +354,10 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
     await _resolve(id, 'actioned', actionTaken: 'delete_message');
   }
 
-  Future<void> _kick(Map<String, dynamic> r) async {
+  Future<void> _kick(AccordReport report) async {
     final client = _client;
-    final userId = _reportedUserId(r);
-    final id = r['id']?.toString() ?? '';
+    final userId = report.reportedUserId;
+    final id = report.id;
     if (client == null || userId == null) return;
     final ok = await showConfirmDialog(
       context,
@@ -410,17 +377,22 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
     await _resolve(id, 'actioned', actionTaken: 'kick_member');
   }
 
-  Future<void> _ban(Map<String, dynamic> r) async {
+  Future<void> _ban(AccordReport report) async {
     final client = _client;
-    final userId = _reportedUserId(r);
-    final id = r['id']?.toString() ?? '';
+    final userId = report.reportedUserId;
+    final id = report.id;
     if (client == null || userId == null) return;
-    final request =
-        await showBanDialog(context, memberName: 'The reported member');
+    final request = await showBanDialog(
+      context,
+      memberName: 'The reported member',
+    );
     if (request == null || !mounted) return;
     setState(() => _busy = true);
-    final result = await client.bans
-        .create(widget.spaceId, userId, data: request.toJson());
+    final result = await client.bans.create(
+      widget.spaceId,
+      userId,
+      data: request.toJson(),
+    );
     if (!mounted) return;
     setState(() => _busy = false);
     if (!result.ok) {
@@ -467,7 +439,7 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
               child: Wrap(
                 spacing: 8,
                 children: [
-                  for (final s in _reportStatuses)
+                  for (final s in moderationReportStatuses)
                     ChoiceChip(
                       label: Text(s.label),
                       selected: _status == s.value,
@@ -504,13 +476,16 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
                             spinnerPadding: const EdgeInsets.all(8),
                           );
                         }
-                        return _ReportRow(
+                        return ModerationReportRow(
                           report: items[index],
                           busy: _busy,
-                          reportedUserId: _reportedUserId(items[index]),
-                          onDismiss: (id) => _resolve(id, 'dismissed'),
-                          onResolve: (id) =>
-                              _resolve(id, 'resolved', actionTaken: 'none'),
+                          onDismiss: (report) =>
+                              _resolve(report.id, 'dismissed'),
+                          onResolve: (report) => _resolve(
+                            report.id,
+                            'resolved',
+                            actionTaken: 'none',
+                          ),
                           onDeleteMessage: _deleteMessage,
                           onKick: _kick,
                           onBan: _ban,
@@ -526,101 +501,6 @@ class _ReportsPanelState extends ConsumerState<_ReportsPanel>
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ReportRow extends StatelessWidget {
-  const _ReportRow({
-    required this.report,
-    required this.busy,
-    required this.reportedUserId,
-    required this.onDismiss,
-    required this.onResolve,
-    required this.onDeleteMessage,
-    required this.onKick,
-    required this.onBan,
-  });
-
-  final Map<String, dynamic> report;
-  final bool busy;
-  final String? reportedUserId;
-  final void Function(String id) onDismiss;
-  final void Function(String id) onResolve;
-  final void Function(Map<String, dynamic> r) onDeleteMessage;
-  final void Function(Map<String, dynamic> r) onKick;
-  final void Function(Map<String, dynamic> r) onBan;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = BonfireThemeExtension.of(context);
-    final id = report['id']?.toString() ?? '';
-    final category = AccordReportCategory.labelFor(
-      report['category']?.toString(),
-    );
-    final categoryLabel = category.isEmpty ? 'report' : category;
-    final description = report['description']?.toString() ?? '';
-    final targetType = report['target_type']?.toString() ?? '';
-    final channelId = report['channel_id']?.toString();
-    final canDeleteMessage =
-        targetType.contains('message') && channelId != null;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.flag_outlined, size: 16, color: colors.red),
-            const SizedBox(width: 6),
-            Text(categoryLabel, style: theme.textTheme.titleSmall),
-            const SizedBox(width: 6),
-            Text(
-              '· $targetType',
-              style: theme.textTheme.bodySmall!.copyWith(color: colors.gray),
-            ),
-          ],
-        ),
-        if (description.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(description, style: theme.textTheme.bodySmall),
-        ],
-        const SizedBox(height: 6),
-        Wrap(
-          alignment: WrapAlignment.end,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            if (canDeleteMessage)
-              TextButton.icon(
-                onPressed: busy ? null : () => onDeleteMessage(report),
-                icon: const Icon(Icons.delete_outline, size: 16),
-                label: const Text('Delete msg'),
-              ),
-            if (reportedUserId != null) ...[
-              TextButton.icon(
-                onPressed: busy ? null : () => onKick(report),
-                icon: const Icon(Icons.exit_to_app, size: 16),
-                label: const Text('Kick'),
-              ),
-              TextButton.icon(
-                onPressed: busy ? null : () => onBan(report),
-                style: TextButton.styleFrom(foregroundColor: colors.red),
-                icon: const Icon(Icons.gavel, size: 16),
-                label: const Text('Ban'),
-              ),
-            ],
-            TextButton(
-              onPressed: busy ? null : () => onDismiss(id),
-              child: const Text('Dismiss'),
-            ),
-            FilledButton(
-              onPressed: busy ? null : () => onResolve(id),
-              child: const Text('Resolve'),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

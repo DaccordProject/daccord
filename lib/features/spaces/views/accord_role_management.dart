@@ -368,9 +368,8 @@ class _RoleListPane extends StatelessWidget {
           child: ReorderableListView(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             buildDefaultDragHandles: false,
-            onReorder: (oldIndex, newIndex) {
+            onReorderItem: (oldIndex, newIndex) {
               if (busy) return;
-              if (newIndex > oldIndex) newIndex--;
               final reordered = [...draggable];
               final item = reordered.removeAt(oldIndex);
               reordered.insert(newIndex, item);

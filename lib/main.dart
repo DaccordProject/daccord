@@ -250,16 +250,20 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           final spaceId = parsed.spaceId;
           final client = ref.read(accordAuthProvider.notifier).client;
           if (domain == null || spaceId == null || client == null) break;
-          final outcome =
-              await joinFederatedSpace(ref, client, domain, spaceId);
+          final outcome = await joinFederatedSpace(
+            ref,
+            client,
+            domain,
+            spaceId,
+          );
           if (outcome.error == null) {
             routerController.go('/spaces');
           } else {
             final ctx = rootNavigatorKey.currentContext;
-            if (ctx != null) {
-              ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
-                SnackBar(content: Text(outcome.error!)),
-              );
+            if (ctx != null && ctx.mounted) {
+              ScaffoldMessenger.maybeOf(
+                ctx,
+              )?.showSnackBar(SnackBar(content: Text(outcome.error!)));
             }
           }
           break;

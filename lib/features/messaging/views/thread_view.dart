@@ -63,9 +63,7 @@ Future<ThreadResult?> showAccordThread(
 /// reflect a root-post edit or removal without a full reload.
 class ThreadResult {
   const ThreadResult.edited(this.root) : deleted = false;
-  const ThreadResult.deleted()
-      : root = null,
-        deleted = true;
+  const ThreadResult.deleted() : root = null, deleted = true;
 
   /// The updated root post (when edited), else null.
   final AccordMessage? root;
@@ -144,8 +142,12 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     _input.clear();
     setState(() => _sending = true);
     final ok = await ref
-        .read(threadRepliesControllerProvider(widget.channelId, widget.root.id)
-            .notifier)
+        .read(
+          threadRepliesControllerProvider(
+            widget.channelId,
+            widget.root.id,
+          ).notifier,
+        )
         .send(client, text);
     if (!mounted) return;
     setState(() => _sending = false);
@@ -207,7 +209,8 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     ];
 
     AccordSpace? space;
-    for (final s in ref.read(spacesControllerProvider) ?? const <AccordSpace>[]) {
+    for (final s
+        in ref.read(spacesControllerProvider) ?? const <AccordSpace>[]) {
       if (s.id == spaceId) {
         space = s;
         break;
@@ -221,8 +224,11 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         break;
       }
     }
-    final baseUrl = ref.read(accordAuthProvider.select(
-        (s) => s is AccordAuthLoggedIn ? s.session.server.baseUrl : null));
+    final baseUrl = ref.read(
+      accordAuthProvider.select(
+        (s) => s is AccordAuthLoggedIn ? s.session.server.baseUrl : null,
+      ),
+    );
     final slug = space?.slug;
     final channelName = channel?.name;
     if (baseUrl != null &&
@@ -230,19 +236,26 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
         slug.isNotEmpty &&
         channelName != null &&
         channelName.isNotEmpty) {
-      final webLink = '$baseUrl/s/${Uri.encodeComponent(slug)}'
+      final webLink =
+          '$baseUrl/s/${Uri.encodeComponent(slug)}'
           '/${Uri.encodeComponent(channelName)}'
           '/${Uri.encodeComponent(_root.id)}';
-      entries.add(AccordMenuEntry(
-        label: 'Share with the internet',
-        icon: Icons.public,
-        onSelected: () =>
-            _copyShareLink(webLink, 'Public link copied to clipboard'),
-      ));
+      entries.add(
+        AccordMenuEntry(
+          label: 'Share with the internet',
+          icon: Icons.public,
+          onSelected: () =>
+              _copyShareLink(webLink, 'Public link copied to clipboard'),
+        ),
+      );
     }
 
-    showAccordContextMenu(context,
-        entries: entries, globalPosition: position, title: 'Share post');
+    showAccordContextMenu(
+      context,
+      entries: entries,
+      globalPosition: position,
+      title: 'Share post',
+    );
   }
 
   void _copyShareLink(String link, String message) {
@@ -258,13 +271,21 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
     final replies = ref.watch(
-        threadRepliesControllerProvider(widget.channelId, widget.root.id));
+      threadRepliesControllerProvider(widget.channelId, widget.root.id),
+    );
     final currentUserId = _currentUserId;
     final dialog = widget.dialog;
     // Index 0 is the root post, 1 the divider, 2 the loading/empty placeholder
     // or the first reply — lazily built so a long thread only materializes the
     // rows on screen.
-    final replyCount = (replies == null || replies.isEmpty) ? 1 : replies.length;
+    final replyCount = (replies == null || replies.isEmpty)
+        ? 1
+        : replies.length;
+    final childIndexByMessageId = <String, int>{
+      _root.id: 0,
+      if (replies != null)
+        for (var i = 0; i < replies.length; i++) replies[i].id: i + 2,
+    };
     final list = ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: 2 + replyCount,
@@ -273,9 +294,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
       // inserted or removed above it. See #198.
       findChildIndexCallback: (key) {
         if (key is! ValueKey<String>) return null;
-        if (key.value == _root.id) return 0;
-        final index = replies?.indexWhere((m) => m.id == key.value) ?? -1;
-        return index < 0 ? null : index + 2;
+        return childIndexByMessageId[key.value];
       },
       itemBuilder: (context, index) {
         if (index == 0) {
@@ -306,8 +325,8 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
           return Padding(
             padding: const EdgeInsets.all(16),
             child: Center(
-                child: Text('No replies yet',
-                    style: theme.textTheme.bodySmall)),
+              child: Text('No replies yet', style: theme.textTheme.bodySmall),
+            ),
           );
         }
         final reply = replies[index - 2];
@@ -343,16 +362,21 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
               Icon(Icons.forum, size: 18, color: colors.dirtyWhite),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(_title(),
-                    style: theme.textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  _title(),
+                  style: theme.textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               if (widget.spaceId != null)
                 IconButton(
                   tooltip: 'Share',
                   onPressed: _showShareMenu,
-                  icon: Icon(Icons.ios_share,
-                      size: 18, color: colors.dirtyWhite),
+                  icon: Icon(
+                    Icons.ios_share,
+                    size: 18,
+                    color: colors.dirtyWhite,
+                  ),
                 ),
             ],
           ),
@@ -465,8 +489,8 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
   AccordClient? get _client => ref.accordClient;
 
   ThreadRepliesController get _replies => ref.read(
-      threadRepliesControllerProvider(widget.channelId, widget.rootId)
-          .notifier);
+    threadRepliesControllerProvider(widget.channelId, widget.rootId).notifier,
+  );
 
   bool get _canDelete => widget.isOwn || widget.canManageMessages;
 
@@ -522,8 +546,12 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
       onDelete: () => _delete(message.id),
     );
     if (entries.isEmpty) return;
-    showAccordContextMenu(context,
-        entries: entries, globalPosition: position, title: name);
+    showAccordContextMenu(
+      context,
+      entries: entries,
+      globalPosition: position,
+      title: name,
+    );
   }
 
   @override
@@ -538,16 +566,27 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
     final authorId = message.authorId;
     final member = widget.spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(widget.spaceId!)
-            .select((m) => m?[authorId]));
-    final user =
-        ref.watch(accordUsersControllerProvider.select((m) => m[authorId]));
+        : ref.watch(
+            accordMembersControllerProvider(
+              widget.spaceId!,
+            ).select((m) => m?[authorId]),
+          );
+    final user = ref.watch(
+      accordUsersControllerProvider.select((m) => m[authorId]),
+    );
     final ensure = ref.read(accordUsersControllerProvider.notifier).ensure;
     final cdnUrl = ref.watchCdnUrl();
-    final name =
-        accordAuthorNameOf(authorId, member: member, user: user, ensure: ensure);
-    final avatarUrl =
-        accordAuthorAvatarUrlOf(member: member, user: user, cdnUrl: cdnUrl);
+    final name = accordAuthorNameOf(
+      authorId,
+      member: member,
+      user: user,
+      ensure: ensure,
+    );
+    final avatarUrl = accordAuthorAvatarUrlOf(
+      member: member,
+      user: user,
+      cdnUrl: cdnUrl,
+    );
     final avatarBg = accordAvatarColor(member?.user ?? user, authorId);
     final initial = accordInitial(name);
     return MouseRegion(
@@ -586,7 +625,9 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                     const SizedBox(height: 2),
                     if (message.content.isNotEmpty)
                       AccordMessageContent(
-                          content: message.content, spaceId: widget.spaceId),
+                        content: message.content,
+                        spaceId: widget.spaceId,
+                      ),
                   ],
                 ),
               ),

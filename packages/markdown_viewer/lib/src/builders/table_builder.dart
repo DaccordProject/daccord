@@ -74,8 +74,8 @@ class TableBuilder extends MarkdownElementBuilder {
 
       _tableStack.single.rows.add(TableRow(
         decoration: decoration,
-        // TODO(Zhiguang) Fix it.
-        children: [],
+        // TODO(Zhiguang): Fix it.
+        children: const [],
       ));
     }
   }

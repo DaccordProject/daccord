@@ -13,14 +13,6 @@ part 'accord_members.g.dart';
 /// every space that happens to emit an event.
 final Set<String> activeMemberSpaces = <String>{};
 
-/// Upper bound on simultaneous `users.fetch` calls when backfilling the user
-/// objects a member page omits. The members endpoint returns only `user_id`, so
-/// a 100-member space would otherwise fan out 100 parallel requests on the first
-/// space switch, collide with the REST rate limiter (each then 429-retried with
-/// backoff), and stall the roster. A small pool keeps the requests flowing
-/// without tripping the limiter.
-const int _maxConcurrentUserFetches = 8;
-
 /// Whether the initial roster fetch for a space failed (a non-2xx response, a
 /// network error, or a timeout). Lets the roster show a retry affordance instead
 /// of spinning forever when `members.list` never yields a list. Cleared on a
@@ -69,10 +61,11 @@ class AccordMembersController extends _$AccordMembersController {
         // `withUser` asks the server to embed each member's user object, so
         // `_resolveUsers` finds them already populated and skips the per-member
         // fetch. Older servers ignore the flag; the fallback fetch runs then.
-        list = (await client.members
-                .list(spaceId, query: {'limit': 100}, withUser: true)
-                .timeout(const Duration(seconds: 20)))
-            .listOrLog<AccordMember>('members for $spaceId');
+        list =
+            (await client.members
+                    .list(spaceId, query: {'limit': 100}, withUser: true)
+                    .timeout(const Duration(seconds: 20)))
+                .listOrLog<AccordMember>('members for $spaceId');
       } catch (e) {
         debugPrint('Failed to load members for $spaceId: $e');
       }
@@ -97,13 +90,14 @@ class AccordMembersController extends _$AccordMembersController {
   /// the global user cache, fetching any still-missing users, then refresh state
   /// so the roster and message authors rebuild with real identities.
   Future<void> _resolveUsers(
-      AccordClient client, Map<String, AccordMember> members) async {
+    AccordClient client,
+    Map<String, AccordMember> members,
+  ) async {
     final usersController = ref.read(accordUsersControllerProvider.notifier);
-    final cached = ref.read(accordUsersControllerProvider);
     final missing = <String>[];
     for (final member in members.values) {
       if (member.user != null) continue;
-      final known = cached[member.userId];
+      final known = usersController.cached(member.userId, client: client);
       if (known != null) {
         member.user = known;
       } else if (member.userId.isNotEmpty) {
@@ -111,28 +105,12 @@ class AccordMembersController extends _$AccordMembersController {
       }
     }
 
-    // Drain the missing IDs through a bounded worker pool rather than firing
-    // them all at once. Dart's single isolate means `removeLast` and the member
-    // mutations below never race; the cap only limits in-flight requests.
-    final queue = List<String>.of(missing);
-    Future<void> worker() async {
-      while (queue.isNotEmpty) {
-        final userId = queue.removeLast();
-        final result = await client.users.fetch(userId);
-        final user = result.data;
-        if (result.ok && user is AccordUser) {
-          members[userId]?.user = user;
-          usersController.upsert(user);
-        } else if (!result.ok) {
-          debugPrint('Failed to fetch user $userId: ${result.error}');
-        }
-      }
-    }
-
-    final workerCount = missing.length < _maxConcurrentUserFetches
-        ? missing.length
-        : _maxConcurrentUserFetches;
-    await Future.wait([for (var i = 0; i < workerCount; i++) worker()]);
+    await Future.wait([
+      for (final userId in missing)
+        usersController.resolve(userId, client: client).then((user) {
+          if (user != null) members[userId]?.user = user;
+        }),
+    ]);
 
     // Replace the map identity so watchers rebuild with enriched members.
     if (state != null) state = {...members};
