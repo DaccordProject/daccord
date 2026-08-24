@@ -61,15 +61,6 @@ VoidCallback handleAccordEvents(
       id != null && isSameUser(id, currentUserId, localDomain: selfDomain);
   bool mentionsSelf(Iterable<String> mentions) => mentions.any(isSelf);
 
-  // This handler is a long-lived imperative event sink, not a provider build, so
-  // its cross-provider writes must not register against the auth provider's
-  // dependency graph. Read through the container: `ref.read` runs a debug-only
-  // circular-dependency assert that walks auth's dependents and (falsely) trips
-  // on any controller that `ref.watch(accordAuthProvider)` to get its client
-  // (messages/channels/members). `container.read` is what `ref.read` delegates
-  // to, minus that assert.
-  final container = ref.container;
-
   // ConnectionsController is the authoritative lifecycle store for every
   // server; active consumers select their connection from it.
   void setConnection(ConnectionStatus status) => ref
@@ -126,7 +117,7 @@ VoidCallback handleAccordEvents(
       if (hadReady && isActive()) {
         for (final channelId in [...activeMessageChannels]) {
           unawaited(
-            container
+            ref
                 .read(accordMessagesControllerProvider(channelId).notifier)
                 .reload(client),
           );
@@ -135,7 +126,7 @@ VoidCallback handleAccordEvents(
         // also missed events while disconnected, so refetch them too.
         for (final key in [...activeThreadReplies]) {
           unawaited(
-            container
+            ref
                 .read(
                   threadRepliesControllerProvider(
                     key.channelId,
@@ -147,7 +138,7 @@ VoidCallback handleAccordEvents(
         }
         for (final channelId in [...activeForumChannels]) {
           unawaited(
-            container
+            ref
                 .read(forumPostsControllerProvider(channelId).notifier)
                 .reload(client),
           );
@@ -199,7 +190,7 @@ VoidCallback handleAccordEvents(
       if (user.id.isEmpty) return;
       ref.read(accordUsersControllerProvider.notifier).upsert(user);
       for (final spaceId in [...activeMemberSpaces]) {
-        container
+        ref
             .read(accordMembersControllerProvider(spaceId).notifier)
             .applyUserUpdate(user);
       }
@@ -342,7 +333,7 @@ VoidCallback handleAccordEvents(
     if (spaceId == null) {
       ref.read(dmChannelsControllerProvider.notifier).upsert(channel);
     } else {
-      container
+      ref
           .read(accordChannelsControllerProvider(spaceId).notifier)
           .upsertChannel(channel);
     }
@@ -366,7 +357,7 @@ VoidCallback handleAccordEvents(
         ref.read(dmChannelsControllerProvider.notifier).remove(channel.id);
         return;
       }
-      container
+      ref
           .read(accordChannelsControllerProvider(spaceId).notifier)
           .removeChannel(channel.id);
     }),
@@ -399,7 +390,7 @@ VoidCallback handleAccordEvents(
       // [activeMessageChannels]) so we don't history-load every channel that
       // receives a message. Active connection only — its channels own the panes.
       if (active && activeMessageChannels.contains(message.channelId)) {
-        container
+        ref
             .read(accordMessagesControllerProvider(message.channelId).notifier)
             .addMessage(message);
       }
@@ -415,7 +406,7 @@ VoidCallback handleAccordEvents(
             channelId: message.channelId,
             rootId: threadId,
           ))) {
-        container
+        ref
             .read(
               threadRepliesControllerProvider(
                 message.channelId,
@@ -432,7 +423,7 @@ VoidCallback handleAccordEvents(
       if (active &&
           threadId == null &&
           activeForumChannels.contains(message.channelId)) {
-        container
+        ref
             .read(forumPostsControllerProvider(message.channelId).notifier)
             .addPost(message);
       }
@@ -510,7 +501,7 @@ VoidCallback handleAccordEvents(
     client.onMessageUpdate.listen((message) {
       if (!isActive()) return;
       if (activeMessageChannels.contains(message.channelId)) {
-        container
+        ref
             .read(accordMessagesControllerProvider(message.channelId).notifier)
             .updateMessage(message);
       }
@@ -523,7 +514,7 @@ VoidCallback handleAccordEvents(
             channelId: message.channelId,
             rootId: threadId,
           ))) {
-        container
+        ref
             .read(
               threadRepliesControllerProvider(
                 message.channelId,
@@ -533,7 +524,7 @@ VoidCallback handleAccordEvents(
             .updateReply(message);
       }
       if (threadId == null && activeForumChannels.contains(message.channelId)) {
-        container
+        ref
             .read(forumPostsControllerProvider(message.channelId).notifier)
             .updatePost(message);
       }
@@ -547,7 +538,7 @@ VoidCallback handleAccordEvents(
           data['id']?.toString() ?? data['message_id']?.toString();
       if (channelId == null || messageId == null) return;
       if (activeMessageChannels.contains(channelId)) {
-        container
+        ref
             .read(accordMessagesControllerProvider(channelId).notifier)
             .removeMessage(messageId);
       }
@@ -556,7 +547,7 @@ VoidCallback handleAccordEvents(
       // forum board; removeReply/removePost no-op when the id isn't theirs.
       for (final key in [...activeThreadReplies]) {
         if (key.channelId != channelId) continue;
-        container
+        ref
             .read(
               threadRepliesControllerProvider(
                 key.channelId,
@@ -566,7 +557,7 @@ VoidCallback handleAccordEvents(
             .removeReply(messageId);
       }
       if (activeForumChannels.contains(channelId)) {
-        container
+        ref
             .read(forumPostsControllerProvider(channelId).notifier)
             .removePost(messageId);
       }
@@ -614,7 +605,7 @@ VoidCallback handleAccordEvents(
     // remote-homed message echoes back qualified to our domain, so match both
     // forms or the optimistic pill and its echo double-count.
     final isOwn = isSelf(data['user_id']?.toString());
-    container
+    ref
         .read(accordMessagesControllerProvider(channelId).notifier)
         .applyReaction(
           messageId,
@@ -638,7 +629,7 @@ VoidCallback handleAccordEvents(
       final messageId = data['message_id']?.toString();
       if (channelId == null || messageId == null) return;
       if (!activeMessageChannels.contains(channelId)) return;
-      container
+      ref
           .read(accordMessagesControllerProvider(channelId).notifier)
           .clearReactions(messageId);
     }),
@@ -651,7 +642,7 @@ VoidCallback handleAccordEvents(
       final name = reactionEmoji(data).name;
       if (channelId == null || messageId == null || name.isEmpty) return;
       if (!activeMessageChannels.contains(channelId)) return;
-      container
+      ref
           .read(accordMessagesControllerProvider(channelId).notifier)
           .clearReactionEmoji(messageId, name);
     }),
@@ -680,7 +671,7 @@ VoidCallback handleAccordEvents(
   void cacheMember(AccordMember member) {
     if (!isActive()) return;
     if (!activeMemberSpaces.contains(member.spaceId)) return;
-    container
+    ref
         .read(accordMembersControllerProvider(member.spaceId).notifier)
         .upsertMember(member);
   }
@@ -730,7 +721,7 @@ VoidCallback handleAccordEvents(
               : null);
       if (spaceId == null || userId == null) return;
       if (!activeMemberSpaces.contains(spaceId)) return;
-      container
+      ref
           .read(accordMembersControllerProvider(spaceId).notifier)
           .removeMember(userId);
     }),

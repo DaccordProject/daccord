@@ -10,7 +10,7 @@ import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/channels/controllers/read_state.dart';
 import 'package:bonfire/features/events/controllers/presence.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
-import 'package:bonfire/features/events/services/accord_event_handler.dart';
+import 'package:bonfire/features/events/services/accord_connection_coordinator.dart';
 import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/space_cache.dart';
@@ -21,18 +21,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_auth.g.dart';
 
-/// One live server connection: its [AccordClient], the gateway-event disposer,
-/// and the [AccordSession] that opened it.
+/// One live server connection and the [AccordSession] that opened it. Gateway
+/// subscription ownership lives in [AccordConnectionCoordinator].
 class _Conn {
   final AccordClient client;
-  final VoidCallback disposeEvents;
   final AccordSession session;
 
-  _Conn({
-    required this.client,
-    required this.disposeEvents,
-    required this.session,
-  });
+  _Conn({required this.client, required this.session});
 }
 
 /// Neutral result of an auth REST call, before any state publication: exactly
@@ -92,9 +87,10 @@ class AccordAuth extends _$AccordAuth {
 
   @override
   AccordAuthState build() {
+    final connectionCoordinator = ref.read(accordConnectionCoordinatorProvider);
     ref.onDispose(() {
+      connectionCoordinator.detachAll();
       for (final conn in _connections.values) {
-        conn.disposeEvents();
         conn.client.dispose();
       }
       _connections.clear();
@@ -315,8 +311,8 @@ class AccordAuth extends _$AccordAuth {
 
   /// Tears down every live connection and clears the active session pointer.
   Future<void> logout() async {
+    ref.read(accordConnectionCoordinatorProvider).detachAll();
     for (final conn in _connections.values) {
-      conn.disposeEvents();
       await conn.client.dispose();
     }
     _connections.clear();
@@ -705,7 +701,7 @@ class AccordAuth extends _$AccordAuth {
 
     final conn = _connections.remove(key);
     if (conn != null) {
-      conn.disposeEvents();
+      ref.read(accordConnectionCoordinatorProvider).detach(key);
       await conn.client.dispose();
       ref.read(connectionsControllerProvider.notifier).remove(key);
     }
@@ -751,7 +747,7 @@ class AccordAuth extends _$AccordAuth {
   Future<void> _evictConnection(String key) async {
     final conn = _connections.remove(key);
     if (conn != null) {
-      conn.disposeEvents();
+      ref.read(accordConnectionCoordinatorProvider).detach(key);
       await conn.client.dispose();
     }
     ref.read(connectionsControllerProvider.notifier).remove(key);
@@ -819,19 +815,15 @@ class AccordAuth extends _$AccordAuth {
               GatewayIntents.voiceStates,
             ],
     );
-    final disposeEvents = handleAccordEvents(
-      ref,
-      client,
-      serverKey: key,
-      currentUserId: session.userId,
-      selfDomain: session.server.homeDomain,
-      isActive: () => ref.read(connectionsControllerProvider).activeKey == key,
-    );
-    _connections[key] = _Conn(
-      client: client,
-      disposeEvents: disposeEvents,
-      session: session,
-    );
+    _connections[key] = _Conn(client: client, session: session);
+    ref
+        .read(accordConnectionCoordinatorProvider)
+        .attach(
+          client: client,
+          session: session,
+          isActive: () =>
+              ref.read(connectionsControllerProvider).activeKey == key,
+        );
     client.login();
 
     if (makeActive) return _makeActive(key);
