@@ -5,6 +5,10 @@
 A Markdown viewer widget for Flutter. It renders Markdown string to rich text
 output.
 
+This vendored fork supports Flutter 3.44 and newer. It is tested with Flutter
+3.44.1 stable and the root project's current beta channel. From this directory,
+run `flutter analyze --no-fatal-infos` and `flutter test` before committing.
+
 <img src="https://raw.githubusercontent.com//tagnote-app/markdown_viewer/master/doc/screenshot.png" alt="example" width="425">
 
 Check the source code of this screenshot [here](https://github.com/tagnote-app/markdown_viewer/blob/master/example/lib/main.dart)

@@ -85,7 +85,7 @@ void main() {
     final markdown = _workflowJob(ci, 'markdown-viewer');
     expect(markdown, contains('working-directory: packages/markdown_viewer'));
     expect(markdown, contains('flutter analyze --no-fatal-infos'));
-    expect(markdown, contains('test/widget_test.dart'));
+    expect(markdown, contains('run: flutter test'));
     expect(markdown, isNot(contains('continue-on-error: true')));
 
     final native = _workflowJob(ci, 'livekit-android');
@@ -94,9 +94,7 @@ void main() {
     expect(native, contains('--tests io.livekit.plugin.AudioResamplerTest'));
     expect(native, isNot(contains('continue-on-error: true')));
 
-    final inherited = _workflowJob(ci, 'markdown-conformance');
-    expect(inherited, contains('continue-on-error: true'));
-    expect(inherited, contains('flutter test test/renderer_test.dart'));
+    expect(ci, isNot(contains('markdown-conformance:')));
   });
 
   test('CI blocks on a pinned real-server protocol seam', () {

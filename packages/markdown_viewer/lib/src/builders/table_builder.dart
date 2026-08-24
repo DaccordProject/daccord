@@ -72,10 +72,8 @@ class TableBuilder extends MarkdownElementBuilder {
         }
       }
 
-      _tableStack.single.rows.add(TableRow(
+      _tableStack.single.rows.add(_TableRowElement(
         decoration: decoration,
-        // TODO(Zhiguang): Fix it.
-        children: const [],
       ));
     }
   }
@@ -106,7 +104,16 @@ class TableBuilder extends MarkdownElementBuilder {
                 tableColumnWidth ?? const IntrinsicColumnWidth(),
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             border: tableBorder ?? _tableBorder,
-            children: _tableStack.removeLast().rows,
+            children: _tableStack
+                .removeLast()
+                .rows
+                .map(
+                  (row) => TableRow(
+                    decoration: row.decoration,
+                    children: row.children,
+                  ),
+                )
+                .toList(),
           ),
         ),
       );
@@ -129,5 +136,12 @@ class TableBuilder extends MarkdownElementBuilder {
 }
 
 class _TableElement {
-  final List<TableRow> rows = <TableRow>[];
+  final List<_TableRowElement> rows = <_TableRowElement>[];
+}
+
+class _TableRowElement {
+  _TableRowElement({this.decoration});
+
+  final BoxDecoration? decoration;
+  final List<Widget> children = <Widget>[];
 }

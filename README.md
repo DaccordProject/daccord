@@ -158,16 +158,14 @@ outputs that still need to be committed.
 flutter analyze --no-fatal-infos       # --no-fatal-infos keeps inherited Bonfire-style infos non-fatal
 flutter test                           # unit/widget tests (voice/settings/server logic)
 (cd packages/accordkit && dart analyze && dart test)
-(cd packages/markdown_viewer && flutter analyze --no-fatal-infos && \
-  flutter test test/extension_test.dart test/widget_test.dart)
+(cd packages/markdown_viewer && \
+  flutter analyze --no-fatal-infos && flutter test)
 gradle --project-dir android :livekit_client:testDebugUnitTest \
   --tests io.livekit.plugin.AudioResamplerTest
 ```
 
-CI treats those maintained vendored-package and Android native seams as merge
-and release gates. The inherited Markdown renderer snapshot corpus is also run
-in CI as an advisory check; it still contains upstream expectations that need
-to be reconciled with the current parser and is therefore not a release gate.
+CI treats the full vendored-package suites, including all Markdown renderer
+corpus cases, and the Android native seam as merge and release gates.
 
 ### Release builds
 

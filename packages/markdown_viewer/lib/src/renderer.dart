@@ -211,7 +211,9 @@ class MarkdownRenderer implements NodeVisitor {
   void visitText(MarkdownText text) {
     final parent = _tree.last;
     final builder = _builders[parent.type]!;
-    final textContent = text.text;
+    final textContent = _keepLineEndingsWhen == null
+        ? text.text.replaceAll('\n', ' ')
+        : text.text;
     var textSpan = builder.buildText(textContent, parent);
 
     if (_gestureRecognizers.isNotEmpty) {

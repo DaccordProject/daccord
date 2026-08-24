@@ -140,7 +140,7 @@ flutter build ios     --release --no-tree-shake-icons --no-codesign -v
 ```
 
 CI lives in `.github/workflows/` and is Daccord-native (no OpenBonfire infra):
-- `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, maintained `markdown_viewer` seams, and LiveKit's Android native unit tests. The inherited Markdown conformance snapshots and broader server/UI scenarios remain advisory. The `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
+- `ci.yml` — blocking jobs cover root codegen/analyze/tests, vendored `accordkit`, the full `markdown_viewer` suite, and LiveKit's Android native unit tests. Broader server/UI scenarios remain advisory. The `build` job is a Web (JavaScript)/Android/Linux/Windows matrix.
 - `release.yml` — tag-driven (`v*`); validates the tag matches `pubspec.yaml` version, gates on `ci.yml`, builds all platforms, publishes a GitHub Release.
 
 ## Migration status

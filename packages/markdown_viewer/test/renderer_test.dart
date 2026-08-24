@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_markdown/dart_markdown.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_viewer/markdown_viewer.dart';
 import 'package:markdown_viewer/src/extensions.dart';
@@ -52,10 +53,6 @@ void _testFile(
     final description = testCase['description'];
     final data = testCase['markdown'];
 
-    if (expected.isEmpty) {
-      continue;
-    }
-
     final shortPath = path.replaceFirst('$rootPath/', '');
 
     test('file: $shortPath, $description', () {
@@ -72,6 +69,13 @@ void _testFile(
       final actual = MarkdownRenderer(
         styleSheet: const MarkdownStyle(),
         onTapLink: (_, __) {},
+        // The production default deliberately rejects relative/local image
+        // destinations from untrusted Markdown. Use the package's explicit
+        // image-builder seam here so the GFM corpus continues to exercise
+        // image syntax without constructing platform file images.
+        imageBuilder: (_, __) => Image.network(
+          'https://example.invalid/markdown-corpus-image',
+        ),
       ).render(nodes).map((e) => e.toMap()).toList();
 
       expect(actual, expected);

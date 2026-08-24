@@ -4,9 +4,8 @@ name: CI
 #
 # - `analyze`  : code generation + static analysis + unit tests (the gate).
 #                Runs on every push/PR — this is what blocks merges.
-# - `accordkit` / `markdown-viewer`: blocking tests for the vendored protocol
-#                and rendering packages. The larger inherited Markdown
-#                conformance snapshots remain visible in an advisory job.
+# - `accordkit` / `markdown-viewer`: blocking full suites for the vendored
+#                protocol and rendering packages.
 # - `livekit-android`: blocking native unit tests for the supported Android
 #                plugin seam.
 # - `protocol-integration`: blocking accordkit↔accordserver REST/gateway seam
@@ -214,42 +213,9 @@ jobs:
         working-directory: packages/markdown_viewer
         run: flutter analyze --no-fatal-infos
 
-      - name: Test maintained renderer seams
+      - name: Test full package, including GFM corpus
         working-directory: packages/markdown_viewer
-        run: >-
-          flutter test
-          test/extension_test.dart
-          test/widget_test.dart
-
-  markdown-conformance:
-    name: Markdown inherited conformance snapshots (advisory)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Cache pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.PUB_CACHE }}
-          key: markdown-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ hashFiles('packages/markdown_viewer/pubspec.yaml') }}
-          restore-keys: |
-            markdown-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
-          cache: true
-
-      - name: Install dependencies
-        working-directory: packages/markdown_viewer
-        run: flutter pub get
-
-      - name: Run inherited conformance snapshots
-        working-directory: packages/markdown_viewer
-        run: flutter test test/renderer_test.dart
+        run: flutter test
 
   livekit-android:
     name: LiveKit Android native tests

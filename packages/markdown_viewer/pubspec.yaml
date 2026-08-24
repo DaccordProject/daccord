@@ -6,7 +6,7 @@ repository: https://github.com/tagnote-app/markdown_viewer
 
 environment:
   sdk: '>=2.19.4 <4.0.0'
-  flutter: '>=1.17.0'
+  flutter: '>=3.44.0'
 
 dependencies:
   flutter:
