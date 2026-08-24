@@ -40,26 +40,32 @@ void main() {
     });
 
     test('?token=&invite= query populates token and invite', () {
-      final parsed =
-          ServerUri.parseServerUrl('chat.example.com?token=abc&invite=xyz');
+      final parsed = ServerUri.parseServerUrl(
+        'chat.example.com?token=abc&invite=xyz',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.token, 'abc');
       expect(parsed.invite, 'xyz');
       expect(parsed.server?.baseUrl, 'https://chat.example.com');
     });
 
-    test('query placed after the fragment is still parsed (godot ordering)', () {
-      final parsed =
-          ServerUri.parseServerUrl('chat.example.com#my-space?token=abc');
-      expect(parsed, isNotNull);
-      expect(parsed!.spaceName, 'my-space');
-      expect(parsed.token, 'abc');
-      expect(parsed.server?.baseUrl, 'https://chat.example.com');
-    });
+    test(
+      'query placed after the fragment is still parsed (godot ordering)',
+      () {
+        final parsed = ServerUri.parseServerUrl(
+          'chat.example.com#my-space?token=abc',
+        );
+        expect(parsed, isNotNull);
+        expect(parsed!.spaceName, 'my-space');
+        expect(parsed.token, 'abc');
+        expect(parsed.server?.baseUrl, 'https://chat.example.com');
+      },
+    );
 
     test('blank token/invite values normalise to null', () {
-      final parsed =
-          ServerUri.parseServerUrl('chat.example.com?token=&invite=');
+      final parsed = ServerUri.parseServerUrl(
+        'chat.example.com?token=&invite=',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.token, isNull);
       expect(parsed.invite, isNull);
@@ -79,8 +85,9 @@ void main() {
     });
 
     test('a daccord:// string delegates to parseDeepLink', () {
-      final parsed =
-          ServerUri.parseServerUrl('daccord://connect/chat.example.com');
+      final parsed = ServerUri.parseServerUrl(
+        'daccord://connect/chat.example.com',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.route, 'connect');
       expect(parsed.server?.baseUrl, 'https://chat.example.com');
@@ -90,7 +97,8 @@ void main() {
   group('ServerUri.parseDeepLink — connect', () {
     test('full connect link with host:port, slug, token and invite', () {
       final parsed = ServerUri.parseDeepLink(
-          'daccord://connect/localhost:3000/my-space?token=t1&invite=i1');
+        'daccord://connect/localhost:3000/my-space?token=t1&invite=i1',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.route, 'connect');
       expect(parsed.server?.baseUrl, 'https://localhost:3000');
@@ -100,34 +108,46 @@ void main() {
     });
 
     test('connect link without a slug leaves spaceName null', () {
-      final parsed =
-          ServerUri.parseDeepLink('daccord://connect/chat.example.com');
+      final parsed = ServerUri.parseDeepLink(
+        'daccord://connect/chat.example.com',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.spaceName, isNull);
       expect(parsed.server?.baseUrl, 'https://chat.example.com');
     });
 
-    test('connect link with a numeric port keeps the port in the base url',
-        () {
-      final parsed =
-          ServerUri.parseDeepLink('daccord://connect/localhost:8080');
+    test('connect link with a numeric port keeps the port in the base url', () {
+      final parsed = ServerUri.parseDeepLink(
+        'daccord://connect/localhost:8080',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.server?.baseUrl, 'https://localhost:8080');
     });
 
     test('connect link with blank token/invite normalises to null', () {
       final parsed = ServerUri.parseDeepLink(
-          'daccord://connect/chat.example.com?token=&invite=');
+        'daccord://connect/chat.example.com?token=&invite=',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.token, isNull);
       expect(parsed.invite, isNull);
+    });
+
+    test('connect link decodes its space and channel destination', () {
+      final parsed = ServerUri.parseDeepLink(
+        'daccord://connect/chat.example.com/my%20space?channel=release%20notes',
+      );
+      expect(parsed, isNotNull);
+      expect(parsed!.spaceName, 'my space');
+      expect(parsed.channelName, 'release notes');
     });
   });
 
   group('ServerUri.parseDeepLink — invite', () {
     test('invite/<code>@<host> preserves the code and sets route=invite', () {
-      final parsed =
-          ServerUri.parseDeepLink('daccord://invite/ABC123@chat.example.com');
+      final parsed = ServerUri.parseDeepLink(
+        'daccord://invite/ABC123@chat.example.com',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.route, 'invite');
       expect(parsed.invite, 'ABC123');
@@ -157,7 +177,8 @@ void main() {
   group('ServerUri.parseDeepLink — navigate', () {
     test('navigate/<space>/<channel>?msg=<id> splits all three ids', () {
       final parsed = ServerUri.parseDeepLink(
-          'daccord://navigate/space1/chan1?msg=msg1');
+        'daccord://navigate/space1/chan1?msg=msg1',
+      );
       expect(parsed, isNotNull);
       expect(parsed!.route, 'navigate');
       expect(parsed.server, isNull);
@@ -180,6 +201,36 @@ void main() {
       expect(parsed!.spaceId, 'space1');
       expect(parsed.channelId, isNull);
     });
+
+    test('message destination without a channel is rejected', () {
+      expect(
+        ServerUri.parseDeepLink('daccord://navigate/space1?msg=msg1'),
+        isNull,
+      );
+    });
+
+    test('extra destination path segments are rejected', () {
+      expect(
+        ServerUri.parseDeepLink('daccord://navigate/space1/chan1/extra'),
+        isNull,
+      );
+    });
+
+    test(
+      'malformed percent encoding is rejected without partial navigation',
+      () {
+        expect(
+          ServerUri.parseDeepLink('daccord://navigate/space1/channel1?msg=%ZZ'),
+          isNull,
+        );
+        expect(
+          ServerUri.parseDeepLink(
+            'daccord://connect/chat.example/team?channel=%ZZ',
+          ),
+          isNull,
+        );
+      },
+    );
   });
 
   group('ServerUri.parseDeepLink — malformed', () {
@@ -227,8 +278,7 @@ void main() {
     });
 
     test('a clean host:port authority validates and is accepted', () {
-      final parsed =
-          ServerUri.parseDeepLink('daccord://connect/good.host:443');
+      final parsed = ServerUri.parseDeepLink('daccord://connect/good.host:443');
       expect(parsed, isNotNull);
       expect(parsed!.server?.baseUrl, 'https://good.host:443');
     });

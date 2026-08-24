@@ -14,6 +14,8 @@ import 'package:bonfire/features/updates/views/release_notes_dialog.dart';
 import 'package:bonfire/features/profiles/views/app_restart.dart';
 import 'package:bonfire/features/profiles/views/profile_gate.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
+import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/views/add_server_dialog.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
@@ -190,6 +192,7 @@ class MainWindow extends ConsumerStatefulWidget {
 
 class _MainWindowState extends ConsumerState<MainWindow> {
   StreamSubscription<Uri>? _linkSub;
+  bool _deepLinkResolutionScheduled = false;
 
   @override
   void initState() {
@@ -214,9 +217,9 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     super.dispose();
   }
 
-  /// Listens for `daccord://` deep links (cold-start and while running) and
-  /// routes them through the Add-a-Server flow. Parsing mirrors the URL field
-  /// in the dialog (see [ServerUri]).
+  /// Listens for `daccord://` deep links (cold-start and while running).
+  /// Connect/invite links use the Add-a-Server flow; navigation destinations
+  /// stay pending until their authenticated connection cache is ready.
   Future<void> _initDeepLinks() async {
     final links = AppLinks();
     try {
@@ -233,14 +236,16 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     final parsed = ServerUri.parseDeepLink(uri.toString());
     if (parsed == null) return;
 
-    final loggedIn = ref.read(accordAuthProvider) is AccordAuthLoggedIn;
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       switch (parsed.route) {
         case 'navigate':
-          // Target an already-connected server by space id; for now just open
-          // the home surface (deep space/channel selection is a follow-up).
-          if (loggedIn) routerController.go('/spaces');
+          final destination = PendingDeepLinkDestination.fromParsed(parsed);
+          if (destination == null) break;
+          ref.read(pendingDeepLinkProvider.notifier).hold(destination);
+          if (ref.read(accordAuthProvider) is! AccordAuthLoggedIn) {
+            routerController.go('/login');
+          }
+          _scheduleDeepLinkResolution();
           break;
         case 'federate':
           // Join a space homed on a remote server through the active
@@ -287,12 +292,20 @@ class _MainWindowState extends ConsumerState<MainWindow> {
           break;
         case 'connect':
         case 'invite':
+          final loggedIn = ref.read(accordAuthProvider) is AccordAuthLoggedIn;
           if (loggedIn) {
             final ctx = rootNavigatorKey.currentContext;
             if (ctx != null) {
               showAddServerDialog(ctx, initialUrl: uri.toString());
             }
           } else {
+            if (parsed.route == 'connect' &&
+                (parsed.spaceName != null || parsed.channelName != null)) {
+              final destination = PendingDeepLinkDestination.fromParsed(parsed);
+              if (destination != null) {
+                ref.read(pendingDeepLinkProvider.notifier).hold(destination);
+              }
+            }
             final base = parsed.server?.baseUrl;
             if (base != null) {
               ProfileStore.sessionBox.put('last-server', base);
@@ -304,8 +317,56 @@ class _MainWindowState extends ConsumerState<MainWindow> {
     });
   }
 
+  void _scheduleDeepLinkResolution() {
+    if (_deepLinkResolutionScheduled) return;
+    _deepLinkResolutionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _deepLinkResolutionScheduled = false;
+      if (mounted) _resolvePendingDeepLink();
+    });
+  }
+
+  void _resolvePendingDeepLink() {
+    if (ref.read(accordAuthProvider) is! AccordAuthLoggedIn) return;
+    final pending = ref.read(pendingDeepLinkProvider);
+    if (pending == null) return;
+    final resolution = resolveDeepLinkDestination(
+      pending,
+      ref.read(connectionsControllerProvider),
+    );
+    switch (resolution) {
+      case DeepLinkWaiting():
+        return;
+      case DeepLinkUnavailable(:final message):
+        ref.read(pendingDeepLinkProvider.notifier).clear();
+        final context = rootNavigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.maybeOf(
+            context,
+          )?.showSnackBar(SnackBar(content: Text(message)));
+        }
+        return;
+      case DeepLinkResolved(:final destination):
+        ref.read(pendingDeepLinkProvider.notifier).clear();
+        ref
+            .read(accordAuthProvider.notifier)
+            .setActiveServer(destination.serverKey);
+        routerController.go(destination.route.toString());
+        return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(accordAuthProvider, (_, _) => _scheduleDeepLinkResolution());
+    ref.listen(
+      connectionsControllerProvider,
+      (_, _) => _scheduleDeepLinkResolution(),
+    );
+    ref.listen(
+      pendingDeepLinkProvider,
+      (_, _) => _scheduleDeepLinkResolution(),
+    );
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.transparent,

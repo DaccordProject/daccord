@@ -55,7 +55,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Root: HKCU; Subkey: "Software\Classes\daccord"; ValueType: string; ValueData: "URL:daccord Protocol"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\daccord"; ValueName: "URL Protocol"; ValueType: string; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\daccord\DefaultIcon"; ValueType: string; ValueData: "{app}\{#MyAppExeName},0"
-Root: HKCU; Subkey: "Software\Classes\daccord\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" --uri ""%1"""
+Root: HKCU; Subkey: "Software\Classes\daccord\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

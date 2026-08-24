@@ -863,7 +863,9 @@ Future<void> _loadSpaces(
   // silently no-op. Done for background connections too so their snapshot is
   // complete the moment they become active.
   await _hydrateRoles(client, spaces);
-  ref.read(connectionsControllerProvider.notifier).setSpaces(serverKey, spaces);
+  ref
+      .read(connectionsControllerProvider.notifier)
+      .setSpaces(serverKey, spaces, authoritative: true);
   // Persist the freshly-loaded list so the rail can show this server's spaces
   // (dimmed) on the next launch even if the server is then unreachable.
   unawaited(SpaceCache.save(serverKey, spaces));

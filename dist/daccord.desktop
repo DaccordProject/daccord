@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=daccord
 Comment=Chat client for accordserver instances
-Exec=daccord --uri %u
+Exec=daccord %u
 Icon=daccord
 Terminal=false
 Type=Application

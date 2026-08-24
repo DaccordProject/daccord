@@ -17,6 +17,11 @@ class AccordConnection {
   final AccordSession session;
   final ConnectionStatus status;
 
+  /// Whether [spaces] came from a successful live sync. A disk snapshot may be
+  /// rendered in the rail while connecting, but deep links must wait for an
+  /// authoritative cache before deciding whether their target exists.
+  final bool spacesReady;
+
   /// This server's spaces. For the active connection the authoritative list is
   /// `spacesControllerProvider`; this cache is what the rail shows for the
   /// *other* (background) servers and what seeds the active list on a switch.
@@ -26,6 +31,7 @@ class AccordConnection {
     required this.session,
     required this.status,
     this.spaces = const [],
+    this.spacesReady = false,
   });
 
   /// Stable identity: user + server, matching `AccordAuth`'s account key.
@@ -34,11 +40,13 @@ class AccordConnection {
   AccordConnection copyWith({
     ConnectionStatus? status,
     List<AccordSpace>? spaces,
+    bool? spacesReady,
   }) =>
       AccordConnection(
         session: session,
         status: status ?? this.status,
         spaces: spaces ?? this.spaces,
+        spacesReady: spacesReady ?? this.spacesReady,
       );
 }
 
@@ -91,6 +99,7 @@ class ConnectionsController extends _$ConnectionsController {
       session: session,
       status: status ?? existing?.status ?? ConnectionStatus.connecting,
       spaces: existing?.spaces ?? const [],
+      spacesReady: existing?.spacesReady ?? false,
     );
     state = state.copyWith(connections: _upsert(conn));
   }
@@ -104,11 +113,20 @@ class ConnectionsController extends _$ConnectionsController {
   }
 
   /// Replaces a server's cached space list (e.g. after a READY space load).
-  void setSpaces(String key, List<AccordSpace> spaces) {
+  void setSpaces(
+    String key,
+    List<AccordSpace> spaces, {
+    bool authoritative = false,
+  }) {
     final existing = state.connectionFor(key);
     if (existing == null) return;
     state = state.copyWith(
-      connections: _upsert(existing.copyWith(spaces: spaces)),
+      connections: _upsert(
+        existing.copyWith(
+          spaces: spaces,
+          spacesReady: existing.spacesReady || authoritative,
+        ),
+      ),
     );
   }
 

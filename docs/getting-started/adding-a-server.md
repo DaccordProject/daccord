@@ -28,7 +28,16 @@ The simplest URL is just a hostname like `chat.example.com`. You can also includ
 - A pre-filled token: `chat.example.com?token=yourtoken` (logs you in automatically)
 - An invite code: `chat.example.com?invite=yourcode` (joins the space using the invite)
 
-If you received an invite link starting with `daccord://`, clicking it will open daccord and fill in the server details automatically.
+If you received a link starting with `daccord://`, opening it in an installed
+client preserves its destination: connect links select their space/channel
+after sign-in, and navigation links select the connected server, space, and
+channel before opening a linked thread or message.
+
+Automatic `daccord://` registration is included in the Android, iOS, and macOS
+apps, the Windows installer, and the Linux `.deb` package. Portable Windows and
+Linux archives do not register handlers with the operating system; paste the
+link into **Add a Server** instead. Browsers do not handle this custom scheme
+inside the web build, so use a normal server URL there.
 
 ## What Happens Next
 

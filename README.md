@@ -36,6 +36,7 @@ This client is the front door: one native app for every screen you own.
 
 - 💬 **Real-time messaging** — send, edit, delete, and reply over WebSocket, across channels and DMs. Updates that feel alive.
 - 🌐 **Multi-server** — connect to many Daccord servers at once and switch between them seamlessly. Your work crew and your gaming crew, side by side.
+- 🔗 **Destination-aware app links** — installed clients can open shared server, space, channel, thread, and message destinations after the owning account is ready.
 - 😀 **Emoji** — full unicode support plus custom server emoji, all behind a slick built-in picker.
 - 🎙️ **Voice, video & screen sharing** — crystal-clear calls powered by **LiveKit/WebRTC**, with camera and screen share built right in.
 - 🛡️ **Server admin tools** — manage channels, roles, bans, invites, and custom emoji without ever leaving the app.

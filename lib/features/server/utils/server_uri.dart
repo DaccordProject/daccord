@@ -24,6 +24,10 @@ class ParsedServerUrl {
   /// A space slug/name from the `#space-name` fragment or `connect/<slug>`.
   final String? spaceName;
 
+  /// A channel name carried by a connect link's `?channel=` parameter.
+  /// Navigate links use [channelId] instead.
+  final String? channelName;
+
   /// For `navigate` links: the target space id (and optional channel/message).
   final String? spaceId;
   final String? channelId;
@@ -38,6 +42,7 @@ class ParsedServerUrl {
     this.token,
     this.invite,
     this.spaceName,
+    this.channelName,
     this.spaceId,
     this.channelId,
     this.messageId,
@@ -69,6 +74,7 @@ class ServerUri {
       final query = text.substring(qPos + 1);
       text = text.substring(0, qPos);
       final params = _parseQuery(query);
+      if (params == null) return null;
       token = params['token'];
       invite = params['invite'];
     }
@@ -148,20 +154,26 @@ class ServerUri {
   static ParsedServerUrl? _parseConnect(String payload) {
     String? token;
     String? invite;
+    String? channelName;
     String? spaceSlug;
 
     final qPos = payload.indexOf('?');
     if (qPos != -1) {
       final params = _parseQuery(payload.substring(qPos + 1));
+      if (params == null) return null;
       payload = payload.substring(0, qPos);
       token = params['token'];
       invite = params['invite'];
+      channelName = params['channel'];
     }
 
     final slugPos = payload.indexOf('/');
     if (slugPos != -1) {
       final slugPart = payload.substring(slugPos + 1);
-      if (slugPart.isNotEmpty) spaceSlug = slugPart;
+      if (slugPart.isNotEmpty) {
+        spaceSlug = _decodeComponent(slugPart);
+        if (spaceSlug == null) return null;
+      }
       payload = payload.substring(0, slugPos);
     }
     if (payload.isEmpty) return null;
@@ -175,6 +187,7 @@ class ServerUri {
       token: _blankToNull(token),
       invite: _blankToNull(invite),
       spaceName: spaceSlug,
+      channelName: _blankToNull(channelName),
     );
   }
 
@@ -198,15 +211,25 @@ class ServerUri {
     final qPos = payload.indexOf('?');
     if (qPos != -1) {
       final params = _parseQuery(payload.substring(qPos + 1));
+      if (params == null) return null;
       payload = payload.substring(0, qPos);
       messageId = params['msg'];
     }
     final parts = payload.split('/');
-    if (parts.isEmpty || parts.first.isEmpty) return null;
+    if (parts.isEmpty || parts.first.isEmpty || parts.length > 2) return null;
+    final spaceId = _decodeComponent(parts[0]);
+    final channelId = parts.length > 1 && parts[1].isNotEmpty
+        ? _decodeComponent(parts[1])
+        : null;
+    if (spaceId == null ||
+        channelId == null && parts.length > 1 && parts[1].isNotEmpty) {
+      return null;
+    }
+    if (messageId != null && channelId == null) return null;
     return ParsedServerUrl(
       route: 'navigate',
-      spaceId: parts[0],
-      channelId: parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null,
+      spaceId: spaceId,
+      channelId: channelId,
       messageId: _blankToNull(messageId),
     );
   }
@@ -228,14 +251,25 @@ class ServerUri {
   /// Builds an `https://host[:port]` base URL from a `host[:port]` authority.
   static String _baseUrlFor(String authority) => 'https://$authority';
 
-  static Map<String, String> _parseQuery(String query) {
+  static Map<String, String>? _parseQuery(String query) {
     final out = <String, String>{};
     for (final pair in query.split('&')) {
       final eq = pair.indexOf('=');
       if (eq <= 0) continue;
-      out[pair.substring(0, eq)] = pair.substring(eq + 1);
+      final key = _decodeComponent(pair.substring(0, eq));
+      final value = _decodeComponent(pair.substring(eq + 1));
+      if (key == null || value == null) return null;
+      out[key] = value;
     }
     return out;
+  }
+
+  static String? _decodeComponent(String value) {
+    try {
+      return Uri.decodeQueryComponent(value);
+    } on ArgumentError {
+      return null;
+    }
   }
 
   static bool _isAlphanumeric(String s) {

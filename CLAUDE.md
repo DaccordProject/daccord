@@ -64,7 +64,7 @@ android/ ios/ web/ windows/ linux/ macos/   # all platform targets present
 Cross-cutting startup features wired in `lib/main.dart`:
 - **Server config:** `lib/features/server/models/accord_server.dart` defines `AccordServer` (`baseUrl`/`gatewayUrl`/`cdnUrl`, derived from a base URL). The live per-server `AccordClient` instances are owned by `AccordAuth` (`lib/features/authentication/repositories/accord_auth.dart`, exposed as `accordAuthProvider`); `lib/features/server/controllers/connections.dart` holds the rail's per-connection UI state (session + status + cached spaces), not the clients.
 - **Multi-profile:** the app is wrapped in `ProfileGate`/`AppRestart` for switching between accounts.
-- **Deep links:** `daccord://` URLs (navigate / connect / invite) parsed via `ServerUri.parseDeepLink()`.
+- **Deep links:** `daccord://` URLs (navigate / connect / invite) are parsed via `ServerUri.parseDeepLink()`. Qualified navigation is held by `pendingDeepLinkProvider` until authentication and the owning connection's live space cache are ready; the `/spaces` route then hands channel/message targeting to `AccordHomeScreen`.
 - **Developer mode:** an MCP server (`mcpServerControllerProvider`) for in-app tooling.
 
 ## Domain mapping: Discord → Accord

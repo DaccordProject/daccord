@@ -93,6 +93,9 @@ final routerController = GoRouter(
           path: '/spaces',
           builder: (context, state) => AccordHomeScreen(
             initialSpaceId: state.uri.queryParameters['space'],
+            initialChannelId: state.uri.queryParameters['channel'],
+            initialChannelName: state.uri.queryParameters['channelName'],
+            initialMessageId: state.uri.queryParameters['message'],
           ),
         ),
         GoRoute(

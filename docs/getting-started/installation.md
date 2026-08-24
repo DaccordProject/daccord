@@ -35,6 +35,9 @@ Choose the right file for your platform:
 2. Run the `daccord` executable.
 3. On some distributions you may need to mark it as executable first: right-click the file, open Properties, and enable "Allow executing file as program".
 
+The `.deb` registers `daccord://` links with the desktop. The portable archive
+does not alter desktop associations; links can still be pasted into the app.
+
 > **Already on v0.2.6 or earlier?** Those builds could not replace a system
 > (`.deb`) install and failed silently, so the app never updated itself. Install
 > the `.deb` above by hand once; from v0.2.7 onward the in-app updater handles it
@@ -45,6 +48,8 @@ Choose the right file for your platform:
 **Installer:** Download and run `daccord-windows-x86_64-setup.exe`. It installs daccord to Program Files, adds a Start Menu shortcut, and registers the `daccord://` URL scheme so invite links open automatically. A per-user install (no admin rights required) is also supported.
 
 **Portable:** Download and extract `daccord-windows-x86_64.zip`, then double-click `daccord.exe` to launch without installing.
+
+The portable archive does not register the `daccord://` scheme with Windows.
 
 ## macOS
 

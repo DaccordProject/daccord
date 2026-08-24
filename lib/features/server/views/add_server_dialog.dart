@@ -6,6 +6,7 @@ import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/authentication/views/password_reset_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
+import 'package:bonfire/features/server/services/deep_link_navigation.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -90,6 +91,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   /// Invite code to redeem once connected (from an `invite/` deep link or a
   /// `?invite=` URL). Redeemed via `invites.accept` in [_finishAfterConnect].
   String? _pendingInviteCode;
+  PendingDeepLinkDestination? _pendingDeepLinkDestination;
 
   @override
   void initState() {
@@ -146,6 +148,10 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
         ref.read(spacesControllerProvider.notifier).upsertSpace(space);
       }
     }
+    final destination = _pendingDeepLinkDestination;
+    if (destination != null) {
+      ref.read(pendingDeepLinkProvider.notifier).hold(destination);
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -160,6 +166,11 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     if (parsed.invite != null && parsed.invite!.isNotEmpty) {
       _pendingInviteCode = parsed.invite;
     }
+    final destination = PendingDeepLinkDestination.fromParsed(parsed);
+    _pendingDeepLinkDestination =
+        parsed.spaceName != null || parsed.channelName != null
+        ? destination
+        : null;
 
     // Already connected to this server: switch to it (and join a pending space).
     final existing = _auth.keyForBaseUrl(server.baseUrl);

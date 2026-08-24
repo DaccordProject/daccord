@@ -78,11 +78,20 @@ part 'accord_home_channels.dart';
 /// The primary Accord screen: a three-pane view (space rail → channel list →
 /// message history) wired to the Accord controllers.
 class AccordHomeScreen extends ConsumerStatefulWidget {
-  const AccordHomeScreen({super.key, this.initialSpaceId});
+  const AccordHomeScreen({
+    super.key,
+    this.initialSpaceId,
+    this.initialChannelId,
+    this.initialChannelName,
+    this.initialMessageId,
+  });
 
   /// A space to focus as soon as the screen mounts (e.g. when arriving from the
   /// admin panel's "Open"). Takes precedence over the restored last selection.
   final String? initialSpaceId;
+  final String? initialChannelId;
+  final String? initialChannelName;
+  final String? initialMessageId;
 
   @override
   ConsumerState<AccordHomeScreen> createState() => _AccordHomeScreenState();
@@ -92,6 +101,11 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   // A space navigated to from the rail whose default channel should auto-open as
   // a tab once its channels load. Cleared as soon as a tab is opened/activated.
   String? _pendingOpenSpaceId;
+  String? _pendingChannelId;
+  String? _pendingChannelName;
+  String? _pendingMessageId;
+  String? _deepLinkChannelInFlight;
+  bool _deepLinkFailureScheduled = false;
   // The channel id currently being auto-opened in a post-frame callback, used to
   // avoid scheduling the same open twice while the gateway round-trips.
   String? _autoOpenInFlight;
@@ -118,6 +132,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   void initState() {
     super.initState();
     _pendingOpenSpaceId = widget.initialSpaceId;
+    _pendingChannelId = widget.initialChannelId;
+    _pendingChannelName = widget.initialChannelName;
+    _pendingMessageId = widget.initialMessageId;
     mcpHomeBridge.registerAll(_mcpNavHandlers());
     // Passive, throttled startup update check (gated on the setting).
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,6 +142,22 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         ref.read(updateControllerProvider.notifier).maybeCheckOnStartup();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(AccordHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSpaceId != widget.initialSpaceId ||
+        oldWidget.initialChannelId != widget.initialChannelId ||
+        oldWidget.initialChannelName != widget.initialChannelName ||
+        oldWidget.initialMessageId != widget.initialMessageId) {
+      _pendingOpenSpaceId = widget.initialSpaceId;
+      _pendingChannelId = widget.initialChannelId;
+      _pendingChannelName = widget.initialChannelName;
+      _pendingMessageId = widget.initialMessageId;
+      _deepLinkChannelInFlight = null;
+      _deepLinkFailureScheduled = false;
+    }
   }
 
   @override
@@ -249,9 +282,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
   /// Opens (or switches to) a tab for [channelId] in [spaceId] on the active
   /// server. Preserves the NSFW gate and voice-join behaviour the single
   /// selection used to carry.
-  Future<void> _openChannel(String channelId, {required String spaceId}) async {
+  Future<bool> _openChannel(String channelId, {required String spaceId}) async {
     final activeKey = ref.read(connectionsControllerProvider).activeKey;
-    if (activeKey == null) return;
+    if (activeKey == null) return false;
     final channel = ref
         .read(accordChannelsControllerProvider(spaceId))
         ?.firstWhereOrNull((c) => c.id == channelId);
@@ -262,7 +295,7 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         channelId: channelId,
         channelName: channel.name ?? 'channel',
       );
-      if (!ok || !mounted) return;
+      if (!ok || !mounted) return false;
     }
     // Opening a voice channel never connects: the message pane renders the voice
     // view, which shows the lobby (participants + chat + a "Join Voice" button)
@@ -289,6 +322,71 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
     ref
         .read(settingsControllerProvider.notifier)
         .setLastSelection(spaceId, channelId);
+    return true;
+  }
+
+  /// Opens an exact channel destination once its cache is available, then
+  /// fetches and opens a shared thread/message root. The direct fetch means a
+  /// link still works when the target is older than the initial history page.
+  void _scheduleDeepLinkOpen(AccordChannel channel, String spaceId) {
+    if (_deepLinkChannelInFlight == channel.id) return;
+    _deepLinkChannelInFlight = channel.id;
+    final messageId = _pendingMessageId;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final opened = await _openChannel(channel.id, spaceId: spaceId);
+      if (!mounted) return;
+      _deepLinkChannelInFlight = null;
+      if (!opened) return;
+
+      setState(() {
+        _pendingChannelId = null;
+        _pendingChannelName = null;
+        _pendingMessageId = null;
+      });
+      if (messageId == null || messageId.isEmpty) return;
+
+      final cached = ref
+          .read(accordMessagesControllerProvider(channel.id))
+          ?.firstWhereOrNull((message) => message.id == messageId);
+      var root = cached;
+      if (root == null) {
+        final client = ref.accordClient;
+        final result = client == null
+            ? null
+            : await client.messages.fetch(channel.id, messageId);
+        if (result?.data case final AccordMessage message) root = message;
+      }
+      if (!mounted) return;
+      if (root == null) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('The linked message is unavailable.')),
+        );
+        return;
+      }
+      showAccordThread(
+        context,
+        channelId: channel.id,
+        root: root,
+        spaceId: spaceId,
+      );
+    });
+  }
+
+  void _scheduleDeepLinkFailure() {
+    if (_deepLinkFailureScheduled) return;
+    _deepLinkFailureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _pendingChannelId = null;
+        _pendingChannelName = null;
+        _pendingMessageId = null;
+      });
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('The linked channel is unavailable.')),
+      );
+    });
   }
 
   /// Auto-opens [channel] as a tab once its space's channels have loaded (used
@@ -420,7 +518,21 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
         activeTab != null &&
         activeTab.serverKey == activeKey &&
         (channels?.any((c) => c.id == activeTab.channelId) ?? false);
-    if (activeTabHere) {
+    final requestedChannel = channels == null
+        ? null
+        : resolveDeepLinkChannel(
+            channels,
+            channelId: _pendingChannelId,
+            channelName: _pendingChannelName,
+          );
+    final hasPendingChannel =
+        _pendingChannelId != null || _pendingChannelName != null;
+    if (requestedChannel != null && effectiveSpaceId != null) {
+      shownChannelId = requestedChannel.id;
+      _scheduleDeepLinkOpen(requestedChannel, effectiveSpaceId);
+    } else if (hasPendingChannel && channels != null) {
+      _scheduleDeepLinkFailure();
+    } else if (activeTabHere) {
       shownChannelId = activeTab.channelId;
     } else if (effectiveSpaceId != null && channels != null) {
       // Restore the last selected channel within the restored space when it
@@ -505,7 +617,9 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
 
     final pip = VoicePipOverlay(
       shownChannelId: shownChannelId,
-      onOpen: (channelId, spaceId) => _openChannel(channelId, spaceId: spaceId),
+      onOpen: (channelId, spaceId) async {
+        await _openChannel(channelId, spaceId: spaceId);
+      },
     );
 
     final hasMembers = effectiveSpaceId != null;
@@ -662,4 +776,21 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
       ],
     );
   }
+}
+
+/// Returns the unique channel selected by an ID or share-link name. Names are
+/// deliberately fail-closed when duplicated; a link must not silently open a
+/// different channel with the same display name.
+@visibleForTesting
+AccordChannel? resolveDeepLinkChannel(
+  List<AccordChannel> channels, {
+  String? channelId,
+  String? channelName,
+}) {
+  if (channelId != null && channelId.isNotEmpty) {
+    return channels.firstWhereOrNull((channel) => channel.id == channelId);
+  }
+  if (channelName == null || channelName.isEmpty) return null;
+  final matches = channels.where((channel) => channel.name == channelName);
+  return matches.length == 1 ? matches.single : null;
 }
