@@ -82,6 +82,12 @@ class MessagePane extends ConsumerStatefulWidget {
     this.panel = false,
     this.panelTitle,
     this.onClosePanel,
+    this.headerLeading,
+    this.headerTitle,
+    this.headerActions = const [],
+    this.canManageMessagesOverride,
+    this.onUserTap,
+    this.onUserContextMenu,
   });
 
   final AccordChannel? channel;
@@ -107,6 +113,26 @@ class MessagePane extends ConsumerStatefulWidget {
   /// Closes the panel. When null (or outside [panel] mode) no close button is
   /// shown.
   final VoidCallback? onClosePanel;
+
+  /// Optional DM-style header pieces. Normal channels use the built-in channel
+  /// icon and name; callers such as the direct-message dialog can supply a back
+  /// button/avatar, recipient title, and call/group actions while retaining the
+  /// shared pin and notification controls.
+  final Widget? headerLeading;
+  final Widget? headerTitle;
+  final List<Widget> headerActions;
+
+  /// Explicit message-management capability for contexts without a space role
+  /// model. Accord grants DM participants channel permissions directly, so DM
+  /// panes pass true while space channels continue using resolved permissions.
+  final bool? canManageMessagesOverride;
+
+  /// User interactions for contexts that do not have a space member popout.
+  /// In a DM these open the account-level profile/context menu supplied by the
+  /// DM feature; normal channels keep using [showAccordMemberPopout].
+  final ValueChanged<AccordUser>? onUserTap;
+  final void Function(AccordUser user, Offset? globalPosition)?
+  onUserContextMenu;
 
   @override
   ConsumerState<MessagePane> createState() => _MessagePaneState();
@@ -190,7 +216,12 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     setState(() => _bulkDeleting = true);
     final ids = _selectedMessageIds.toList();
     final ok = await ref
-        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId).notifier)
+        .read(
+          accordMessagesControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            channelId,
+          ).notifier,
+        )
         .bulkDelete(client, ids);
     if (!mounted) return;
     setState(() {
@@ -219,7 +250,10 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     final position = _scroll.position;
     if (position.maxScrollExtent - position.pixels > 240) return;
     final notifier = ref.read(
-      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId).notifier,
+      accordMessagesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        channelId,
+      ).notifier,
     );
     if (notifier.isLoadingOlder || !notifier.hasMoreOlder) return;
     final client = ref.read(
@@ -259,11 +293,23 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
-    final messages = ref.watch(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', channelId));
+    final messages = ref.watch(
+      accordMessagesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        channelId,
+      ),
+    );
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId));
-    final userCache = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+        : ref.watch(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId,
+            ),
+          );
+    final userCache = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
     final space = spaceId == null
         ? null
         : ref.watch(
@@ -294,10 +340,9 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       memberRoleIds: myRoles.toSet(),
       currentUserId: currentUserId ?? '',
     );
-    final canManageMessages = accordHasPermission(
-      perms,
-      AccordPermission.manageMessages,
-    );
+    final canManageMessages =
+        widget.canManageMessagesOverride ??
+        accordHasPermission(perms, AccordPermission.manageMessages);
     final canSend = accordHasPermission(perms, AccordPermission.sendMessages);
     final canMentionEveryone = accordHasPermission(
       perms,
@@ -429,25 +474,34 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                   )
                 : Row(
                     children: [
-                      Icon(
-                        panel
-                            ? Icons.chat_bubble_outline
-                            : channel?.type == 'announcement'
-                            ? Icons.campaign
-                            : Icons.tag,
-                        size: panel ? 16 : 18,
-                        color: colors.dirtyWhite,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
+                      if (widget.headerLeading != null)
+                        widget.headerLeading!
+                      else ...[
+                        Icon(
                           panel
-                              ? (widget.panelTitle ?? channel?.name ?? 'Chat')
-                              : channel?.name ?? '',
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
+                              ? Icons.chat_bubble_outline
+                              : channel?.type == 'announcement'
+                              ? Icons.campaign
+                              : Icons.tag,
+                          size: panel ? 16 : 18,
+                          color: colors.dirtyWhite,
                         ),
+                        const SizedBox(width: 6),
+                      ],
+                      Expanded(
+                        child:
+                            widget.headerTitle ??
+                            Text(
+                              panel
+                                  ? (widget.panelTitle ??
+                                        channel?.name ??
+                                        'Chat')
+                                  : channel?.name ?? '',
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
                       ),
+                      ...widget.headerActions,
                       IconButton(
                         tooltip: 'Pinned messages',
                         onPressed: () => showPinnedMessages(
@@ -455,6 +509,8 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                           channelId: channelId,
                           spaceId: spaceId,
                           canManage: canManageMessages,
+                          onUserTap: widget.onUserTap,
+                          onUserContextMenu: widget.onUserContextMenu,
                         ),
                         icon: Icon(
                           Icons.push_pin_outlined,
@@ -530,11 +586,15 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       // Members only loads the first page; backfill authors
                       // outside it from the on-demand user cache.
                       AccordUser? authorUser;
-                      if (author == null && members != null) {
+                      if (author == null) {
                         authorUser = userCache[message.authorId];
                         if (authorUser == null) {
                           ref
-                              .read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier)
+                              .read(
+                                accordUsersControllerProvider(
+                                  ref.readActiveServerKey() ?? '',
+                                ).notifier,
+                              )
                               .ensure(message.authorId);
                         }
                       }
@@ -583,6 +643,8 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                         isOwn: isOwn,
                         mentionsMe: mentionsMe,
                         canManageMessages: canManageMessages,
+                        onUserTap: widget.onUserTap,
+                        onUserContextMenu: widget.onUserContextMenu,
                         selecting: _selecting,
                         selected: _selectedMessageIds.contains(message.id),
                         onLongPressSelect: canManageMessages
@@ -612,7 +674,11 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
                       members: members,
                       users: userCache,
                       ensure: ref
-                          .read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier)
+                          .read(
+                            accordUsersControllerProvider(
+                              ref.readActiveServerKey() ?? '',
+                            ).notifier,
+                          )
                           .ensure,
                     ),
               onCancelReply: () => setState(() => _replyTo = null),
@@ -668,20 +734,33 @@ class _TypingIndicator extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
-    final typing = ref.watch(typingControllerProvider(ref.readActiveServerKey() ?? '', channelId));
+    final typing = ref.watch(
+      typingControllerProvider(ref.readActiveServerKey() ?? '', channelId),
+    );
     final members = spaceId == null
         ? null
-        : ref.watch(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', spaceId!));
-    final userCache = ref.watch(accordUsersControllerProvider(ref.readActiveServerKey() ?? ''));
+        : ref.watch(
+            accordMembersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+              spaceId!,
+            ),
+          );
+    final userCache = ref.watch(
+      accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
+    );
 
     String nameFor(String userId) {
       final member = members?[userId];
       if (member != null) return accordMemberName(member, fallback: 'Someone');
       final user = userCache[userId];
       if (user != null) return accordUserName(user, fallback: 'Someone');
-      if (members != null) {
-        ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure(userId);
-      }
+      ref
+          .read(
+            accordUsersControllerProvider(
+              ref.readActiveServerKey() ?? '',
+            ).notifier,
+          )
+          .ensure(userId);
       return 'Someone';
     }
 

@@ -260,6 +260,21 @@ class AppInstance {
         '--- app output ---\n$log',
       );
     }
+    try {
+      await instance.callUntil(
+        'get_current_state',
+        (result) => (result['connected_servers'] as num? ?? 0) > 0,
+        timeout: const Duration(seconds: 30),
+        description: 'a restored server connection',
+      );
+    } on Object catch (error) {
+      final log = instance.log;
+      await instance.dispose();
+      throw AppUnavailable(
+        '$label: MCP started, but the seeded session did not connect: '
+        '$error\n--- app output ---\n$log',
+      );
+    }
     return instance;
   }
 

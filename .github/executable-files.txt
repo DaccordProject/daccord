@@ -1,5 +1,6 @@
 dist/app-store-release-notes.sh
 dist/build-deb.sh
+dist/verify-android-signing.sh
 scripts/_common.sh
 scripts/bootstrap-signing.sh
 scripts/build.sh

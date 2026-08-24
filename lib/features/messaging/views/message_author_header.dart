@@ -33,6 +33,8 @@ class MessageAuthorHeader extends StatelessWidget {
     this.timeTooltip,
     this.smallTime = false,
     this.edited = false,
+    this.onNameLongPressStart,
+    this.onNameSecondaryTapUp,
   });
 
   /// The resolved author display name.
@@ -67,6 +69,8 @@ class MessageAuthorHeader extends StatelessWidget {
 
   /// Whether to append the "(edited)" marker.
   final bool edited;
+  final GestureLongPressStartCallback? onNameLongPressStart;
+  final GestureTapUpCallback? onNameSecondaryTapUp;
 
   @override
   Widget build(BuildContext context) {
@@ -77,17 +81,27 @@ class MessageAuthorHeader extends StatelessWidget {
       overflow: ellipsizeName ? TextOverflow.ellipsis : null,
       style: theme.textTheme.titleSmall!.copyWith(color: nameColor),
     );
-    if (onNameTap != null) {
+    if (onNameTap != null ||
+        onNameLongPressStart != null ||
+        onNameSecondaryTapUp != null) {
       nameWidget = MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(onTap: onNameTap, child: nameWidget),
+        child: GestureDetector(
+          onTap: onNameTap,
+          onLongPressStart: onNameLongPressStart,
+          onSecondaryTapUp: onNameSecondaryTapUp,
+          child: nameWidget,
+        ),
       );
     }
     if (ellipsizeName) nameWidget = Flexible(child: nameWidget);
     Widget timeWidget = Text(
       time,
-      style: (smallTime ? theme.textTheme.labelSmall : theme.textTheme.labelMedium)!
-          .copyWith(color: colors.gray),
+      style:
+          (smallTime
+                  ? theme.textTheme.labelSmall
+                  : theme.textTheme.labelMedium)!
+              .copyWith(color: colors.gray),
     );
     if (timeTooltip != null) {
       timeWidget = Tooltip(message: timeTooltip!, child: timeWidget);

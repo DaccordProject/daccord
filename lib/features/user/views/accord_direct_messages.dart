@@ -1,18 +1,21 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
-import 'package:bonfire/features/messaging/utils/emoticons.dart';
+import 'package:bonfire/features/channels/controllers/read_state.dart';
+import 'package:bonfire/features/channels/utils/mark_channel_read.dart';
+import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/components/context_menu.dart';
 import 'package:bonfire/shared/components/user_avatar.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
-import 'package:bonfire/shared/utils/restore_failed_send.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
-import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
+import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -20,6 +23,7 @@ import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 part 'accord_direct_messages_conversations.dart';
@@ -127,6 +131,204 @@ void _snackDmError(BuildContext context, AccordError? error, String fallback) {
   );
 }
 
+/// Account-level profile used where there is no space/member context. It keeps
+/// DM author and recipient interactions useful without pretending that a DM
+/// user has space roles, nicknames, or moderation controls.
+Future<void> showAccordUserProfile(
+  BuildContext context,
+  AccordUser user, {
+  String? cdnUrl,
+}) {
+  final name = _userName(user);
+  final origin = accordUserOrigin(user);
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            UserAvatar(
+              name,
+              imageUrl: accordAvatarUrl(user, cdnUrl),
+              radius: 30,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: Theme.of(context).textTheme.titleMedium),
+                  if (user.username.isNotEmpty) Text('@${user.username}'),
+                  const SizedBox(height: 8),
+                  SelectableText(user.id),
+                  if (origin != null) ...[
+                    const SizedBox(height: 8),
+                    RemoteOriginBadge(domain: origin),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Responsive right-click/long-press menu for users shown in DMs. Relationship
+/// state is fetched when the menu opens so the action is accurate even when the
+/// Friends tab has not been visited this session.
+Future<void> showAccordDmUserContextMenu(
+  BuildContext context,
+  WidgetRef ref,
+  AccordUser user, {
+  Offset? globalPosition,
+  String? currentDmUserId,
+  List<AccordMenuEntry> extraEntries = const [],
+}) async {
+  final client = ref.accordClient;
+  final selfId = ref.readUserId();
+  AccordRelationship? relationship;
+  if (client != null && user.id != selfId) {
+    final result = await client.users.listRelationships();
+    final data = result.data;
+    if (data is List) {
+      for (final item in data.whereType<AccordRelationship>()) {
+        if (item.user?.id == user.id) {
+          relationship = item;
+          break;
+        }
+      }
+    }
+  }
+  if (!context.mounted) return;
+
+  final rel = relationship;
+  final entries = <AccordMenuEntry>[
+    AccordMenuEntry(
+      label: 'View profile',
+      icon: Icons.account_circle_outlined,
+      onSelected: () =>
+          showAccordUserProfile(context, user, cdnUrl: ref.readCdnUrl()),
+    ),
+    if (user.id != selfId && user.id != currentDmUserId)
+      AccordMenuEntry(
+        label: 'Direct message',
+        icon: Icons.chat_bubble_outline,
+        onSelected: () => openAccordDirectMessage(context, ref, user.id),
+      ),
+    if (user.id != selfId) ...[
+      AccordMenuEntry(
+        label: switch (rel?.type) {
+          _Rel.friend => 'Remove friend',
+          _Rel.blocked => 'Unblock',
+          _Rel.pendingIn => 'Accept friend request',
+          _Rel.pendingOut => 'Cancel friend request',
+          _ => 'Add friend',
+        },
+        icon: switch (rel?.type) {
+          _Rel.friend => Icons.person_remove_outlined,
+          _Rel.blocked => Icons.lock_open_outlined,
+          _Rel.pendingIn => Icons.person_add_alt_1,
+          _Rel.pendingOut => Icons.person_remove_outlined,
+          _ => Icons.person_add_outlined,
+        },
+        destructive: rel?.type == _Rel.friend,
+        onSelected: () => _changeDmRelationship(context, ref, user, rel?.type),
+      ),
+      if (rel?.type != _Rel.blocked)
+        AccordMenuEntry(
+          label: 'Block',
+          icon: Icons.block,
+          destructive: true,
+          onSelected: () => _blockDmUser(context, ref, user),
+        ),
+    ],
+    const AccordMenuEntry.divider(),
+    AccordMenuEntry(
+      label: 'Copy user ID',
+      icon: Icons.copy_outlined,
+      onSelected: () => Clipboard.setData(ClipboardData(text: user.id)),
+    ),
+    if (user.username.isNotEmpty)
+      AccordMenuEntry(
+        label: 'Copy username',
+        icon: Icons.alternate_email,
+        onSelected: () => Clipboard.setData(ClipboardData(text: user.username)),
+      ),
+    ...extraEntries,
+  ];
+  await showAccordContextMenu(
+    context,
+    entries: entries,
+    globalPosition: globalPosition,
+    title: _userName(user),
+    titleIcon: Icons.person_outline,
+  );
+}
+
+Future<void> _changeDmRelationship(
+  BuildContext context,
+  WidgetRef ref,
+  AccordUser user,
+  int? currentType,
+) async {
+  final client = ref.accordClient;
+  if (client == null) return;
+  final removing =
+      currentType == _Rel.friend ||
+      currentType == _Rel.blocked ||
+      currentType == _Rel.pendingOut;
+  final result = removing
+      ? await client.users.deleteRelationship(user.id)
+      : await client.users.putRelationship(user.id, {'type': _Rel.friend});
+  if (!context.mounted) return;
+  showInfoSnack(
+    context,
+    result.ok
+        ? switch (currentType) {
+            _Rel.friend => 'Friend removed',
+            _Rel.blocked => 'User unblocked',
+            _Rel.pendingIn => 'Friend request accepted',
+            _Rel.pendingOut => 'Friend request cancelled',
+            _ => 'Friend request sent',
+          }
+        : 'Failed to update relationship',
+  );
+}
+
+Future<void> _blockDmUser(
+  BuildContext context,
+  WidgetRef ref,
+  AccordUser user,
+) async {
+  final confirmed = await showConfirmDialog(
+    context,
+    title: 'Block user',
+    message: 'Blocked users cannot DM you and their messages are hidden.',
+    confirmLabel: 'Block',
+    danger: true,
+  );
+  if (confirmed != true || !context.mounted) return;
+  final result = await ref.accordClient?.users.putRelationship(user.id, {
+    'type': _Rel.blocked,
+  });
+  if (!context.mounted) return;
+  showInfoSnack(
+    context,
+    result?.ok == true ? 'User blocked' : 'Failed to block user',
+  );
+}
+
 class _DirectMessagesDialog extends ConsumerStatefulWidget {
   const _DirectMessagesDialog({this.initialChannel});
 
@@ -159,7 +361,7 @@ class _DirectMessagesDialogState extends ConsumerState<_DirectMessagesDialog>
       backgroundColor: colors.foreground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: dialogConstraints(context, maxWidth: 560, maxHeight: 620),
+        constraints: dialogConstraints(context, maxWidth: 900, maxHeight: 720),
         child: openChannel != null
             ? _DmConversation(
                 channel: openChannel,

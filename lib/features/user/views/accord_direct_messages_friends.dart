@@ -111,6 +111,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
               for (final r in incoming)
                 _FriendRow(
                   name: _userName(r.user),
+                  user: r.user,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -136,6 +137,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
               for (final r in outgoing)
                 _FriendRow(
                   name: _userName(r.user),
+                  user: r.user,
                   trailing: TextButton(
                     onPressed: _busy || r.user == null
                         ? null
@@ -147,6 +149,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
               for (final r in friends)
                 _FriendRow(
                   name: _userName(r.user),
+                  user: r.user,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -175,6 +178,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
               for (final r in blocked)
                 _FriendRow(
                   name: _userName(r.user),
+                  user: r.user,
                   trailing: TextButton(
                     onPressed: _busy || r.user == null
                         ? null
@@ -229,19 +233,41 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _FriendRow extends StatelessWidget {
-  const _FriendRow({required this.name, required this.trailing});
+class _FriendRow extends ConsumerWidget {
+  const _FriendRow({
+    required this.name,
+    required this.user,
+    required this.trailing,
+  });
 
   final String name;
+  final AccordUser? user;
   final Widget trailing;
 
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tile = ListTile(
       dense: true,
-      leading: UserAvatar(name),
+      leading: UserAvatar(
+        name,
+        imageUrl: accordAvatarUrl(user, ref.watchCdnUrl()),
+      ),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: trailing,
+    );
+    final target = user;
+    if (target == null) return tile;
+    return _DmUserGesture(
+      user: target,
+      onTap: () =>
+          showAccordUserProfile(context, target, cdnUrl: ref.readCdnUrl()),
+      onMenu: (position) => showAccordDmUserContextMenu(
+        context,
+        ref,
+        target,
+        globalPosition: position,
+      ),
+      child: tile,
     );
   }
 }

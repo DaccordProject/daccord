@@ -27,8 +27,10 @@ import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/features/events/services/accord_event_handler.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
+import 'package:bonfire/features/server/controllers/connections.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/shared/app_info.dart' show kAppVersion;
 import 'package:flutter/widgets.dart' show VoidCallback, Widget;
@@ -70,12 +72,12 @@ class TestAccount {
   final AccordServer server;
 
   AccordSession get session => AccordSession(
-        server: server,
-        token: token,
-        tokenType: 'Bearer',
-        userId: userId,
-        username: username,
-      );
+    server: server,
+    token: token,
+    tokenType: 'Bearer',
+    userId: userId,
+    username: username,
+  );
 }
 
 class IntegrationHarness {
@@ -252,10 +254,14 @@ class IntegrationHarness {
   ///
   /// (Returns the scope rather than a `List<Override>` because
   /// `flutter_riverpod` doesn't export the `Override` type.)
-  Widget scopeFor(TestAccount account, {required Widget child}) => ProviderScope(
+  Widget scopeFor(TestAccount account, {required Widget child}) =>
+      ProviderScope(
         overrides: [
           accordAuthProvider.overrideWith(
             () => _StubAccordAuth(account.client, account.session),
+          ),
+          connectionsControllerProvider.overrideWith(
+            () => _StubConnectionsController(account.session),
           ),
         ],
         child: child,
@@ -283,11 +289,17 @@ class IntegrationHarness {
   /// This is what makes controller-level assertions possible: reads go through
   /// the real controllers, and live gateway events land in the real caches —
   /// no widgets. Call [setupHive] first.
-  ProviderContainer containerFor(TestAccount account, {bool wireEvents = true}) {
+  ProviderContainer containerFor(
+    TestAccount account, {
+    bool wireEvents = true,
+  }) {
     final container = ProviderContainer(
       overrides: [
         accordAuthProvider.overrideWith(
           () => _StubAccordAuth(account.client, account.session),
+        ),
+        connectionsControllerProvider.overrideWith(
+          () => _StubConnectionsController(account.session),
         ),
       ],
     );
@@ -298,7 +310,10 @@ class IntegrationHarness {
     return container;
   }
 
-  AccordClient _newClient({String token = '', List<String> intents = const []}) {
+  AccordClient _newClient({
+    String token = '',
+    List<String> intents = const [],
+  }) {
     final client = AccordClient(
       token: token,
       tokenType: 'Bearer',
@@ -357,6 +372,27 @@ class _StubAccordAuth extends AccordAuth {
       AccordAuthLoggedIn(client: _client, session: _session);
 }
 
+/// Seeds the server registry that server-scoped controllers use for their
+/// family key. The production auth notifier does this while connecting; the
+/// auth override above intentionally bypasses that lifecycle.
+class _StubConnectionsController extends ConnectionsController {
+  _StubConnectionsController(this._session);
+
+  final AccordSession _session;
+
+  @override
+  ConnectionsState build() => ConnectionsState(
+    connections: [
+      AccordConnection(
+        session: _session,
+        status: ConnectionStatus.ready,
+        spacesReady: true,
+      ),
+    ],
+    activeKey: _session.key,
+  );
+}
+
 /// Waits for the first event on [stream] satisfying [matches].
 ///
 /// Gateway assertions need this rather than `stream.first`: the server may emit
@@ -368,7 +404,9 @@ Future<T> waitForEvent<T>(
   Duration timeout = const Duration(seconds: 10),
   String? description,
 }) {
-  return stream.firstWhere(matches).timeout(
+  return stream
+      .firstWhere(matches)
+      .timeout(
         timeout,
         onTimeout: () => throw TimeoutException(
           'No matching ${description ?? '$T'} event within $timeout',

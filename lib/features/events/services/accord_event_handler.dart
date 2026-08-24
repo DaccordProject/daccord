@@ -347,7 +347,9 @@ VoidCallback handleAccordEvents(
     if (!isActive()) return;
     final spaceId = channel.spaceId;
     if (spaceId == null) {
-      ref.read(dmChannelsControllerProvider(serverKey).notifier).upsert(channel);
+      ref
+          .read(dmChannelsControllerProvider(serverKey).notifier)
+          .upsert(channel);
     } else {
       ref
           .read(accordChannelsControllerProvider(serverKey, spaceId).notifier)
@@ -370,7 +372,9 @@ VoidCallback handleAccordEvents(
       if (!isActive()) return;
       final spaceId = channel.spaceId;
       if (spaceId == null) {
-        ref.read(dmChannelsControllerProvider(serverKey).notifier).remove(channel.id);
+        ref
+            .read(dmChannelsControllerProvider(serverKey).notifier)
+            .remove(channel.id);
         return;
       }
       ref
@@ -414,8 +418,18 @@ VoidCallback handleAccordEvents(
             channelId: message.channelId,
           ))) {
         ref
-            .read(accordMessagesControllerProvider(serverKey, message.channelId).notifier)
+            .read(
+              accordMessagesControllerProvider(
+                serverKey,
+                message.channelId,
+              ).notifier,
+            )
             .addMessage(message);
+      }
+      if (message.spaceId == null) {
+        ref
+            .read(dmChannelsControllerProvider(serverKey).notifier)
+            .applyMessage(message);
       }
 
       // Thread views: a message carrying `thread_id` is a reply — route it into
@@ -452,7 +466,12 @@ VoidCallback handleAccordEvents(
             channelId: message.channelId,
           ))) {
         ref
-            .read(forumPostsControllerProvider(serverKey, message.channelId).notifier)
+            .read(
+              forumPostsControllerProvider(
+                serverKey,
+                message.channelId,
+              ).notifier,
+            )
             .addPost(message);
       }
 
@@ -530,13 +549,23 @@ VoidCallback handleAccordEvents(
   // above.
   subs.add(
     client.onMessageUpdate.listen((message) {
+      if (message.spaceId == null) {
+        ref
+            .read(dmChannelsControllerProvider(serverKey).notifier)
+            .updateMessagePreview(message);
+      }
       if (!isActive()) return;
       if (activeMessageChannels.contains((
         serverKey: serverKey,
         channelId: message.channelId,
       ))) {
         ref
-            .read(accordMessagesControllerProvider(serverKey, message.channelId).notifier)
+            .read(
+              accordMessagesControllerProvider(
+                serverKey,
+                message.channelId,
+              ).notifier,
+            )
             .updateMessage(message);
       }
       // Route edits into open thread views (replies) and forum boards (root
@@ -565,24 +594,37 @@ VoidCallback handleAccordEvents(
             channelId: message.channelId,
           ))) {
         ref
-            .read(forumPostsControllerProvider(serverKey, message.channelId).notifier)
+            .read(
+              forumPostsControllerProvider(
+                serverKey,
+                message.channelId,
+              ).notifier,
+            )
             .updatePost(message);
       }
     }),
   );
   subs.add(
     client.onMessageDelete.listen((data) {
-      if (!isActive()) return;
       final channelId = data['channel_id']?.toString();
       final messageId =
           data['id']?.toString() ?? data['message_id']?.toString();
       if (channelId == null || messageId == null) return;
+      final dmChannels = ref.read(
+        dmChannelsControllerProvider(serverKey).notifier,
+      );
+      if (dmChannels.contains(channelId)) {
+        dmChannels.removeMessagePreview(channelId, messageId);
+      }
+      if (!isActive()) return;
       if (activeMessageChannels.contains((
         serverKey: serverKey,
         channelId: channelId,
       ))) {
         ref
-            .read(accordMessagesControllerProvider(serverKey, channelId).notifier)
+            .read(
+              accordMessagesControllerProvider(serverKey, channelId).notifier,
+            )
             .removeMessage(messageId);
       }
       // The delete payload carries no `thread_id`, so fan the removal out to
@@ -728,7 +770,9 @@ VoidCallback handleAccordEvents(
         return;
       }
       if (isSelf(userId)) return; // don't show our own typing
-      ref.read(typingControllerProvider(serverKey, channelId).notifier).userTyping(userId);
+      ref
+          .read(typingControllerProvider(serverKey, channelId).notifier)
+          .userTyping(userId);
     }),
   );
 
@@ -744,7 +788,9 @@ VoidCallback handleAccordEvents(
       return;
     }
     ref
-        .read(accordMembersControllerProvider(serverKey, member.spaceId).notifier)
+        .read(
+          accordMembersControllerProvider(serverKey, member.spaceId).notifier,
+        )
         .upsertMember(member);
   }
 

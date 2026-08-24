@@ -19,6 +19,8 @@ class _MessageRow extends ConsumerStatefulWidget {
     this.author,
     this.authorUser,
     this.nameColor,
+    this.onUserTap,
+    this.onUserContextMenu,
   });
 
   final AccordMessage message;
@@ -43,7 +45,8 @@ class _MessageRow extends ConsumerStatefulWidget {
   final VoidCallback onReply;
 
   /// The space this message belongs to, for opening the author's profile
-  /// popout. `null` in contexts without a space (e.g. DMs, not yet supported).
+  /// popout. `null` in contexts without a space (e.g. DMs), which use
+  /// [onUserTap]/[onUserContextMenu] instead.
   final String? spaceId;
 
   /// Whether this message belongs to the current user (gates edit/delete).
@@ -76,6 +79,12 @@ class _MessageRow extends ConsumerStatefulWidget {
 
   /// The author's highest colored-role color, or null for the default color.
   final Color? nameColor;
+
+  /// Account-level user interactions used by DM panes, where no space member
+  /// popout exists. Space rows continue to use the member popout directly.
+  final ValueChanged<AccordUser>? onUserTap;
+  final void Function(AccordUser user, Offset? globalPosition)?
+  onUserContextMenu;
 
   @override
   ConsumerState<_MessageRow> createState() => _MessageRowState();
@@ -194,7 +203,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (client == null || text.trim().isEmpty || _busy) return;
     setState(() => _busy = true);
     final ok = await ref
-        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
+        .read(
+          accordMessagesControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            widget.channelId,
+          ).notifier,
+        )
         .edit(client, messageId, text);
     if (!mounted) return;
     setState(() => _busy = false);
@@ -203,8 +217,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
 
   void _openPopout(String authorId) {
     final spaceId = widget.spaceId;
-    if (spaceId == null) return;
-    showAccordMemberPopout(context, spaceId: spaceId, userId: authorId);
+    if (spaceId != null) {
+      showAccordMemberPopout(context, spaceId: spaceId, userId: authorId);
+      return;
+    }
+    final user = widget.authorUser;
+    if (user != null) widget.onUserTap?.call(user);
+  }
+
+  void _openUserMenu([Offset? position]) {
+    final user = widget.author?.user ?? widget.authorUser;
+    if (user == null) return;
+    widget.onUserContextMenu?.call(user, position);
   }
 
   /// Opens a popup listing the users who added [reaction], lazy-loaded.
@@ -220,15 +244,16 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
   }
 
-  void _toggleReaction(
-    String messageId,
-    String emojiName, {
-    String? emojiId,
-  }) {
+  void _toggleReaction(String messageId, String emojiName, {String? emojiId}) {
     final client = _client;
     if (client == null) return;
     ref
-        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
+        .read(
+          accordMessagesControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            widget.channelId,
+          ).notifier,
+        )
         .toggleReaction(client, messageId, emojiName, emojiId: emojiId);
   }
 
@@ -242,7 +267,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final client = _client;
     if (client == null) return;
     final controller = ref.read(
-      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier,
+      accordMessagesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.channelId,
+      ).notifier,
     );
     if (pinned) {
       await controller.unpin(client, messageId);
@@ -277,7 +305,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     final ok = await ref
-        .read(accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId).notifier)
+        .read(
+          accordMessagesControllerProvider(
+            ref.readActiveServerKey() ?? '',
+            widget.channelId,
+          ).notifier,
+        )
         .delete(client, messageId);
     if (!mounted) return;
     // Row disappears on success; if it failed we re-enable and say so, rather
@@ -312,7 +345,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       widget.author?.user ?? widget.authorUser,
       message.authorId,
     );
-    final tappable = widget.spaceId != null;
+    final tappable =
+        widget.spaceId != null ||
+        (widget.authorUser != null && widget.onUserTap != null);
+    final userMenuEnabled =
+        widget.onUserContextMenu != null &&
+        (widget.author?.user != null || widget.authorUser != null);
     void openPopout() => _openPopout(message.authorId);
     // Hover actions are mouse-driven and have no affordance on touch, where
     // `Opacity` would still reserve their width and squeeze the message content
@@ -400,6 +438,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                   _MaybeTappable(
                     enabled: tappable,
                     onTap: openPopout,
+                    onLongPressStart: userMenuEnabled
+                        ? (d) => _openUserMenu(d.globalPosition)
+                        : null,
+                    onSecondaryTapUp: userMenuEnabled
+                        ? (d) => _openUserMenu(d.globalPosition)
+                        : null,
                     child: AccordMemberAvatar(
                       avatarUrl: avatarUrl,
                       initial: _initial,
@@ -423,6 +467,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
                           // timestamp out of a narrow row.
                           ellipsizeName: true,
                           onNameTap: tappable ? openPopout : null,
+                          onNameLongPressStart: userMenuEnabled
+                              ? (d) => _openUserMenu(d.globalPosition)
+                              : null,
+                          onNameSecondaryTapUp: userMenuEnabled
+                              ? (d) => _openUserMenu(d.globalPosition)
+                              : null,
                           pinned: message.pinned,
                           origin: _authorOrigin,
                           time: _time,
@@ -468,6 +518,8 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     spaceId: widget.spaceId,
     root: message,
     canManageMessages: widget.canManageMessages,
+    onUserTap: widget.onUserTap,
+    onUserContextMenu: widget.onUserContextMenu,
   );
 
   void _report(String messageId) {
@@ -522,8 +574,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             AccordMenuEntry(
               label: message.pinned ? 'Unpin' : 'Pin',
               icon: message.pinned ? Icons.push_pin_outlined : Icons.push_pin,
-              onSelected: () =>
-                  _togglePin(message.id, pinned: message.pinned),
+              onSelected: () => _togglePin(message.id, pinned: message.pinned),
             ),
         ],
       ),
@@ -592,7 +643,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     final spaceId = widget.spaceId;
     final customEmoji = spaceId == null
         ? const <AccordEmoji>[]
-        : ref.watch(accordEmojisControllerProvider(ref.readActiveServerKey() ?? '', spaceId)) ??
+        : ref.watch(
+                accordEmojisControllerProvider(
+                  ref.readActiveServerKey() ?? '',
+                  spaceId,
+                ),
+              ) ??
               const <AccordEmoji>[];
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -649,7 +705,10 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   ) {
     final theme = Theme.of(context);
     final messages = ref.read(
-      accordMessagesControllerProvider(ref.readActiveServerKey() ?? '', widget.channelId),
+      accordMessagesControllerProvider(
+        ref.readActiveServerKey() ?? '',
+        widget.channelId,
+      ),
     );
     final referenced = messages?.firstWhereOrNull(
       (m) => m.id == message.replyTo,
@@ -663,18 +722,27 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
       final member = widget.spaceId == null
           ? null
           : ref.watch(
-              accordMembersControllerProvider(ref.readActiveServerKey() ?? '',
+              accordMembersControllerProvider(
+                ref.readActiveServerKey() ?? '',
                 widget.spaceId!,
               ).select((m) => m?[authorId]),
             );
       final user = ref.watch(
-        accordUsersControllerProvider(ref.readActiveServerKey() ?? '').select((u) => u[authorId]),
+        accordUsersControllerProvider(
+          ref.readActiveServerKey() ?? '',
+        ).select((u) => u[authorId]),
       );
       name = accordAuthorNameOf(
         authorId,
         member: member,
         user: user,
-        ensure: ref.read(accordUsersControllerProvider(ref.readActiveServerKey() ?? '').notifier).ensure,
+        ensure: ref
+            .read(
+              accordUsersControllerProvider(
+                ref.readActiveServerKey() ?? '',
+              ).notifier,
+            )
+            .ensure,
       );
       preview = referenced.content.isEmpty
           ? '(attachment)'

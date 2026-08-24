@@ -58,7 +58,7 @@ Future<void> main() async {
       // only writes to channels the UI is actually showing (see
       // `activeMessageChannels`), so without this the cache never updates.
       container.listen(
-        accordMessagesControllerProvider('', channelId),
+        accordMessagesControllerProvider(alice.session.key, channelId),
         (_, _) {},
         fireImmediately: true,
       );
@@ -66,16 +66,23 @@ Future<void> main() async {
 
     tearDownAll(harness.dispose);
 
-    List<AccordMessage>? read() =>
-        container.read(accordMessagesControllerProvider('', channelId));
+    List<AccordMessage>? read() => container.read(
+      accordMessagesControllerProvider(alice.session.key, channelId),
+    );
 
     test('the controller loads channel history from the server', () async {
-      final created = await alice.client.messages
-          .create(channelId, {'content': 'seeded history'});
+      final created = await alice.client.messages.create(channelId, {
+        'content': 'seeded history',
+      });
       expect(created.ok, isTrue, reason: '${created.error}');
 
       await container
-          .read(accordMessagesControllerProvider('', channelId).notifier)
+          .read(
+            accordMessagesControllerProvider(
+              alice.session.key,
+              channelId,
+            ).notifier,
+          )
           .reload(alice.client);
 
       final messages = await waitForState(
@@ -89,8 +96,9 @@ Future<void> main() async {
     test("bob's message lands in alice's cache without a refetch", () async {
       const content = 'sent by bob over the gateway';
 
-      final created =
-          await bob.client.messages.create(channelId, {'content': content});
+      final created = await bob.client.messages.create(channelId, {
+        'content': content,
+      });
       expect(created.ok, isTrue, reason: '${created.error}');
 
       final messages = await waitForState(
@@ -104,33 +112,38 @@ Future<void> main() async {
       expect(delivered.channelId, channelId);
     });
 
-    test("an edit by bob updates the message already in alice's cache",
-        () async {
-      final created = await bob.client.messages
-          .create(channelId, {'content': 'bob before edit'});
-      final id = (created.data! as AccordMessage).id;
+    test(
+      "an edit by bob updates the message already in alice's cache",
+      () async {
+        final created = await bob.client.messages.create(channelId, {
+          'content': 'bob before edit',
+        });
+        final id = (created.data! as AccordMessage).id;
 
-      await waitForState(
-        read,
-        (m) => m != null && m.any((msg) => msg.id == id),
-        description: 'message to edit',
-      );
+        await waitForState(
+          read,
+          (m) => m != null && m.any((msg) => msg.id == id),
+          description: 'message to edit',
+        );
 
-      await bob.client.messages
-          .edit(channelId, id, {'content': 'bob after edit'});
+        await bob.client.messages.edit(channelId, id, {
+          'content': 'bob after edit',
+        });
 
-      await waitForState(
-        read,
-        (m) =>
-            m != null &&
-            m.any((msg) => msg.id == id && msg.content == 'bob after edit'),
-        description: 'edited message',
-      );
-    });
+        await waitForState(
+          read,
+          (m) =>
+              m != null &&
+              m.any((msg) => msg.id == id && msg.content == 'bob after edit'),
+          description: 'edited message',
+        );
+      },
+    );
 
     test("a delete by bob removes the message from alice's cache", () async {
-      final created = await bob.client.messages
-          .create(channelId, {'content': 'bob will delete this'});
+      final created = await bob.client.messages.create(channelId, {
+        'content': 'bob will delete this',
+      });
       final id = (created.data! as AccordMessage).id;
 
       await waitForState(

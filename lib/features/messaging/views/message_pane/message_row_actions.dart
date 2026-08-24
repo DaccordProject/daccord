@@ -42,18 +42,27 @@ class _MaybeTappable extends StatelessWidget {
     required this.enabled,
     required this.onTap,
     required this.child,
+    this.onLongPressStart,
+    this.onSecondaryTapUp,
   });
 
   final bool enabled;
   final VoidCallback onTap;
   final Widget child;
+  final GestureLongPressStartCallback? onLongPressStart;
+  final GestureTapUpCallback? onSecondaryTapUp;
 
   @override
   Widget build(BuildContext context) {
     if (!enabled) return child;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(onTap: onTap, child: child),
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPressStart: onLongPressStart,
+        onSecondaryTapUp: onSecondaryTapUp,
+        child: child,
+      ),
     );
   }
 }

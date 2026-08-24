@@ -209,7 +209,7 @@ class _PickUserDialogState extends ConsumerState<_PickUserDialog> {
 }
 
 /// Lists the group's participants with an optional remove action (owner only).
-class _GroupMembersDialog extends StatelessWidget {
+class _GroupMembersDialog extends ConsumerWidget {
   const _GroupMembersDialog({
     required this.members,
     required this.canRemove,
@@ -221,7 +221,7 @@ class _GroupMembersDialog extends StatelessWidget {
   final void Function(AccordUser) onRemove;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
     return Dialog(
@@ -251,25 +251,56 @@ class _GroupMembersDialog extends StatelessWidget {
                         shrinkWrap: true,
                         children: [
                           for (final user in members)
-                            ListTile(
-                              dense: true,
-                              leading: UserAvatar(_userName(user)),
-                              title: Text(
-                                _userName(user),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            _DmUserGesture(
+                              user: user,
+                              onTap: () => showAccordUserProfile(
+                                context,
+                                user,
+                                cdnUrl: ref.readCdnUrl(),
                               ),
-                              trailing: canRemove
-                                  ? IconButton(
-                                      tooltip: 'Remove',
-                                      onPressed: () => onRemove(user),
-                                      icon: Icon(
-                                        Icons.person_remove,
-                                        size: 20,
-                                        color: colors.red,
-                                      ),
-                                    )
-                                  : null,
+                              onMenu: (position) => showAccordDmUserContextMenu(
+                                context,
+                                ref,
+                                user,
+                                globalPosition: position,
+                                extraEntries: canRemove
+                                    ? [
+                                        const AccordMenuEntry.divider(),
+                                        AccordMenuEntry(
+                                          label: 'Remove from group',
+                                          icon: Icons.person_remove_outlined,
+                                          destructive: true,
+                                          onSelected: () => onRemove(user),
+                                        ),
+                                      ]
+                                    : const [],
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                leading: UserAvatar(
+                                  _userName(user),
+                                  imageUrl: accordAvatarUrl(
+                                    user,
+                                    ref.watchCdnUrl(),
+                                  ),
+                                ),
+                                title: Text(
+                                  _userName(user),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: canRemove
+                                    ? IconButton(
+                                        tooltip: 'Remove',
+                                        onPressed: () => onRemove(user),
+                                        icon: Icon(
+                                          Icons.person_remove,
+                                          size: 20,
+                                          color: colors.red,
+                                        ),
+                                      )
+                                    : null,
+                              ),
                             ),
                         ],
                       ),

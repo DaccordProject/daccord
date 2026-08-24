@@ -11,6 +11,8 @@ class _DmListTab extends ConsumerStatefulWidget {
 }
 
 class _DmListTabState extends ConsumerState<_DmListTab> {
+  final _search = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -19,6 +21,12 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
 
   AccordClient? get _client => ref.accordClient;
 
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final client = _client;
     final serverKey = ref.readActiveServerKey();
@@ -26,9 +34,28 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     final result = await client.users.listChannels();
     if (!mounted || ref.readActiveServerKey() != serverKey) return;
     final data = result.data;
-    ref.read(dmChannelsControllerProvider(serverKey).notifier).setChannels(
-          data is List ? data.whereType<AccordChannel>().toList() : const [],
-        );
+    final channels = data is List
+        ? data.whereType<AccordChannel>().toList()
+        : <AccordChannel>[];
+    final controller = ref.read(
+      dmChannelsControllerProvider(serverKey).notifier,
+    );
+    controller.setChannels(channels);
+    await Future.wait([
+      for (final channel in channels)
+        client.messages.list(channel.id, query: {'limit': 1}).then((result) {
+          if (!mounted || ref.readActiveServerKey() != serverKey) return;
+          final messages = result.data;
+          if (result.ok && messages is List) {
+            AccordMessage? latest;
+            for (final message in messages.whereType<AccordMessage>()) {
+              latest = message;
+              break;
+            }
+            if (latest != null) controller.setPreview(channel.id, latest);
+          }
+        }),
+    ]);
   }
 
   Future<void> _createGroup() async {
@@ -61,31 +88,135 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
     await openAccordDirectMessage(context, ref, handle);
   }
 
+  Future<void> _closeConversation(AccordChannel channel) async {
+    final group = _isGroup(channel, widget.selfId);
+    final confirmed = await showConfirmDialog(
+      context,
+      title: group ? 'Leave group' : 'Close direct message',
+      message: group
+          ? 'Leave ${_channelTitle(channel, widget.selfId)}? You can be re-added later.'
+          : 'Remove this conversation from your direct-message list? Its history is retained if you message this user again.',
+      confirmLabel: group ? 'Leave' : 'Close',
+      danger: true,
+    );
+    if (confirmed != true || !mounted) return;
+    final client = _client;
+    final serverKey = ref.readActiveServerKey();
+    if (client == null || serverKey == null) return;
+    final selfId = widget.selfId;
+    if (group && selfId == null) return;
+    final result = group
+        ? await client.channels.removeRecipient(channel.id, selfId!)
+        : await client.channels.delete(channel.id);
+    if (!mounted || ref.readActiveServerKey() != serverKey) return;
+    if (!result.ok) {
+      _snackDmError(
+        context,
+        result.error,
+        group ? 'Failed to leave group' : 'Failed to close conversation',
+      );
+      return;
+    }
+    ref
+        .read(dmChannelsControllerProvider(serverKey).notifier)
+        .remove(channel.id);
+    ref
+        .read(readStateControllerProvider(serverKey).notifier)
+        .markRead(channel.id);
+  }
+
+  void _showConversationMenu(AccordChannel channel, Offset? position) {
+    final group = _isGroup(channel, widget.selfId);
+    final others = _others(channel, widget.selfId);
+    final user = !group && others.isNotEmpty ? others.first : null;
+    final closeEntry = AccordMenuEntry(
+      label: group ? 'Leave group' : 'Close direct message',
+      icon: group ? Icons.logout : Icons.close,
+      destructive: true,
+      onSelected: () => _closeConversation(channel),
+    );
+    if (user != null) {
+      showAccordDmUserContextMenu(
+        context,
+        ref,
+        user,
+        globalPosition: position,
+        currentDmUserId: user.id,
+        extraEntries: [const AccordMenuEntry.divider(), closeEntry],
+      );
+      return;
+    }
+    showAccordContextMenu(
+      context,
+      entries: [closeEntry],
+      globalPosition: position,
+      title: _channelTitle(channel, widget.selfId),
+      titleIcon: Icons.group_outlined,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
-    final channels = ref.watch(dmChannelsControllerProvider(ref.readActiveServerKey() ?? ''));
+    final serverKey = ref.watchActiveServerKey() ?? '';
+    final channels = ref.watch(dmChannelsControllerProvider(serverKey));
+    final previews = ref.read(dmChannelsControllerProvider(serverKey).notifier);
     final cdnUrl = ref.watchCdnUrl();
     final missed = ref.watch(missedCallsControllerProvider);
+    final readState = ref.watch(readStateControllerProvider(serverKey));
+    final channelLevels = ref.watch(
+      settingsControllerProvider.select(
+        (settings) => settings.channelNotificationsFor(serverKey),
+      ),
+    );
+    final query = _search.text.trim().toLowerCase();
+    final filtered = channels
+        ?.where(
+          (channel) =>
+              query.isEmpty ||
+              _channelTitle(
+                channel,
+                widget.selfId,
+              ).toLowerCase().contains(query),
+        )
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          child: Column(
             children: [
-              FilledButton.icon(
-                onPressed: _createGroup,
-                icon: const Icon(Icons.group_add, size: 18),
-                label: const Text('New group'),
+              TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search, size: 20),
+                  hintText: 'Search conversations',
+                  border: OutlineInputBorder(),
+                ),
               ),
-              OutlinedButton.icon(
-                onPressed: _messageRemoteUser,
-                icon: const Icon(Icons.alternate_email, size: 18),
-                label: const Text('Message remote user'),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _createGroup,
+                      icon: const Icon(Icons.group_add, size: 18),
+                      label: const Text('New group'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _messageRemoteUser,
+                      icon: const Icon(Icons.alternate_email, size: 18),
+                      label: const Text('Message remote user'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -93,69 +224,118 @@ class _DmListTabState extends ConsumerState<_DmListTab> {
         Expanded(
           child: channels == null
               ? const LoadingView()
-              : channels.isEmpty
-                  ? Center(
-                      child: Text('No direct messages yet',
-                          style: theme.textTheme.bodyMedium))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(8),
-                      itemCount: channels.length,
-                      itemBuilder: (context, index) {
-                        final channel = channels[index];
-                        final title = _channelTitle(channel, widget.selfId);
-                        final group = _isGroup(channel, widget.selfId);
-                        final origin =
-                            _dmRemoteOrigin(channel, widget.selfId);
-                        final others = _others(channel, widget.selfId);
-                        final other =
-                            group || others.isEmpty ? null : others.first;
-                        final avatarUrl = other == null
-                            ? null
-                            : accordAvatarUrl(other, cdnUrl);
-                        final missedCall = missed[channel.id];
-                        return ListTile(
-                          leading: group
-                              ? CircleAvatar(
-                                  backgroundColor: colors.darkGray,
-                                  child: Icon(Icons.group,
-                                      size: 18, color: colors.dirtyWhite),
-                                )
-                              : UserAvatar(title,
-                                  imageUrl: avatarUrl, radius: 20),
-                          title: Row(
-                            children: [
-                              Flexible(
-                                child: Text(title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
+              : filtered!.isEmpty
+              ? Center(
+                  child: Text(
+                    query.isEmpty
+                        ? 'No direct messages yet'
+                        : 'No matching conversations',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final channel = filtered[index];
+                    final title = _channelTitle(channel, widget.selfId);
+                    final group = _isGroup(channel, widget.selfId);
+                    final origin = _dmRemoteOrigin(channel, widget.selfId);
+                    final others = _others(channel, widget.selfId);
+                    final other = group || others.isEmpty ? null : others.first;
+                    final avatarUrl = other == null
+                        ? null
+                        : accordAvatarUrl(other, cdnUrl);
+                    final missedCall = missed[channel.id];
+                    final unread = readState.isUnreadVisible(
+                      channel.id,
+                      channelLevels: channelLevels,
+                    );
+                    final mentions = readState.visibleMentionCount(
+                      channel.id,
+                      channelLevels: channelLevels,
+                    );
+                    final preview = previews.previewFor(channel.id);
+                    final tile = ListTile(
+                      tileColor: unread
+                          ? colors.primary.withValues(alpha: 0.08)
+                          : null,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      leading: group
+                          ? CircleAvatar(
+                              backgroundColor: colors.darkGray,
+                              child: Icon(
+                                Icons.group,
+                                size: 18,
+                                color: colors.dirtyWhite,
                               ),
-                              if (origin != null) ...[
-                                const SizedBox(width: 6),
-                                RemoteOriginBadge(domain: origin),
-                              ],
-                            ],
-                          ),
-                          subtitle: missedCall != null
-                              ? _MissedCallLabel(missed: missedCall)
-                              : group
-                                  ? Text(
-                                      '${_others(channel, widget.selfId).length + 1} members',
-                                      style: theme.textTheme.bodySmall)
+                            )
+                          : UserAvatar(title, imageUrl: avatarUrl, radius: 20),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: unread
+                                  ? const TextStyle(fontWeight: FontWeight.w700)
                                   : null,
-                          trailing: missedCall == null
-                              ? null
-                              : Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                          onTap: () => widget.onOpen(channel),
-                        );
-                      },
-                    ),
+                            ),
+                          ),
+                          if (origin != null) ...[
+                            const SizedBox(width: 6),
+                            RemoteOriginBadge(domain: origin),
+                          ],
+                        ],
+                      ),
+                      subtitle: missedCall != null
+                          ? _MissedCallLabel(missed: missedCall)
+                          : preview != null
+                          ? Text(
+                              preview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall,
+                            )
+                          : group
+                          ? Text(
+                              '${_others(channel, widget.selfId).length + 1} members',
+                              style: theme.textTheme.bodySmall,
+                            )
+                          : null,
+                      trailing: mentions > 0
+                          ? Badge(label: Text('$mentions'))
+                          : unread || missedCall != null
+                          ? Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: missedCall != null
+                                    ? colors.red
+                                    : colors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            )
+                          : null,
+                      onTap: () => widget.onOpen(channel),
+                    );
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onLongPressStart: (details) => _showConversationMenu(
+                        channel,
+                        details.globalPosition,
+                      ),
+                      onSecondaryTapUp: (details) => _showConversationMenu(
+                        channel,
+                        details.globalPosition,
+                      ),
+                      child: tile,
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -172,19 +352,26 @@ class _MissedCallLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
-    final style = Theme.of(context)
-        .textTheme
-        .bodySmall
-        ?.copyWith(color: colors.red, fontWeight: FontWeight.w600);
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: colors.red,
+      fontWeight: FontWeight.w600,
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(missed.video ? Icons.missed_video_call : Icons.call_missed,
-            size: 14, color: colors.red),
+        Icon(
+          missed.video ? Icons.missed_video_call : Icons.call_missed,
+          size: 14,
+          color: colors.red,
+        ),
         const SizedBox(width: 4),
         Flexible(
-          child: Text(missed.label,
-              style: style, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Text(
+            missed.label,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
@@ -207,29 +394,41 @@ class _DmConversation extends ConsumerStatefulWidget {
 }
 
 class _DmConversationState extends ConsumerState<_DmConversation> {
-  final _input = TextEditingController();
-  final _inputFocus = FocusNode();
-  List<AccordMessage>? _messages;
   late AccordChannel _channel = widget.channel;
-  bool _sending = false;
+  late final String _serverKey = ref.readActiveServerKey() ?? '';
+  ServerChannelKey? _previousVisibleChannel;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _previousVisibleChannel = accordVisibleChannel;
     // Opening the conversation is the acknowledgement: drop any missed-call
     // indicator for it. Deferred a frame — `initState` runs during a build, and
     // Riverpod forbids mutating a provider from inside one.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      for (final user in _channel.recipients ?? const <AccordUser>[]) {
+        ref
+            .read(accordUsersControllerProvider(_serverKey).notifier)
+            .upsert(user);
+      }
+      accordVisibleChannel = (serverKey: _serverKey, channelId: _channel.id);
+      markChannelRead(
+        ref,
+        _channel.id,
+        serverKey: _serverKey,
+        fallbackMessageId: _channel.lastMessageId,
+      );
       ref.read(missedCallsControllerProvider.notifier).clear(_channel.id);
     });
   }
 
   @override
   void dispose() {
-    _input.dispose();
-    _inputFocus.dispose();
+    final visible = accordVisibleChannel;
+    if (visible?.serverKey == _serverKey && visible?.channelId == _channel.id) {
+      accordVisibleChannel = _previousVisibleChannel;
+    }
     super.dispose();
   }
 
@@ -240,25 +439,17 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
   bool get _isOwner =>
       _channel.ownerId != null && _channel.ownerId == widget.selfId;
 
-  Future<void> _load() async {
-    final client = _client;
-    if (client == null) return;
-    final result =
-        await client.messages.list(_channel.id, query: {'limit': 50});
-    if (!mounted) return;
-    final data = result.data;
-    setState(() {
-      _messages = data is List
-          ? data.whereType<AccordMessage>().toList().reversed.toList()
-          : <AccordMessage>[];
-    });
-  }
-
   /// Updates the local channel and mirrors it into the shared DM cache so the
   /// list behind this conversation reflects the change too.
   void _setChannel(AccordChannel channel) {
     setState(() => _channel = channel);
-    ref.read(dmChannelsControllerProvider(ref.readActiveServerKey() ?? '').notifier).upsert(channel);
+    ref
+        .read(
+          dmChannelsControllerProvider(
+            ref.readActiveServerKey() ?? '',
+          ).notifier,
+        )
+        .upsert(channel);
   }
 
   /// Refetches the channel so the recipient list reflects add/remove changes.
@@ -271,40 +462,6 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (result.ok && data is AccordChannel) {
       _setChannel(data);
     }
-  }
-
-  Future<void> _send() async {
-    final raw = _input.text.trim();
-    // Same conversion as the main composer — emoticons resolve on send so every
-    // client stores and renders the identical glyph.
-    final text =
-        ref.read(settingsControllerProvider.select((s) => s.convertEmoticons))
-        ? applyEmoticons(raw)
-        : raw;
-    if (text.isEmpty || _sending) return;
-    final client = _client;
-    if (client == null) return;
-    // Clear up front rather than after the round-trip. The field is never
-    // disabled (that would drop focus and the mobile keyboard for the whole
-    // send), so it has to be free for the next message straight away; the text
-    // comes back if the send fails.
-    _input.clear();
-    setState(() => _sending = true);
-    final result =
-        await client.messages.create(_channel.id, {'content': text});
-    if (!mounted) return;
-    final message = result.data;
-    if (result.ok && message is AccordMessage) {
-      setState(() {
-        _sending = false;
-        _messages = [...?_messages, message];
-      });
-      return;
-    }
-    // Hand the message back so it can be retried instead of retyped.
-    setState(() => _sending = false);
-    restoreFailedSend(_input, text);
-    _snack('Failed to send message');
   }
 
   Future<void> _addMember() async {
@@ -334,10 +491,12 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final client = _client;
     if (client == null) return;
     final ok = await _confirm(
-        'Remove member', 'Remove ${_userName(user)} from this group?', 'Remove');
+      'Remove member',
+      'Remove ${_userName(user)} from this group?',
+      'Remove',
+    );
     if (ok != true) return;
-    final result =
-        await client.channels.removeRecipient(_channel.id, user.id);
+    final result = await client.channels.removeRecipient(_channel.id, user.id);
     if (!mounted) return;
     if (result.ok) {
       await _refreshChannel();
@@ -356,8 +515,9 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     if (name == null) return;
     final client = _client;
     if (client == null) return;
-    final result =
-        await client.channels.update(_channel.id, {'name': name.trim()});
+    final result = await client.channels.update(_channel.id, {
+      'name': name.trim(),
+    });
     if (!mounted) return;
     final data = result.data;
     if (result.ok && data is AccordChannel) {
@@ -374,12 +534,21 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
     final client = _client;
     if (client == null || selfId == null) return;
     final ok = await _confirm(
-        'Leave group', 'Leave this group? You can be re-added later.', 'Leave');
+      'Leave group',
+      'Leave this group? You can be re-added later.',
+      'Leave',
+    );
     if (ok != true) return;
     final result = await client.channels.removeRecipient(_channel.id, selfId);
     if (!mounted) return;
     if (result.ok) {
-      ref.read(dmChannelsControllerProvider(ref.readActiveServerKey() ?? '').notifier).remove(_channel.id);
+      ref
+          .read(
+            dmChannelsControllerProvider(
+              ref.readActiveServerKey() ?? '',
+            ).notifier,
+          )
+          .remove(_channel.id);
       widget.onBack();
     } else {
       _snack('Failed to leave group');
@@ -433,169 +602,223 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = BonfireThemeExtension.of(context);
     // Keep the open conversation in sync with gateway-driven channel updates
     // (remote rename / recipient add/remove) the DM cache receives.
-    ref.listen<List<AccordChannel>?>(dmChannelsControllerProvider(ref.readActiveServerKey() ?? ''),
-        (previous, next) {
-      if (next == null) return;
-      AccordChannel? updated;
-      for (final c in next) {
-        if (c.id == _channel.id) {
-          updated = c;
-          break;
+    ref.listen<List<AccordChannel>?>(
+      dmChannelsControllerProvider(ref.readActiveServerKey() ?? ''),
+      (previous, next) {
+        if (next == null) return;
+        AccordChannel? updated;
+        for (final c in next) {
+          if (c.id == _channel.id) {
+            updated = c;
+            break;
+          }
         }
-      }
-      if (updated != null && !identical(updated, _channel)) {
-        setState(() => _channel = updated!);
-      }
-    });
-    final messages = _messages;
+        if (updated != null && !identical(updated, _channel)) {
+          setState(() => _channel = updated!);
+        }
+      },
+    );
+    ref.listen<List<AccordMessage>?>(
+      accordMessagesControllerProvider(_serverKey, _channel.id),
+      (previous, next) {
+        if (next == null || next.isEmpty) return;
+        markChannelRead(
+          ref,
+          _channel.id,
+          serverKey: _serverKey,
+          fallbackMessageId: next.last.id,
+        );
+      },
+    );
+    // The home route remains mounted beneath this dialog and may rebuild while
+    // it is open. Reassert the modal conversation as the visible channel so its
+    // incoming messages do not produce unread badges/notifications.
+    accordVisibleChannel = (serverKey: _serverKey, channelId: _channel.id);
     final group = _isGroupChannel;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Back',
-                onPressed: widget.onBack,
-                icon: Icon(Icons.arrow_back, size: 20, color: colors.dirtyWhite),
-              ),
-              if (group)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: CircleAvatar(
-                    radius: 14,
-                    backgroundColor: colors.darkGray,
-                    child:
-                        Icon(Icons.group, size: 16, color: colors.dirtyWhite),
-                  ),
-                ),
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(_channelTitle(_channel, widget.selfId),
-                          style: theme.textTheme.titleSmall,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    if (_dmRemoteOrigin(_channel, widget.selfId) != null) ...[
-                      const SizedBox(width: 6),
-                      RemoteOriginBadge(
-                          domain: _dmRemoteOrigin(_channel, widget.selfId)),
-                    ],
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Start voice call',
-                onPressed: () => _startCall(video: false),
-                icon: Icon(Icons.call, size: 20, color: colors.dirtyWhite),
-              ),
-              IconButton(
-                tooltip: 'Start video call',
-                onPressed: () => _startCall(video: true),
-                icon: Icon(Icons.videocam, size: 20, color: colors.dirtyWhite),
-              ),
-              if (group)
-                PopupMenuButton<String>(
-                  tooltip: 'Group options',
-                  icon: Icon(Icons.more_vert, size: 20, color: colors.gray),
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'members':
-                        _showMembers();
-                      case 'add':
-                        _addMember();
-                      case 'rename':
-                        _rename();
-                      case 'leave':
-                        _leave();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                        value: 'members', child: Text('View members')),
-                    const PopupMenuItem(
-                        value: 'add', child: Text('Add member')),
-                    const PopupMenuItem(
-                        value: 'rename', child: Text('Rename group')),
-                    PopupMenuItem(
-                      value: 'leave',
-                      child:
-                          Text('Leave group', style: TextStyle(color: colors.red)),
-                    ),
-                  ],
-                ),
-            ],
+    final others = _others(_channel, widget.selfId);
+    final directUser = group || others.isEmpty ? null : others.first;
+    final title = _channelTitle(_channel, widget.selfId);
+    final origin = _dmRemoteOrigin(_channel, widget.selfId);
+    return MessagePane(
+      channel: _channel,
+      channelId: _channel.id,
+      spaceId: null,
+      canManageMessagesOverride: true,
+      headerLeading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Back',
+            onPressed: widget.onBack,
+            icon: Icon(Icons.arrow_back, size: 20, color: colors.dirtyWhite),
           ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: messages == null
-              ? const LoadingView()
-              : messages.isEmpty
-                  ? Center(
-                      child: Text('No messages yet',
-                          style: theme.textTheme.bodySmall))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final m = messages[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: AccordMessageContent(content: m.content),
-                        );
-                      },
-                    ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _input,
-                  focusNode: _inputFocus,
-                  // Never disabled while sending: a disabled TextField gives up
-                  // focus (and the mobile keyboard) for the whole round-trip.
-                  // The send button and the guard in _send() stop double-sends.
-                  minLines: 1,
-                  maxLines: 4,
-                  // A multiline field defaults to TextInputAction.newline, which
-                  // swallows Enter instead of submitting; match the main
-                  // composer so Enter sends.
-                  textInputAction: TextInputAction.send,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    hintText: 'Message',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) {
-                    // EditableText unfocuses on a `send` action just before
-                    // onSubmitted runs; the field is enabled, so asking for
-                    // focus straight back lands in the same frame.
-                    _inputFocus.requestFocus();
-                    _send();
-                  },
+          if (group)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: colors.darkGray,
+                child: Icon(Icons.group, size: 16, color: colors.dirtyWhite),
+              ),
+            )
+          else if (directUser != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _DmUserGesture(
+                user: directUser,
+                onTap: () => _showUserProfile(directUser),
+                onMenu: (position) => _showUserMenu(directUser, position),
+                child: UserAvatar(
+                  title,
+                  imageUrl: accordAvatarUrl(directUser, ref.watchCdnUrl()),
+                  radius: 14,
                 ),
               ),
-              IconButton(
-                onPressed: _sending ? null : _send,
-                icon: Icon(Icons.send, size: 20, color: colors.dirtyWhite),
-              ),
-            ],
-          ),
+            ),
+        ],
+      ),
+      headerTitle: _DmHeaderTitle(
+        title: title,
+        origin: origin,
+        onTap: directUser == null ? null : () => _showUserProfile(directUser),
+        onMenu: directUser == null
+            ? null
+            : (position) => _showUserMenu(directUser, position),
+      ),
+      headerActions: [
+        IconButton(
+          tooltip: 'Start voice call',
+          onPressed: () => _startCall(video: false),
+          icon: Icon(Icons.call, size: 20, color: colors.dirtyWhite),
         ),
+        IconButton(
+          tooltip: 'Start video call',
+          onPressed: () => _startCall(video: true),
+          icon: Icon(Icons.videocam, size: 20, color: colors.dirtyWhite),
+        ),
+        if (group) _groupOptions(colors),
       ],
+      onUserTap: _showUserProfile,
+      onUserContextMenu: _showUserMenu,
     );
   }
+
+  void _showUserProfile(AccordUser user) {
+    showAccordUserProfile(context, user, cdnUrl: ref.readCdnUrl());
+  }
+
+  void _showUserMenu(AccordUser user, [Offset? position]) {
+    final others = _others(_channel, widget.selfId);
+    showAccordDmUserContextMenu(
+      context,
+      ref,
+      user,
+      globalPosition: position,
+      currentDmUserId: others.length == 1 ? others.first.id : null,
+    );
+  }
+
+  Widget _groupOptions(BonfireThemeExtension colors) => PopupMenuButton<String>(
+    tooltip: 'Group options',
+    icon: Icon(Icons.more_vert, size: 20, color: colors.gray),
+    onSelected: (value) {
+      switch (value) {
+        case 'members':
+          _showMembers();
+        case 'add':
+          _addMember();
+        case 'rename':
+          _rename();
+        case 'leave':
+          _leave();
+      }
+    },
+    itemBuilder: (context) => [
+      const PopupMenuItem(value: 'members', child: Text('View members')),
+      const PopupMenuItem(value: 'add', child: Text('Add member')),
+      const PopupMenuItem(value: 'rename', child: Text('Rename group')),
+      PopupMenuItem(
+        value: 'leave',
+        child: Text('Leave group', style: TextStyle(color: colors.red)),
+      ),
+    ],
+  );
+}
+
+class _DmHeaderTitle extends StatelessWidget {
+  const _DmHeaderTitle({
+    required this.title,
+    required this.origin,
+    required this.onTap,
+    required this.onMenu,
+  });
+
+  final String title;
+  final String? origin;
+  final VoidCallback? onTap;
+  final ValueChanged<Offset?>? onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Row(
+      children: [
+        Flexible(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (origin != null) ...[
+          const SizedBox(width: 6),
+          RemoteOriginBadge(domain: origin),
+        ],
+      ],
+    );
+    if (onTap == null && onMenu == null) return row;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onLongPressStart: onMenu == null
+            ? null
+            : (details) => onMenu!(details.globalPosition),
+        onSecondaryTapUp: onMenu == null
+            ? null
+            : (details) => onMenu!(details.globalPosition),
+        child: row,
+      ),
+    );
+  }
+}
+
+class _DmUserGesture extends StatelessWidget {
+  const _DmUserGesture({
+    required this.user,
+    required this.onTap,
+    required this.onMenu,
+    required this.child,
+  });
+
+  final AccordUser user;
+  final VoidCallback onTap;
+  final ValueChanged<Offset?> onMenu;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    child: GestureDetector(
+      onTap: onTap,
+      onLongPressStart: (details) => onMenu(details.globalPosition),
+      onSecondaryTapUp: (details) => onMenu(details.globalPosition),
+      child: child,
+    ),
+  );
 }
 
 /// Prompts for a remote user's qualified handle (`<id>@<domain>`) to start a
@@ -626,7 +849,8 @@ class _RemoteDmDialogState extends State<_RemoteDmDialog> {
     final value = _controller.text.trim();
     if (!isValidRemoteHandle(value)) {
       setState(
-          () => _error = 'Enter a qualified handle, e.g. 123@server.example');
+        () => _error = 'Enter a qualified handle, e.g. 123@server.example',
+      );
       return;
     }
     Navigator.of(context).pop(value);
@@ -665,10 +889,7 @@ class _RemoteDmDialogState extends State<_RemoteDmDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Message'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Message')),
       ],
     );
   }

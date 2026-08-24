@@ -729,6 +729,8 @@ class _RailIconTile extends StatelessWidget {
     required this.onTap,
     this.iconSize,
     this.iconColor,
+    this.hasUnread = false,
+    this.mentionCount = 0,
   });
 
   final String tooltip;
@@ -738,6 +740,8 @@ class _RailIconTile extends StatelessWidget {
 
   /// Icon tint; defaults to the theme's `dirtyWhite`.
   final Color? iconColor;
+  final bool hasUnread;
+  final int mentionCount;
 
   @override
   Widget build(BuildContext context) {
@@ -747,19 +751,45 @@ class _RailIconTile extends StatelessWidget {
         message: tooltip,
         child: GestureDetector(
           onTap: onTap,
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: colors.darkGray,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              icon,
-              size: iconSize,
-              color: iconColor ?? colors.dirtyWhite,
-            ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colors.darkGray,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  icon,
+                  size: iconSize,
+                  color: iconColor ?? colors.dirtyWhite,
+                ),
+              ),
+              if (mentionCount > 0)
+                Positioned(
+                  right: -4,
+                  top: -2,
+                  child: _MentionBadge(count: mentionCount),
+                )
+              else if (hasUnread)
+                Positioned(
+                  left: -4,
+                  top: 18,
+                  child: Container(
+                    width: 8,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.horizontal(
+                        right: Radius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -770,18 +800,46 @@ class _RailIconTile extends StatelessWidget {
 /// The Direct Messages affordance pinned at the top of the rail, styled as a
 /// space-icon tile (Discord-style "home" button) rather than a small footer
 /// icon. Opens the DM/friends modal.
-class _DirectMessagesButton extends StatelessWidget {
+class _DirectMessagesButton extends ConsumerWidget {
   const _DirectMessagesButton({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => _RailIconTile(
-    tooltip: 'Direct messages',
-    icon: Icons.chat_bubble_outline,
-    iconSize: 22,
-    onTap: onTap,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final connections = ref.watch(
+      connectionsControllerProvider.select((state) => state.connections),
+    );
+    var hasUnread = false;
+    var mentions = 0;
+    for (final connection in connections) {
+      final snapshot = ref.watch(readStateControllerProvider(connection.key));
+      final levels = ref.watch(
+        settingsControllerProvider.select(
+          (settings) => settings.channelNotificationsFor(connection.key),
+        ),
+      );
+      for (final entry in snapshot.entries.values) {
+        if (entry.spaceId != null ||
+            !UnreadIndicatorGate.countsTowardSpace(
+              spaceMuted: false,
+              channelLevel: levels[entry.channelId],
+            )) {
+          continue;
+        }
+        hasUnread = true;
+        mentions += entry.mentions;
+      }
+    }
+    return _RailIconTile(
+      tooltip: 'Direct messages',
+      icon: Icons.chat_bubble_outline,
+      iconSize: 22,
+      hasUnread: hasUnread,
+      mentionCount: mentions,
+      onTap: onTap,
+    );
+  }
 }
 
 /// The "Add a Server" (+) affordance at the foot of the rail's space list.
