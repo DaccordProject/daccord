@@ -45,7 +45,8 @@ class _MessageRow extends ConsumerStatefulWidget {
   final VoidCallback onReply;
 
   /// The space this message belongs to, for opening the author's profile
-  /// popout. `null` in contexts without a space (e.g. DMs, not yet supported).
+  /// popout. `null` in contexts without a space (e.g. DMs), which use
+  /// [onUserTap]/[onUserContextMenu] instead.
   final String? spaceId;
 
   /// Whether this message belongs to the current user (gates edit/delete).
