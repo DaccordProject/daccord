@@ -26,6 +26,10 @@ name: CI
 
 on:
   push:
+    # Keep direct pushes to master (and every other branch) in the trigger
+    # contract instead of relying on the implicit branch default.
+    branches:
+      - "**"
     # Tag pushes are handled by release.yml, which calls this workflow via
     # workflow_call — without this, a release tag would trigger CI twice.
     tags-ignore:
