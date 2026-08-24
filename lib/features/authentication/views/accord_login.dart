@@ -4,6 +4,7 @@ import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
 import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
+import 'package:bonfire/features/authentication/views/password_reset_form.dart';
 import 'package:bonfire/features/authentication/views/welcome_view.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
@@ -253,15 +254,13 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     final oldPw = _oldPasswordController.text;
     final newPw = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
-    if (oldPw.isEmpty || newPw.isEmpty) return;
-    if (newPw.length < 8) {
-      setState(
-        () => _resetLocalError = 'New password must be at least 8 characters.',
-      );
-      return;
-    }
-    if (newPw != confirm) {
-      setState(() => _resetLocalError = 'Passwords do not match.');
+    final validationError = validatePasswordChangeCredentials(
+      oldPassword: oldPw,
+      newPassword: newPw,
+      confirmation: confirm,
+    );
+    if (validationError != null) {
+      setState(() => _resetLocalError = validationError);
       return;
     }
     setState(() => _resetLocalError = null);
@@ -313,7 +312,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
     }
     if (state is AccordAuthPasswordResetRequired) {
       return _centered(
-        _PasswordResetForm(
+        PasswordResetForm(
           oldController: _oldPasswordController,
           newController: _newPasswordController,
           confirmController: _confirmPasswordController,
@@ -692,86 +691,6 @@ class _MfaForm extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         _SubmitButton(label: 'Verify', onPressed: onSubmit),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: onCancel,
-          child: Text('Cancel', style: theme.textTheme.bodyMedium),
-        ),
-      ],
-    );
-  }
-}
-
-class _PasswordResetForm extends StatelessWidget {
-  const _PasswordResetForm({
-    required this.oldController,
-    required this.newController,
-    required this.confirmController,
-    required this.onSubmit,
-    required this.onCancel,
-    this.error,
-  });
-
-  final TextEditingController oldController;
-  final TextEditingController newController;
-  final TextEditingController confirmController;
-  final VoidCallback onSubmit;
-  final VoidCallback onCancel;
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Change your password',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.titleLarge,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'The server requires a new password before you can continue',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFFC8C8C8),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 32),
-        AuthField(
-          controller: oldController,
-          label: 'Current password',
-          obscureText: true,
-        ),
-        const SizedBox(height: 12),
-        AuthField(
-          controller: newController,
-          label: 'New password',
-          obscureText: true,
-        ),
-        const SizedBox(height: 12),
-        AuthField(
-          controller: confirmController,
-          label: 'Confirm new password',
-          obscureText: true,
-          onSubmitted: (_) => onSubmit(),
-        ),
-        if (error != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            error!,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium!.copyWith(
-              color: BonfireThemeExtension.of(context).red,
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        _SubmitButton(label: 'Change Password', onPressed: onSubmit),
         const SizedBox(height: 8),
         TextButton(
           onPressed: onCancel,

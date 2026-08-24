@@ -28,3 +28,19 @@ String? validateRegistrationCredentials({
   }
   return null;
 }
+
+/// Client-side validation shared by both forced-password-reset surfaces.
+String? validatePasswordChangeCredentials({
+  required String oldPassword,
+  required String newPassword,
+  required String confirmation,
+}) {
+  if (oldPassword.isEmpty || newPassword.isEmpty) {
+    return 'Enter your current and new password.';
+  }
+  if (newPassword.length < 8) {
+    return 'New password must be at least 8 characters.';
+  }
+  if (newPassword != confirmation) return 'Passwords do not match.';
+  return null;
+}

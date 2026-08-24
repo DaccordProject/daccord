@@ -1,8 +1,10 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/features/authentication/models/accord_session.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
 import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
+import 'package:bonfire/features/authentication/views/password_reset_form.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/server/utils/server_uri.dart';
 import 'package:bonfire/features/server/services/federation_join.dart';
@@ -36,7 +38,7 @@ Future<void> showAddServerDialog(
   );
 }
 
-enum _UrlStep { url, credentials, mfa }
+enum _UrlStep { url, credentials, mfa, passwordReset }
 
 class _AddServerDialog extends ConsumerStatefulWidget {
   const _AddServerDialog({this.initialUrl, this.joinSpaceId});
@@ -57,6 +59,9 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   final _passCtrl = TextEditingController();
   final _displayCtrl = TextEditingController();
   final _mfaCtrl = TextEditingController();
+  final _oldPasswordCtrl = TextEditingController();
+  final _newPasswordCtrl = TextEditingController();
+  final _confirmPasswordCtrl = TextEditingController();
   final _fedCtrl = TextEditingController();
 
   // "Join federated space" tab state (independent of the URL flow above).
@@ -67,6 +72,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
   AuthMode _credMode = AuthMode.signIn;
   AccordServer? _server;
   String? _mfaTicket;
+  AccordSession? _passwordResetSession;
   String? _error;
   bool _busy = false;
 
@@ -104,6 +110,9 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
     _passCtrl.dispose();
     _displayCtrl.dispose();
     _mfaCtrl.dispose();
+    _oldPasswordCtrl.dispose();
+    _newPasswordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
     _fedCtrl.dispose();
     super.dispose();
   }
@@ -162,6 +171,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
 
     setState(() {
       _server = server;
+      _passwordResetSession = null;
       _error = null;
       _busy = true;
     });
@@ -257,6 +267,16 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
             password: password,
           );
     if (!mounted) return;
+    await _handleAuthOutcome(
+      outcome,
+      fallbackError: isRegister ? 'Registration failed' : 'Login failed',
+    );
+  }
+
+  Future<void> _handleAuthOutcome(
+    AddServerOutcome outcome, {
+    required String fallbackError,
+  }) async {
     if (outcome.ok) {
       await _finishAfterConnect();
     } else if (outcome.needsMfa) {
@@ -265,8 +285,15 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
         _mfaTicket = outcome.mfaTicket;
         _step = _UrlStep.mfa;
       });
+    } else if (outcome.needsPasswordReset) {
+      setState(() {
+        _busy = false;
+        _passwordResetSession = outcome.passwordResetSession;
+        _error = outcome.error;
+        _step = _UrlStep.passwordReset;
+      });
     } else {
-      _fail(outcome.error ?? (isRegister ? 'Registration failed' : 'Login failed'));
+      _fail(outcome.error ?? fallbackError);
     }
   }
 
@@ -284,12 +311,44 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
       _mfaCtrl.text.trim(),
     );
     if (!mounted) return;
-    if (outcome.ok) {
-      await _finishAfterConnect();
-    } else {
-      _fail(outcome.error ?? 'Invalid two-factor code');
-    }
+    await _handleAuthOutcome(outcome, fallbackError: 'Invalid two-factor code');
   }
+
+  Future<void> _submitPasswordChange() async {
+    final pending = _passwordResetSession;
+    if (pending == null) return;
+    final oldPassword = _oldPasswordCtrl.text;
+    final newPassword = _newPasswordCtrl.text;
+    final validationError = validatePasswordChangeCredentials(
+      oldPassword: oldPassword,
+      newPassword: newPassword,
+      confirmation: _confirmPasswordCtrl.text,
+    );
+    if (validationError != null) {
+      _fail(validationError);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final outcome = await _auth.addServerSubmitPasswordChange(
+      pending: pending,
+      oldPassword: oldPassword,
+      newPassword: newPassword,
+    );
+    if (!mounted) return;
+    await _handleAuthOutcome(outcome, fallbackError: 'Password change failed');
+  }
+
+  void _cancelPasswordReset() => setState(() {
+    _passwordResetSession = null;
+    _oldPasswordCtrl.clear();
+    _newPasswordCtrl.clear();
+    _confirmPasswordCtrl.clear();
+    _step = _UrlStep.url;
+    _error = null;
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -347,6 +406,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                         _step = _UrlStep.url;
                         _server = null;
                         _mfaTicket = null;
+                        _passwordResetSession = null;
                         _error = null;
                         _busy = false;
                       });
@@ -404,7 +464,7 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                 onSubmit: _submitCredentials,
                 enabled: !_busy,
               ),
-            ] else ...[
+            ] else if (_step == _UrlStep.mfa) ...[
               TextField(
                 controller: _mfaCtrl,
                 enabled: !_busy,
@@ -417,9 +477,19 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
                 ),
                 onSubmitted: (_) => _busy ? null : _submitMfa(),
               ),
+            ] else ...[
+              PasswordResetForm(
+                oldController: _oldPasswordCtrl,
+                newController: _newPasswordCtrl,
+                confirmController: _confirmPasswordCtrl,
+                onSubmit: _submitPasswordChange,
+                onCancel: _cancelPasswordReset,
+                error: _error,
+                enabled: !_busy,
+              ),
             ],
           ],
-          if (_error != null) ...[
+          if (_error != null && _step != _UrlStep.passwordReset) ...[
             const SizedBox(height: 12),
             Text(
               _error!,
@@ -428,31 +498,33 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
               ),
             ),
           ],
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (_step != _UrlStep.url && !_busy)
-                TextButton(
-                  onPressed: () => setState(() {
-                    _step = _UrlStep.url;
-                    _error = null;
-                  }),
-                  child: const Text('Back'),
+          if (_step != _UrlStep.passwordReset) ...[
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (_step != _UrlStep.url && !_busy)
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _step = _UrlStep.url;
+                      _error = null;
+                    }),
+                    child: const Text('Back'),
+                  ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _busy ? null : _primaryAction,
+                  child: _busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(_primaryLabel),
                 ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _busy ? null : _primaryAction,
-                child: _busy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(_primaryLabel),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -466,6 +538,8 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
         return _credMode == AuthMode.register ? 'Register' : 'Sign in';
       case _UrlStep.mfa:
         return 'Verify';
+      case _UrlStep.passwordReset:
+        return 'Change Password';
     }
   }
 
@@ -479,6 +553,9 @@ class _AddServerDialogState extends ConsumerState<_AddServerDialog>
         break;
       case _UrlStep.mfa:
         _submitMfa();
+        break;
+      case _UrlStep.passwordReset:
+        _submitPasswordChange();
         break;
     }
   }

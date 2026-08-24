@@ -432,16 +432,52 @@ class AccordAuth extends _$AccordAuth {
     return await _completeAddServer(server, attempt.data);
   }
 
+  /// Resolves a forced-password-reset challenge without disturbing the
+  /// currently active connection. The temporary [pending] session is persisted
+  /// and connected only after the password change succeeds.
+  Future<AddServerOutcome> addServerSubmitPasswordChange({
+    required AccordSession pending,
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final authed = _restClientFor(
+      pending.server,
+      token: pending.token,
+      tokenType: pending.tokenType,
+    );
+    try {
+      final result = await authed.auth.changePassword({
+        'old_password': oldPassword,
+        'new_password': newPassword,
+      });
+      if (!result.ok) {
+        return AddServerOutcome.passwordReset(
+          pending,
+          error: result.error?.message ?? 'Password change failed',
+        );
+      }
+      await _store.persist(pending);
+      await _addConnection(pending, makeActive: true);
+      return AddServerOutcome.ok();
+    } catch (e) {
+      return AddServerOutcome.passwordReset(pending, error: e.toString());
+    } finally {
+      await authed.dispose();
+    }
+  }
+
   /// The add-a-server counterpart to [_completeLogin]: same `{ user, token }`
-  /// parsing and connect, but reports through [AddServerOutcome] and (by
-  /// design) ignores `force_password_reset` — the add-server dialog has no
-  /// reset flow.
+  /// parsing and connect, but reports through [AddServerOutcome] without
+  /// publishing a global auth state.
   Future<AddServerOutcome> _completeAddServer(
     AccordServer server,
     Object? data,
   ) async {
     final parsed = _sessionFromAuthData(server, data);
     if (parsed.error != null) return AddServerOutcome.error(parsed.error!);
+    if (data is Map && data['force_password_reset'] == true) {
+      return AddServerOutcome.passwordReset(parsed.session!);
+    }
     await _store.persist(parsed.session!);
     await _addConnection(parsed.session!, makeActive: true);
     return AddServerOutcome.ok();
@@ -837,14 +873,25 @@ class AddServerOutcome {
   final bool ok;
   final String? error;
   final String? mfaTicket;
+  final AccordSession? passwordResetSession;
 
-  const AddServerOutcome._({this.ok = false, this.error, this.mfaTicket});
+  const AddServerOutcome._({
+    this.ok = false,
+    this.error,
+    this.mfaTicket,
+    this.passwordResetSession,
+  });
 
   factory AddServerOutcome.ok() => const AddServerOutcome._(ok: true);
   factory AddServerOutcome.error(String message) =>
       AddServerOutcome._(error: message);
   factory AddServerOutcome.mfa(String ticket) =>
       AddServerOutcome._(mfaTicket: ticket);
+  factory AddServerOutcome.passwordReset(
+    AccordSession pending, {
+    String? error,
+  }) => AddServerOutcome._(passwordResetSession: pending, error: error);
 
   bool get needsMfa => mfaTicket != null;
+  bool get needsPasswordReset => passwordResetSession != null;
 }
