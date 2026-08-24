@@ -676,8 +676,10 @@ jobs:
   # ---------------------------------------------------------------------------
   ios-appstore:
     name: iOS App Store
-    needs: ci
-    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_ios) }}
+    needs: [verify, ci]
+    # A tag may deploy only after both the version/tag check and CI pass. The
+    # explicit manual path remains available even though verify is skipped.
+    if: ${{ always() && needs.ci.result == 'success' && ((github.event_name == 'push' && needs.verify.result == 'success') || (github.event_name == 'workflow_dispatch' && inputs.deploy_ios)) }}
     runs-on: macos-15
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
@@ -800,8 +802,8 @@ jobs:
 
   mac-appstore:
     name: Mac App Store
-    needs: ci
-    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_mac) }}
+    needs: [verify, ci]
+    if: ${{ always() && needs.ci.result == 'success' && ((github.event_name == 'push' && needs.verify.result == 'success') || (github.event_name == 'workflow_dispatch' && inputs.deploy_mac)) }}
     runs-on: macos-15
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
@@ -946,8 +948,8 @@ jobs:
   # ---------------------------------------------------------------------------
   android-play:
     name: Google Play
-    needs: ci
-    if: ${{ success() && (github.event_name == 'push' || inputs.deploy_android) }}
+    needs: [verify, ci]
+    if: ${{ always() && needs.ci.result == 'success' && ((github.event_name == 'push' && needs.verify.result == 'success') || (github.event_name == 'workflow_dispatch' && inputs.deploy_android)) }}
     runs-on: ubuntu-latest
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache
