@@ -31,7 +31,7 @@ class MembersLoadFailed extends _$MembersLoadFailed {
 /// resolution. Self-loads via `members.list` the first time it's watched (once
 /// logged in) and is kept in sync by member join/update/leave gateway events.
 /// `null` means "not loaded yet".
-@Riverpod(keepAlive: true)
+@Riverpod(keepAlive: false)
 class AccordMembersController extends _$AccordMembersController {
   @override
   Map<String, AccordMember>? build(String spaceId) {
@@ -69,6 +69,7 @@ class AccordMembersController extends _$AccordMembersController {
       } catch (e) {
         debugPrint('Failed to load members for $spaceId: $e');
       }
+      if (!ref.mounted) return;
       if (list != null) {
         final members = {for (final member in list) member.userId: member};
         state = members;
@@ -79,8 +80,10 @@ class AccordMembersController extends _$AccordMembersController {
       // Back off before retrying (1s, then 2s); no wait after the final try.
       if (attempt < 2) {
         await Future.delayed(Duration(seconds: attempt + 1));
+        if (!ref.mounted) return;
       }
     }
+    if (!ref.mounted) return;
     ref.read(membersLoadFailedProvider(spaceId).notifier).set(true);
   }
 
@@ -111,6 +114,7 @@ class AccordMembersController extends _$AccordMembersController {
           if (user != null) members[userId]?.user = user;
         }),
     ]);
+    if (!ref.mounted) return;
 
     // Replace the map identity so watchers rebuild with enriched members.
     if (state != null) state = {...members};

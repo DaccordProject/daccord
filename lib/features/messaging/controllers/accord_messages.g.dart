@@ -32,7 +32,7 @@ final class AccordMessagesControllerProvider
   }) : super(
          retry: null,
          name: r'accordMessagesControllerProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -72,7 +72,7 @@ final class AccordMessagesControllerProvider
 }
 
 String _$accordMessagesControllerHash() =>
-    r'24d974b07c6623ec010f6bbe14bc525521cb8fed';
+    r'125eab87402f0f4317a961143cb9b0281f566d65';
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
@@ -94,7 +94,7 @@ final class AccordMessagesControllerFamily extends $Family
         name: r'accordMessagesControllerProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   /// A channel's recent message history, keyed by channel ID, ordered

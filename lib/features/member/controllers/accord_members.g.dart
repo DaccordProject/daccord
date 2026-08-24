@@ -158,7 +158,7 @@ final class AccordMembersControllerProvider
   }) : super(
          retry: null,
          name: r'accordMembersControllerProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -198,7 +198,7 @@ final class AccordMembersControllerProvider
 }
 
 String _$accordMembersControllerHash() =>
-    r'02fdb824d429b2d3bcbf1d7f128db3c762a918c6';
+    r'40bf912adff5a90caa8721b97d74f6563dba05e3';
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
@@ -220,7 +220,7 @@ final class AccordMembersControllerFamily extends $Family
         name: r'accordMembersControllerProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   /// A space's members, keyed by space ID and indexed by user ID for O(1) author

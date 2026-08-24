@@ -21,7 +21,7 @@ final Set<ThreadKey> activeThreadReplies = <ThreadKey>{};
 /// Self-loads via `messages.listThread` the first time it's watched (once
 /// logged in) and is kept in sync by thread-scoped message
 /// create/update/delete gateway events. `null` means "not loaded yet".
-@Riverpod(keepAlive: true)
+@Riverpod(keepAlive: false)
 class ThreadRepliesController extends _$ThreadRepliesController {
   @override
   List<AccordMessage>? build(String channelId, String rootId) {
@@ -38,6 +38,7 @@ class ThreadRepliesController extends _$ThreadRepliesController {
 
   Future<void> _load(AccordClient client) async {
     final result = await client.messages.listThread(channelId, rootId);
+    if (!ref.mounted) return;
     final data = result.data;
     if (!result.ok || data is! List) {
       debugPrint('Failed to load thread $rootId: ${result.error}');
@@ -67,6 +68,7 @@ class ThreadRepliesController extends _$ThreadRepliesController {
       'content': trimmed,
       'thread_id': rootId,
     });
+    if (!ref.mounted) return false;
     final message = result.data;
     if (!result.ok || message is! AccordMessage) {
       debugPrint('Failed to reply in thread $rootId: ${result.error}');
@@ -80,6 +82,7 @@ class ThreadRepliesController extends _$ThreadRepliesController {
   /// list on success. Returns true on success.
   Future<bool> delete(AccordClient client, String messageId) async {
     final result = await client.messages.delete(channelId, messageId);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to delete reply $messageId: ${result.error}');
       return false;

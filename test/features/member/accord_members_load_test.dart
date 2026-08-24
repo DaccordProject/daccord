@@ -20,12 +20,12 @@ const _spaceId = 'space1';
 /// A member payload with the user embedded, so `_resolveUsers` has nothing
 /// left to backfill and the test doesn't need to also mock `/users/*`.
 String _membersJson(List<String> userIds) => jsonEncode([
-      for (final id in userIds)
-        {
-          'user_id': id,
-          'user': {'id': id, 'username': id},
-        },
-    ]);
+  for (final id in userIds)
+    {
+      'user_id': id,
+      'user': {'id': id, 'username': id},
+    },
+]);
 
 /// Builds a logged-in [ProviderContainer] whose [AccordClient] is backed by
 /// [responder] instead of real HTTP, so `AccordMembersController._load`'s
@@ -57,6 +57,12 @@ ProviderContainer makeContainer(
   );
   addTearDown(container.dispose);
   addTearDown(client.dispose);
+  final subscription = container.listen(
+    accordMembersControllerProvider(_spaceId),
+    (_, _) {},
+    fireImmediately: true,
+  );
+  addTearDown(subscription.close);
   return container;
 }
 
@@ -89,31 +95,31 @@ void main() {
         (_) async => http.Response(_membersJson(const []), 200),
       );
 
-      container.read(accordMembersControllerProvider(_spaceId));
       await _waitUntil(() => _state(container) != null);
 
       expect(_state(container), isEmpty);
       expect(_failed(container), isFalse);
     });
 
-    test('retries a failing attempt and succeeds once the server recovers',
-        () async {
-      var attempts = 0;
-      final container = makeContainer((_) async {
-        attempts++;
-        if (attempts == 1) return http.Response('', 500);
-        return http.Response(_membersJson(const ['u1']), 200);
-      });
+    test(
+      'retries a failing attempt and succeeds once the server recovers',
+      () async {
+        var attempts = 0;
+        final container = makeContainer((_) async {
+          attempts++;
+          if (attempts == 1) return http.Response('', 500);
+          return http.Response(_membersJson(const ['u1']), 200);
+        });
 
-      container.read(accordMembersControllerProvider(_spaceId));
-      // First attempt fails immediately; the retry backs off ~1s before the
-      // second attempt, which succeeds.
-      await _waitUntil(() => _state(container) != null);
+        // First attempt fails immediately; the retry backs off ~1s before the
+        // second attempt, which succeeds.
+        await _waitUntil(() => _state(container) != null);
 
-      expect(attempts, 2);
-      expect(_state(container)?.keys, contains('u1'));
-      expect(_failed(container), isFalse);
-    });
+        expect(attempts, 2);
+        expect(_state(container)?.keys, contains('u1'));
+        expect(_failed(container), isFalse);
+      },
+    );
 
     test('sets the failed flag once every retry is exhausted', () async {
       var attempts = 0;
@@ -122,7 +128,6 @@ void main() {
         return http.Response('', 500);
       });
 
-      container.read(accordMembersControllerProvider(_spaceId));
       // 3 attempts, backing off 1s then 2s between them (~3s total).
       await _waitUntil(() => _failed(container));
 
@@ -130,27 +135,27 @@ void main() {
       expect(_state(container), isNull);
     });
 
-    test('a fresh invalidate-triggered load clears the failed flag on success',
-        () async {
-      var attempts = 0;
-      final container = makeContainer((_) async {
-        attempts++;
-        // Fail every attempt of the first load (3 tries), then succeed.
-        if (attempts <= 3) return http.Response('', 500);
-        return http.Response(_membersJson(const ['u1']), 200);
-      });
+    test(
+      'a fresh invalidate-triggered load clears the failed flag on success',
+      () async {
+        var attempts = 0;
+        final container = makeContainer((_) async {
+          attempts++;
+          // Fail every attempt of the first load (3 tries), then succeed.
+          if (attempts <= 3) return http.Response('', 500);
+          return http.Response(_membersJson(const ['u1']), 200);
+        });
 
-      container.read(accordMembersControllerProvider(_spaceId));
-      await _waitUntil(() => _failed(container));
+        await _waitUntil(() => _failed(container));
 
-      // Mirrors the roster's Retry button: clear the flag, then reload.
-      container.read(membersLoadFailedProvider(_spaceId).notifier).set(false);
-      container.invalidate(accordMembersControllerProvider(_spaceId));
-      container.read(accordMembersControllerProvider(_spaceId));
-      await _waitUntil(() => _state(container) != null);
+        // Mirrors the roster's Retry button: clear the flag, then reload.
+        container.read(membersLoadFailedProvider(_spaceId).notifier).set(false);
+        container.invalidate(accordMembersControllerProvider(_spaceId));
+        await _waitUntil(() => _state(container) != null);
 
-      expect(_state(container)?.keys, contains('u1'));
-      expect(_failed(container), isFalse);
-    });
+        expect(_state(container)?.keys, contains('u1'));
+        expect(_failed(container), isFalse);
+      },
+    );
   });
 }

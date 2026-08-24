@@ -35,7 +35,7 @@ final class ThreadRepliesControllerProvider
   }) : super(
          retry: null,
          name: r'threadRepliesControllerProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -75,7 +75,7 @@ final class ThreadRepliesControllerProvider
 }
 
 String _$threadRepliesControllerHash() =>
-    r'57b7cd4b23c5cf664e73a395b070b21ed54ec702';
+    r'9ececfe594134369596a5cc8ddb8b3847fd10cbf';
 
 /// A thread's replies (excluding the root message), keyed by
 /// (channelId, rootId), ordered oldest→newest as the server returns them.
@@ -98,7 +98,7 @@ final class ThreadRepliesControllerFamily extends $Family
         name: r'threadRepliesControllerProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   /// A thread's replies (excluding the root message), keyed by

@@ -35,7 +35,7 @@ final class ForumPostsControllerProvider
   }) : super(
          retry: null,
          name: r'forumPostsControllerProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -74,7 +74,7 @@ final class ForumPostsControllerProvider
 }
 
 String _$forumPostsControllerHash() =>
-    r'5cfb873cf3d82068b5fa9f9782b9c02fcc861a44';
+    r'5781e9618e9101b3e86f66ee3dc3a3d262eef4c4';
 
 /// A forum channel's top-level posts (thread roots), keyed by channel ID, in
 /// server order (the board sorts for display). Self-loads via
@@ -97,7 +97,7 @@ final class ForumPostsControllerFamily extends $Family
         name: r'forumPostsControllerProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   /// A forum channel's top-level posts (thread roots), keyed by channel ID, in

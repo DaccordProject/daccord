@@ -24,7 +24,7 @@ String? accordVisibleChannelId;
 /// oldest→newest for display. Self-loads via `messages.list` the first time
 /// it's watched (once logged in) and is kept in sync by message
 /// create/update/delete gateway events. `null` means "not loaded yet".
-@Riverpod(keepAlive: true)
+@Riverpod(keepAlive: false)
 class AccordMessagesController extends _$AccordMessagesController {
   @override
   List<AccordMessage>? build(String channelId) {
@@ -57,6 +57,7 @@ class AccordMessagesController extends _$AccordMessagesController {
       channelId,
       query: {'limit': _pageSize},
     );
+    if (!ref.mounted) return;
     if (!result.ok) {
       debugPrint('Failed to load messages for $channelId: ${result.error}');
       return;
@@ -100,6 +101,7 @@ class AccordMessagesController extends _$AccordMessagesController {
         channelId,
         query: {'limit': _pageSize, 'before': oldestId},
       );
+      if (!ref.mounted) return 0;
       if (!result.ok) {
         debugPrint(
           'Failed to load older messages for $channelId: ${result.error}',
@@ -122,8 +124,10 @@ class AccordMessagesController extends _$AccordMessagesController {
     } finally {
       isLoadingOlder = false;
       // Bump state again so the spinner-watching widget rebuilds.
-      final s = state;
-      if (s != null) state = [...s];
+      if (ref.mounted) {
+        final s = state;
+        if (s != null) state = [...s];
+      }
     }
   }
 
@@ -150,6 +154,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final data = <String, dynamic>{'content': trimmed};
     if (replyTo != null) data['reply_to'] = replyTo;
     final result = await client.messages.create(channelId, data);
+    if (!ref.mounted) return 'Message view closed.';
     if (!result.ok) {
       debugPrint('Failed to send message to $channelId: ${result.error}');
       return result.errorMessageOr('Failed to send message.');
@@ -164,6 +169,7 @@ class AccordMessagesController extends _$AccordMessagesController {
   Future<bool> pin(AccordClient client, String messageId) async {
     _setPinned(messageId, true);
     final result = await client.messages.pin(channelId, messageId);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to pin $messageId: ${result.error}');
       _setPinned(messageId, false);
@@ -177,6 +183,7 @@ class AccordMessagesController extends _$AccordMessagesController {
   Future<bool> unpin(AccordClient client, String messageId) async {
     _setPinned(messageId, false);
     final result = await client.messages.unpin(channelId, messageId);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to unpin $messageId: ${result.error}');
       _setPinned(messageId, true);
@@ -207,6 +214,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final result = await client.messages.edit(channelId, messageId, {
       'content': trimmed,
     });
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to edit message $messageId: ${result.error}');
       return false;
@@ -220,6 +228,7 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// Returns true on success.
   Future<bool> delete(AccordClient client, String messageId) async {
     final result = await client.messages.delete(channelId, messageId);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to delete message $messageId: ${result.error}');
       return false;
@@ -235,6 +244,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     if (messageIds.isEmpty) return false;
     if (messageIds.length == 1) return delete(client, messageIds.first);
     final result = await client.messages.bulkDelete(channelId, messageIds);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to bulk-delete in $channelId: ${result.error}');
       return false;
@@ -273,6 +283,7 @@ class AccordMessagesController extends _$AccordMessagesController {
       data,
       files,
     );
+    if (!ref.mounted) return 'Message view closed.';
     if (!result.ok) {
       debugPrint('Failed to send attachments to $channelId: ${result.error}');
       return result.errorMessageOr('Failed to send attachments.');
@@ -345,6 +356,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final result = adding
         ? await client.reactions.add(channelId, messageId, token)
         : await client.reactions.removeOwn(channelId, messageId, token);
+    if (!ref.mounted) return;
     if (!result.ok) {
       debugPrint('Failed to toggle reaction on $messageId: ${result.error}');
       // Revert the optimistic change.
@@ -377,6 +389,7 @@ class AccordMessagesController extends _$AccordMessagesController {
       token,
       query: {'limit': limit},
     );
+    if (!ref.mounted) return const [];
     if (!result.ok) {
       debugPrint('Failed to list reactors for $messageId: ${result.error}');
       return const [];

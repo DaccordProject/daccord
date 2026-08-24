@@ -23,8 +23,7 @@ import 'package:http/testing.dart';
 const _spaceId = 'space1';
 const _cdn = 'https://accord.example.test/cdn';
 
-String _membersJson(List<Map<String, dynamic>> members) =>
-    jsonEncode(members);
+String _membersJson(List<Map<String, dynamic>> members) => jsonEncode(members);
 
 ProviderContainer makeContainer(String body) {
   final server = AccordServer.fromBaseUrl('https://accord.example.test');
@@ -51,6 +50,12 @@ ProviderContainer makeContainer(String body) {
   );
   addTearDown(container.dispose);
   addTearDown(client.dispose);
+  final subscription = container.listen(
+    accordMembersControllerProvider(_spaceId),
+    (_, _) {},
+    fireImmediately: true,
+  );
+  addTearDown(subscription.close);
   return container;
 }
 
@@ -79,13 +84,14 @@ void applyUserUpdate(ProviderContainer c, AccordUser user) {
 
 void main() {
   test('refreshes the global user cache and every open space member', () async {
-    final c = makeContainer(_membersJson([
-      {
-        'user_id': 'u1',
-        'user': {'id': 'u1', 'username': 'u1', 'avatar': 'oldhash'},
-      },
-    ]));
-    c.read(accordMembersControllerProvider(_spaceId));
+    final c = makeContainer(
+      _membersJson([
+        {
+          'user_id': 'u1',
+          'user': {'id': 'u1', 'username': 'u1', 'avatar': 'oldhash'},
+        },
+      ]),
+    );
     await _waitUntil(
       () => c.read(accordMembersControllerProvider(_spaceId)) != null,
     );
@@ -110,15 +116,16 @@ void main() {
   });
 
   test('per-space nickname and avatar overrides still win', () async {
-    final c = makeContainer(_membersJson([
-      {
-        'user_id': 'u1',
-        'nick': 'Spacey',
-        'avatar': 'memberhash',
-        'user': {'id': 'u1', 'username': 'u1', 'avatar': 'oldhash'},
-      },
-    ]));
-    c.read(accordMembersControllerProvider(_spaceId));
+    final c = makeContainer(
+      _membersJson([
+        {
+          'user_id': 'u1',
+          'nick': 'Spacey',
+          'avatar': 'memberhash',
+          'user': {'id': 'u1', 'username': 'u1', 'avatar': 'oldhash'},
+        },
+      ]),
+    );
     await _waitUntil(
       () => c.read(accordMembersControllerProvider(_spaceId)) != null,
     );
@@ -144,13 +151,14 @@ void main() {
   });
 
   test('an update for a non-member only touches the global cache', () async {
-    final c = makeContainer(_membersJson([
-      {
-        'user_id': 'u1',
-        'user': {'id': 'u1', 'username': 'u1'},
-      },
-    ]));
-    c.read(accordMembersControllerProvider(_spaceId));
+    final c = makeContainer(
+      _membersJson([
+        {
+          'user_id': 'u1',
+          'user': {'id': 'u1', 'username': 'u1'},
+        },
+      ]),
+    );
     await _waitUntil(
       () => c.read(accordMembersControllerProvider(_spaceId)) != null,
     );
@@ -160,7 +168,10 @@ void main() {
       AccordUser(id: 'stranger', username: 'stranger', displayName: 'Str'),
     );
 
-    expect(c.read(accordUsersControllerProvider)['stranger']?.displayName, 'Str');
+    expect(
+      c.read(accordUsersControllerProvider)['stranger']?.displayName,
+      'Str',
+    );
     final members = c.read(accordMembersControllerProvider(_spaceId))!;
     expect(members.keys, ['u1']);
   });

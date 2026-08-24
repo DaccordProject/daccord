@@ -18,7 +18,7 @@ final Set<String> activeForumChannels = <String>{};
 /// `messages.listPosts` the first time it's watched (once logged in) and is
 /// kept in sync by top-level message create/update/delete gateway events.
 /// `null` means "not loaded yet".
-@Riverpod(keepAlive: true)
+@Riverpod(keepAlive: false)
 class ForumPostsController extends _$ForumPostsController {
   @override
   List<AccordMessage>? build(String channelId) {
@@ -34,6 +34,7 @@ class ForumPostsController extends _$ForumPostsController {
 
   Future<void> _load(AccordClient client) async {
     final result = await client.messages.listPosts(channelId);
+    if (!ref.mounted) return;
     final data = result.data;
     if (!result.ok || data is! List) {
       debugPrint('Failed to load forum posts for $channelId: ${result.error}');
@@ -54,6 +55,7 @@ class ForumPostsController extends _$ForumPostsController {
   /// on success. Returns true on success.
   Future<bool> delete(AccordClient client, String postId) async {
     final result = await client.messages.delete(channelId, postId);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint('Failed to delete post $postId: ${result.error}');
       return false;
@@ -70,9 +72,11 @@ class ForumPostsController extends _$ForumPostsController {
     final result = pinned
         ? await client.messages.unpin(channelId, post.id)
         : await client.messages.pin(channelId, post.id);
+    if (!ref.mounted) return false;
     if (!result.ok) {
       debugPrint(
-          'Failed to ${pinned ? 'unpin' : 'pin'} post ${post.id}: ${result.error}');
+        'Failed to ${pinned ? 'unpin' : 'pin'} post ${post.id}: ${result.error}',
+      );
       return false;
     }
     _setPinned(post.id, !pinned);
