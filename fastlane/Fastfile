@@ -466,6 +466,7 @@ platform :mac do
     # option, so passing that former option fails before the upload starts.
     notarize(
       package: out,
+      bundle_id: ENV.fetch("APP_BUNDLE_ID"),
       api_key: api_key,
       print_log: true,
     )

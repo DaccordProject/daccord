@@ -78,8 +78,32 @@ void main() {
     );
     expect(fastfile, isNot(contains('rescue StandardError')));
     expect(fastfile, isNot(contains('use_notarytool: true')));
+    expect(fastfile, contains('bundle_id: ENV.fetch("APP_BUNDLE_ID")'));
     expect(fastfile, contains('APP_STORE_REPLACE_UNRESOLVED'));
     expect(fastfile, contains('submission.cancel_submission'));
+  });
+
+  test('partial release recovery is pinned to the source run and tag', () {
+    final workflow = File(
+      '.github/workflows/release-recovery.yml',
+    ).readAsStringSync();
+
+    expect(workflow, contains('run-id: \${{ inputs.source_run_id }}'));
+    expect(workflow, contains('github-token: \${{ secrets.GITHUB_TOKEN }}'));
+    expect(workflow, contains('test "\$RUN_SHA" = "\$TAG_SHA"'));
+    expect(workflow, contains('test "\$RUN_BRANCH" = "\$TAG"'));
+    expect(workflow, contains('test -f artifacts/daccord-android.apk'));
+    expect(workflow, contains('test -f artifacts/daccord-web.zip'));
+    expect(
+      workflow,
+      contains("test ! -e artifacts/daccord-macos-universal.dmg"),
+    );
+    expect(
+      workflow,
+      contains("test ! -e artifacts/daccord-windows-x86_64-setup.exe"),
+    );
+    expect(workflow, contains('GPG_PRIVATE_KEY'));
+    expect(workflow, contains('tag_name: \${{ inputs.tag }}'));
   });
 
   test('Android release policy pins APK and AAB to the stable key', () {
