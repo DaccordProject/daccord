@@ -64,6 +64,11 @@ void main() {
     expect(build, contains('dist/verify-android-signing.sh'));
 
     expect(fastfile, contains('lane :dmg do'));
+    expect(fastfile, contains('ipa = File.expand_path('));
+    expect(fastfile, contains('ipa: ipa'));
+    expect(fastfile, contains('get_provisioning_profile('));
+    expect(fastfile, contains('developer_id: true'));
+    expect(fastfile, contains('identity: "Developer ID Application"'));
     expect(
       fastfile,
       contains(
@@ -117,6 +122,10 @@ void main() {
     expect(signer, contains('if (\$Required) { throw \$message }'));
     expect(login, contains('[switch]\$Required'));
     expect(login, contains('if (\$Required) { throw }'));
+    expect(login, contains('Get-Command winget'));
+    expect(login, contains('files.certum.eu/software/SimplySignDesktop'));
+    expect(login, contains('Get-FileHash -Path \$msi -Algorithm SHA256'));
+    expect(login, contains('Get-AuthenticodeSignature -FilePath \$msi'));
   });
 }
 

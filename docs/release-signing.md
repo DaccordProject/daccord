@@ -221,7 +221,9 @@ mode described above is the integration.
 Opening that session unattended is the hard part, and `dist/simplysign-login.ps1`
 does it the only way anyone has documented:
 
-1. installs SimplySign Desktop (`winget install Certum.SmartSignSimplySignDesktop`),
+1. installs SimplySign Desktop with `winget` when available, otherwise from
+   Certum's official 64-bit MSI with a pinned SHA-256 checksum and verified
+   Authenticode signature,
 2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, the
    SHA1/6-digit/30s defaults Certum use),
 3. launches the app and **types the credentials into its GUI via `SendKeys`**,

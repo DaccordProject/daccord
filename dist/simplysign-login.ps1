@@ -137,14 +137,35 @@ function Find-SimplySign {
 }
 
 function Install-SimplySign {
-    # winget is present on the GitHub windows-latest image and Certum publish a
-    # package there, which is far less brittle than scraping their download page
-    # for a version-stamped MSI URL.
-    Write-Host "Installing SimplySign Desktop via winget..."
-    winget install --id Certum.SmartSignSimplySignDesktop --exact --silent `
-        --accept-package-agreements --accept-source-agreements --disable-interactivity
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "winget install returned $LASTEXITCODE; continuing in case the app is already present."
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if ($winget) {
+        Write-Host "Installing SimplySign Desktop via winget..."
+        & $winget.Source install --id Certum.SmartSignSimplySignDesktop --exact --silent `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity
+        if ($LASTEXITCODE -eq 0) { return }
+        Write-Warn "winget install returned $LASTEXITCODE; trying Certum's pinned MSI."
+    }
+
+    # GitHub's windows-2022 image intentionally has no Microsoft Store and no
+    # winget. Certum publishes the same 64-bit installer directly; pin its hash
+    # so a mutable download URL can never silently change release signing code.
+    $version = '9.4.4.92'
+    $uri = "https://files.certum.eu/software/SimplySignDesktop/Windows/$version/SimplySignDesktop-$version-64-bit-en.msi"
+    $expectedSha256 = '8ec420fc27798b86078b7bd02fe7152097e1b3005bab51820eaca8e57df84da3'
+    $msi = Join-Path $env:RUNNER_TEMP "SimplySignDesktop-$version-64-bit-en.msi"
+    Write-Host "Downloading SimplySign Desktop $version from Certum..."
+    Invoke-WebRequest -Uri $uri -OutFile $msi -UseBasicParsing
+    $actualSha256 = (Get-FileHash -Path $msi -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualSha256 -ne $expectedSha256) {
+        throw "SimplySign Desktop MSI checksum mismatch (got $actualSha256)."
+    }
+    $signature = Get-AuthenticodeSignature -FilePath $msi
+    if ($signature.Status -ne 'Valid') {
+        throw "SimplySign Desktop MSI Authenticode signature is $($signature.Status)."
+    }
+    $process = Start-Process msiexec.exe -ArgumentList @('/i', $msi, '/qn', '/norestart') -Wait -PassThru
+    if ($process.ExitCode -notin @(0, 3010)) {
+        throw "SimplySign Desktop MSI install returned $($process.ExitCode)."
     }
 }
 

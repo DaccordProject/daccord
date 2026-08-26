@@ -160,14 +160,14 @@ end
 # with "does not support provisioning profiles", failing the archive. Scoping to
 # the Runner target avoids that; gym then re-signs the whole bundle on export
 # using the export_options profile map.
-def force_manual_signing(project, profile_name)
+def force_manual_signing(project, profile_name, identity: "Apple Distribution")
   update_code_signing_settings(
     path: project,
     use_automatic_signing: false,
     team_id: ENV.fetch("APPLE_TEAM_ID"),
     targets: ["Runner"],
     build_configurations: ["Release"],
-    code_sign_identity: "Apple Distribution",
+    code_sign_identity: identity,
     profile_name: profile_name,
     bundle_identifier: ENV.fetch("APP_BUNDLE_ID"),
   )
@@ -253,7 +253,7 @@ platform :ios do
     api_key = asc_api_key
     profile = ENV.fetch("IOS_PROFILE_NAME")
     force_manual_signing("ios/Runner.xcodeproj", profile)
-    build_app(
+    ipa = build_app(
       workspace: "ios/Runner.xcworkspace",
       scheme: "Runner",
       configuration: "Release",
@@ -267,11 +267,17 @@ platform :ios do
         signingStyle: "manual",
       },
     )
+    # gym may return a workspace-relative path while its analyser runs from the
+    # fastlane directory. Resolve the path against the checkout before the
+    # review-state preflight opens the IPA.
+    ipa ||= lane_context[SharedValues::IPA_OUTPUT_PATH] || "build/appstore/Daccord-iOS.ipa"
+    ipa = File.expand_path(ipa, ENV.fetch("GITHUB_WORKSPACE", Dir.pwd))
+    UI.user_error!("No .ipa produced by gym (got #{ipa.inspect})") unless File.exist?(ipa)
     submit_release(
       api_key: api_key,
       platform: "ios",
       metadata_path: "fastlane/metadata/ios",
-      ipa: "build/appstore/Daccord-iOS.ipa",
+      ipa: ipa,
     )
   end
 end
@@ -336,6 +342,27 @@ platform :mac do
   desc "Build a Developer ID-signed, notarized universal .dmg for direct download"
   lane :dmg do
     api_key = asc_api_key
+    # Release.entitlements includes keychain access, which Apple classifies as
+    # a restricted entitlement. Developer ID distribution therefore requires
+    # a matching provisioning profile even though ordinary macOS apps do not.
+    # Reuse or create that profile through the existing App Store Connect team
+    # key, install it, and scope it to Runner only so Pods/SPM targets do not
+    # inherit a profile specifier.
+    get_provisioning_profile(
+      api_key: api_key,
+      developer_id: true,
+      app_identifier: ENV.fetch("APP_BUNDLE_ID"),
+      platform: "macos",
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      provisioning_name: "Daccord Developer ID",
+    )
+    profile = lane_context[SharedValues::SIGH_NAME]
+    UI.user_error!("Developer ID provisioning profile was not installed") if profile.to_s.empty?
+    force_manual_signing(
+      "macos/Runner.xcodeproj",
+      profile,
+      identity: "Developer ID Application",
+    )
     # Re-export the Flutter-built app via gym so all nested frameworks/dylibs
     # are signed with Developer ID + a hardened runtime (required for
     # notarization). This is the non-store build, so no App Sandbox and the
@@ -352,13 +379,11 @@ platform :mac do
       output_name: "Daccord",
       clean: false,
       export_options: {
+        provisioningProfiles: { ENV.fetch("APP_BUNDLE_ID") => profile },
         teamID: ENV.fetch("APPLE_TEAM_ID"),
         signingStyle: "manual",
       },
       xcargs: [
-        "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID')}",
-        "CODE_SIGN_STYLE=Manual",
-        "CODE_SIGN_IDENTITY=#{'Developer ID Application'.shellescape}",
         "ENABLE_HARDENED_RUNTIME=YES",
         "OTHER_CODE_SIGN_FLAGS=--timestamp",
       ].join(" "),
