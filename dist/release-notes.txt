@@ -1,6 +1,9 @@
-# Optional App Store "What's New" override. Keep this file comment-only between
-# releases so dist/app-store-release-notes.sh derives notes from commits.
-#
-# To override one release, add `# Release version: x.y.z` and the user-facing
-# text below it. The script rejects missing or stale version markers before any
-# store upload.
+# Release version: 0.2.14
+
+• Fixed a first-run issue that could show a blank screen shortly after signing
+  in.
+• Direct messages now include more of the conversation tools available in
+  channels, including replies, reactions, pins, search and improved call and
+  group controls.
+• Improved account security, connection reliability, media safety and
+  cross-server data isolation.
