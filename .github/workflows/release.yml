@@ -792,6 +792,10 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_BUNDLE_ID: com.cattrall.daccord
           IOS_PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
+          # One-time recovery switch for a rejected submission. It authorizes
+          # the lane to cancel the UNRESOLVED_ISSUES submission and replace it;
+          # every other active-review conflict still fails closed.
+          APP_STORE_REPLACE_UNRESOLVED: ${{ vars.IOS_REPLACE_UNRESOLVED || 'false' }}
         run: bundle exec fastlane ios appstore
 
   mac-appstore:

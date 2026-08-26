@@ -189,11 +189,19 @@ explicitly. The original submission keeps automatic release enabled.
 
 The lane fails closed when the active review belongs to another version or
 build, is being cancelled, has unresolved issues, is configured for manual
-release, or App Store Connect returns incomplete/inconsistent state. Resolve
-that review in App Store Connect before retrying. In particular, rerunning the
-same GitHub Actions run keeps its build number and is idempotent; starting a new
-run for the same marketing version produces a new build number and therefore
-conflicts with a review already using the older build.
+release, or App Store Connect returns incomplete/inconsistent state. In
+particular, rerunning the same GitHub Actions run keeps its build number and is
+idempotent; starting a new run for the same marketing version produces a new
+build number and therefore conflicts with a review already using the older
+build.
+
+For an intentional binary replacement after App Review sets a submission to
+`UNRESOLVED_ISSUES`, temporarily set the repository variable
+`IOS_REPLACE_UNRESOLVED=true`. The lane then cancels that rejected submission,
+waits for its version record to unlock, uploads the new build and resubmits it
+with automatic release. Remove the variable as soon as the replacement is
+submitted; the switch is deliberately not a general bypass for an in-progress
+review.
 
 ## Mac App Store: listing first
 

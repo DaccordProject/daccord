@@ -75,7 +75,53 @@ def app_store_review_decision(platform:, ipa: nil, pkg: nil)
     target_version: ENV.fetch("APP_STORE_VERSION"),
     target_build: target_build,
     submissions: snapshots,
+    allow_unresolved_replacement: ENV.fetch(
+      "APP_STORE_REPLACE_UNRESOLVED", "false"
+    ) == "true",
   )
+end
+
+# App Store Connect will not accept another app-version item while a rejected
+# submission is in UNRESOLVED_ISSUES. In the explicit recovery mode, cancel the
+# rejected submission and wait for Apple to unlock its version record; deliver
+# can then update that record, attach the corrected build, and submit it again.
+def cancel_unresolved_review_submission(platform:)
+  app = Spaceship::ConnectAPI::App.find(ENV.fetch("APP_BUNDLE_ID"))
+  UI.user_error!("Could not find the app in App Store Connect") unless app
+
+  mapped_platform = Spaceship::ConnectAPI::Platform.map(platform)
+  submissions = app.get_review_submissions(
+    filter: {
+      platform: mapped_platform,
+      state: Daccord::ReviewSubmissionPolicy::ACTIVE_REVIEW_STATES.join(","),
+    },
+  )
+  unless submissions.length == 1 && submissions.first.state == "UNRESOLVED_ISSUES"
+    UI.user_error!(
+      "The App Store review changed before replacement; refusing to cancel it."
+    )
+  end
+
+  submission = submissions.first
+  UI.message("Canceling unresolved App Store review submission #{submission.id}...")
+  submission.cancel_submission
+
+  deadline = Time.now + 300
+  loop do
+    active = app.get_review_submissions(
+      filter: {
+        platform: mapped_platform,
+        state: Daccord::ReviewSubmissionPolicy::ACTIVE_REVIEW_STATES.join(","),
+      },
+    )
+    break if active.empty?
+    if Time.now >= deadline
+      UI.user_error!("App Store review cancellation did not finish within 300 seconds")
+    end
+    UI.message("Waiting for App Store Connect to unlock the rejected version...")
+    sleep(10)
+  end
+  UI.success("Rejected App Store submission canceled; replacement can continue.")
 end
 
 # Submit an uploaded build to App Store review and let it ship on approval.
@@ -99,6 +145,10 @@ def submit_release(api_key:, platform:, metadata_path:, ipa: nil, pkg: nil)
     pkg: pkg,
   )
   UI.user_error!(review_decision.message) if review_decision.fail?
+  if review_decision.replace?
+    UI.important(review_decision.message)
+    cancel_unresolved_review_submission(platform: platform)
+  end
   if review_decision.skip?
     UI.success(review_decision.message)
   else
@@ -411,14 +461,12 @@ platform :mac do
     sh("codesign", "--sign", "Developer ID Application", "--timestamp", "--force", out)
 
     # Submit to Apple's notary service and staple the ticket into the DMG so it
-    # passes Gatekeeper offline. `use_notarytool` is explicit because altool's
-    # notarization endpoint was switched off in November 2023 — notarytool is the
-    # only route, and pinning it here stops a fastlane default flip from silently
-    # putting us back on a dead API.
+    # passes Gatekeeper offline. Fastlane 2.236 selects notarytool automatically
+    # on modern Xcode; its notarize action no longer exposes a use_notarytool
+    # option, so passing that former option fails before the upload starts.
     notarize(
       package: out,
       api_key: api_key,
-      use_notarytool: true,
       print_log: true,
     )
   end

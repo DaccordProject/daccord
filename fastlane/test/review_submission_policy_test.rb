@@ -7,11 +7,12 @@ class ReviewSubmissionPolicyTest < Minitest::Test
   TARGET_VERSION = "0.2.13"
   TARGET_BUILD = "32655870310"
 
-  def decide(submissions)
+  def decide(submissions, allow_unresolved_replacement: false)
     Daccord::ReviewSubmissionPolicy.decide(
       target_version: TARGET_VERSION,
       target_build: TARGET_BUILD,
       submissions: submissions,
+      allow_unresolved_replacement: allow_unresolved_replacement,
     )
   end
 
@@ -67,6 +68,33 @@ class ReviewSubmissionPolicyTest < Minitest::Test
       assert_predicate decision, :fail?, state
       assert_includes decision.message, state
     end
+  end
+
+  def test_explicitly_replaces_an_unresolved_review
+    decision = decide(
+      [
+        active_submission(
+          state: "UNRESOLVED_ISSUES",
+          version: "0.2.13",
+          build: "157",
+          version_state: "REJECTED",
+        ),
+      ],
+      allow_unresolved_replacement: true,
+    )
+
+    assert_predicate decision, :replace?
+    assert_includes decision.message, "explicitly authorized replacement"
+  end
+
+  def test_unresolved_replacement_preserves_automatic_release_policy
+    decision = decide(
+      [active_submission(state: "UNRESOLVED_ISSUES", release_type: "MANUAL")],
+      allow_unresolved_replacement: true,
+    )
+
+    assert_predicate decision, :fail?
+    assert_includes decision.message, "not configured for automatic release"
   end
 
   def test_fails_when_automatic_release_is_not_preserved

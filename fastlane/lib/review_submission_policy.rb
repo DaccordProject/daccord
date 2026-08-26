@@ -27,9 +27,14 @@ module Daccord
       def fail?
         action == :fail
       end
+
+      def replace?
+        action == :replace
+      end
     end
 
-    def self.decide(target_version:, target_build:, submissions:)
+    def self.decide(target_version:, target_build:, submissions:,
+                    allow_unresolved_replacement: false)
       if submissions.empty?
         return Decision.new(
           action: :submit,
@@ -62,6 +67,27 @@ module Daccord
         return failure(
           "The active App Store review is missing #{missing.join(', ')}; " \
           "its state cannot be verified safely.",
+        )
+      end
+
+      if state == "UNRESOLVED_ISSUES"
+        unless allow_unresolved_replacement
+          return failure(
+            "App Store review #{version} (#{build}) is #{state}; resolve that " \
+            "submission in App Store Connect before retrying.",
+          )
+        end
+        unless release_type == AUTOMATIC_RELEASE_TYPE
+          return failure(
+            "App Store review #{version} (#{build}) is not configured for automatic " \
+            "release after approval (release type: #{release_type}).",
+          )
+        end
+        return Decision.new(
+          action: :replace,
+          message: "App Store review #{version} (#{build}) has unresolved issues; " \
+                   "the explicitly authorized replacement #{target_version} " \
+                   "(#{target_build}) will supersede it.",
         )
       end
 

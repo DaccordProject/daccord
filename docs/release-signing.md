@@ -218,6 +218,11 @@ once a session is open the certificate appears in `Cert:\CurrentUser\My` and
 token. So unlike DigiCert/SSL.com there is no `/dlib` to point at — the store
 mode described above is the integration.
 
+The desktop binary does expose a one-shot `/autologin` mode that opens its login
+dialog immediately. The CI helper uses that mode before driving the dialog;
+starting the executable with no argument only creates a tray icon and leaves
+headless automation with no window to activate.
+
 Opening that session unattended is the hard part, and `dist/simplysign-login.ps1`
 does it the only way anyone has documented:
 

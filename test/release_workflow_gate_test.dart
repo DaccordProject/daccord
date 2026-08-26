@@ -77,6 +77,9 @@ void main() {
       ),
     );
     expect(fastfile, isNot(contains('rescue StandardError')));
+    expect(fastfile, isNot(contains('use_notarytool: true')));
+    expect(fastfile, contains('APP_STORE_REPLACE_UNRESOLVED'));
+    expect(fastfile, contains('submission.cancel_submission'));
   });
 
   test('Android release policy pins APK and AAB to the stable key', () {
@@ -105,7 +108,8 @@ void main() {
       reason: 'secret-less local release builds retain their debug fallback',
     );
 
-    expect(verifier, contains('apksigner verify --verbose --print-certs'));
+    expect(verifier, contains('verify --verbose --print-certs'));
+    expect(verifier, contains('2>&1'));
     expect(verifier, contains('jarsigner -verify'));
     expect(verifier, contains('ANDROID_SIGNING_CERT_SHA256'));
     expect(gitignore, contains('/android/key.properties'));
@@ -126,7 +130,44 @@ void main() {
     expect(login, contains('files.certum.eu/software/SimplySignDesktop'));
     expect(login, contains('Get-FileHash -Path \$msi -Algorithm SHA256'));
     expect(login, contains('Get-AuthenticodeSignature -FilePath \$msi'));
+    expect(login, contains("-ArgumentList '/autologin'"));
   });
+
+  test(
+    'Android APK signer parser accepts build-tools output on stderr',
+    () async {
+      if (Platform.isWindows) return;
+
+      const fingerprint =
+          'cc51f0c672c2f1a1a82bf354ff585dbdbde1fe45ecc38d1754ea23925c4519be';
+      final temp = await Directory.systemTemp.createTemp('daccord-apksigner-');
+      addTearDown(() => temp.delete(recursive: true));
+      final artifact = File('${temp.path}/signed.apk')
+        ..writeAsStringSync('test');
+      final signer = File('${temp.path}/apksigner')
+        ..writeAsStringSync('''#!/usr/bin/env bash
+cat >&2 <<'OUTPUT'
+Verifies
+Number of signers: 1
+Signer #1 certificate SHA-256 digest: CC:51:F0:C6:72:C2:F1:A1:A8:2B:F3:54:FF:58:5D:BD:BD:E1:FE:45:EC:C3:8D:17:54:EA:23:92:5C:45:19:BE
+OUTPUT
+''');
+      await Process.run('chmod', ['+x', signer.path]);
+
+      final result = await Process.run(
+        'bash',
+        ['dist/verify-android-signing.sh', artifact.path],
+        environment: {
+          ...Platform.environment,
+          'APKSIGNER': signer.path,
+          'ANDROID_SIGNING_CERT_SHA256': fingerprint,
+        },
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, contains('Verified Android signature'));
+    },
+  );
 }
 
 String _jobBlock(String workflow, String name) {

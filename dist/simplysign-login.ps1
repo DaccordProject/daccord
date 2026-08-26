@@ -199,8 +199,11 @@ try {
     $otp = Get-Totp (ConvertFrom-Base32 (Get-Base32Secret $env:SIMPLYSIGN_TOTP_SECRET))
     Write-Host "Generated a $($otp.Length)-digit TOTP."   # never log the value
 
-    Start-Process -FilePath $exe | Out-Null
-    Start-Sleep -Seconds 20   # the tray app takes a while to paint its window
+    # `/autologin` is SimplySign Desktop's one-shot login-dialog mode. Starting
+    # the executable without it only creates a tray icon, leaving no window for
+    # CI to activate (and previously causing SendKeys to target the runner's
+    # foreground window instead).
+    Start-Process -FilePath $exe -ArgumentList '/autologin' | Out-Null
 
     # There is no supported way to script this. AppActivate + SendKeys against
     # the login dialog is what the community does; it depends on the runner
@@ -208,13 +211,19 @@ try {
     # If it breaks, strict release mode fails before any artifact is packaged.
     $shell = New-Object -ComObject WScript.Shell
 
-    $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
-        Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-    if ($proc) {
-        $shell.AppActivate($proc.Id) | Out-Null
-    } else {
-        Write-Warn "No SimplySign window found to activate; typing into the foreground window instead."
+    $windowDeadline = (Get-Date).AddSeconds(60)
+    $proc = $null
+    while ((Get-Date) -lt $windowDeadline) {
+        $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+        if ($proc) { break }
+        Start-Sleep -Seconds 2
     }
+    if (-not $proc) {
+        Stop-OrWarn "SimplySign /autologin did not open a login window within 60s."
+        exit 0
+    }
+    $shell.AppActivate($proc.Id) | Out-Null
     Start-Sleep -Seconds 2
 
     # SendKeys treats these as control characters, so anything appearing in an

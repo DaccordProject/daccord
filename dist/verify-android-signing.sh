@@ -28,9 +28,13 @@ case "$artifact" in
       echo "apksigner was not found." >&2
       exit 1
     fi
-    output="$($apksigner verify --verbose --print-certs "$artifact")"
+    # Build-tools releases have emitted certificate diagnostics on both stdout
+    # and stderr over time. Capture both: verification still fails closed via
+    # the command's exit status, while the fingerprint parser sees either form.
+    output="$("$apksigner" verify --verbose --print-certs "$artifact" 2>&1)"
     mapfile -t fingerprints < <(
-      awk -F': ' '/Signer #[0-9]+ certificate SHA-256 digest:/ {print tolower($2)}' <<<"$output" | sort -u
+      sed -nE 's/^.*certificate SHA-256 digest:[[:space:]]*([0-9A-Fa-f:]+)[[:space:]]*$/\1/p' <<<"$output" |
+        tr '[:upper:]' '[:lower:]' | tr -d ':' | sort -u
     )
     ;;
   *.aab)
