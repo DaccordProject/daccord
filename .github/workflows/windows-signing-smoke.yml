@@ -39,6 +39,7 @@ jobs:
         env:
           SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
           SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
+          SIMPLYSIGN_TIMEOUT_SEC: 60
         run: ./dist/simplysign-login.ps1 -Required
 
       - name: Sign and verify test executable
@@ -46,4 +47,3 @@ jobs:
         env:
           WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
         run: ./dist/sign-windows.ps1 -Required $env:WINDOWS_SIGNING_SMOKE_TARGET
-

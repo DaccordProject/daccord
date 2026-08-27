@@ -166,9 +166,52 @@ function Install-SimplySign {
         throw "SimplySign Desktop MSI Authenticode signature is $($signature.Status)."
     }
     $process = Start-Process msiexec.exe -ArgumentList @('/i', $msi, '/qn', '/norestart') -Wait -PassThru
+    Write-Host "SimplySign Desktop MSI install returned $($process.ExitCode)."
     if ($process.ExitCode -notin @(0, 3010)) {
         throw "SimplySign Desktop MSI install returned $($process.ExitCode)."
     }
+    if ($process.ExitCode -eq 3010) {
+        Write-Warn "SimplySign Desktop requested a reboot; the virtual card may not be available in this runner session."
+    }
+}
+
+# SimplySign writes its own authentication result under Documents. Read only a
+# small set of known status phrases and never emit the raw log: vendor logs may
+# contain account identifiers or other authentication metadata.
+function Get-SimplySignLoginStatus([datetime]$Since) {
+    $documentRoots = @(
+        [Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments),
+        $(if ($env:USERPROFILE) { Join-Path $env:USERPROFILE 'Documents' })
+    ) | Where-Object { $_ } | Select-Object -Unique
+
+    $logs = foreach ($root in $documentRoots) {
+        $logDir = Join-Path $root 'SimplySignLog'
+        if (Test-Path $logDir) {
+            Get-ChildItem -Path $logDir -Filter 'SimplySign*log.txt' -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -ge $Since.AddSeconds(-5) }
+        }
+    }
+
+    $latest = $logs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latest) { return 'no-recent-log' }
+
+    $content = Get-Content -Path $latest.FullName -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($content)) { return 'empty-log' }
+
+    # Select the last authentication event in case the app retried internally.
+    $events = [regex]::Matches(
+        $content,
+        'login ok\. token valid for|login failed\([^\r\n)]*\)|access_token not found|server configuration incomplete',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+    if ($events.Count -eq 0) { return 'unclassified-log' }
+
+    $last = $events[$events.Count - 1].Value
+    if ($last -match '^login ok') { return 'authenticated' }
+    if ($last -match '^login failed') { return 'rejected' }
+    if ($last -match '^access_token') { return 'missing-token' }
+    if ($last -match '^server configuration') { return 'server-configuration' }
+    return 'unclassified-log'
 }
 
 # Certificates the cloud card is about to add. Diffing against this is more
@@ -206,6 +249,7 @@ try {
     # window, which is why the old GitHub-hosted release job timed out. The OTP
     # is short-lived and is never printed, but it is briefly visible to local
     # process-inspection tools on this single-tenant ephemeral runner.
+    $loginStarted = Get-Date
     Start-Process -FilePath $exe `
         -ArgumentList @('/autologin', $env:SIMPLYSIGN_USER, $otp) | Out-Null
 
@@ -220,7 +264,16 @@ try {
     }
 
     if (-not $found) {
-        Stop-OrWarn "SimplySign session did not produce a code-signing certificate within ${timeoutSec}s."
+        $loginStatus = Get-SimplySignLoginStatus -Since $loginStarted
+        Write-Host "SimplySign redacted authentication status: $loginStatus"
+        $message = switch ($loginStatus) {
+            'authenticated' { 'SimplySign accepted the login, but its virtual card did not expose a code-signing certificate.' }
+            'rejected' { 'SimplySign rejected the account or one-time password.' }
+            'missing-token' { 'SimplySign returned no access token after login.' }
+            'server-configuration' { 'SimplySign reported incomplete server configuration.' }
+            default { "SimplySign did not expose a code-signing certificate within ${timeoutSec}s, and its log did not contain a recognized authentication result." }
+        }
+        Stop-OrWarn $message
         exit 0
     }
 
