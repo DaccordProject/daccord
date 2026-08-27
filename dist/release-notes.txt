@@ -1,4 +1,4 @@
-# Release version: 0.2.16
+# Release version: 0.2.17
 
 • Fixed a first-run issue that could show a blank screen shortly after signing
   in.
