@@ -11,17 +11,19 @@
   session is open the certificate appears in Cert:\CurrentUser\My and signtool
   signs with it exactly as it would with a physical token.
 
-  Certum publishes no API and no command-line login for SimplySign Desktop, so
-  opening that session without a human means driving the GUI. This script:
+  SimplySign Desktop exposes an unattended `/autologin <user> <otp>` mode. It
+  is not documented in Certum's public user guide, but it is the application's
+  own non-interactive login entry point. This script:
 
     1. installs SimplySign Desktop if it isn't already present,
     2. derives the current TOTP from the enrolment secret,
-    3. launches the app and types the credentials into it via SendKeys,
+    3. launches the app in its direct auto-login mode,
     4. polls Cert:\CurrentUser\My until the cloud certificate shows up,
     5. writes its thumbprint to $GITHUB_ENV as WINDOWS_CERT_SHA1.
 
-  Step 3 is the fragile part and there is no supported alternative — see
-  docs/release-signing.md. Treat this as best-effort.
+  The login runs without a visible desktop, so it works in the non-interactive
+  service session used by GitHub-hosted Windows runners. See
+  docs/release-signing.md for the security and maintenance constraints.
 
   By default failures warn and return for local experimentation. Pass -Required
   (the tagged-release workflow does) to terminate when the session cannot be
@@ -199,45 +201,16 @@ try {
     $otp = Get-Totp (ConvertFrom-Base32 (Get-Base32Secret $env:SIMPLYSIGN_TOTP_SECRET))
     Write-Host "Generated a $($otp.Length)-digit TOTP."   # never log the value
 
-    # `/autologin` is SimplySign Desktop's one-shot login-dialog mode. Starting
-    # the executable without it only creates a tray icon, leaving no window for
-    # CI to activate (and previously causing SendKeys to target the runner's
-    # foreground window instead).
-    Start-Process -FilePath $exe -ArgumentList '/autologin' | Out-Null
+    # `/autologin` requires both values as arguments. Passing only the switch
+    # makes the app ignore auto-login and start as a tray process with no login
+    # window, which is why the old GitHub-hosted release job timed out. The OTP
+    # is short-lived and is never printed, but it is briefly visible to local
+    # process-inspection tools on this single-tenant ephemeral runner.
+    $proc = Start-Process -FilePath $exe `
+        -ArgumentList @('/autologin', $env:SIMPLYSIGN_USER, $otp) `
+        -PassThru
 
-    # There is no supported way to script this. AppActivate + SendKeys against
-    # the login dialog is what the community does; it depends on the runner
-    # having an interactive desktop and on Certum not reshuffling the tab order.
-    # If it breaks, strict release mode fails before any artifact is packaged.
-    $shell = New-Object -ComObject WScript.Shell
-
-    $windowDeadline = (Get-Date).AddSeconds(60)
-    $proc = $null
-    while ((Get-Date) -lt $windowDeadline) {
-        $proc = Get-Process -Name 'SimplySign*' -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-        if ($proc) { break }
-        Start-Sleep -Seconds 2
-    }
-    if (-not $proc) {
-        Stop-OrWarn "SimplySign /autologin did not open a login window within 60s."
-        exit 0
-    }
-    $shell.AppActivate($proc.Id) | Out-Null
-    Start-Sleep -Seconds 2
-
-    # SendKeys treats these as control characters, so anything appearing in an
-    # account ID has to be escaped by wrapping it in braces.
-    $user = $env:SIMPLYSIGN_USER -replace '([+^%~(){}])', '{$1}'
-    $shell.SendKeys($user)
-    Start-Sleep -Milliseconds 500
-    $shell.SendKeys('{TAB}')
-    Start-Sleep -Milliseconds 500
-    $shell.SendKeys($otp)
-    Start-Sleep -Milliseconds 500
-    $shell.SendKeys('{ENTER}')
-
-    Write-Host "Credentials submitted; waiting up to ${timeoutSec}s for the virtual card to mount..."
+    Write-Host "Auto-login started; waiting up to ${timeoutSec}s for the virtual card to mount..."
 
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     $found = $null
@@ -245,6 +218,10 @@ try {
         Start-Sleep -Seconds 5
         $found = Get-CodeSigningCerts | Where-Object { $before -notcontains $_.Thumbprint } | Select-Object -First 1
         if ($found) { break }
+        if ($proc.HasExited) {
+            Stop-OrWarn "SimplySign auto-login exited before mounting a code-signing certificate (exit $($proc.ExitCode))."
+            exit 0
+        }
     }
 
     if (-not $found) {

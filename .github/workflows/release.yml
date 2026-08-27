@@ -430,8 +430,9 @@ jobs:
         # below then pick it up automatically. The session stays open for the
         # rest of the job.
         #
-        # It drives a GUI with SendKeys because Certum ship no login CLI. Strict
-        # mode makes a failed session fatal rather than permitting unsigned output.
+        # SimplySign Desktop's direct /autologin mode takes the account and
+        # short-lived TOTP as arguments, so no interactive desktop is required.
+        # Strict mode makes a failed session fatal rather than permitting unsigned output.
         if: matrix.platform == 'windows' && env.SIMPLYSIGN_AVAILABLE == 'true'
         shell: pwsh
         env:

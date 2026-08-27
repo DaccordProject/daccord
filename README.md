@@ -180,6 +180,10 @@ flutter build linux                               # needs libmpv / media_kit dep
 flutter build ios     --release --no-tree-shake-icons --no-codesign
 ```
 
+Before a tagged release, maintainers can run the manual **Windows signing smoke
+test** workflow to validate the Certum cloud certificate and Authenticode trust
+path without publishing an artifact. See [release signing](docs/release-signing.md).
+
 ---
 
 ## ❓ FAQ

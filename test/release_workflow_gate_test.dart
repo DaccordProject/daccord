@@ -144,6 +144,9 @@ void main() {
   test('Windows strict mode requires trusted Authenticode output', () {
     final signer = File('dist/sign-windows.ps1').readAsStringSync();
     final login = File('dist/simplysign-login.ps1').readAsStringSync();
+    final smoke = File(
+      '.github/workflows/windows-signing-smoke.yml',
+    ).readAsStringSync();
 
     expect(signer, contains('[switch]\$Required'));
     expect(signer, contains('signtool verify /pa /all /v'));
@@ -153,8 +156,21 @@ void main() {
     expect(login, contains('Get-Command winget'));
     expect(login, contains('files.certum.eu/software/SimplySignDesktop'));
     expect(login, contains('Get-FileHash -Path \$msi -Algorithm SHA256'));
+    expect(
+      login,
+      contains(
+        "-ArgumentList @('/autologin', \$env:SIMPLYSIGN_USER, \$otp)",
+      ),
+    );
+    expect(login, isNot(contains('WScript.Shell')));
+    expect(login, isNot(contains('SendKeys')));
+    expect(login, isNot(contains('MainWindowHandle')));
     expect(login, contains('Get-AuthenticodeSignature -FilePath \$msi'));
-    expect(login, contains("-ArgumentList '/autologin'"));
+    expect(smoke, contains('workflow_dispatch:'));
+    expect(smoke, contains('runs-on: windows-2022'));
+    expect(smoke, contains('simplysign-login.ps1 -Required'));
+    expect(smoke, contains('sign-windows.ps1 -Required'));
+    expect(smoke, contains('SIMPLYSIGN_TOTP_SECRET'));
   });
 
   test(

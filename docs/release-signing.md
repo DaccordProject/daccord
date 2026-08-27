@@ -211,17 +211,22 @@ Options, cheapest first:
 
 ### Certum SimplySign — how the cloud key is actually reached
 
-Certum publish **no signing API and no login CLI**. The cloud key is reachable
-only through **SimplySign Desktop**, which mounts it as a *virtual smart card*;
+Certum publish **no supported signing API**, and their
+[public signing guide](https://files.certum.eu/documents/manual_en/CS-Code_Signing_in_the_Cloud_Signtool_jarsigner_signing.pdf)
+only describes interactive login. The cloud key is reachable through
+**SimplySign Desktop**, which mounts it as a *virtual smart card*;
 once a session is open the certificate appears in `Cert:\CurrentUser\My` and
 `signtool` signs with it by thumbprint exactly as it would with a physical
 token. So unlike DigiCert/SSL.com there is no `/dlib` to point at — the store
 mode described above is the integration.
 
-The desktop binary does expose a one-shot `/autologin` mode that opens its login
-dialog immediately. The CI helper uses that mode before driving the dialog;
-starting the executable with no argument only creates a tray icon and leaves
-headless automation with no window to activate.
+The desktop binary exposes a one-shot
+`/autologin <account> <current-otp>` mode. Certum's public user guide does not
+document this entry point, but the installed application validates those two
+arguments and sends them directly through the same login path as its dialog.
+Starting it with only `/autologin` does **not** open a login dialog: the switch
+is ignored because its required arguments are absent. That was the cause of the
+failed v0.2.16 Windows release job.
 
 Opening that session unattended is the hard part, and `dist/simplysign-login.ps1`
 does it the only way anyone has documented:
@@ -231,18 +236,28 @@ does it the only way anyone has documented:
    Authenticode signature,
 2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, the
    SHA1/6-digit/30s defaults Certum use),
-3. launches the app and **types the credentials into its GUI via `SendKeys`**,
+3. launches the app as `/autologin <account> <otp>` without a visible desktop,
 4. polls `Cert:\CurrentUser\My` until a new code-signing cert appears,
 5. exports its thumbprint as `WINDOWS_CERT_SHA1`.
 
-Step 3 is exactly as fragile as it sounds. It depends on the runner having an
-interactive desktop and on Certum not rearranging the login dialog's tab order,
-and it will break without warning at some point. Two things make that
-acceptable rather than reckless:
+This works in GitHub-hosted Windows service sessions because it does not use
+`WScript.Shell`, `SendKeys`, window activation, or a GUI tab order. It remains a
+vendor-specific interface that Certum could change, so two release guards are
+still important:
 
 - without `-Required`, the script warns and exits for local experimentation;
 - the tagged workflow passes `-Required`, so a broken login or missing mounted
   certificate fails the Windows leg before packaging.
+
+The current OTP is never printed. It is briefly present in the SimplySign
+process command line, and can therefore be read by process-inspection tools on
+the runner. GitHub-hosted release jobs use a fresh single-tenant ephemeral VM;
+do not use this mode on a shared self-hosted Windows machine.
+
+Before cutting a tag, exercise the real Certum credential path without
+publishing an artifact by manually running the **Windows signing smoke test**
+workflow. It compiles a disposable executable, mounts the cloud certificate,
+signs and timestamps the file, and requires trusted Authenticode verification.
 
 Two caveats worth stating plainly:
 

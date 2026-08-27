@@ -1,0 +1,49 @@
+name: Windows signing smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-simplysign
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    name: Sign and verify a test executable
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build unsigned test executable
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'daccord-signing-smoke.cs'
+          $target = Join-Path $env:RUNNER_TEMP 'daccord-signing-smoke.exe'
+          'public static class Program { public static void Main() {} }' |
+            Set-Content -Path $source -Encoding ascii
+          & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" `
+            /nologo "/out:$target" $source
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $target)) {
+            throw 'Failed to compile the signing smoke-test executable.'
+          }
+          "WINDOWS_SIGNING_SMOKE_TARGET=$target" | Out-File `
+            -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Open SimplySign session
+        shell: pwsh
+        env:
+          SIMPLYSIGN_USER: ${{ secrets.SIMPLYSIGN_USER }}
+          SIMPLYSIGN_TOTP_SECRET: ${{ secrets.SIMPLYSIGN_TOTP_SECRET }}
+        run: ./dist/simplysign-login.ps1 -Required
+
+      - name: Sign and verify test executable
+        shell: pwsh
+        env:
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: ./dist/sign-windows.ps1 -Required $env:WINDOWS_SIGNING_SMOKE_TARGET
+
