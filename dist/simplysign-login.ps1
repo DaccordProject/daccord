@@ -206,9 +206,8 @@ try {
     # window, which is why the old GitHub-hosted release job timed out. The OTP
     # is short-lived and is never printed, but it is briefly visible to local
     # process-inspection tools on this single-tenant ephemeral runner.
-    $proc = Start-Process -FilePath $exe `
-        -ArgumentList @('/autologin', $env:SIMPLYSIGN_USER, $otp) `
-        -PassThru
+    Start-Process -FilePath $exe `
+        -ArgumentList @('/autologin', $env:SIMPLYSIGN_USER, $otp) | Out-Null
 
     Write-Host "Auto-login started; waiting up to ${timeoutSec}s for the virtual card to mount..."
 
@@ -218,10 +217,6 @@ try {
         Start-Sleep -Seconds 5
         $found = Get-CodeSigningCerts | Where-Object { $before -notcontains $_.Thumbprint } | Select-Object -First 1
         if ($found) { break }
-        if ($proc.HasExited) {
-            Stop-OrWarn "SimplySign auto-login exited before mounting a code-signing certificate (exit $($proc.ExitCode))."
-            exit 0
-        }
     }
 
     if (-not $found) {
