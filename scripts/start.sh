@@ -9,16 +9,23 @@
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # Only default to the Linux desktop device when the caller hasn't already
-# picked one, so `-d chrome` (etc.) isn't clobbered by a second `-d linux`.
+# said where to run, so `-d chrome` (etc.) isn't clobbered by a second
+# `-d linux`.
 DEVICE_ARGS=()
-has_device=false
+has_target=false
 for arg in "$@"; do
   case "$arg" in
-    -d | --device-id) has_device=true ;;
+    # `-d chrome`, `-dchrome`, `--device-id chrome`, `--device-id=chrome`.
+    -d | -d?* | --device-id | --device-id=*) has_target=true ;;
+    # Only Android declares product flavors (android/app/build.gradle), and a
+    # flavor is mandatory there — so `--flavor` means "an Android device", and
+    # forcing `-d linux` alongside it would fail on a target that has no
+    # flavors. Leave the device to `flutter run` to pick or prompt for.
+    --flavor | --flavor=*) has_target=true ;;
   esac
 done
 
-if [ "$has_device" = false ]; then
+if [ "$has_target" = false ]; then
   warn_if_linux_deps_missing
   DEVICE_ARGS=(-d linux)
 fi
