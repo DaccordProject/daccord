@@ -166,6 +166,9 @@ void main() {
     expect(login, isNot(contains('SendKeys')));
     expect(login, isNot(contains('MainWindowHandle')));
     expect(login, contains('Get-AuthenticodeSignature -FilePath \$msi'));
+    expect(login, contains('Get-TotpParams'));
+    expect(login, contains('HMACSHA256'));
+    expect(login, contains("'[?&]algorithm=([^&]+)'"));
     expect(smoke, contains('workflow_dispatch:'));
     expect(smoke, contains('runs-on: windows-2022'));
     expect(smoke, contains('simplysign-login.ps1 -Required'));

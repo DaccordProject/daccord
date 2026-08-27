@@ -71,16 +71,28 @@ if (-not [string]::IsNullOrWhiteSpace($env:SIMPLYSIGN_TIMEOUT_SEC)) {
 # --- TOTP ------------------------------------------------------------------
 # The enrolment QR code is a standard otpauth:// URI, so accept either the URI
 # (what you get by revealing the QR in a password manager) or the bare base32
-# secret. Pasting the whole URI is the easier thing to do correctly.
-function Get-Base32Secret([string]$Value) {
+# secret. The URI is strongly preferred: Certum code-signing enrolments use
+# HMAC-SHA256 rather than RFC 6238's SHA1 default, and only the URI preserves
+# that parameter.
+function Get-TotpParams([string]$Value) {
     $v = $Value.Trim()
+    $params = @{ Secret = $v; Algorithm = 'SHA1'; Digits = 6; Period = 30 }
+
     if ($v -match '^otpauth://') {
-        # secret=... is required by the spec; other params (issuer, digits) are
-        # ignored here because Certum uses the SHA1/6-digit/30s defaults.
-        if ($v -match '[?&]secret=([^&]+)') { return $Matches[1] }
-        throw "otpauth:// URI has no secret= parameter"
+        if ($v -notmatch '[?&]secret=([^&]+)') { throw "otpauth:// URI has no secret= parameter" }
+        $params.Secret = [Uri]::UnescapeDataString($Matches[1])
+        if ($v -match '[?&]algorithm=([^&]+)') {
+            $params.Algorithm = [Uri]::UnescapeDataString($Matches[1]).ToUpperInvariant()
+        }
+        if ($v -match '[?&]digits=(\d+)') { $params.Digits = [int]$Matches[1] }
+        if ($v -match '[?&]period=(\d+)') { $params.Period = [int]$Matches[1] }
     }
-    return $v
+
+    if ($params.Digits -lt 6 -or $params.Digits -gt 8) {
+        throw "Unsupported TOTP digit count '$($params.Digits)'"
+    }
+    if ($params.Period -le 0) { throw "TOTP period must be positive" }
+    return $params
 }
 
 function ConvertFrom-Base32([string]$Value) {
@@ -105,12 +117,17 @@ function ConvertFrom-Base32([string]$Value) {
     return $bytes.ToArray()
 }
 
-function Get-Totp([byte[]]$Secret, [int]$Digits = 6, [int]$Period = 30) {
-    # RFC 6238 with the defaults Certum uses (HMAC-SHA1, 6 digits, 30s window).
+function Get-Totp([byte[]]$Secret, [string]$Algorithm = 'SHA1', [int]$Digits = 6, [int]$Period = 30) {
+    # RFC 6238. Certum specifies the PRF in its enrolment URI.
     $counter = [BitConverter]::GetBytes([long][Math]::Floor([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() / $Period))
     if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($counter) }
 
-    $hmac = [System.Security.Cryptography.HMACSHA1]::new($Secret)
+    $hmac = switch ($Algorithm) {
+        'SHA1'   { [System.Security.Cryptography.HMACSHA1]::new($Secret) }
+        'SHA256' { [System.Security.Cryptography.HMACSHA256]::new($Secret) }
+        'SHA512' { [System.Security.Cryptography.HMACSHA512]::new($Secret) }
+        default  { throw "Unsupported TOTP algorithm '$Algorithm'" }
+    }
     try { $hash = $hmac.ComputeHash($counter) } finally { $hmac.Dispose() }
 
     $offset = $hash[$hash.Length - 1] -band 0x0F
@@ -241,8 +258,9 @@ try {
     }
     Write-Host "Using SimplySign Desktop: $exe"
 
-    $otp = Get-Totp (ConvertFrom-Base32 (Get-Base32Secret $env:SIMPLYSIGN_TOTP_SECRET))
-    Write-Host "Generated a $($otp.Length)-digit TOTP."   # never log the value
+    $totp = Get-TotpParams $env:SIMPLYSIGN_TOTP_SECRET
+    $otp = Get-Totp (ConvertFrom-Base32 $totp.Secret) $totp.Algorithm $totp.Digits $totp.Period
+    Write-Host "Generated a $($otp.Length)-digit TOTP (HMAC-$($totp.Algorithm), $($totp.Period)s)."
 
     # `/autologin` requires both values as arguments. Passing only the switch
     # makes the app ignore auto-login and start as a tray process with no login

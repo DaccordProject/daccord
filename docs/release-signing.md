@@ -156,7 +156,7 @@ this order:
 | Secret / variable | What it is |
 |-------------------|------------|
 | `SIMPLYSIGN_USER` (secret) | Certum SimplySign account ID / e-mail |
-| `SIMPLYSIGN_TOTP_SECRET` (secret) | the enrolment `otpauth://` URI, or just its base32 `secret=` value |
+| `SIMPLYSIGN_TOTP_SECRET` (secret) | the full enrolment `otpauth://` URI. A bare base32 secret loses Certum's required algorithm parameter and should not be used. |
 | `WINDOWS_CERT_PFX_BASE64` (secret) | base64 of the code-signing `.pfx`/PKCS#12 |
 | `WINDOWS_CERT_PASSWORD` (secret) | password protecting that `.pfx` (omit if none) |
 | `WINDOWS_TIMESTAMP_URL` (repo **variable**, optional) | RFC-3161 timestamp server; defaults to `http://timestamp.digicert.com`. **Set this to `http://time.certum.pl` when signing with a Certum certificate.** |
@@ -234,8 +234,10 @@ does it the only way anyone has documented:
 1. installs SimplySign Desktop with `winget` when available, otherwise from
    Certum's official 64-bit MSI with a pinned SHA-256 checksum and verified
    Authenticode signature,
-2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET` (RFC 6238, the
-   SHA1/6-digit/30s defaults Certum use),
+2. derives the current TOTP from `SIMPLYSIGN_TOTP_SECRET`, honoring the
+   `algorithm`, `digits`, and `period` in the enrollment URI (Certum's
+   code-signing enrollment uses HMAC-SHA256 rather than RFC 6238's SHA1
+   default),
 3. launches the app as `/autologin <account> <otp>` without a visible desktop,
 4. polls `Cert:\CurrentUser\My` until a new code-signing cert appears,
 5. exports its thumbprint as `WINDOWS_CERT_SHA1`.
