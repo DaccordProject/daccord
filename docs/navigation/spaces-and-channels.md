@@ -52,3 +52,5 @@ When you open a channel, it appears as a **tab** at the top of the message area.
 ## On Small Screens
 
 On narrow windows or mobile devices, the sidebar becomes a **drawer** that slides in from the left. Tap the hamburger menu button to open it, and tap outside to close it.
+
+You can also swipe it open. On touch devices, swipe right from anywhere over the message area — not just from the screen edge — and the channel drawer opens; swipe left the same way to open the member list. Swipes that start on the tab bar still scroll the tabs, and a swipe that starts at the very left edge drags the drawer along with your finger.

@@ -48,6 +48,7 @@ import 'package:bonfire/features/events/controllers/connection.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/color_swatch_chip.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
+import 'package:bonfire/shared/components/drawer_swipe_area.dart';
 import 'package:bonfire/shared/components/horizontal_wheel_scroll.dart';
 import 'package:bonfire/shared/components/server_unreachable.dart';
 import 'package:bonfire/shared/models/server_entity_key.dart';
@@ -729,43 +730,53 @@ class _AccordHomeScreenState extends ConsumerState<AccordHomeScreen> {
               children: [
                 // Inset the mobile chrome below the OS status bar / nav bar.
                 // The pip overlay stays outside so it can use the full screen.
-                SafeArea(
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          OnboardingAnchor(
-                            anchor: OnboardingAnchorId.navMenu,
-                            child: IconButton(
-                              tooltip: 'Channels',
-                              icon: Icon(Icons.menu, color: colors.dirtyWhite),
-                              onPressed: () =>
-                                  _scaffoldKey.currentState?.openDrawer(),
-                            ),
-                          ),
-                          Expanded(child: _TabStrip(onSelect: _selectTab)),
-                          if (hasMembers)
-                            IconButton(
-                              tooltip: 'Members',
-                              icon: Icon(
-                                Icons.people_alt_outlined,
-                                color: colors.dirtyWhite,
+                //
+                // [DrawerSwipeArea] extends swipe-to-open past the edge strip
+                // `drawerEdgeDragWidth` covers, without stealing horizontal
+                // drags from the tab strip or the voice rails (#125).
+                DrawerSwipeArea(
+                  scaffoldKey: _scaffoldKey,
+                  child: SafeArea(
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            OnboardingAnchor(
+                              anchor: OnboardingAnchorId.navMenu,
+                              child: IconButton(
+                                tooltip: 'Channels',
+                                icon: Icon(
+                                  Icons.menu,
+                                  color: colors.dirtyWhite,
+                                ),
+                                onPressed: () =>
+                                    _scaffoldKey.currentState?.openDrawer(),
                               ),
-                              onPressed: () =>
-                                  _scaffoldKey.currentState?.openEndDrawer(),
                             ),
-                        ],
-                      ),
-                      Expanded(
-                        child: MessagePane(
-                          channel: channels?.firstWhereOrNull(
-                            (c) => c.id == shownChannelId,
-                          ),
-                          channelId: shownChannelId,
-                          spaceId: effectiveSpaceId,
+                            Expanded(child: _TabStrip(onSelect: _selectTab)),
+                            if (hasMembers)
+                              IconButton(
+                                tooltip: 'Members',
+                                icon: Icon(
+                                  Icons.people_alt_outlined,
+                                  color: colors.dirtyWhite,
+                                ),
+                                onPressed: () =>
+                                    _scaffoldKey.currentState?.openEndDrawer(),
+                              ),
+                          ],
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: MessagePane(
+                            channel: channels?.firstWhereOrNull(
+                              (c) => c.id == shownChannelId,
+                            ),
+                            channelId: shownChannelId,
+                            spaceId: effectiveSpaceId,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 pip,
