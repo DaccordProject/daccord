@@ -234,6 +234,38 @@ Then swap the `mac :appstore` lane's `upload_to_app_store` call back to
 "fastlane/metadata/mac", pkg: pkg)`, and restore the "Generate What's New" step
 in the `mac-appstore` job, and macOS releases the same way iOS does.
 
+## Guideline 1.2: user-generated content
+
+iOS 0.2.16 (build 160, reviewed 2026-08-30) was rejected under App Store
+guideline *1.2 Safety: User-Generated Content*, which requires an app carrying
+user content to present an EULA before a user registers **or** signs in, to let
+users flag objectionable content, and to let them block abusive accounts.
+
+Two of those had gaps, both since fixed:
+
+- **The EULA never appeared.** The terms gate read `tos_enabled` from the
+  server's `GET /settings`, which accordserver serves only to authenticated
+  users — signed out it 401s, so the gate always resolved to "disabled", and it
+  was wired into the Register tab alone. The app now carries terms of its own
+  (`lib/features/authentication/models/app_terms.dart`) behind an unconditional
+  gate ahead of the whole signed-out flow. A server's own ToS still shows
+  alongside it when the server advertises one.
+- **Reporting only existed on space messages.** The action was gated on a
+  non-null space, and a DM pane passes none. Report now sits on every message
+  and on user profiles and DM user menus, filing to the space's moderators
+  where there is a space and to the account-level `/reports` route where there
+  isn't.
+
+Blocking was already in place (member popout, DM relationship actions).
+
+Do not re-gate the terms on a server response: nothing a signed-out client can
+read is guaranteed to be there, and the gate has to hold before any server is
+chosen at all.
+
+Apple also asks for a screen recording of all three precautions, attached under
+**App Review Information → Notes** in App Store Connect, and it is reused by
+later submissions.
+
 ## Guideline 2.5.1: no libmpv in the iOS build
 
 iOS 0.2.6 (build 141, submitted 2026-07-09) was **rejected** under App Store

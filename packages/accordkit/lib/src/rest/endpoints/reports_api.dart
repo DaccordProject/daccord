@@ -20,6 +20,28 @@ class ReportsApi extends EndpointBase {
         .then((r) => r.deserialize(AccordReport.fromJson));
   }
 
+  /// Creates a report that isn't scoped to a space — a direct message, or a
+  /// user reported from outside any space — by posting to the account-level
+  /// `/reports` collection. [data] takes the same shape as [create].
+  ///
+  /// Not every server implements this route: an instance that predates it
+  /// answers `404`/`405`, which callers should treat as "this server takes
+  /// space reports only" rather than as a failed report. [reportRouteMissing]
+  /// recognises those statuses.
+  Future<RestResult> createDirect(Map<String, dynamic> data) {
+    return rest
+        .makeRequest('POST', '/reports', body: data)
+        .then((r) => r.deserialize(AccordReport.fromJson));
+  }
+
+  /// Whether [result] failed because the server has no such report route,
+  /// rather than because the report itself was rejected.
+  static bool reportRouteMissing(RestResult result) =>
+      !result.ok &&
+      (result.statusCode == 404 ||
+          result.statusCode == 405 ||
+          result.statusCode == 501);
+
   /// Lists reports. Supports `status`/`limit`/`before`.
   Future<RestResult> list(String spaceId,
       {Map<String, dynamic> query = const {}}) {

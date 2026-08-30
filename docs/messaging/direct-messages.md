@@ -45,4 +45,13 @@ Sending messages in a DM uses the same timeline and composer as a channel. Markd
 
 ## User menus
 
-Right-click or long-press a DM recipient, message author, friend, or group member to open their user menu. From there you can view their account profile, start a separate DM, manage the friendship or block state, and copy their user ID or username. Group owners can also remove participants from the group-member menu.
+Right-click or long-press a DM recipient, message author, friend, or group member to open their user menu. From there you can view their account profile, start a separate DM, manage the friendship or block state, report the account, and copy their user ID or username. Group owners can also remove participants from the group-member menu.
+
+## Reporting and blocking
+
+Individual messages in a DM can be reported the same way as anywhere else --
+open the message's actions menu and choose **Report**. Reporting hides the
+message from your view and offers to block the sender, which is pre-selected
+here: a DM has no space moderators, so blocking is what stops the contact. See
+[Moderation](../administration/moderation.md) for what happens to a report after you
+file it.

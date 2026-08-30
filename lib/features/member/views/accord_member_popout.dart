@@ -13,6 +13,7 @@ import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
+import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -116,6 +117,19 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
       onSuccess: () => ref
           .read(accordMembersControllerProvider(ref.readActiveServerKey() ?? '', widget.spaceId).notifier)
           .removeMember(widget.userId),
+    );
+  }
+
+  /// Reports this user to the space's moderators, with the option to block
+  /// them at the same time (App Review 1.2 — see #290).
+  void _report() {
+    showReportDialog(
+      context,
+      spaceId: widget.spaceId,
+      targetType: 'user',
+      targetId: widget.userId,
+      reportedUserId: widget.userId,
+      reportedName: _displayName,
     );
   }
 
@@ -466,6 +480,15 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
                     ),
                     icon: const Icon(Icons.chat_bubble_outline, size: 18),
                     label: const Text('Direct Message'),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _busy ? null : _report,
+                    style: TextButton.styleFrom(foregroundColor: colors.red),
+                    icon: const Icon(Icons.flag_outlined, size: 18),
+                    label: const Text('Report user'),
                   ),
                 ),
                 Align(

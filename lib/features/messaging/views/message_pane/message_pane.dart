@@ -19,6 +19,7 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/accord_member_popout.dart';
 import 'package:bonfire/features/messaging/controllers/accord_emojis.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/controllers/hidden_messages.dart';
 import 'package:bonfire/features/messaging/controllers/typing.dart';
 import 'package:bonfire/features/messaging/utils/attachment_limits.dart';
 import 'package:bonfire/features/messaging/utils/attachment_types.dart';
@@ -293,12 +294,18 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
       );
     }
 
-    final messages = ref.watch(
+    final loadedMessages = ref.watch(
       accordMessagesControllerProvider(
         ref.readActiveServerKey() ?? '',
         channelId,
       ),
     );
+    // Messages the user reported are dropped from their own view for good —
+    // moderation elsewhere is neither instant nor guaranteed (#290).
+    final hidden = ref.watch(hiddenMessagesControllerProvider);
+    final messages = loadedMessages == null || hidden.isEmpty
+        ? loadedMessages
+        : loadedMessages.where((m) => !hidden.contains(m.id)).toList();
     final members = spaceId == null
         ? null
         : ref.watch(
