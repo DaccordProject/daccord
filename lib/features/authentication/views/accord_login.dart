@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
 import 'package:bonfire/features/authentication/utils/credential_validation.dart';
+import 'package:bonfire/features/authentication/utils/terms_acceptance.dart';
 import 'package:bonfire/features/authentication/utils/tos_gate.dart';
 import 'package:bonfire/features/authentication/views/auth_form.dart';
 import 'package:bonfire/features/authentication/views/password_reset_form.dart';
+import 'package:bonfire/features/authentication/views/terms_gate.dart';
 import 'package:bonfire/features/authentication/views/welcome_view.dart';
 import 'package:bonfire/features/profiles/services/profile_store.dart';
 import 'package:bonfire/features/server/models/accord_server.dart';
@@ -78,6 +82,12 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   /// Whether any saved accounts exist, gating the "switch account" link.
   bool _hasAccounts = false;
 
+  /// Whether the app's own terms have been accepted on this device. Until they
+  /// are, the gate replaces the whole signed-out flow — App Review 1.2 wants
+  /// the EULA before registering *or* signing in, so it can't live inside the
+  /// register tab (#289).
+  bool _termsAccepted = true;
+
   // Terms-of-Service config, fetched per server when the Register tab is shown.
   bool _tosEnabled = false;
   bool _tosAccepted = false;
@@ -92,6 +102,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   @override
   void initState() {
     super.initState();
+    _termsAccepted = hasAcceptedAppTerms();
     final lastServer = ProfileStore.sessionBox.get('last-server');
     if (lastServer is String) _serverController.text = lastServer;
 
@@ -167,6 +178,14 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
   }
 
   Future<void> _openTos() => openTos(context, url: _tosUrl, text: _tosText);
+
+  /// Accepts the app's terms: the gate lifts immediately and the record is
+  /// written behind it. A failed write only means the gate shows again next
+  /// launch, which is the right way for this to fail.
+  void _acceptAppTerms() {
+    setState(() => _termsAccepted = true);
+    unawaited(recordAppTermsAcceptance());
+  }
 
   /// Discovery (the embedded browser while signed out) needs auth against
   /// `serverUrl` before joining `spaceId`: switch to the credentials form,
@@ -310,6 +329,16 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
       );
     }
 
+    // Nothing in the signed-out flow — not the welcome screen, not the server
+    // browser, and above all not the credentials form — is reachable before the
+    // terms are accepted.
+    if (!_termsAccepted) {
+      return _centered(
+        TermsGateView(onAccept: _acceptAppTerms),
+        maxWidth: 560,
+      );
+    }
+
     // Signed out: walk welcome → browse → credentials. Intercept system back to
     // step through the sub-flow rather than leaving the screen, except at the
     // flow's entry view.
@@ -347,6 +376,7 @@ class _AccordLoginScreenState extends ConsumerState<AccordLoginScreen> {
           onGeneratePassword: _generatePassword,
           onTosChanged: (v) => setState(() => _tosAccepted = v),
           onTosLinkTap: _openTos,
+          onAppTermsTap: () => showAppTermsDialog(context),
           onDiscover: () => setState(() => _view = _LoggedOutView.browse),
           onSubmit: _submit,
           error:
@@ -440,6 +470,7 @@ class _AuthForm extends StatelessWidget {
     required this.onGeneratePassword,
     required this.onTosChanged,
     required this.onTosLinkTap,
+    required this.onAppTermsTap,
     required this.onDiscover,
     required this.onSubmit,
     this.onBack,
@@ -460,6 +491,9 @@ class _AuthForm extends StatelessWidget {
   final VoidCallback onGeneratePassword;
   final ValueChanged<bool> onTosChanged;
   final VoidCallback onTosLinkTap;
+
+  /// Opens the app's own terms, linked under the submit button in both modes.
+  final VoidCallback onAppTermsTap;
   final VoidCallback onDiscover;
   final VoidCallback onSubmit;
   final String? error;
@@ -525,6 +559,8 @@ class _AuthForm extends StatelessWidget {
           label: isRegister ? 'Register' : 'Log In',
           onPressed: onSubmit,
         ),
+        const SizedBox(height: 12),
+        AppTermsNotice(onTap: onAppTermsTap),
         const SizedBox(height: 20),
         Row(
           children: [

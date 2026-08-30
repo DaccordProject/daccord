@@ -9,6 +9,21 @@ section: getting-started
 
 When you connect to a server for the first time, you'll need to sign in or create a new account.
 
+## Terms of Use
+
+Before the first sign-in or registration on a device, daccord shows its **Terms
+of Use & Community Guidelines** and asks you to agree. They cover what may not
+be posted (there is no tolerance for objectionable content or abusive
+behaviour), and how to report and block. Nothing in the signed-out flow --
+including the server browser -- opens until you accept.
+
+You only see the gate again if the terms change. The full text stays available
+from **Settings → About** at any time, and from the link under the sign-in
+button.
+
+A server may *also* have Terms of Service of its own. When it does, registering
+on that server shows them as a separate checkbox alongside the app's terms.
+
 ## Signing In
 
 If you already have an account on the server:

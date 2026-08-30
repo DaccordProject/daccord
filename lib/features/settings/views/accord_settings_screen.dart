@@ -17,6 +17,8 @@ import 'package:bonfire/features/updates/views/updates_page.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/user/views/accord_account_settings.dart';
 import 'package:bonfire/features/user/views/accord_profile_edit.dart';
+import 'package:bonfire/features/authentication/models/app_terms.dart';
+import 'package:bonfire/features/authentication/views/terms_gate.dart';
 import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/features/voice/views/voice_settings_screen.dart';
@@ -758,6 +760,15 @@ class _AboutSection extends StatelessWidget {
             'A native multi-platform Daccord client (GPLv3).',
           ),
           trailing: Text('v$kAppVersion'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.gavel_outlined),
+          title: const Text(appTermsTitle),
+          subtitle: const Text(
+            'The terms you accepted, including what is not allowed and how to '
+            'report it.',
+          ),
+          onTap: () => showAppTermsDialog(context),
         ),
       ],
     );
