@@ -409,6 +409,70 @@ void main() {
       expect(log.last.method, 'PATCH');
       expect(log.last.jsonBody!['action_taken'], 'none');
     });
+
+    test('createDirect posts to the account-level route', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData({
+          'id': '11',
+          'target_type': 'message',
+          'target_id': '20',
+        }),
+      );
+
+      final result = await ReportsApi(rest).createDirect({
+        'target_type': 'message',
+        'target_id': '20',
+        'category': 'spam',
+      });
+
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/v1/reports');
+      expect(req.jsonBody, {
+        'target_type': 'message',
+        'target_id': '20',
+        'category': 'spam',
+      });
+      expect(result.data, isA<AccordReport>());
+    });
+
+    test('reportRouteMissing recognises 404/405/501 failures only', () async {
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonError('NOT_FOUND', 'no such route', status: 404),
+      );
+      final notFound = await ReportsApi(rest).createDirect({});
+      expect(ReportsApi.reportRouteMissing(notFound), isTrue);
+
+      rest = mockRest(
+        log: log,
+        responder: (_) =>
+            jsonError('METHOD_NOT_ALLOWED', 'nope', status: 405),
+      );
+      final methodNotAllowed = await ReportsApi(rest).createDirect({});
+      expect(ReportsApi.reportRouteMissing(methodNotAllowed), isTrue);
+
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonError('NOT_IMPLEMENTED', 'nope', status: 501),
+      );
+      final notImplemented = await ReportsApi(rest).createDirect({});
+      expect(ReportsApi.reportRouteMissing(notImplemented), isTrue);
+
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonError('BAD_REQUEST', 'invalid', status: 400),
+      );
+      final badRequest = await ReportsApi(rest).createDirect({});
+      expect(ReportsApi.reportRouteMissing(badRequest), isFalse);
+
+      rest = mockRest(
+        log: log,
+        responder: (_) => jsonData({'id': '12'}),
+      );
+      final ok = await ReportsApi(rest).createDirect({});
+      expect(ReportsApi.reportRouteMissing(ok), isFalse);
+    });
   });
 
   group('FederationApi', () {
