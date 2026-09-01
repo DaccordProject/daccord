@@ -21,6 +21,7 @@ import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
 import 'package:bonfire/features/voice/views/voice_pip_overlay.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
+import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -244,6 +245,18 @@ Future<void> showAccordDmUserContextMenu(
         },
         destructive: rel?.type == _Rel.friend,
         onSelected: () => _changeDmRelationship(context, ref, user, rel?.type),
+      ),
+      AccordMenuEntry(
+        label: 'Report user',
+        icon: Icons.flag_outlined,
+        destructive: true,
+        onSelected: () => showReportDialog(
+          context,
+          targetType: 'user',
+          targetId: user.id,
+          reportedUserId: user.id,
+          reportedName: _userName(user),
+        ),
       ),
       if (rel?.type != _Rel.blocked)
         AccordMenuEntry(

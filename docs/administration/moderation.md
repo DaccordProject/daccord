@@ -30,6 +30,34 @@ These actions require the appropriate permissions for your role.
 
 You can unban multiple users at once using bulk selection.
 
+## Reports
+
+Anyone can report a message or an account, and reports are what moderators
+act on.
+
+**Filing a report.** Open a message's actions menu (long-press on touch,
+right-click or the "..." button on desktop) and choose **Report**, or use
+**Report user** on a profile popout or in a direct message's user menu. Pick a
+reason, add optional detail, and submit. Reporting is available everywhere
+messages are -- inside a space and in direct messages alike.
+
+A reported message is hidden from the reporter's own view straight away, on that
+device, whatever the moderators later decide. The report dialog also offers to
+**block** the account; outside a space that option is pre-selected, because a
+direct message has no moderators and blocking is what actually stops the
+contact.
+
+**Where a report goes.** A report filed inside a space goes to that space's
+moderators. A report filed outside a space goes to the server operator, on
+servers that accept account-level reports; where a server does not, the dialog
+says so rather than implying someone will review it, and the block and the local
+hide still apply.
+
+**Reviewing reports.** With the `ban_members` permission, open the reports panel
+to see what has been filed. Each report can be dismissed, resolved, or actioned
+by deleting the reported message, kicking, or banning the account -- resolving a
+report from that panel performs the action and closes it in one step.
+
 ## Deleting Messages
 
 Admins and moderators can delete any message in channels they have permission to moderate. Right-click the message and select **Delete**.

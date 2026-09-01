@@ -10,18 +10,29 @@ import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/responsive_dialog.dart';
 import 'package:bonfire/features/authentication/models/accord_auth_state.dart';
 import 'package:bonfire/features/authentication/repositories/accord_auth.dart';
+import 'package:bonfire/features/messaging/controllers/hidden_messages.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Opens a dialog to report [targetType]/[targetId] (e.g. a message or member)
-/// to the space's moderators.
+/// Opens a dialog to report [targetType]/[targetId] — a message or a user.
+///
+/// [spaceId] is the space whose moderators receive the report. It is null for
+/// anything outside a space (a direct message, or a user reported from an
+/// account-level surface); that report goes to the server's account-level
+/// `/reports` route where one exists, and either way the reporter can block the
+/// account and stops seeing the content they flagged. See #290.
+///
+/// [reportedUserId] enables the "block" option and, for a message, names the
+/// account behind it; [reportedName] is only used to label that option.
 Future<void> showReportDialog(
   BuildContext context, {
-  required String spaceId,
+  String? spaceId,
   required String targetType,
   required String targetId,
   String? channelId,
+  String? reportedUserId,
+  String? reportedName,
 }) {
   return showDialog<void>(
     context: context,
@@ -30,6 +41,8 @@ Future<void> showReportDialog(
       targetType: targetType,
       targetId: targetId,
       channelId: channelId,
+      reportedUserId: reportedUserId,
+      reportedName: reportedName,
     ),
   );
 }
@@ -40,12 +53,16 @@ class _ReportDialog extends ConsumerStatefulWidget {
     required this.targetType,
     required this.targetId,
     this.channelId,
+    this.reportedUserId,
+    this.reportedName,
   });
 
-  final String spaceId;
+  final String? spaceId;
   final String targetType;
   final String targetId;
   final String? channelId;
+  final String? reportedUserId;
+  final String? reportedName;
 
   @override
   ConsumerState<_ReportDialog> createState() => _ReportDialogState();
@@ -64,6 +81,17 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   bool _busy = false;
   String? _error;
   bool _done = false;
+
+  /// Whether to block the reported account as part of submitting. Defaulted on
+  /// outside a space: there are no moderators to act on a direct message, so
+  /// blocking is what actually stops the abuse.
+  late bool _block = widget.spaceId == null;
+
+  /// Whether the server accepted the report (false when it only takes
+  /// space-scoped reports), and whether the block went through — the two
+  /// together decide what the confirmation claims happened.
+  bool _delivered = false;
+  bool _blocked = false;
 
   @override
   void initState() {
@@ -125,23 +153,100 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
       _busy = true;
       _error = null;
     });
-    final result = await client.reports.create(widget.spaceId, {
+
+    final payload = <String, dynamic>{
       'target_type': widget.targetType,
       'target_id': widget.targetId,
       'category': category,
       if (widget.channelId != null) 'channel_id': widget.channelId,
+      if (widget.reportedUserId != null)
+        'reported_user_id': widget.reportedUserId,
       if (_description.text.trim().isNotEmpty)
         'description': _description.text.trim(),
-    });
+    };
+
+    final spaceId = widget.spaceId;
+    var delivered = false;
+    if (spaceId != null) {
+      final result = await client.reports.create(spaceId, payload);
+      if (!mounted) return;
+      if (!result.ok) {
+        setState(() {
+          _busy = false;
+          _error = result.errorOr('Failed to submit report');
+        });
+        return;
+      }
+      delivered = true;
+    } else {
+      final result = await client.reports.createDirect(payload);
+      if (!mounted) return;
+      // A server without the account-level route isn't a failed report: the
+      // block and the local hide below are still the outcome the user asked
+      // for. Any other error is a real failure and stops here.
+      if (!result.ok && !ReportsApi.reportRouteMissing(result)) {
+        setState(() {
+          _busy = false;
+          _error = result.errorOr('Failed to submit report');
+        });
+        return;
+      }
+      delivered = result.ok;
+    }
+
+    // Hidden before the block is attempted: the user reported this content, so
+    // it goes out of their view whether or not the block that follows works.
+    if (widget.targetType == 'message') {
+      await ref
+          .read(hiddenMessagesControllerProvider.notifier)
+          .hide(widget.targetId);
+    }
+
+    var blocked = false;
+    final reportedUserId = widget.reportedUserId;
+    if (_block && reportedUserId != null) {
+      final result = await client.users.putRelationship(reportedUserId, {
+        'type': 2,
+      });
+      if (!mounted) return;
+      blocked = result.ok;
+      if (!result.ok) {
+        setState(() {
+          _busy = false;
+          _error = result.errorOr('Reported, but blocking the account failed');
+        });
+        return;
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _busy = false;
-      if (result.ok) {
-        _done = true;
-      } else {
-        _error = result.errorOr('Failed to submit report');
-      }
+      _delivered = delivered;
+      _blocked = blocked;
+      _done = true;
     });
+  }
+
+  /// Everything the submission actually did. Empty when it did nothing, which
+  /// the confirmation says outright rather than implying a report was filed.
+  List<String> get _outcomes => [
+    if (_delivered) 'Moderators will review it shortly.',
+    if (widget.targetType == 'message') 'The message is now hidden for you.',
+    if (_blocked) 'The account is blocked and can no longer message you.',
+  ];
+
+  String get _outcomeTitle {
+    if (_delivered) return 'Report submitted';
+    if (_outcomes.isNotEmpty) return 'Done';
+    return 'Report not sent';
+  }
+
+  String get _outcomeBody {
+    final outcomes = _outcomes;
+    if (outcomes.isNotEmpty) return outcomes.join(' ');
+    return 'This server only accepts reports inside a space, so nothing was '
+        'sent. You can still block the account to stop it contacting you.';
   }
 
   @override
@@ -157,15 +262,19 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
               ? Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.check_circle, color: colors.green, size: 40),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Report submitted',
-                      style: theme.textTheme.titleMedium,
+                    Icon(
+                      _outcomes.isEmpty
+                          ? Icons.info_outline
+                          : Icons.check_circle,
+                      color: _outcomes.isEmpty ? colors.gray : colors.green,
+                      size: 40,
                     ),
+                    const SizedBox(height: 12),
+                    Text(_outcomeTitle, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 8),
                     Text(
-                      'Moderators will review it shortly.',
+                      _outcomeBody,
+                      textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall!.copyWith(
                         color: colors.gray,
                       ),
@@ -185,8 +294,20 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Report ${widget.targetType}',
+                      widget.targetType == 'user'
+                          ? 'Report ${widget.reportedName ?? 'user'}'
+                          : 'Report message',
                       style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.spaceId != null
+                          ? 'Reports go to this space\'s moderators.'
+                          : 'Reports outside a space go to the server '
+                                'operator. Blocking takes effect immediately.',
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: colors.gray,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
@@ -221,6 +342,29 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                         border: OutlineInputBorder(),
                       ),
                     ),
+                    if (widget.reportedUserId != null) ...[
+                      const SizedBox(height: 4),
+                      CheckboxListTile(
+                        value: _block,
+                        onChanged: _busy
+                            ? null
+                            : (v) => setState(() => _block = v ?? false),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(
+                          'Also block ${widget.reportedName ?? 'this account'}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        subtitle: Text(
+                          'They can no longer message you, and their content '
+                          'is hidden.',
+                          style: theme.textTheme.bodySmall!.copyWith(
+                            color: colors.gray,
+                          ),
+                        ),
+                      ),
+                    ],
                     if (_error != null) ...[
                       const SizedBox(height: 12),
                       InlineError(_error!, centered: false),

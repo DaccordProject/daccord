@@ -370,12 +370,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
             canEdit: widget.isOwn,
             canDelete: widget.isOwn || widget.canManageMessages,
             canPin: widget.canManageMessages,
-            canReport: !widget.isOwn && widget.spaceId != null,
+            canReport: !widget.isOwn,
             pinned: message.pinned,
             onEdit: () => _startEdit(message),
             onDelete: () => _delete(message.id),
             onTogglePin: () => _togglePin(message.id, pinned: message.pinned),
-            onReport: () => _report(message.id),
+            onReport: () => _report(message),
             onMenuStateChanged: _menuStateChanged,
           );
     return MouseRegion(
@@ -522,15 +522,18 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     onUserContextMenu: widget.onUserContextMenu,
   );
 
-  void _report(String messageId) {
-    final spaceId = widget.spaceId;
-    if (spaceId == null) return;
+  /// Reports [message]. Available in DMs too, where [_MessageRow.spaceId] is
+  /// null: the dialog then files an account-level report and offers to block
+  /// the author, rather than the action disappearing (#290).
+  void _report(AccordMessage message) {
     showReportDialog(
       context,
-      spaceId: spaceId,
+      spaceId: widget.spaceId,
       targetType: 'message',
-      targetId: messageId,
+      targetId: message.id,
       channelId: widget.channelId,
+      reportedUserId: message.authorId.isEmpty ? null : message.authorId,
+      reportedName: _authorName,
     );
   }
 
@@ -544,7 +547,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
   void _showActionsMenu(AccordMessage message, [Offset? position]) {
     if (_editing) return;
     final canDelete = widget.isOwn || widget.canManageMessages;
-    final canReport = !widget.isOwn && widget.spaceId != null;
+    final canReport = !widget.isOwn;
     final entries = <AccordMenuEntry>[
       AccordMenuEntry(
         label: 'Add reaction',
@@ -582,7 +585,7 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         AccordMenuEntry(
           label: 'Report',
           icon: Icons.flag_outlined,
-          onSelected: () => _report(message.id),
+          onSelected: () => _report(message),
         ),
       if (widget.onLongPressSelect != null) ...[
         const AccordMenuEntry.divider(),
