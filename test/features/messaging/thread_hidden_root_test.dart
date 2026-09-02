@@ -188,6 +188,6 @@ void main() {
     await _tick(tester);
 
     expect(harness.closeCalled, isFalse);
-    expect(find.text('root content'), findsOneWidget);
+    expect(find.text('root content', findRichText: true), findsOneWidget);
   });
 }
