@@ -164,7 +164,9 @@ for review with automatic release on approval, and ships the Android build to
 `production`. What remains there is **per-app, set once**, and every later
 release reuses it:
 
-- **iOS:** screenshots, the App Privacy questionnaire, and the age rating, in
+- **iOS:** screenshots (generated from `store-media/ios-generator/` — see
+  [guideline 2.3.10](#guideline-2310-what-the-ios-screenshots-may-show) before
+  regenerating them), the App Privacy questionnaire, and the age rating, in
   App Store Connect. A brand-new app also needs its first release created by
   hand before API submissions work.
 - **Google Play:** the store listing, content rating and Data safety
@@ -273,6 +275,86 @@ chosen at all.
 Apple also asks for a screen recording of all three precautions, attached under
 **App Review Information → Notes** in App Store Connect, and it is reused by
 later submissions.
+
+## Guideline 2.3.10: what the iOS screenshots may show
+
+iOS 0.2.16 (build 160, reviewed 2026-08-30 on an iPad Air 11-inch) was rejected
+under *2.3.10 Performance: Accurate Metadata* for two things in the App Store
+screenshots — both generated from `store-media/ios-generator/`:
+
+- **A platform badge row.** Scene 6 of `template.html` rendered `iOS` /
+  `Android` / `Desktop` / `Web` pills. Apple reads any non-iOS platform as
+  "information about third-party platforms".
+- **A painted status bar.** Every capture in `store-media/ios-generator/inner/`
+  had a 9:41 + signal/Wi-Fi/battery bar drawn into it that is not iOS's.
+
+Four rules for anything that regenerates these:
+
+1. **No other platform, anywhere in the copy.** Not a badge, not a pill, not a
+   subhead — no "Android", "Windows", "Linux", "desktop", "web", "all your
+   devices", and no third-party product names either. Describe the iOS app only.
+2. **No status bar at all.** The inner captures are cropped so the app content
+   starts at its own app bar (740x1462, and 740x1350 for `t-06`); `--screen-ar`
+   in `template.html` matches that, so the frame never stretches them. If a
+   capture is ever replaced, crop the status bar off rather than redrawing an
+   iOS-looking one, and re-point `--screen-ar` at the new size.
+3. **iPad gets its own frame aspect.** `body[data-device="ipad"]` uses an iPad
+   portrait `--screen-ar` (1640/2360), not the phone's, so the 2048x2732 renders
+   do not read as an iPhone mockup on an iPad product page. Scenes may set
+   `focus` to choose which end of the taller phone capture that wider frame
+   keeps.
+4. **Nothing may be half-visible.** No frame edge may saw through text or an
+   icon — that reads as unfinished, which is what [guideline
+   2.2](https://github.com/DaccordProject/daccord/issues/292) rejects for. Every
+   crop edge has to land in flat pixels. `t-06` is cropped to 1350 rather than
+   its full height for exactly this reason: its "Private / Encrypted / Open"
+   row was truncated in the source asset, so the row could never be shown
+   whole and is excluded instead. After a regeneration, check both the top and
+   the bottom edge of all twelve, including the two iPad scenes anchored
+   `center bottom`.
+
+Regenerate with `CHROME=<chromium> store-media/ios-generator/render.sh`, then
+copy `store-media/ios-generator/out/` over `store-media/ios-iphone-6.5/` and
+`store-media/ios-ipad-13/` — `out/` itself is scratch and is not committed. The
+sizes are fixed at iPhone 6.5" 1284x2778 and iPad 13" 2048x2732.
+
+Still outstanding: the inner captures are illustrative compositions of the app's
+**phone** layout, and `resolveHomeLayout` puts a real iPad in the wide layout
+(rail + channel list + message column + member roster), which they do not show.
+It shows: `ipad-02` ends with ~14% of the tablet screen empty below the `AFK`
+row, because a phone-width channel list is all that capture has to fill a
+tablet-width frame with. Real wide-layout captures put a message column and a
+member roster in that space, so they fix it structurally — do not fill it with
+decoration in the meantime. The per-device `--screen-ar`, `--dev-w` and radius
+variables exist so a new capture set can be dropped in by editing them alone.
+
+**The blocker is content, not the layout.** The app was built for web off
+`fix/292-ipad-layout` and driven headless at 1180x820 against
+`chat.daccord.gg`: the wide layout renders correctly and would make a good
+tablet screenshot. What is on the public instance cannot be shipped. `#general`
+— the channel a store shot would use — currently reads *"just trying to get
+daccord on the ios store"*, *"verity die"*, and a leftover *"Hello from the
+Daccord Flutter client — App Review walkthrough."*; the roster header says
+`OFFLINE — 100` over names like `123`, `34343434`, `aa` and
+`aidsonaburgerbun`; and the default landing channel `#rules` renders the
+server's own rule 10, *"Discord's-not-the-point rules still apply"* — the exact
+third-party platform reference 2.3.10 rejected us for, in 40px type. Capturing
+that would trade one accurate-metadata problem for a worse one.
+
+Real captures therefore need a **purpose-seeded space**, not the public
+instance: 5-7 spaces so the rail reads as multi-server; categorised channels
+with one unread badge and one populated voice channel; 6-8 written `#general`
+messages from named accounts with avatars, covering a reply, an image, reactions
+and a mention; ~15 named members mostly **online**, grouped Owner / Moderators /
+Members, with one profile card open; ownership of the space so Roles and
+permissions are reachable; and, for the voice scene, 2-3 clients genuinely
+connected with one sharing a screen — that last one cannot be produced from a
+single headless browser. Note also that a fresh account is auto-joined to the
+public space, so it has to be left before capture, and that the landing channel
+must not be one whose content names another platform.
+
+Screenshots are metadata, so a new upload in App Store Connect (Previews and
+Screenshots → View All Sizes in Media Manager) needs no new build.
 
 ## Guideline 2.5.1: no libmpv in the iOS build
 
