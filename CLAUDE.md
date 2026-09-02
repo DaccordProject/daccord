@@ -57,6 +57,11 @@ packages/
   accordkit/       # Accord protocol SDK (REST + gateway + models) — networking layer, maintained here
   livekit_client/  # local fork of livekit_client 2.8.0 (#68 native-release fix) — voice transport
   markdown_viewer/ # custom markdown rendering — protocol-agnostic, KEEP
+tool/
+  store_capture/   # on-demand App Store screenshot harness: a web entry point that
+                   #   boots the real app against an offline fixture, plus the
+                   #   headless-Chromium driver. Not part of `flutter test`; see
+                   #   docs/app-store-deploy.md ("Guideline 2.3.10").
 docs/              # product + technical specs (see below)
 android/ ios/ web/ windows/ linux/ macos/   # all platform targets present
 ```
