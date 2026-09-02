@@ -317,10 +317,12 @@ at each one.
 
 **1 — Terms before registering or signing in.** Launch the freshly installed
 app. Before any server is chosen, the gate shows the app icon, the heading
-**"Terms of Use & Community Guidelines"**, the scrollable terms body, an
-**"Agree and continue"** button, and beneath it *"You must accept these terms to
-create an account or sign in."* Scroll the body far enough to show the
-zero-tolerance and abusive-user clauses. Tap **Agree and continue**.
+**"Terms of Use & Community Guidelines"**, the one-line summary under it
+(*"Daccord has a zero-tolerance policy for objectionable content and abusive
+behaviour."*), the scrollable terms body, an **"Agree and continue"** button,
+and beneath it *"You must accept these terms to create an account or sign in."*
+Scroll the body far enough to show the zero-tolerance and abusive-user clauses
+(sections 4 and 5). Tap **Agree and continue**.
 
 This single beat covers both halves of Apple's requirement: the gate replaces
 the whole signed-out flow, so it precedes Sign In and Register alike rather than
@@ -330,6 +332,10 @@ accepting.
 Then show the terms remain reachable: on the auth screen, tap the terms link in
 the *"By continuing you agree to …"* line. Later, Settings → About has the same
 entry.
+
+Then sign in. A freshly installed app opens its **"Welcome to Daccord"** tour
+over the channel as soon as the session lands — **Skip** it before shot 2, or it
+sits on top of the first flagging beat.
 
 **2 — Flagging content in a space channel.** Open a space channel and long-press
 another user's message. The menu includes **Report**. Tap it: the dialog is
@@ -348,6 +354,15 @@ dialog defaults it on. Untick it unless you want this shot to end the
 conversation: submitting with it set blocks the account, which empties the DM
 of their messages and turns **Block** into **Unblock** in the menus shot 4
 needs.
+
+**Check the instance takes account-level reports before recording this one.**
+Outside a space the client posts to `/reports`, and an instance implementing
+only the space-scoped route answers 404. That is not treated as a failure — the
+message is still hidden and the block still applied — but the confirmation then
+reads *"Done — The message is now hidden for you."* instead of **"Report
+submitted"**, which is a weak frame for the single beat Apple asked about. The
+accordserver image the CI fixtures pin has no such route, so a server built from
+it is the wrong thing to record against.
 
 Also show reporting the person rather than the message, from any of: the DM
 header's **⋮ "Conversation options"** button → **Report user**; tapping the
