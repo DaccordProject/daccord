@@ -120,10 +120,16 @@ jobs:
         # it the Settings → Updates entry is present, and a self-updater on
         # camera invites the guideline 2.2 finding back.
         shell: bash
+        env:
+          # Routed through env rather than interpolated into the script below —
+          # a workflow_dispatch input is attacker-influenceable by whoever can
+          # dispatch the workflow, and untrusted expressions must never be
+          # spliced directly into a run: block (see the website-rebuild job in
+          # release.yml for the same reasoning).
+          INPUT_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           BUILD_NAME=$(grep '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/[-+].*//')
-          BUILD_NUMBER="${{ inputs.build_number }}"
-          BUILD_NUMBER="${BUILD_NUMBER:-${{ github.run_number }}}"
+          BUILD_NUMBER="${INPUT_BUILD_NUMBER:-${{ github.run_number }}}"
           echo "Marketing version: $BUILD_NAME (build $BUILD_NUMBER)"
           flutter build ios --release --no-codesign \
             --build-name="$BUILD_NAME" \
