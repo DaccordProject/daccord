@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -190,6 +191,50 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.statusCode, 401);
       expect(calls, 1);
+    });
+
+    test('a stalled response times out as a normal failure, not a throw',
+        () async {
+      final rest = mockRest(
+        log: [],
+        timeout: const Duration(milliseconds: 20),
+        // Never completes — a black-holed server (#306).
+        responder: (_) => Completer<http.Response>().future,
+      );
+      final result = await rest.makeRequest('GET', '/x');
+      expect(result.ok, isFalse);
+      expect(result.statusCode, 0);
+      expect(result.error!.code, 'INTERNAL');
+      expect(result.error!.message, contains('timed out'));
+    });
+
+    test('the timeout is per attempt, so a 429 retry still gets a full one',
+        () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        timeout: const Duration(milliseconds: 200),
+        responder: (_) async {
+          calls++;
+          if (calls == 1) {
+            // Burns most of one attempt's budget, then rate-limits. A budget
+            // shared across retries would leave the second attempt no time.
+            await Future<void>.delayed(const Duration(milliseconds: 120));
+            return http.Response('', 429, headers: {'retry-after': '0'});
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          return jsonData({'ok': true});
+        },
+      );
+      final result = await rest.makeRequest('GET', '/x');
+      expect(calls, 2);
+      expect(result.ok, isTrue);
+    });
+
+    test('defaults to AccordConfig.defaultRequestTimeout', () {
+      final rest = mockRest(log: [], responder: (_) => jsonData(null));
+      expect(rest.timeout, AccordConfig.defaultRequestTimeout);
+      expect(AccordConfig.defaultRequestTimeout, greaterThan(Duration.zero));
     });
 
     test('does not fire onUnauthorized on non-401 failures', () async {

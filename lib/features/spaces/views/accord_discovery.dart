@@ -27,6 +27,16 @@ typedef AccordDiscoveryBrowse =
 const _invalidDirectoryResponse =
     'The server returned an invalid directory response';
 
+/// The REST root the master-server directory is browsed against.
+///
+/// Every accordkit endpoint group takes bare paths and expects the `/api/v1`
+/// prefix on its `AccordRest` base URL — including [DirectoryApi] — so the
+/// master URL gets the same treatment `AccordClient` gives an instance via
+/// `config.apiUrl()`.
+@visibleForTesting
+String accordDirectoryRestUrl(String masterUrl) =>
+    AccordServer.normalizeBaseUrl(masterUrl) + AccordConfig.apiBasePath;
+
 /// Performs the unauthenticated master-server directory request.
 ///
 /// Kept behind a provider so discovery's asynchronous state handling can be
@@ -37,13 +47,12 @@ final accordDiscoveryBrowseProvider = Provider<AccordDiscoveryBrowse>((ref) {
     required String query,
     required String tag,
   }) async {
-    // Mirror the reference client exactly (`discovery_panel.gd`): a BARE
-    // AccordRest pointed at the master server + DirectoryApi, no auth. Note we
-    // must NOT use AccordClient here — it sets the rest base URL to
-    // `<master>/api/v1`, and DirectoryApi prepends `/api/v1/directory` again,
-    // producing `<master>/api/v1/api/v1/directory` (404). A bare AccordRest
-    // keeps the single `/api/v1/directory` prefix.
-    final rest = AccordRest(AccordServer.normalizeBaseUrl(masterUrl));
+    // Mirror the reference client (`discovery_panel.gd`): an unauthenticated
+    // AccordRest pointed at the MASTER server + DirectoryApi. AccordClient is
+    // not used here because it would also open a gateway socket and a voice
+    // manager against a server we only want one anonymous GET from — see
+    // [accordDirectoryRestUrl] for why the base URL is shaped the way it is.
+    final rest = AccordRest(accordDirectoryRestUrl(masterUrl));
     try {
       return await DirectoryApi(rest).browse(query: query, tag: tag);
     } finally {

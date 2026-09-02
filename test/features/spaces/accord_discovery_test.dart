@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
@@ -8,6 +9,8 @@ import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 class _FakeSettingsController extends SettingsController {
   @override
@@ -207,4 +210,40 @@ void main() {
       expect(find.text('Daccord Official'), findsOneWidget);
     },
   );
+
+  group('directory REST target', () {
+    test('the master URL carries the API base path', () {
+      // DirectoryApi takes bare paths like every other endpoint group, so the
+      // prefix has to live on the rest base URL — and exactly once (#306).
+      expect(
+        accordDirectoryRestUrl('master.example.test'),
+        'https://master.example.test/api/v1',
+      );
+      expect(
+        accordDirectoryRestUrl('https://master.example.test/'),
+        'https://master.example.test/api/v1',
+      );
+    });
+
+    test('a browse against that URL requests /api/v1/directory once', () async {
+      final urls = <Uri>[];
+      final rest = AccordRest(
+        accordDirectoryRestUrl('master.example.test'),
+        client: MockClient((request) async {
+          urls.add(request.url);
+          return http.Response(
+            jsonEncode({'data': const []}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      addTearDown(rest.close);
+
+      await DirectoryApi(rest).browse(query: 'games');
+
+      expect(urls.single.path, '/api/v1/directory');
+      expect(urls.single.queryParameters['q'], 'games');
+    });
+  });
 }

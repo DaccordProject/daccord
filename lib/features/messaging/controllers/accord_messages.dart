@@ -1,6 +1,7 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/messaging/utils/emoji_catalog.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:collection/collection.dart';
@@ -21,6 +22,14 @@ final Set<ServerChannelKey> activeMessageChannels = <ServerChannelKey>{};
 /// consults this to avoid raising a notification for a message in the channel
 /// that's already on screen. Set by the home screen as the selection changes.
 ServerChannelKey? accordVisibleChannel;
+
+/// Whether this channel's history fetch failed, so the message pane can offer a
+/// retry instead of spinning forever. The [LoadFailed] flag for this cache —
+/// see there for the shared pattern.
+LoadFailedProvider messagesLoadFailedProvider(
+  String serverKey,
+  String channelId,
+) => loadFailedProvider('messages', serverKey, channelId);
 
 /// A channel's recent message history, keyed by channel ID, ordered
 /// oldest→newest for display. Self-loads via `messages.list` the first time
@@ -60,20 +69,27 @@ class AccordMessagesController extends _$AccordMessagesController {
       channelId,
       query: {'limit': _pageSize},
     );
+    // Every write to the load-failed flag below happens after this `await`:
+    // `build` calls `_load` synchronously, and Riverpod forbids a provider
+    // mutating another during initialization.
     if (!ref.mounted) return;
-    if (!result.ok) {
+    if (!ref.isCurrentAccordClient(serverKey, client)) return;
+    final data = result.data;
+    if (!result.ok || data is! List) {
       debugPrint('Failed to load messages for $channelId: ${result.error}');
+      _setLoadFailed(true);
       return;
     }
-    final data = result.data;
-    if (data is List) {
-      final list = data.whereType<AccordMessage>().toList();
-      // The REST list returns newest-first; store oldest-first for display.
-      if (!ref.isCurrentAccordClient(serverKey, client)) return;
-      state = list.reversed.toList();
-      if (list.length < _pageSize) hasMoreOlder = false;
-    }
+    final list = data.whereType<AccordMessage>().toList();
+    // The REST list returns newest-first; store oldest-first for display.
+    state = list.reversed.toList();
+    if (list.length < _pageSize) hasMoreOlder = false;
+    _setLoadFailed(false);
   }
+
+  void _setLoadFailed(bool value) => ref
+      .read(messagesLoadFailedProvider(serverKey, channelId).notifier)
+      .set(value);
 
   /// Re-fetches the newest page, replacing the cache in place (no flash to the
   /// loading state). Used after a gateway re-identify: a fresh session gets no
@@ -169,31 +185,36 @@ class AccordMessagesController extends _$AccordMessagesController {
   }
 
   /// Pins [messageId] in this channel, optimistically flipping its `pinned`
-  /// flag (reverted on failure). Returns true on success.
-  Future<bool> pin(AccordClient client, String messageId) async {
+  /// flag (reverted on failure).
+  ///
+  /// Returns null on success, or the reason the pin failed — the caller must
+  /// show it, because the optimistic flag silently flipping back is otherwise
+  /// indistinguishable from the tap never registering.
+  Future<String?> pin(AccordClient client, String messageId) async {
     _setPinned(messageId, true);
     final result = await client.messages.pin(channelId, messageId);
-    if (!ref.mounted) return false;
+    if (!ref.mounted) return null;
     if (!result.ok) {
       debugPrint('Failed to pin $messageId: ${result.error}');
       _setPinned(messageId, false);
-      return false;
+      return result.errorMessageOr('Failed to pin message.');
     }
-    return true;
+    return null;
   }
 
   /// Unpins [messageId] in this channel, optimistically clearing its `pinned`
-  /// flag (reverted on failure). Returns true on success.
-  Future<bool> unpin(AccordClient client, String messageId) async {
+  /// flag (reverted on failure). Returns null on success, or the reason it
+  /// failed — see [pin].
+  Future<String?> unpin(AccordClient client, String messageId) async {
     _setPinned(messageId, false);
     final result = await client.messages.unpin(channelId, messageId);
-    if (!ref.mounted) return false;
+    if (!ref.mounted) return null;
     if (!result.ok) {
       debugPrint('Failed to unpin $messageId: ${result.error}');
       _setPinned(messageId, true);
-      return false;
+      return result.errorMessageOr('Failed to unpin message.');
     }
-    return true;
+    return null;
   }
 
   void _setPinned(String messageId, bool pinned) {
@@ -333,14 +354,18 @@ class AccordMessagesController extends _$AccordMessagesController {
   /// [emojiId] is set for custom emoji. The REST API expects the token
   /// `name:id` for custom emoji, but aggregates are matched/stored by name
   /// (the form the gateway echoes back).
-  Future<void> toggleReaction(
+  ///
+  /// Returns null on success, or the reason the toggle failed — the caller must
+  /// show it, because the optimistic badge silently disappearing again is
+  /// otherwise indistinguishable from the tap never registering.
+  Future<String?> toggleReaction(
     AccordClient client,
     String messageId,
     String emojiName, {
     String? emojiId,
   }) async {
     final message = state?.firstWhereOrNull((m) => m.id == messageId);
-    if (message == null) return;
+    if (message == null) return null;
     final existing = message.reactions?.firstWhereOrNull(
       (r) => _emojiName(r) == _emojiKey(emojiName, emojiId),
     );
@@ -360,7 +385,7 @@ class AccordMessagesController extends _$AccordMessagesController {
     final result = adding
         ? await client.reactions.add(channelId, messageId, token)
         : await client.reactions.removeOwn(channelId, messageId, token);
-    if (!ref.mounted) return;
+    if (!ref.mounted) return null;
     if (!result.ok) {
       debugPrint('Failed to toggle reaction on $messageId: ${result.error}');
       // Revert the optimistic change.
@@ -371,7 +396,11 @@ class AccordMessagesController extends _$AccordMessagesController {
         isOwn: true,
         emojiId: emojiId,
       );
+      return result.errorMessageOr(
+        adding ? 'Failed to add reaction.' : 'Failed to remove reaction.',
+      );
     }
+    return null;
   }
 
   /// Lists the users who reacted to [messageId] with [emojiName] (custom emoji

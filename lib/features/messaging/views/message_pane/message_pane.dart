@@ -52,6 +52,7 @@ import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/voice/views/voice_view.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
+import 'package:bonfire/shared/components/server_unreachable.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/confirm_dialog.dart';
 import 'package:bonfire/shared/utils/platform.dart';
@@ -264,6 +265,30 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
     );
     if (client == null) return;
     notifier.loadOlder(client);
+  }
+
+  /// What to show where the history would be while there is none.
+  ///
+  /// A null message list means either "still fetching" or "the fetch failed",
+  /// and rendering both as a spinner leaves a failed channel loading forever.
+  /// The failed case gets an explanation and a Retry (see `LoadFailed`).
+  Widget _historyEmptyState(String channelId) {
+    final serverKey = ref.watchActiveServerKey() ?? '';
+    if (!ref.watch(messagesLoadFailedProvider(serverKey, channelId))) {
+      return const LoadingView();
+    }
+    return ServerUnreachable(
+      title: "Couldn't load messages",
+      message: 'Something went wrong fetching this channel’s history.',
+      onRetry: () {
+        ref
+            .read(messagesLoadFailedProvider(serverKey, channelId).notifier)
+            .set(false);
+        ref.invalidate(
+          accordMessagesControllerProvider(serverKey, channelId),
+        );
+      },
+    );
   }
 
   @override
@@ -542,7 +567,7 @@ class _MessagePaneState extends ConsumerState<MessagePane> {
           ),
           Expanded(
             child: messages == null
-                ? const LoadingView()
+                ? _historyEmptyState(channelId)
                 : messages.isEmpty
                 ? Center(
                     child: Text(

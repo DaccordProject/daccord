@@ -15,6 +15,16 @@ class AccordConfig {
 
   static const int heartbeatIntervalDefault = 45000;
 
+  /// How long a single REST attempt may take before it is abandoned.
+  ///
+  /// `package:http` has no timeout of its own, so without this a server that
+  /// accepts a connection and then never answers (a black-holed host, a stalled
+  /// proxy, a machine that went to sleep mid-request) leaves the future pending
+  /// forever — and every caller waiting on it shows an unbounded spinner rather
+  /// than an error. Applied *per attempt* so the rate-limit retry loop keeps its
+  /// own semantics; see [AccordRest].
+  static const Duration defaultRequestTimeout = Duration(seconds: 30);
+
   /// Lower bound applied to the server-advertised `heartbeat_interval`.
   ///
   /// A zero or negative interval makes the periodic heartbeat timer fire as

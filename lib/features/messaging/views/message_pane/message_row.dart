@@ -244,10 +244,16 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
     );
   }
 
-  void _toggleReaction(String messageId, String emojiName, {String? emojiId}) {
+  Future<void> _toggleReaction(
+    String messageId,
+    String emojiName, {
+    String? emojiId,
+  }) async {
     final client = _client;
     if (client == null) return;
-    ref
+    // The optimistic badge is rolled back on failure; without this the reaction
+    // just vanishes again with no explanation (#306).
+    final error = await ref
         .read(
           accordMessagesControllerProvider(
             ref.readActiveServerKey() ?? '',
@@ -255,12 +261,13 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
           ).notifier,
         )
         .toggleReaction(client, messageId, emojiName, emojiId: emojiId);
+    if (error != null && mounted) showInfoSnack(context, error);
   }
 
   Future<void> _openReactionPicker(String messageId) async {
     final pick = await showAccordEmojiPicker(context, spaceId: widget.spaceId);
     if (pick == null || !mounted) return;
-    _toggleReaction(messageId, pick.name, emojiId: pick.id);
+    await _toggleReaction(messageId, pick.name, emojiId: pick.id);
   }
 
   Future<void> _togglePin(String messageId, {required bool pinned}) async {
@@ -272,11 +279,12 @@ class _MessageRowState extends ConsumerState<_MessageRow> {
         widget.channelId,
       ).notifier,
     );
-    if (pinned) {
-      await controller.unpin(client, messageId);
-    } else {
-      await controller.pin(client, messageId);
-    }
+    // As with reactions: the pin marker flips back on failure, so the reason has
+    // to be reported or the action reads as a no-op (#306).
+    final error = pinned
+        ? await controller.unpin(client, messageId)
+        : await controller.pin(client, messageId);
+    if (error != null && mounted) showInfoSnack(context, error);
   }
 
   /// Keeps the floating action bar mounted for as long as its menu is open.

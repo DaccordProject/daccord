@@ -87,6 +87,7 @@ class AccordClient {
     String? gatewayUrl,
     String? cdnUrl,
     void Function()? onUnauthorized,
+    Duration? requestTimeout,
     http.Client? httpClient,
     GatewayConnectionFactory? connectionFactory,
     Future<void> Function(Duration)? sleep,
@@ -101,6 +102,7 @@ class AccordClient {
       token: token,
       tokenType: tokenType,
       onUnauthorized: onUnauthorized,
+      timeout: requestTimeout,
       client: httpClient,
       sleep: sleep,
     );

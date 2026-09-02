@@ -1,4 +1,5 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
@@ -6,6 +7,14 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'accord_channels.g.dart';
+
+/// Whether a space's channel-list fetch failed, so the channel pane can offer a
+/// retry instead of spinning forever. The [LoadFailed] flag for this cache —
+/// see there for the shared pattern.
+LoadFailedProvider channelsLoadFailedProvider(
+  String serverKey,
+  String spaceId,
+) => loadFailedProvider('channels', serverKey, spaceId);
 
 /// A space's channel list, keyed by space ID. The Accord analogue of Bonfire's
 /// firebridge-backed channel list. Self-loads via `spaces.listChannels` the
@@ -26,10 +35,19 @@ class AccordChannelsController extends _$AccordChannelsController {
     final channels = (await client.spaces.listChannels(
       spaceId,
     )).listOrLog<AccordChannel>('channels for $spaceId');
+    // The load-failed writes below all happen after the `await` above: `build`
+    // calls `_load` synchronously, and Riverpod forbids a provider mutating
+    // another during initialization.
     if (!ref.mounted) return;
-    if (channels != null && ref.isCurrentAccordClient(serverKey, client)) {
-      state = _sorted(channels);
+    if (!ref.isCurrentAccordClient(serverKey, client)) return;
+    // `null` here is a failed request or a malformed payload — the pane has no
+    // other way to tell that apart from "still loading".
+    if (channels == null) {
+      ref.read(channelsLoadFailedProvider(serverKey, spaceId).notifier).set(true);
+      return;
     }
+    state = _sorted(channels);
+    ref.read(channelsLoadFailedProvider(serverKey, spaceId).notifier).set(false);
   }
 
   void setChannels(List<AccordChannel> channels) => state = _sorted(channels);

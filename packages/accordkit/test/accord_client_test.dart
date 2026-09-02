@@ -40,6 +40,20 @@ void main() {
     expect(client.voiceManager, isA<VoiceManager>());
   });
 
+  test('applies the default request timeout, and an override', () {
+    expect(
+      AccordClient(baseUrl: 'https://srv').rest.timeout,
+      AccordConfig.defaultRequestTimeout,
+    );
+    expect(
+      AccordClient(
+        baseUrl: 'https://srv',
+        requestTimeout: const Duration(seconds: 5),
+      ).rest.timeout,
+      const Duration(seconds: 5),
+    );
+  });
+
   test('forwards gateway events through the client', () async {
     final factory = FakeConnectionFactory();
     final client = AccordClient(

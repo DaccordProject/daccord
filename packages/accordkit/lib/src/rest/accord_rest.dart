@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -14,6 +15,11 @@ import 'rest_result.dart';
 ///
 /// The underlying [http.Client] is injectable for testing, as is the [sleep]
 /// callback used between rate-limit retries.
+///
+/// Every attempt is bounded by [timeout]. A request that runs out of time comes
+/// back as an ordinary [RestResult] failure (`INTERNAL`, "… timed out after
+/// …"), never as a thrown [TimeoutException], so existing call sites report it
+/// on the error path they already have.
 class AccordRest {
   static const int maxRetries = 3;
 
@@ -28,6 +34,18 @@ class AccordRest {
   /// which simply leave this null.
   void Function()? onUnauthorized;
 
+  /// The deadline applied to each individual HTTP attempt.
+  ///
+  /// Deliberately **per attempt** rather than one budget spanning the retry
+  /// loop: a 429 retry spends most of its wall clock asleep in the
+  /// server-dictated `Retry-After` pause, and a shared budget would turn a
+  /// healthy rate-limit wait into a bogus timeout. Bounding each attempt still
+  /// bounds the whole call (at most [maxRetries] attempts plus their
+  /// `Retry-After` sleeps), which is all the UI needs to stop spinning forever.
+  ///
+  /// Defaults to [AccordConfig.defaultRequestTimeout].
+  final Duration timeout;
+
   final http.Client _client;
   final Future<void> Function(Duration) _sleep;
 
@@ -36,12 +54,14 @@ class AccordRest {
     this.token = '',
     this.tokenType = 'Bot',
     this.onUnauthorized,
+    Duration? timeout,
     http.Client? client,
     Future<void> Function(Duration)? sleep,
   })  : baseUrl = validateHttpEndpoint(
           baseUrl,
           label: 'Accord REST URL',
         ).toString(),
+        timeout = timeout ?? AccordConfig.defaultRequestTimeout,
         _client = client ?? http.Client(),
         _sleep = sleep ?? _defaultSleep;
 
@@ -146,7 +166,14 @@ class AccordRest {
     while (attempt < maxRetries) {
       final http.Response response;
       try {
-        response = await send();
+        response = await send().timeout(timeout);
+      } on TimeoutException {
+        return RestResult.failure(
+          0,
+          _internalError(
+            '$exhaustedLabel timed out after ${_timeoutLabel(timeout)}',
+          ),
+        );
       } catch (error) {
         return RestResult.failure(
           0,
@@ -336,6 +363,13 @@ class AccordRest {
     }
     return 1.0;
   }
+
+  /// Renders [timeout] for the timeout message — whole seconds normally,
+  /// milliseconds for the sub-second deadlines tests use.
+  static String _timeoutLabel(Duration timeout) =>
+      timeout.inMilliseconds % 1000 == 0
+          ? '${timeout.inSeconds}s'
+          : '${timeout.inMilliseconds}ms';
 
   AccordError _internalError(String msg) {
     return AccordError(code: 'INTERNAL', message: msg);
