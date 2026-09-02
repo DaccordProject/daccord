@@ -156,8 +156,9 @@ class UpdateController extends _$UpdateController {
   /// periodic check. Safe to call repeatedly — the timer is armed only once.
   Future<void> maybeCheckOnStartup() async {
     // App Store builds update through the store; never check GitHub or arm the
-    // periodic timer (see [kAppStoreBuild]).
-    if (kAppStoreBuild) return;
+    // periodic timer (see [kAppStoreBuild]). [check] is a no-op there too, so
+    // this is belt-and-braces for the timer.
+    if (isAppStoreBuild) return;
     // The web build ships whatever the server serves — there's nothing to
     // download or install, so never check for releases or show the banner.
     if (UniversalPlatform.isWeb) return;
@@ -175,7 +176,13 @@ class UpdateController extends _$UpdateController {
 
   /// Fetches the latest release. [manual] checks just surface errors to the
   /// user. Returns the resulting state.
+  ///
+  /// A no-op on app-store builds: those must never reach GitHub for release
+  /// information at all, so `latest` stays null and every downstream surface
+  /// (banner, Updates page, install path) stays empty. The store build's only
+  /// update channel is the store.
   Future<UpdateState> check({bool manual = false}) async {
+    if (isAppStoreBuild) return state;
     if (state.checking) return state;
     state = state.copyWith(checking: true, clearError: true);
     try {
@@ -344,6 +351,7 @@ class UpdateController extends _$UpdateController {
   /// null when none is found (the caller then falls back to the release page).
   /// Always null on web/iOS (no self-served binary applies).
   String? platformAssetUrl() {
+    if (isAppStoreBuild) return null;
     if (UniversalPlatform.isWeb || UniversalPlatform.isIOS) return null;
     return _assetForExts(_downloadExts)?.url;
   }
@@ -358,7 +366,9 @@ class UpdateController extends _$UpdateController {
   /// writability / privilege gating, so a package-manager install with no
   /// applicable path yields no asset here and the UI offers a manual download.
   bool get canInstallInPlace =>
-      !kAppStoreBuild && UpdateInstaller.isSupported && platformAsset() != null;
+      !isAppStoreBuild &&
+      UpdateInstaller.isSupported &&
+      platformAsset() != null;
 
   /// Whether applying the staged update will prompt for administrator
   /// authentication — a Linux system-package (`.deb`) reinstall via pkexec. Lets
@@ -412,6 +422,7 @@ class UpdateController extends _$UpdateController {
   /// one-click path); otherwise downloads + verifies first. Surfaces
   /// progress/errors via [state].
   Future<void> applyUpdate() async {
+    if (isAppStoreBuild) return;
     if (state.installing) return;
     final installer = UpdateInstaller();
     try {

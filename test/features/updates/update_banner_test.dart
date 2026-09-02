@@ -4,6 +4,7 @@ import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
 import 'package:bonfire/features/updates/views/update_banner.dart';
 import 'package:bonfire/features/updates/views/web_update_prompt.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -181,6 +182,22 @@ void main() {
       expect(downloadingState.updateReady, isFalse);
       // updateAvailable is still true while downloading
       expect(downloadingState.updateAvailable, isTrue);
+    });
+
+    testWidgets('never renders on an app store build', (tester) async {
+      // A store binary must not advertise a GitHub release (#292). check() is
+      // already a no-op there, so `latest` can't normally be set — this proves
+      // the banner stays collapsed even if something else populated it.
+      debugAppStoreBuild = true;
+      addTearDown(() => debugAppStoreBuild = null);
+
+      await tester.pumpWidget(
+        _host(update: const UpdateState(latest: _newerRelease)),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Update available'), findsNothing);
+      expect(tester.getSize(find.byType(UpdateBanner)).height, 0);
     });
 
     testWidgets('shows "update available" when phase is failed (fallback)',

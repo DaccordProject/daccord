@@ -1,6 +1,7 @@
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/settings/views/accord_settings_screen.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -222,6 +223,79 @@ void main() {
       await _selectCategory(tester, 'App');
       expect(_section('Appearance'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  // Apple rejected 0.2.16 under guideline 2.2 partly because the store build
+  // shipped a live GitHub self-updater and a Developer Mode / local MCP server
+  // toggle — both of which read as an unfinished, non-store build (#292).
+  group('app store builds', () {
+    setUp(() => debugAppStoreBuild = true);
+    tearDown(() => debugAppStoreBuild = null);
+
+    testWidgets('hide the Updates section in the narrow layout', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(600, 8000));
+
+      expect(_section('Updates'), findsNothing);
+      // The rest of System is untouched.
+      expect(_section('Backup'), findsOneWidget);
+    });
+
+    testWidgets('hide the Updates section in the wide System pane', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1400, 900));
+      await _selectCategory(tester, 'System');
+
+      expect(_section('Updates'), findsNothing);
+      expect(_section('Backup'), findsOneWidget);
+    });
+
+    testWidgets('hide Developer Mode (it implies a non-store build)', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1400, 900));
+      await _selectCategory(tester, 'Advanced');
+
+      expect(_section('Developer'), findsNothing);
+      expect(find.text('Developer Mode'), findsNothing);
+      expect(_section('About'), findsOneWidget);
+    });
+  });
+
+  group('platforms without a local MCP server (mobile / web)', () {
+    setUp(() => debugDeveloperModeAvailable = false);
+    tearDown(() => debugDeveloperModeAvailable = null);
+
+    testWidgets('hide Developer Mode in the narrow layout', (tester) async {
+      await _pumpAt(tester, const Size(600, 8000));
+
+      expect(_section('Developer'), findsNothing);
+      expect(find.text('Developer Mode'), findsNothing);
+      // Neighbouring sections still render, so nothing else was dropped.
+      expect(_section('Backup'), findsOneWidget);
+      expect(_section('About'), findsOneWidget);
+    });
+
+    testWidgets('hide Developer Mode in the wide Advanced pane', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1400, 900));
+      await _selectCategory(tester, 'Advanced');
+
+      expect(_section('Developer'), findsNothing);
+      expect(_section('About'), findsOneWidget);
+    });
+
+    testWidgets('the Updates section is untouched (sideload keeps it)', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1400, 900));
+      await _selectCategory(tester, 'System');
+
+      expect(_section('Updates'), findsOneWidget);
     });
   });
 }

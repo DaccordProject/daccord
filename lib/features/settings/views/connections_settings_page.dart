@@ -43,6 +43,10 @@ class ConnectionsScreen extends ConsumerStatefulWidget {
 class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
   bool _loading = true;
   String? _error;
+
+  /// True once the server has told us it has no connections endpoint at all
+  /// (see [_unsupportedStatuses]). Distinct from "loaded, but empty".
+  bool _unsupported = false;
   List<_Connection> _connections = const [];
   final Set<String> _disconnecting = {};
 
@@ -66,10 +70,19 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _unsupported = false;
     });
     final result = await client.users.listConnections();
     if (!mounted) return;
     if (!result.ok) {
+      if (_unsupportedStatuses.contains(result.statusCode)) {
+        setState(() {
+          _loading = false;
+          _unsupported = true;
+          _connections = const [];
+        });
+        return;
+      }
       setState(() {
         _loading = false;
         _error = 'Failed to load connections.';
@@ -133,6 +146,9 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    // Embedded, on a server without the endpoint: drop the card entirely rather
+    // than leave a "Connections" heading that can never hold anything (#292).
+    if (widget.embedded && _unsupported) return const SizedBox.shrink();
     if (widget.embedded) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -177,7 +193,7 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            _emptyMessage,
+            _unsupported ? _unsupportedMessage : _emptyMessage,
             textAlign: TextAlign.center,
             style: _hint(colors),
           ),
@@ -215,9 +231,20 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
     return _connectionTiles(colors);
   }
 
+  /// HTTP statuses that mean "this server has no connections endpoint": the
+  /// route is absent (404), unimplemented (501), or exists but doesn't answer
+  /// GET (405). None of them is something the user can retry or fix, so they
+  /// render as a neutral statement of capability rather than a red error — the
+  /// live server currently 404s here, which is what put a permanent "Failed to
+  /// load connections." at the top of the Account pane (#292).
+  static const _unsupportedStatuses = {404, 405, 501};
+
   static const _emptyMessage =
       'No connections linked.\n\nLinked third-party accounts (OAuth) will '
       'appear here.';
+
+  static const _unsupportedMessage =
+      "This server doesn't support linked third-party accounts.";
 
   TextStyle _hint(BonfireThemeExtension colors) =>
       Theme.of(context).textTheme.bodyMedium!.copyWith(color: colors.gray);

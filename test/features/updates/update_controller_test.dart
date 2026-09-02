@@ -11,10 +11,11 @@ import 'package:hive_ce/hive.dart';
 import 'package:universal_platform/universal_platform.dart';
 
 // Note: kAppStoreBuild is a compile-time const (bool.fromEnvironment('APP_STORE')).
-// It is always false in unit tests unless built with --dart-define=APP_STORE=true,
-// so the kAppStoreBuild == true early-return paths in maybeCheckOnStartup() and
-// canInstallInPlace cannot be exercised here. Those paths are verified by the
-// CI build itself (store builds) and the integration test matrix.
+// It is always false in unit tests unless built with --dart-define=APP_STORE=true.
+// The controller therefore reads `isAppStoreBuild`, which ORs that const with the
+// test-only `debugAppStoreBuild` override — the same seam as
+// UpdateInstaller.debugInstallRootWritable — so the store-build early returns
+// ARE exercised here (see the "app store builds" group).
 
 late Directory _tempDir;
 
@@ -93,6 +94,7 @@ void main() {
   tearDown(() async {
     UpdateInstaller.debugInstallRootWritable = null;
     UpdateInstaller.debugHasPrivilegedInstaller = null;
+    debugAppStoreBuild = null;
     await Hive.deleteBoxFromDisk('accord-settings');
     await Hive.close();
     if (_tempDir.existsSync()) _tempDir.deleteSync(recursive: true);
@@ -127,6 +129,7 @@ void main() {
       // Sanity-check: the compile-time constant is off for normal test runs.
       // Store-build CI compiles with --dart-define=APP_STORE=true.
       expect(kAppStoreBuild, isFalse);
+      expect(isAppStoreBuild, isFalse);
     });
 
     test('is false on a non-writable install with no privileged installer', () {
@@ -201,6 +204,74 @@ void main() {
       ]);
       expect(controllerOf(c).canInstallInPlace, isTrue);
       expect(controllerOf(c).platformAsset()!.name, endsWith('.tar.gz'));
+    });
+  });
+
+  group('app store builds', () {
+    // Apple rejected 0.2.16 partly because the store binary shipped a live
+    // GitHub self-updater: a reviewer saw "Update available: v0.2.17" and a
+    // link to download the app from GitHub (#292). A store build must not even
+    // ask GitHub what the latest release is.
+    setUp(() => debugAppStoreBuild = true);
+
+    test('check() never reaches GitHub and leaves the state untouched',
+        () async {
+      final c = makeContainer();
+      final before = stateOf(c);
+      final after = await controllerOf(c).check(manual: true);
+
+      // A real request would have flipped checkedOnce (on success *or* error).
+      expect(after.checkedOnce, isFalse);
+      expect(after.checking, isFalse);
+      expect(after.latest, isNull);
+      expect(after.error, isNull);
+      expect(identical(after, before), isTrue);
+    });
+
+    test('maybeCheckOnStartup() is a no-op', () async {
+      final c = makeContainer();
+      await controllerOf(c).maybeCheckOnStartup();
+
+      expect(stateOf(c).checkedOnce, isFalse);
+      expect(stateOf(c).latest, isNull);
+    });
+
+    test('never offers an in-place install or a download link', () {
+      final c = makeContainer();
+      setLatest(c, _fullReleaseAssets);
+
+      expect(controllerOf(c).canInstallInPlace, isFalse);
+      expect(controllerOf(c).platformAssetUrl(), isNull);
+    });
+
+    test('applyUpdate() is a no-op even with a staged build', () async {
+      final c = makeContainer();
+      setLatest(c, _fullReleaseAssets);
+      await controllerOf(c).applyUpdate();
+
+      expect(stateOf(c).phase, UpdatePhase.idle);
+      expect(stateOf(c).installError, isNull);
+    });
+
+    test('prepareUpdate() never downloads', () async {
+      final c = makeContainer();
+      setLatest(c, _fullReleaseAssets);
+      await controllerOf(c).prepareUpdate();
+
+      expect(stateOf(c).phase, UpdatePhase.idle);
+      expect(stateOf(c).stagedArchivePath, isNull);
+    });
+
+    test('the same paths stay live on sideload builds', () async {
+      // Guard against over-gating: the `github` flavor deliberately keeps the
+      // self-updater, so flipping the override back must restore it.
+      if (_hostInstallableExt == null) return; // web/iOS: never in-place anyway
+      debugAppStoreBuild = null;
+      final c = makeContainer();
+      setLatest(c, _fullReleaseAssets);
+
+      expect(controllerOf(c).canInstallInPlace, isTrue);
+      expect(controllerOf(c).platformAssetUrl(), isNotNull);
     });
   });
 

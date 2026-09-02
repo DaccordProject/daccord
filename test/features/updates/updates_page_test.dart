@@ -3,6 +3,7 @@ import 'package:bonfire/features/settings/models/accord_settings.dart';
 import 'package:bonfire/features/updates/controllers/update_controller.dart';
 import 'package:bonfire/features/updates/models/app_release.dart';
 import 'package:bonfire/features/updates/views/updates_page.dart';
+import 'package:bonfire/shared/app_info.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,6 +116,36 @@ void main() {
       await tester.pump();
 
       expect(find.text('Download & install (admin)'), findsOneWidget);
+    });
+  });
+
+  group('UpdatesScreen on an app store build', () {
+    setUp(() => debugAppStoreBuild = true);
+    tearDown(() => debugAppStoreBuild = null);
+
+    testWidgets('offers no check, no download and no GitHub release link', (
+      tester,
+    ) async {
+      // The Settings entry point is hidden on store builds, but even if the
+      // page were reached it must not advertise a GitHub release (#292).
+      await tester.pumpWidget(
+        _host(update: const UpdateState(latest: _newerRelease)),
+      );
+      await tester.pump();
+
+      expect(find.text('Check for updates'), findsNothing);
+      expect(find.text('Check for updates on startup'), findsNothing);
+      expect(find.text('View release'), findsNothing);
+      expect(find.text('Download'), findsNothing);
+      expect(find.text('Skip this version'), findsNothing);
+      expect(find.textContaining('Update available'), findsNothing);
+      expect(
+        find.text('Updates are delivered through the app store.'),
+        findsOneWidget,
+      );
+      // The running build's own version and notes stay available.
+      expect(find.text('Current version'), findsOneWidget);
+      expect(find.text("What's new in this version"), findsOneWidget);
     });
   });
 }
