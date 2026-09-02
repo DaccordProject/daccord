@@ -26,11 +26,15 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
     final result = await client.users.listRelationships();
     if (!mounted) return;
     final data = result.data;
-    setState(() {
-      _relationships = data is List
-          ? data.whereType<AccordRelationship>().toList()
-          : <AccordRelationship>[];
-    });
+    final relationships = data is List
+        ? data.whereType<AccordRelationship>().toList()
+        : <AccordRelationship>[];
+    // The authoritative list — reconcile the message filter's blocked set with
+    // it, so a block or unblock made anywhere is reflected here (#290). Only on
+    // a successful fetch: a failed one renders as "no relationships" but must
+    // not be read as "nothing is blocked".
+    if (result.ok) ref.blockedUsers.sync(relationships);
+    setState(() => _relationships = relationships);
   }
 
   Future<void> _accept(String userId) async {

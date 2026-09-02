@@ -12,6 +12,7 @@ import 'package:bonfire/features/member/views/accord_member_avatar.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/spaces/controllers/spaces.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/features/user/views/accord_direct_messages.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/theme/theme.dart';
@@ -145,9 +146,14 @@ class _MemberPopoutState extends ConsumerState<_MemberPopout> {
     );
     if (confirmed != true) return;
     _run(
-      (c) => c.users.putRelationship(widget.userId, {'type': 2}),
+      (c) => c.users.putRelationship(widget.userId, {
+        'type': accordBlockedRelationship,
+      }),
       failure: 'Failed to block user',
       closeOnSuccess: true,
+      // Applies the "their messages are hidden" half of the promise right away
+      // rather than at the next relationship fetch (#290).
+      onSuccess: () => ref.blockedUsers.block(widget.userId),
     );
   }
 

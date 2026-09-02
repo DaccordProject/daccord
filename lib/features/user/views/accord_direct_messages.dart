@@ -16,6 +16,7 @@ import 'package:bonfire/shared/utils/text_prompt_dialog.dart';
 import 'package:bonfire/features/channels/controllers/dm_channels.dart';
 import 'package:bonfire/features/member/views/remote_origin_badge.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/features/voice/controllers/call.dart';
 import 'package:bonfire/features/voice/controllers/missed_calls.dart';
 import 'package:bonfire/features/voice/controllers/voice.dart';
@@ -135,6 +136,11 @@ void _snackDmError(BuildContext context, AccordError? error, String fallback) {
 /// Account-level profile used where there is no space/member context. It keeps
 /// DM author and recipient interactions useful without pretending that a DM
 /// user has space roles, nicknames, or moderation controls.
+///
+/// This is where a tap on a DM author lands — the member popout is space-scoped
+/// and unreachable there — so it carries the same Report and Block actions the
+/// popout offers. Without them a reviewer tapping a DM user found a dead end
+/// (App Review 1.2, #290).
 Future<void> showAccordUserProfile(
   BuildContext context,
   AccordUser user, {
@@ -144,43 +150,70 @@ Future<void> showAccordUserProfile(
   final origin = accordUserOrigin(user);
   return showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            UserAvatar(
-              name,
-              imageUrl: accordAvatarUrl(user, cdnUrl),
-              radius: 30,
+    builder: (dialogContext) => Consumer(
+      builder: (context, ref, _) {
+        final colors = BonfireThemeExtension.of(context);
+        final isSelf = user.id == ref.watchUserId();
+        return AlertDialog(
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                UserAvatar(
+                  name,
+                  imageUrl: accordAvatarUrl(user, cdnUrl),
+                  radius: 30,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (user.username.isNotEmpty) Text('@${user.username}'),
+                      const SizedBox(height: 8),
+                      SelectableText(user.id),
+                      if (origin != null) ...[
+                        const SizedBox(height: 8),
+                        RemoteOriginBadge(domain: origin),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: Theme.of(context).textTheme.titleMedium),
-                  if (user.username.isNotEmpty) Text('@${user.username}'),
-                  const SizedBox(height: 8),
-                  SelectableText(user.id),
-                  if (origin != null) ...[
-                    const SizedBox(height: 8),
-                    RemoteOriginBadge(domain: origin),
-                  ],
-                ],
+          ),
+          actions: [
+            if (!isSelf) ...[
+              TextButton(
+                onPressed: () => showReportDialog(
+                  context,
+                  targetType: 'user',
+                  targetId: user.id,
+                  reportedUserId: user.id,
+                  reportedName: name,
+                ),
+                style: TextButton.styleFrom(foregroundColor: colors.red),
+                child: const Text('Report user'),
               ),
+              TextButton(
+                onPressed: () => _blockDmUser(context, ref, user),
+                style: TextButton.styleFrom(foregroundColor: colors.red),
+                child: const Text('Block'),
+              ),
+            ],
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
             ),
           ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Close'),
-        ),
-      ],
+        );
+      },
     ),
   );
 }
@@ -304,6 +337,11 @@ Future<void> _changeDmRelationship(
   final result = removing
       ? await client.users.deleteRelationship(user.id)
       : await client.users.putRelationship(user.id, {'type': _Rel.friend});
+  // An unblock has to lift the message filter as promptly as the block applied
+  // it, or their messages stay hidden until the next relationship fetch.
+  if (result.ok && currentType == _Rel.blocked) {
+    ref.blockedUsers.unblock(user.id);
+  }
   if (!context.mounted) return;
   showInfoSnack(
     context,
@@ -335,6 +373,7 @@ Future<void> _blockDmUser(
   final result = await ref.accordClient?.users.putRelationship(user.id, {
     'type': _Rel.blocked,
   });
+  if (result?.ok == true) ref.blockedUsers.block(user.id);
   if (!context.mounted) return;
   showInfoSnack(
     context,

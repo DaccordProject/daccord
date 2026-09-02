@@ -699,7 +699,17 @@ class _DmConversationState extends ConsumerState<_DmConversation> {
           onPressed: () => _startCall(video: true),
           icon: Icon(Icons.videocam, size: 20, color: colors.dirtyWhite),
         ),
-        if (group) _groupOptions(colors),
+        if (group)
+          _groupOptions(colors)
+        // The 1:1 menu (report, block, friend actions) otherwise only opened on
+        // long-press / right-click, which leaves nothing to find by tapping
+        // around a DM (App Review 1.2, #290).
+        else if (directUser != null)
+          IconButton(
+            tooltip: 'Conversation options',
+            onPressed: () => _showUserMenu(directUser),
+            icon: Icon(Icons.more_vert, size: 20, color: colors.gray),
+          ),
       ],
       onUserTap: _showUserProfile,
       onUserContextMenu: _showUserMenu,

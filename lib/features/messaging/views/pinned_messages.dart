@@ -6,6 +6,8 @@ import 'package:bonfire/features/member/controllers/accord_members.dart';
 import 'package:bonfire/features/member/utils/member_display.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
 import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
+import 'package:bonfire/features/messaging/utils/message_visibility.dart';
+import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
@@ -94,9 +96,52 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
     if (mounted) setState(() => _future = _load());
   }
 
+  /// Reports a pinned message. The pinned list shows other people's content
+  /// like any other message surface, so it offers the same action (#290).
+  void _report(AccordMessage message, String authorName) {
+    showReportDialog(
+      context,
+      spaceId: widget.spaceId,
+      targetType: 'message',
+      targetId: message.id,
+      channelId: widget.channelId,
+      reportedUserId: message.authorId.isEmpty ? null : message.authorId,
+      reportedName: authorName,
+    );
+  }
+
+  /// A pinned row's trailing actions: Report for anyone else's message, Unpin
+  /// where the user may manage them. Null when there is neither.
+  Widget? _rowActions(
+    AccordMessage message,
+    String authorName, {
+    required String? currentUserId,
+  }) {
+    final actions = <Widget>[
+      if (message.authorId != currentUserId)
+        IconButton(
+          tooltip: 'Report',
+          onPressed: () => _report(message, authorName),
+          icon: const Icon(Icons.flag_outlined, size: 18),
+        ),
+      if (widget.canManage)
+        IconButton(
+          tooltip: 'Unpin',
+          onPressed: () => _unpin(message),
+          icon: const Icon(Icons.push_pin_outlined, size: 18),
+        ),
+    ];
+    if (actions.isEmpty) return null;
+    return Row(mainAxisSize: MainAxisSize.min, children: actions);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
+    // Watched here rather than inside the FutureBuilder, which builds outside
+    // this widget's build phase.
+    final visibility = ref.watchMessageVisibility();
+    final currentUserId = ref.watchUserId();
     final members = widget.spaceId == null
         ? null
         : ref.watch(
@@ -151,7 +196,9 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                       child: LoadingView(),
                     );
                   }
-                  final pins = snapshot.data ?? const <AccordMessage>[];
+                  final pins = visibility.filter(
+                    snapshot.data ?? const <AccordMessage>[],
+                  );
                   if (pins.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.all(32),
@@ -223,16 +270,11 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: widget.canManage
-                            ? IconButton(
-                                tooltip: 'Unpin',
-                                onPressed: () => _unpin(message),
-                                icon: const Icon(
-                                  Icons.push_pin_outlined,
-                                  size: 18,
-                                ),
-                              )
-                            : null,
+                        trailing: _rowActions(
+                          message,
+                          name,
+                          currentUserId: currentUserId,
+                        ),
                       );
                     },
                   );

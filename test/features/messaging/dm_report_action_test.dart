@@ -9,6 +9,7 @@ import 'package:bonfire/features/messaging/views/message_pane/message_pane.dart'
 import 'package:bonfire/features/server/models/accord_server.dart';
 import 'package:bonfire/features/settings/controllers/settings.dart';
 import 'package:bonfire/features/settings/models/accord_settings.dart';
+import 'package:bonfire/features/user/controllers/blocked_users.dart';
 import 'package:bonfire/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,6 +42,15 @@ class _FakeHiddenMessages extends HiddenMessagesController {
   Set<String> build() => initial;
 }
 
+class _FakeBlockedUsers extends BlockedUsersController {
+  _FakeBlockedUsers(this.initial);
+
+  final Set<String> initial;
+
+  @override
+  Set<String> build(String serverKey) => initial;
+}
+
 Map<String, String> _msgJson(String id, String content, String authorId) => {
   'id': id,
   'channel_id': _channelId,
@@ -50,7 +60,7 @@ Map<String, String> _msgJson(String id, String content, String authorId) => {
 };
 
 class _Harness {
-  _Harness({Set<String> hidden = const {}}) {
+  _Harness({Set<String> hidden = const {}, Set<String> blocked = const {}}) {
     final responder = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       if (request.method == 'GET' &&
@@ -108,6 +118,9 @@ class _Harness {
         hiddenMessagesControllerProvider.overrideWith(
           () => _FakeHiddenMessages(hidden),
         ),
+        blockedUsersControllerProvider(
+          '',
+        ).overrideWith(() => _FakeBlockedUsers(blocked)),
       ],
     );
   }
@@ -191,6 +204,18 @@ void main() {
     tester,
   ) async {
     final harness = _Harness(hidden: {'m2'});
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.app);
+    await _tick(tester);
+
+    expect(_body('from me'), findsOneWidget);
+    expect(_body('from them'), findsNothing);
+  });
+
+  testWidgets('a blocked account\'s messages are hidden, as the block claims', (
+    tester,
+  ) async {
+    final harness = _Harness(blocked: {_themId});
     addTearDown(harness.dispose);
     await tester.pumpWidget(harness.app);
     await _tick(tester);

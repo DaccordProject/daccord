@@ -14,6 +14,8 @@ import 'package:bonfire/features/messaging/controllers/thread_replies.dart';
 import 'package:bonfire/features/messaging/views/box/accord_message_content.dart';
 import 'package:bonfire/features/messaging/views/message_author_header.dart';
 import 'package:bonfire/features/messaging/views/post_composer_dialog.dart';
+import 'package:bonfire/features/messaging/utils/message_visibility.dart';
+import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/features/spaces/utils/message_time.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
 import 'package:bonfire/shared/components/context_menu.dart';
@@ -121,6 +123,7 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   final FocusNode _inputFocus = FocusNode();
   late AccordMessage _root = widget.root;
   bool _sending = false;
+  bool _closedForHiddenRoot = false;
 
   @override
   void dispose() {
@@ -285,13 +288,29 @@ class _AccordThreadPaneState extends ConsumerState<AccordThreadPane> {
   Widget build(BuildContext context) {
     final colors = BonfireThemeExtension.of(context);
     final theme = Theme.of(context);
-    final replies = ref.watch(
+    final loadedReplies = ref.watch(
       threadRepliesControllerProvider(
         ref.readActiveServerKey() ?? '',
         widget.channelId,
         widget.root.id,
       ),
     );
+    // Reported replies and blocked authors are filtered here as they are in the
+    // message pane — a hide made in one surface applies in all of them (#290).
+    final visibility = ref.watchMessageVisibility();
+    final replies = loadedReplies == null
+        ? null
+        : visibility.filter(loadedReplies);
+    // The root isn't in [replies] to filter, but the same promise applies to
+    // it: if reporting it (or blocking its author) just hid it, follow the
+    // pane's behavior and close rather than leave it the one message the
+    // filter didn't reach (#290).
+    if (!visibility.shows(_root) && !_closedForHiddenRoot) {
+      _closedForHiddenRoot = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onClose(null);
+      });
+    }
     final currentUserId = _currentUserId;
     final dialog = widget.dialog;
     // Index 0 is the root post, 1 the divider, 2 the loading/empty placeholder
@@ -577,13 +596,31 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
       accordUsersControllerProvider(ref.readActiveServerKey() ?? ''),
     )[authorId];
     final name = accordAuthorNameOf(authorId, member: member, user: user);
-    final entries = buildMessageActionEntries(
-      content: message.content,
-      canEdit: widget.isOwn,
-      canDelete: _canDelete,
-      onEdit: () => _edit(message),
-      onDelete: () => _delete(message.id),
-    );
+    final entries = [
+      ...buildMessageActionEntries(
+        content: message.content,
+        canEdit: widget.isOwn,
+        canDelete: _canDelete,
+        onEdit: () => _edit(message),
+        onDelete: () => _delete(message.id),
+      ),
+      // A reply is a message like any other: it can be flagged here too, so no
+      // message surface is left without the action (#290).
+      if (!widget.isOwn)
+        AccordMenuEntry(
+          label: 'Report',
+          icon: Icons.flag_outlined,
+          onSelected: () => showReportDialog(
+            context,
+            spaceId: widget.spaceId,
+            targetType: 'message',
+            targetId: message.id,
+            channelId: widget.channelId,
+            reportedUserId: authorId.isEmpty ? null : authorId,
+            reportedName: name,
+          ),
+        ),
+    ];
     if (entries.isEmpty) return;
     showAccordContextMenu(
       context,
@@ -718,7 +755,9 @@ class _MessageLineState extends ConsumerState<_MessageLine> {
                   ],
                 ),
               ),
-              if (_canDelete)
+              // Shown for someone else's reply too — that menu now carries the
+              // Report action, which must not be long-press-only (#290).
+              if (_canDelete || !widget.isOwn)
                 Opacity(
                   opacity: _hovered ? 1 : 0,
                   child: IconButton(
