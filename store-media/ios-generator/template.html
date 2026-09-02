@@ -20,13 +20,20 @@
     -webkit-font-smoothing:antialiased;
     position:relative;
   }
-  /* canvas size + per-device tuning */
+  /* canvas size + per-device tuning.
+     --screen-ar is the framed screen's aspect: the phone frame matches the
+     inner captures in ./inner (740x1462 after the status bar was cropped off),
+     the tablet frame uses an iPad portrait aspect so the iPad renders are not
+     an iPhone-shaped mockup. --dev-r/--screen-r/--dev-pad are fractions of
+     --dev-w, so each frame keeps its own corner radii and bezel weight. */
   body[data-device="iphone"]{ --W:1284px; --H:2778px; --padX:104px; --padTop:165px;
     --pill-fs:30px; --h-fs:97px; --h-lh:1.05; --sub-fs:41px; --sub-mt:34px;
-    --dev-w:772px; --gap:104px; --textmax:1080px; }
+    --dev-w:800px; --gap:104px; --textmax:1080px;
+    --screen-ar:740 / 1462; --dev-r:.135; --screen-r:.118; --dev-pad:.018; }
   body[data-device="ipad"]{ --W:2048px; --H:2732px; --padX:170px; --padTop:170px;
     --pill-fs:34px; --h-fs:108px; --h-lh:1.05; --sub-fs:46px; --sub-mt:38px;
-    --dev-w:828px; --gap:96px; --textmax:1500px; }
+    --dev-w:1188px; --gap:96px; --textmax:1500px;
+    --screen-ar:1640 / 2360; --dev-r:.055; --screen-r:.042; --dev-pad:.014; }
 
   #stage{
     width:var(--W); height:var(--H); position:relative; overflow:hidden;
@@ -60,24 +67,23 @@
     margin-top:var(--sub-mt); font-size:var(--sub-fs); line-height:1.4;
     font-weight:400; color:#aeb4c0; max-width:18em; margin-left:auto; margin-right:auto;
   }
-  .badges{ margin-top:1.1em; display:flex; gap:.6em; justify-content:center; flex-wrap:wrap; }
-  .badges span{ font-size:calc(var(--pill-fs) * .94); font-weight:600; color:#c3c9d4;
-    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
-    padding:.42em 1em; border-radius:999px; }
-
   .device{
     margin-top:var(--gap); width:var(--dev-w); flex:0 0 auto; z-index:2;
-    background:#050507; border-radius:calc(var(--dev-w) * .135);
-    padding:calc(var(--dev-w) * .018);
+    background:#050507; border-radius:calc(var(--dev-w) * var(--dev-r));
+    padding:calc(var(--dev-w) * var(--dev-pad));
     border:1px solid rgba(255,255,255,0.10);
     box-shadow:0 2px 0 rgba(255,255,255,0.06) inset, 0 50px 130px rgba(0,0,0,0.65);
   }
   .screen{
-    width:100%; aspect-ratio:740 / 1542; overflow:hidden;
-    border-radius:calc(var(--dev-w) * .118);
+    width:100%; aspect-ratio:var(--screen-ar); overflow:hidden;
+    border-radius:calc(var(--dev-w) * var(--screen-r));
     background:#111;
   }
-  .screen img{ width:100%; height:100%; object-fit:cover; object-position:top center; display:block; }
+  /* Never `fill`: the capture is only ever cropped, never stretched. The tablet
+     frame is wider than a capture, so --focus picks which end of the taller
+     phone capture survives that crop. */
+  .screen img{ width:100%; height:100%; object-fit:cover;
+    object-position:var(--focus, top center); display:block; }
 </style>
 </head>
 <body>
@@ -86,7 +92,6 @@
     <div class="pill"><span class="dot"></span><span id="pill"></span></div>
     <h1 id="headline"></h1>
     <p class="sub" id="sub"></p>
-    <div class="badges" id="badges" style="display:none"></div>
   </div>
   <div class="device"><div class="screen"><img id="shot" alt=""></div></div>
 </div>
@@ -100,18 +105,21 @@
         sub:'Connect to as many Daccord servers as you like and switch between them in a tap.' },
     3:{ img:'inner/t-04.png', pill:'Members &amp; Roles',
         h:'Roles, <span class="blue">members</span><br>&amp; rich <span class="green">profiles</span>',
-        sub:'See who&rsquo;s online, browse colour-coded roles, and open a full profile with a tap.' },
+        sub:'See who&rsquo;s online, browse colour-coded roles, and open a full profile with a tap.',
+        focus:'center bottom' },
     4:{ img:'inner/t-05.png', pill:'Server Admin Tools',
         h:'Full <span class="blue">control</span> of<br>your <span class="green">server</span>',
         sub:'Manage roles, permissions, channels, bans and invites &mdash; all without leaving the app.' },
-    5:{ img:'inner/t-02.png', pill:'Powered by LiveKit / WebRTC',
+    5:{ img:'inner/t-02.png', pill:'Low-Latency Calls',
         h:'Crystal-clear <span class="green">voice,</span><br>video &amp; <span class="purple">screen share</span>',
-        sub:'Hop into a call in one tap. Camera, screen sharing and low-latency audio, built right in.' },
+        sub:'Hop into a call in one tap. Camera, screen sharing and low-latency audio, built right in.',
+        focus:'center bottom' },
     6:{ img:'inner/t-06.png', pill:'GPLv3 &middot; Self-Hosted',
         h:'Open source.<br>No ads. <span class="blue">No tracking.</span>',
-        sub:'Your server, your data, your rules. Run your own &mdash; nothing passes through us.',
-        badges:['iOS','Android','Desktop','Web'] },
+        sub:'Your server, your data, your rules. Run your own &mdash; nothing passes through us.' },
   };
+  // App Review guideline 2.3.10: nothing here may name or picture another
+  // platform, and no capture may show a status bar. See docs/app-store-deploy.md.
   const p = new URLSearchParams(location.search);
   const device = p.get('device') === 'ipad' ? 'ipad' : 'iphone';
   const scene = SCENES[p.get('scene') || '1'];
@@ -120,9 +128,10 @@
   document.getElementById('headline').innerHTML = scene.h;
   document.getElementById('sub').innerHTML = scene.sub;
   document.getElementById('shot').src = scene.img;
-  if (scene.badges){
-    const b = document.getElementById('badges'); b.style.display='flex';
-    b.innerHTML = scene.badges.map(x=>`<span>${x}</span>`).join('');
+  // Only the tablet frame crops a capture vertically, so the focal point is an
+  // iPad-only override; the phone frame already matches the capture aspect.
+  if (device === 'ipad' && scene.focus) {
+    document.documentElement.style.setProperty('--focus', scene.focus);
   }
 </script>
 </body>

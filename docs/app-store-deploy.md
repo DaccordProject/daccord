@@ -164,7 +164,9 @@ for review with automatic release on approval, and ships the Android build to
 `production`. What remains there is **per-app, set once**, and every later
 release reuses it:
 
-- **iOS:** screenshots, the App Privacy questionnaire, and the age rating, in
+- **iOS:** screenshots (generated from `store-media/ios-generator/` — see
+  [guideline 2.3.10](#guideline-2310-what-the-ios-screenshots-may-show) before
+  regenerating them), the App Privacy questionnaire, and the age rating, in
   App Store Connect. A brand-new app also needs its first release created by
   hand before API submissions work.
 - **Google Play:** the store listing, content rating and Data safety
@@ -273,6 +275,47 @@ chosen at all.
 Apple also asks for a screen recording of all three precautions, attached under
 **App Review Information → Notes** in App Store Connect, and it is reused by
 later submissions.
+
+## Guideline 2.3.10: what the iOS screenshots may show
+
+iOS 0.2.16 (build 160, reviewed 2026-08-30 on an iPad Air 11-inch) was rejected
+under *2.3.10 Performance: Accurate Metadata* for two things in the App Store
+screenshots — both generated from `store-media/ios-generator/`:
+
+- **A platform badge row.** Scene 6 of `template.html` rendered `iOS` /
+  `Android` / `Desktop` / `Web` pills. Apple reads any non-iOS platform as
+  "information about third-party platforms".
+- **A painted status bar.** Every capture in `store-media/ios-generator/inner/`
+  had a 9:41 + signal/Wi-Fi/battery bar drawn into it that is not iOS's.
+
+Three rules for anything that regenerates these:
+
+1. **No other platform, anywhere in the copy.** Not a badge, not a pill, not a
+   subhead — no "Android", "Windows", "Linux", "desktop", "web", "all your
+   devices", and no third-party product names either. Describe the iOS app only.
+2. **No status bar at all.** The inner captures are cropped so the app content
+   starts at its own app bar (740x1462, and 740x1422 for `t-06`); `--screen-ar`
+   in `template.html` matches that, so the frame never stretches them. If a
+   capture is ever replaced, crop the status bar off rather than redrawing an
+   iOS-looking one, and re-point `--screen-ar` at the new size.
+3. **iPad gets its own frame aspect.** `body[data-device="ipad"]` uses an iPad
+   portrait `--screen-ar` (1640/2360), not the phone's, so the 2048x2732 renders
+   do not read as an iPhone mockup on an iPad product page. Scenes may set
+   `focus` to choose which end of the taller phone capture that wider frame
+   keeps.
+
+Regenerate with `CHROME=<chromium> store-media/ios-generator/render.sh`, then
+copy `store-media/ios-generator/out/` over `store-media/ios-iphone-6.5/` and
+`store-media/ios-ipad-13/` — `out/` itself is scratch and is not committed. The
+sizes are fixed at iPhone 6.5" 1284x2778 and iPad 13" 2048x2732.
+
+Still outstanding: the inner captures are illustrative compositions of the app's
+**phone** layout. `AccordHomeScreen` switches to the three-pane layout at 720
+logical px (`_wideLayoutBreakpoint`), so a real iPad runs the wide layout and
+these do not show it. Replacing them needs genuine captures from an iPad or the
+iOS Simulator; until then the iPad set is honest about proportions but not about
+the layout. Screenshots are metadata, so a new upload in App Store Connect
+(Previews and Screenshots → View All Sizes in Media Manager) needs no new build.
 
 ## Guideline 2.5.1: no libmpv in the iOS build
 
