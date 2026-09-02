@@ -319,19 +319,42 @@ copy `store-media/ios-generator/out/` over `store-media/ios-iphone-6.5/` and
 sizes are fixed at iPhone 6.5" 1284x2778 and iPad 13" 2048x2732.
 
 Still outstanding: the inner captures are illustrative compositions of the app's
-**phone** layout. `AccordHomeScreen` switches to the three-pane layout at 720
-logical px (`_wideLayoutBreakpoint`), so a real iPad runs the wide layout and
-these do not show it. Replacing them needs genuine captures from an iPad or the
-iOS Simulator; until then the iPad set is honest about proportions but not about
-the layout. It shows: `ipad-02` ends with ~14% of the tablet screen empty
-below the `AFK` row, because a phone-width channel list is all that capture
-has to fill a tablet-width frame with. Real three-pane captures put a chat
-column and a member list in that space, so they fix it structurally — do not
-fill it with decoration in the meantime. The per-device `--screen-ar`,
-`--dev-w` and radius variables exist so a new capture set can be dropped in by
-editing them alone. Screenshots are metadata, so a new upload in App Store
-Connect (Previews and Screenshots → View All Sizes in Media Manager) needs no
-new build.
+**phone** layout, and `resolveHomeLayout` puts a real iPad in the wide layout
+(rail + channel list + message column + member roster), which they do not show.
+It shows: `ipad-02` ends with ~14% of the tablet screen empty below the `AFK`
+row, because a phone-width channel list is all that capture has to fill a
+tablet-width frame with. Real wide-layout captures put a message column and a
+member roster in that space, so they fix it structurally — do not fill it with
+decoration in the meantime. The per-device `--screen-ar`, `--dev-w` and radius
+variables exist so a new capture set can be dropped in by editing them alone.
+
+**The blocker is content, not the layout.** The app was built for web off
+`fix/292-ipad-layout` and driven headless at 1180x820 against
+`chat.daccord.gg`: the wide layout renders correctly and would make a good
+tablet screenshot. What is on the public instance cannot be shipped. `#general`
+— the channel a store shot would use — currently reads *"just trying to get
+daccord on the ios store"*, *"verity die"*, and a leftover *"Hello from the
+Daccord Flutter client — App Review walkthrough."*; the roster header says
+`OFFLINE — 100` over names like `123`, `34343434`, `aa` and
+`aidsonaburgerbun`; and the default landing channel `#rules` renders the
+server's own rule 10, *"Discord's-not-the-point rules still apply"* — the exact
+third-party platform reference 2.3.10 rejected us for, in 40px type. Capturing
+that would trade one accurate-metadata problem for a worse one.
+
+Real captures therefore need a **purpose-seeded space**, not the public
+instance: 5-7 spaces so the rail reads as multi-server; categorised channels
+with one unread badge and one populated voice channel; 6-8 written `#general`
+messages from named accounts with avatars, covering a reply, an image, reactions
+and a mention; ~15 named members mostly **online**, grouped Owner / Moderators /
+Members, with one profile card open; ownership of the space so Roles and
+permissions are reachable; and, for the voice scene, 2-3 clients genuinely
+connected with one sharing a screen — that last one cannot be produced from a
+single headless browser. Note also that a fresh account is auto-joined to the
+public space, so it has to be left before capture, and that the landing channel
+must not be one whose content names another platform.
+
+Screenshots are metadata, so a new upload in App Store Connect (Previews and
+Screenshots → View All Sizes in Media Manager) needs no new build.
 
 ## Guideline 2.5.1: no libmpv in the iOS build
 
