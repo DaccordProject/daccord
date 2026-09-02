@@ -60,3 +60,6 @@ app.*.map.json
 # "What's New" text is derived from the commit range, not committed.
 /fastlane/metadata/
 /fastlane/report.xml
+
+# Scratch output from store-media/ios-generator/render.sh.
+store-media/ios-generator/out/
