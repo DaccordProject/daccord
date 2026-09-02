@@ -276,6 +276,90 @@ Apple also asks for a screen recording of all three precautions, attached under
 **App Review Information → Notes** in App Store Connect, and it is reused by
 later submissions.
 
+### Recording the 1.2 precautions
+
+Apple asks for the recording to be **captured on a physical device** (#293), so it
+cannot be produced from a simulator, a desktop build, or the web build. Use iOS
+Screen Recording from Control Centre, or QuickTime's *Movie Recording* with the
+device tethered and selected as the source. OBS works too but adds nothing here.
+
+**Build.** The recording must come from a build containing both 1.2 fixes — they
+landed in `749c4b5a` and `5a47d319`, so anything at or after `5a47d319` is fine;
+0.2.16 (160) has neither. Build the way the store lane does, so the recording
+shows the surfaces a reviewer gets:
+
+```bash
+flutter run --release -d <device-id> --dart-define=APP_STORE=true
+```
+
+Without `APP_STORE=true` the Settings → Updates entry and Developer Mode toggle
+are present, and a reviewer seeing those in a recording invites the 2.2 finding
+back (see below).
+
+**Reset first.** Terms acceptance is stored device-globally and keyed by
+`appTermsVersion` (`lib/features/authentication/utils/terms_acceptance.dart`), so
+an install that has already accepted will skip the gate. **Delete the app and
+reinstall** before recording, or the first and most important beat is missing.
+
+**Do not record against a public instance whose content you do not control.** A
+channel's message history and member roster appear on camera, and a landing
+channel naming another platform puts a 2.3.10 problem inside a 1.2 recording.
+Use a space you control, seeded the way `tool/store_capture/seeded_space.dart`
+seeds its fixture.
+
+#### Shot list
+
+Record in this order and note the timestamps — the App Review reply should point
+at each one.
+
+**1 — Terms before registering or signing in.** Launch the freshly installed
+app. Before any server is chosen, the gate shows the app icon, the heading
+**"Terms of Use & Community Guidelines"**, the scrollable terms body, an
+**"Agree and continue"** button, and beneath it *"You must accept these terms to
+create an account or sign in."* Scroll the body far enough to show the
+zero-tolerance and abusive-user clauses. Tap **Agree and continue**.
+
+This single beat covers both halves of Apple's requirement: the gate replaces
+the whole signed-out flow, so it precedes Sign In and Register alike rather than
+sitting on the Register tab. Show that the welcome screen appears only after
+accepting.
+
+Then show the terms remain reachable: on the auth screen, tap the terms link in
+the *"By continuing you agree to …"* line. Later, Settings → About has the same
+entry.
+
+**2 — Flagging content in a space channel.** Open a space channel and long-press
+another user's message. The menu includes **Report**. Tap it: the dialog is
+titled **"Report message"** and reads *"Reports go to this space's moderators."*
+Choose a reason from the **"Choose a reason"** picker and tap **Submit report**.
+
+**3 — Flagging content in a direct message.** This is the context Apple named
+separately and the one that previously had nothing, so record it explicitly.
+Open a DM and long-press a message from the other person — **Report** is present
+here too. The dialog now reads *"Reports outside a space go to the server
+operator. Blocking takes effect immediately."*
+
+Also show reporting the person rather than the message, from any of: the DM
+header's **⋮ "Conversation options"** button → **Report user**; tapping the
+other person's avatar in the DM, which opens their profile carrying **Report
+user** and **Block**; or, in a space, tapping an avatar to open the member
+popout, which carries **Report user** beside **Block user**.
+
+**4 — Blocking an abusive user.** In a space, tap a member's avatar and use
+**Block user** in the popout. In a DM, use **Block** on the profile or the
+header menu. Also worth showing: the report dialog's **"Also block …"**
+checkbox, whose subtitle promises *"They can no longer message you, and their
+messages are hidden from your view."* — a promise the client keeps via
+`MessageVisibility`, so demonstrate a blocked account's messages disappearing
+from the pane.
+
+#### After recording
+
+- Attach it under **App Review Information → Notes** so later submissions carry
+  it, alongside the guideline 2.2 reviewer walkthrough below.
+- Reply to the 1.2 message on the App Review page with a timestamp per
+  precaution.
+
 ## Guideline 2.3.10: what the iOS screenshots may show
 
 iOS 0.2.16 (build 160, reviewed 2026-08-30 on an iPad Air 11-inch) was rejected
