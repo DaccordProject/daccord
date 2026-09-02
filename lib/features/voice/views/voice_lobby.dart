@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// either push the chat off-screen or be pushed off itself.
 class VoiceLobbyBody extends ConsumerWidget {
   const VoiceLobbyBody({
+    super.key,
     required this.channelId,
     required this.spaceId,
     this.channelName,
