@@ -22,7 +22,9 @@
   }
   /* canvas size + per-device tuning.
      --screen-ar is the framed screen's aspect: the phone frame matches the
-     inner captures in ./inner (740x1462 after the status bar was cropped off),
+     inner captures in ./inner (740x1462 after the status bar was cropped off;
+     t-06 is 740x1350 and is the one capture the phone frame crops, by 28px a
+     side, which is why nothing in it sits near the left or right edge),
      the tablet frame uses an iPad portrait aspect so the iPad renders are not
      an iPhone-shaped mockup. --dev-r/--screen-r/--dev-pad are fractions of
      --dev-w, so each frame keeps its own corner radii and bezel weight. */

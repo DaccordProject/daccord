@@ -288,13 +288,13 @@ screenshots — both generated from `store-media/ios-generator/`:
 - **A painted status bar.** Every capture in `store-media/ios-generator/inner/`
   had a 9:41 + signal/Wi-Fi/battery bar drawn into it that is not iOS's.
 
-Three rules for anything that regenerates these:
+Four rules for anything that regenerates these:
 
 1. **No other platform, anywhere in the copy.** Not a badge, not a pill, not a
    subhead — no "Android", "Windows", "Linux", "desktop", "web", "all your
    devices", and no third-party product names either. Describe the iOS app only.
 2. **No status bar at all.** The inner captures are cropped so the app content
-   starts at its own app bar (740x1462, and 740x1422 for `t-06`); `--screen-ar`
+   starts at its own app bar (740x1462, and 740x1350 for `t-06`); `--screen-ar`
    in `template.html` matches that, so the frame never stretches them. If a
    capture is ever replaced, crop the status bar off rather than redrawing an
    iOS-looking one, and re-point `--screen-ar` at the new size.
@@ -303,6 +303,15 @@ Three rules for anything that regenerates these:
    do not read as an iPhone mockup on an iPad product page. Scenes may set
    `focus` to choose which end of the taller phone capture that wider frame
    keeps.
+4. **Nothing may be half-visible.** No frame edge may saw through text or an
+   icon — that reads as unfinished, which is what [guideline
+   2.2](https://github.com/DaccordProject/daccord/issues/292) rejects for. Every
+   crop edge has to land in flat pixels. `t-06` is cropped to 1350 rather than
+   its full height for exactly this reason: its "Private / Encrypted / Open"
+   row was truncated in the source asset, so the row could never be shown
+   whole and is excluded instead. After a regeneration, check both the top and
+   the bottom edge of all twelve, including the two iPad scenes anchored
+   `center bottom`.
 
 Regenerate with `CHROME=<chromium> store-media/ios-generator/render.sh`, then
 copy `store-media/ios-generator/out/` over `store-media/ios-iphone-6.5/` and
@@ -314,8 +323,15 @@ Still outstanding: the inner captures are illustrative compositions of the app's
 logical px (`_wideLayoutBreakpoint`), so a real iPad runs the wide layout and
 these do not show it. Replacing them needs genuine captures from an iPad or the
 iOS Simulator; until then the iPad set is honest about proportions but not about
-the layout. Screenshots are metadata, so a new upload in App Store Connect
-(Previews and Screenshots → View All Sizes in Media Manager) needs no new build.
+the layout. It shows: `ipad-02` ends with ~14% of the tablet screen empty
+below the `AFK` row, because a phone-width channel list is all that capture
+has to fill a tablet-width frame with. Real three-pane captures put a chat
+column and a member list in that space, so they fix it structurally — do not
+fill it with decoration in the meantime. The per-device `--screen-ar`,
+`--dev-w` and radius variables exist so a new capture set can be dropped in by
+editing them alone. Screenshots are metadata, so a new upload in App Store
+Connect (Previews and Screenshots → View All Sizes in Media Manager) needs no
+new build.
 
 ## Guideline 2.5.1: no libmpv in the iOS build
 
