@@ -1,5 +1,6 @@
 import 'package:accordkit/accordkit.dart';
 import 'package:bonfire/features/user/controllers/accord_users.dart';
+import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/client_access.dart';
 import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:flutter/foundation.dart';
@@ -20,14 +21,10 @@ final Set<ServerSpaceKey> activeMemberSpaces = <ServerSpaceKey>{};
 /// of spinning forever when `members.list` never yields a list. Cleared on a
 /// successful load, and by the roster's Retry button before it re-triggers
 /// `_load`; set true only after the retries are exhausted.
-@Riverpod(keepAlive: true)
-class MembersLoadFailed extends _$MembersLoadFailed {
-  @override
-  bool build(String serverKey, String spaceId) => false;
-
-  // ignore: use_setters_to_change_properties
-  void set(bool value) => state = value;
-}
+///
+/// The [LoadFailed] flag for this cache — see there for the shared pattern.
+LoadFailedProvider membersLoadFailedProvider(String serverKey, String spaceId) =>
+    loadFailedProvider('members', serverKey, spaceId);
 
 /// A space's members, keyed by space ID and indexed by user ID for O(1) author
 /// resolution. Self-loads via `members.list` the first time it's watched (once
@@ -50,10 +47,11 @@ class AccordMembersController extends _$AccordMembersController {
 
   Future<void> _load(AccordClient client, String spaceId) async {
     // Retry a few times so a transient network blip or a still-warming server
-    // doesn't strand the roster on a permanent spinner. The `timeout` guards a
-    // hung socket, since the underlying HTTP client has no timeout of its own —
-    // without it a stalled request would leave `state` null (a forever spinner)
-    // that never recovers, even across navigation or an app restart.
+    // doesn't strand the roster on a permanent spinner. AccordRest bounds every
+    // attempt with `AccordConfig.defaultRequestTimeout`; this shorter `timeout`
+    // is kept on top of it so the roster gives up on a hung socket sooner than
+    // the transport would, and so the failure is reported here rather than
+    // leaving `state` null (a forever spinner) for the full transport deadline.
     //
     // Every write to `membersLoadFailedProvider` happens after the first
     // `await` below: `build` calls `_load` synchronously, and Riverpod forbids

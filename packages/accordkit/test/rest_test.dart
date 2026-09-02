@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -192,6 +193,50 @@ void main() {
       expect(calls, 1);
     });
 
+    test('a stalled response times out as a normal failure, not a throw',
+        () async {
+      final rest = mockRest(
+        log: [],
+        timeout: const Duration(milliseconds: 20),
+        // Never completes — a black-holed server (#306).
+        responder: (_) => Completer<http.Response>().future,
+      );
+      final result = await rest.makeRequest('GET', '/x');
+      expect(result.ok, isFalse);
+      expect(result.statusCode, 0);
+      expect(result.error!.code, 'INTERNAL');
+      expect(result.error!.message, contains('timed out'));
+    });
+
+    test('the timeout is per attempt, so a 429 retry still gets a full one',
+        () async {
+      var calls = 0;
+      final rest = mockRest(
+        log: [],
+        timeout: const Duration(milliseconds: 200),
+        responder: (_) async {
+          calls++;
+          if (calls == 1) {
+            // Burns most of one attempt's budget, then rate-limits. A budget
+            // shared across retries would leave the second attempt no time.
+            await Future<void>.delayed(const Duration(milliseconds: 120));
+            return http.Response('', 429, headers: {'retry-after': '0'});
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          return jsonData({'ok': true});
+        },
+      );
+      final result = await rest.makeRequest('GET', '/x');
+      expect(calls, 2);
+      expect(result.ok, isTrue);
+    });
+
+    test('defaults to AccordConfig.defaultRequestTimeout', () {
+      final rest = mockRest(log: [], responder: (_) => jsonData(null));
+      expect(rest.timeout, AccordConfig.defaultRequestTimeout);
+      expect(AccordConfig.defaultRequestTimeout, greaterThan(Duration.zero));
+    });
+
     test('does not fire onUnauthorized on non-401 failures', () async {
       var calls = 0;
       final rest = mockRest(
@@ -284,6 +329,47 @@ void main() {
           await rest.makeMultipartRequest('POST', '/upload', form);
       expect(result.ok, isFalse);
       expect(calls, 1);
+    });
+
+    test('is bounded by uploadTimeout rather than the shorter request timeout',
+        () async {
+      // A large or slow-link attachment upload can easily outrun the ordinary
+      // request timeout without being stuck; uploadTimeout gives it a
+      // separate, longer budget (#306 follow-up).
+      final rest = mockRest(
+        log: [],
+        timeout: const Duration(milliseconds: 20),
+        uploadTimeout: const Duration(milliseconds: 200),
+        responder: (_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 60));
+          return jsonData({'id': '1'});
+        },
+      );
+      final form = MultipartForm(boundary: 'BOUND')..addField('a', 'b');
+      final result = await rest.makeMultipartRequest('POST', '/upload', form);
+      expect(result.ok, isTrue);
+    });
+
+    test('still times out as a normal failure once uploadTimeout elapses',
+        () async {
+      final rest = mockRest(
+        log: [],
+        uploadTimeout: const Duration(milliseconds: 20),
+        responder: (_) => Completer<http.Response>().future,
+      );
+      final form = MultipartForm(boundary: 'BOUND')..addField('a', 'b');
+      final result = await rest.makeMultipartRequest('POST', '/upload', form);
+      expect(result.ok, isFalse);
+      expect(result.error!.message, contains('timed out'));
+    });
+
+    test('defaults to AccordConfig.defaultUploadTimeout', () {
+      final rest = mockRest(log: [], responder: (_) => jsonData(null));
+      expect(rest.uploadTimeout, AccordConfig.defaultUploadTimeout);
+      expect(
+        AccordConfig.defaultUploadTimeout,
+        greaterThan(AccordConfig.defaultRequestTimeout),
+      );
     });
   });
 

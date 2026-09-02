@@ -991,8 +991,33 @@ void seedPresencesFromReady(
       .seed(presences, homeDomain: homeDomain);
 }
 
+/// Re-runs the space fetch for a connection on demand — the Retry a pane offers
+/// when [spacesLoadFailedProvider] is set. Clears the flag first so the pane
+/// drops back to its loading state while the retry is in flight.
+///
+/// Exposed as a provider rather than a plain function because [_loadSpaces]
+/// needs a provider `Ref`, and the panes that offer the retry only hold a
+/// `WidgetRef`.
+final retryLoadSpacesProvider =
+    Provider<Future<void> Function(AccordClient, String)>((ref) {
+  return (client, serverKey) {
+    ref.read(spacesLoadFailedProvider(serverKey).notifier).set(false);
+    return _loadSpaces(
+      ref,
+      client,
+      serverKey: serverKey,
+      isActive: () =>
+          ref.read(connectionsControllerProvider).activeKey == serverKey,
+    );
+  };
+});
+
 /// Fetches the connection's spaces over REST and seeds its rail cache. The
 /// active connection also seeds the shared rail + per-space controllers.
+///
+/// A failure sets [spacesLoadFailedProvider] for this connection: without it
+/// the space list stays `null`, which every pane downstream reads as "still
+/// loading" and renders as a spinner that never resolves.
 Future<void> _loadSpaces(
   Ref ref,
   AccordClient client, {
@@ -1000,12 +1025,12 @@ Future<void> _loadSpaces(
   required bool Function() isActive,
 }) async {
   final result = await client.users.listSpaces();
-  if (!result.ok) {
+  final data = result.data;
+  if (!result.ok || data is! List) {
     debugPrint('Failed to load spaces: ${result.error}');
+    ref.read(spacesLoadFailedProvider(serverKey).notifier).set(true);
     return;
   }
-  final data = result.data;
-  if (data is! List) return;
 
   final spaces = data.whereType<AccordSpace>().toList();
   // `GET /users/@me/spaces` returns summary spaces without their role list, so
@@ -1022,6 +1047,7 @@ Future<void> _loadSpaces(
   // Persist the freshly-loaded list so the rail can show this server's spaces
   // (dimmed) on the next launch even if the server is then unreachable.
   unawaited(SpaceCache.save(serverKey, spaces));
+  ref.read(spacesLoadFailedProvider(serverKey).notifier).set(false);
   if (!isActive()) return;
   ref.read(spacesControllerProvider.notifier).setSpaces(spaces);
 }

@@ -1,8 +1,15 @@
 import 'package:accordkit/accordkit.dart';
+import 'package:bonfire/shared/controllers/load_failed.dart';
 import 'package:bonfire/shared/utils/list_ext.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'spaces.g.dart';
+
+/// Whether a connection's space-list fetch failed. Connection-wide rather than
+/// per-space, so it takes no id. The [LoadFailed] flag for this cache — see
+/// there for the shared pattern.
+LoadFailedProvider spacesLoadFailedProvider(String serverKey) =>
+    loadFailedProvider('spaces', serverKey, '');
 
 /// Holds the current user's space list — the left rail. Populated on gateway
 /// ready (via `users.listSpaces()`) and kept in sync by space

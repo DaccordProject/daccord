@@ -85,6 +85,12 @@ if (result.ok) {
 }
 ```
 
+Endpoint paths are always bare (`/channels/…`); the `/api/v1` prefix belongs to
+the `AccordRest` base URL, which `AccordClient` builds via `config.apiUrl()`.
+`DirectoryApi` follows the same rule even though it targets the master server
+rather than an instance — point it elsewhere by building an `AccordRest` for
+`<master>` + `AccordConfig.apiBasePath`.
+
 `RestResult.data` is the deserialized model (or list of models) on success, and
 `RestResult.error` is an `AccordError` on failure. Cursor-paginated endpoints
 expose `RestResult.hasMore` and `RestResult.cursor`; wrap them with
@@ -99,6 +105,36 @@ var page = AccordPaginator.fromResult(
 while (page.hasMore) {
   page = await page.next();
 }
+```
+
+### Timeouts
+
+Every REST attempt is bounded by `AccordConfig.defaultRequestTimeout` (30s), so
+a server that accepts a connection and then never answers surfaces as an
+ordinary `RestResult` failure rather than a future that never completes.
+Override it per client:
+
+```dart
+final client = AccordClient(
+  baseUrl: 'https://your.accord.server',
+  requestTimeout: const Duration(seconds: 10),
+);
+```
+
+The deadline applies **per attempt**, not across the built-in 429 retry loop, so
+a server-dictated `Retry-After` pause never counts against the next attempt's
+budget.
+
+Multipart file uploads use a separate, longer budget —
+`AccordConfig.defaultUploadTimeout` (5 minutes) — since an upload's duration
+scales with attachment size and connection speed rather than server response
+latency. Override it independently with `uploadTimeout`:
+
+```dart
+final client = AccordClient(
+  baseUrl: 'https://your.accord.server',
+  uploadTimeout: const Duration(minutes: 10),
+);
 ```
 
 ### File uploads

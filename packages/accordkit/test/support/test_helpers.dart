@@ -39,6 +39,8 @@ AccordRest mockRest({
   String tokenType = 'Bot',
   String baseUrl = 'https://example.test/api/v1',
   void Function()? onUnauthorized,
+  Duration? timeout,
+  Duration? uploadTimeout,
 }) {
   final client = MockClient((request) async {
     final captured = CapturedRequest(
@@ -56,6 +58,8 @@ AccordRest mockRest({
     token: token,
     tokenType: tokenType,
     onUnauthorized: onUnauthorized,
+    timeout: timeout,
+    uploadTimeout: uploadTimeout,
     client: client,
     sleep: (_) async {},
   );

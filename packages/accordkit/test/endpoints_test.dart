@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:accordkit/accordkit.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:test/test.dart';
 
 import 'support/test_helpers.dart';
@@ -304,16 +305,45 @@ void main() {
   group('DirectoryApi', () {
     test('browse builds master-server path with params', () async {
       // DirectoryApi targets the master server, so its rest base URL is the
-      // master root (without the /api/v1 instance prefix).
+      // master root — carrying the same /api/v1 prefix every other endpoint
+      // group's base URL does, because the paths themselves are bare.
       rest = mockRest(
           log: log,
-          baseUrl: 'https://master.test',
+          baseUrl: 'https://master.test/api/v1',
           responder: (_) => jsonData({'spaces': []}));
       await DirectoryApi(rest).browse(query: 'fun', tag: 'games', page: 2);
       expect(req.url.path, '/api/v1/directory');
       expect(req.url.queryParameters['q'], 'fun');
       expect(req.url.queryParameters['tag'], 'games');
       expect(req.url.queryParameters['page'], '2');
+    });
+
+    test('getSpace uses a bare path', () async {
+      rest = mockRest(
+          log: log,
+          baseUrl: 'https://master.test/api/v1',
+          responder: (_) => jsonData({'id': '7'}));
+      await DirectoryApi(rest).getSpace('7');
+      expect(req.url.path, '/api/v1/directory/7');
+    });
+
+    test('client.directory does not double-prefix the API base path',
+        () async {
+      // Regression: DirectoryApi used to prepend AccordConfig.apiBasePath on
+      // top of AccordClient's already-versioned rest base URL, so every
+      // client.directory call hit /api/v1/api/v1/directory (#306).
+      final requests = <Uri>[];
+      final client = AccordClient(
+        baseUrl: 'https://instance.test',
+        gatewayUrl: 'wss://instance.test/ws',
+        httpClient: MockClient((request) async {
+          requests.add(request.url);
+          return jsonData({'spaces': []});
+        }),
+      );
+      addTearDown(client.dispose);
+      await client.directory.browse();
+      expect(requests.single.path, '/api/v1/directory');
     });
   });
 

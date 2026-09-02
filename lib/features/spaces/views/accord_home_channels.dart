@@ -20,6 +20,63 @@ class _ChannelList extends ConsumerStatefulWidget {
 }
 
 class _ChannelListState extends ConsumerState<_ChannelList> {
+  /// What to render in place of the channel list while there is none.
+  ///
+  /// A null channel list means one of three different things and they must not
+  /// all read as a spinner: the space list failed, this space's channel list
+  /// failed, the gateway is down, or we're genuinely still loading. The first
+  /// three get an explanation and a Retry (see `LoadFailed`); only the last one
+  /// spins.
+  Widget _emptyState(BuildContext context, {required String? spaceId}) {
+    final serverKey = ref.watchActiveServerKey() ?? '';
+
+    if (spaceId != null &&
+        ref.watch(channelsLoadFailedProvider(serverKey, spaceId))) {
+      return ServerUnreachable(
+        title: "Couldn't load channels",
+        message: 'Something went wrong fetching this space’s channels.',
+        onRetry: () {
+          ref
+              .read(channelsLoadFailedProvider(serverKey, spaceId).notifier)
+              .set(false);
+          ref.invalidate(
+            accordChannelsControllerProvider(serverKey, spaceId),
+          );
+        },
+      );
+    }
+
+    if (ref.watch(spacesLoadFailedProvider(serverKey))) {
+      return ServerUnreachable(
+        title: "Couldn't load your spaces",
+        message: 'Something went wrong fetching this server’s space list.',
+        onRetry: () {
+          final auth = ref.read(accordAuthProvider);
+          if (auth is! AccordAuthLoggedIn) return;
+          unawaited(
+            ref.read(retryLoadSpacesProvider)(auth.client, serverKey),
+          );
+        },
+      );
+    }
+
+    final status = ref.watch(
+      connectionsControllerProvider.select(
+        (connections) =>
+            connections.active?.status ?? ConnectionStatus.disconnected,
+      ),
+    );
+    if (status.isUnreachable) {
+      return ServerUnreachable(
+        onRetry: () {
+          final auth = ref.read(accordAuthProvider);
+          if (auth is AccordAuthLoggedIn) auth.client.ensureConnected();
+        },
+      );
+    }
+    return const LoadingView();
+  }
+
   void _toggleCollapsed(String categoryId) {
     final spaceId = widget.spaceId;
     if (spaceId == null) return;
@@ -173,24 +230,7 @@ class _ChannelListState extends ConsumerState<_ChannelList> {
           ),
           Expanded(
             child: channels == null
-                ? (ref
-                          .watch(
-                            connectionsControllerProvider.select(
-                              (connections) =>
-                                  connections.active?.status ??
-                                  ConnectionStatus.disconnected,
-                            ),
-                          )
-                          .isUnreachable
-                      ? ServerUnreachable(
-                          onRetry: () {
-                            final auth = ref.read(accordAuthProvider);
-                            if (auth is AccordAuthLoggedIn) {
-                              auth.client.ensureConnected();
-                            }
-                          },
-                        )
-                      : const LoadingView())
+                ? _emptyState(context, spaceId: id)
                 : (canManageChannels && id != null)
                 ? _ChannelDragList(
                     spaceId: id,

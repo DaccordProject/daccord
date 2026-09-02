@@ -9,6 +9,7 @@ import 'package:bonfire/features/messaging/controllers/accord_messages.dart';
 import 'package:bonfire/features/messaging/utils/message_visibility.dart';
 import 'package:bonfire/features/spaces/views/accord_reports.dart';
 import 'package:bonfire/shared/components/async_state_views.dart';
+import 'package:bonfire/shared/utils/rest_result_ext.dart';
 import 'package:bonfire/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,7 +86,7 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
       ),
     );
     if (client == null) return;
-    await ref
+    final error = await ref
         .read(
           accordMessagesControllerProvider(
             ref.readActiveServerKey() ?? '',
@@ -93,7 +94,10 @@ class _PinnedMessagesDialogState extends ConsumerState<_PinnedMessagesDialog> {
           ).notifier,
         )
         .unpin(client, message.id);
-    if (mounted) setState(() => _future = _load());
+    if (!mounted) return;
+    // The row reappears when the reload finds it still pinned; say why (#306).
+    if (error != null) showInfoSnack(context, error);
+    setState(() => _future = _load());
   }
 
   /// Reports a pinned message. The pinned list shows other people's content
